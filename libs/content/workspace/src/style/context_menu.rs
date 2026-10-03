@@ -199,6 +199,11 @@ pub fn is_open_id(ctx: &egui::Context, id: Id) -> bool {
     })
 }
 
+/// Closes the open menu, whoever hosts it.
+pub fn close(ctx: &egui::Context) {
+    ctx.memory_mut(|m| m.data.remove::<OpenState>(open_id()));
+}
+
 fn show_open<T: Clone>(
     resp: &Response, t: &Theme, open: bool, build: impl FnOnce(&mut Entries<T>),
 ) -> Option<T> {

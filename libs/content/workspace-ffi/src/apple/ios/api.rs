@@ -579,13 +579,15 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
 #[no_mangle]
 pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, showing: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => return,
+    let Some(tab) = obj.workspace.current_tab_mut() else {
+        return;
     };
-
-    markdown.virtual_keyboard_shown = showing;
-    markdown.keyboard_visible = showing;
+    if let Some(markdown) = tab.markdown_mut() {
+        markdown.virtual_keyboard_shown = showing;
+        markdown.keyboard_visible = showing;
+    } else if let Some(chat) = tab.chat_mut() {
+        chat.set_keyboard_shown(showing);
+    }
 }
 
 /// # Safety

@@ -257,19 +257,17 @@ pub fn show_folder_sheet(
     let area = egui::Area::new(Id::new(id_salt)).order(egui::Order::Foreground);
     match fill {
         Some(fill) => {
-            let (edge, pad) = (Space::Sm.pts(), Space::Md.pts());
-            let inner = fill.shrink(edge + pad);
+            let inner = fill.shrink(Space::Md.pts());
             let chrome = super::chrome::control_height() * 2.0
                 + TypeRole::Body.line_height()
                 + Space::Md.pts() * 2.0
                 + Space::Sm.pts();
             let tree_h = (inner.height() - chrome).max(super::tree_metrics::ROW_H * 3.0);
-            area.fixed_pos(fill.min + egui::vec2(edge, edge))
-                .show(ctx, |ui| {
-                    super::sheet::sheet_panel_fixed(ui, t, inner.width(), inner.height(), |ui| {
-                        body(ui, tree_h)
-                    });
+            area.fixed_pos(fill.min).show(ctx, |ui| {
+                super::sheet::sheet_panel_fixed(ui, t, inner.width(), inner.height(), |ui| {
+                    body(ui, tree_h)
                 });
+            });
         }
         None => {
             area.anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))

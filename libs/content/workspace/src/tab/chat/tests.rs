@@ -1339,4 +1339,56 @@ mod on_its_own {
         chat.reload(&merged, Some(hmac));
         assert!(!chat.take_changed(), "disk and tab agree");
     }
+
+    /// The composer offers a call only where the chat's model speaks.
+    #[test]
+    fn a_call_is_offered_only_to_a_model_that_speaks() {
+        crate::voice::offer();
+        let ctx = context();
+        let (lb, id) = account_with_chat();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let empty = Transcript::default().serialize();
+        let mut chat = Chat::new(&empty, id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        frame(&ctx, &mut chat, vec![]);
+        let call = egui::Id::new(("chat_call", false));
+        assert!(ctx.read_response(call).is_none(), "no call for a model that cannot speak");
+
+        chat.select("mock/gpt-realtime".into());
+        frames_until(
+            &ctx,
+            &mut chat,
+            |c| matches!(&c.provider, Some(Ok(p)) if p.model == "gpt-realtime"),
+        );
+        frame(&ctx, &mut chat, vec![]);
+        assert!(ctx.read_response(call).is_some(), "a call for a model that speaks");
+    }
+
+    /// A finger that puts the keyboard away takes the composer's menu with it.
+    #[test]
+    fn the_menu_goes_with_the_keyboard() {
+        let ctx = context();
+        ctx.set_os(egui::os::OperatingSystem::IOS);
+        let (lb, id) = account_with_chat();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let empty = Transcript::default().serialize();
+        let mut chat = Chat::new(&empty, id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        frame(&ctx, &mut chat, vec![]);
+        chat.set_keyboard_shown(true);
+        let chip = egui::Id::new(("chat_chip", "model"));
+        let at = ctx
+            .read_response(chip)
+            .expect("the model chip")
+            .rect
+            .center();
+        click(&ctx, &mut chat, at);
+        assert!(crate::style::context_menu::is_open_id(&ctx, chip));
+
+        chat.set_keyboard_shown(false);
+        frame(&ctx, &mut chat, vec![]);
+        assert!(!crate::style::context_menu::is_open_id(&ctx, chip));
+    }
 }

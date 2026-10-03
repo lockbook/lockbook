@@ -159,7 +159,7 @@ impl Chat {
         let wrap_w = (col_w - pad_x * 2.0).max(1.0);
         // Where the chips would leave too little room to type beside them,
         // one button stands for both and the text keeps the row.
-        let call_w = if voice::offered() { hit + gap } else { 0.0 };
+        let call_w = if self.calls() { hit + gap } else { 0.0 };
         let compact = wrap_w - gap - call_w - (folder_w + gap + model_w + gap + hit) < MIN_BESIDE;
         let (folder_w, model_w) = if compact { (0.0, hit) } else { (folder_w, model_w) };
         let trailing =
@@ -355,6 +355,23 @@ impl Chat {
         self.scope_open || self.models_open
     }
 
+    /// Where a phone's sheets go: a hair in from the view's sides and top,
+    /// down to where the composer ends.
+    pub(super) fn sheet_fill(&self) -> Rect {
+        let edge = Space::Sm.pts();
+        Rect::from_min_max(
+            self.view.min + vec2(edge, edge),
+            pos2(self.view.max.x - edge, self.view.max.y - Space::Lg.pts()),
+        )
+    }
+
+    /// The host can hold a call and the chat's provider speaks; a call under
+    /// way keeps its hang-up either way.
+    fn calls(&self) -> bool {
+        voice::offered()
+            && (self.voice || matches!(&self.provider, Some(Ok(p)) if p.speaks().is_some()))
+    }
+
     /// Whether a folder other than the chat's own was chosen.
     fn scope_chosen(&self) -> bool {
         !self.settings().include.is_empty()
@@ -409,6 +426,7 @@ impl Chat {
             )
         });
         let dest = self.scope_dest.or_else(|| Some(self.scope_id()));
+        let fill = is_touch(ui.ctx()).then(|| self.sheet_fill());
         let files = self.files.read().unwrap();
         let mut out = show_folder_sheet(
             ui.ctx(),
@@ -418,7 +436,7 @@ impl Chat {
             dest,
             &[],
             "chat_scope",
-            is_touch(ui.ctx()).then_some(self.view),
+            fill,
             "Folder",
             "Choose the folder this chat can read and edit.",
             "Done",
@@ -1241,7 +1259,7 @@ impl Chat {
         let controls_cy = if centered { band.center().y } else { band.max.y - hit / 2.0 };
         let send_rect =
             Rect::from_center_size(pos2(band.max.x - hit / 2.0, controls_cy), vec2(hit, hit));
-        let call_rect = voice::offered().then(|| {
+        let call_rect = self.calls().then(|| {
             Rect::from_center_size(
                 pos2(send_rect.left() - gap - hit / 2.0, controls_cy),
                 vec2(hit, hit),
