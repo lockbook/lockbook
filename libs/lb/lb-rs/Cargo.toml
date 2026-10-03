@@ -24,7 +24,7 @@ bytes = "1"
 chrono = "0.4"
 crossbeam = "0.8.1"
 db-rs-derive = "0.3.7"
-db-rs = "0.4.0"
+db-rs = "0.4.1"
 db-rs-old = { package = "db-rs", version = "=0.3.7" }
 flate2 = "1.0"
 futures = "0.3.30"
@@ -87,6 +87,9 @@ tracing-wasm = "0.2.1"
 tokio = { version = "1", features = ["full"] }
 tracing-perfetto-file = "=0.1.1"
 tracing-appender = "0.2"
+
+[target.'cfg(not(any(target_family = "wasm", target_os = "ios")))'.dependencies]
+notify = "8.2.0"
 
 
 [dev-dependencies]

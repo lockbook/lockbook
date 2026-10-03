@@ -74,6 +74,9 @@ impl Lb {
             user_wake,
         };
 
+        #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+        result.setup_ipc().await?;
+
         #[cfg(not(target_family = "wasm"))]
         {
             result.setup_syncer();
