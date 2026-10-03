@@ -6,8 +6,8 @@ use std::{env, fs};
 
 use cli_rs::cli_error::{CliError, CliResult};
 use cli_rs::flag::Flag;
-use hotwatch::{Event, EventKind, Hotwatch};
 use lb_rs::{Lb, Uuid};
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::runtime::Handle;
 
 use crate::input::find_file;
@@ -189,19 +189,27 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
         .success()
 }
 
-fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<Hotwatch> {
-    match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
+fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<RecommendedWatcher> {
+    let core = core.clone();
+    let watched_path = path.as_ref().to_path_buf();
+    let handle = Handle::current();
+    let watcher = notify::recommended_watcher(move |event: notify::Result<Event>| match event {
+        Ok(event) => {
+            if matches!(event.kind, EventKind::Modify(_)) {
+                // This callback runs on notify's thread; finish one save before starting another.
+                if let Err(error) =
+                    handle.block_on(save_temp_file_contents(core.clone(), id, &watched_path))
+                {
+                    eprintln!("autosave failed: {error:?}");
+                }
+            }
+        }
+        Err(error) => eprintln!("file watcher failed: {error:#?}"),
+    });
+    match watcher {
         Ok(mut watcher) => {
-            let core = core.clone();
-            let path = PathBuf::from(path.as_ref());
-            let handle = Handle::current();
-
             watcher
-                .watch(path.clone(), move |event: Event| {
-                    if let EventKind::Modify(_) = event.kind {
-                        handle.spawn(save_temp_file_contents(core.clone(), id, path.clone()));
-                    }
-                })
+                .watch(path.as_ref(), RecursiveMode::NonRecursive)
                 .unwrap_or_else(|err| println!("file watcher failed to watch: {err:#?}"));
 
             Some(watcher)
