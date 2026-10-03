@@ -30,7 +30,7 @@ use tracing::error;
 use crate::file_cache::{FileCache, FilesExt};
 use crate::resolvers::image_embed::ImageEmbedResolver;
 use crate::resolvers::link::{FileCacheLinkResolver, LinkResolver as _, ResolvedLink};
-use crate::style::{Icon, phosphor};
+use crate::style::{Icon, context_menu, phosphor};
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
 use crate::voice;
 use crate::widgets::image_cache::ImageCache;
@@ -124,6 +124,8 @@ pub struct Chat {
     composer_rect: Rect,
     /// The tab's whole rect this frame, above any keyboard.
     view: Rect,
+    /// The platform's keyboard is up, as the host last said.
+    keyboard_shown: bool,
     composer_seq: usize,
     composer_text_seq: usize,
     editing: Option<Uuid>,
@@ -213,6 +215,7 @@ impl Chat {
             images: None,
             tapped: None,
             view: Rect::ZERO,
+            keyboard_shown: false,
             voice: false,
             hearing: String::new(),
             persistence: None,
@@ -389,6 +392,16 @@ impl Chat {
             Some(Place::YourNetwork) => Icon::Glyph(phosphor::HARD_DRIVES),
             Some(Place::Internet) | None => Icon::Mark(self.glyphs.get(ctx, name, px)),
         }
+    }
+
+    /// The host's word on its keyboard. A finger that put the keyboard away
+    /// meant the menu over the composer to go with it.
+    pub fn set_keyboard_shown(&mut self, shown: bool) {
+        if self.keyboard_shown && !shown {
+            context_menu::close(&self.ctx);
+            self.ctx.request_repaint();
+        }
+        self.keyboard_shown = shown;
     }
 
     /// Whether a text field of the chat's own chrome has the keyboard: the

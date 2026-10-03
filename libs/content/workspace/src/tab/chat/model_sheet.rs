@@ -185,7 +185,7 @@ impl Chat {
             sheet_dim(&ctx, sheet_id.with("dim"), LayerId::new(Order::Foreground, sheet_id));
         let (mut dismiss, mut confirm) = (false, false);
         let touch = is_touch(&ctx);
-        let view = self.view;
+        let fill = self.sheet_fill();
         let mut body = |ui: &mut Ui, w: f32, tree_h: f32| {
             dismiss |= sheet_title_muted(ui, t, "Model");
             ui.add(Spacer::new(Space::Md));
@@ -217,17 +217,14 @@ impl Chat {
         };
         let area = Area::new(sheet_id).order(Order::Foreground);
         if touch {
-            // The whole view, above the keyboard, as a phone's sheets are.
-            let (edge, pad) = (Space::Sm.pts(), Space::Md.pts());
-            let inner = view.shrink(edge + pad);
+            let inner = fill.shrink(Space::Md.pts());
             let chrome = control_height() * 3.0 + Space::Md.pts() * 2.0 + Space::Sm.pts();
             let tree_h = (inner.height() - chrome).max(ROW_H * 3.0);
-            area.fixed_pos(view.min + vec2(edge, edge))
-                .show(&ctx, |ui| {
-                    sheet_panel_fixed(ui, t, inner.width(), inner.height(), |ui| {
-                        body(ui, inner.width(), tree_h)
-                    });
+            area.fixed_pos(fill.min).show(&ctx, |ui| {
+                sheet_panel_fixed(ui, t, inner.width(), inner.height(), |ui| {
+                    body(ui, inner.width(), tree_h)
                 });
+            });
         } else {
             area.anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
                 .show(&ctx, |ui| {

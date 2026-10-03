@@ -191,11 +191,6 @@ pub fn show_toggle<T: Clone>(
     show_open(resp, t, open, build)
 }
 
-/// Puts the open menu away, whoever hosts it.
-pub fn close(ctx: &egui::Context) {
-    ctx.memory_mut(|m| m.data.remove::<OpenState>(open_id()));
-}
-
 /// Like [`show_click`], but the menu opens above `anchor`, its right edge
 /// on the anchor's: for a host at the bottom of the screen.
 pub fn show_click_above<T: Clone>(
@@ -224,6 +219,11 @@ pub fn is_open_id(ctx: &egui::Context, id: Id) -> bool {
 pub fn open_host(ctx: &egui::Context) -> Option<Id> {
     ctx.memory(|m| m.data.get_temp::<OpenState>(open_id()))
         .map(|s| s.host)
+}
+
+/// Closes the open menu, whoever hosts it.
+pub fn close(ctx: &egui::Context) {
+    ctx.memory_mut(|m| m.data.remove::<OpenState>(open_id()));
 }
 
 fn show_open<T: Clone>(
