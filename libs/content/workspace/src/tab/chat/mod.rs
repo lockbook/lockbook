@@ -608,7 +608,7 @@ impl Chat {
                     let settings = store.chat.lock().unwrap().settings_for(&user);
                     Provider::resolve(&resolver_lb, &settings)
                 }),
-                window: lb_chat::window,
+                window: |provider| Some(lb_chat::window(provider)),
             };
             let ctx = self.ctx.clone();
             let driver = Driver::spawn(
