@@ -248,7 +248,7 @@ impl Chat {
             model_scroll_top: false,
             model_dest: None,
             model_filter: String::new(),
-            model_folded: HashSet::new(),
+            model_folded: HashSet::from([model_sheet::THINKING.to_string()]),
             model_reveal: None,
             glyphs: Glyphs::default(),
             setup: Setup::default(),
