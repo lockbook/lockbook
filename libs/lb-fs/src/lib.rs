@@ -121,7 +121,9 @@ impl Drive {
                 // maybe that works nicely with tab persistence too. can gate to beta_users pretty
                 // easily. Maybe can have a special filename that lets people test an early version
                 match event {
-                    Event::MetadataChanged(Actor::Sync) => event_handler.fill_cache().await,
+                    Event::MetadataChanged(Actor::Sync) | Event::IpcChangesApplied => {
+                        event_handler.fill_cache().await;
+                    }
                     Event::DocumentWritten(dirty_id, Actor::Sync) => {
                         let file = event_handler.lb.get_file_by_id(dirty_id).await.unwrap();
                         let size = if file.is_document() {

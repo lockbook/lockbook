@@ -1163,6 +1163,7 @@ pub struct LbEvent {
     pub pending_shares_changed: bool,
     pub doc_written: bool,
     pub doc_written_id: LbUuid,
+    pub ipc_changes_applied: bool,
 }
 
 pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
@@ -1191,6 +1192,9 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
                         doc_written_id: id.into(),
                         ..Default::default()
                     },
+                    Event::IpcChangesApplied => {
+                        LbEvent { ipc_changes_applied: true, ..Default::default() }
+                    }
                     _ => continue,
                 };
 

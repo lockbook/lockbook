@@ -203,7 +203,9 @@ impl Lb {
             warn!("readwrite transaction lock acquisition took {:?}", start.elapsed());
         }
 
+        let previous_seq = guard.last_modified();
         let tx = guard.write_tx().unwrap();
+        self.notify_catch_up(&guard.schema, previous_seq).await;
 
         LbTx { guard, tx: Some(tx) }
     }
