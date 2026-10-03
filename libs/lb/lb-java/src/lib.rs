@@ -581,6 +581,10 @@ pub extern "system" fn Java_net_lockbook_Lb_subscribe<'local>(
                 env.set_field(&lb_event_obj, "documentWritten", "Z", JValue::Bool(1))
                     .unwrap();
             }
+            Event::IpcChangesApplied => {
+                env.set_field(&lb_event_obj, "ipcChangesApplied", "Z", JValue::Bool(1))
+                    .unwrap();
+            }
             _ => event_handled = false,
         };
         if event_handled {

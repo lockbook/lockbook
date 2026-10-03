@@ -6,4 +6,5 @@ public class LbEvent {
     public boolean pendingSharesChanged;
     public boolean documentWritten;
     public boolean syncFinished;
+    public boolean ipcChangesApplied;
 }
