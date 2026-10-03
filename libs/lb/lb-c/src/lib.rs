@@ -1211,3 +1211,4 @@ mod ffi_utils;
 mod lb_c_err;
 mod lb_file;
 mod mem_cleanup;
+mod widget;
