@@ -52,8 +52,6 @@ fn area_id() -> Id {
     Id::new("lb_design_context_menu_area")
 }
 
-/// Space between an anchor and a menu opened above it.
-const ABOVE_GAP: f32 = 5.0;
 #[derive(Clone, Copy)]
 struct OpenState {
     host: Id,
@@ -178,13 +176,6 @@ pub fn show_click<T: Clone>(
 
 /// Like [`show_click`], but the menu opens above `anchor`, its right edge
 /// on the anchor's: for a host at the bottom of the screen.
-pub fn show_click_above<T: Clone>(
-    resp: &Response, t: &Theme, anchor: egui::Rect, build: impl FnOnce(&mut Entries<T>),
-) -> Option<T> {
-    let at = Some((anchor.right_top() - vec2(0.0, ABOVE_GAP), egui::Align2::RIGHT_BOTTOM));
-    show_at(resp, t, resp.clicked(), at, build)
-}
-
 /// True when this response is the host of the open menu.
 pub fn is_open(resp: &Response) -> bool {
     is_open_id(&resp.ctx, resp.id)

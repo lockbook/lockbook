@@ -78,10 +78,6 @@ enum ModelChoice {
     Effort(Option<String>),
     Browse,
     AddProvider,
-    /// Choose the folder the chat works in.
-    Folder,
-    /// Go back to working in the chat's own folder.
-    OwnFolder,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -158,12 +154,11 @@ impl Chat {
         let folder_w = scope_chip_width(ui, &self.folder_label(), self.scope_chosen());
         let wrap_w = (col_w - pad_x * 2.0).max(1.0);
         // Where the chips would leave too little room to type beside them,
-        // one button stands for both and the text keeps the row.
+        // each is its mark alone and the text keeps the row.
         let call_w = if self.calls() { hit + gap } else { 0.0 };
         let compact = wrap_w - gap - call_w - (folder_w + gap + model_w + gap + hit) < MIN_BESIDE;
-        let (folder_w, model_w) = if compact { (0.0, hit) } else { (folder_w, model_w) };
-        let trailing =
-            call_w + if compact { hit + gap + hit } else { folder_w + gap + model_w + gap + hit };
+        let (folder_w, model_w) = if compact { (hit, hit) } else { (folder_w, model_w) };
+        let trailing = call_w + folder_w + gap + model_w + gap + hit;
         let inner_w = (wrap_w - gap - trailing).max(1.0);
         let row = self.composer.row_height();
         let wide_h = self.composer.measure_height(wrap_w);
@@ -1274,10 +1269,8 @@ impl Chat {
             pos2(model_rect.left() - gap - geom.folder_w / 2.0, controls_cy),
             vec2(geom.folder_w, hit),
         );
-        let chips = if geom.compact { 1 } else { 2 };
         for (left, right) in [(model_rect, before_model), (folder_rect, model_rect)]
             .into_iter()
-            .take(chips)
             .chain(call_rect.map(|call| (call, send_rect)))
         {
             let gap_rect = Rect::from_min_max(
@@ -1299,8 +1292,7 @@ impl Chat {
             );
             Spacer::paint_at(ui, Space::Xs, gap_rect);
         }
-        let folder_rect = (!geom.compact).then_some(folder_rect);
-        let menu_open = self.show_chips(ui, t, focused, rect, model_rect, folder_rect);
+        let menu_open = self.show_chips(ui, t, focused, geom.compact, model_rect, folder_rect);
 
         if let Some(call_rect) = call_rect {
             let resp = call_button(ui, t, call_rect, self.voice, focused);
@@ -1371,81 +1363,65 @@ impl Chat {
         (text_rect, selection_changed, text_changed)
     }
 
-    /// The model and folder pickers inside the composer. Returns whether a
-    /// menu or sheet is open.
+    /// The model and folder pickers inside the composer, each its mark alone
+    /// when `compact`. Returns whether a menu or sheet is open.
     fn show_chips(
-        &mut self, ui: &mut Ui, t: &Theme, focused: bool, composer: Rect, model_rect: Rect,
-        folder_rect: Option<Rect>,
+        &mut self, ui: &mut Ui, t: &Theme, focused: bool, compact: bool, model_rect: Rect,
+        folder_rect: Rect,
     ) -> bool {
         let fills = chip_fills(t, focused);
         let settings = self.settings();
+        let touch = is_touch(ui.ctx());
 
         let model_label = self.model_chip_label();
         let mark = self.provider_mark(ui.ctx(), TypeRole::Body.size());
-        // With no folder chip, the model's button is the provider's mark
-        // alone and its menu leads to the folder too.
-        let label = if folder_rect.is_some() { model_label.as_str() } else { "" };
+        let label = if compact { "" } else { model_label.as_str() };
         let resp = chip(ui, t, model_rect, mark, label, fills);
         tip_text(ui.ctx(), &resp, format!("{} · {}", self.provider_name(), model_label));
-        let folder_label = self.folder_label();
-        let chosen = self.scope_chosen();
-        let (efforts, effort) = (self.efforts(), self.effort().map(str::to_string));
-        let favorites: Vec<(String, String, Icon)> = self
-            .favorites
-            .clone()
-            .into_iter()
-            .map(|sel| {
-                let provider = sel.split_once('/').map_or("", |(p, _)| p).to_string();
-                let label = self.selection_label(&sel);
-                let mark = self.mark(ui.ctx(), &provider, TypeRole::Body.size());
-                (sel, label, mark)
-            })
-            .collect();
-        let build = |e: &mut context_menu::Entries<ModelChoice>| {
-            if folder_rect.is_none() {
-                e.item(phosphor::FOLDER, format!("Folder: {folder_label}"), ModelChoice::Folder);
-                if chosen {
-                    e.item(phosphor::X, "Back to this chat's folder", ModelChoice::OwnFolder);
+        let mut models_opened_now = false;
+        // A finger goes straight to the sheet; a pointer has the quick menu.
+        let choice = if touch {
+            if resp.clicked() {
+                self.open_model_sheet();
+                models_opened_now = true;
+            }
+            None
+        } else {
+            let (efforts, effort) = (self.efforts(), self.effort().map(str::to_string));
+            let favorites: Vec<(String, String, Icon)> = self
+                .favorites
+                .clone()
+                .into_iter()
+                .map(|sel| {
+                    let provider = sel.split_once('/').map_or("", |(p, _)| p).to_string();
+                    let label = self.selection_label(&sel);
+                    let mark = self.mark(ui.ctx(), &provider, TypeRole::Body.size());
+                    (sel, label, mark)
+                })
+                .collect();
+            context_menu::show_click(&resp, t, |e| {
+                for (sel, label, mark) in &favorites {
+                    e.item_icon(*mark, label.clone(), ModelChoice::Use(sel.clone()));
                 }
-                e.item_icon(mark, format!("Model: {model_label}"), ModelChoice::Browse);
                 e.separator();
-            }
-            for (sel, label, mark) in &favorites {
-                e.item_icon(*mark, label.clone(), ModelChoice::Use(sel.clone()));
-            }
-            e.separator();
-            // Offered only for a model that has been shown to take it.
-            if !efforts.is_empty() {
-                let default = ModelChoice::Effort(None);
-                e.item_checked(effort.is_none(), "Thinking: default", default);
-            }
-            for value in efforts {
-                let chosen = effort.as_deref() == Some(*value);
-                let pick = ModelChoice::Effort(Some(value.to_string()));
-                e.item_checked(chosen, format!("Thinking: {}", effort_name(value)), pick);
-            }
-            e.separator();
-            if folder_rect.is_some() {
+                // Offered only for a model that has been shown to take it.
+                if !efforts.is_empty() {
+                    let default = ModelChoice::Effort(None);
+                    e.item_checked(effort.is_none(), "Thinking: default", default);
+                }
+                for value in efforts {
+                    let chosen = effort.as_deref() == Some(*value);
+                    let pick = ModelChoice::Effort(Some(value.to_string()));
+                    e.item_checked(chosen, format!("Thinking: {}", effort_name(value)), pick);
+                }
+                e.separator();
                 e.item(phosphor::LIST, "Browse models…", ModelChoice::Browse);
-            }
-            e.item(phosphor::FILE_PLUS, "Add a provider…", ModelChoice::AddProvider);
-        };
-        // The lone button sits at the screen's foot, so its menu opens
-        // over the composer and not under a thumb or a rounded corner.
-        let choice = match folder_rect {
-            Some(_) => context_menu::show_click(&resp, t, build),
-            None => context_menu::show_click_above(&resp, t, composer, build),
+                e.item(phosphor::FILE_PLUS, "Add a provider…", ModelChoice::AddProvider);
+            })
         };
         let menu_open = context_menu::is_open(&resp);
-        let mut models_opened_now = false;
         let mut opened_now = false;
-        let mut cleared = false;
         match choice {
-            Some(ModelChoice::Folder) => {
-                self.open_scope_sheet(ui.ctx());
-                opened_now = true;
-            }
-            Some(ModelChoice::OwnFolder) => cleared = true,
             Some(ModelChoice::Use(selection)) => self.select(selection),
             Some(ModelChoice::Effort(effort)) => self.set_effort(effort),
             Some(ModelChoice::Browse) => {
@@ -1458,13 +1434,13 @@ impl Chat {
             None => {}
         }
 
-        let mut toggled = false;
-        if let Some(folder_rect) = folder_rect {
-            let (resp, x) =
-                scope_chip(ui, t, folder_rect, &folder_label, self.scope_open, chosen, fills);
-            tip_text(ui.ctx(), &resp, format!("Reads and edits notes in {}", self.scope()));
-            (cleared, toggled) = (x, resp.clicked());
-        }
+        let folder_label = self.folder_label();
+        let chosen = self.scope_chosen();
+        let name = if compact { "" } else { folder_label.as_str() };
+        let (resp, cleared) =
+            scope_chip(ui, t, folder_rect, name, self.scope_open, chosen && !compact, fills);
+        tip_text(ui.ctx(), &resp, format!("Reads and edits notes in {}", self.scope()));
+        let toggled = resp.clicked();
         if cleared {
             self.close_scope_sheet();
             let mut s = settings.clone();
@@ -1762,8 +1738,9 @@ fn chip(
 }
 
 /// The folder chip, as search draws its scope: an accent folder in the icon
-/// slot, the name, and an X to return to this chat's own folder. Returns the
-/// chip response and whether the X was clicked.
+/// slot, the name, and an X to return to this chat's own folder. With no
+/// name the folder is the whole button. Returns the chip response and
+/// whether the X was clicked.
 fn scope_chip(
     ui: &mut Ui, t: &Theme, rect: Rect, name: &str, open: bool, chosen: bool, fills: ControlFills,
 ) -> (egui::Response, bool) {
@@ -1783,6 +1760,11 @@ fn scope_chip(
         ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
     }
     let cy = rect.center().y;
+    if name.is_empty() {
+        let half = TypeRole::Body.size() / 2.0;
+        paint_glyph(ui, phosphor::FOLDER, t.accent(), rect.center().x - half, cy);
+        return (resp, false);
+    }
     paint_glyph(ui, phosphor::FOLDER, t.accent(), rect.left() + pad, cy);
     let slot = Rect::from_min_max(
         pos2(rect.left() + pad + tree_metrics::ICON_SLOT, rect.top()),
@@ -2075,7 +2057,7 @@ fn call_button(ui: &mut Ui, t: &Theme, rect: Rect, live: bool, on_canvas: bool) 
 }
 
 /// An effort as the interface says it: a provider's "none" is thinking off.
-fn effort_name(effort: &str) -> &str {
+pub(super) fn effort_name(effort: &str) -> &str {
     match effort {
         "none" => "off",
         "xhigh" => "extra high",

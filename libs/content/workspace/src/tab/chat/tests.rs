@@ -459,10 +459,12 @@ mod on_its_own {
         chat.favorites = vec!["mock/model-3".into()];
         chat.models_open = true;
         chat.model_dest = Some("mock/model-20".into());
-        chat.model_reveal = Some(super::super::model_sheet::Reveal::Chosen);
+        chat.model_scroll_top = true;
         for _ in 0..3 {
             frame(&ctx, &mut chat, vec![]);
         }
+        chat.model_reveal =
+            Some(super::super::model_sheet::Reveal::Hold { row: "mock".into(), vy: 0.0 });
         chat.model_folded.insert("mock".into());
         frame(&ctx, &mut chat, vec![]);
         chat.model_filter = "model-2".into();
@@ -562,6 +564,9 @@ mod on_its_own {
         assert_eq!((chat.model_filter.as_str(), chat.composer_text().as_str()), ("2", ""));
         frame(&ctx, &mut chat, vec![key(Key::Escape)]);
         assert!(chat.model_filter.is_empty() && chat.models_open);
+        // A response read between frames can be a frame stale: let the
+        // unfiltered list settle.
+        frame(&ctx, &mut chat, vec![]);
         frame(&ctx, &mut chat, vec![]);
 
         let provider = Item::Provider { name: "mock".into(), open: true };
@@ -570,7 +575,7 @@ mod on_its_own {
         click(&ctx, &mut chat, header);
         assert!(chat.model_folded.contains("mock"), "a provider row folds");
         click(&ctx, &mut chat, header);
-        assert!(chat.model_folded.is_empty(), "and unfolds");
+        assert!(!chat.model_folded.contains("mock"), "and unfolds");
 
         let row = model_row(&ctx, &chat, &model);
         click(&ctx, &mut chat, row.center());
@@ -1365,11 +1370,10 @@ mod on_its_own {
         assert!(ctx.read_response(call).is_some(), "a call for a model that speaks");
     }
 
-    /// A finger that puts the keyboard away takes the composer's menu with it.
+    /// Putting the keyboard away takes the composer's menu with it.
     #[test]
     fn the_menu_goes_with_the_keyboard() {
         let ctx = context();
-        ctx.set_os(egui::os::OperatingSystem::IOS);
         let (lb, id) = account_with_chat();
         let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
         let account = lb.get_account().unwrap().clone();
@@ -1390,5 +1394,54 @@ mod on_its_own {
         chat.set_keyboard_shown(false);
         frame(&ctx, &mut chat, vec![]);
         assert!(!crate::style::context_menu::is_open_id(&ctx, chip));
+    }
+
+    /// A finger on the model button opens the sheet itself, with no menu
+    /// between; the sheet leads with the choice and the favorites.
+    #[test]
+    fn a_finger_on_the_model_button_opens_the_sheet() {
+        let ctx = context();
+        ctx.set_os(egui::os::OperatingSystem::IOS);
+        let (lb, id) = account_with_chat();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let empty = Transcript::default().serialize();
+        let mut chat = Chat::new(&empty, id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        frame(&ctx, &mut chat, vec![]);
+        chat.favorites = vec!["mock/m".into(), "mock/other".into()];
+        let chip = egui::Id::new(("chat_chip", "model"));
+        let at = ctx
+            .read_response(chip)
+            .expect("the model chip")
+            .rect
+            .center();
+        click(&ctx, &mut chat, at);
+        assert!(chat.models_open, "the sheet is up");
+        assert!(!crate::style::context_menu::is_open_id(&ctx, chip), "and no menu");
+
+        let outline: Vec<String> = chat
+            .rows()
+            .iter()
+            .map(|item| match item {
+                Item::Current { selection, .. } => format!("current {selection}"),
+                Item::Favorites { open } => format!("favorites {open}"),
+                Item::Favorite { selection, .. } => format!("  {selection}"),
+                Item::Provider { name, .. } => format!("provider {name}"),
+                other => format!("{other:?}"),
+            })
+            .collect();
+        let expected =
+            ["current mock/m", "favorites true", "  mock/m", "  mock/other", "provider mock"];
+        assert_eq!(&outline[..5], &expected, "no thinking row for a model that has no levels");
+        let listed = ["m", "other"].map(|id| lb_chat::ModelInfo {
+            id: id.into(),
+            display_name: None,
+            window: None,
+        });
+        chat.listings
+            .insert("mock".into(), ListingState::Ready(listed.to_vec()));
+        chat.model_filter = "oth".into();
+        assert!(matches!(chat.rows()[0], Item::Provider { .. }), "a filter leaves the tree alone");
     }
 }

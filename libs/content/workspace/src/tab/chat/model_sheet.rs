@@ -1,7 +1,7 @@
-//! The model sheet: every provider's models as a one-level tree on the sticky
-//! rows the folder picker uses. A provider row folds and pins while its
-//! models scroll under it; a model row picks; its pin puts it in the model
-//! menu.
+//! The model sheet: the choice and how hard it thinks, the favorites, then
+//! every provider's models, as one tree on the sticky rows the folder picker
+//! uses. A section or provider row folds and pins while its rows scroll
+//! under it; a model row picks; its pin makes it a favorite.
 
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash as _, Hasher as _};
@@ -12,21 +12,27 @@ use egui::{
 };
 use lb_rs::Uuid;
 
+use super::view::effort_name;
 use super::{Chat, ListingState};
 use crate::style::chrome::{control_height, is_touch, shortcut_enter};
 use crate::style::sheet_panel_fixed;
-use crate::style::tree_metrics::{INDENT_BASE, ROW_H};
+use crate::style::tree_metrics::{INDENT_BASE, INDENT_STEP, ROW_H};
 use crate::style::{
-    FG_HOVER, FG_PRESS, Field, FlatRow, Icon, Radius, RowGeom, SheetFooterOpts, Space, Spacer,
-    Theme, TreeRowChrome, TypeRole, control_icon_hit, folder_tree_default_height, icon_button_hit,
-    paint_plate_stroke, paint_sticky_viewport, paint_tree_file_row, phosphor, place_at,
-    sense_click, sheet_dim, sheet_footer, sheet_panel_fit, sheet_title_muted, sticky_band_above,
-    tip_text, with_overlay_scroll,
+    FG_HOVER, FG_PRESS, Field, FileRow, FlatRow, Icon, Radius, RowGeom, SheetFooterOpts, Space,
+    Spacer, Theme, TreeRowChrome, TypeRole, control_icon_hit, icon_button_hit, paint_plate_stroke,
+    paint_sticky_viewport, paint_tree_file_row, phosphor, place_at, sense_click, sheet_dim,
+    sheet_footer, sheet_panel_fit, sheet_title_muted, sticky_band_above, tip_text,
+    with_overlay_scroll,
 };
 use crate::tab::ExtendedOutput as _;
 
 /// The sheet's content width, as the folder sheet's.
 const SHEET_W: f32 = 360.0;
+/// The list's height on a pointer, in rows.
+const LIST_ROWS: f32 = 12.0;
+/// Sections fold under names no provider file can have.
+pub(super) const THINKING: &str = "/thinking";
+const FAVORITES: &str = "/favorites";
 /// The pin's gap to its row's trailing edge: the row's own pad above and
 /// below it.
 const PIN_INSET: Space = Space::Xs;
@@ -34,6 +40,31 @@ const PIN_INSET: Space = Space::Xs;
 /// One row of the tree.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Item {
+    /// The choice, under its provider's name.
+    Current {
+        selection: String,
+        label: String,
+        provider: String,
+    },
+    /// How hard the model thinks; folds open onto its values.
+    Thinking {
+        label: String,
+        open: bool,
+    },
+    Effort {
+        value: Option<String>,
+        label: String,
+        chosen: bool,
+    },
+    Favorites {
+        open: bool,
+    },
+    /// A pinned model, marked with its provider since it stands alone.
+    Favorite {
+        selection: String,
+        label: String,
+        provider: String,
+    },
     Provider {
         name: String,
         open: bool,
@@ -55,17 +86,27 @@ pub(super) enum Item {
 
 /// A one-shot scroll for the list.
 pub(super) enum Reveal {
-    /// Centre the chosen model under its pinned provider; set on open.
-    Chosen,
-    /// Keep a just-folded pinned provider where it was on screen.
-    Hold { provider: String, vy: f32 },
+    /// Keep a just-folded pinned row where it was on screen.
+    Hold { row: String, vy: f32 },
 }
 
 enum Action {
     Fold { name: String, hold: Option<f32> },
     Pick(String),
     Pin(String),
+    Effort(Option<String>),
     Connect(String),
+}
+
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    let first = chars.next().map(|c| c.to_uppercase().to_string());
+    first.unwrap_or_default() + chars.as_str()
+}
+
+/// The provider a `provider/model` selection names.
+fn provider_of(selection: &str) -> String {
+    selection.split_once('/').map_or("", |(p, _)| p).to_string()
 }
 
 /// The rows to show: each provider, then its models unless it is folded. A
@@ -119,14 +160,20 @@ pub(super) fn tree(
 }
 
 impl Item {
-    /// The sticky tree's row: providers are its folders. Ids only need to be
-    /// stable and distinct, so they are hashed from what the row names.
+    /// The sticky tree's row: sections and providers are its folders. Ids
+    /// only need to be stable and distinct, so they are hashed from what the
+    /// row names.
     pub(super) fn flat(&self) -> FlatRow {
         let (kind, key, depth) = match self {
-            Item::Provider { name, .. } => (0u8, name, 0),
-            Item::Model { selection, .. } => (1, selection, 1),
-            Item::Note { provider, .. } => (2, provider, 1),
-            Item::Connect { provider } => (3, provider, 1),
+            Item::Provider { name, .. } => (0u8, name.as_str(), 0),
+            Item::Model { selection, .. } => (1, selection.as_str(), 1),
+            Item::Note { provider, .. } => (2, provider.as_str(), 1),
+            Item::Connect { provider } => (3, provider.as_str(), 1),
+            Item::Current { .. } => (4, "", 0),
+            Item::Thinking { .. } => (5, THINKING, 0),
+            Item::Effort { value, .. } => (6, value.as_deref().unwrap_or(""), 1),
+            Item::Favorites { .. } => (7, FAVORITES, 0),
+            Item::Favorite { selection, .. } => (8, selection.as_str(), 1),
         };
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         (kind, key).hash(&mut hasher);
@@ -137,13 +184,24 @@ impl Item {
             kids_empty: false,
         }
     }
+
+    /// The name a folding row folds under.
+    fn fold_key(&self) -> Option<&str> {
+        match self {
+            Item::Provider { name, .. } => Some(name),
+            Item::Thinking { .. } => Some(THINKING),
+            Item::Favorites { .. } => Some(FAVORITES),
+            _ => None,
+        }
+    }
 }
 
 impl Chat {
     pub(super) fn open_model_sheet(&mut self) {
         self.model_dest = self.selection();
         self.model_filter.clear();
-        self.model_reveal = Some(Reveal::Chosen);
+        self.model_reveal = None;
+        self.model_scroll_top = true;
         self.models_open = true;
         self.ctx.set_virtual_keyboard_shown(false);
         // A listing that failed gets another try each time the sheet opens.
@@ -156,6 +214,55 @@ impl Chat {
 
     fn provider_names(&self) -> Vec<String> {
         self.providers.iter().map(|o| o.name.clone()).collect()
+    }
+
+    /// The sheet's rows: the choice, how hard it thinks, the favorites, then
+    /// every provider's models. A filter leaves only the models it matches.
+    pub(super) fn rows(&self) -> Vec<Item> {
+        let names = self.provider_names();
+        let tree = tree(&names, &self.listings, &self.model_folded, &self.model_filter);
+        if !self.model_filter.trim().is_empty() {
+            return tree;
+        }
+        let mut out = Vec::new();
+        if let Some(selection) = self.model_dest.clone().or_else(|| self.selection()) {
+            let label = self.selection_label(&selection);
+            let provider = provider_of(&selection);
+            out.push(Item::Current { selection, label, provider });
+        }
+        let efforts = self.efforts();
+        if !efforts.is_empty() {
+            let effort = self.effort().map(str::to_string);
+            let open = !self.model_folded.contains(THINKING);
+            let level = effort.as_deref().map_or("default", effort_name);
+            out.push(Item::Thinking { label: format!("Thinking: {level}"), open });
+            if open {
+                let chosen = effort.is_none();
+                out.push(Item::Effort { value: None, label: "Default".into(), chosen });
+                for value in efforts {
+                    out.push(Item::Effort {
+                        value: Some(value.to_string()),
+                        label: capitalize(effort_name(value)),
+                        chosen: effort.as_deref() == Some(*value),
+                    });
+                }
+            }
+        }
+        if !self.favorites.is_empty() {
+            let open = !self.model_folded.contains(FAVORITES);
+            out.push(Item::Favorites { open });
+            if open {
+                for selection in &self.favorites {
+                    out.push(Item::Favorite {
+                        selection: selection.clone(),
+                        label: self.selection_label(selection),
+                        provider: provider_of(selection),
+                    });
+                }
+            }
+        }
+        out.extend(tree);
+        out
     }
 
     fn close_model_sheet(&mut self) {
@@ -228,9 +335,7 @@ impl Chat {
         } else {
             area.anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
                 .show(&ctx, |ui| {
-                    sheet_panel_fit(ui, t, SHEET_W, |ui| {
-                        body(ui, SHEET_W, folder_tree_default_height())
-                    });
+                    sheet_panel_fit(ui, t, SHEET_W, |ui| body(ui, SHEET_W, ROW_H * LIST_ROWS));
                 });
         }
         // Nothing else focused: the filter takes it, so typing always lands.
@@ -256,8 +361,7 @@ impl Chat {
     fn show_model_tree(&mut self, ui: &mut Ui, t: &Theme, w: f32, list_h: f32) {
         let (slot, _) = ui.allocate_exact_size(vec2(w, list_h), Sense::hover());
         paint_plate_stroke(ui, slot, Radius::Control.corner(), t.neutral());
-        let names = self.provider_names();
-        let items = tree(&names, &self.listings, &self.model_folded, &self.model_filter);
+        let items = self.rows();
         if items.is_empty() {
             ui.painter().text(
                 slot.center(),
@@ -270,7 +374,11 @@ impl Chat {
         }
         let flat: Vec<FlatRow> = items.iter().map(Item::flat).collect();
         let index: HashMap<Uuid, usize> = flat.iter().enumerate().map(|(i, r)| (r.id, i)).collect();
-        let geom = RowGeom::uniform(flat.len(), ROW_H);
+        let heights: Vec<f32> = items
+            .iter()
+            .map(|it| FileRow::height_for(matches!(it, Item::Current { .. })))
+            .collect();
+        let geom = RowGeom::from_heights(&heights);
         // A viewport of trailing room lets any provider scroll up to the pin.
         let bottom_pad = list_h;
         let max_off = geom.total;
@@ -285,32 +393,33 @@ impl Chat {
         }
         let offset = match &self.model_reveal {
             _ if self.model_scroll_top => Some(0.0),
-            Some(Reveal::Chosen) => items
+            Some(Reveal::Hold { row, vy }) => items
                 .iter()
-                .position(|it| matches!(it, Item::Model { selection, .. } if Some(selection) == self.model_dest.as_ref()))
+                .position(|it| it.fold_key() == Some(row.as_str()))
                 .map(|i| {
-                    let pinned_h = sticky_band_above(&flat, &geom, i);
-                    let free_h = (list_h - pinned_h).max(ROW_H);
-                    (geom.top(i) - pinned_h - (free_h - ROW_H) / 2.0).clamp(0.0, max_off)
+                    (geom.top(i) - sticky_band_above(&flat, &geom, i) - vy).clamp(0.0, max_off)
                 }),
-            Some(Reveal::Hold { provider, vy }) => items
-                .iter()
-                .position(|it| matches!(it, Item::Provider { name, .. } if name == provider))
-                .map(|i| (geom.top(i) - vy).clamp(0.0, max_off)),
             None => None,
         };
-        if offset.is_some() || matches!(self.model_reveal, Some(Reveal::Hold { .. })) {
-            self.model_reveal = None;
-        }
+        self.model_reveal = None;
 
         let filtering = !self.model_filter.trim().is_empty();
-        let faces: HashMap<&str, (Icon, String)> = names
+        let mut names = self.provider_names();
+        for item in &items {
+            if let Item::Current { provider, .. } | Item::Favorite { provider, .. } = item {
+                if !names.contains(provider) {
+                    names.push(provider.clone());
+                }
+            }
+        }
+        let faces: HashMap<String, (Icon, String)> = names
             .iter()
             .map(|name| {
                 let mark = self.mark(ui.ctx(), name, TypeRole::Body.size());
-                (name.as_str(), (mark, self.provider_label(name)))
+                (name.clone(), (mark, self.provider_label(name)))
             })
             .collect();
+        let side = TypeRole::Body.size();
         let (chosen, favorites) = (&self.model_dest, &self.favorites);
         let row_salt = Id::new(("chat_model_row", self.id));
         let scroll_id = Id::new(("chat_model_scroll", self.id));
@@ -342,9 +451,90 @@ impl Chat {
                     |ui, t, row, paint_r, hit_r, elevated, pin_vy| {
                         let Some(item) = index.get(&row.id).map(|i| &items[*i]) else { return };
                         let id = row_salt.with((row.id, elevated));
+                        let mark_at = |ui: &Ui, mark: &Icon, depth: usize| {
+                            let x = paint_r.left() + INDENT_BASE + depth as f32 * INDENT_STEP;
+                            let center = pos2(x + side / 2.0, paint_r.center().y);
+                            mark.paint(ui.painter(), center, side, t.neutral_fg());
+                        };
+                        // Folding a pinned row shortens the list above the
+                        // view; hold the row where it was.
+                        let fold = |open: bool| {
+                            let hold = pin_vy.filter(|_| elevated && open);
+                            Action::Fold { name: item.fold_key().unwrap_or("").to_string(), hold }
+                        };
                         match item {
+                            Item::Current { label, provider, .. } => {
+                                let Some((mark, who)) = faces.get(provider) else { return };
+                                let chrome =
+                                    TreeRowChrome::new(0).selected(true).interactive(false);
+                                paint_tree_file_row(
+                                    ui,
+                                    t,
+                                    label.clone(),
+                                    "",
+                                    chrome,
+                                    id,
+                                    paint_r,
+                                    hit_r,
+                                    |r| r.subtitle(who.clone()),
+                                );
+                                mark_at(ui, mark, 0);
+                            }
+                            Item::Thinking { label, open } => {
+                                let chrome = TreeRowChrome::new(0)
+                                    .with_sheet_pin(elevated, pin_vy, pin_top_r);
+                                let resp = paint_tree_file_row(
+                                    ui,
+                                    t,
+                                    label.clone(),
+                                    phosphor::LIGHTBULB,
+                                    chrome,
+                                    id,
+                                    paint_r,
+                                    hit_r,
+                                    |r| r.sense(sense_click()),
+                                );
+                                if resp.clicked() {
+                                    action = Some(fold(*open));
+                                }
+                            }
+                            Item::Effort { value, label, chosen } => {
+                                let chrome = TreeRowChrome::new(1).selected(*chosen);
+                                let resp = paint_tree_file_row(
+                                    ui,
+                                    t,
+                                    label.clone(),
+                                    "",
+                                    chrome,
+                                    id,
+                                    paint_r,
+                                    hit_r,
+                                    |r| r.sense(sense_click()),
+                                );
+                                if resp.clicked() {
+                                    action = Some(Action::Effort(value.clone()));
+                                }
+                            }
+                            Item::Favorites { open } => {
+                                let chrome = TreeRowChrome::new(0)
+                                    .with_sheet_pin(elevated, pin_vy, pin_top_r);
+                                let resp = paint_tree_file_row(
+                                    ui,
+                                    t,
+                                    "Favorites",
+                                    phosphor::PUSH_PIN,
+                                    chrome,
+                                    id,
+                                    paint_r,
+                                    hit_r,
+                                    |r| r.sense(sense_click()),
+                                );
+                                if resp.clicked() {
+                                    action = Some(fold(*open));
+                                }
+                            }
                             Item::Provider { name, open } => {
-                                let Some((mark, label)) = faces.get(name.as_str()) else { return };
+                                let Some((mark, label)) = faces.get(name) else { return };
                                 let chrome = TreeRowChrome::new(0)
                                     .with_sheet_pin(elevated, pin_vy, pin_top_r)
                                     .interactive(!filtering);
@@ -359,20 +549,13 @@ impl Chat {
                                     hit_r,
                                     |r| r.sense(sense_click()),
                                 );
-                                let side = TypeRole::Body.size();
-                                let center = pos2(
-                                    paint_r.left() + INDENT_BASE + side / 2.0,
-                                    paint_r.center().y,
-                                );
-                                mark.paint(ui.painter(), center, side, t.neutral_fg());
+                                mark_at(ui, mark, 0);
                                 if !filtering && resp.clicked() {
-                                    // Folding a pinned provider shortens the list
-                                    // above the view; hold the row where it was.
-                                    let hold = pin_vy.filter(|_| elevated && *open);
-                                    action = Some(Action::Fold { name: name.clone(), hold });
+                                    action = Some(fold(*open));
                                 }
                             }
-                            Item::Model { selection, label } => {
+                            Item::Model { selection, label }
+                            | Item::Favorite { selection, label, .. } => {
                                 let chrome = TreeRowChrome::new(1)
                                     .selected(chosen.as_ref() == Some(selection));
                                 let resp = paint_tree_file_row(
@@ -391,6 +574,11 @@ impl Chat {
                                 );
                                 if resp.clicked() {
                                     action = Some(Action::Pick(selection.clone()));
+                                }
+                                if let Item::Favorite { provider, .. } = item {
+                                    if let Some((mark, _)) = faces.get(provider) {
+                                        mark_at(ui, mark, 1);
+                                    }
                                 }
                                 let pinned = favorites.contains(selection);
                                 // The chosen row keeps its pin in reach of a finger.
@@ -456,8 +644,13 @@ impl Chat {
                     self.model_folded.insert(name.clone());
                 }
                 if let Some(vy) = hold {
-                    self.model_reveal = Some(Reveal::Hold { provider: name, vy });
+                    self.model_reveal = Some(Reveal::Hold { row: name, vy });
                 }
+            }
+            // A level picked folds the list back onto the one line.
+            Some(Action::Effort(effort)) => {
+                self.set_effort(effort);
+                self.model_folded.insert(THINKING.into());
             }
             // A finger picks and is done; a pointer picks and confirms.
             Some(Action::Pick(selection)) if is_touch(ui.ctx()) => {
@@ -533,6 +726,7 @@ mod tests {
                 Item::Model { label, .. } => format!("  {label}"),
                 Item::Note { text, .. } => format!("  ({text})"),
                 Item::Connect { .. } => "  [add a key]".to_string(),
+                other => format!("{other:?}"),
             })
             .collect()
     }
