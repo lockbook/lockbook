@@ -74,7 +74,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
 ) -> jobject {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-        let response: AndroidResponse = obj.frame().into();
+        let mut response: AndroidResponse = obj.frame().into();
+        response.chrome_text_focused = obj.workspace.chrome_text_focused();
         response
     });
 
@@ -100,7 +101,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrameOffloaded
 ) -> jobject {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-        let response: AndroidResponse = obj.frame_offloaded().into();
+        let mut response: AndroidResponse = obj.frame_offloaded().into();
+        response.chrome_text_focused = obj.workspace.chrome_text_focused();
         response
     });
 
@@ -156,7 +158,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZLjava/lang/String;)V",
+        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZLjava/lang/String;Z)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -173,6 +175,7 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.selection_updated { 1 } else { 0 }),
             JValue::Bool(if response.text_updated { 1 } else { 0 }),
             JValue::Object(&JObject::from(failure_message)),
+            JValue::Bool(if response.chrome_text_focused { 1 } else { 0 }),
         ],
     )
     .expect("create AndroidResponse")
@@ -323,9 +326,24 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
     _env: JNIEnv, _: JClass, obj: jlong, shown: jboolean,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    if let Some(md) = obj.workspace.current_tab_markdown_mut() {
+    let Some(tab) = obj.workspace.current_tab_mut() else { return };
+    if let Some(md) = tab.markdown_mut() {
         md.keyboard_visible = shown == 1;
+    } else if let Some(chat) = tab.chat_mut() {
+        chat.set_keyboard_shown(shown == 1);
     }
+}
+
+/// How many pixels of the workspace's top and bottom the app's own bars
+/// cover right now.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setChromeInsets(
+    _env: JNIEnv, _: JClass, obj: jlong, top: jint, bottom: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let ppp = obj.renderer.screen.pixels_per_point;
+    obj.workspace
+        .set_cover(top.max(0) as f32 / ppp, bottom.max(0) as f32 / ppp);
 }
 
 #[no_mangle]
@@ -613,7 +631,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_back(
 ) -> jboolean {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    if obj.workspace.can_back() {
+    let dismissed = obj
+        .workspace
+        .current_tab_mut()
+        .and_then(|tab| tab.chat_mut())
+        .is_some_and(|chat| chat.dismiss());
+    if dismissed {
+        true
+    } else if obj.workspace.can_back() {
         obj.workspace.back();
         true
     } else {

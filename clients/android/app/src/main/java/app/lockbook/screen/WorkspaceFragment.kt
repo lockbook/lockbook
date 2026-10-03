@@ -54,6 +54,7 @@ import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.AttachmentStager
+import app.lockbook.util.ChromeInputConnection
 import app.lockbook.util.HorizontalTabItemHolder
 import app.lockbook.util.MAX_ATTACHMENT_SIZE_BYTES
 import app.lockbook.util.MarkdownToolbarView
@@ -138,6 +139,7 @@ class WorkspaceFragment : Fragment() {
 
         val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
         workspaceView = workspaceWrapper.workspaceView
+        workspaceWrapper.workspaceView.chromeInsets = { chromeInsets(workspaceWrapper.workspaceView) }
         val layoutParams =
             ConstraintLayout
                 .LayoutParams(
@@ -500,8 +502,11 @@ class WorkspaceFragment : Fragment() {
 
         model._showKeyboard.observe(viewLifecycleOwner) {
             if (it) {
+                // The keyboard comes up only for the focused text view.
+                val editor = workspaceView?.wrapperView ?: view
+                editor.requestFocus()
                 (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                    .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+                    .showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT)
             } else {
                 (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                     .hideSoftInputFromWindow(view.windowToken, 0)
@@ -628,6 +633,36 @@ class WorkspaceFragment : Fragment() {
                 binding.workspaceToolbar.setTitle(tabTitle)
             }
         }
+    }
+
+    /**
+     * The top the app bar covers at rest, so the page does not shift as it
+     * slides, and the bottom the tab bar covers right now.
+     */
+    private fun chromeInsets(view: View): Pair<Int, Int> {
+        val binding = _binding ?: return Pair(0, 0)
+        val at = IntArray(2)
+        view.getLocationOnScreen(at)
+        val (viewTop, viewBottom) = Pair(at[1], at[1] + view.height)
+
+        val bar = binding.appBarLayout
+        val top =
+            if (bar.isVisible) {
+                bar.getLocationOnScreen(at)
+                (at[1] - bar.translationY.toInt() + bar.height - viewTop).coerceIn(0, view.height)
+            } else {
+                0
+            }
+
+        val sheet = binding.standardBottomSheet
+        val bottom =
+            if (sheet.isVisible) {
+                sheet.getLocationOnScreen(at)
+                (viewBottom - at[1]).coerceIn(0, view.height)
+            } else {
+                0
+            }
+        return Pair(top, bottom)
     }
 
     fun hideBottomSheet() {
@@ -989,6 +1024,9 @@ class WorkspaceTextInputWrapper(
 ) : View(context) {
     val wsInputConnection = WorkspaceTextInputConnection(workspaceView, this)
 
+    /** A text field of the workspace's own chrome has the keyboard. */
+    var chromeFocused = false
+
     private var touchStartX = 0f
     private var touchStartY = 0f
 
@@ -1123,6 +1161,11 @@ class WorkspaceTextInputWrapper(
     }
 
     override fun onCreateInputConnection(outAttrs: EditorInfo?): InputConnection {
+        if (chromeFocused) {
+            outAttrs?.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            outAttrs?.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN or EditorInfo.IME_ACTION_DONE
+            return ChromeInputConnection(this)
+        }
         if (outAttrs != null) {
             outAttrs.initialCapsMode = wsInputConnection.getCursorCapsMode(EditorInfo.TYPE_CLASS_TEXT)
             outAttrs.hintText = "Type here"

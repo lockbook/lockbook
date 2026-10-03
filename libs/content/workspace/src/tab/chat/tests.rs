@@ -1409,7 +1409,8 @@ mod on_its_own {
         let mut chat = Chat::new(&empty, id, None, account, ctx.clone(), files, &lb);
         frames_until(&ctx, &mut chat, |c| c.is_ready());
         frame(&ctx, &mut chat, vec![]);
-        chat.favorites = vec!["mock/m".into(), "mock/other".into()];
+        // A favorite whose provider is not offered here is left out.
+        chat.favorites = vec!["mock/m".into(), "elsewhere/x".into(), "mock/other".into()];
         let chip = egui::Id::new(("chat_chip", "model"));
         let at = ctx
             .read_response(chip)
@@ -1428,12 +1429,19 @@ mod on_its_own {
                 Item::Favorites { open } => format!("favorites {open}"),
                 Item::Favorite { selection, .. } => format!("  {selection}"),
                 Item::Provider { name, .. } => format!("provider {name}"),
+                Item::AddProvider => "add a provider".into(),
                 other => format!("{other:?}"),
             })
             .collect();
-        let expected =
-            ["current mock/m", "favorites true", "  mock/m", "  mock/other", "provider mock"];
-        assert_eq!(&outline[..5], &expected, "no thinking row for a model that has no levels");
+        let expected = [
+            "current mock/m",
+            "favorites true",
+            "  mock/m",
+            "  mock/other",
+            "add a provider",
+            "provider mock",
+        ];
+        assert_eq!(&outline[..6], &expected, "no thinking row for a model that has no levels");
         let listed = ["m", "other"].map(|id| lb_chat::ModelInfo {
             id: id.into(),
             display_name: None,

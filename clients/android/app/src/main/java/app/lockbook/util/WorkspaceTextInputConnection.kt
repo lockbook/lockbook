@@ -15,6 +15,7 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import app.lockbook.App
+import app.lockbook.model.WorkspaceTabType
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.Workspace
 import kotlinx.coroutines.Dispatchers
@@ -66,6 +67,14 @@ class WorkspaceTextInputConnection(
 
     fun forwardWorkspaceKeyEvent(event: KeyEvent) {
         val content = event.unicodeChar.toChar().toString()
+        // The on-screen return key in a chat's composer means a line break,
+        // which is a shifted Enter there since a bare one sends.
+        val softReturn =
+            event.keyCode == KeyEvent.KEYCODE_ENTER &&
+                event.isSoftKeyboardEvent() &&
+                !textInputWrapper.chromeFocused &&
+                workspaceView.model.currentTab.value
+                    ?.type == WorkspaceTabType.Chat
         Workspace.sendKeyEvent(
             WorkspaceView.wgpuObj,
             event.keyCode,
@@ -73,7 +82,7 @@ class WorkspaceTextInputConnection(
             event.action == KeyEvent.ACTION_DOWN,
             event.isAltPressed,
             event.isCtrlPressed,
-            event.isShiftPressed,
+            event.isShiftPressed || softReturn,
         )
     }
 

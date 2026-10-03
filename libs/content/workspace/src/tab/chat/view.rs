@@ -142,7 +142,13 @@ impl Chat {
         let t = ui.ctx().get_lb_theme();
         ui.spacing_mut().item_spacing = Vec2::ZERO;
         let full = ui.max_rect();
-        self.view = full;
+        // The host's own bars may lie over the tab: the transcript runs
+        // under them, and what must stay in reach keeps clear.
+        let (cover_top, cover_bottom) = crate::workspace::cover(ui.ctx());
+        self.view = Rect::from_min_max(
+            pos2(full.min.x, full.min.y + cover_top),
+            pos2(full.max.x, full.max.y - cover_bottom),
+        );
         let col_w = (full.width() - Space::Lg.pts() * 2.0).clamp(160.0, COLUMN_W);
         let col_x = (full.center().x - col_w / 2.0).round();
         let ready = self.is_ready();
@@ -183,7 +189,7 @@ impl Chat {
             0.0
         };
         let lg = Space::Lg.pts();
-        let bottom_h = if ready { composer_h + lg } else { 0.0 };
+        let bottom_h = if ready { composer_h + lg + cover_bottom } else { 0.0 };
 
         let transcript_rect =
             Rect::from_min_max(full.min, pos2(full.max.x, (full.max.y - bottom_h).round()));
@@ -231,6 +237,7 @@ impl Chat {
                             ui.vertical(|ui| {
                                 ui.set_width(col_w);
                                 ui.spacing_mut().item_spacing = Vec2::ZERO;
+                                ui.add_space(cover_top);
                                 if ready {
                                     ui.add(Spacer::new(FADE));
                                     self.show_transcript(
@@ -246,6 +253,7 @@ impl Chat {
                                     ui.add(Spacer::new(Space::Xl));
                                     self.show_setup(ui, &t, col_w);
                                     ui.add(Spacer::new(Space::Xl));
+                                    ui.add_space(cover_bottom);
                                 }
                             });
                         });
@@ -262,7 +270,10 @@ impl Chat {
                 }
                 if ready {
                     let (bg, clear) = (t.neutral_bg(), Color32::TRANSPARENT);
-                    let top = transcript_rect.with_max_y(transcript_rect.top() + FADE.pts());
+                    let top_y = transcript_rect.top() + cover_top;
+                    let top = transcript_rect
+                        .with_min_y(top_y)
+                        .with_max_y(top_y + FADE.pts());
                     fade(ui.painter(), top, bg, clear);
                     let bottom = transcript_rect.with_min_y(transcript_rect.bottom() - FADE.pts());
                     fade(ui.painter(), bottom, clear, bg);
@@ -282,6 +293,7 @@ impl Chat {
         }
         if !ready {
             // Nothing to type into: a frame that takes no touch and draws no caret.
+            self.composer_rect = Rect::NOTHING;
             return (Rect::from_min_size(full.min, Vec2::ZERO), false, false);
         }
         if !at_bottom {
@@ -289,13 +301,14 @@ impl Chat {
             self.show_jump_to_latest(ui, &t, full.center().x, above_fade);
         }
 
-        let y = full.max.y - lg;
+        let y = full.max.y - lg - cover_bottom;
         let composer_rect =
             Rect::from_min_max(pos2(col_x, (y - composer_h).round()), pos2(col_x + col_w, y));
         let under =
             Rect::from_min_max(composer_rect.left_bottom(), pos2(col_x + col_w, full.max.y));
         Spacer::paint_at(ui, Space::Lg, under);
         let out = self.show_composer(ui, &t, composer_rect, composer_id, &geom);
+        self.composer_rect = out.0;
         claim(ui, Rect::from_min_max(pos2(full.min.x, transcript_rect.max.y), full.max));
         out
     }
@@ -350,8 +363,8 @@ impl Chat {
         self.scope_open || self.models_open
     }
 
-    /// Where a phone's sheets go: a hair in from the view's sides and top,
-    /// down to where the composer ends.
+    /// Where a phone's sheets go: a hair in from the uncovered view's sides
+    /// and top, down to where the composer ends.
     pub(super) fn sheet_fill(&self) -> Rect {
         let edge = Space::Sm.pts();
         Rect::from_min_max(
@@ -759,6 +772,11 @@ impl Chat {
         // alone, and its widgets are not confused with another message's.
         let mut child = ui.new_child(UiBuilder::new().max_rect(rect).id_salt(at));
         reader.show(&mut child, rect, at);
+        // A phone's own edit menu works on the composer, so a reply asks
+        // for none; its actions hold Copy.
+        if is_touch(ui.ctx()) {
+            ui.ctx().pop_context_menu();
+        }
         // The selection goes when the keyboard does.
         let (start, end) = reader.renderer.buffer.current.selection;
         if start != end && !ui.memory(|m| m.has_focus(at)) {
@@ -1175,7 +1193,6 @@ impl Chat {
         };
         let text_top = if geom.single { band.center().y - text_h / 2.0 } else { band.min.y };
         let text_rect = Rect::from_min_size(pos2(band.min.x, text_top), vec2(geom.text_w, text_h));
-        self.composer_rect = text_rect;
 
         // A sheet owns the keyboard while it is open. Otherwise the composer
         // takes it when nothing else has it, and takes it back from a
@@ -1388,10 +1405,16 @@ impl Chat {
             None
         } else {
             let (efforts, effort) = (self.efforts(), self.effort().map(str::to_string));
+            let offered: Vec<String> = self.providers.iter().map(|o| o.name.clone()).collect();
             let favorites: Vec<(String, String, Icon)> = self
                 .favorites
                 .clone()
                 .into_iter()
+                .filter(|sel| {
+                    offered
+                        .iter()
+                        .any(|o| sel.split_once('/').map(|(p, _)| p) == Some(o))
+                })
                 .map(|sel| {
                     let provider = sel.split_once('/').map_or("", |(p, _)| p).to_string();
                     let label = self.selection_label(&sel);
@@ -1510,14 +1533,17 @@ impl Chat {
             }
         });
         ui.add(Spacer::new(Space::Md));
+        // A phone runs no model server of its own.
+        let yourself = if is_touch(ui.ctx()) {
+            "Or run the model yourself, on another machine of yours."
+        } else {
+            "Or run the model yourself, on this device or another machine of yours."
+        };
         ui.add(
-            GlyphonLabel::new(
-                "Or run the model yourself, on this device or another machine of yours.",
-                t.neutral_fg_secondary(),
-            )
-            .font_size(TypeRole::Body.size())
-            .line_height(TypeRole::Body.line_height())
-            .max_width(col_w),
+            GlyphonLabel::new(yourself, t.neutral_fg_secondary())
+                .font_size(TypeRole::Body.size())
+                .line_height(TypeRole::Body.line_height())
+                .max_width(col_w),
         );
         ui.add(Spacer::new(Space::Xs));
         if template_button(t, OWN.label, self.setup.own())
@@ -1611,11 +1637,13 @@ impl Chat {
             ui.add(Spacer::new(Space::Sm));
             let (footer, _) = ui.allocate_exact_size(vec2(col_w, control_height()), Sense::hover());
             if can_cancel {
+                let touch = is_touch(ui.ctx());
                 place_at(ui, footer, Layout::left_to_right(Align::Center), |ui| {
-                    cancel |= Button::quiet(t, "Cancel")
-                        .shortcut(shortcut_esc())
-                        .show(ui)
-                        .clicked();
+                    let mut button = Button::quiet(t, "Cancel");
+                    if !touch {
+                        button = button.shortcut(shortcut_esc());
+                    }
+                    cancel |= button.show(ui).clicked();
                 });
             }
             if self.setup.picked.is_some() {

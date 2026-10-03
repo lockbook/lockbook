@@ -51,7 +51,6 @@ pub enum ListingState {
 }
 
 /// Where pinned models live, as `provider/model` selections.
-const FAVORITES_PATH: &str = "/.agent/favorites.json";
 /// How long leaving a chat waits for its run to end.
 const STOP_WAIT: Duration = Duration::from_millis(250);
 /// The row of a thought still arriving, which has no line of its own yet.
@@ -316,6 +315,32 @@ impl Chat {
         !self.composer_rect.contains(pos)
     }
 
+    /// Puts away what is over the chat, the way a phone's back gesture
+    /// does: a menu, then a sheet, then the setup form, then an edit in
+    /// progress. Returns whether there was anything.
+    pub fn dismiss(&mut self) -> bool {
+        if !context_menu::close(&self.ctx) {
+            if self.models_open {
+                self.models_open = false;
+                self.model_dest = None;
+            } else if self.scope_open {
+                self.scope_open = false;
+                self.scope_dest = None;
+            } else if self.adding_provider && self.usable() {
+                self.adding_provider = false;
+                self.setup = setup::Setup::default();
+            } else if self.editing.is_some() {
+                self.editing = None;
+                self.composer.clear();
+                self.composer_text_seq += 1;
+            } else {
+                return false;
+            }
+        }
+        self.ctx.request_repaint();
+        true
+    }
+
     /// Re-read the provider and the provider list off-thread; called when
     /// `/.agent` changes.
     pub fn kick_config_load(&mut self) {
@@ -327,7 +352,7 @@ impl Chat {
         let settings = self.settings();
         std::thread::spawn(move || {
             let favorites = lb
-                .get_by_path(FAVORITES_PATH)
+                .get_by_path(lb_chat::FAVORITES)
                 .ok()
                 .and_then(|f| lb.read_document(f.id, false).ok())
                 .and_then(|bytes| serde_json::from_slice(&bytes).ok())
@@ -455,7 +480,7 @@ impl Chat {
             None => self.favorites.push(selection.to_string()),
         }
         let bytes = serde_json::to_vec_pretty(&self.favorites).expect("strings serialize");
-        if let Err(err) = setup::write(&self.core, FAVORITES_PATH, &bytes) {
+        if let Err(err) = setup::write(&self.core, lb_chat::FAVORITES, &bytes) {
             error!("could not save pinned models: {err}");
         }
     }

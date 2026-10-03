@@ -525,6 +525,13 @@ impl Workspace {
         }
     }
 
+    /// How much of the workspace's top and bottom the host's own bars
+    /// cover, in points. A tab keeps what must stay in reach inside it.
+    pub fn set_cover(&self, top: f32, bottom: f32) {
+        self.ctx
+            .data_mut(|d| d.insert_temp(egui::Id::new(COVER), (top, bottom)));
+    }
+
     /// A text field of the editor's chrome (find, replace) has focus, so a
     /// platform text system's keystrokes are egui events, not edits.
     pub fn chrome_text_focused(&self) -> bool {
@@ -2145,4 +2152,12 @@ impl InstantExt for Instant {
             warn!("{} took {:?}", work, elapsed);
         }
     }
+}
+
+const COVER: &str = "ws_host_cover";
+
+/// The top and bottom the host's bars cover; see [`Workspace::set_cover`].
+pub fn cover(ctx: &egui::Context) -> (f32, f32) {
+    ctx.data(|d| d.get_temp(egui::Id::new(COVER)))
+        .unwrap_or_default()
 }

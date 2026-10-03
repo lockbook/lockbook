@@ -33,6 +33,9 @@ pub struct RendererState<'w> {
     /// so the backend is an option that can be taken and set back
     backend: Option<RenderBackend<'w>>,
 
+    /// What made the surface, kept to make another for the same device.
+    instance: Instance,
+
     start_time: Instant,
 }
 
@@ -74,6 +77,7 @@ impl<'w> RendererState<'w> {
     }
 
     fn init(instance: Instance, surface: Surface<'w>) -> Self {
+        let kept = instance.clone();
         let (adapter, device, queue) =
             pollster::block_on(Self::request_device(&instance, &surface));
         let format = Self::text_format(&adapter, &surface);
@@ -101,6 +105,7 @@ impl<'w> RendererState<'w> {
                 msaa_dimension: None,
             }),
             bottom_inset: None,
+            instance: kept,
             context: Default::default(),
             raw_input: Default::default(),
             start_time: Instant::now(),
@@ -115,6 +120,20 @@ impl RendererState<'static> {
         let instance = Self::instance();
         let surface = unsafe { instance.create_surface_unsafe(surface).unwrap() };
         Self::init(instance, surface)
+    }
+
+    /// A surface for a new window on the device already in use, so what was
+    /// uploaded to it stays.
+    ///
+    /// # Safety
+    /// The window must outlive the surface.
+    pub unsafe fn new_surface(&self, target: SurfaceTargetUnsafe) -> Surface<'static> {
+        unsafe { self.instance.create_surface_unsafe(target) }.expect("create surface")
+    }
+
+    /// Draws into `surface` from the next frame.
+    pub fn replace_surface(&mut self, surface: Surface<'static>) {
+        self.backend_mut().replace_surface(surface);
     }
 }
 
@@ -398,6 +417,13 @@ impl<'w> RenderBackend<'w> {
         for id in &prepared.textures_delta.free {
             self.renderer.free_texture(id);
         }
+    }
+
+    /// Draws into `surface` from the next frame, configured then.
+    pub fn replace_surface(&mut self, surface: Surface<'w>) {
+        self.surface = surface;
+        self.surface_width = 0;
+        self.surface_height = 0;
     }
 
     fn configure_surface(&mut self, size_in_pixels: [u32; 2]) {

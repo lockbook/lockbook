@@ -33,6 +33,7 @@ data class AndroidResponse(
     val selectionUpdated: Boolean,
     val textUpdated: Boolean,
     val failureMessage: String,
+    val chromeTextFocused: Boolean,
 )
 
 @Serializable
@@ -74,6 +75,7 @@ object Workspace {
     }
 
     external fun initWSOffloaded(surface: Surface, core: Long, theme: Any): Long
+    external fun resumeWS(rustObj: Long, surface: Surface)
     external fun setTheme(rustObj: Long, theme: Any)
     external fun defaultTheme(isDark: Boolean): Any
 
@@ -91,6 +93,7 @@ object Workspace {
     external fun queueFileForEditorImport(rustObj: Long, path: String, name: String): Boolean
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
     external fun setBottomInset(rustObj: Long, inset: Int)
+    external fun setChromeInsets(rustObj: Long, top: Int, bottom: Int)
 
     external fun unfocusTitle(rustObj: Long)
     external fun willConsumeTouches(rustObj: Long, x: Float, y: Float): Boolean

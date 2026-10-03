@@ -6,6 +6,7 @@ import android.text.Selection
 import android.text.Spannable
 import android.text.Spanned
 import android.view.KeyEvent
+import app.lockbook.model.WorkspaceTabType
 import app.lockbook.util.WorkspaceView.Companion.wgpuObj
 import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
@@ -16,6 +17,17 @@ class WorkspaceTextEditable(
     val view: WorkspaceView,
     val wsInputConnection: WorkspaceTextInputConnection,
 ) : Editable {
+    /**
+     * The keyboard's return key. In a chat's composer a bare Enter sends, so
+     * the line break it means there is a shifted one.
+     */
+    private fun newline() {
+        val chat =
+            view.model.currentTab.value
+                ?.type == WorkspaceTabType.Chat
+        Workspace.sendKeyEvent(wgpuObj, KeyEvent.KEYCODE_ENTER, "", true, false, false, chat)
+    }
+
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
 
@@ -297,7 +309,7 @@ class WorkspaceTextEditable(
         text?.let { realText ->
             if (st == selectionStart && en == selectionEnd) {
                 if (realText == "\n") {
-                    Workspace.sendKeyEvent(wgpuObj, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
+                    newline()
                 } else {
                     Workspace.insertTextAtCursor(wgpuObj, realText.toString())
                 }
@@ -355,7 +367,7 @@ class WorkspaceTextEditable(
             val subRealText = realText.substring(start, end)
 
             if (subRealText == "\n" && selectionEnd == where && selectionStart == where) {
-                Workspace.sendKeyEvent(wgpuObj, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
+                newline()
             } else {
                 Workspace.insert(wgpuObj, where, subRealText)
             }
@@ -378,7 +390,7 @@ class WorkspaceTextEditable(
     ): Editable {
         text?.let { realText ->
             if (realText == "\n" && selectionEnd == where && selectionStart == where) {
-                Workspace.sendKeyEvent(wgpuObj, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
+                newline()
             } else {
                 Workspace.insert(wgpuObj, where, realText.toString())
             }

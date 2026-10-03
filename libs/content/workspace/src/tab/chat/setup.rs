@@ -285,6 +285,7 @@ pub fn providers(lb: &Lb) -> Vec<Offered> {
         .into_iter()
         .filter_map(|f| f.name.strip_suffix(".json").map(str::to_string))
         .map(|name| Offered { file: Provider::load(lb, &name, "").ok(), name })
+        .filter(|o| o.file.as_ref().is_none_or(Provider::runs_here))
         .collect();
     order(&mut offered);
     offered

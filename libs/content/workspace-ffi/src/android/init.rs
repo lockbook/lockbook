@@ -347,6 +347,27 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
     obj.renderer.set_native_pixels_per_point(scale_factor);
 }
 
+/// The view's window came back after the app was away: the same
+/// workspace, tabs and chats in flight included, draws into it.
+///
+/// # Safety
+/// `surface` must be the view's valid `android.view.Surface`.
+#[no_mangle]
+pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_resumeWS(
+    env: JNIEnv, _: JClass, obj: jlong, surface: jobject,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let mut native_window = NativeWindow::new(&env, surface);
+    let target = unsafe { SurfaceTargetUnsafe::from_window(&mut native_window) }.unwrap();
+    let surface = unsafe { obj.renderer.new_surface(target) };
+    obj.renderer.screen.size_in_pixels = [native_window.get_width(), native_window.get_height()];
+    match &obj.render_thread {
+        Some(render_thread) => render_thread.replace_surface(surface),
+        None => obj.renderer.replace_surface(surface),
+    }
+    obj.renderer.context.request_repaint();
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_setBottomInset(
     _env: JNIEnv, _: JClass, obj: jlong, inset: jint,

@@ -28,6 +28,9 @@ pub struct AndroidResponse {
     pub selection_updated: bool,
     pub text_updated: bool,
     pub failure_message: String,
+    /// A text field of the workspace's own chrome has focus, so the
+    /// keyboard's text goes to it as egui events.
+    pub chrome_text_focused: bool,
 }
 
 impl From<crate::Response> for AndroidResponse {
@@ -88,6 +91,7 @@ impl From<crate::Response> for AndroidResponse {
                 Some((_, workspace_rs::tab::ContextMenuTarget::Atom))
             ),
             virtual_keyboard_shown,
+            chrome_text_focused: false,
         }
     }
 }

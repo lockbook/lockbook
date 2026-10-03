@@ -22,7 +22,7 @@ pub(crate) mod mock;
 
 pub use driver::{Cmd, Driver, Event, Handle};
 pub use models::{ModelInfo, list_models, list_models_blocking, prettify, window};
-pub use provider::{Kind, Place, Provider, friendly_name, host, place};
+pub use provider::{FAVORITES, Kind, Place, Provider, friendly_name, host, place};
 pub use store::{LbStore, MemStore, SharedStore, Store};
 pub use territory::Territory;
 pub use tools::{NoTools, ToolOutcome, Tools};
