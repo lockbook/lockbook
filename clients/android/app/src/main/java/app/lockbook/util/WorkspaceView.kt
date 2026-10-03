@@ -23,6 +23,7 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.Magnifier
 import android.widget.OverScroller
 import android.widget.Toast
@@ -59,6 +60,10 @@ class WorkspaceView(
     // The fragment may request a file before SurfaceView creates its native workspace.
     private var deferredOpenDoc: Triple<String, Boolean, String?>? = null
     var wrapperView: View? = null
+
+    /** How many pixels of this view's top and bottom the app's bars cover. */
+    var chromeInsets: (() -> Pair<Int, Int>)? = null
+    private var lastChromeInsets = Pair(-1, -1)
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
     private var magnifier: Magnifier? = null
@@ -263,12 +268,20 @@ class WorkspaceView(
 
         // includes the app's own language choice, which the system property misses
         Workspace.setPreferredLanguages(LocaleList.getDefault().toLanguageTags())
-        wgpuObj =
-            Workspace.initWSOffloaded(
-                surface!!,
-                Lb.lb,
-                workspaceTheme,
-            )
+        // One workspace lives as long as the app: a surface that comes back
+        // gets the one already open, with its tabs and any chat in flight.
+        if (wgpuObj == Long.MAX_VALUE) {
+            wgpuObj =
+                Workspace.initWSOffloaded(
+                    surface!!,
+                    Lb.lb,
+                    workspaceTheme,
+                )
+        } else {
+            Workspace.resumeWS(wgpuObj, surface!!)
+            Workspace.setTheme(wgpuObj, workspaceTheme)
+        }
+
         setWillNotDraw(false)
 
         isFocusable = true
@@ -390,6 +403,14 @@ class WorkspaceView(
         // Insets need not change when another document becomes active or finishes loading.
         Workspace.setKeyboardShown(wgpuObj, model.keyboardVisible.value ?: false)
 
+        // The bars slide on scroll, so a change is followed frame by frame.
+        val insets = chromeInsets?.invoke()
+        val insetsMoved = insets != null && insets != lastChromeInsets
+        if (insets != null && insetsMoved) {
+            lastChromeInsets = insets
+            Workspace.setChromeInsets(wgpuObj, insets.first, insets.second)
+        }
+
         val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
         if (response.failureMessage.isNotEmpty()) {
             Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
@@ -482,6 +503,12 @@ class WorkspaceView(
 
                 updateMagnifier(response, density)
 
+                if (response.chromeTextFocused != textInputWrapper.chromeFocused) {
+                    textInputWrapper.chromeFocused = response.chromeTextFocused
+                    (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                        .restartInput(textInputWrapper)
+                }
+
                 response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
                 keyboardPull.selecting = response.hasMagnifier
 
@@ -508,7 +535,7 @@ class WorkspaceView(
             onMarkdownToolbarStateChanged?.invoke()
         }
 
-        if (response.redrawIn < 100) {
+        if (response.redrawIn < 100 || insetsMoved) {
             invalidate()
         } else {
             handler.postDelayed(redrawTask, response.redrawIn)

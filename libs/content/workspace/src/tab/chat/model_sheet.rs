@@ -82,6 +82,8 @@ pub(super) enum Item {
     Connect {
         provider: String,
     },
+    /// Opens the form for a provider not yet set up.
+    AddProvider,
 }
 
 /// A one-shot scroll for the list.
@@ -96,6 +98,7 @@ enum Action {
     Pin(String),
     Effort(Option<String>),
     Connect(String),
+    AddProvider,
 }
 
 fn capitalize(s: &str) -> String {
@@ -174,6 +177,7 @@ impl Item {
             Item::Effort { value, .. } => (6, value.as_deref().unwrap_or(""), 1),
             Item::Favorites { .. } => (7, FAVORITES, 0),
             Item::Favorite { selection, .. } => (8, selection.as_str(), 1),
+            Item::AddProvider => (9, "", 0),
         };
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         (kind, key).hash(&mut hasher);
@@ -216,8 +220,9 @@ impl Chat {
         self.providers.iter().map(|o| o.name.clone()).collect()
     }
 
-    /// The sheet's rows: the choice, how hard it thinks, the favorites, then
-    /// every provider's models. A filter leaves only the models it matches.
+    /// The sheet's rows: the choice, how hard it thinks, the favorites, a
+    /// way to add a provider, then every provider's models. A filter leaves
+    /// only the models it matches.
     pub(super) fn rows(&self) -> Vec<Item> {
         let names = self.provider_names();
         let tree = tree(&names, &self.listings, &self.model_folded, &self.model_filter);
@@ -248,11 +253,17 @@ impl Chat {
                 }
             }
         }
-        if !self.favorites.is_empty() {
+        // A favorite whose provider is not offered here cannot run here.
+        let favorites: Vec<&String> = self
+            .favorites
+            .iter()
+            .filter(|s| self.providers.iter().any(|o| o.name == provider_of(s)))
+            .collect();
+        if !favorites.is_empty() {
             let open = !self.model_folded.contains(FAVORITES);
             out.push(Item::Favorites { open });
             if open {
-                for selection in &self.favorites {
+                for selection in favorites {
                     out.push(Item::Favorite {
                         selection: selection.clone(),
                         label: self.selection_label(selection),
@@ -261,6 +272,7 @@ impl Chat {
                 }
             }
         }
+        out.push(Item::AddProvider);
         out.extend(tree);
         out
     }
@@ -614,6 +626,22 @@ impl Chat {
                                     action = Some(Action::Connect(provider.clone()));
                                 }
                             }
+                            Item::AddProvider => {
+                                let resp = paint_tree_file_row(
+                                    ui,
+                                    t,
+                                    "Add a provider…",
+                                    phosphor::FILE_PLUS,
+                                    TreeRowChrome::new(0),
+                                    id,
+                                    paint_r,
+                                    hit_r,
+                                    |r| r.sense(sense_click()),
+                                );
+                                if resp.clicked() {
+                                    action = Some(Action::AddProvider);
+                                }
+                            }
                             Item::Note { text, .. } => {
                                 let chrome = TreeRowChrome::new(1).interactive(false);
                                 paint_tree_file_row(
@@ -662,6 +690,10 @@ impl Chat {
             Some(Action::Connect(name)) => {
                 self.close_model_sheet();
                 self.begin_connect(Some(&name));
+            }
+            Some(Action::AddProvider) => {
+                self.close_model_sheet();
+                self.begin_connect(None);
             }
             None => {}
         }

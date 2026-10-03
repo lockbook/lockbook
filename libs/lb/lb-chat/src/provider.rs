@@ -157,6 +157,9 @@ struct DefaultFile {
 
 const PLACEHOLDER_KEY: &str = "YOUR API KEY HERE";
 
+/// The `provider/model` selections the user pinned, in their order.
+pub const FAVORITES: &str = "/.agent/favorites.json";
+
 impl Provider {
     /// The provider a chat's settings select, falling back to the vault
     /// default. `model` in settings is `provider/model`; a bare provider name
@@ -177,12 +180,57 @@ impl Provider {
             }
         };
         let mut provider = Self::load(lb, &name, &model)?;
+        if !provider.runs_here() {
+            provider = Self::nearest(lb)
+                .ok_or_else(|| format!("{} runs only on Apple devices", provider.label()))?;
+        }
         if provider.model.is_empty() {
             return Err(format!("/.agent/providers/{name}.json: no model"));
         }
         let effort = settings.effort.clone().or(effort);
         provider.effort = effort.filter(|e| provider.efforts().contains(&e.as_str()));
         Ok(provider)
+    }
+
+    /// Whether this device can run the provider: Apple Intelligence runs
+    /// only on Apple's own hardware.
+    pub fn runs_here(&self) -> bool {
+        self.kind != Kind::Apple || cfg!(any(target_os = "macos", target_os = "ios"))
+    }
+
+    /// What a chat uses where its choice cannot run: the default if it can,
+    /// else the first favorite that can, else the first provider file that
+    /// can, by name.
+    fn nearest(lb: &Lb) -> Option<Provider> {
+        let default = read(lb, "/.agent/default.json")
+            .ok()
+            .flatten()
+            .and_then(|bytes| serde_json::from_slice::<DefaultFile>(&bytes).ok())
+            .map(|d| (d.provider, d.model));
+        let favorites: Vec<String> = read(lb, FAVORITES)
+            .ok()
+            .flatten()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default();
+        let mut names: Vec<String> = lb
+            .get_by_path("/.agent/providers/")
+            .and_then(|folder| lb.get_children(&folder.id))
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|f| f.name.strip_suffix(".json").map(str::to_string))
+            .collect();
+        names.sort();
+        let favored = favorites.iter().map(|selection| split(selection));
+        let filed = names.into_iter().map(|name| (name, String::new()));
+        default
+            .into_iter()
+            .chain(favored)
+            .chain(filed)
+            .find_map(|(name, model)| {
+                Self::load(lb, &name, &model)
+                    .ok()
+                    .filter(|p| p.runs_here() && !p.needs_key && !p.model.is_empty())
+            })
     }
 
     /// The values this model's effort may take: those it has been shown to

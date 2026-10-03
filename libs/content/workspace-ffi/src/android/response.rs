@@ -44,6 +44,10 @@ pub struct AndroidResponse {
     pub has_magnifier: bool,
     pub magnifier_x: f32,
     pub magnifier_y: f32,
+
+    /// A text field of the workspace's own chrome has focus, so the
+    /// keyboard's text goes to it as egui events.
+    pub chrome_text_focused: bool,
 }
 
 impl From<crate::Response> for AndroidResponse {
@@ -123,6 +127,7 @@ impl From<crate::Response> for AndroidResponse {
                 Some((_, workspace_rs::tab::ContextMenuTarget::Image))
             ),
             virtual_keyboard_shown,
+            chrome_text_focused: false,
         }
     }
 }

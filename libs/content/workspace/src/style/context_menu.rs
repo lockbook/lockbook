@@ -212,9 +212,13 @@ pub fn open_host(ctx: &egui::Context) -> Option<Id> {
         .map(|s| s.host)
 }
 
-/// Closes the open menu, whoever hosts it.
-pub fn close(ctx: &egui::Context) {
-    ctx.memory_mut(|m| m.data.remove::<OpenState>(open_id()));
+/// Closes the open menu, whoever hosts it. Returns whether one was open.
+pub fn close(ctx: &egui::Context) -> bool {
+    ctx.memory_mut(|m| {
+        let open = m.data.get_temp::<OpenState>(open_id()).is_some();
+        m.data.remove::<OpenState>(open_id());
+        open
+    })
 }
 
 fn show_open<T: Clone>(
