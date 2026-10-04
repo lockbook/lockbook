@@ -1037,7 +1037,7 @@ impl Chat {
                                         bubble_rect,
                                         CornerRadius::same(2),
                                         Stroke::new(
-                                            1.0,
+                                            1.0_f32,
                                             theme.fg().get_color(theme.prefs().primary),
                                         ),
                                         StrokeKind::Inside,
@@ -1433,7 +1433,7 @@ impl Chat {
                         ui.painter().rect_stroke(
                             r.deny_rect,
                             CornerRadius::same(6),
-                            Stroke::new(1.0, secondary_color),
+                            Stroke::new(1.0_f32, secondary_color),
                             StrokeKind::Inside,
                         );
                         ui.painter().galley(
@@ -1481,14 +1481,13 @@ impl Chat {
                     // one is missing its key. Modeled on a bank-connect flow —
                     // focused and in-context, with connecting/rejected feedback,
                     // rather than a floating dialog.
-                    if self.key_entry.is_some() {
+                    if let Some(entry_ref) = self.key_entry.as_ref() {
                         let ctx = ui.ctx().clone();
                         let center_x = note_x + note_wrap_w / 2.0;
                         let card_w = note_wrap_w.min(340.0);
                         let field_w = card_w.min(300.0);
                         let body_font = egui::FontId::proportional(13.5);
 
-                        let entry_ref = self.key_entry.as_ref().unwrap();
                         let (label, connecting, attempted) =
                             (entry_ref.label.clone(), entry_ref.connecting, entry_ref.attempted);
                         let provider_glyph = entry_ref.name.clone();
@@ -1579,7 +1578,10 @@ impl Chat {
                         ui.painter().rect_stroke(
                             field_rect,
                             CornerRadius::same(6),
-                            Stroke::new(1.0, theme.neutral_bg().lerp_to_gamma(text_color, 0.16)),
+                            Stroke::new(
+                                1.0_f32,
+                                theme.neutral_bg().lerp_to_gamma(text_color, 0.16),
+                            ),
                             StrokeKind::Inside,
                         );
                         // The MdEdit renders in the top-level ui (after the
@@ -1856,10 +1858,10 @@ impl Chat {
                             // composer's "add key" button is the whole story.
                             Onboard::NeedKey { .. } => {}
                         }
-                    } else if visible.is_empty()
-                        && self.unshared
-                        && self.config_loaded
-                        && self.provider.is_some()
+                    } else if let Some(p) = self
+                        .provider
+                        .as_ref()
+                        .filter(|_| visible.is_empty() && self.unshared && self.config_loaded)
                     {
                         // Empty chat, provider ready: an ambient marker of who
                         // you're about to talk to — the provider's mark, the
@@ -1869,7 +1871,6 @@ impl Chat {
                         let center_x = note_x + note_wrap_w / 2.0;
                         let card_w = note_wrap_w.min(340.0);
 
-                        let p = self.provider.as_ref().unwrap();
                         let (name, label) = (p.name.clone(), p.label());
                         let local =
                             p.base_url.contains("localhost") || p.base_url.contains("127.0.0.1");
@@ -2320,7 +2321,7 @@ impl Chat {
                     theme.fg().get_color(theme.prefs().primary)
                 };
                 ui.painter()
-                    .circle_stroke(center, r, Stroke::new(2.0, track));
+                    .circle_stroke(center, r, Stroke::new(2.0_f32, track));
                 if ratio > 0.0 {
                     let n = 32;
                     let points: Vec<Pos2> = (0..=n)
@@ -2331,7 +2332,7 @@ impl Chat {
                         })
                         .collect();
                     ui.painter()
-                        .add(egui::Shape::line(points, Stroke::new(2.0, fill)));
+                        .add(egui::Shape::line(points, Stroke::new(2.0_f32, fill)));
                 }
                 ui.interact(rect, Id::new("chat_context_ring"), Sense::hover())
                     .on_hover_text(format!("{used} / {window} tokens ({:.0}%)", ratio * 100.0));

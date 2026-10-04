@@ -655,6 +655,58 @@ async fn different_content_edit_not_mergable() {
     .await;
 }
 
+/// A second conflict on the same non-mergeable file has to name the new duplicate
+/// `document-2.jsonl`, because `document-1.jsonl` already exists. That retry must keep
+/// the duplicate's key, so a client that did not create the copy can still decrypt it.
+#[tokio::test]
+async fn different_content_edit_not_mergable_twice() {
+    let c1 = test_core_with_account().await;
+    c1.create_at_path("/document.jsonl").await.unwrap();
+    write_path(&c1, "/document.jsonl", b"base\n").await.unwrap();
+    c1.sync().await.unwrap();
+
+    let c2 = another_client(&c1).await;
+    c2.sync().await.unwrap();
+
+    // first conflict: creates /document-1.jsonl
+    write_path(&c1, "/document.jsonl", b"c1 edit 1\n")
+        .await
+        .unwrap();
+    write_path(&c2, "/document.jsonl", b"c2 edit 1\n")
+        .await
+        .unwrap();
+    sync_and_assert(&c1, &c2).await;
+    assert::all_paths(&c1, &["/", "/document.jsonl", "/document-1.jsonl"]).await;
+    assert::all_document_contents(
+        &c1,
+        &[("/document.jsonl", b"c1 edit 1\n"), ("/document-1.jsonl", b"c2 edit 1\n")],
+    )
+    .await;
+
+    // second conflict on the same document: duplicate must be named /document-2.jsonl
+    write_path(&c1, "/document.jsonl", b"c1 edit 2\n")
+        .await
+        .unwrap();
+    write_path(&c2, "/document.jsonl", b"c2 edit 2\n")
+        .await
+        .unwrap();
+    sync_and_assert(&c1, &c2).await;
+    assert::all_paths(&c1, &["/", "/document.jsonl", "/document-1.jsonl", "/document-2.jsonl"])
+        .await;
+
+    // c1 did not create the second duplicate, so it decrypts that copy from metadata.
+    let expected: &[(&str, &[u8])] = &[
+        ("/document.jsonl", b"c1 edit 2\n"),
+        ("/document-1.jsonl", b"c2 edit 1\n"),
+        ("/document-2.jsonl", b"c2 edit 2\n"),
+    ];
+    assert::all_document_contents(&c1, expected).await;
+
+    // a freshly synced device must be able to read everything too
+    let c3 = test_core_from(&c1).await;
+    assert::all_document_contents(&c3, expected).await;
+}
+
 #[tokio::test]
 async fn different_content_edit_mergable() {
     let c1 = test_core_with_account().await;

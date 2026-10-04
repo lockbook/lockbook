@@ -200,8 +200,7 @@ impl FileCache {
         let mut parts: Vec<(&str, bool)> = Vec::new();
         let mut current = id;
         let mut reached_root = false;
-        loop {
-            let Some(f) = self.get_by_id(current) else { break };
+        while let Some(f) = self.get_by_id(current) {
             if f.is_root() {
                 reached_root = true;
                 break;
@@ -335,8 +334,7 @@ pub trait FilesExt {
         let mut parts = vec![file.name.as_str()];
         let mut current = file.parent;
         let mut reached_root = false;
-        loop {
-            let Some(f) = self.get_by_id(current) else { break };
+        while let Some(f) = self.get_by_id(current) {
             if f.is_root() {
                 reached_root = true;
                 break;
@@ -508,8 +506,7 @@ pub trait FilesExt {
     fn ancestors(&self, id: Uuid) -> Vec<Uuid> {
         let mut ancestors = vec![];
         let mut current = id;
-        loop {
-            let Some(file) = self.get_by_id(current) else { break };
+        while let Some(file) = self.get_by_id(current) {
             if file.is_root() {
                 break;
             }

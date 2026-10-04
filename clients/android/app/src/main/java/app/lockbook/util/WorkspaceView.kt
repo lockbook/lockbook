@@ -52,6 +52,7 @@ class WorkspaceView(
     SurfaceHolder.Callback2 {
     private var surface: Surface? = null
     var wrapperView: View? = null
+    var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
 
     private var redrawTask: Runnable =
@@ -402,13 +403,6 @@ class WorkspaceView(
             model._currentTab.value = currentTab
         }
 
-        if (response.openCamera) {
-            val tab = currentTab ?: model.currentTab.value
-            if (tab?.type == WorkspaceTabType.Markdown) {
-                model._photoSourceRequested.value = Unit
-            }
-        }
-
         if (model.currentTab.value?.type == WorkspaceTabType.Markdown ||
             model.currentTab.value?.type == WorkspaceTabType.Chat
         ) {
@@ -439,6 +433,10 @@ class WorkspaceView(
                         )
                 }
             }
+        }
+
+        if (response.selectionUpdated || response.textUpdated) {
+            onMarkdownToolbarStateChanged?.invoke()
         }
 
         if (response.redrawIn < 100) {

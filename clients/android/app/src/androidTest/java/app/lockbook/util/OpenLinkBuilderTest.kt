@@ -19,6 +19,11 @@ class OpenLinkBuilderTest {
     }
 
     @Test
+    fun buildsIpv6Link() {
+        assertEquals("https://[::1]:8443/open/$id", OpenLinkBuilder.build("https://[::1]:8443/", id))
+    }
+
+    @Test
     fun rejectsUnsafeAccountOrigin() {
         try {
             OpenLinkBuilder.build("http://notes.example.com", id)

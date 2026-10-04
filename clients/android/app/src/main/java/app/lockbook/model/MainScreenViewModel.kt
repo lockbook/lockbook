@@ -17,10 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import net.lockbook.Lb
 import net.lockbook.LbError
-import java.io.File
 
 class MainScreenViewModel(
     application: Application,
@@ -52,13 +50,6 @@ class MainScreenViewModel(
     val navigationState: StateFlow<MainNavigationState> = _navigationState.asStateFlow()
     val navigationEffects = _navigationEffects.receiveAsFlow()
 
-    val exportImportModel = ExportImportModel(_mainUiEffect)
-    var pendingExportFiles: List<File>
-        get() = savedStateHandle.get<ArrayList<String>>(PENDING_EXPORT_FILES_KEY)?.map(::File).orEmpty()
-        set(files) {
-            savedStateHandle[PENDING_EXPORT_FILES_KEY] = ArrayList(files.map { it.absolutePath })
-        }
-
     fun launchActivityScreen(screen: ActivityScreen) {
         activityScreen = screen
         _launchActivityScreen.postValue(activityScreen)
@@ -88,23 +79,6 @@ class MainScreenViewModel(
         _mainUiEffect.value = MainUiEffect.ShowHideProgressOverlay(show, messageRes)
     }
 
-    fun exportSelectedFiles(
-        selectedFiles: List<net.lockbook.File>,
-        appDataDir: File,
-    ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                exportImportModel.exportDocuments(selectedFiles, appDataDir)
-            } catch (err: LbError) {
-                withContext(Dispatchers.Main) {
-                    exportImportModel.isLoadingOverlayVisible = false
-                    _mainUiEffect.value = MainUiEffect.ShowHideProgressOverlay(false)
-                    _mainUiEffect.value = MainUiEffect.NotifyError(err)
-                }
-            }
-        }
-    }
-
     fun confirmSubscription(
         purchaseToken: String,
         accountId: String,
@@ -125,7 +99,6 @@ class MainScreenViewModel(
         private const val MAIN_NAVIGATION_PREFERENCES = "main_navigation_preferences"
         private const val LAST_SIDEBAR_DESTINATION_KEY = "last_sidebar_destination"
         private const val DURABLE_SIDEBAR_DESTINATION_KEY = "main_navigation_sidebar"
-        private const val PENDING_EXPORT_FILES_KEY = "pending_export_files"
 
         private const val FILES_DESTINATION = "files"
         private const val RECENTS_DESTINATION = "recents"
@@ -201,10 +174,6 @@ sealed class TransientScreen {
         val files: List<net.lockbook.File>,
     ) : TransientScreen()
 
-    data class Export(
-        val files: List<File>,
-    ) : TransientScreen()
-
     data class Delete(
         val files: List<net.lockbook.File>,
     ) : TransientScreen()
@@ -214,10 +183,6 @@ sealed class MainUiEffect {
     data class ShowHideProgressOverlay(
         val show: Boolean,
         val messageRes: Int? = null,
-    ) : MainUiEffect()
-
-    data class ExportDocuments(
-        val files: ArrayList<File>,
     ) : MainUiEffect()
 
     data class NotifyError(

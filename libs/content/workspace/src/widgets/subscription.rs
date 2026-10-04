@@ -14,7 +14,7 @@ pub fn subscription(
 
     egui::Frame::new()
         .fill(bg)
-        .stroke(egui::Stroke::new(2.0, stroke_color))
+        .stroke(egui::Stroke::new(2.0_f32, stroke_color))
         .corner_radius(4.0)
         .inner_margin(12.0)
         .show(ui, |ui| {

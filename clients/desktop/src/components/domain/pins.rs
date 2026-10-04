@@ -72,7 +72,7 @@ pub fn show(
     if rows.is_empty() {
         return;
     }
-    rows.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    rows.sort_by_key(|a| a.name.to_lowercase());
 
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 

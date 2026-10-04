@@ -9,11 +9,13 @@ import androidx.annotation.StringRes
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.FileSelectionActionButtonBinding
 import app.lockbook.model.AlertModel
+import app.lockbook.model.FileOperationsViewModel
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
@@ -159,6 +161,7 @@ internal class FileSelectionActionDispatcher(
     private val onAddPinnedEmoji: ((File) -> Unit)? = null,
 ) {
     private val alertModel = AlertModel(WeakReference(fragment.requireActivity()), snackbarAnchor)
+    private val fileOperations: FileOperationsViewModel by fragment.activityViewModels()
 
     fun dispatch(
         action: FileSelectionAction,
@@ -205,7 +208,7 @@ internal class FileSelectionActionDispatcher(
             }
 
             FileSelectionAction.Export -> {
-                mainScreenModel.exportSelectedFiles(files, fragment.requireContext().cacheDir)
+                fileOperations.prepareExport(files, fragment.requireContext().cacheDir)
                 onClearSelection()
             }
         }

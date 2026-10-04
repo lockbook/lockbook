@@ -1256,7 +1256,7 @@ impl Selection {
 
 fn get_laso_rect(current: egui::Pos2, drag_origin: egui::Pos2) -> egui::Rect {
     let mut corners = [drag_origin, current];
-    corners.sort_by(|a, b| (a.x.total_cmp(&b.x)));
+    corners.sort_by(|a, b| a.x.total_cmp(&b.x));
     let mut laso_rect = egui::Rect { min: corners[0], max: corners[1] };
     if laso_rect.height() < 0. {
         std::mem::swap(&mut laso_rect.min.y, &mut laso_rect.max.y)

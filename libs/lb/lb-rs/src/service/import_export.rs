@@ -26,7 +26,7 @@ impl Lb {
 
         let parent = self.get_file_by_id(dest).await?;
         if !parent.is_folder() {
-            return Err(LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(dest)))?;
+            Err(LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(dest)))?;
         }
 
         let import_file_futures = FuturesUnordered::new();

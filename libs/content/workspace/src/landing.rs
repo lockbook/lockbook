@@ -295,7 +295,7 @@ impl Workspace {
         let mobile_gutter = 32.0;
         let visible_limit = 5;
         let header_height = 21.0;
-        let header_line_width = 1.0;
+        let header_line_width = 1.0_f32;
         let header_line_gap = 4.0;
         let header_card_gap = 14.0;
         let empty_height = 24.0;
@@ -307,7 +307,7 @@ impl Workspace {
         let light_separator_blend = 0.05;
         let dark_card_gamma = 0.3;
         let dark_separator_gamma = 0.82;
-        let separator_width = 3.0;
+        let separator_width = 3.0_f32;
         let recent = self.landing_page.recent_files.clone();
         let width = (ui.available_width() - mobile_gutter)
             .min(max_width)

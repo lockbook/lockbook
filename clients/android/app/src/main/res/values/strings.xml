@@ -55,7 +55,6 @@
     <string name="menu_list_files_move">Move</string>
     <string name="menu_list_files_share">Share</string>
     <string name="menu_list_files_open_in_new_tab">New tab</string>
-    <string name="workspace_insert_photo">Insert photo</string>
     <string name="workspace_take_photo">Take photo</string>
     <string name="workspace_choose_photo">Choose from photos</string>
     <string name="workspace_photo_selection_limit">You can choose up to 10 photos at a time.</string>
@@ -69,6 +68,10 @@
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
     <string name="done">Done</string>
+    <string name="markdown_toolbar_customize">Customize toolbar</string>
+    <string name="markdown_toolbar_restore_defaults">Restore defaults</string>
+    <string name="markdown_toolbar_drag_to_reorder">Drag to reorder</string>
+    <string name="markdown_toolbar_drag_action_to_reorder">Drag %1$s to reorder</string>
     <string name="move_file_title">Move File</string>
 
     <string name="cancel">Cancel</string>
@@ -313,8 +316,6 @@
     <string name="copy_lockbook_link">Copy Lockbook link</string>
     <string name="lockbook_link_copied">Lockbook link copied</string>
     <string name="invalid_lockbook_link">This Lockbook link is invalid.</string>
-    <string name="open_link_wrong_server_title">Different Lockbook server</string>
-    <string name="open_link_wrong_server">This link belongs to %1$s, but this account uses %2$s. Switch accounts before opening it.</string>
     <string name="open_link_not_found">The linked file could not be found.</string>
     <string name="username">Username</string>
 

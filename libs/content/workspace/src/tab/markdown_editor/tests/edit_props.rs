@@ -1316,7 +1316,7 @@ fn gen_indent_encoding(cols: usize, src: &mut ByteSource) -> String {
         // pure spaces
         0 => " ".repeat(cols),
         // pure tabs (only valid when cols aligns to tab stops)
-        1 if cols % 4 == 0 => "\t".repeat(cols / 4),
+        1 if cols.is_multiple_of(4) => "\t".repeat(cols / 4),
         // mixed: as many tabs as fit, spaces for the remainder
         _ => {
             let tabs = cols / 4;

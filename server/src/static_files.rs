@@ -63,10 +63,8 @@ fn json_response(body: &'static str) -> Response<Body> {
 }
 
 pub fn get_files_preview_html(public_origin: &str, uuid: Uuid) -> String {
-    let server = urlencoding::encode(public_origin);
     let uuid = uuid.to_string();
-    let file = urlencoding::encode(&uuid);
-    let handoff = format!("lb://open?server={server}&amp;file={file}");
+    let handoff = format!("lb://{uuid}");
     let logo = format!("{public_origin}/lockbook-logo.png");
 
     format!(
@@ -86,15 +84,16 @@ pub fn get_files_preview_html(public_origin: &str, uuid: Uuid) -> String {
     <meta name="twitter:description" content="Someone shared a Lockbook note with you.">
     <meta name="twitter:image" content="{logo}">
     <style>
-        :root {{ color-scheme: light dark; font-family: system-ui, sans-serif; }}
-        body {{ min-height: 100vh; margin: 0; display: grid; place-items: center; background: #f5f3fb; color: #201a29; }}
-        main {{ width: min(30rem, calc(100% - 3rem)); padding: 2.5rem; text-align: center; border-radius: 1.5rem; background: #fff; box-shadow: 0 1rem 3rem #251c3820; }}
-        img {{ width: 5rem; height: 5rem; }}
-        h1 {{ margin-bottom: .5rem; }}
-        p {{ line-height: 1.5; color: #5f5868; }}
-        a {{ display: inline-block; margin-top: 1rem; padding: .85rem 1.25rem; border-radius: 999px; background: #65558f; color: #fff; font-weight: 700; text-decoration: none; }}
-        a:focus-visible {{ outline: 3px solid #ffb4ab; outline-offset: 3px; }}
-        @media (prefers-color-scheme: dark) {{ body {{ background: #151218; color: #e9e0ec; }} main {{ background: #211f26; }} p {{ color: #cac4d0; }} }}
+        @font-face {{ font-family: Martian; src: url("https://lockbook.github.io/martian.woff2") format("woff2"); font-display: swap; }}
+        :root {{ color-scheme: dark; font-family: Martian, ui-monospace, monospace; background: #101010; color: #f2f2f2; }}
+        body {{ min-height: 100vh; margin: 0; display: grid; place-items: center; background: #101010; color: #f2f2f2; }}
+        main {{ width: min(34rem, calc(100% - 3rem)); padding: 3rem 2.5rem; text-align: center; border: 1px solid #303030; background: #1a1a1a; box-shadow: 0 1.5rem 4rem #00000066; }}
+        img {{ width: 5rem; height: 5rem; margin-bottom: 1rem; }}
+        h1 {{ margin: 0 0 .75rem; font-size: clamp(1.5rem, 4vw, 2.25rem); letter-spacing: -.04em; }}
+        p {{ line-height: 1.6; color: #bfbfbf; }}
+        a {{ display: inline-block; margin-top: 1rem; padding: .85rem 1.35rem; border-radius: .15rem; background: #67e4b6; color: #101010; font-weight: 700; text-decoration: none; }}
+        a:hover {{ background: #8af0ca; }}
+        a:focus-visible {{ outline: 3px solid #67e4b6; outline-offset: 3px; }}
     </style>
 </head>
 <body>
@@ -121,13 +120,7 @@ fn canonical_https_origin(value: &str) -> Option<String> {
     {
         return None;
     }
-    let host = parsed.host_str()?.to_ascii_lowercase();
-    let host = if host.contains(':') { format!("[{host}]") } else { host };
-    let port = parsed.port().filter(|port| *port != 443);
-    Some(match port {
-        Some(port) => format!("https://{host}:{port}"),
-        None => format!("https://{host}"),
-    })
+    Some(parsed.origin().ascii_serialization())
 }
 
 #[cfg(test)]
@@ -147,12 +140,20 @@ mod tests {
         assert!(body.contains("<title>Open shared note in Lockbook</title>"));
         assert!(body.contains("Someone shared a Lockbook note with you."));
         assert!(body.contains("https://notes.example.com/lockbook-logo.png"));
-        assert!(
-            body.contains(&format!(
-                "lb://open?server=https%3A%2F%2Fnotes.example.com&amp;file={ID}"
-            ))
-        );
+        assert!(body.contains(&format!("lb://{ID}")));
         assert!(!body.contains("window.location"));
+    }
+
+    #[tokio::test]
+    async fn ipv6_handoff_and_preview_keep_valid_authorities() {
+        let response = warp::test::request()
+            .path(&format!("/open/{ID}"))
+            .reply(&static_routes("https://[::1]:8443/"))
+            .await;
+        let body = std::str::from_utf8(response.body()).unwrap();
+        assert!(body.contains(&format!("lb://{ID}")));
+        assert!(body.contains("https://[::1]:8443/lockbook-logo.png"));
+        assert!(!body.contains("[["));
     }
 
     #[tokio::test]
@@ -187,6 +188,11 @@ mod tests {
 
     #[test]
     fn configured_origin_must_be_safe_https() {
+        assert_eq!(
+            canonical_https_origin("https://[::1]:8443/"),
+            Some("https://[::1]:8443".into())
+        );
+        assert_eq!(canonical_https_origin("https://[::1]:443/"), Some("https://[::1]".into()));
         assert_eq!(
             canonical_https_origin("https://EXAMPLE.com:443/"),
             Some("https://example.com".into())

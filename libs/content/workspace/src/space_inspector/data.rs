@@ -165,7 +165,7 @@ impl Data {
     pub fn get_paint_order(&self) -> Vec<StorageCell> {
         let trees = self.get_children(&self.focused_folder); // gets all children of the root in StorageTree format
         let mut paint_order_vec = Data::set_layers(&trees, 1, vec![]);
-        paint_order_vec.sort_by(|a, b| a.layer.cmp(&b.layer));
+        paint_order_vec.sort_by_key(|a| a.layer);
         paint_order_vec
     }
 }

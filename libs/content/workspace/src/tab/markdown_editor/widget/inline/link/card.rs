@@ -234,7 +234,7 @@ impl<'ast> MdRender {
 
         // Stroke last so the hairline frames the hero image (which is painted
         // edge-to-edge) rather than being covered by it.
-        let border = Stroke::new(1.0, vis.widgets.noninteractive.bg_stroke.color);
+        let border = Stroke::new(1.0_f32, vis.widgets.noninteractive.bg_stroke.color);
         ui.painter()
             .rect_stroke(rect, cr, border, StrokeKind::Inside);
     }

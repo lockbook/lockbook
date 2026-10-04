@@ -21,6 +21,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
@@ -94,6 +95,18 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         binding.shareFileAddPerson.setOnClickListener { showInviteForm() }
         binding.shareFileAddFirstPerson.setOnClickListener { showInviteForm() }
         binding.shareFileBack.setOnClickListener { showMainSheet() }
+        (requireDialog() as BottomSheetDialog).onBackPressedDispatcher.addCallback(
+            viewLifecycleOwner,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (binding.shareFileInviteForm.isVisible) {
+                        if (binding.shareFileBack.isEnabled) showMainSheet()
+                    } else {
+                        dismiss()
+                    }
+                }
+            },
+        )
         binding.shareFileAccessMode.setText(getString(R.string.share_mode_read), false)
         binding.shareFileAccessMode.setOnItemClickListener { _, _, _, _ ->
             binding.shareFileErrorContainer.isVisible = false
@@ -334,5 +347,4 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         Timber.e(error, "Unable to share Lockbook link")
         showSuccessSnackbar(getString(R.string.unexpected_error))
     }
-
 }

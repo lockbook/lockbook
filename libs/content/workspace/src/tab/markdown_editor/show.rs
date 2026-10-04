@@ -518,7 +518,7 @@ impl MdEdit {
         ui.painter().rect_stroke(
             hole,
             card_corner,
-            Stroke::new(0.5, stroke_color),
+            Stroke::new(0.5_f32, stroke_color),
             egui::epaint::StrokeKind::Inside,
         );
 
@@ -530,7 +530,7 @@ impl MdEdit {
         ui.painter().rect_stroke(
             card,
             card_corner,
-            Stroke::new(0.5, stroke_color),
+            Stroke::new(0.5_f32, stroke_color),
             egui::epaint::StrokeKind::Inside,
         );
 
@@ -591,7 +591,7 @@ impl MdEdit {
                 ));
         }
         for d in floating_deco {
-            ui.painter().hline(d.x, d.y, Stroke::new(1.0, d.color));
+            ui.painter().hline(d.x, d.y, Stroke::new(1.0_f32, d.color));
         }
     }
 
@@ -919,7 +919,7 @@ impl MdEdit {
         // strikethroughs and underlines painted on top of text
         for deco in std::mem::take(&mut self.renderer.deco_lines) {
             ui.painter()
-                .hline(deco.x, deco.y, Stroke::new(1.0, deco.color));
+                .hline(deco.x, deco.y, Stroke::new(1.0_f32, deco.color));
         }
 
         // A reorder selects the dragged section; its handles would clutter

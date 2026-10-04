@@ -4,12 +4,9 @@ package app.lockbook.screen
 
 import android.content.Intent
 import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
-import android.provider.DocumentsContract
 import android.view.View
 import android.view.WindowManager
-import android.webkit.MimeTypeMap
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
@@ -43,9 +40,7 @@ import kotlinx.coroutines.withContext
 import net.lockbook.Lb
 import net.lockbook.LbStatus
 import java.io.File
-import java.io.IOException
 import java.lang.ref.WeakReference
-import java.util.Locale
 
 class MainScreenActivity : AppCompatActivity() {
     private var _binding: ActivityMainScreenBinding? = null
@@ -111,62 +106,18 @@ class MainScreenActivity : AppCompatActivity() {
 
     private val onExport =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val exportedFiles = mainScreenModel.pendingExportFiles
             val destination = result.data?.data
-            if (result.resultCode != RESULT_OK || destination == null || exportedFiles.isEmpty()) {
+            if (result.resultCode != RESULT_OK || destination == null) {
                 finishExport()
                 return@registerForActivityResult
             }
 
-            mainScreenModel.showProgressOverlay(true, R.string.exporting)
-            lifecycleScope.launch(Dispatchers.IO) {
-                var savedCount = 0
-                val outcome =
-                    runCatching {
-                        if (exportedFiles.size == 1) {
-                            writeExportFile(exportedFiles.single(), destination)
-                            savedCount = 1
-                        } else {
-                            val parent =
-                                DocumentsContract.buildDocumentUriUsingTree(
-                                    destination,
-                                    DocumentsContract.getTreeDocumentId(destination),
-                                )
-                            exportedFiles.forEach { source ->
-                                val created =
-                                    DocumentsContract.createDocument(
-                                        contentResolver,
-                                        parent,
-                                        exportMimeType(source),
-                                        source.name,
-                                    ) ?: throw IOException("Could not create " + source.name)
-                                try {
-                                    writeExportFile(source, created)
-                                } catch (error: Exception) {
-                                    runCatching { DocumentsContract.deleteDocument(contentResolver, created) }
-                                    throw error
-                                }
-                                savedCount++
-                            }
-                        }
-                    }
-
-                withContext(Dispatchers.Main) {
-                    finishExport()
-                    val message =
-                        when {
-                            outcome.isSuccess ->
-                                resources.getQuantityString(R.plurals.exported_files, savedCount, savedCount)
-                            savedCount > 0 -> getString(R.string.export_partially_failed, savedCount, exportedFiles.size)
-                            else -> getString(R.string.export_failed)
-                        }
-                    alertModel.notify(message)
-                }
-            }
+            fileOperations.export(destination, application.contentResolver)
         }
 
     val mainScreenModel: MainScreenViewModel by viewModels()
     val workspaceModel: WorkspaceViewModel by viewModels()
+    private val fileOperations: FileOperationsViewModel by viewModels()
     private val fileSelectionModel: FileSelectionViewModel by viewModels()
 
     private val fileTreeViewModel: FileTreeViewModel by viewModels()
@@ -258,10 +209,6 @@ class MainScreenActivity : AppCompatActivity() {
             }
         }
 
-        if (mainScreenModel.exportImportModel.isLoadingOverlayVisible) {
-            handleMainUiEffect(MainUiEffect.ShowHideProgressOverlay(true, R.string.exporting))
-        }
-
         mainScreenModel.launchActivityScreen.observe(
             this,
         ) { screen ->
@@ -323,10 +270,6 @@ class MainScreenActivity : AppCompatActivity() {
                     )
                 }
 
-                is TransientScreen.Export -> {
-                    launchExportChooser(screen.files)
-                }
-
                 is TransientScreen.Delete -> {
                     DeleteFilesDialogFragment.newInstance(screen.files.map { it.id }).show(
                         supportFragmentManager,
@@ -344,6 +287,12 @@ class MainScreenActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    fileOperations.opening.collect(::renderOpening)
+                }
+                launch {
+                    fileOperations.exporting.collect(::renderExport)
+                }
                 launch {
                     mainScreenModel.navigationState.collect(::renderNavigation)
                 }
@@ -409,39 +358,97 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     private fun consumePendingOpenLink() {
-        val request = PendingOpenLinkStore.take(this) ?: return
-        val accountApiUrl = Lb.getAccount().apiUrl
-        val accountOrigin = OpenLinkParser.canonicalOrigin(accountApiUrl)
-        if (accountOrigin == null || !OpenLinkParser.originsMatch(request.serverOrigin, accountOrigin)) {
-            MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.open_link_wrong_server_title)
-                .setMessage(getString(R.string.open_link_wrong_server, request.serverOrigin, accountOrigin ?: accountApiUrl))
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
-            return
-        }
+        PendingOpenLinkStore.peek(this)?.let(fileOperations::open)
+    }
 
-        mainScreenModel.showProgressOverlay(true)
-        lifecycleScope.launch(Dispatchers.IO) {
-            val syncError = runCatching { Lb.sync() }.exceptionOrNull()
-            val file = runCatching { Lb.getFileById(request.fileId) }.getOrNull()
-            withContext(Dispatchers.Main) {
-                mainScreenModel.showProgressOverlay(false)
+    private fun renderOpening(state: OpenLinkState) {
+        renderFileOperationProgress()
+        when (state) {
+            OpenLinkState.Idle -> {
+                Unit
+            }
+
+            OpenLinkState.Running -> {
+                Unit
+            }
+
+            is OpenLinkState.Complete -> {
+                val result = state.result
                 fileTreeViewModel.reloadFiles()
-                if (file != null) {
-                    workspaceModel.openFile(
-                        OpenFileRequest(
-                            id = file.id,
-                            newFile = false,
-                            presentation = OpenFilePresentation.ShowDetail,
-                        ),
-                    )
-                    mainScreenModel.navigate(MainNavigationAction.FocusDetail)
-                } else if (syncError is net.lockbook.LbError) {
-                    alertModel.notifyError(syncError)
-                } else {
-                    alertModel.notify(getString(R.string.open_link_not_found))
+                when {
+                    result.fileFound -> {
+                        workspaceModel.openFile(
+                            OpenFileRequest(
+                                id = result.fileId,
+                                newFile = false,
+                                presentation = OpenFilePresentation.ShowDetail,
+                            ),
+                        )
+                        mainScreenModel.navigate(MainNavigationAction.FocusDetail)
+                    }
+
+                    result.error != null -> {
+                        alertModel.notifyError(result.error)
+                    }
+
+                    else -> {
+                        alertModel.notify(getString(R.string.open_link_not_found))
+                    }
                 }
+                acknowledgeOpenLink(result)
+            }
+        }
+    }
+
+    private fun acknowledgeOpenLink(result: OpenLinkResult) {
+        PendingOpenLinkStore.acknowledge(this, result.fileId)
+        fileOperations.acknowledgeOpening()
+        consumePendingOpenLink()
+    }
+
+    private fun renderExport(state: ExportState) {
+        renderFileOperationProgress()
+        when (state) {
+            ExportState.Idle -> {
+                Unit
+            }
+
+            ExportState.Preparing, ExportState.Copying -> {
+                Unit
+            }
+
+            is ExportState.ChooseDestination -> {
+                fileOperations.takeExportPickerRequest()?.let(::launchExportChooser)
+            }
+
+            ExportState.AwaitingDestination -> {
+                Unit
+            }
+
+            ExportState.NoDocuments -> {
+                finishExport()
+                alertModel.notify(getString(R.string.export_no_documents))
+            }
+
+            is ExportState.Failed -> {
+                finishExport()
+                if (state.error != null) {
+                    alertModel.notifyError(state.error)
+                } else {
+                    alertModel.notify(getString(R.string.export_failed))
+                }
+            }
+
+            is ExportState.Complete -> {
+                val result = state.result
+                finishExport()
+                val message =
+                    when {
+                        result.succeeded -> resources.getQuantityString(R.plurals.exported_files, result.saved, result.saved)
+                        result.saved > 0 -> getString(R.string.export_partially_failed, result.saved, result.total)
+                        else -> getString(R.string.export_failed)
+                    }
+                alertModel.notify(message)
             }
         }
     }
@@ -570,10 +577,6 @@ class MainScreenActivity : AppCompatActivity() {
         when (effect) {
             is MainUiEffect.NotifyError -> {
                 alertModel.notifyError(effect.error)
-            }
-
-            is MainUiEffect.ExportDocuments -> {
-                launchExportChooser(effect.files)
             }
 
             is MainUiEffect.ShowHideProgressOverlay -> {
@@ -813,13 +816,6 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     private fun launchExportChooser(files: List<File>) {
-        if (files.isEmpty()) {
-            finishExport()
-            alertModel.notify(getString(R.string.export_no_documents))
-            return
-        }
-
-        mainScreenModel.pendingExportFiles = files
         val intent =
             if (files.size == 1) {
                 Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -830,29 +826,25 @@ class MainScreenActivity : AppCompatActivity() {
             } else {
                 Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
             }
-        onExport.launch(intent)
-    }
-
-    private fun writeExportFile(
-        source: File,
-        destination: Uri,
-    ) {
-        source.inputStream().use { input ->
-            val output = contentResolver.openOutputStream(destination, "w")
-                ?: throw IOException("Could not open export destination")
-            output.use(input::copyTo)
+        try {
+            onExport.launch(intent)
+        } catch (_: android.content.ActivityNotFoundException) {
+            fileOperations.exportPickerFailed()
         }
     }
 
-    private fun exportMimeType(file: File): String =
-        MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase(Locale.ROOT))
-            ?: "application/octet-stream"
-
     private fun finishExport() {
-        mainScreenModel.pendingExportFiles = emptyList()
-        mainScreenModel.showProgressOverlay(false)
-        mainScreenModel.exportImportModel.isLoadingOverlayVisible = false
+        fileOperations.finishExport()
+        renderFileOperationProgress()
         currentFilesFragment()?.unselectFiles()
+    }
+
+    private fun renderFileOperationProgress() {
+        val exporting = fileOperations.exporting.value.let { it == ExportState.Preparing || it == ExportState.Copying }
+        mainScreenModel.showProgressOverlay(
+            fileOperations.opening.value == OpenLinkState.Running || exporting,
+            if (exporting) R.string.exporting else null,
+        )
     }
 
     override fun onDestroy() {
