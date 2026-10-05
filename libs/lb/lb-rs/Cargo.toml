@@ -88,10 +88,6 @@ tokio = { version = "1", features = ["full"] }
 tracing-perfetto-file = "=0.1.1"
 tracing-appender = "0.2"
 
-[target.'cfg(not(any(target_family = "wasm", target_os = "ios")))'.dependencies]
-notify = "8.2.0"
-
-
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["async_tokio"] }
 itertools = "0.10.1"

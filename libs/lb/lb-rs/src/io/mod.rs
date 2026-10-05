@@ -15,8 +15,11 @@ use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
 use crate::service::lb_id::LbID;
+#[cfg(all(unix, not(target_os = "ios")))]
+use crate::subscribers::ipc::Ipc;
 use db_rs::View;
 use db_rs::config::Config;
+use db_rs::errors::Result as DbResult;
 use db_rs::guard::WriteTx;
 use db_rs::views::{
     composite_view::{Composite, Schema},
@@ -146,6 +149,8 @@ impl LbRO<'_> {
 pub struct LbTx<'a> {
     guard: RwLockWriteGuard<'a, CoreDb>,
     tx: Option<WriteTx>,
+    #[cfg(all(unix, not(target_os = "ios")))]
+    ipc: &'a Ipc,
 }
 
 impl LbTx<'_> {
@@ -154,14 +159,21 @@ impl LbTx<'_> {
     }
 
     pub fn end(mut self) {
-        self.tx.take().unwrap().end_tx(&mut *self.guard).unwrap();
+        self.flush().unwrap();
+    }
+
+    fn flush(&mut self) -> DbResult<()> {
+        self.tx.take().unwrap().end_tx(&mut *self.guard)?;
+        #[cfg(all(unix, not(target_os = "ios")))]
+        self.ipc.notify_peers();
+        Ok(())
     }
 }
 
 impl Drop for LbTx<'_> {
     fn drop(&mut self) {
-        if let Some(tx) = self.tx.take() {
-            if let Err(error) = tx.end_tx(&mut *self.guard) {
+        if self.tx.is_some() {
+            if let Err(error) = self.flush() {
                 error!(?error, "failed to flush database transaction on drop");
             }
         }
@@ -207,6 +219,11 @@ impl Lb {
         let tx = guard.write_tx().unwrap();
         self.notify_catch_up(&guard.schema, previous_seq).await;
 
-        LbTx { guard, tx: Some(tx) }
+        LbTx {
+            guard,
+            tx: Some(tx),
+            #[cfg(all(unix, not(target_os = "ios")))]
+            ipc: &self.ipc,
+        }
     }
 }

@@ -4122,7 +4122,6 @@ dependencies = [
  "itertools 0.10.5",
  "libc",
  "libsecp256k1",
- "notify",
  "nucleo",
  "qrcode-generator",
  "rand 0.8.7",
