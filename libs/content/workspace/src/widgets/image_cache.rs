@@ -10,7 +10,7 @@
 //! resvg, and EXIF orientation correction. Decoded images are uploaded as
 //! egui textures.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -50,12 +50,17 @@ pub enum ImageState {
     Loading,
     Loaded(TextureId),
     Failed(String),
+    /// A web image not fetched, so that opening the note doesn't tell the
+    /// site it was opened.
+    Withheld,
 }
 
 #[derive(Default)]
 struct Inner {
     current: HashMap<String, Arc<Mutex<ImageState>>>,
     previous: HashMap<String, Arc<Mutex<ImageState>>>,
+    /// Web images the user asked to load this session.
+    allowed: HashSet<String>,
     began_this_frame: bool,
 }
 
@@ -113,7 +118,7 @@ impl ImageCache {
             let (keep_loading, free_id) = match state.lock().unwrap().deref() {
                 ImageState::Loading => (true, None),
                 ImageState::Loaded(id) => (false, Some(*id)),
-                ImageState::Failed(_) => (false, None),
+                ImageState::Failed(_) | ImageState::Withheld => (false, None),
             };
             if keep_loading {
                 keep.push((url, state));
@@ -135,18 +140,77 @@ impl ImageCache {
         &self, url: &str, from_file_id: Uuid, user_activity: bool,
     ) -> Arc<Mutex<ImageState>> {
         let mut inner = self.inner.lock().unwrap();
-        if let Some(state) = inner.current.get(url) {
+        let withhold = !inner.allowed.contains(url) && self.withholds(url, from_file_id);
+        // a withheld image loads once nothing withholds it
+        let stale = |state: &Arc<Mutex<ImageState>>| {
+            !withhold && *state.lock().unwrap() == ImageState::Withheld
+        };
+        if let Some(state) = inner.current.get(url).filter(|s| !stale(s)) {
             return state.clone();
         }
-        if let Some(state) = inner.previous.remove(url) {
+        if let Some(state) = inner.previous.remove(url).filter(|s| !stale(s)) {
             inner.current.insert(url.to_string(), state.clone());
             return state;
         }
 
         let state: Arc<Mutex<ImageState>> = Default::default();
-        self.spawn_load(url, from_file_id, user_activity, state.clone());
+        if withhold {
+            *state.lock().unwrap() = ImageState::Withheld;
+        } else {
+            self.spawn_load(url, from_file_id, user_activity, state.clone());
+        }
         inner.current.insert(url.to_string(), state.clone());
         state
+    }
+
+    /// Whether `url`, embedded in the note `from_file_id`, is a web image to
+    /// leave unfetched: fetching is off, and someone else can write the note
+    /// — it is theirs, or it is shared — so the URL may be theirs too.
+    pub(crate) fn withholds(&self, url: &str, from_file_id: Uuid) -> bool {
+        let web = url.starts_with("http://") || url.starts_with("https://");
+        if !web || self.persistence.get_contact_linked_sites() {
+            return false;
+        }
+        let files = self.files.read().unwrap();
+        let Some(note) = files.get_by_id(from_file_id) else { return false };
+        // anything but a file in the note's scope is fetched from the web
+        let scope = files.scope_top(from_file_id);
+        let web = !matches!(
+            files.resolve_link(url, from_file_id),
+            Some(ResolvedLink::File(id)) if files.in_scope(scope, id)
+        );
+        let shared = files
+            .get_by_id(files.scope_top(from_file_id))
+            .is_some_and(|top| !top.shares.is_empty());
+        web && (shared || note.owner != files.root.owner)
+    }
+
+    /// Whether `url` embedded in `from_file_id` is, or when looked up will
+    /// be, left unfetched.
+    pub fn withheld_in(&self, url: &str, from_file_id: Uuid) -> bool {
+        let inner = self.inner.lock().unwrap();
+        match inner.current.get(url).or_else(|| inner.previous.get(url)) {
+            Some(state) => *state.lock().unwrap() == ImageState::Withheld,
+            None => !inner.allowed.contains(url) && self.withholds(url, from_file_id),
+        }
+    }
+
+    /// Whether `url` is a web image left unfetched ([`ImageState::Withheld`]).
+    pub fn is_withheld(&self, url: &str) -> bool {
+        let inner = self.inner.lock().unwrap();
+        inner
+            .current
+            .get(url)
+            .or_else(|| inner.previous.get(url))
+            .is_some_and(|s| *s.lock().unwrap() == ImageState::Withheld)
+    }
+
+    /// Fetch a withheld image, at the user's request.
+    pub fn allow(&self, url: &str) {
+        self.inner.lock().unwrap().allowed.insert(url.to_string());
+        self.seq
+            .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+        self.ctx.request_repaint();
     }
 
     /// Real texture dimensions for `url`, if known.

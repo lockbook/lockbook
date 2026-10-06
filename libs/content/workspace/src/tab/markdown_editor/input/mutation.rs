@@ -526,6 +526,7 @@ impl<'ast> MdEdit {
                     self.renderer.open_resolved_link(&url, &ctx, false);
                 }
             }
+            Event::LoadEmbed { url } => self.renderer.embeds.allow(&url),
             Event::EnterAtom => {
                 if !self.enter_at_image(root, operations) {
                     self.enter_at_link(root, operations);

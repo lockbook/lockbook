@@ -92,3 +92,45 @@ fn pasted_id_links_are_written_for_the_note() {
     assert_eq!(paste("see ", (4, 4), &unknown), format!("see {unknown}"));
     assert_eq!(paste("see ", (4, 4), "https://lockbook.net"), "see https://lockbook.net");
 }
+
+/// Opening a note someone else can write doesn't fetch the images in it.
+#[test]
+fn web_images_wait_to_be_asked_for() {
+    use std::sync::{Arc, RwLock};
+
+    use crate::widgets::image_cache::{ImageCache, ImageState};
+    use crate::workspace::WsPersistentStore;
+
+    let mut files = shared_project();
+    let mut theirs = file(9, 99, "theirs.md", FileType::Document);
+    theirs.owner = "bob".into();
+    files.insert_created_file(theirs);
+    let id = |path: &str| files.by_path(path).unwrap().id;
+    let (shared, private) = (id("/project/notes.md"), id("/budget.md"));
+
+    let mut persistence =
+        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let images = ImageCache::new(
+        crate::tab::markdown_editor::test_egui_ctx(),
+        Default::default(),
+        super::harness::build_lb(),
+        Arc::new(RwLock::new(files)),
+        persistence.clone(),
+    );
+    let web = "https://example.com/pixel.png";
+    let state = |url: &str, note| images.get_or_load(url, note, false).lock().unwrap().clone();
+
+    assert!(images.withholds(web, shared));
+    assert!(images.withholds(web, Uuid::from_u128(9)));
+    assert!(!images.withholds(web, private));
+    assert!(!images.withholds("design/sketch.svg", shared));
+    assert_eq!(state(web, shared), ImageState::Withheld);
+    assert!(images.is_withheld(web));
+
+    // the site's own link to a file here is a file, not a fetch
+    let sketch = format!("https://app.lockbook.net/open/{}", Uuid::from_u128(8));
+    assert!(!images.withholds(&sketch, shared));
+
+    persistence.set_contact_linked_sites(true);
+    assert!(!images.withholds(web, shared));
+}
