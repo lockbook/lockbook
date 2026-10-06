@@ -155,8 +155,9 @@ pub fn parse_args(text: &str) -> Value {
     }
 }
 
-/// Sends `body`, retrying rate limits and server errors a few times before
-/// the stream starts. Non-success responses surface their body.
+/// Sends `body`, retrying rate limits, server errors, and a connection that
+/// failed before any answer a few times before the stream starts; a failed
+/// connection is not reused. Non-success responses surface their body.
 pub(crate) async fn send(
     client: &reqwest::Client, url: &str, headers: &[(&str, String)], body: &Value,
 ) -> Result<reqwest::Response, String> {
@@ -167,7 +168,14 @@ pub(crate) async fn send(
         for (name, value) in headers {
             request = request.header(*name, value);
         }
-        let resp = request.send().await.map_err(unsent)?;
+        let resp = match request.send().await {
+            Ok(resp) => resp,
+            Err(err) if attempts < MAX_ATTEMPTS && (err.is_request() || err.is_connect()) => {
+                tokio::time::sleep(Duration::from_millis(500 * attempts as u64)).await;
+                continue;
+            }
+            Err(err) => return Err(unsent(err)),
+        };
         let status = resp.status();
         if status.is_success() {
             return Ok(resp);
@@ -254,6 +262,31 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    /// A connection that drops before answering is tried again on a new one.
+    #[test]
+    fn a_dropped_connection_is_tried_again() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/v1/x", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let (dropped, _) = listener.accept().unwrap();
+            drop(dropped);
+            let (mut answered, _) = listener.accept().unwrap();
+            let mut buf = [0u8; 4096];
+            let _ = answered.read(&mut buf);
+            let body = "ok";
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            answered.write_all(reply.as_bytes()).unwrap();
+        });
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let client = reqwest::Client::new();
+        let resp = rt.block_on(send(&client, &url, &[], &json!({})));
+        assert_eq!(rt.block_on(resp.unwrap().text()).unwrap(), "ok");
+    }
 
     /// Providers wrap what went wrong in JSON of a few shapes; the user
     /// reads the sentence, not the envelope.
