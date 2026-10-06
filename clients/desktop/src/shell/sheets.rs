@@ -382,6 +382,24 @@ fn delete_parts(app: &ShellApp, ids: &[Uuid]) -> DeleteParts {
         }
     }
 
+    // notes left with a link to nothing
+    let mut going: std::collections::HashSet<Uuid> = owned_ids.iter().copied().collect();
+    for id in &owned_ids {
+        going.extend(files.descendents(*id).iter().map(|f| f.id));
+    }
+    let links = ready.workspace.links.read().unwrap();
+    let linkers = going.iter().flat_map(|id| links.linkers(*id));
+    let mut linkers: Vec<Uuid> = linkers.copied().filter(|n| !going.contains(n)).collect();
+    linkers.sort();
+    linkers.dedup();
+    let mut linker_names: Vec<String> = linkers
+        .iter()
+        .filter_map(|id| files.get_by_id(*id))
+        .map(|f| display_file_name(&f.name).to_owned())
+        .collect();
+    linker_names.sort();
+    spans.extend(delete_linker_spans(&linker_names, names.len()));
+
     spans.push((" ".into(), false));
     spans.push((undo.into(), false));
     DeleteParts { owned_ids, owned: spans, shares }
@@ -399,6 +417,25 @@ fn delete_link_spans(names: &[String]) -> Vec<(String, bool)> {
 }
 
 /// **a**, **b**, and **c** (share-style list, bold names).
+/// " **notes** and **journal** link to it.", of the notes a delete of
+/// `deleting` files leaves with a link to nothing.
+fn delete_linker_spans(linkers: &[String], deleting: usize) -> Vec<(String, bool)> {
+    let mut spans = vec![];
+    if linkers.is_empty() {
+        return spans;
+    }
+    spans.push((" ".into(), false));
+    if linkers.len() <= 3 {
+        delete_push_name_list(&mut spans, linkers);
+    } else {
+        spans.push((delete_count_noun(linkers.len(), "note", "notes"), true));
+    }
+    let verb = if linkers.len() == 1 { "links" } else { "link" };
+    let it = if deleting == 1 { "it" } else { "them" };
+    spans.push((format!(" {verb} to {it}."), false));
+    spans
+}
+
 fn delete_push_name_list(spans: &mut Vec<(String, bool)>, names: &[String]) {
     match names {
         [] => {}
@@ -654,7 +691,7 @@ fn help_shortcut_row(ui: &mut egui::Ui, t: &Theme, key: &str, label: &str) {
 
 #[cfg(test)]
 mod delete_link_copy_tests {
-    use super::{delete_link_spans, delete_push_name_list};
+    use super::{delete_link_spans, delete_linker_spans, delete_push_name_list};
 
     fn text(spans: &[(String, bool)]) -> String {
         spans.iter().map(|(s, _)| s.as_str()).collect()
@@ -680,6 +717,15 @@ mod delete_link_copy_tests {
             "A and B will be removed from files. You'll still have access through Shared with me."
         );
         assert!(!t.to_ascii_lowercase().contains("delete"));
+    }
+
+    #[test]
+    fn linkers_are_named_or_counted() {
+        let notes = |n: usize| -> Vec<String> { (1..=n).map(|i| format!("note {i}")).collect() };
+        assert_eq!(text(&delete_linker_spans(&[], 1)), "");
+        assert_eq!(text(&delete_linker_spans(&notes(1), 1)), " note 1 links to it.");
+        assert_eq!(text(&delete_linker_spans(&notes(2), 3)), " note 1 and note 2 link to them.");
+        assert_eq!(text(&delete_linker_spans(&notes(4), 1)), " 4 notes link to it.");
     }
 
     #[test]
