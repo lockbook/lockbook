@@ -5,6 +5,7 @@
 
 use crate::file_cache::FileCache;
 use crate::resolvers::EmbedResolver;
+use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::link::{LinkResolver, LinkState, ResolvedLink};
 use crate::tab::ExtendedInput as _;
 use crate::tab::markdown_editor::input::Event;
@@ -68,6 +69,31 @@ impl TestEditor {
             Self { editor: build_editor(lb, md, "md", Box::new(embeds.clone())), pending: vec![] };
         harness.enter_frame();
         (harness, embeds)
+    }
+
+    /// Build as the note `file_id` in `files`, resolving links against them.
+    pub fn in_files(files: FileCache, file_id: Uuid, md: &str) -> Self {
+        let files = Arc::new(RwLock::new(files));
+        let resolver = FileCacheLinkResolver::new(files.clone(), file_id).creating_notes(true);
+        let editor = Editor::new(
+            md,
+            file_id,
+            None,
+            MdResources {
+                ctx: super::super::test_egui_ctx(),
+                core: build_lb(),
+                persistence: WsPersistentStore::new(
+                    false,
+                    format!("/tmp/{}", Uuid::new_v4()).into(),
+                    true,
+                ),
+                link_resolver: Box::new(resolver),
+                embeds: Box::new(()),
+                files,
+            },
+            MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: true },
+        );
+        Self::from_editor(editor)
     }
 
     /// Wrap a caller-built `Editor` so tests that need a custom resolver
