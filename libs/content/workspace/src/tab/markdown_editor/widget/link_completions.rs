@@ -1,6 +1,5 @@
 use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
-use lb_rs::model::file::File;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -9,7 +8,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::TextBufferArea;
 use crate::file_cache::{FileCache, FilesExt as _, relative_path, strip_ext};
-use crate::style::{Space, ThemeExt as _, TypeRole, ellipsize_path, parent_crumbs};
+use crate::style::{Space, ThemeExt as _, TypeRole, ellipsize_path, path_crumbs};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::TouchTarget;
@@ -25,6 +24,7 @@ use crate::widgets::glyphon_label::TextOverflow;
 const MAX_RESULTS: usize = 7;
 const TARGET_POPUP_WIDTH: f32 = 320.0; // soft target per row; popup grows to fit actual content
 const MIN_HINT_WIDTH: f32 = 60.0; // always leave at least this much room for the hint
+const OUTSIDE_HINT: &str = "outside · "; // leads the path of a file outside the note's scope
 
 #[derive(Default, Clone, Copy, PartialEq)]
 pub enum CompletionMode {
@@ -56,13 +56,10 @@ pub struct LinkCompletions {
     pub search_term_range: Option<(Grapheme, Grapheme)>,
     /// Suppressed query string — cleared automatically when the query changes.
     suppressed: Option<String>,
-    /// Nucleo path index (same matcher as filename search). Rebuilt when the
-    /// file cache's `last_modified` advances, or when mode/file changes the
-    /// eligible set (wiki = same-tree docs, image = image docs).
-    searcher: Option<lb_rs::search::PathSearcher>,
-    index_mod: u64,
-    index_mode: Option<CompletionMode>,
-    index_file: Option<Uuid>,
+    /// The files the note could link to in this mode, with what ranking
+    /// them takes. Rebuilt when the file tree, the note, or the mode changes.
+    candidates: Vec<Candidate>,
+    candidates_for: Option<(u64, Uuid, CompletionMode)>,
     /// Last `search` result this frame / keystroke.
     cached: Option<(u64, Uuid, CompletionMode, String, Vec<FileResult>)>,
 }
@@ -286,7 +283,7 @@ fn detect_any(buffer: &Buffer) -> Option<((Grapheme, Grapheme), CompletionMode)>
 /// the cursor, plus whether it's an image link. The range spans the whole
 /// link (through the closing `)` when present) so a picked result replaces
 /// it wholesale, keeping the display text (#4893).
-fn detect_destination(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool)> {
+pub(crate) fn detect_destination(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool)> {
     let selection = buffer.current.selection;
     if selection.0 != selection.1 {
         return None;
@@ -422,7 +419,7 @@ fn follows_list_marker(buffer: &Buffer, bracket: Grapheme) -> bool {
 }
 
 /// Returns the range of a `[[...]]` wikilink token under the cursor.
-fn detect_wikilink(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
+pub(crate) fn detect_wikilink(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
     let selection = buffer.current.selection;
     if selection.0 != selection.1 {
         return None;
@@ -584,53 +581,130 @@ struct FileResult {
     id: Uuid,
     /// Display name without .md extension (images keep the extension).
     name: String,
-    /// Full relative path from current file (with .md), used for insert.
-    rel_path: String,
     /// What to insert: bare title if unique, minimal partial path if colliding.
     insert: String,
-    /// True if this file is in a different tree than the current file.
-    cross_tree: bool,
-    /// Parent path for crumbs (`parent_crumbs` / `ellipsize_path`).
+    /// True if this file is outside the scope of the current file, where only
+    /// an id link reaches it.
+    outside: bool,
+    /// Parent path for crumbs (`path_crumbs` / `ellipsize_path`).
     parent_path: String,
 }
 
+/// A file a completion could link to, with what ranking it takes.
+struct Candidate {
+    id: Uuid,
+    /// Outside the note's scope, where only an id link reaches it.
+    outside: bool,
+    /// Folders between the note and the file.
+    distance: usize,
+    /// Lowercased name, name less its extension, and path.
+    name: String,
+    stem: String,
+    path: String,
+    /// The way from the note to the file, lowercased: its path past the
+    /// folders they share. A file outside the scope has no such way, and
+    /// keeps its whole path.
+    way: String,
+}
+
+/// How a query matches a file, best first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Match {
+    /// The name starts with the query.
+    Prefix,
+    /// The name has the query in it.
+    Contains,
+    /// The way to the file has each word of the query's letters, in order.
+    Fuzzy,
+}
+
+impl Candidate {
+    fn matches(&self, query: &str) -> Option<Match> {
+        let scattered = |word: &str| {
+            let mut way = self.way.chars();
+            word.chars().all(|c| way.any(|w| w == c))
+        };
+        if self.name.starts_with(query) {
+            Some(Match::Prefix)
+        } else if self.name.contains(query) {
+            Some(Match::Contains)
+        } else {
+            query
+                .split_whitespace()
+                .all(scattered)
+                .then_some(Match::Fuzzy)
+        }
+    }
+}
+
+/// A query as it is matched: lowercased, and for one typed as a destination,
+/// percent-escapes decoded and the `./` and `../` a path leads with dropped.
+fn normalized(query: &str, mode: CompletionMode) -> String {
+    if !matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest) {
+        return query.to_lowercase();
+    }
+    let query = urlencoding::decode(query).map_or(query.into(), |q| q.into_owned());
+    let mut query = query.as_str();
+    while let Some(rest) = query.strip_prefix("./").or(query.strip_prefix("../")) {
+        query = rest;
+    }
+    query.to_lowercase()
+}
+
 impl LinkCompletions {
-    fn ensure_index(&mut self, cache: &FileCache, file_id: Uuid, mode: CompletionMode) {
-        if self.searcher.is_some()
-            && self.index_mod == cache.stamp
-            && self.index_mode == Some(mode)
-            && self.index_file == Some(file_id)
-        {
+    fn ensure_candidates(&mut self, cache: &FileCache, file_id: Uuid, mode: CompletionMode) {
+        let key = Some((cache.stamp, file_id, mode));
+        if self.candidates_for == key {
             return;
         }
         let wiki = mode == CompletionMode::WikiLink;
         let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
         let scope = cache.scope_top(file_id);
-        let entries = cache.path_index().into_iter().filter(|(f, _)| {
-            if !f.is_document() || f.id == file_id {
-                return false;
-            }
-            if wiki && !cache.in_scope(scope, f.id) {
-                return false;
-            }
-            if image {
-                return f
-                    .name
-                    .rsplit('.')
-                    .next()
-                    .map(is_supported_image_fmt)
-                    .unwrap_or(false);
-            }
-            true
-        });
-        self.searcher = Some(lb_rs::search::PathSearcher::from_files(entries));
-        self.index_mod = cache.stamp;
-        self.index_mode = Some(mode);
-        self.index_file = Some(file_id);
+        let note = cache.get_by_id(file_id);
+        let owner = note.map_or("", |f| f.owner.as_str());
+        let from = note.map_or(file_id, |f| f.parent);
+        let from_path = cache.path(from);
+        self.candidates = cache
+            .all_files()
+            .filter(|f| f.is_document() && f.id != file_id)
+            .filter(|f| {
+                !image
+                    || f.name
+                        .rsplit('.')
+                        .next()
+                        .is_some_and(is_supported_image_fmt)
+            })
+            .filter_map(|f| {
+                // wiki titles and embeds never leave the scope; an id link
+                // reaches only what the note's owner can see
+                let outside = f.id == scope || !cache.in_scope(scope, f.id);
+                if outside && (wiki || image || !cache.within_reach(owner, f.id)) {
+                    return None;
+                }
+                let name = f.name.to_lowercase();
+                let path = cache.path(f.id);
+                let way = match outside {
+                    true => path.clone(),
+                    false => relative_path(&from_path, &path).replace("../", ""),
+                };
+                Some(Candidate {
+                    id: f.id,
+                    outside,
+                    distance: cache.folder_distance(from, f.id),
+                    stem: strip_ext(&name).to_string(),
+                    name,
+                    path: path.to_lowercase(),
+                    way: way.to_lowercase(),
+                })
+            })
+            .collect();
+        self.candidates_for = key;
     }
 
-    /// Same nucleo path search as ⌘O. Empty query → recents (mtime) among
-    /// the files this mode can insert (same-tree notes, images, or all docs).
+    /// Files in the note's scope first, then the rest, which only an id link
+    /// reaches. Each is ranked by how the query matches, then by folders from
+    /// the note, then by name — an order the query takes no part in, so a
+    /// name on top by its first letters stays there as the rest are typed.
     fn search(
         &mut self, cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode,
     ) -> Vec<FileResult> {
@@ -640,121 +714,52 @@ impl LinkCompletions {
             }
         }
 
-        let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
-
-        self.ensure_index(cache, file_id, mode);
-        let searcher = self.searcher.as_mut().unwrap();
-        searcher.query(query);
-        let hits: Vec<Uuid> = searcher
-            .results()
+        self.ensure_candidates(cache, file_id, mode);
+        let normalized = normalized(query, mode);
+        let mut ranked: Vec<(Match, &Candidate)> = self
+            .candidates
             .iter()
-            .take(MAX_RESULTS)
-            .map(|r| r.id)
+            .filter_map(|c| Some((c.matches(&normalized)?, c)))
             .collect();
+        ranked.sort_by(|(a_match, a), (b_match, b)| {
+            (a.outside, a_match, a.distance, &a.stem, &a.name, &a.path)
+                .cmp(&(b.outside, b_match, b.distance, &b.stem, &b.name, &b.path))
+        });
+        ranked.truncate(MAX_RESULTS);
 
-        let from_id = cache
-            .get_by_id(file_id)
-            .map(|f| f.parent)
-            .unwrap_or(file_id);
-        let from_path = cache.path(from_id);
-
-        let mut results: Vec<FileResult> = hits
+        let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
+        let mut results: Vec<FileResult> = ranked
             .into_iter()
-            .filter_map(|id| {
-                let f = cache.get_by_id(id)?;
-                let cross_tree = !cache.in_scope(cache.scope_top(file_id), f.id);
-                let rel_path = if cross_tree {
-                    cache.path(f.id)
-                } else {
-                    let rp = relative_path(&from_path, &cache.path(f.id));
-                    rp.strip_prefix("./").unwrap_or(&rp).to_string()
-                };
+            .filter_map(|(_, candidate)| {
+                let f = cache.get_by_id(candidate.id)?;
                 let parent_path = cache
                     .get_by_id(f.parent)
                     .map(|p| cache.path(p.id))
                     .unwrap_or_default();
                 let name = if image { f.name.clone() } else { strip_ext(&f.name).to_string() };
-                Some(FileResult {
-                    id: f.id,
-                    name,
-                    rel_path,
-                    insert: String::new(),
-                    cross_tree,
-                    parent_path,
-                })
+                let outside = candidate.outside;
+                Some(FileResult { id: f.id, name, insert: String::new(), outside, parent_path })
             })
             .collect();
 
-        populate_insert(cache, &mut results, mode);
+        populate_insert(cache, file_id, &mut results, mode);
         self.cached = Some((cache.stamp, file_id, mode, query.to_string(), results.clone()));
         results
     }
 }
 
-/// Fills `result.insert` for each entry.
-/// - Link/ImageLink: cross-tree uses `lb://uuid` (relative paths don't work
-///   across trees); same-tree uses the encoded relative path.
-/// - WikiLink: the shortest reference that resolves unambiguously — bare stem,
-///   else full name (extension disambiguates), else a relative path. Cross-tree
-///   results are filtered upstream (wikilinks are same-tree only).
-fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: CompletionMode) {
-    if mode != CompletionMode::WikiLink {
-        for result in results.iter_mut() {
-            if result.cross_tree {
-                result.insert = format!("lb://{}", result.id);
-            } else {
-                result.insert = encode_link_path(&result.rel_path);
-            }
-        }
-        return;
-    }
-
-    let docs: Vec<&File> = cache.all_files().filter(|f| f.is_document()).collect();
-    let unique = |pred: &dyn Fn(&str) -> bool| docs.iter().filter(|d| pred(&d.name)).count() <= 1;
-
+/// Fills `result.insert` for each entry: a wikilink title, or a link
+/// destination — never an absolute path.
+fn populate_insert(
+    cache: &FileCache, note: Uuid, results: &mut [FileResult], mode: CompletionMode,
+) {
     for result in results.iter_mut() {
-        let Some(f) = cache.get_by_id(result.id) else { continue };
-        let full = f.name.clone();
-        let stem = strip_ext(&full).to_string();
-
-        if unique(&|n| strip_ext(n).eq_ignore_ascii_case(&stem)) {
-            result.insert = stem;
-            continue;
-        }
-        if unique(&|n| n.eq_ignore_ascii_case(&full)) {
-            result.insert = full;
-            continue;
-        }
-
-        // The relative dir locates the folder; within it, the bare stem when
-        // unique among siblings, else the full name.
-        let sibling_stem_unique = cache
-            .children(f.parent)
-            .into_iter()
-            .filter(|d| d.is_document())
-            .filter(|d| strip_ext(&d.name).eq_ignore_ascii_case(&stem))
-            .count()
-            <= 1;
-        let last = if sibling_stem_unique { stem } else { full };
-        result.insert = match result.rel_path.rsplit_once('/') {
-            Some((dir, _)) => format!("{dir}/{last}"),
-            None => last,
+        result.insert = if mode == CompletionMode::WikiLink {
+            cache.wikilink_title(result.id, note).unwrap_or_default()
+        } else {
+            cache.link_destination(result.id, note)
         };
     }
-}
-
-/// Percent-encodes characters that are invalid in CommonMark bare link destinations.
-fn encode_link_path(path: &str) -> String {
-    let mut out = String::with_capacity(path.len());
-    for c in path.chars() {
-        match c {
-            ' ' => out.push_str("%20"),
-            '(' => out.push_str("%28"),
-            ')' => out.push_str("%29"),
-            _ => out.push(c),
-        }
-    }
-    out
 }
 
 /// Groups characters into `(text, bold)` spans based on match flags.
@@ -856,14 +861,23 @@ impl MdEdit {
                 .x
         };
 
-        // Shared crumbs + middle-ellipsis (same as Files / search subtitles).
+        // Shared crumbs + middle-ellipsis (same as Files / search subtitles);
+        // files only an id link reaches say so.
+        let path_hint = |r: &FileResult, budget: f32| -> String {
+            let crumbs = path_crumbs(&r.parent_path);
+            if r.outside {
+                let budget = (budget - measure_path(OUTSIDE_HINT)).max(1.0);
+                format!("{OUTSIDE_HINT}{}", ellipsize_path(ui, &crumbs, budget))
+            } else {
+                ellipsize_path(ui, &crumbs, budget)
+            }
+        };
         let path_hints: Vec<String> = results
             .iter()
             .zip(label_widths.iter())
             .map(|(r, &lw)| {
-                let crumbs = parent_crumbs(&r.parent_path);
                 let budget = (TARGET_POPUP_WIDTH - lw - completion_chrome_w()).max(MIN_HINT_WIDTH);
-                ellipsize_path(ui, &crumbs, budget)
+                path_hint(r, budget)
             })
             .collect();
 
@@ -907,13 +921,12 @@ impl MdEdit {
                 .line_height(completion_line_h())
                 .measure(ui)
                 .x;
-            let crumbs = parent_crumbs(&result.parent_path);
             let path_budget = if name_w + MIN_HINT_WIDTH + path_gap <= available {
                 available - name_w - path_gap
             } else {
                 MIN_HINT_WIDTH
             };
-            let path = ellipsize_path(ui, &crumbs, path_budget.max(1.0));
+            let path = path_hint(result, path_budget.max(1.0));
             let path_w = measure_path(&path);
             let name_max = (available - path_w - path_gap).max(40.0);
             row_fit.push((path, name_max, name_w > name_max + 0.5));
@@ -937,6 +950,16 @@ impl MdEdit {
             self.link_completions.selected,
             hover_pos,
         );
+
+        // a rule above the first file outside the note's scope
+        if let Some(idx) = results.iter().position(|r| r.outside).filter(|i| *i > 0) {
+            let row = row_rects[idx];
+            ui.painter().hline(
+                row.x_range(),
+                row.top(),
+                egui::Stroke { width: 1.0, color: theme.neutral_bg_tertiary() },
+            );
+        }
 
         // -- Render text -----------------------------------------------------------
         let clip_rect = ui.clip_rect();
@@ -1019,7 +1042,8 @@ mod tests {
     use lb_rs::model::file_metadata::FileType;
 
     use super::{CompletionMode, LinkCompletions};
-    use crate::file_cache::{FileCache, FilesExt as _};
+    use crate::file_cache::{FileCache, FilesExt as _, ResolvedLink};
+    use crate::test_utils::files::{at, cache, tree};
 
     fn file(id: Uuid, parent: Uuid, name: &str, file_type: FileType) -> File {
         File {
@@ -1152,6 +1176,7 @@ mod tests {
                 doc(b, "Spec.md"),
             ],
         );
+
         let mut lc = LinkCompletions::default();
         for query in ["pan", "todo", "spec"] {
             let results = lc.search(&cache, editing, query, CompletionMode::WikiLink);
@@ -1166,6 +1191,161 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Alice's tree, with `project/` shared; the note being edited is
+    /// `/project/editing.md`.
+    fn shared_project() -> (FileCache, Uuid) {
+        let files = tree(
+            "alice",
+            &[
+                "/Plan.md",
+                "/Planning.md",
+                "/project/ @bob",
+                "/project/editing.md",
+                "/project/Planning.md",
+                "/project/Roadmap.md",
+                "/project/Floor plan.md",
+                "/project/design/Plan.md",
+                "/project/design/Planner.md",
+                "/project/design/Roadmap.md",
+                "/project/research/Plan.md",
+                "/project/planets/notes.md",
+            ],
+        );
+        let editing = at(&files, "/project/editing.md");
+        (cache(files), editing)
+    }
+
+    fn rows(cache: &FileCache, editing: Uuid, query: &str, mode: CompletionMode) -> Vec<String> {
+        LinkCompletions::default()
+            .search(cache, editing, query, mode)
+            .iter()
+            .map(|r| format!("{}{}", if r.outside { "outside:" } else { "" }, cache.path(r.id)))
+            .collect()
+    }
+
+    #[test]
+    fn ranked_by_scope_then_match_then_distance_then_name() {
+        let (cache, editing) = shared_project();
+        assert_eq!(
+            rows(&cache, editing, "plan", CompletionMode::Link),
+            [
+                // names it starts: beside the note, then a folder away
+                "/project/Planning.md",
+                "/project/design/Plan.md",
+                "/project/research/Plan.md",
+                "/project/design/Planner.md",
+                // a name it is in, then a path its letters are in
+                "/project/Floor plan.md",
+                "/project/planets/notes.md",
+                // outside the share, the same order again
+                "outside:/Plan.md",
+            ]
+        );
+        assert_eq!(
+            rows(&cache, editing, "planni", CompletionMode::Link),
+            ["/project/Planning.md", "outside:/Planning.md"]
+        );
+        // wiki titles never leave the scope
+        assert_eq!(
+            rows(&cache, editing, "planni", CompletionMode::WikiLink),
+            ["/project/Planning.md"]
+        );
+        // nothing typed: what is nearest
+        assert_eq!(
+            rows(&cache, editing, "", CompletionMode::WikiLink)[..4],
+            [
+                "/project/Floor plan.md",
+                "/project/Planning.md",
+                "/project/Roadmap.md",
+                "/project/planets/notes.md",
+            ]
+        );
+        // a path as it would be typed into a destination
+        assert_eq!(
+            rows(&cache, editing, "../design/road", CompletionMode::LinkDest),
+            ["/project/design/Roadmap.md"]
+        );
+    }
+
+    /// The folders a note and a file share say nothing about the file, so
+    /// their letters match nothing.
+    #[test]
+    fn shared_folders_take_no_part_in_a_match() {
+        let files = tree(
+            "alice",
+            &[
+                "/lockbook/maintainers/editing.md",
+                "/lockbook/maintainers/design.md",
+                "/lockbook/marketing/launch.md",
+            ],
+        );
+        let editing = at(&files, "/lockbook/maintainers/editing.md");
+        let cache = cache(files);
+        assert!(rows(&cache, editing, "lk", CompletionMode::Link).is_empty());
+        assert_eq!(
+            rows(&cache, editing, "mark", CompletionMode::Link),
+            ["/lockbook/marketing/launch.md"]
+        );
+    }
+
+    /// A name on top by its first letters stays on top as the rest of it is
+    /// typed.
+    #[test]
+    fn top_holds_while_its_name_is_typed() {
+        let (cache, editing) = shared_project();
+        for target in cache.all_files().filter(|f| f.is_document()) {
+            let name = target.name.to_lowercase();
+            let mut held = false;
+            for end in 1..=name.len() {
+                let query = &name[..end];
+                let results =
+                    LinkCompletions::default().search(&cache, editing, query, CompletionMode::Link);
+                let on_top = results.first().is_some_and(|r| r.id == target.id);
+                assert!(
+                    on_top || !held,
+                    "{} fell from the top at {query:?}",
+                    cache.path(target.id)
+                );
+                held = on_top;
+            }
+        }
+    }
+
+    #[test]
+    fn inserts_resolve_back_and_wiki_titles_are_shortest() {
+        let (cache, editing) = shared_project();
+        let mut lc = LinkCompletions::default();
+        for mode in [CompletionMode::WikiLink, CompletionMode::Link] {
+            for query in ["plan", "road", "p", ""] {
+                for r in lc.search(&cache, editing, query, mode) {
+                    let resolved = if mode == CompletionMode::WikiLink {
+                        cache.resolve_wikilink(&r.insert, editing)
+                    } else {
+                        assert!(!r.insert.starts_with('/'), "absolute insert {:?}", r.insert);
+                        assert_eq!(r.insert.starts_with("lb://"), r.outside);
+                        match cache.resolve_link(&r.insert, editing) {
+                            Some(ResolvedLink::File(id)) => Some(id),
+                            _ => None,
+                        }
+                    };
+                    assert_eq!(resolved, Some(r.id), "{query:?} inserted {:?}", r.insert);
+                }
+            }
+        }
+
+        let mut insert = |query: &str, path: &str| {
+            let id = at(&cache, path);
+            let results = lc.search(&cache, editing, query, CompletionMode::WikiLink);
+            results.into_iter().find(|r| r.id == id).unwrap().insert
+        };
+        assert_eq!(insert("planner", "/project/design/Planner.md"), "Planner");
+        assert_eq!(insert("plan", "/project/design/Plan.md"), "design/Plan");
+        assert_eq!(insert("road", "/project/design/Roadmap.md"), "design/Roadmap");
+        // every trailing path of the one at the top also ends the other's;
+        // its whole path is its own
+        assert_eq!(insert("road", "/project/Roadmap.md"), "/Roadmap");
     }
 
     /// Filename search matches the full path; completions should too
