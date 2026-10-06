@@ -35,6 +35,13 @@ enum class NewFileType(
 
 internal fun NewFileType.completeName(baseName: String): String = baseName + (extension ?: "")
 
+/** The kind a document of this name was made as, by its extension. */
+internal fun newFileTypeOf(name: String): NewFileType? =
+    NewFileType.entries.firstOrNull { type ->
+        type.extension?.let(name::endsWith) ==
+            true
+    }
+
 enum class CreateFilePage {
     Details,
     FolderPicker,
@@ -135,6 +142,8 @@ class CreateFileViewModel : ViewModel() {
                 withContext(Dispatchers.Main) {
                     _state.value =
                         _state.value!!.copy(
+                            // A new file is of the kind open, so a second chat is a tap away.
+                            type = alongsideFile?.name?.let(::newFileTypeOf) ?: _state.value!!.type,
                             location = location,
                             parentId = initialParent.id,
                             focusedFolderId = focusedFolder.id,

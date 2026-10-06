@@ -236,6 +236,13 @@ impl CreateKind {
         }
     }
 
+    /// The kind a document of this name was made as, by its extension.
+    pub fn of(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|kind| kind.ext().is_some_and(|ext| name.ends_with(ext)))
+    }
+
     pub fn ext(self) -> Option<&'static str> {
         match self {
             Self::Note => Some(".md"),

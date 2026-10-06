@@ -121,6 +121,10 @@ struct CreateFileSheet: View {
             if let renameTarget, let parent = filesModel.idsToFiles[renameTarget.parent] {
                 location = parent.isRoot ? .root : .custom(parent)
             }
+            // A new file is of the kind open, so a second chat is a tap away.
+            if renameTarget == nil, let open = openDocFile, let kind = NewFileType.of(name: open.name) {
+                type = kind
+            }
 
             refreshAutoName()
 
@@ -384,6 +388,11 @@ enum NewFileType: CaseIterable, Identifiable {
         case .folder: nil
         case .other: nil
         }
+    }
+
+    /// The kind a document of this name was made as, by its extension.
+    static func of(name: String) -> NewFileType? {
+        allCases.first { $0.ext.map(name.hasSuffix) ?? false }
     }
 }
 
