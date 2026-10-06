@@ -35,6 +35,8 @@ class RecentFilesFragment :
     private val selectionModel: FileSelectionViewModel by activityViewModels()
     private var fileActionDispatcher: FileSelectionActionDispatcher? = null
     private var originalListPaddingBottom = 0
+    private var bottomNavigationInset = 0
+    private var selectionBottomBarInset = 0
     private val adapter by lazy {
         RecentFilesAdapter(
             onFileClick = ::onFileClicked,
@@ -54,6 +56,11 @@ class RecentFilesFragment :
         binding.recentFilesList.adapter = adapter
         binding.recentFilesList.itemAnimator = null
         originalListPaddingBottom = binding.recentFilesList.paddingBottom
+        (requireActivity() as MainScreenActivity).configureBottomNavigationFor(binding.recentFilesList) { height ->
+            if (_binding == null) return@configureBottomNavigationFor
+            bottomNavigationInset = height
+            updateListBottomPadding()
+        }
 
         fileTreeModel.recentFiles.observe(viewLifecycleOwner) { files ->
             val recentFiles = files.orEmpty()
@@ -112,12 +119,26 @@ class RecentFilesFragment :
         val selectedIds = state.selectedIdsFor(FileSelectionSource.Recents)
         adapter.setSelectedFileIds(selectedIds)
         if (selectedIds.isEmpty()) {
-            binding.recentFilesList.updatePadding(bottom = originalListPaddingBottom)
+            selectionBottomBarInset = 0
+            updateListBottomPadding()
         } else {
             (requireActivity() as MainScreenActivity).fileSelectionBottomBarView.doOnLayout { sheet ->
-                binding.recentFilesList.updatePadding(bottom = originalListPaddingBottom + sheet.height)
+                if (
+                    selectionModel.uiState.value
+                        .selectedIdsFor(FileSelectionSource.Recents)
+                        .isNotEmpty()
+                ) {
+                    selectionBottomBarInset = sheet.height
+                    updateListBottomPadding()
+                }
             }
         }
+    }
+
+    private fun updateListBottomPadding() {
+        binding.recentFilesList.updatePadding(
+            bottom = originalListPaddingBottom + maxOf(bottomNavigationInset, selectionBottomBarInset),
+        )
     }
 
     internal fun dispatchSelectionAction(

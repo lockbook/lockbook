@@ -93,6 +93,7 @@ fn spawn_compacter(cfg: &Config, db: &Arc<Mutex<ServerDb>>) {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(cfg.index_db.time_between_compacts).await;
+            info!("compacting database log");
             if let Err(e) = db.lock().await.snapshot() {
                 error!("failed to compact log: {e:?}");
             }

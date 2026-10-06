@@ -62,6 +62,8 @@ class FilesListFragment :
     val binding get() = _binding!!
     private var fileActionDispatcher: FileSelectionActionDispatcher? = null
     private var originalListPaddingBottom = 0
+    private var bottomNavigationInset = 0
+    private var selectionBottomBarInset = 0
     private var folderTransition: Animator? = null
     private var folderTransitionId = 0
     private var latestFiles: List<FileViewHolderInfo> = emptyList()
@@ -236,6 +238,20 @@ class FilesListFragment :
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.adapter = ConcatAdapter(fileSortAdapter, fileTreeAdapter)
         recyclerView.itemAnimator = null
+        (requireActivity() as MainScreenActivity).configureBottomNavigationFor(recyclerView) { height ->
+            if (_binding == null) return@configureBottomNavigationFor
+            bottomNavigationInset = height
+            updateListBottomPadding()
+        }
+    }
+
+    internal fun navigateToRoot(): Boolean {
+        if (model.fileModel.isAtRoot()) return false
+
+        unselectFiles()
+        enterFolder(model.fileModel.root, animate = false)
+        recyclerView.scrollToPosition(0)
+        return true
     }
 
     private fun showFileSortMenu(anchor: View) {
@@ -358,12 +374,26 @@ class FilesListFragment :
         val selectedIds = state.selectedIdsFor(FileSelectionSource.Files)
         fileTreeAdapter.setSelectedFileIds(selectedIds)
         if (selectedIds.isEmpty()) {
-            binding.filesList.updatePadding(bottom = originalListPaddingBottom)
+            selectionBottomBarInset = 0
+            updateListBottomPadding()
         } else {
             (requireActivity() as MainScreenActivity).fileSelectionBottomBarView.doOnLayout { sheet ->
-                binding.filesList.updatePadding(bottom = originalListPaddingBottom + sheet.height)
+                if (
+                    selectionModel.uiState.value
+                        .selectedIdsFor(FileSelectionSource.Files)
+                        .isNotEmpty()
+                ) {
+                    selectionBottomBarInset = sheet.height
+                    updateListBottomPadding()
+                }
             }
         }
+    }
+
+    private fun updateListBottomPadding() {
+        binding.filesList.updatePadding(
+            bottom = originalListPaddingBottom + maxOf(bottomNavigationInset, selectionBottomBarInset),
+        )
     }
 
     internal fun dispatchSelectionAction(
@@ -510,6 +540,7 @@ class FilesListFragment :
             }
 
             is UpdateFilesUI.UpdateBreadcrumbBar -> {
+                (activity as? MainScreenActivity)?.showBottomNavigation()
                 model._breadcrumbItems.value = getBreadcrumbItems()
             }
 
