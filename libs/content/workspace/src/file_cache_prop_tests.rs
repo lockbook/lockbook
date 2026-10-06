@@ -1,70 +1,38 @@
 //! Property tests for `FilesExt::resolve_link` and `resolve_wikilink`.
 //!
-//! # Link resolution policy
+//! Each seed produces a world of three accounts whose trees share files with
+//! one another, and each account's `FileCache` view of it: its own tree, plus
+//! every subtree shared with it, either pending or placed somewhere in its
+//! tree under a name of its choosing. Names are drawn from a shared pool, so
+//! collisions across folders, shares, and accounts are common. On failure the
+//! buffer is delta-debugged and the shrunken case is printed.
 //!
-//! **Own tree** (user's own root and any accepted shares):
-//! - Absolute path links valid (no path points outside own tree).
-//! - Relative path links valid (no path points outside own tree).
-//! - UUID links valid regardless destination.
-//! - Wikilinks resolve within tree only.
+//! # Invariants
 //!
-//! **Pending share trees**:
-//! - Absolute path invalid (pending shares don't have absolute paths).
-//! - Relative path links resolve within tree only.
-//! - UUID links valid regardless destination (LinkState::Warning if cross-tree)
-//! - Wikilinks resolve within tree only.
-//!
-//! # Test structure
-//!
-//! Each seed produces a `FileCache` with one own tree and 0–3 pending shares.
-//! Names are drawn from a shared pool, so cross-tree collisions are common.
-//! Nested shared folders are out of scope — see
-//! <https://github.com/lockbook/lockbook/issues/4496>. On failure the buffer
-//! is delta-debugged and the shrunken case is printed.
-//!
-//! # Breakages this suite detects
-//!
-//! Confirmed via fault injection:
-//!
-//! - **Tree isolation is violated** — absolute paths resolving across trees,
-//!   or wikilinks matching documents in a different tree.
-//! - **`path()` produces wrong strings** — components in reverse order, or
-//!   own-tree paths missing their leading `/`.
-//! - **Percent-encoded absolute paths fail to resolve.**
-//! - **Wikilinks can't find their target** because an omitted extension isn't
-//!   matched (`note` should find `note.md`).
-//! - **Wikilinks silently resolve an ambiguous stem** (`note` with both
-//!   `note.md` and `note.svg` present) instead of returning None.
-//! - **Folder paths resolve as documents** (should return None).
-//! - **Wikilink ties are resolved toward the farthest match** instead of the
-//!   nearest.
-//! - **Excessive `..` in a relative path saturates silently** at the tree
-//!   root instead of returning None.
+//! - **Same note, same answer** — a path or wiki destination resolves to the
+//!   same file, or fails, in the view of every account that can read the note.
+//! - **Scope** — path and wiki destinations resolve only inside the subtree of
+//!   the note's innermost shared ancestor, which every view agrees on.
+//! - **Round trip** — a relative or scope-anchored path to a document in the
+//!   scope resolves to it; a path to a folder, or with excess `..`, does not.
+//! - **The author's reach** — `lb://` resolves only to documents the note's
+//!   owner can see, and always to ones the owner owns.
+//! - **Written forms** — the destination or wiki title written for a document
+//!   resolves back to it.
+//! - **Wiki titles** — a resolved title names its document; a title unique in
+//!   the scope resolves from anywhere in it; siblings sharing a stem are
+//!   ambiguous without an extension.
 
 use lb_rs::Uuid;
-use lb_rs::model::file::File;
+use lb_rs::model::file::{File, Share, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use urlencoding::encode as percent_encode;
 
 use crate::file_cache::{FileCache, FilesExt, ResolvedLink, relative_path, strip_ext};
 use crate::test_utils::byte_source::ByteSource;
 use crate::test_utils::shrink::shrink;
 
-/// Builds a `File` with zero-valued defaults for fields the tests don't use.
-fn file(id: Uuid, parent: Uuid, name: &str, file_type: FileType) -> File {
-    File {
-        id,
-        parent,
-        name: name.into(),
-        file_type,
-        last_modified: 0,
-        last_modified_by: String::new(),
-        owner: String::new(),
-        shares: vec![],
-        size_bytes: 0,
-    }
-}
+const USERS: [&str; 3] = ["alice", "bob", "carol"];
 
 const POOL: [&str; 5] = ["a", "b", "c", "d", "a b"];
 
@@ -73,328 +41,292 @@ const POOL: [&str; 5] = ["a", "b", "c", "d", "a b"];
 /// level when every file is a folder in a straight chain.
 const SUBTREE_SIZE_BIAS: &[u32] = &[2, 3, 4, 4, 3, 2, 2, 1];
 
-/// Upper bound on own-tree depth: derived from `SUBTREE_SIZE_BIAS` on the
-/// assumption that every added file is a folder extending the deepest chain.
+/// Upper bound on a tree's depth, were every added file a folder extending
+/// the deepest chain.
 const MAX_TREE_DEPTH: usize = SUBTREE_SIZE_BIAS.len() - 1;
 
-/// Document extensions drawn from for generated documents. The empty string
-/// models extension-less files; the mix of extensions produces sibling stem
-/// collisions (e.g. `a.md` + `a.svg`) that exercise wikilink ambiguity.
+/// The empty string models extension-less files; the mix of extensions
+/// produces sibling stem collisions (e.g. `a.md` + `a.svg`).
 const DOC_EXTS: [&str; 4] = [".md", ".txt", ".svg", ""];
 
-/// Picks a name and type: 50/50 folder/document, name drawn from `POOL`.
-/// Documents get an extension drawn from `DOC_EXTS` (possibly none).
-fn pick_file(src: &mut ByteSource) -> (String, FileType) {
-    let is_folder = src.bias(&[1, 1]) == 1;
-    let c = POOL[src.draw(POOL.len())];
-    if is_folder {
-        (c.to_string(), FileType::Folder)
-    } else {
-        (format!("{c}{}", DOC_EXTS[src.draw(DOC_EXTS.len())]), FileType::Document)
+fn file(id: Uuid, parent: Uuid, name: &str, file_type: FileType, owner: &str) -> File {
+    File {
+        id,
+        parent,
+        name: name.into(),
+        file_type,
+        last_modified: 0,
+        last_modified_by: String::new(),
+        owner: owner.into(),
+        shares: vec![],
+        size_bytes: 0,
     }
 }
 
-/// Fills descendants under `root_id` (already in `out`), skipping any sibling
-/// name collision since files can't have path conflicts. Sibling documents that
-/// share a stem but differ by extension are allowed — they make bare titles
-/// ambiguous, which the wikilink suite checks.
-fn fill_subtree(out: &mut Vec<File>, src: &mut ByteSource, root_id: Uuid) {
-    let mut folders = vec![root_id];
-    for _ in 0..src.bias(SUBTREE_SIZE_BIAS) {
-        let parent = folders[src.draw(folders.len())];
-        let (name, file_type) = pick_file(src);
-        if out.iter().any(|f| f.parent == parent && f.name == name) {
-            continue;
+/// Every account's files with their true parents.
+struct World {
+    files: Vec<File>,
+}
+
+impl World {
+    fn get(&self, id: Uuid) -> &File {
+        self.files.iter().find(|f| f.id == id).unwrap()
+    }
+
+    fn root(&self, user: &str) -> &File {
+        let is_root = |f: &&File| f.is_root() && f.owner == user;
+        self.files.iter().find(is_root).unwrap()
+    }
+
+    /// `id` and its ancestors, nearest first.
+    fn lineage(&self, id: Uuid) -> Vec<&File> {
+        let mut lineage = vec![self.get(id)];
+        while !lineage.last().unwrap().is_root() {
+            lineage.push(self.get(lineage.last().unwrap().parent));
         }
-        let id = Uuid::new_v4();
-        if matches!(file_type, FileType::Folder) {
-            folders.push(id);
-        }
-        out.push(file(id, parent, &name, file_type));
+        lineage
+    }
+
+    fn shared_with(&self, user: &str, id: Uuid) -> bool {
+        self.lineage(id)
+            .iter()
+            .any(|f| f.shares.iter().any(|s| s.shared_with == user))
+    }
+
+    fn visible(&self, user: &str, id: Uuid) -> bool {
+        self.get(id).owner == user || self.shared_with(user, id)
     }
 }
 
-/// Generates a `FileCache` from `src`: one own tree plus 0–3 disjoint pending
-/// shares. Every file's name is drawn from the same pool.
-fn cache(src: &mut ByteSource) -> FileCache {
-    // Own tree: a self-parenting root and its descendants.
-    let own_root_id = Uuid::new_v4();
-    let own_root = file(own_root_id, own_root_id, "root", FileType::Folder);
-    let mut files = vec![own_root.clone()];
-    fill_subtree(&mut files, src, own_root_id);
-
-    // 0–3 pending shares. Each share root's parent is a fresh UUID that doesn't
-    // appear anywhere else — modeling the owner's file we don't have access to.
-    // The share root can be a folder (with filled-in descendants) or a single
-    // document. Its name comes from the same pool as everything else, so
-    // cross-tree name collisions are common.
-    let mut shared = vec![];
-    for _ in 0..src.bias(&[6, 3, 2, 1]) {
-        let absent_parent = Uuid::new_v4();
-        let share_root_id = Uuid::new_v4();
-        let (name, file_type) = pick_file(src);
-        let is_folder = matches!(file_type, FileType::Folder);
-        shared.push(file(share_root_id, absent_parent, &name, file_type));
-        if is_folder {
-            fill_subtree(&mut shared, src, share_root_id);
-        }
-    }
-
-    FileCache::from_owned_and_shared(own_root, files, shared)
-}
-
-/// Round-trips absolute / relative / percent-encoded paths for own-tree docs,
-/// and checks that folder paths don't resolve and excess `..` doesn't escape.
-fn link_check(buf: &[u8]) -> Result<(), &'static str> {
-    let mut src = ByteSource::new(buf);
-    let cache = cache(&mut src);
-    let own_root = cache.root().id;
-    let folders: Vec<&File> = cache.iter_files().filter(|f| f.is_folder()).collect();
-    let from_id = folders[src.draw(folders.len())].id;
-    let from_path = cache.path(from_id);
-    let from_is_own_tree = cache.tree_root(from_id) == own_root;
-    for f in cache.iter_files().filter(|f| f.is_document()) {
-        let f_is_own_tree = cache.tree_root(f.id) == own_root;
-        let same_tree = cache.same_tree(from_id, f.id);
-        let abs = cache.path(f.id);
-        // A: own-tree doc's absolute path resolves to itself from any own-tree folder
-        if f_is_own_tree
-            && from_is_own_tree
-            && !matches!(cache.resolve_link(&abs, from_id), Some(ResolvedLink::File(id)) if id == f.id)
-        {
-            return Err("absolute round-trip");
-        }
-        // B: doc's path relative to `from_id` resolves to itself (same tree only)
-        if same_tree {
-            let rel = relative_path(&from_path, &abs);
-            if !matches!(cache.resolve_link(&rel, from_id), Some(ResolvedLink::File(id)) if id == f.id)
-            {
-                return Err("relative round-trip");
-            }
-        }
-        // C: percent-encoded absolute path resolves the same as the raw path
-        if f_is_own_tree && from_is_own_tree {
-            let encoded: String = abs
-                .split('/')
-                .map(|seg| percent_encode(seg).into_owned())
-                .collect::<Vec<_>>()
-                .join("/");
-            if !matches!(cache.resolve_link(&encoded, from_id), Some(ResolvedLink::File(id)) if id == f.id)
-            {
-                return Err("percent-encoded absolute round-trip");
-            }
-        }
-    }
-    // D: a path that points to a folder must not resolve (only documents do)
-    if from_is_own_tree {
-        for f in cache.iter_files().filter(|f| f.is_folder()) {
-            if cache.tree_root(f.id) != own_root {
+/// One tree per account, each file shared with zero, one, or both of the
+/// other accounts.
+fn world(src: &mut ByteSource) -> World {
+    let mut files = vec![];
+    for user in USERS {
+        let root = Uuid::new_v4();
+        files.push(file(root, root, user, FileType::Folder, user));
+        let mut folders = vec![root];
+        for _ in 0..src.bias(SUBTREE_SIZE_BIAS) {
+            let parent = folders[src.draw(folders.len())];
+            let name = POOL[src.draw(POOL.len())];
+            let (name, file_type) = if src.bias(&[1, 1]) == 1 {
+                (name.to_string(), FileType::Folder)
+            } else {
+                (format!("{name}{}", DOC_EXTS[src.draw(DOC_EXTS.len())]), FileType::Document)
+            };
+            if files.iter().any(|f| f.parent == parent && f.name == name) {
                 continue;
             }
-            let abs = cache.path(f.id);
-            if cache.resolve_link(&abs, from_id).is_some() {
-                return Err("absolute path to a folder must not resolve");
+            let mut f = file(Uuid::new_v4(), parent, &name, file_type, user);
+            if file_type == FileType::Folder {
+                folders.push(f.id);
             }
+            let others: Vec<&str> = USERS.into_iter().filter(|u| *u != user).collect();
+            let recipients = match src.bias(&[6, 1, 1, 1]) {
+                0 => &others[..0],
+                1 => &others[..1],
+                2 => &others[1..],
+                _ => &others[..],
+            };
+            for with in recipients {
+                f.shares.push(Share {
+                    mode: ShareMode::Write,
+                    shared_by: user.into(),
+                    shared_with: with.to_string(),
+                });
+            }
+            files.push(f);
         }
     }
-    // E: excessive `..` in a relative path must not saturate at the tree root
-    // and silently continue resolving — it must return None. Prefix an
-    // existing own-tree doc's path with one more `..` than the tree's max
-    // depth, guaranteeing the walk would escape. If `..` at root correctly
-    // returns None the whole path fails; if it no-ops, the excess dots
-    // saturate and the tail finds the doc from root.
-    if from_is_own_tree {
-        for target in cache
-            .iter_files()
-            .filter(|f| f.is_document())
-            .filter(|f| cache.tree_root(f.id) == own_root)
-        {
-            let tail = cache.path(target.id);
-            let tail = tail.trim_start_matches('/');
-            let escape = format!("{}{tail}", "../".repeat(MAX_TREE_DEPTH + 1));
-            if cache.resolve_link(&escape, from_id).is_some() {
-                return Err("excessive `..` escaped the tree root");
-            }
-        }
-    }
-    Ok(())
+    World { files }
 }
 
-/// Wikilinks resolve within the same tree by case-insensitive title match.
-/// Extensions are optional in the link (`note` matches `note.md`) but never
-/// stripped from the file, so an exact full name wins and stem collisions are
-/// ambiguous. Paths disambiguate via the folder relative to `from_id`.
-fn wikilink_check(buf: &[u8]) -> Result<(), &'static str> {
-    let mut src = ByteSource::new(buf);
-    let cache = cache(&mut src);
-    let folders: Vec<&File> = cache.iter_files().filter(|f| f.is_folder()).collect();
-    let from_id = folders[src.draw(folders.len())].id;
-    let from_path = cache.path(from_id);
-    let docs: Vec<&File> = cache.iter_files().filter(|f| f.is_document()).collect();
-
-    // Count of same-tree-as-`from_id` docs satisfying a name predicate.
-    let tree_count = |pred: &dyn Fn(&str) -> bool| {
-        docs.iter()
-            .filter(|d| cache.same_tree(from_id, d.id))
-            .filter(|d| pred(&d.name))
-            .count()
-    };
-
-    for f in &docs {
-        let full = f.name.as_str();
-        let stem = strip_ext(full);
-        let same = cache.same_tree(from_id, f.id);
-
-        // A: a doc's full name resolves to itself from its own parent. (Names
-        // are unique within a folder, so the exact match is unambiguous.) Skip
-        // share-root docs whose parent isn't a visible folder.
-        if cache.get_by_id(f.parent).is_some()
-            && !matches!(cache.resolve_wikilink(full, f.parent), Some(id) if id == f.id)
-        {
-            return Err("A: full-name own-parent self-resolve");
+/// `user`'s view: their tree plus each outermost subtree shared with them,
+/// pending or placed at their root under a new name.
+fn view(world: &World, src: &mut ByteSource, user: &str) -> FileCache {
+    let root = world.root(user).clone();
+    let (mut owned, mut pending) = (vec![], vec![]);
+    let mut placed = vec![];
+    for f in &world.files {
+        if f.owner == user {
+            owned.push(f.clone());
+            continue;
         }
+        let lineage = world.lineage(f.id);
+        let Some(top) = lineage
+            .iter()
+            .rfind(|a| a.shares.iter().any(|s| s.shared_with == user))
+        else {
+            continue;
+        };
+        let mut f = f.clone();
+        if f.id == top.id && src.draw(2) == 1 {
+            placed.push(top.id);
+            f.parent = root.id;
+            f.name = format!("placed-{}", placed.len());
+        }
+        if placed.contains(&top.id) { owned.push(f) } else { pending.push(f) }
+    }
+    FileCache::from_owned_and_shared(root, owned, pending)
+}
 
-        // B: the full relative path resolves to the doc (same tree).
-        if same {
-            let rel = relative_path(&from_path, &cache.path(f.id));
-            if !matches!(cache.resolve_wikilink(&rel, from_id), Some(id) if id == f.id) {
-                return Err("B: full relative-path round-trip");
+fn resolve(cache: &FileCache, url: &str, note: Uuid) -> Option<Uuid> {
+    match cache.resolve_link(url, note)? {
+        ResolvedLink::File(id) => Some(id),
+        ResolvedLink::External(_) => None,
+    }
+}
+
+fn check(buf: &[u8]) -> Result<(), &'static str> {
+    let mut src = ByteSource::new(buf);
+    let world = world(&mut src);
+    let views: Vec<FileCache> = USERS.iter().map(|u| view(&world, &mut src, u)).collect();
+    let docs: Vec<&File> = world.files.iter().filter(|f| f.is_document()).collect();
+
+    for note in &docs {
+        let author = USERS.iter().position(|u| *u == note.owner).unwrap();
+        let base = &views[author];
+        let readers: Vec<&FileCache> = USERS
+            .iter()
+            .zip(&views)
+            .filter(|(u, _)| world.visible(u, note.id))
+            .map(|(_, v)| v)
+            .collect();
+
+        let scope = base.scope_top(note.id);
+        if readers.iter().any(|v| v.scope_top(note.id) != scope) {
+            return Err("readers disagree on the scope");
+        }
+        let folder_in_scope = base.in_scope(scope, note.parent);
+        let from_path = base.path(note.parent);
+        let scope_path = base.path(scope);
+
+        // paths
+        for target in world
+            .files
+            .iter()
+            .filter(|f| world.visible(USERS[author], f.id))
+        {
+            let target_path = base.path(target.id);
+            let in_scope = base.in_scope(scope, target.id);
+            let rel = relative_path(&from_path, &target_path);
+            let anchored = format!("/{}", target_path.strip_prefix(&scope_path).unwrap_or(""));
+            let escape = format!("{}{rel}", "../".repeat(MAX_TREE_DEPTH + 1));
+            for (url, round_trips) in [
+                (&rel, folder_in_scope && in_scope),
+                (&anchored, in_scope && target.id != scope),
+                (&target_path, false),
+                (&escape, false),
+            ] {
+                let answer = resolve(base, url, note.id);
+                if readers.iter().any(|v| resolve(v, url, note.id) != answer) {
+                    return Err("path: readers disagree");
+                }
+                if answer.is_some_and(|id| !base.in_scope(scope, id)) {
+                    return Err("path: resolved outside the scope");
+                }
+                if answer.is_some_and(|id| !base.get_by_id(id).unwrap().is_document()) {
+                    return Err("path: resolved to a folder");
+                }
+                if round_trips && target.is_document() && answer != Some(target.id) {
+                    return Err("path: round trip");
+                }
+            }
+            if resolve(base, &escape, note.id).is_some() {
+                return Err("path: excess `..` resolved");
             }
         }
 
-        // C: a path with the extension dropped resolves when the stem is unique
-        // within the doc's folder.
-        if same {
-            let folder_stem_unique = cache
-                .children(f.parent)
-                .into_iter()
-                .filter(|d| d.is_document())
-                .filter(|d| strip_ext(&d.name).eq_ignore_ascii_case(stem))
-                .count()
-                == 1;
-            let rel = relative_path(&from_path, &cache.path(f.id));
-            if folder_stem_unique && rel.contains('/') {
-                let (dir, _) = rel.rsplit_once('/').unwrap();
-                let rel_stem = format!("{dir}/{stem}");
-                if !matches!(cache.resolve_wikilink(&rel_stem, from_id), Some(id) if id == f.id) {
-                    return Err("C: stem relative-path round-trip");
+        // lb://
+        for target in &docs {
+            let url = format!("lb://{}", target.id);
+            for (user, view) in USERS.iter().zip(&views) {
+                if !world.visible(user, note.id) {
+                    continue;
+                }
+                let answer = resolve(view, &url, note.id);
+                if answer.is_some() && !world.visible(&note.owner, target.id) {
+                    return Err("lb://: resolved past the author's reach");
+                }
+                let expected = target.owner == note.owner && world.visible(user, target.id);
+                if expected && answer != Some(target.id) {
+                    return Err("lb://: the author's own document must resolve");
                 }
             }
         }
 
-        // D: a globally-unique bare stem resolves to its doc from anywhere.
-        if same
-            && tree_count(&|n| strip_ext(n).eq_ignore_ascii_case(stem)) == 1
-            && !matches!(cache.resolve_wikilink(stem, from_id), Some(id) if id == f.id)
-        {
-            return Err("D: unique-stem bare resolve");
-        }
-
-        // E: a globally-unique bare full name resolves to its doc from anywhere.
-        if same
-            && tree_count(&|n| n.eq_ignore_ascii_case(full)) == 1
-            && !matches!(cache.resolve_wikilink(full, from_id), Some(id) if id == f.id)
-        {
-            return Err("E: unique-name bare resolve");
-        }
-    }
-
-    // F: soundness — any resolution returns a same-tree doc whose name matches
-    // the title (exactly or stem). Probe every doc's stem and full name.
-    for title in docs
-        .iter()
-        .flat_map(|f| [strip_ext(&f.name).to_string(), f.name.clone()])
-    {
-        if let Some(id) = cache.resolve_wikilink(&title, from_id) {
-            let Some(r) = cache.get_by_id(id) else {
-                return Err("F: resolved id not in cache");
-            };
-            if !(r.name.eq_ignore_ascii_case(&title)
-                || strip_ext(&r.name).eq_ignore_ascii_case(&title))
-            {
-                return Err("F: resolved file doesn't match title");
-            }
-            if !cache.same_tree(from_id, id) {
-                return Err("F: resolved wikilink is cross-tree");
-            }
-        }
-    }
-
-    // G: ambiguity — a stem shared by 2+ docs directly in a folder, with no doc
-    // named exactly that stem in the same tree, must not resolve from that
-    // folder (both are equally near; the link needs an extension).
-    for folder in cache.iter_files().filter(|f| f.is_folder()) {
-        let child_docs: Vec<&File> = cache
-            .children(folder.id)
-            .into_iter()
-            .filter(|d| d.is_document())
+        // wiki titles; the scope's top goes by a different name for each reader
+        let in_scope: Vec<&File> = base
+            .iter_files()
+            .filter(|d| d.is_document() && d.id != scope && base.in_scope(scope, d.id))
             .collect();
-        for d in &child_docs {
+        for target in &docs {
+            let stem = strip_ext(&target.name).to_string();
+            let trailing = format!("{}/{stem}", world.get(target.parent).name);
+            for title in [&stem, &target.name, &trailing] {
+                let answer = base.resolve_wikilink(title, note.id);
+                if readers
+                    .iter()
+                    .any(|v| v.resolve_wikilink(title, note.id) != answer)
+                {
+                    return Err("wiki: readers disagree");
+                }
+                let Some(id) = answer else { continue };
+                if !in_scope.iter().any(|d| d.id == id) {
+                    return Err("wiki: resolved outside the scope");
+                }
+                let name = &base.get_by_id(id).unwrap().name;
+                let last = title.rsplit('/').next().unwrap();
+                if !name.eq_ignore_ascii_case(last) && !strip_ext(name).eq_ignore_ascii_case(last) {
+                    return Err("wiki: resolved file doesn't match the title");
+                }
+            }
+        }
+        for target in &in_scope {
+            let stem = strip_ext(&target.name);
+            let count =
+                |pred: &dyn Fn(&str) -> bool| in_scope.iter().filter(|d| pred(&d.name)).count();
+            if count(&|n| strip_ext(n).eq_ignore_ascii_case(stem)) == 1
+                && base.resolve_wikilink(stem, note.id) != Some(target.id)
+            {
+                return Err("wiki: a stem unique in the scope must resolve");
+            }
+            if count(&|n| n.eq_ignore_ascii_case(&target.name)) == 1
+                && base.resolve_wikilink(&target.name, note.id) != Some(target.id)
+            {
+                return Err("wiki: a name unique in the scope must resolve");
+            }
+        }
+
+        // what completions and paste write resolves back, for every reader
+        for target in base.iter_files().filter(|f| f.is_document()) {
+            let dest = base.link_destination(target.id, note.id);
+            if resolve(base, &dest, note.id) != Some(target.id) {
+                return Err("written destination: round trip");
+            }
+            let Some(title) = base.wikilink_title(target.id, note.id) else { continue };
+            if readers
+                .iter()
+                .any(|v| v.resolve_wikilink(&title, note.id) != Some(target.id))
+            {
+                return Err("written wiki title: round trip");
+            }
+        }
+
+        // siblings of the note sharing a stem are equally near
+        let siblings: Vec<&&File> = in_scope
+            .iter()
+            .filter(|d| d.parent == note.parent)
+            .collect();
+        for d in &siblings {
             let stem = strip_ext(&d.name);
-            let shared = child_docs
+            let sharing = siblings
                 .iter()
                 .filter(|x| strip_ext(&x.name).eq_ignore_ascii_case(stem))
-                .count()
-                >= 2;
-            let exact_exists = docs
-                .iter()
-                .filter(|x| cache.same_tree(folder.id, x.id))
-                .any(|x| x.name.eq_ignore_ascii_case(stem));
-            if shared && !exact_exists && cache.resolve_wikilink(stem, folder.id).is_some() {
-                return Err("G: ambiguous stem must not resolve");
-            }
-        }
-    }
-    Ok(())
-}
-
-/// UUID links always resolve to a `File`; path-based links never cross tree
-/// boundaries in either direction.
-fn cross_tree_policy_check(buf: &[u8]) -> Result<(), &'static str> {
-    let mut src = ByteSource::new(buf);
-    let cache = cache(&mut src);
-    let own_root = cache.root().id;
-    let folders: Vec<&File> = cache.iter_files().filter(|f| f.is_folder()).collect();
-    let from_id = folders[src.draw(folders.len())].id;
-    let from_is_own = cache.tree_root(from_id) == own_root;
-
-    for f in cache.iter_files().filter(|f| f.is_document()) {
-        let f_is_own = cache.tree_root(f.id) == own_root;
-        let same = cache.same_tree(from_id, f.id);
-
-        // UUID links always resolve to File regardless of tree boundary
-        let uuid_url = format!("lb://{}", f.id);
-        if !matches!(cache.resolve_link(&uuid_url, from_id), Some(ResolvedLink::File(id)) if id == f.id)
-        {
-            return Err("uuid: must always resolve to File");
-        }
-
-        // Absolute path from share-tree folder must not resolve (even to own-tree docs)
-        if !from_is_own && f_is_own {
-            let abs = cache.path(f.id); // starts with /
-            if cache.resolve_link(&abs, from_id).is_some() {
-                return Err("abs path from share-tree must not resolve");
-            }
-        }
-
-        // Relative path resolves iff source and target are in the same tree.
-        // (The "both own-tree but different" case can't happen: own tree is one tree.)
-        if same {
-            let from_path = cache.path(from_id);
-            let abs = cache.path(f.id);
-            let rel = relative_path(&from_path, &abs);
-            if !matches!(cache.resolve_link(&rel, from_id), Some(ResolvedLink::File(id)) if id == f.id)
-            {
-                return Err("rel path: same-tree must resolve");
-            }
-        } else {
-            // relative path computed toward a cross-tree file must not reach that file
-            let from_path = cache.path(from_id);
-            let abs = cache.path(f.id);
-            let rel = relative_path(&from_path, &abs);
-            if matches!(cache.resolve_link(&rel, from_id), Some(ResolvedLink::File(id)) if id == f.id)
-            {
-                return Err("rel path: must not resolve to a cross-tree file");
+                .count();
+            let exact = in_scope.iter().any(|x| x.name.eq_ignore_ascii_case(stem));
+            if sharing >= 2 && !exact && base.resolve_wikilink(stem, note.id).is_some() {
+                return Err("wiki: an ambiguous stem must not resolve");
             }
         }
     }
@@ -402,8 +334,9 @@ fn cross_tree_policy_check(buf: &[u8]) -> Result<(), &'static str> {
 }
 
 /// Runs `check` across 2048 seeded buffers. On failure, delta-debugs the
-/// input and panics with the shrunken buffer and its reconstructed cache.
-fn run(check: fn(&[u8]) -> Result<(), &'static str>) {
+/// input and panics with the shrunken buffer and its reconstructed world.
+#[test]
+fn link_resolution() {
     for seed in 0..2048u64 {
         let mut rng = StdRng::seed_from_u64(seed);
         let mut buf = vec![0u8; 128];
@@ -411,27 +344,11 @@ fn run(check: fn(&[u8]) -> Result<(), &'static str>) {
         if let Err(reason) = check(&buf) {
             let shrunk = shrink(buf, |b| check(b).is_err());
             let mut src = ByteSource::new(&shrunk);
-            let cache = cache(&mut src);
             panic!(
                 "seed {seed} {reason}\nshrunk ({} bytes): {shrunk:?}\nfiles:\n{:#?}",
                 shrunk.len(),
-                cache.iter_files().collect::<Vec<_>>(),
+                world(&mut src).files,
             );
         }
     }
-}
-
-#[test]
-fn resolve_link_round_trip() {
-    run(link_check);
-}
-
-#[test]
-fn resolve_wikilink_round_trip() {
-    run(wikilink_check);
-}
-
-#[test]
-fn cross_tree_link_policy() {
-    run(cross_tree_policy_check);
 }

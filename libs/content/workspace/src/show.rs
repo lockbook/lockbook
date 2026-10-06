@@ -139,28 +139,16 @@ impl Workspace {
                         w.commands.retain(|c| {
                             let egui::OutputCommand::OpenUrl(url) = c else { return true };
 
-                            // lb://uuid — direct internal link
-                            if let Some(id_str) = url.url.strip_prefix("lb://") {
-                                if let Ok(id) = Uuid::parse_str(id_str) {
-                                    open_ids.push((id, url.new_tab));
+                            // files open in the app; an internal destination
+                            // that doesn't resolve goes nowhere
+                            match self.files.read().unwrap().resolve_link(&url.url, id) {
+                                Some(ResolvedLink::File(file_id)) => {
+                                    open_ids.push((file_id, url.new_tab));
+                                    false
                                 }
-                                return false;
+                                Some(ResolvedLink::External(_)) => true,
+                                None => false,
                             }
-
-                            let files_arc = std::sync::Arc::clone(&self.files);
-                            let files_guard = files_arc.read().unwrap();
-                            let Some(from_id) = files_guard.get_by_id(id).map(|f| f.parent) else {
-                                return true;
-                            };
-
-                            let Some(ResolvedLink::File(file_id)) =
-                                files_guard.resolve_link(&url.url, from_id)
-                            else {
-                                return true;
-                            };
-
-                            open_ids.push((file_id, url.new_tab));
-                            false
                         });
                     });
                 }
@@ -184,6 +172,9 @@ impl Workspace {
                     } else {
                         self.navigate_to_range(id, range);
                     }
+                }
+                for (parent, names) in ui.ctx().pop_create_notes() {
+                    self.create_note_at(parent, &names);
                 }
             });
         });

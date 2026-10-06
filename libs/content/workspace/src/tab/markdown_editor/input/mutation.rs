@@ -1,4 +1,3 @@
-use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
@@ -522,9 +521,7 @@ impl<'ast> MdEdit {
             Event::OpenLink { url, wikilink } => {
                 let ctx = self.renderer.ctx.clone();
                 if wikilink {
-                    if let Some(file) = self.renderer.resolve_wikilink(&url) {
-                        ctx.open_file(file, false);
-                    }
+                    self.renderer.open_wikilink(&url, &ctx, false);
                 } else {
                     self.renderer.open_resolved_link(&url, &ctx, false);
                 }

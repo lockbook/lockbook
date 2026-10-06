@@ -41,6 +41,7 @@ impl<'ast> MdRender {
             LinkState::Normal => theme.fg().blue,
             LinkState::Warning { .. } => theme.fg().yellow,
             LinkState::Broken { .. } => theme.fg().red,
+            LinkState::Placeholder { .. } => theme.fg().blue.gamma_multiply(0.7),
         };
         Format { color, underline: true, ..parent_text_format }
     }
@@ -317,7 +318,8 @@ impl<'ast> MdRender {
         self.link_resolver.resolve_link(url)
     }
 
-    /// Open `url` in-app for internal file links and in the browser otherwise.
+    /// Open `url` in-app for internal file links and in the browser for web
+    /// URLs; a destination that doesn't resolve opens nothing.
     /// `new_tab` is only for an explicit new-tab request (cmd-click / multi-open).
     pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context, new_tab: bool) {
         match self.resolve_link(url) {
@@ -325,7 +327,7 @@ impl<'ast> MdRender {
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
-            None => ctx.open_url(egui::OpenUrl { url: url.into(), new_tab: true }),
+            None => {}
         }
     }
 
@@ -370,6 +372,7 @@ impl<'ast> MdRender {
 
         let mut file_ids = vec![];
         let mut urls = vec![];
+        let mut placeholders = vec![];
 
         for node in root.descendants() {
             let node_range = self.node_range(node);
@@ -388,8 +391,9 @@ impl<'ast> MdRender {
             };
 
             if is_wikilink {
-                if let Some(id) = self.resolve_wikilink(&url) {
-                    file_ids.push(id);
+                match self.resolve_wikilink(&url) {
+                    Some(id) => file_ids.push(id),
+                    None => placeholders.push(url),
                 }
                 continue;
             }
@@ -399,10 +403,13 @@ impl<'ast> MdRender {
                 Some(ResolvedLink::External(url)) => {
                     urls.push(egui::OpenUrl { url, new_tab: false });
                 }
-                None => {
-                    urls.push(egui::OpenUrl { url, new_tab: false });
-                }
+                None => {}
             }
+        }
+
+        // a lone wikilink to a note that doesn't exist creates it
+        if let ([], [], [title]) = (&file_ids[..], &urls[..], &placeholders[..]) {
+            self.open_wikilink(title, ctx, false);
         }
 
         let new_tab = file_ids.len() + urls.len() > 1;
@@ -454,7 +461,10 @@ impl<'ast> MdRender {
                 } else {
                     self.link_state_for_url(&url)
                 };
-                if let LinkState::Warning { message } | LinkState::Broken { message } = &state {
+                if let LinkState::Warning { message }
+                | LinkState::Broken { message }
+                | LinkState::Placeholder { message } = &state
+                {
                     if let Some(pos) = ui.ctx().pointer_hover_pos() {
                         egui::Area::new(id.with("link_warning"))
                             .order(egui::Order::Tooltip)

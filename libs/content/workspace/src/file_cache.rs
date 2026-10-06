@@ -251,10 +251,6 @@ pub trait FilesExt {
         }
     }
 
-    fn same_tree(&self, a: Uuid, b: Uuid) -> bool {
-        self.tree_root(a) == self.tree_root(b)
-    }
-
     /// Returns the path string for a file. Own-tree paths start with `/`;
     /// pending share-tree paths have no leading `/` (they have no absolute address).
     fn path(&self, id: Uuid) -> String {
@@ -299,20 +295,63 @@ pub trait FilesExt {
         self.get_by_id(current)
     }
 
-    /// Resolves a relative path by walking the tree from `from_id`. Handles `..`
-    /// by ascending to the parent; stops at the tree root (own or share). Does not
-    /// cross tree boundaries.
-    fn resolve_relative_path(&self, from_id: Uuid, rel: &str) -> Option<&File> {
-        let mut current = from_id;
+    /// Top of a note's scope: its innermost shared ancestor, itself included,
+    /// else the top of its tree. Every reader of the note holds at least this
+    /// subtree, so links resolved inside it mean the same thing to all of them.
+    fn scope_top(&self, note: Uuid) -> Uuid {
+        let mut current = note;
+        loop {
+            let Some(file) = self.get_by_id(current) else { return current };
+            if !file.shares.is_empty() || file.is_root() || self.get_by_id(file.parent).is_none() {
+                return current;
+            }
+            current = file.parent;
+        }
+    }
+
+    /// Whether `id` is `scope` or lies under it.
+    fn in_scope(&self, scope: Uuid, id: Uuid) -> bool {
+        let mut current = id;
+        loop {
+            if current == scope {
+                return true;
+            }
+            let Some(file) = self.get_by_id(current) else { return false };
+            if file.is_root() {
+                return false;
+            }
+            current = file.parent;
+        }
+    }
+
+    /// Whether `author` could see `id`: they own it, or it sits in a tree
+    /// shared with them.
+    fn within_reach(&self, author: &str, id: Uuid) -> bool {
+        let Some(file) = self.get_by_id(id) else { return false };
+        if file.owner == author {
+            return true;
+        }
+        iter::once(id).chain(self.ancestors(id)).any(|id| {
+            self.get_by_id(id)
+                .is_some_and(|f| f.shares.iter().any(|s| s.shared_with == author))
+        })
+    }
+
+    /// Walks `rel` from `from` without leaving `scope`: `..` at the scope's
+    /// top fails, as does starting outside it.
+    fn resolve_in_scope(&self, scope: Uuid, from: Uuid, rel: &str) -> Option<&File> {
+        if !self.in_scope(scope, from) {
+            return None;
+        }
+        let mut current = from;
         for component in rel.split('/') {
             match component {
                 "" | "." => {}
                 ".." => {
-                    let f = self.get_by_id(current)?;
-                    if f.is_root() || self.get_by_id(f.parent).is_none() {
-                        return None; // can't go above tree root
+                    if current == scope {
+                        return None;
                     }
-                    current = f.parent;
+                    current = self.get_by_id(current)?.parent;
                 }
                 name => {
                     current = self
@@ -326,112 +365,260 @@ pub trait FilesExt {
         self.get_by_id(current)
     }
 
-    /// Resolves a URL from a regular link or image.
+    /// Folders between a document and the folder a link is written in: up
+    /// from `from` to their common ancestor, then down to `id`'s folder.
+    fn folder_distance(&self, from: Uuid, id: Uuid) -> usize {
+        let chain = |start: Uuid| {
+            let mut chain = vec![start];
+            chain.extend(self.ancestors(start));
+            chain
+        };
+        let from_chain = chain(from);
+        let to_chain = chain(self.get_by_id(id).map(|f| f.parent).unwrap_or(id));
+        for (down, folder) in to_chain.iter().enumerate() {
+            if let Some(up) = from_chain.iter().position(|f| f == folder) {
+                return up + down;
+            }
+        }
+        from_chain.len() + to_chain.len()
+    }
+
+    /// Resolves the destination of a link or image written in `note`.
     ///
-    /// - `lb://uuid` — verified against cache, returned as `File(uuid)`
-    /// - external (http/https/mailto/#) — returned as `External(url)`
-    /// - absolute path (`/foo`) — anchored at the user's own root only;
-    ///   never resolves into a pending share tree.
-    /// - relative path — resolved against `from_id`'s folder, within the
-    ///   same tree only; cross-tree links return None.
+    /// - relative path — walked from the note's folder
+    /// - absolute path (`/foo`) — anchored at the top of the note's scope
+    /// - `lb://uuid`, or the external URL of a file here — any document the
+    ///   note's owner could see
+    /// - any other URL (`https:`, `mailto:`, `tel:`…), `#heading` — returned
+    ///   as `External(url)`
     ///
-    /// Only documents resolve to `File`; folders are treated as broken.
-    /// Returns None if the URL is an internal path that doesn't resolve.
-    fn resolve_link(&self, url: &str, from_id: Uuid) -> Option<ResolvedLink> {
-        if let Some(id_str) = url.strip_prefix("lb://") {
-            let id = Uuid::parse_str(id_str).ok()?;
-            let file = self.get_by_id(id)?;
-            if !file.is_document() {
+    /// Paths never leave the note's scope ([`Self::scope_top`]). Only
+    /// documents resolve to `File`; folders are treated as broken. A
+    /// `#fragment` rides along without changing what resolves. Returns None
+    /// for an internal destination that doesn't resolve.
+    fn resolve_link(&self, url: &str, note: Uuid) -> Option<ResolvedLink> {
+        let web = ["http://", "https://", "mailto:"].iter().any(|scheme| {
+            url.len() >= scheme.len() && url[..scheme.len()].eq_ignore_ascii_case(scheme)
+        });
+        if let Some(id) = link_id(url) {
+            let found = self.get_by_id(note).zip(self.get_by_id(id));
+            if let Some((source, file)) = found {
+                let scope = self.scope_top(note);
+                let reachable = self.in_scope(scope, id) || self.within_reach(&source.owner, id);
+                return (file.is_document() && reachable).then_some(ResolvedLink::File(id));
+            }
+            if !web {
                 return None;
             }
-            return Some(ResolvedLink::File(id));
         }
-
-        if url.starts_with("http://")
-            || url.starts_with("https://")
-            || url.starts_with("mailto:")
-            || url.starts_with('#')
-        {
+        if web || url.starts_with('#') {
             return Some(ResolvedLink::External(url.to_string()));
         }
 
-        let file = if url.starts_with('/') {
-            let canonical = canonicalize(url);
-            let decoded = decode(&canonical)
+        // a file named `Re: plan.md` reads as a URL but is a path first
+        let external = has_scheme(url).then(|| ResolvedLink::External(url.to_string()));
+        let Some(source) = self.get_by_id(note) else { return external };
+        let scope = self.scope_top(note);
+        let resolve = |path: &str| {
+            let decoded = decode(path)
                 .map(|c| c.into_owned())
-                .unwrap_or(canonical);
-            self.by_path(&decoded)?
-        } else {
-            let decoded = decode(url)
-                .map(|c| c.into_owned())
-                .unwrap_or_else(|_| url.to_string());
-            self.resolve_relative_path(from_id, &decoded)?
+                .unwrap_or_else(|_| path.to_string());
+            let file = if decoded.starts_with('/') {
+                self.resolve_in_scope(scope, scope, &canonicalize(&decoded))?
+            } else {
+                self.resolve_in_scope(scope, source.parent, &decoded)?
+            };
+            file.is_document().then_some(ResolvedLink::File(file.id))
         };
-        if !file.is_document() {
-            return None;
-        }
-        if !self.same_tree(from_id, file.id) {
-            return None;
-        }
-        Some(ResolvedLink::File(file.id))
+        resolve(url)
+            .or_else(|| resolve(url.split_once('#')?.0))
+            .or(external)
     }
 
-    /// Resolves a wikilink title to a document UUID.
+    /// The destination a link in `note` to `target` should be written with:
+    /// a relative path inside the note's scope, `lb://` out of it.
+    fn link_destination(&self, target: Uuid, note: Uuid) -> String {
+        let scope = self.scope_top(note);
+        let from = self.get_by_id(note).map(|f| f.parent).unwrap_or(note);
+        if self.in_scope(scope, from) && self.in_scope(scope, target) {
+            encode_link_path(&relative_path(&self.path(from), &self.path(target)))
+        } else {
+            format!("lb://{target}")
+        }
+    }
+
+    /// The shortest wikilink title that means `target` anywhere in `note`'s
+    /// scope: its stem, else with enough folders in front, else its full name
+    /// likewise, else its path from the scope's top. None outside the scope.
+    fn wikilink_title(&self, target: Uuid, note: Uuid) -> Option<String> {
+        let scope = self.scope_top(note);
+        let file = self.get_by_id(target)?;
+        if target == scope || !self.in_scope(scope, target) {
+            return None;
+        }
+        // folders above the document, nearest first, up to the scope's top
+        let mut dirs: Vec<&str> = vec![];
+        let mut current = file;
+        while let Some(parent) = self.get_by_id(current.parent) {
+            if parent.id == scope {
+                break;
+            }
+            dirs.push(&parent.name);
+            current = parent;
+        }
+        let unique = |last: &str, dirs: &[&str]| {
+            let mut path: Vec<&str> = dirs.iter().rev().copied().collect();
+            let matches = self
+                .iter_files()
+                .filter(|f| f.is_document() && title_matches(&f.name, last))
+                .filter(|f| f.id != scope && self.in_scope(scope, f.id))
+                .filter(|f| self.trails(scope, f, &path))
+                .count();
+            path.push(last);
+            (matches == 1).then(|| path.join("/"))
+        };
+        [strip_ext(&file.name), file.name.as_str()]
+            .into_iter()
+            .flat_map(|last| (0..=dirs.len()).map(move |n| (last, n)))
+            .find_map(|(last, n)| unique(last, &dirs[..n]))
+            .or_else(|| {
+                let dirs = dirs.iter().rev().map(|d| format!("{d}/"));
+                Some(format!("/{}{}", dirs.collect::<String>(), file.name))
+            })
+    }
+
+    /// Resolves a wikilink title written in `note` to a document in the
+    /// note's scope ([`Self::scope_top`]).
     ///
     /// Extensions are optional in the link, never stripped from the file:
     /// `note` matches a document named `note.md`, `note.svg`, or `note`, while
     /// `note.svg` matches only the exact name. An exact full-name match always
     /// wins over a stem-only match.
     ///
-    /// - path titles (`folder/note`) resolve the folder relative to `from_id`,
-    ///   then match the final component among that folder's documents.
-    /// - bare titles match across the tree; the nearest match wins on distance.
+    /// - bare titles match any document in the scope.
+    /// - path titles (`folder/note`) match documents whose path ends that way.
+    /// - titles with a leading `/`, `.`, or `..` are paths, as in
+    ///   [`Self::resolve_link`].
     ///
-    /// Only documents match; folders are ignored. Cross-tree matches are never
-    /// returned. Returns None when nothing matches or the match is ambiguous
-    /// (multiple equally-specific, equally-near documents) — adding an extension
-    /// or a path disambiguates.
-    fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<Uuid> {
-        if let Some((dir, last)) = title.rsplit_once('/') {
-            let dir_id = self.resolve_relative_path(from_id, dir)?.id;
-            let docs: Vec<&File> = self
-                .children(dir_id)
-                .into_iter()
-                .filter(|f| f.is_document())
-                .collect();
-            let id = match_title(&docs, last)?;
-            return self.same_tree(from_id, id).then_some(id);
+    /// The nearest match to the note's folder wins. Only documents match.
+    /// Returns None when nothing matches or the nearest matches tie — adding
+    /// an extension or a path disambiguates.
+    fn resolve_wikilink(&self, title: &str, note: Uuid) -> Option<Uuid> {
+        match self.wikilink_matches(title, note)[..] {
+            [file] => Some(file.id),
+            _ => None,
         }
+    }
 
-        let candidates: Vec<&File> = self
-            .iter_files()
-            .filter(|f| f.is_document())
-            .filter(|f| self.same_tree(from_id, f.id))
-            .filter(|f| title_matches(&f.name, title))
-            .collect();
+    /// The documents a wikilink title could mean: one when it resolves, none
+    /// when nothing matches, several when the nearest matches tie.
+    fn wikilink_matches(&self, title: &str, note: Uuid) -> Vec<&File> {
+        let Some(source) = self.get_by_id(note) else { return vec![] };
+        // a `#` starts a fragment unless a name has it; `[[#heading]]` is a
+        // place in the note itself
+        if let Some((before, _)) = title.split_once('#') {
+            let whole = self.wikilink_matches_exactly(title, note);
+            return match (whole.is_empty(), before.is_empty()) {
+                (false, _) => whole,
+                (true, true) => vec![source],
+                (true, false) => self.wikilink_matches_exactly(before, note),
+            };
+        }
+        self.wikilink_matches_exactly(title, note)
+    }
+
+    /// [`Self::wikilink_matches`] for a title with no fragment to set aside.
+    fn wikilink_matches_exactly(&self, title: &str, note: Uuid) -> Vec<&File> {
+        let Some(source) = self.get_by_id(note) else { return vec![] };
+        let from = source.parent;
+        let scope = self.scope_top(note);
+        let (dir, last) = title.rsplit_once('/').unwrap_or(("", title));
+
+        let candidates: Vec<&File> =
+            if title.starts_with('/') || dir.split('/').any(|s| s == "." || s == "..") {
+                let start = if title.starts_with('/') { scope } else { from };
+                let Some(folder) = self.resolve_in_scope(scope, start, dir) else { return vec![] };
+                self.children(folder.id)
+                    .into_iter()
+                    .filter(|f| f.is_document() && title_matches(&f.name, last))
+                    .collect()
+            } else {
+                // The scope top's name is each reader's to choose, so it never
+                // takes part in a match.
+                let dirs = path_segments(dir);
+                self.iter_files()
+                    .filter(|f| f.is_document() && title_matches(&f.name, last))
+                    .filter(|f| f.id != scope && self.in_scope(scope, f.id))
+                    .filter(|f| self.trails(scope, f, &dirs))
+                    .collect()
+            };
 
         // Exact full-name matches outrank stem-only matches.
         let exact: Vec<&File> = candidates
             .iter()
             .copied()
-            .filter(|f| f.name.eq_ignore_ascii_case(title))
+            .filter(|f| f.name.eq_ignore_ascii_case(last))
             .collect();
         let pool = if exact.is_empty() { candidates } else { exact };
 
-        // Nearest wins; a tie at the minimum distance is ambiguous.
-        let from_path = self.path(from_id);
-        let distance = |f: &File| {
-            relative_path(&from_path, &self.path(f.id))
-                .matches('/')
-                .count()
-        };
-        let nearest = pool.iter().map(|f| distance(f)).min()?;
-        let mut tied = pool.into_iter().filter(|f| distance(f) == nearest);
-        let first = tied.next()?;
-        match tied.next() {
-            None => Some(first.id),
-            Some(_) => None,
+        let distance = |f: &File| self.folder_distance(from, f.id);
+        let Some(nearest) = pool.iter().map(|f| distance(f)).min() else { return vec![] };
+        pool.into_iter()
+            .filter(|f| distance(f) == nearest)
+            .collect()
+    }
+
+    /// Whether the folders above `file`, strictly inside `scope`, end with
+    /// `dirs`.
+    fn trails(&self, scope: Uuid, file: &File, dirs: &[&str]) -> bool {
+        let mut current = file;
+        for dir in dirs.iter().rev() {
+            if current.id == scope {
+                return false;
+            }
+            let Some(folder) = self.get_by_id(current.parent) else { return false };
+            if folder.id == scope || !folder.name.eq_ignore_ascii_case(dir) {
+                return false;
+            }
+            current = folder;
         }
+        true
+    }
+
+    /// Where the note an unmatched wikilink title names would be created: an
+    /// existing folder, then the names to create under it, the document last.
+    /// A path title is walked from the note's folder (`/` from the scope's
+    /// top). None for a title that names no file, or when the note's folder
+    /// is outside its scope.
+    fn wikilink_placement(&self, title: &str, note: Uuid) -> Option<(Uuid, Vec<String>)> {
+        let from = self.get_by_id(note)?.parent;
+        let scope = self.scope_top(note);
+        let title = title.split_once('#').map_or(title, |(title, _)| title);
+        let mut names: Vec<String> = title
+            .strip_prefix('/')
+            .unwrap_or(title)
+            .split('/')
+            .map(|s| s.trim().to_string())
+            .collect();
+        if !self.in_scope(scope, from)
+            || names.iter().any(|s| s.is_empty() || s == "." || s == "..")
+        {
+            return None;
+        }
+        let last = names.last_mut()?;
+        if !has_extension(last) {
+            last.push_str(".md");
+        }
+
+        let mut current = if title.starts_with('/') { scope } else { from };
+        while names.len() > 1 {
+            let children = self.children(current);
+            let existing = |f: &&File| f.is_folder() && f.name.eq_ignore_ascii_case(&names[0]);
+            let Some(folder) = children.into_iter().find(existing) else { break };
+            current = folder.id;
+            names.remove(0);
+        }
+        Some((current, names))
     }
 
     fn ancestors(&self, id: Uuid) -> Vec<Uuid> {
@@ -530,12 +717,12 @@ impl FilesExt for Vec<File> {
         self.as_slice().by_path(path)
     }
 
-    fn resolve_link(&self, url: &str, from_id: Uuid) -> Option<ResolvedLink> {
-        self.as_slice().resolve_link(url, from_id)
+    fn resolve_link(&self, url: &str, note: Uuid) -> Option<ResolvedLink> {
+        self.as_slice().resolve_link(url, note)
     }
 
-    fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<Uuid> {
-        self.as_slice().resolve_wikilink(title, from_id)
+    fn resolve_wikilink(&self, title: &str, note: Uuid) -> Option<Uuid> {
+        self.as_slice().resolve_wikilink(title, note)
     }
 }
 
@@ -571,27 +758,19 @@ pub fn strip_ext(name: &str) -> &str {
     }
 }
 
+/// Whether a name ends in something that reads as a file extension, unlike
+/// the tails of `v1.2 notes`, `Mr. Smith`, or `2026.10.06`.
+fn has_extension(name: &str) -> bool {
+    let ext = name.rsplit_once('.').map_or("", |(_, ext)| ext);
+    (1..=8).contains(&ext.len())
+        && ext.chars().all(|c| c.is_ascii_alphanumeric())
+        && ext.chars().any(|c| c.is_ascii_alphabetic())
+}
+
 /// Whether a wikilink title matches a file name: an exact match, or a match
 /// once the file's extension is dropped. Case-insensitive.
 pub fn title_matches(name: &str, title: &str) -> bool {
     name.eq_ignore_ascii_case(title) || strip_ext(name).eq_ignore_ascii_case(title)
-}
-
-/// Picks the document matching `title` among `docs` (siblings in one folder).
-/// An exact full-name match wins; otherwise a unique stem match resolves and
-/// anything ambiguous returns None.
-fn match_title(docs: &[&File], title: &str) -> Option<Uuid> {
-    if let Some(f) = docs.iter().find(|f| f.name.eq_ignore_ascii_case(title)) {
-        return Some(f.id);
-    }
-    let mut stem = docs
-        .iter()
-        .filter(|f| strip_ext(&f.name).eq_ignore_ascii_case(title));
-    let first = stem.next()?;
-    match stem.next() {
-        None => Some(first.id),
-        Some(_) => None, // ambiguous
-    }
 }
 
 /// A lockbook path split into its non-empty segments — the shared step
@@ -601,6 +780,49 @@ fn match_title(docs: &[&File], title: &str) -> Option<Uuid> {
 /// paths are segments rather than characters).
 pub fn path_segments(path: &str) -> Vec<&str> {
     path.split('/').filter(|s| !s.is_empty()).collect()
+}
+
+/// Whether `url` leads with a URL scheme (`https:`, `mailto:`, `obsidian:`…).
+fn has_scheme(url: &str) -> bool {
+    let scheme = url.split_once(':').map_or("", |(scheme, _)| scheme);
+    scheme.starts_with(|c: char| c.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c))
+}
+
+/// The file an id link names: `lb://<uuid>`, or the external URL
+/// `https://<host>/open/<uuid>`, either with an optional `#fragment`.
+pub fn link_id(url: &str) -> Option<Uuid> {
+    let url = url.split_once('#').map_or(url, |(url, _)| url);
+    let id = match url.strip_prefix("lb://") {
+        Some(id) => id,
+        None => {
+            let (scheme, rest) = url.split_once("://")?;
+            if !scheme.eq_ignore_ascii_case("https") && !scheme.eq_ignore_ascii_case("http") {
+                return None;
+            }
+            rest.split_once('/')?.1.strip_prefix("open/")?
+        }
+    };
+    Uuid::parse_str(id).ok()
+}
+
+/// Percent-encodes characters that would end or change a CommonMark bare
+/// link destination, or be read back as an escape or a fragment.
+pub fn encode_link_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for c in path.chars() {
+        match c {
+            ' ' => out.push_str("%20"),
+            '(' => out.push_str("%28"),
+            ')' => out.push_str("%29"),
+            '#' => out.push_str("%23"),
+            '%' => out.push_str("%25"),
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 pub fn relative_path(from: &str, to: &str) -> String {
@@ -752,6 +974,202 @@ mod tests {
     fn by_path_missing() {
         let files = tree();
         assert!(files.by_path("/notes/nonexistent.md").is_none());
+    }
+
+    /// Alice's tree as she sees it; `project/` is shared with bob.
+    ///
+    /// ```text
+    /// /budget.md
+    /// /project/          (shared)
+    ///   plan.md
+    ///   budget.md
+    ///   design/
+    ///     plan.md
+    ///     sketch.svg
+    /// ```
+    fn shared_project() -> (Vec<File>, impl Fn(&str) -> Uuid) {
+        let ids: Vec<Uuid> = (1..=8).map(Uuid::from_u128).collect();
+        let mut files = vec![
+            file(ids[0], ids[0], "alice", FileType::Folder),
+            file(ids[1], ids[0], "budget.md", FileType::Document),
+            file(ids[2], ids[0], "project", FileType::Folder),
+            file(ids[3], ids[2], "plan.md", FileType::Document),
+            file(ids[4], ids[2], "budget.md", FileType::Document),
+            file(ids[5], ids[2], "design", FileType::Folder),
+            file(ids[6], ids[5], "plan.md", FileType::Document),
+            file(ids[7], ids[5], "sketch.svg", FileType::Document),
+        ];
+        for f in &mut files {
+            f.owner = "alice".into();
+        }
+        files[2].shares.push(lb_rs::model::file::Share {
+            mode: ShareMode::Write,
+            shared_by: "alice".into(),
+            shared_with: "bob".into(),
+        });
+        let lookup = files.clone();
+        (files, move |path: &str| lookup.by_path(path).unwrap().id)
+    }
+
+    fn resolved(files: &Vec<File>, url: &str, note: Uuid) -> Option<Uuid> {
+        match files.resolve_link(url, note)? {
+            ResolvedLink::File(id) => Some(id),
+            ResolvedLink::External(_) => None,
+        }
+    }
+
+    #[test]
+    fn urls_and_id_links() {
+        let (files, id) = shared_project();
+        let note = id("/project/plan.md");
+        let budget = id("/project/budget.md");
+        let external =
+            |url: &str| matches!(files.resolve_link(url, note), Some(ResolvedLink::External(_)));
+
+        for url in [
+            "https://lockbook.net",
+            "HTTPS://lockbook.net",
+            "mailto:a@b.c",
+            "tel:+15551234",
+            "obsidian://open?vault=x",
+            "#heading",
+        ] {
+            assert!(external(url), "{url}");
+        }
+        // the external URL of a file here is an id link; of any other, a web page
+        assert_eq!(
+            resolved(&files, &format!("https://app.lockbook.net/open/{budget}"), note),
+            Some(budget)
+        );
+        assert_eq!(resolved(&files, &format!("lb://{budget}#totals"), note), Some(budget));
+        assert!(external(&format!("https://app.lockbook.net/open/{}", Uuid::from_u128(99))));
+        assert!(
+            files
+                .resolve_link(&format!("lb://{}", Uuid::from_u128(99)), note)
+                .is_none()
+        );
+        // a fragment rides along; a `#` in a name still resolves
+        assert_eq!(resolved(&files, "budget.md#totals", note), Some(budget));
+        assert_eq!(files.resolve_wikilink("budget#totals", note), Some(budget));
+        assert_eq!(files.resolve_wikilink("#totals", note), Some(note));
+        assert_eq!(encode_link_path("C# (100%).md"), "C%23%20%28100%25%29.md");
+    }
+
+    #[test]
+    fn paths_stay_in_the_scope() {
+        let (files, id) = shared_project();
+        let note = id("/project/design/plan.md");
+
+        assert_eq!(files.scope_top(note), id("/project"));
+        assert_eq!(files.scope_top(id("/budget.md")), files.root().id);
+
+        assert_eq!(resolved(&files, "../budget.md", note), Some(id("/project/budget.md")));
+        assert_eq!(resolved(&files, "../../budget.md", note), None);
+        // `/` is the top of the scope, not the reader's root
+        assert_eq!(resolved(&files, "/budget.md", note), Some(id("/project/budget.md")));
+        assert_eq!(resolved(&files, "/project/budget.md", note), None);
+        assert_eq!(
+            resolved(&files, "/project/budget.md", id("/budget.md")),
+            Some(id("/project/budget.md"))
+        );
+    }
+
+    #[test]
+    fn id_links_stop_at_the_authors_reach() {
+        let (mut files, id) = shared_project();
+        let note = id("/project/plan.md");
+        let outside = format!("lb://{}", id("/budget.md"));
+        assert_eq!(resolved(&files, &outside, note), Some(id("/budget.md")));
+
+        // bob's own file, seen from bob's side of the same note
+        let mine = Uuid::from_u128(9);
+        let mut private = file(mine, files[0].id, "private.md", FileType::Document);
+        private.owner = "bob".into();
+        files.push(private);
+        assert_eq!(resolved(&files, &format!("lb://{mine}"), note), None);
+    }
+
+    #[test]
+    fn wikilinks_resolve_nearest_first_in_the_scope() {
+        let (files, id) = shared_project();
+        let note = id("/project/design/sketch.svg");
+
+        assert_eq!(files.resolve_wikilink("plan", note), Some(id("/project/design/plan.md")));
+        assert_eq!(
+            files.resolve_wikilink("plan", id("/project/budget.md")),
+            Some(id("/project/plan.md"))
+        );
+        // the nearer of two, and never the one outside the share
+        assert_eq!(files.resolve_wikilink("budget", note), Some(id("/project/budget.md")));
+        assert_eq!(
+            files.resolve_wikilink("design/plan", id("/project/budget.md")),
+            Some(id("/project/design/plan.md"))
+        );
+        // the share's own name is the reader's to choose
+        assert_eq!(files.resolve_wikilink("project/plan", note), None);
+        // from outside the share, the nearer plan
+        assert_eq!(files.resolve_wikilink("plan", id("/budget.md")), Some(id("/project/plan.md")));
+        assert_eq!(
+            files.resolve_wikilink("project/plan", id("/budget.md")),
+            Some(id("/project/plan.md"))
+        );
+    }
+
+    #[test]
+    fn written_forms_resolve_back() {
+        let (mut files, id) = shared_project();
+        let (design, note) = (id("/project/design"), id("/project/plan.md"));
+        let mut add = |n: u128, parent: Uuid, name: &str, file_type| {
+            let mut f = file(Uuid::from_u128(n), parent, name, file_type);
+            f.owner = "alice".into();
+            files.push(f);
+            Uuid::from_u128(n)
+        };
+        let colon = add(20, id("/project"), "Re: plan.md", FileType::Document);
+        let sharp = add(21, id("/project"), "C# notes.md", FileType::Document);
+        let x = add(22, design, "x", FileType::Folder);
+        let xy = add(23, x, "y", FileType::Folder);
+        let y = add(24, design, "y", FileType::Folder);
+        let deep = add(25, xy, "Spec.md", FileType::Document);
+        let shallow = add(26, y, "Spec.md", FileType::Document);
+
+        for target in [colon, sharp, deep, shallow] {
+            let dest = files.link_destination(target, note);
+            assert_eq!(resolved(&files, &dest, note), Some(target), "{dest}");
+            let title = files.wikilink_title(target, note).unwrap();
+            assert_eq!(files.resolve_wikilink(&title, note), Some(target), "{title}");
+        }
+        assert_eq!(files.wikilink_title(deep, note).unwrap(), "x/y/Spec");
+        assert_eq!(files.wikilink_title(shallow, note).unwrap(), "design/y/Spec");
+        // a URL no file is named for is the host's
+        assert!(matches!(
+            files.resolve_link("tel:+15551234", note),
+            Some(ResolvedLink::External(_))
+        ));
+    }
+
+    #[test]
+    fn unmatched_wikilinks_have_a_place() {
+        let (files, id) = shared_project();
+        let note = id("/project/plan.md");
+        let place = |title: &str, note: Uuid| {
+            let (parent, names) = files.wikilink_placement(title, note)?;
+            Some(format!("{}{}", files.path(parent), names.join("/")))
+        };
+
+        assert_eq!(place("Ideas", note).unwrap(), "/project/Ideas.md");
+        assert_eq!(place("map.svg", note).unwrap(), "/project/map.svg");
+        assert_eq!(place("v1.2 notes", note).unwrap(), "/project/v1.2 notes.md");
+        assert_eq!(place("Ideas#Open questions", note).unwrap(), "/project/Ideas.md");
+        assert_eq!(place("Design/Ideas", note).unwrap(), "/project/design/Ideas.md");
+        assert_eq!(place("design/drafts/Ideas", note).unwrap(), "/project/design/drafts/Ideas.md");
+        assert_eq!(place("research / Ideas", note).unwrap(), "/project/research/Ideas.md");
+        // `/` is the top of the share
+        let deep = id("/project/design/plan.md");
+        assert_eq!(place("/Ideas", deep).unwrap(), "/project/Ideas.md");
+        assert_eq!(place("design/", note), None);
+        assert_eq!(place("../Ideas", note), None);
+        assert_eq!(place("..", note), None);
     }
 
     #[test]

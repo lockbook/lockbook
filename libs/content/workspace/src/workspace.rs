@@ -1323,10 +1323,13 @@ impl Workspace {
                                             ctx: self.ctx.clone(),
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
-                                            link_resolver: Box::new(FileCacheLinkResolver::new(
-                                                Arc::clone(&self.files),
-                                                id,
-                                            )),
+                                            link_resolver: Box::new(
+                                                FileCacheLinkResolver::new(
+                                                    Arc::clone(&self.files),
+                                                    id,
+                                                )
+                                                .creating_notes(!tab.read_only),
+                                            ),
                                             files: Arc::clone(&self.files),
                                             embeds: Box::new(ImageEmbedResolver::new(
                                                 self.images.clone(),
@@ -1502,6 +1505,42 @@ impl Workspace {
             self.open_file(file.id, true, false);
         }
         self.out.file_created = Some(result);
+        self.ctx.request_repaint();
+    }
+
+    /// Create `names` under `parent` — folders, then a document last — and
+    /// navigate to the document.
+    pub fn create_note_at(&mut self, parent: Uuid, names: &[String]) {
+        let mut parent = parent;
+        for (i, name) in names.iter().enumerate() {
+            let file_type =
+                if i + 1 == names.len() { FileType::Document } else { FileType::Folder };
+            let result = self
+                .core
+                .create_file(name, &parent, file_type)
+                .map_err(|err| format!("{err:?}"));
+            match &result {
+                Ok(file) => {
+                    self.files
+                        .write()
+                        .unwrap()
+                        .insert_created_file(file.clone());
+                    self.out.file_cache_updated = true;
+                    parent = file.id;
+                }
+                Err(err) => {
+                    self.out
+                        .failure_messages
+                        .push(format!("Create failed: {err}"));
+                    self.out.file_created = Some(result);
+                    return;
+                }
+            }
+            if file_type == FileType::Document {
+                self.navigate_to(crate::tab::Destination::File(parent));
+                self.out.file_created = Some(result);
+            }
+        }
         self.ctx.request_repaint();
     }
 

@@ -216,13 +216,17 @@ impl ImageCache {
         let ws_seq = self.ws_seq.clone();
         let persistence = self.persistence.clone();
 
+        // an embed never leaves the scope of the note it is written in
         let maybe_lb_id = {
             let guard = self.files.read().unwrap();
-            let from_id = guard.get_by_id(from_file_id).map(|f| f.parent);
-            from_id.and_then(|from_id| match guard.resolve_link(&url, from_id)? {
-                ResolvedLink::File(id) => Some(id),
-                ResolvedLink::External(_) => None,
-            })
+            match guard.resolve_link(&url, from_file_id) {
+                Some(ResolvedLink::File(id))
+                    if guard.in_scope(guard.scope_top(from_file_id), id) =>
+                {
+                    Some(id)
+                }
+                _ => None,
+            }
         };
 
         // viewport width is used to scale SVG rasterization — use the screen

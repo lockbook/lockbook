@@ -11,8 +11,16 @@ pub use crate::file_cache::ResolvedLink;
 #[derive(Clone, PartialEq, Eq)]
 pub enum LinkState {
     Normal,
-    Warning { message: String },
-    Broken { message: String },
+    Warning {
+        message: String,
+    },
+    Broken {
+        message: String,
+    },
+    /// A wikilink to a note that doesn't exist yet; opening it creates the note.
+    Placeholder {
+        message: String,
+    },
 }
 
 pub trait LinkResolver {
@@ -27,6 +35,12 @@ pub trait LinkResolver {
 
     /// State of the given wikilink target for display and hover tooltips.
     fn wikilink_state(&self, title: &str) -> LinkState;
+
+    /// Where opening an unmatched wikilink creates its note: an existing
+    /// folder and the names to create under it, the document last.
+    fn wikilink_placement(&self, _title: &str) -> Option<(Uuid, Vec<String>)> {
+        None
+    }
 }
 
 impl LinkResolver for () {
@@ -44,51 +58,49 @@ impl LinkResolver for () {
     }
 }
 
-const CROSS_TREE_MSG: &str =
-    "This link points to a file shared differently and may not be visible to all collaborators.";
+const OUTSIDE_SCOPE_MSG: &str = "Not everyone who can read this note may be able to see this file.";
 
-/// Resolver backed by lockbook's file cache. Resolves links relative to the
-/// parent folder of a given file. Cross-tree UUID links from a pending share
-/// tree are flagged with a yellow warning; the crypto layer enforces access.
+/// Resolver backed by lockbook's file cache. Resolves links written in a
+/// given file within that file's scope; an `lb://` link that leaves the
+/// scope is flagged with a yellow warning.
 #[derive(Clone)]
 pub struct FileCacheLinkResolver {
     files: Arc<RwLock<FileCache>>,
     file_id: Uuid,
+    creates_notes: bool,
 }
 
 impl FileCacheLinkResolver {
     pub fn new(files: Arc<RwLock<FileCache>>, file_id: Uuid) -> Self {
-        Self { files, file_id }
+        Self { files, file_id, creates_notes: false }
+    }
+
+    /// Opening a wikilink nothing matches creates the note it names.
+    pub fn creating_notes(self, creates_notes: bool) -> Self {
+        Self { creates_notes, ..self }
     }
 }
 
 impl LinkResolver for FileCacheLinkResolver {
     fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
-        let guard = self.files.read().unwrap();
-        let from_id = guard.get_by_id(self.file_id)?.parent;
-        guard.resolve_link(url, from_id)
+        self.files.read().unwrap().resolve_link(url, self.file_id)
     }
 
     fn resolve_wikilink(&self, title: &str) -> Option<Uuid> {
         let guard = self.files.read().unwrap();
-        let from_id = guard.get_by_id(self.file_id)?.parent;
-        guard.resolve_wikilink(title, from_id)
+        guard.resolve_wikilink(title, self.file_id)
     }
 
     fn link_state(&self, url: &str) -> LinkState {
         let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken { message: "Destination not found".into() };
-        };
-        match guard.resolve_link(url, from_id) {
+        match guard.resolve_link(url, self.file_id) {
             None => LinkState::Broken { message: "Destination not found".into() },
             Some(ResolvedLink::External(_)) => LinkState::Normal,
-            Some(ResolvedLink::File(target_id)) => {
-                let from_own = guard.tree_root(from_id) == guard.root().id;
-                if from_own || guard.same_tree(from_id, target_id) {
+            Some(ResolvedLink::File(target)) => {
+                if guard.in_scope(guard.scope_top(self.file_id), target) {
                     LinkState::Normal
                 } else {
-                    LinkState::Warning { message: CROSS_TREE_MSG.into() }
+                    LinkState::Warning { message: OUTSIDE_SCOPE_MSG.into() }
                 }
             }
         }
@@ -96,12 +108,25 @@ impl LinkResolver for FileCacheLinkResolver {
 
     fn wikilink_state(&self, title: &str) -> LinkState {
         let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken { message: "Destination not found".into() };
-        };
-        match guard.resolve_wikilink(title, from_id) {
-            None => LinkState::Broken { message: "Destination not found".into() },
-            Some(_) => LinkState::Normal, // wikilinks are always within-tree
+        match guard.wikilink_matches(title, self.file_id)[..] {
+            [_] => LinkState::Normal,
+            [] => match guard.wikilink_placement(title, self.file_id) {
+                Some((_, names)) if self.creates_notes => LinkState::Placeholder {
+                    message: format!("Open to create {}", names.join("/")),
+                },
+                _ => LinkState::Broken { message: "Destination not found".into() },
+            },
+            _ => LinkState::Broken {
+                message: "More than one file matches; add a folder or an extension".into(),
+            },
         }
+    }
+
+    fn wikilink_placement(&self, title: &str) -> Option<(Uuid, Vec<String>)> {
+        let guard = self.files.read().unwrap();
+        if !self.creates_notes || !guard.wikilink_matches(title, self.file_id).is_empty() {
+            return None;
+        }
+        guard.wikilink_placement(title, self.file_id)
     }
 }
