@@ -1328,7 +1328,8 @@ impl Workspace {
                                                     Arc::clone(&self.files),
                                                     id,
                                                 )
-                                                .creating_notes(!tab.read_only),
+                                                .creating_notes(!tab.read_only)
+                                                .copying_external_urls(core.clone()),
                                             ),
                                             files: Arc::clone(&self.files),
                                             embeds: Box::new(ImageEmbedResolver::new(
