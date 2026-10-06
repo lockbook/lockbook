@@ -168,13 +168,24 @@ pub(crate) async fn send(
         for (name, value) in headers {
             request = request.header(*name, value);
         }
+        let started = std::time::Instant::now();
         let resp = match request.send().await {
             Ok(resp) => resp,
-            Err(err) if attempts < MAX_ATTEMPTS && (err.is_request() || err.is_connect()) => {
-                tokio::time::sleep(Duration::from_millis(500 * attempts as u64)).await;
-                continue;
+            Err(err) => {
+                // The whole chain, down to the TLS alert, for a user's log.
+                tracing::warn!(
+                    attempt = attempts,
+                    body_bytes = body.to_string().len(),
+                    elapsed_ms = started.elapsed().as_millis() as u64,
+                    error = ?err,
+                    "provider request failed before an answer"
+                );
+                if attempts < MAX_ATTEMPTS && (err.is_request() || err.is_connect()) {
+                    tokio::time::sleep(Duration::from_millis(500 * attempts as u64)).await;
+                    continue;
+                }
+                return Err(unsent(err));
             }
-            Err(err) => return Err(unsent(err)),
         };
         let status = resp.status();
         if status.is_success() {
