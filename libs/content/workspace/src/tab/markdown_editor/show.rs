@@ -951,11 +951,14 @@ impl MdEdit {
             // scrolls off-screen once the user passes one viewport-height.
             // `egui_wgpu` clamps the callback rect to the screen, and a
             // zero-area result silently drops the callback — no text paints.
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.clip_rect(),
-                    crate::GlyphonRendererCallback::new(text_areas),
-                ));
+            // It is the caller's clip, not the overlays' narrower one: glyphs
+            // reach below their line boxes, and each text area clips itself.
+            let mut painter = ui.painter().clone();
+            painter.set_clip_rect(entry_clip);
+            painter.add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                entry_clip,
+                crate::GlyphonRendererCallback::new(text_areas),
+            ));
         }
 
         // strikethroughs and underlines painted on top of text
