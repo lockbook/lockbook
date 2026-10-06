@@ -1452,4 +1452,58 @@ mod on_its_own {
         chat.model_filter = "oth".into();
         assert!(matches!(chat.rows()[0], Item::Provider { .. }), "a filter leaves the tree alone");
     }
+
+    /// On a phone the text sits beside the buttons while it fits there on
+    /// one line, and takes the full width once it does not.
+    #[test]
+    fn a_long_draft_takes_the_full_width_on_a_phone() {
+        let ctx = context();
+        let (lb, id) = account_with_chat();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let mut chat = Chat::new(b"", id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        let text_rect = |chat: &mut Chat| {
+            let phone = RawInput {
+                screen_rect: Some(Rect::from_min_max(pos2(0.0, 0.0), pos2(390.0, 700.0))),
+                ..Default::default()
+            };
+            let mut out = Rect::NOTHING;
+            for _ in 0..2 {
+                let _ = ctx.run(phone.clone(), |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        out = chat.show(ui).0;
+                    });
+                });
+            }
+            out
+        };
+        chat.composer.set_text("Short");
+        let short = text_rect(&mut chat);
+        chat.composer
+            .set_text(&"a long draft that wraps ".repeat(4));
+        let long = text_rect(&mut chat);
+        assert!(long.width() > short.width() + 60.0, "{short:?} {long:?}");
+    }
+
+    /// A new chat reads the folder the most recently changed chat beside it
+    /// reads.
+    #[test]
+    fn a_new_chat_reads_what_the_latest_beside_it_does() {
+        let ctx = context();
+        let (lb, _) = account_with_chat();
+        let me = lb.get_account().unwrap().username.clone();
+        let mut earlier = Transcript::default();
+        let include = vec!["/notes/".to_string()];
+        let settings =
+            lb_rs::model::chat::Settings { include: include.clone(), ..Default::default() };
+        earlier.set_settings(&me, settings);
+        let bytes = earlier.serialize();
+        write(&lb, "/convos/earlier.chat", std::str::from_utf8(&bytes).unwrap());
+        let new = lb.create_at_path("/convos/new.chat").unwrap();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let mut chat = Chat::new(b"", new.id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.settings().include == include);
+    }
 }

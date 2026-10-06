@@ -13,7 +13,7 @@ mod tests;
 mod view;
 
 use std::collections::{HashMap, HashSet};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
@@ -142,6 +142,8 @@ pub struct Chat {
     provider: Option<Result<Provider, String>>,
     providers: Vec<Offered>,
     provider_rx: Option<Receiver<ConfigLoad>>,
+    /// The folder the latest chat beside this new one reads, once found.
+    inherit_rx: Option<Receiver<Vec<String>>>,
     /// Each provider's `/models` listing, by provider name.
     listings: HashMap<String, ListingState>,
     listing_tx: Sender<(String, ListingState)>,
@@ -238,6 +240,7 @@ impl Chat {
             provider: None,
             providers: Vec::new(),
             provider_rx: None,
+            inherit_rx: None,
             listings: HashMap::new(),
             listing_tx,
             listing_rx,
@@ -253,8 +256,40 @@ impl Chat {
             setup: Setup::default(),
             adding_provider: false,
         };
+        let fresh = chat.store.chat.lock().unwrap().entries.is_empty();
+        if fresh && chat.settings().include.is_empty() {
+            chat.inherit_scope();
+        }
         chat.kick_config_load();
         chat
+    }
+
+    /// A new chat reads the folder the most recently changed chat beside it
+    /// reads, so chats kept together keep the access they were given.
+    fn inherit_scope(&mut self) {
+        let (tx, rx) = channel();
+        let (lb, id, ctx) = (self.core.clone(), self.id, self.ctx.clone());
+        let user = self.account.username.clone();
+        std::thread::spawn(move || {
+            let latest = lb
+                .get_file_by_id(id)
+                .and_then(|me| lb.get_children(&me.parent))
+                .ok()
+                .and_then(|kids| {
+                    kids.into_iter()
+                        .filter(|f| f.id != id && f.is_document() && f.name.ends_with(".chat"))
+                        .max_by_key(|f| f.last_modified)
+                });
+            let include = latest
+                .and_then(|f| lb.read_document(f.id, false).ok())
+                .map(|bytes| Transcript::parse(&bytes).settings_for(&user).include)
+                .filter(|include| !include.is_empty());
+            if let Some(include) = include {
+                let _ = tx.send(include);
+                ctx.request_repaint();
+            }
+        });
+        self.inherit_rx = Some(rx);
     }
 
     /// The document changed on disk. Three-way merge it with what this tab
@@ -677,6 +712,21 @@ impl Chat {
     }
 
     fn pump(&mut self) {
+        let inherited = self.inherit_rx.as_ref().map(|rx| rx.try_recv());
+        match inherited {
+            Some(Ok(include)) => {
+                self.inherit_rx = None;
+                // Only while nothing was chosen or said here meanwhile.
+                let mut settings = self.settings();
+                let fresh = self.store.chat.lock().unwrap().entries.is_empty();
+                if fresh && settings.include.is_empty() {
+                    settings.include = include;
+                    self.set_settings(settings);
+                }
+            }
+            Some(Err(TryRecvError::Disconnected)) => self.inherit_rx = None,
+            _ => {}
+        }
         if let Some(rx) = &self.provider_rx {
             if let Ok((resolved, providers, favorites)) = rx.try_recv() {
                 let name = resolved.as_ref().ok().map(|p| p.name.clone());
