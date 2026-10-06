@@ -108,8 +108,7 @@ enum Status {
 struct ComposerGeom {
     /// Text and controls share one row; otherwise the controls sit under it.
     single: bool,
-    /// One button stands for the folder and model chips, and the text
-    /// grows beside the controls.
+    /// The folder and model chips are their marks alone.
     compact: bool,
     measured: f32,
     text_w: f32,
@@ -160,20 +159,18 @@ impl Chat {
         let folder_w = scope_chip_width(ui, &self.folder_label(), self.scope_chosen());
         let wrap_w = (col_w - pad_x * 2.0).max(1.0);
         // Where the chips would leave too little room to type beside them,
-        // each is its mark alone and the text keeps the row.
+        // each is its mark alone.
         let call_w = if self.calls() { hit + gap } else { 0.0 };
         let compact = wrap_w - gap - call_w - (folder_w + gap + model_w + gap + hit) < MIN_BESIDE;
         let (folder_w, model_w) = if compact { (hit, hit) } else { (folder_w, model_w) };
         let trailing = call_w + folder_w + gap + model_w + gap + hit;
         let inner_w = (wrap_w - gap - trailing).max(1.0);
+        // The text sits beside the controls while it fits there on one line;
+        // past that it takes the full width, with the controls under it.
         let row = self.composer.row_height();
-        let wide_h = self.composer.measure_height(wrap_w);
-        let measured = if compact || wide_h <= row + 1.0 {
-            self.composer.measure_height(inner_w)
-        } else {
-            wide_h
-        };
-        let single = compact || measured <= row + 1.0;
+        let beside = self.composer.measure_height(inner_w);
+        let single = beside <= row + 1.0;
+        let measured = if single { beside } else { self.composer.measure_height(wrap_w) };
         let geom = ComposerGeom {
             single,
             compact,
