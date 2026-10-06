@@ -882,7 +882,9 @@ fn open_create_sheet(
     };
     let plan = create_sheet_plan(root, folder, alongside);
 
-    let kind = if prefer_folder { CreateKind::Folder } else { CreateKind::Note };
+    // A new file is of the kind open, so a second chat is a tap away.
+    let open = open_doc_alongside(r).and_then(|(_, name)| CreateKind::of(&name));
+    let kind = if prefer_folder { CreateKind::Folder } else { open.unwrap_or(CreateKind::Note) };
     let name = suggested_create_name(app, plan.parent, kind);
     app.modal = Some(Modal::Create {
         name,
