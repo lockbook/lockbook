@@ -113,3 +113,35 @@ fn web_images_wait_to_be_asked_for() {
     persistence.set_contact_linked_sites(true);
     assert!(!images.withholds(web, shared));
 }
+
+/// Linking and then unlinking leaves the text as it was, with a selection,
+/// with only a caret, and in an empty note (#5109).
+#[test]
+fn toggling_the_link_style_twice_restores_the_text() {
+    use comrak::nodes::NodeValue;
+
+    for (md, selection) in [
+        ("hello world", (6, 11)),
+        ("hello world", (6, 6)),
+        ("hello world", (11, 11)),
+        ("", (0, 0)),
+        ("- item", (2, 6)),
+        ("**bold** text", (2, 6)),
+        ("![img](a.png)", (0, 13)),
+    ] {
+        let mut ws = TestEditor::new(md);
+        ws.push(Event::Select {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(Grapheme(selection.0)),
+                end: Location::Grapheme(Grapheme(selection.1)),
+            },
+        });
+        ws.enter_frame();
+        for linked in [true, false, true, false] {
+            let style = NodeValue::Link(Default::default());
+            ws.push(Event::ToggleStyle { region: Region::Selection, style });
+            ws.enter_frame();
+            assert_eq!(ws.get_text() != md, linked, "{md:?} {selection:?}: {:?}", ws.get_text());
+        }
+    }
+}

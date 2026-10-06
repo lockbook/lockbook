@@ -920,6 +920,26 @@ impl<'ast> MdEdit {
             return;
         }
 
+        // a link has one destination, so it can't be cropped to the selection:
+        // each link the selection touches is unlinked whole
+        if unapply && matches!(style, NodeValue::Link(_)) {
+            for node in root.descendants() {
+                let node_range = self.renderer.node_range(node);
+                if node.node_type() != style || !node_range.intersects(&range, true) {
+                    continue;
+                }
+                let (head, tail) = (self.renderer.head_range(node), self.renderer.tail_range(node));
+                let syntax = match (head, tail) {
+                    (Some(head), Some(tail)) => vec![head, tail],
+                    _ => vec![node_range], // nothing is linked: `[]()`
+                };
+                for range in syntax {
+                    operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                }
+            }
+            return;
+        }
+
         // find nodes applying given style containing range start and end
         let mut start_node: Option<&'ast AstNode<'ast>> = None;
         for node in root.descendants() {
