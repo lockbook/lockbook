@@ -256,7 +256,9 @@ impl<'ast> MdEdit {
                 Some(LinkMenuAction::Open) => {
                     self.renderer.open_resolved_link(url, ui.ctx(), false)
                 }
-                Some(LinkMenuAction::Copy) => ui.ctx().copy_text(url.to_string()),
+                Some(LinkMenuAction::Copy) => {
+                    ui.ctx().copy_text(self.renderer.link_to_copy(url, false))
+                }
                 Some(LinkMenuAction::Refresh) => self.renderer.refresh_link_meta(url),
                 Some(LinkMenuAction::Edit) => {
                     let (select, force_reveal) = self.atom_edit_selection(node);

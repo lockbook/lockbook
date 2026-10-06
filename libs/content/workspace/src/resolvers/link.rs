@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use lb_rs::Uuid;
+use lb_rs::blocking::Lb;
 
 use crate::file_cache::{FileCache, FilesExt as _, link_id};
 
@@ -41,6 +42,11 @@ pub trait LinkResolver {
     fn wikilink_placement(&self, _title: &str) -> Option<(Uuid, Vec<String>)> {
         None
     }
+
+    /// The URL that means file `id` wherever it is pasted.
+    fn external_url(&self, _id: Uuid) -> Option<String> {
+        None
+    }
 }
 
 impl LinkResolver for () {
@@ -71,16 +77,22 @@ pub struct FileCacheLinkResolver {
     files: Arc<RwLock<FileCache>>,
     file_id: Uuid,
     creates_notes: bool,
+    core: Option<Lb>,
 }
 
 impl FileCacheLinkResolver {
     pub fn new(files: Arc<RwLock<FileCache>>, file_id: Uuid) -> Self {
-        Self { files, file_id, creates_notes: false }
+        Self { files, file_id, creates_notes: false, core: None }
     }
 
     /// Opening a wikilink nothing matches creates the note it names.
     pub fn creating_notes(self, creates_notes: bool) -> Self {
         Self { creates_notes, ..self }
+    }
+
+    /// Links to files copy as their external URLs.
+    pub fn copying_external_urls(self, core: Lb) -> Self {
+        Self { core: Some(core), ..self }
     }
 }
 
@@ -136,6 +148,10 @@ impl LinkResolver for FileCacheLinkResolver {
                 message: "More than one file matches; add a folder or an extension".into(),
             },
         }
+    }
+
+    fn external_url(&self, id: Uuid) -> Option<String> {
+        self.core.as_ref()?.get_file_link_url(id).ok()
     }
 
     fn wikilink_placement(&self, title: &str) -> Option<(Uuid, Vec<String>)> {

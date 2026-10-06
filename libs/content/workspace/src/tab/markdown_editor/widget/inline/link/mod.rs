@@ -339,21 +339,42 @@ impl<'ast> MdRender {
         self.link_resolver.wikilink_state(url)
     }
 
-    /// URL (or wikilink target) of the first link-like node whose source range
-    /// intersects the current selection — gates and feeds the platform edit
-    /// menu's "Open Link" / "Copy Link".
+    /// What copying a link puts on the clipboard. A link to a file copies as
+    /// the file's external URL, any `#fragment` kept: the one form that means
+    /// the same file wherever it is pasted. Anything else copies as written.
+    pub fn link_to_copy(&self, url: &str, wikilink: bool) -> String {
+        let file = if wikilink {
+            self.resolve_wikilink(url)
+        } else {
+            match self.resolve_link(url) {
+                Some(ResolvedLink::File(id)) => Some(id),
+                _ => None,
+            }
+        };
+        let Some(external) = file.and_then(|id| self.link_resolver.external_url(id)) else {
+            return url.into();
+        };
+        match url.split_once('#') {
+            Some((_, fragment)) => format!("{external}#{fragment}"),
+            None => external,
+        }
+    }
+
+    /// What to copy ([`Self::link_to_copy`]) for the first link-like node
+    /// whose source range intersects the current selection — gates and feeds
+    /// the platform edit menu's "Open Link" / "Copy Link".
     pub fn selection_open_target(&mut self) -> Option<String> {
         let arena = Arena::new();
         let root = self.reparse(&arena);
         let selection = self.buffer.current.selection;
         for node in root.descendants() {
-            let url = match &node.data.borrow().value {
-                NodeValue::Link(l) | NodeValue::Image(l) => l.url.clone(),
-                NodeValue::WikiLink(nwl) => nwl.url.clone(),
+            let (url, wikilink) = match &node.data.borrow().value {
+                NodeValue::Link(l) | NodeValue::Image(l) => (l.url.clone(), false),
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
                 _ => continue,
             };
             if !url.is_empty() && self.node_range(node).intersects(&selection, true) {
-                return Some(url);
+                return Some(self.link_to_copy(&url, wikilink));
             }
         }
         None
