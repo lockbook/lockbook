@@ -31,6 +31,7 @@ pub const SEARCH_SHORTCUT: egui::KeyboardShortcut =
 impl Workspace {
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         visuals::apply(ui.style_mut());
+        let bounds = ui.max_rect();
 
         if let Some(cache) = self
             .ctx
@@ -68,6 +69,7 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
             self.landing_page_first_frame = true;
         }
+        self.show_link_notice(ui, bounds);
         self.update_window_title();
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg.set_tabs(&self.tab_strip, &self.current_tab);

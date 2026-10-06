@@ -24,7 +24,7 @@ use web_time::{Duration, Instant};
 
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
-use crate::links::{LinkIndex, Reader as LinkReader};
+use crate::links::{LinkIndex, Reader as LinkReader, Upkeep as LinkUpkeep};
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
@@ -91,6 +91,7 @@ pub struct Workspace {
     /// `files` and with each note as it is written.
     pub links: Arc<RwLock<LinkIndex>>,
     pub(crate) link_reader: LinkReader,
+    pub(crate) link_upkeep: LinkUpkeep,
     pub images: ImageCache,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
@@ -184,6 +185,7 @@ impl Workspace {
             files,
             links: Default::default(),
             link_reader: LinkReader::new(core, ctx),
+            link_upkeep: Default::default(),
             images,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
@@ -1811,6 +1813,10 @@ pub struct WsPresistentData {
     /// replaces.
     #[serde(default = "default_open_in_new_tab")]
     open_in_new_tab: bool,
+    /// Broken links the user was offered a rewrite of and left as they are:
+    /// the note, and the destination as written. They aren't offered again.
+    #[serde(default)]
+    links_left: Vec<(Uuid, String)>,
 }
 
 impl Default for WsPresistentData {
@@ -1829,6 +1835,7 @@ impl Default for WsPresistentData {
             zoom_factor: 1.,
             image_dims: HashMap::default(),
             contact_linked_sites: false,
+            links_left: Vec::default(),
         }
     }
 }
@@ -1996,6 +2003,15 @@ impl WsPersistentStore {
         let mut data_lock = self.data.write().unwrap();
         data_lock.image_dims.extend(new_dims);
         drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn links_left(&self) -> Vec<(Uuid, String)> {
+        self.data.read().unwrap().links_left.clone()
+    }
+
+    pub fn set_links_left(&self, links: Vec<(Uuid, String)>) {
+        self.data.write().unwrap().links_left = links;
         self.write_to_file();
     }
 
