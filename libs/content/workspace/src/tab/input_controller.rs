@@ -227,6 +227,20 @@ impl InputController {
             zoom_modifier: o.input_options.zoom_modifier,
             scroll_zoom_speed: o.input_options.scroll_zoom_speed,
         });
+        // a press on something floating over the canvas is that thing's
+        let pressed = |event: &egui::Event| match *event {
+            egui::Event::PointerButton { pos, pressed: true, .. } => Some(pos),
+            egui::Event::Touch { pos, phase: TouchPhase::Start, .. } => Some(pos),
+            _ => None,
+        };
+        let presses: Vec<_> = ui.input(|r| r.events.iter().filter_map(pressed).collect());
+        let own = ui.layer_id();
+        let covered = |pos: &egui::Pos2| ui.ctx().layer_id_at(*pos).is_some_and(|top| top != own);
+        let covered = presses.into_iter().filter(covered);
+        let covered = covered.map(|pos| egui::Rect::from_center_size(pos, egui::Vec2::splat(1.0)));
+        let overlay_areas = layout.overlay_areas.iter().copied().chain(covered);
+        let layout = &LayoutContext::new(layout.draw_area, overlay_areas.collect());
+
         let mut controller_events =
             ui.input(|r| self.process_events(r.events.iter(), layout, scroll_units));
         let extended_controller_events =
@@ -768,6 +782,42 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A press on something egui floats over the canvas doesn't start a
+    /// tool; a press beside it does.
+    #[test]
+    fn a_press_on_what_floats_over_the_canvas_is_not_the_canvas_s() {
+        let ctx = egui::Context::default();
+        let mut controller = InputController::new(InputControllerConfig::default());
+        let press = |x: f32| egui::Event::PointerButton {
+            pos: egui::pos2(x, 120.0),
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let mut frame = |events: Vec<egui::Event>| {
+            let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 400.0));
+            let input = egui::RawInput { screen_rect: Some(screen), events, ..Default::default() };
+            let mut started = false;
+            let _ = ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let events = controller.process(ui, &LayoutContext::default());
+                    started = events
+                        .iter()
+                        .any(|e| matches!(e, InputControllerEvent::ToolStart(_)));
+                });
+                egui::Area::new(egui::Id::new("floats"))
+                    .fixed_pos(egui::pos2(100.0, 100.0))
+                    .show(ctx, |ui| ui.allocate_space(egui::vec2(50.0, 50.0)));
+            });
+            started
+        };
+        // an area takes a frame to size itself and one to be placed
+        frame(vec![]);
+        frame(vec![]);
+        assert!(!frame(vec![press(120.0)]));
+        assert!(frame(vec![press(300.0)]));
     }
 
     struct InputControllerTestRunner {
