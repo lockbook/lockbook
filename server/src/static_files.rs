@@ -4,8 +4,8 @@ use warp::{Filter, http::Response, hyper::Body};
 
 const APPLE_APP_SITE_ASSOCIATION: &str = include_str!("../static/apple-app-site-association");
 const ANDROID_ASSET_LINKS: &str = include_str!("../static/assetlinks.json");
-const LOCKBOOK_LOGO: &[u8] =
-    include_bytes!("../../public-site/static/favicon/web-app-manifest-512x512.png");
+const OPEN_HTML: &str = include_str!("../static/open.html");
+const LOCKBOOK_LOGO: &[u8] = include_bytes!("../static/favicon/web-app-manifest-512x512.png");
 
 pub fn static_routes(
     public_url: &str,
@@ -16,6 +16,9 @@ pub fn static_routes(
     open_route(public_origin)
         .or(well_known_route())
         .or(logo_route())
+        .or(mark_route())
+        .or(preview_image_route())
+        .or(favicon_route())
 }
 
 fn open_route(
@@ -46,13 +49,57 @@ fn well_known_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::R
 fn logo_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path("lockbook-logo.png")
         .and(warp::path::end())
-        .map(|| {
-            Response::builder()
-                .header("Content-Type", "image/png")
-                .header("Cache-Control", "public, max-age=86400")
-                .body(Body::from(LOCKBOOK_LOGO))
-                .unwrap()
+        .map(|| asset_response("image/png", LOCKBOOK_LOGO))
+}
+
+fn preview_image_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone
+{
+    warp::path("open-preview.png")
+        .and(warp::path::end())
+        .map(|| asset_response("image/png", include_bytes!("../static/open-preview.png")))
+}
+
+fn mark_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::path("lockbook-mark.svg")
+        .and(warp::path::end())
+        .map(|| asset_response("image/svg+xml", include_bytes!("../static/lockbook-mark.svg")))
+}
+
+fn favicon_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::path("favicon")
+        .and(warp::path::param::<String>())
+        .and(warp::path::end())
+        .and_then(|name: String| async move {
+            let (content_type, bytes): (&str, &'static [u8]) = match name.as_str() {
+                "favicon.svg" => ("image/svg+xml", include_bytes!("../static/favicon/favicon.svg")),
+                "favicon.ico" => ("image/x-icon", include_bytes!("../static/favicon/favicon.ico")),
+                "favicon-96x96.png" => {
+                    ("image/png", include_bytes!("../static/favicon/favicon-96x96.png"))
+                }
+                "apple-touch-icon.png" => {
+                    ("image/png", include_bytes!("../static/favicon/apple-touch-icon.png"))
+                }
+                "web-app-manifest-192x192.png" => {
+                    ("image/png", include_bytes!("../static/favicon/web-app-manifest-192x192.png"))
+                }
+                "web-app-manifest-512x512.png" => ("image/png", LOCKBOOK_LOGO),
+                "site.webmanifest" => (
+                    "application/manifest+json",
+                    include_bytes!("../static/favicon/site.webmanifest"),
+                ),
+                _ => return Err(warp::reject::not_found()),
+            };
+            Ok::<_, warp::Rejection>(asset_response(content_type, bytes))
         })
+}
+
+fn asset_response(content_type: &str, bytes: &'static [u8]) -> Response<Body> {
+    Response::builder()
+        .header("Content-Type", content_type)
+        .header("Cache-Control", "public, max-age=86400")
+        .header("X-Content-Type-Options", "nosniff")
+        .body(Body::from(bytes))
+        .unwrap()
 }
 
 fn json_response(body: &'static str) -> Response<Body> {
@@ -63,49 +110,11 @@ fn json_response(body: &'static str) -> Response<Body> {
 }
 
 pub fn get_files_preview_html(public_origin: &str, uuid: Uuid) -> String {
-    let uuid = uuid.to_string();
-    let handoff = format!("lb://{uuid}");
-    let logo = format!("{public_origin}/lockbook-logo.png");
-
-    format!(
-        r#"<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Open shared note in Lockbook</title>
-    <meta name="description" content="Someone shared a Lockbook note with you.">
-    <meta property="og:title" content="Open shared note in Lockbook">
-    <meta property="og:description" content="Someone shared a Lockbook note with you.">
-    <meta property="og:type" content="website">
-    <meta property="og:image" content="{logo}">
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="Open shared note in Lockbook">
-    <meta name="twitter:description" content="Someone shared a Lockbook note with you.">
-    <meta name="twitter:image" content="{logo}">
-    <style>
-        @font-face {{ font-family: Martian; src: url("https://lockbook.github.io/martian.woff2") format("woff2"); font-display: swap; }}
-        :root {{ color-scheme: dark; font-family: Martian, ui-monospace, monospace; background: #101010; color: #f2f2f2; }}
-        body {{ min-height: 100vh; margin: 0; display: grid; place-items: center; background: #101010; color: #f2f2f2; }}
-        main {{ width: min(34rem, calc(100% - 3rem)); padding: 3rem 2.5rem; text-align: center; border: 1px solid #303030; background: #1a1a1a; box-shadow: 0 1.5rem 4rem #00000066; }}
-        img {{ width: 5rem; height: 5rem; margin-bottom: 1rem; }}
-        h1 {{ margin: 0 0 .75rem; font-size: clamp(1.5rem, 4vw, 2.25rem); letter-spacing: -.04em; }}
-        p {{ line-height: 1.6; color: #bfbfbf; }}
-        a {{ display: inline-block; margin-top: 1rem; padding: .85rem 1.35rem; border-radius: .15rem; background: #67e4b6; color: #101010; font-weight: 700; text-decoration: none; }}
-        a:hover {{ background: #8af0ca; }}
-        a:focus-visible {{ outline: 3px solid #67e4b6; outline-offset: 3px; }}
-    </style>
-</head>
-<body>
-    <main>
-        <img src="{logo}" alt="Lockbook logo" width="80" height="80">
-        <h1>A Lockbook note was shared with you</h1>
-        <p>Open Lockbook to sync your account and view this access-controlled note.</p>
-        <a href="{handoff}">Open in Lockbook</a>
-    </main>
-</body>
-</html>"#,
-    )
+    let id = uuid.to_string();
+    OPEN_HTML
+        .replace("{{OPEN_URL}}", &format!("{public_origin}/open/{id}"))
+        .replace("{{PREVIEW_IMAGE}}", &format!("{public_origin}/open-preview.png"))
+        .replace("{{HANDOFF}}", &format!("lb://{id}"))
 }
 
 fn canonical_https_origin(value: &str) -> Option<String> {
@@ -137,11 +146,43 @@ mod tests {
             .await;
         assert_eq!(response.status(), 200);
         let body = std::str::from_utf8(response.body()).unwrap();
-        assert!(body.contains("<title>Open shared note in Lockbook</title>"));
-        assert!(body.contains("Someone shared a Lockbook note with you."));
-        assert!(body.contains("https://notes.example.com/lockbook-logo.png"));
+        assert!(body.contains("<title>Someone shared a note with you | Lockbook</title>"));
+        assert!(body.contains("<meta property=\"og:title\" content=\"Someone shared a note with you\""));
+        assert!(body.contains("<meta name=\"twitter:title\" content=\"Someone shared a note with you\""));
+        assert!(!body.contains("class=\"eyebrow\""));
+        assert!(body.contains("<main class=\"wrap hero\">"));
+        assert!(!body.contains("class=\"card\""));
+        assert!(body.contains("Someone shared a note with you."));
+        assert!(!body.contains("Someone shared a Lockbook note with you"));
+        assert!(body.contains("Open Lockbook to view it. Only people with access to the note can see its contents."));
+        assert!(body.contains("End-to-end encrypted. This page does not reveal the note's contents."));
+        assert!(!body.contains("sync and view"));
+        assert!(body.contains(&format!(
+            "<link rel=\"canonical\" href=\"https://notes.example.com/open/{ID}\""
+        )));
+        assert!(body.contains(&format!(
+            "<meta property=\"og:url\" content=\"https://notes.example.com/open/{ID}\""
+        )));
+        assert!(body.contains(
+            "<meta property=\"og:image\" content=\"https://notes.example.com/open-preview.png\""
+        ));
+        assert!(body.contains("<meta name=\"twitter:card\" content=\"summary_large_image\""));
+        assert!(body.contains("<meta property=\"og:image:width\" content=\"1200\""));
+        assert!(body.contains("<meta property=\"og:image:height\" content=\"630\""));
+        assert!(body.contains("href=\"/favicon/site.webmanifest\""));
+        assert!(body.contains("src=\"/lockbook-mark.svg\""));
+        assert_eq!(body.matches(">Get Lockbook</a>").count(), 1);
+        assert!(!body.contains("<footer>"));
+        assert!(body.contains("--lb-open-accent: #207fdf"));
+        assert!(body.contains("--lb-open-accent: #66b2ff"));
+        assert!(body.contains("--lb-open-bg: #fff"));
+        assert!(!body.contains("var(--bg)"));
+        assert!(!body.contains("var(--fg)"));
+        assert!(!body.contains("id=\"theme-toggle\""));
+        assert!(!body.contains("localStorage"));
         assert!(body.contains(&format!("lb://{ID}")));
         assert!(!body.contains("window.location"));
+        assert!(!body.contains("{{"));
     }
 
     #[tokio::test]
@@ -152,7 +193,7 @@ mod tests {
             .await;
         let body = std::str::from_utf8(response.body()).unwrap();
         assert!(body.contains(&format!("lb://{ID}")));
-        assert!(body.contains("https://[::1]:8443/lockbook-logo.png"));
+        assert!(body.contains("https://[::1]:8443/open-preview.png"));
         assert!(!body.contains("[["));
     }
 
@@ -178,12 +219,33 @@ mod tests {
             assert_eq!(response.headers()["content-type"], "application/json");
         }
 
-        let logo = warp::test::request()
-            .path("/lockbook-logo.png")
+        for (path, content_type) in [
+            ("/lockbook-logo.png", "image/png"),
+            ("/lockbook-mark.svg", "image/svg+xml"),
+            ("/open-preview.png", "image/png"),
+            ("/favicon/favicon.svg", "image/svg+xml"),
+            ("/favicon/favicon.ico", "image/x-icon"),
+            ("/favicon/favicon-96x96.png", "image/png"),
+            ("/favicon/apple-touch-icon.png", "image/png"),
+            ("/favicon/web-app-manifest-192x192.png", "image/png"),
+            ("/favicon/web-app-manifest-512x512.png", "image/png"),
+            ("/favicon/site.webmanifest", "application/manifest+json"),
+        ] {
+            let response = warp::test::request()
+                .path(path)
+                .reply(&static_routes("https://example.com"))
+                .await;
+            assert_eq!(response.status(), 200, "{path}");
+            assert_eq!(response.headers()["content-type"], content_type, "{path}");
+            if content_type == "image/png" {
+                assert!(response.body().starts_with(b"\x89PNG\r\n\x1a\n"), "{path}");
+            }
+        }
+        let unknown = warp::test::request()
+            .path("/favicon/unknown.png")
             .reply(&static_routes("https://example.com"))
             .await;
-        assert_eq!(logo.status(), 200);
-        assert_eq!(logo.headers()["content-type"], "image/png");
+        assert_eq!(unknown.status(), 404);
     }
 
     #[test]

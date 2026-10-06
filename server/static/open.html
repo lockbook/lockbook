@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Someone shared a note with you | Lockbook</title>
+  <meta name="description" content="Someone shared a note with you. Open Lockbook to view it. Only people with access can see its contents." />
+  <link rel="canonical" href="{{OPEN_URL}}" />
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#101010" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon/favicon-96x96.png" />
+  <link rel="shortcut icon" href="/favicon/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+  <link rel="manifest" href="/favicon/site.webmanifest" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Lockbook" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:title" content="Someone shared a note with you" />
+  <meta property="og:description" content="Open Lockbook to view it. Only people with access to the note can see its contents." />
+  <meta property="og:url" content="{{OPEN_URL}}" />
+  <meta property="og:image" content="{{PREVIEW_IMAGE}}" />
+  <meta property="og:image:secure_url" content="{{PREVIEW_IMAGE}}" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Lockbook logo beside the words A note was shared with you" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Someone shared a note with you" />
+  <meta name="twitter:description" content="Open Lockbook to view it. Only people with access to the note can see its contents." />
+  <meta name="twitter:image" content="{{PREVIEW_IMAGE}}" />
+  <meta name="twitter:image:alt" content="Lockbook logo beside the words A note was shared with you" />
+
+  <style>
+    :root {
+      color-scheme: light;
+      --lb-open-bg: #fff; --lb-open-divider: #dadada;
+      --lb-open-fg: #101010; --lb-open-fg-2: #515151;
+      --lb-open-accent: #207fdf; --lb-open-ink-fill: #101010; --lb-open-ink-text: #fff;
+      --lb-open-stroke: #b1b1b1; --lb-open-wash: rgba(16,16,16,.05); --lb-open-paper: #f5f7f9;
+      --lb-open-radius: 8px;
+      --lb-open-sans: -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",system-ui,sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --lb-open-bg: #101010; --lb-open-divider: #383838;
+        --lb-open-fg: #fff; --lb-open-fg-2: #b4b4b4;
+        --lb-open-accent: #66b2ff; --lb-open-ink-fill: #fff; --lb-open-ink-text: #101010;
+        --lb-open-stroke: #565656; --lb-open-wash: rgba(255,255,255,.05); --lb-open-paper: #20252a;
+        color-scheme: dark;
+      }
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--lb-open-bg); color: var(--lb-open-fg); font: 17px/1.6 var(--lb-open-sans); -webkit-font-smoothing: antialiased; }
+    a { color: var(--lb-open-accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    a:focus-visible { outline: 2px solid var(--lb-open-accent); outline-offset: 3px; border-radius: 4px; }
+    .wrap { width: min(100%, 1120px); margin-inline: auto; padding-inline: 25px; }
+    .site-header { border-bottom: 1px solid var(--lb-open-divider); }
+    .site-header .bar { display: flex; align-items: center; justify-content: space-between; gap: 15px; min-height: 60px; }
+    .brand { display: inline-flex; align-items: center; gap: 5px; color: var(--lb-open-fg); font-weight: 600; letter-spacing: -.01em; }
+    .brand:hover { text-decoration: none; }
+    .brand img { width: 22px; height: 22px; }
+    main.hero { min-height: calc(100vh - 60px); display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr); align-items: center; gap: clamp(48px, 9vw, 128px); padding-block: 70px; }
+    .hero-copy { width: min(100%, 650px); }
+    .cipher-visual { width: min(100%, 390px); margin: 0; justify-self: end; color: var(--lb-open-fg-2); }
+    .mail-stage { position: relative; height: 268px; overflow: hidden; perspective: 700px; }
+    .mail-back { position: absolute; right: 0; bottom: 0; left: 0; height: 160px; border: 1px solid var(--lb-open-stroke); border-radius: var(--lb-open-radius); background: var(--lb-open-bg); }
+    .mail-letter { position: absolute; z-index: 2; right: 9%; bottom: 41px; left: 9%; height: 160px; padding: 12px 20px; border: 1px solid var(--lb-open-stroke); border-radius: var(--lb-open-radius); background: var(--lb-open-paper); transform: translateY(-55px); animation: letter-cycle 9s ease-in-out infinite; }
+    .mail-letter-head { margin-bottom: 12px; color: var(--lb-open-accent); font: 10px/1.4 ui-monospace,SFMono-Regular,"SF Mono","Noto Sans Mono",Menlo,monospace; letter-spacing: .08em; text-transform: uppercase; }
+    .cipher-text { margin: 0; color: var(--lb-open-fg); opacity: .58; font: clamp(10px, 1.1vw, 12px)/1.5 ui-monospace,SFMono-Regular,"SF Mono","Noto Sans Mono",Menlo,monospace; letter-spacing: .015em; white-space: pre; overflow: hidden; }
+    .mail-front { position: absolute; z-index: 3; right: 0; bottom: 0; left: 0; height: 160px; border-radius: var(--lb-open-radius); background: var(--lb-open-bg); clip-path: polygon(0 0, 50% 58%, 100% 0, 100% 100%, 0 100%); }
+    .mail-front::before { position: absolute; inset: 0; content: ""; background: var(--lb-open-stroke); clip-path: polygon(0 0, 50% 58%, 100% 0, 100% 1px, 50% calc(58% + 1px), 0 1px); }
+    .mail-outline { position: absolute; z-index: 4; right: 0; bottom: 0; left: 0; height: 160px; border: 1px solid var(--lb-open-stroke); border-top: 0; border-radius: var(--lb-open-radius); pointer-events: none; }
+    .mail-flap { position: absolute; z-index: 5; right: 0; bottom: 0; left: 0; width: 100%; height: 160px; border-radius: var(--lb-open-radius) var(--lb-open-radius) 0 0; transform-origin: center top; transform: rotateX(180deg); backface-visibility: hidden; animation: flap-cycle 9s ease-in-out infinite; }
+    .mail-flap path { fill: var(--lb-open-bg); stroke: var(--lb-open-stroke); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    @keyframes flap-cycle {
+      0%, 45%, 75%, 100% { transform: rotateX(180deg); }
+      55%, 65% { transform: rotateX(0); }
+    }
+    @keyframes letter-cycle {
+      0%, 28%, 92%, 100% { transform: translateY(-55px); }
+      14%, 96% { transform: translateY(-60px); }
+      45%, 75% { transform: translateY(55px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .mail-flap, .mail-letter { animation: none; }
+      .mail-flap { transform: rotateX(180deg); }
+      .mail-letter { transform: translateY(-55px); }
+    }
+    h1 { margin: 0; font-size: 48px; font-weight: 600; line-height: 1.1; letter-spacing: -.025em; text-wrap: balance; }
+    .lede { max-width: 31em; margin-top: 25px; color: var(--lb-open-fg-2); font-size: 20px; line-height: 1.5; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 10px 16px; border: 1px solid transparent; border-radius: var(--lb-open-radius); font: 500 16px/1.4 var(--lb-open-sans); white-space: nowrap; }
+    .btn:hover { text-decoration: none; }
+    .btn-primary { background: var(--lb-open-ink-fill); color: var(--lb-open-ink-text); border-color: var(--lb-open-ink-fill); }
+    .btn-primary:hover { opacity: .84; }
+    .btn-quiet { color: var(--lb-open-fg); border-color: var(--lb-open-stroke); }
+    .btn-quiet:hover { background: var(--lb-open-wash); }
+    .trust { display: flex; align-items: flex-start; gap: 7px; max-width: 42em; margin-top: 48px; color: var(--lb-open-fg-2); font-size: 12px; line-height: 1.45; }
+    .trust svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--lb-open-fg-2); }
+    @media (max-width: 520px) {
+      .wrap { padding-inline: 16px; }
+      main.hero { grid-template-columns: 1fr; align-items: flex-start; padding-block: 55px; }
+      .lede { font-size: 18px; }
+      .actions { flex-direction: column; }
+      .btn { width: 100%; min-height: 50px; }
+      .cipher-visual { width: 100%; margin-top: 72px; }
+    }
+    @media (min-width: 521px) and (max-width: 840px) {
+      main.hero { grid-template-columns: 1fr; align-items: start; }
+      .cipher-visual { justify-self: start; margin-top: 72px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="brand" href="https://lockbook.net" aria-label="Lockbook home">
+        <img src="/lockbook-mark.svg" width="22" height="22" alt="" />
+        <span>Lockbook</span>
+      </a>
+    </div>
+  </header>
+  <main class="wrap hero">
+    <section class="hero-copy" aria-labelledby="shared-note-title">
+      <h1 id="shared-note-title">Someone shared a note with you.</h1>
+      <p class="lede">Open Lockbook to view it. Only people with access to the note can see its contents.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="{{HANDOFF}}">Open in Lockbook</a>
+        <a class="btn btn-quiet" href="https://lockbook.net/#download">Get Lockbook</a>
+      </div>
+      <div class="trust" role="note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="4" y="10" width="16" height="11" rx="2" />
+          <path d="M7.5 10V7a4.5 4.5 0 0 1 9 0v3" />
+        </svg>
+        <div>End-to-end encrypted. This page does not reveal the note's contents.</div>
+      </div>
+    </section>
+    <figure class="cipher-visual" aria-hidden="true">
+      <div class="mail-stage">
+        <div class="mail-back"></div>
+        <div class="mail-letter">
+          <div class="mail-letter-head">encrypted note</div>
+          <pre class="cipher-text">mK2x+9QfLw3eYaZv0d/P7cNb4Rk
+u8PJq4Tn6RcXbGdV1e+Wm9sH2qL
+Hs5AyEw7Zk+jMoN2iQd4fT8pUc3
+p7Rc/Xw2mBhT4nEuJ8fZq5A1vKd9
+d3FrUvLB9tXq/W6pCsA2mYe8Kj4
+nQ6zP1hVc8sM+R4bT7yLw2eD9xF5</pre>
+        </div>
+        <div class="mail-front"></div>
+        <div class="mail-outline"></div>
+        <svg class="mail-flap" viewBox="0 0 390 160" preserveAspectRatio="none"><path d="M.5.5h389L195 93Z" /></svg>
+      </div>
+    </figure>
+  </main>
+  <script>
+    (() => {
+      const cipher = document.querySelector(".cipher-text");
+      const original = cipher.textContent.trim();
+      const characters = Array.from(original);
+      const revealAt = characters.map(char => char === "\n" ? 0 : .35 + Math.random() * .65);
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const duration = 800;
+      const startedAt = performance.now();
+      let timeout;
+      let finished = false;
+
+      function finish() {
+        window.clearTimeout(timeout);
+        cipher.textContent = original;
+        finished = true;
+      }
+
+      function scramble() {
+        if (finished) return;
+        if (document.hidden || reducedMotion.matches) return finish();
+
+        const progress = Math.min((performance.now() - startedAt) / duration, 1);
+        if (progress === 1) return finish();
+
+        cipher.textContent = characters.map((char, index) =>
+          progress >= revealAt[index] ? char : alphabet[Math.floor(Math.random() * alphabet.length)]
+        ).join("");
+        const nextDelay = 65 + 280 * progress ** 2;
+        timeout = window.setTimeout(scramble, Math.min(nextDelay, duration * (1 - progress)));
+      }
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) finish();
+      });
+      reducedMotion.addEventListener("change", () => {
+        if (reducedMotion.matches) finish();
+      });
+      if (!document.hidden && !reducedMotion.matches) {
+        scramble();
+      } else {
+        cipher.textContent = original;
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -68,4 +68,10 @@ class OpenLinkParserTest {
         assertEquals("https://[::1]:8443", OpenLinkBuilder.canonicalOrigin("https://[::1]:8443/"))
         assertEquals(id, OpenLinkParser.parse("lb://$id"))
     }
+
+    @Test
+    fun `local http account origins retain their scheme and port`() {
+        assertEquals("http://10.0.2.2:8000", OpenLinkBuilder.canonicalOrigin("http://10.0.2.2:8000/"))
+        assertEquals("http://notes.example.com", OpenLinkBuilder.canonicalOrigin("HTTP://Notes.Example.com:80/"))
+    }
 }

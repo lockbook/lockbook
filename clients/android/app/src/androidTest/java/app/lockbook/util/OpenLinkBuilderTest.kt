@@ -24,11 +24,27 @@ class OpenLinkBuilderTest {
     }
 
     @Test
+    fun preservesHttpForLocalDevelopment() {
+        assertEquals("http://10.0.2.2:8000/open/$id", OpenLinkBuilder.build("http://10.0.2.2:8000", id))
+        assertEquals("http://notes.example.com/open/$id", OpenLinkBuilder.build("http://Notes.Example.com:80/", id))
+    }
+
+    @Test
     fun rejectsUnsafeAccountOrigin() {
-        try {
-            OpenLinkBuilder.build("http://notes.example.com", id)
-            fail("Expected an invalid HTTP origin to be rejected")
-        } catch (_: IllegalArgumentException) {
+        val unsafeOrigins =
+            listOf(
+                "ftp://notes.example.com",
+                "http://user@notes.example.com",
+                "http://notes.example.com/api",
+                "http://notes.example.com?x=1",
+                "http://notes.example.com#fragment",
+            )
+        for (origin in unsafeOrigins) {
+            try {
+                OpenLinkBuilder.build(origin, id)
+                fail("Expected an invalid origin to be rejected: $origin")
+            } catch (_: IllegalArgumentException) {
+            }
         }
     }
 }

@@ -42,8 +42,9 @@ object OpenLinkParser {
 object OpenLinkBuilder {
     internal fun canonicalOrigin(value: String): String? {
         val uri = runCatching { URI(value) }.getOrNull() ?: return null
+        val scheme = uri.scheme?.lowercase()
         if (
-            uri.scheme?.lowercase() != "https" ||
+            scheme !in listOf("http", "https") ||
             uri.host == null ||
             uri.rawUserInfo != null ||
             uri.rawQuery != null ||
@@ -52,10 +53,11 @@ object OpenLinkBuilder {
         ) {
             return null
         }
-        val port = uri.port.takeUnless { it == -1 || it == 443 }
+        val defaultPort = if (scheme == "https") 443 else 80
+        val port = uri.port.takeUnless { it == -1 || it == defaultPort }
         val host = uri.host.lowercase()
         return buildString {
-            append("https://")
+            append("$scheme://")
             append(host)
             if (port != null) append(":$port")
         }
@@ -65,12 +67,12 @@ object OpenLinkBuilder {
         apiUrl: String,
         fileId: String,
     ): String {
-        val origin = requireNotNull(canonicalOrigin(apiUrl)) { "Account server must be an HTTPS origin" }
+        val origin = requireNotNull(canonicalOrigin(apiUrl)) { "Account server must be an HTTP(S) origin" }
         val id = requireNotNull(canonicalFileId(fileId)) { "Invalid file id" }
         val originUri = origin.toUri()
         return Uri
             .Builder()
-            .scheme("https")
+            .scheme(originUri.scheme)
             .encodedAuthority(originUri.encodedAuthority)
             .appendPath("open")
             .appendPath(id)
