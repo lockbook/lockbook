@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use lb_rs::Uuid;
 
-use crate::file_cache::{FileCache, FilesExt as _};
+use crate::file_cache::{FileCache, FilesExt as _, link_id};
 
 pub use crate::file_cache::ResolvedLink;
 
@@ -44,12 +44,14 @@ impl LinkResolver for () {
     }
 }
 
-const CROSS_TREE_MSG: &str =
-    "This link points to a file shared differently and may not be visible to all collaborators.";
+const OUTSIDE_SCOPE_MSG: &str = "Not everyone who can read this note may be able to see this file.";
+const BEYOND_SCOPE_MSG: &str = "This file is outside the folder this note is shared in.";
+const BEYOND_REACH_MSG: &str = "This note's owner can't see this file.";
+const NOT_FOUND_MSG: &str = "Destination not found";
 
-/// Resolver backed by lockbook's file cache. Resolves links relative to the
-/// parent folder of a given file. Cross-tree UUID links from a pending share
-/// tree are flagged with a yellow warning; the crypto layer enforces access.
+/// Resolver backed by lockbook's file cache. Resolves links written in a
+/// given file within that file's scope; an `lb://` link that leaves the
+/// scope is flagged with a yellow warning.
 #[derive(Clone)]
 pub struct FileCacheLinkResolver {
     files: Arc<RwLock<FileCache>>,
@@ -64,31 +66,34 @@ impl FileCacheLinkResolver {
 
 impl LinkResolver for FileCacheLinkResolver {
     fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
-        let guard = self.files.read().unwrap();
-        let from_id = guard.get_by_id(self.file_id)?.parent;
-        guard.resolve_link(url, from_id)
+        self.files.read().unwrap().resolve_link(url, self.file_id)
     }
 
     fn resolve_wikilink(&self, title: &str) -> Option<Uuid> {
         let guard = self.files.read().unwrap();
-        let from_id = guard.get_by_id(self.file_id)?.parent;
-        guard.resolve_wikilink(title, from_id)
+        guard.resolve_wikilink(title, self.file_id)
     }
 
     fn link_state(&self, url: &str) -> LinkState {
         let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken { message: "Destination not found".into() };
-        };
-        match guard.resolve_link(url, from_id) {
-            None => LinkState::Broken { message: "Destination not found".into() },
+        match guard.resolve_link(url, self.file_id) {
+            None => {
+                let named = link_id(url).and_then(|id| guard.get_by_id(id));
+                let message = if guard.beyond_scope(url, false, self.file_id).is_some() {
+                    BEYOND_SCOPE_MSG
+                } else if named.is_some_and(|file| file.is_document()) {
+                    BEYOND_REACH_MSG
+                } else {
+                    NOT_FOUND_MSG
+                };
+                LinkState::Broken { message: message.into() }
+            }
             Some(ResolvedLink::External(_)) => LinkState::Normal,
-            Some(ResolvedLink::File(target_id)) => {
-                let from_own = guard.tree_root(from_id) == guard.root().id;
-                if from_own || guard.same_tree(from_id, target_id) {
+            Some(ResolvedLink::File(target)) => {
+                if guard.in_scope(guard.scope_top(self.file_id), target) {
                     LinkState::Normal
                 } else {
-                    LinkState::Warning { message: CROSS_TREE_MSG.into() }
+                    LinkState::Warning { message: OUTSIDE_SCOPE_MSG.into() }
                 }
             }
         }
@@ -96,12 +101,15 @@ impl LinkResolver for FileCacheLinkResolver {
 
     fn wikilink_state(&self, title: &str) -> LinkState {
         let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken { message: "Destination not found".into() };
-        };
-        match guard.resolve_wikilink(title, from_id) {
-            None => LinkState::Broken { message: "Destination not found".into() },
-            Some(_) => LinkState::Normal, // wikilinks are always within-tree
+        match guard.wikilink_matches(title, self.file_id)[..] {
+            [_] => LinkState::Normal,
+            [] if guard.beyond_scope(title, true, self.file_id).is_some() => {
+                LinkState::Broken { message: BEYOND_SCOPE_MSG.into() }
+            }
+            [] => LinkState::Broken { message: NOT_FOUND_MSG.into() },
+            _ => LinkState::Broken {
+                message: "More than one file matches; add a folder or an extension".into(),
+            },
         }
     }
 }

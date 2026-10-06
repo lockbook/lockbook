@@ -597,7 +597,7 @@ struct FileResult {
 impl LinkCompletions {
     fn ensure_index(&mut self, cache: &FileCache, file_id: Uuid, mode: CompletionMode) {
         if self.searcher.is_some()
-            && self.index_mod == cache.last_modified
+            && self.index_mod == cache.stamp
             && self.index_mode == Some(mode)
             && self.index_file == Some(file_id)
         {
@@ -605,11 +605,12 @@ impl LinkCompletions {
         }
         let wiki = mode == CompletionMode::WikiLink;
         let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
+        let scope = cache.scope_top(file_id);
         let entries = cache.path_index().into_iter().filter(|(f, _)| {
             if !f.is_document() || f.id == file_id {
                 return false;
             }
-            if wiki && !cache.same_tree(file_id, f.id) {
+            if wiki && !cache.in_scope(scope, f.id) {
                 return false;
             }
             if image {
@@ -623,7 +624,7 @@ impl LinkCompletions {
             true
         });
         self.searcher = Some(lb_rs::search::PathSearcher::from_files(entries));
-        self.index_mod = cache.last_modified;
+        self.index_mod = cache.stamp;
         self.index_mode = Some(mode);
         self.index_file = Some(file_id);
     }
@@ -634,7 +635,7 @@ impl LinkCompletions {
         &mut self, cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode,
     ) -> Vec<FileResult> {
         if let Some((m, id, mode_c, q, results)) = &self.cached {
-            if *m == cache.last_modified && *id == file_id && *mode_c == mode && q == query {
+            if *m == cache.stamp && *id == file_id && *mode_c == mode && q == query {
                 return results.clone();
             }
         }
@@ -661,7 +662,7 @@ impl LinkCompletions {
             .into_iter()
             .filter_map(|id| {
                 let f = cache.get_by_id(id)?;
-                let cross_tree = !cache.same_tree(file_id, f.id);
+                let cross_tree = !cache.in_scope(cache.scope_top(file_id), f.id);
                 let rel_path = if cross_tree {
                     cache.path(f.id)
                 } else {
@@ -685,8 +686,7 @@ impl LinkCompletions {
             .collect();
 
         populate_insert(cache, &mut results, mode);
-        self.cached =
-            Some((cache.last_modified, file_id, mode, query.to_string(), results.clone()));
+        self.cached = Some((cache.stamp, file_id, mode, query.to_string(), results.clone()));
         results
     }
 }
@@ -1152,15 +1152,13 @@ mod tests {
                 doc(b, "Spec.md"),
             ],
         );
-        let from_id = cache.get_by_id(editing).unwrap().parent;
-
         let mut lc = LinkCompletions::default();
         for query in ["pan", "todo", "spec"] {
             let results = lc.search(&cache, editing, query, CompletionMode::WikiLink);
             assert!(!results.is_empty(), "query {query:?} produced no completions");
             for r in results {
                 assert_eq!(
-                    cache.resolve_wikilink(&r.insert, from_id),
+                    cache.resolve_wikilink(&r.insert, editing),
                     Some(r.id),
                     "query {query:?}: insert {:?} did not resolve to {:?}",
                     r.insert,
