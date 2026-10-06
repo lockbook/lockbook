@@ -2,6 +2,7 @@ pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;
 pub mod landing;
+pub mod links;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;
 pub mod output;

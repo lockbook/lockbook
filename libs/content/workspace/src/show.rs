@@ -52,6 +52,7 @@ impl Workspace {
 
         self.process_bg_tasks();
         self.process_lb_updates();
+        self.process_links();
         self.process_task_updates();
         self.process_keys();
         self.process_clip_events();

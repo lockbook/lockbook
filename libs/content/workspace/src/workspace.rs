@@ -24,6 +24,7 @@ use web_time::{Duration, Instant};
 
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
+use crate::links::{LinkIndex, Reader as LinkReader};
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
@@ -86,6 +87,10 @@ pub struct Workspace {
     // Files and task status
     pub tasks: TaskManager,
     pub files: Arc<RwLock<FileCache>>,
+    /// What every note links to and what links to every file, current with
+    /// `files` and with each note as it is written.
+    pub links: Arc<RwLock<LinkIndex>>,
+    pub(crate) link_reader: LinkReader,
     pub images: ImageCache,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
@@ -177,6 +182,8 @@ impl Workspace {
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,
+            links: Default::default(),
+            link_reader: LinkReader::new(core, ctx),
             images,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
@@ -210,6 +217,7 @@ impl Workspace {
             let files = ws.files.read().unwrap();
             ws.landing_page.update_recent_files(&files);
         }
+        ws.read_all_links();
 
         let (open_sessions, current_tab_index) = ws.cfg.get_sessions();
         let current_session_id = current_tab_index
@@ -1003,10 +1011,14 @@ impl Workspace {
     pub fn process_bg_tasks(&mut self) {
         loop {
             match self.ws_rx.try_recv() {
-                Ok(WsUpdates::FileCacheComputed(file_cache)) => {
+                Ok(WsUpdates::FileCacheComputed(mut file_cache)) => {
+                    // of those computed since the last frame, the newest stands
+                    while let Ok(WsUpdates::FileCacheComputed(newer)) = self.ws_rx.try_recv() {
+                        file_cache = newer;
+                    }
                     let file_cache = file_cache.unwrap();
                     self.landing_page.update_recent_files(&file_cache);
-                    *self.files.write().unwrap() = file_cache;
+                    self.replace_files(file_cache);
                     self.out.file_cache_updated = true;
 
                     for tab in self.tabs.values_mut() {
@@ -1050,6 +1062,7 @@ impl Workspace {
                 Ok(evt) => {
                     match evt {
                         Event::DocumentWritten(id, actor) => {
+                            self.links_follow_write(id);
                             let event_origin = match actor {
                                 Actor::Sync => {
                                     self.core.app_foregrounded();
@@ -1164,7 +1177,7 @@ impl Workspace {
                     continue;
                 };
                 let link = crate::tab::imported_image_link(&cache, file_id, &file);
-                *self.files.write().unwrap() = cache;
+                self.replace_files(cache);
                 match link {
                     Ok(link) => {
                         self.ctx
