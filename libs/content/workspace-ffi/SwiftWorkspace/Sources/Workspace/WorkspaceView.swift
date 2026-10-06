@@ -5,7 +5,6 @@ import MetalKit
 import SwiftUI
 
 #if os(iOS)
-    import GameController
     import UIKit
 
     enum WorkspaceControllerRegistry {
@@ -186,20 +185,12 @@ import SwiftUI
                     return
                 }
 
-                // Text callbacks are nulled only where the MdView they're
-                // wired to goes away (a fresh one rewires in init). A switch
-                // that keeps the wrapper — markdown ↔ chat — keeps them: they
-                // feed Rust-side changes to UIKit's inputDelegate, and a deaf
-                // delegate desyncs autocorrect and keyboard state.
                 switch newCurrentTab {
                 case .Welcome, .Pdf, .Loading, .SpaceInspector, .Search:
                     if currentWrapper == nil {
                         return
                     }
 
-                    mtkView.onSelectionChanged = nil
-                    mtkView.onSelectionGeometryChanged = nil
-                    mtkView.onTextChanged = nil
                     currentWrapper?.removeFromSuperview()
 
                     currentWrapper = nil
@@ -208,13 +199,9 @@ import SwiftUI
                     mtkView.becomeFirstResponder()
                 case .Svg, .Image, .Graph:
                     if currentWrapper is SvgView {
-                        mtkView.onTextChanged?()
                         return
                     }
 
-                    mtkView.onSelectionChanged = nil
-                    mtkView.onSelectionGeometryChanged = nil
-                    mtkView.onTextChanged = nil
                     currentWrapper?.removeFromSuperview()
 
                     let drawingWrapper = SvgView(mtkView: mtkView)
@@ -241,13 +228,14 @@ import SwiftUI
 
                     mtkView.becomeFirstResponder()
                 case .PlainText, .Markdown, .Chat:
-                    if currentWrapper is MdView {
+                    if let text = currentWrapper as? TextPage {
+                        text.documentReplaced()
                         return
                     }
 
                     currentWrapper?.removeFromSuperview()
 
-                    let textWrapper = MdView(mtkView: mtkView)
+                    let textWrapper = TextPage(mtkView: mtkView)
                     currentWrapper = textWrapper
                     mtkView.currentWrapper = textWrapper
 
@@ -257,10 +245,6 @@ import SwiftUI
                     textWrapper.translatesAutoresizingMaskIntoConstraints = true
                     textWrapper.frame = mtkView.frame
                     addSubview(textWrapper)
-
-                    if GCKeyboard.coalesced != nil {
-                        textWrapper.becomeFirstResponder()
-                    }
                 }
             }
         }

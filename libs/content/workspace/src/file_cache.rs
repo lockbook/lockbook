@@ -39,9 +39,8 @@ pub struct FileCache {
     pub suggested: Vec<Uuid>,
     pub size_bytes_recursive: UuidMap<u64>,
     pub last_modified_recursive: UuidMap<u64>,
-    pub last_modified_by_recursive: UuidMap<String>,
     /// Max last_modified across all files. Used as a cache invalidation key
-    /// by the landing page sort cache — changes whenever the file tree changes.
+    /// by link completions — changes whenever the file tree changes.
     pub last_modified: u64,
 }
 
@@ -80,7 +79,6 @@ impl FileCache {
             suggested: vec![],
             size_bytes_recursive: Default::default(),
             last_modified_recursive: Default::default(),
-            last_modified_by_recursive: Default::default(),
             last_modified: 0,
             shared_roots: vec![],
             rows: vec![root],
@@ -114,7 +112,6 @@ impl FileCache {
             suggested,
             size_bytes_recursive: uuid_map(),
             last_modified_recursive: uuid_map(),
-            last_modified_by_recursive: uuid_map(),
             last_modified,
         }
     }
@@ -139,26 +136,19 @@ impl FileCache {
         let ids: Vec<Uuid> = self.rows.iter().map(|f| f.id).collect();
         let mut size = uuid_map_with_capacity(ids.len());
         let mut modified = uuid_map_with_capacity(ids.len());
-        let mut modified_by = uuid_map_with_capacity(ids.len());
         for id in ids {
             let me = self.get_by_id(id).unwrap();
             let mut sum = me.size_bytes;
             let mut best_mod = me.last_modified;
-            let mut best_by = me.last_modified_by.clone();
             for f in self.descendents(id) {
                 sum += f.size_bytes;
-                if f.last_modified >= best_mod {
-                    best_mod = f.last_modified;
-                    best_by = f.last_modified_by.clone();
-                }
+                best_mod = best_mod.max(f.last_modified);
             }
             size.insert(id, sum);
             modified.insert(id, best_mod);
-            modified_by.insert(id, best_by);
         }
         self.size_bytes_recursive = size;
         self.last_modified_recursive = modified;
-        self.last_modified_by_recursive = modified_by;
     }
 
     pub fn usage_portion(&self, id: Uuid) -> f32 {
@@ -186,63 +176,10 @@ impl FileCache {
             .collect()
     }
 
-    /// Returns path segments for a file, each annotated with whether that file
-    /// has any shares on it. Segments are in root-to-leaf order. The leading `/`
-    /// is included as a separate segment for own-tree files.
-    pub fn path_segments(&self, id: Uuid) -> Vec<(String, bool)> {
-        let Some(file) = self.get_by_id(id) else {
-            return vec![("/".to_string(), false)];
-        };
-        if file.is_root() {
-            return vec![("/".to_string(), false)];
-        }
-
-        let mut parts: Vec<(&str, bool)> = Vec::new();
-        let mut current = id;
-        let mut reached_root = false;
-        while let Some(f) = self.get_by_id(current) {
-            if f.is_root() {
-                reached_root = true;
-                break;
-            }
-            parts.push((&f.name, !f.shares.is_empty()));
-            if self.get_by_id(f.parent).is_none() {
-                break; // share boundary
-            }
-            current = f.parent;
-        }
-        parts.reverse();
-
-        let mut segments = Vec::new();
-        if reached_root {
-            segments.push(("/".to_string(), false));
-        }
-        for (i, (name, shared)) in parts.iter().enumerate() {
-            segments.push(((*name).to_string(), *shared));
-            let is_last = i + 1 == parts.len();
-            if !is_last {
-                segments.push(("/".to_string(), false));
-            }
-        }
-        segments
-    }
-
-    pub fn last_modified_by_recursive(&self, id: Uuid) -> &str {
-        self.last_modified_by_recursive
-            .get(&id)
-            .map(|s| s.as_str())
-            .unwrap_or_else(|| {
-                self.get_by_id(id)
-                    .map(|f| f.last_modified_by.as_str())
-                    .unwrap_or("")
-            })
-    }
-
     pub fn insert_created_file(&mut self, file: File) {
         let file_id = file.id;
         let file_size = file.size_bytes;
         let file_modified = file.last_modified;
-        let file_modified_by = file.last_modified_by.clone();
 
         let idx = self
             .rows
@@ -254,8 +191,6 @@ impl FileCache {
 
         self.size_bytes_recursive.insert(file_id, file_size);
         self.last_modified_recursive.insert(file_id, file_modified);
-        self.last_modified_by_recursive
-            .insert(file_id, file_modified_by.clone());
         self.last_modified = self.last_modified.max(file_modified);
 
         for ancestor in self.ancestors(file_id) {
@@ -263,11 +198,7 @@ impl FileCache {
                 .last_modified_recursive
                 .entry(ancestor)
                 .or_insert(file_modified);
-            if file_modified >= *ancestor_modified {
-                *ancestor_modified = file_modified;
-                self.last_modified_by_recursive
-                    .insert(ancestor, file_modified_by.clone());
-            }
+            *ancestor_modified = (*ancestor_modified).max(file_modified);
         }
     }
 }

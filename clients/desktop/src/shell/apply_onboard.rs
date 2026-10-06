@@ -4,6 +4,8 @@ use std::sync::mpsc;
 use std::thread;
 
 use egui::Context;
+use lb::blocking::Lb;
+use lb::model::api::SubscriptionInfo;
 use workspace_rs::file_cache::FileCache;
 
 use super::ShellApp;
@@ -214,11 +216,7 @@ fn onboard_import_secret(account_key: &str) -> String {
 }
 
 pub(crate) enum AutoOnboard {
-    Ready {
-        core: lb::blocking::Lb,
-        files: FileCache,
-        sub_info: Option<lb::model::api::SubscriptionInfo>,
-    },
+    Ready { core: Lb, files: FileCache, sub_info: Option<SubscriptionInfo> },
     Failed,
 }
 
@@ -347,13 +345,16 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
                             AutoOnboard::Ready { core, files, sub_info }
                         }
                         Ok(_) => AutoOnboard::Failed,
-                        Err((core, _)) => match FileCache::new(&core) {
-                            Ok(files) => {
-                                let sub_info = core.get_subscription_info().ok().flatten();
-                                AutoOnboard::Ready { core, files, sub_info }
+                        Err(error) => {
+                            let (core, _) = *error;
+                            match FileCache::new(&core) {
+                                Ok(files) => {
+                                    let sub_info = core.get_subscription_info().ok().flatten();
+                                    AutoOnboard::Ready { core, files, sub_info }
+                                }
+                                Err(_) => AutoOnboard::Failed,
                             }
-                            Err(_) => AutoOnboard::Failed,
-                        },
+                        }
                     };
                     let _ = tx.send(load);
                 }
@@ -409,7 +410,8 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
             Ok(load) => {
                 let _ = tx.send(load);
             }
-            Err((core, err)) => {
+            Err(error) => {
+                let (core, err) = *error;
                 let _ =
                     tx.send(CoreLoad::OnboardFailed { core, fail: OnboardFail { err, ..fail } });
             }
@@ -419,7 +421,7 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
 }
 
 fn onboard_account(
-    core: &lb::blocking::Lb, mode: OnboardMode, uname: &str, import_secret: &str, api: &str,
+    core: &Lb, mode: OnboardMode, uname: &str, import_secret: &str, api: &str,
 ) -> Result<(), String> {
     match mode {
         OnboardMode::Create => core
@@ -435,8 +437,8 @@ fn onboard_account(
 }
 
 fn onboard_sync_and_cache(
-    core: lb::blocking::Lb, status: Option<&session::LoadStatus>, ctx: &Context,
-) -> Result<CoreLoad, (lb::blocking::Lb, String)> {
+    core: Lb, status: Option<&session::LoadStatus>, ctx: &Context,
+) -> Result<CoreLoad, Box<(Lb, String)>> {
     use super::session::set_load_status;
     if let Some(status) = status {
         set_load_status(status, "Syncing your files…");
@@ -451,7 +453,7 @@ fn onboard_sync_and_cache(
         }
     }
     if let Err(e) = core.sync() {
-        return Err((core, format!("Sync failed: {e}")));
+        return Err(Box::new((core, format!("Sync failed: {e}"))));
     }
     if let Some(status) = status {
         set_load_status(status, "Opening workspace…");
@@ -459,7 +461,7 @@ fn onboard_sync_and_cache(
     }
     match FileCache::new(&core) {
         Ok(files) => Ok(session::prepare_ready(core, files)),
-        Err(e) => Err((core, format!("Couldn’t load files: {e}"))),
+        Err(e) => Err(Box::new((core, format!("Couldn’t load files: {e}")))),
     }
 }
 

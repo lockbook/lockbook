@@ -1,4 +1,4 @@
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::path_ops::Filter;
@@ -6,7 +6,7 @@ use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
 use uuid::Uuid;
 
-impl LocalLb {
+impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_link_at_path(&self, path: &str, target_id: Uuid) -> LbResult<File> {
         let mut tx = self.begin_tx().await;
@@ -16,7 +16,7 @@ impl LocalLb {
             .to_staged(&mut db.local_metadata)
             .to_lazy();
 
-        let root = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
+        let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
         let id = tree.create_link_at_path(path, target_id, root, &self.keychain)?;
 
@@ -36,7 +36,7 @@ impl LocalLb {
             .to_staged(&mut db.local_metadata)
             .to_lazy();
 
-        let root = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
+        let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
         let id = tree.create_at_path(path, root, &self.keychain)?;
 
@@ -54,7 +54,7 @@ impl LocalLb {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let root = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
+        let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
         let id = tree.path_to_id(path, root, &self.keychain)?;
 

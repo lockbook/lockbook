@@ -1,4 +1,4 @@
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::access_info::UserAccessMode;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
@@ -11,7 +11,7 @@ use crate::service::events::Actor;
 use std::iter;
 use uuid::Uuid;
 
-impl LocalLb {
+impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_file(
         &self, name: &str, parent: &Uuid, file_type: FileType,
@@ -137,7 +137,7 @@ impl LocalLb {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let root_id = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
+        let root_id = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
         let root = tree.decrypt(&self.keychain, root_id, &db.pub_key_lookup)?;
 
@@ -227,6 +227,10 @@ impl LocalLb {
     pub async fn local_changes(&self) -> Vec<Uuid> {
         let tx = self.ro_tx().await;
         let db = tx.db();
-        db.local_metadata.get().keys().copied().collect()
+        db.local_metadata
+            .iter()
+            .map(|(key, _)| key)
+            .copied()
+            .collect()
     }
 }

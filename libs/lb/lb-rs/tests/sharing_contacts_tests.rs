@@ -4,7 +4,7 @@ use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::model::{meta::Meta, symkey};
 use lb_rs::service::share::SharingContact;
-use test_utils::{local, test_core};
+use test_utils::test_core;
 use uuid::Uuid;
 
 // Metadata-only fixtures exercise the actual query without a server or document bodies.
@@ -46,7 +46,7 @@ fn contact(name: &str, outgoing: u64, incoming: u64) -> SharingContact {
 #[tokio::test]
 async fn account_contacts_count_documents_in_both_directions() {
     let lb = test_core().await;
-    let core = local(&lb);
+    let core = &lb;
     let adam = Account::new("adam".into(), "unused".into());
     let alice = Account::new("alice".into(), "unused".into());
     let bob = Account::new("bob".into(), "unused".into());
@@ -78,8 +78,8 @@ async fn account_contacts_count_documents_in_both_directions() {
 
     let mut tx = core.begin_tx().await;
     let db = tx.db();
-    db.account.insert(adam.clone()).unwrap();
-    db.root.insert(*root.id()).unwrap();
+    db.account.replace(adam.clone()).unwrap();
+    db.root.replace(*root.id()).unwrap();
     for account in [&adam, &alice, &bob, &carol, &dave] {
         db.pub_key_lookup
             .insert(Owner(account.public_key()), account.username.clone())

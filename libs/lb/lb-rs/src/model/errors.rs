@@ -4,8 +4,11 @@ use std::io;
 use std::panic::Location;
 use std::sync::PoisonError;
 
+use aes_gcm::aead;
+use db_rs::errors::Error as DbError;
+use hmac::crypto_mac::MacError;
 use serde::ser::SerializeStruct;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Serialize, Serializer};
 use tracing::error;
 use uuid::Uuid;
 
@@ -16,20 +19,10 @@ use super::api;
 
 pub type LbResult<T> = Result<T, LbErr>;
 
-/// An error raised anywhere in lb-rs.
-///
-/// The backtrace is rendered to a `String` at capture time (via
-/// `Backtrace`'s `Display` impl, which resolves symbols) so the struct is
-/// straightforwardly serializable and survives an IPC round-trip with the
-/// original call site intact on the other side.
-///
-/// An empty `backtrace` means "not captured" (e.g., the error was built
-/// somewhere that doesn't go through `From<LbErrKind>`); the empty `String`
-/// here doesn't allocate.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct LbErr {
     pub kind: LbErrKind,
-    pub backtrace: String,
+    pub backtrace: Option<Backtrace>,
 }
 
 /// Using this within core has limited meaning as the unexpected / expected error
@@ -169,19 +162,8 @@ impl Display for LbErrKind {
 
 impl From<LbErrKind> for LbErr {
     fn from(kind: LbErrKind) -> Self {
-        Self { kind, backtrace: capture_backtrace() }
+        Self { kind, backtrace: Some(Backtrace::force_capture()) }
     }
-}
-
-/// Render a backtrace at the current call site.
-///
-/// Uses `Backtrace::to_string()`, which resolves symbols into the same
-/// indented format `std::backtrace` produces when printed. Resolution isn't
-/// free — if a hot path ever starts burning time here we can switch to
-/// `Display`-on-demand with a `Cow<str>`, but error construction isn't that
-/// path today.
-fn capture_backtrace() -> String {
-    Backtrace::force_capture().to_string()
 }
 
 pub trait Unexpected<T> {
@@ -217,12 +199,12 @@ impl<T, E: std::fmt::Debug> Unexpected<T> for Result<T, E> {
 #[derive(Debug)]
 pub struct UnexpectedError {
     pub msg: String,
-    pub backtrace: String,
+    pub backtrace: Option<Backtrace>,
 }
 
 impl UnexpectedError {
     pub fn new(s: impl ToString) -> Self {
-        Self { msg: s.to_string(), backtrace: capture_backtrace() }
+        Self { msg: s.to_string(), backtrace: Some(Backtrace::force_capture()) }
     }
 }
 
@@ -284,7 +266,7 @@ macro_rules! unexpected_only {
     }};
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LbErrKind {
     AccountExists,
     AccountNonexistent,
@@ -352,7 +334,7 @@ pub enum LbErrKind {
     Unexpected(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiffError {
     OldVersionIncorrect,
     OldFileNotFound,
@@ -362,20 +344,20 @@ pub enum DiffError {
     SizeModificationInvalid,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SignError {
     SignatureInvalid,
     // todo: candidate for unexpected
-    SignatureParseError(String),
+    SignatureParseError(libsecp256k1::Error),
     WrongPublicKey,
     SignatureInTheFuture(u64),
     SignatureExpired(u64),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CryptoError {
-    Decryption(String),
-    HmacVerification(String),
+    Decryption(aead::Error),
+    HmacVerification(MacError),
 }
 
 impl From<bincode::Error> for LbErr {
@@ -393,8 +375,8 @@ pub fn unexpected<T: fmt::Debug>(err: T) -> LbErr {
     LbErrKind::Unexpected(format!("{err:?}")).into()
 }
 
-impl From<db_rs::DbError> for LbErr {
-    fn from(err: db_rs::DbError) -> Self {
+impl From<DbError> for LbErr {
+    fn from(err: DbError) -> Self {
         core_err_unexpected(err).into()
     }
 }
@@ -549,7 +531,7 @@ impl From<ApiError<api::GetUsageError>> for LbErr {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Warning {
     EmptyFile(Uuid),
     InvalidUTF8(Uuid),

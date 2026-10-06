@@ -12,6 +12,7 @@ use crate::file_cache::{FileCache, FilesExt as _, relative_path, strip_ext};
 use crate::style::{Space, ThemeExt as _, TypeRole, ellipsize_path, parent_crumbs};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::{
@@ -788,35 +789,6 @@ fn match_positions(query: &str, name: &str) -> Vec<bool> {
     result
 }
 
-/// Shorten directory segments to their first character until `measure(full)`
-/// fits `max_width`. Used by the landing recents list.
-pub(crate) fn abbreviate_segments(
-    segments: &mut [(String, bool)], max_width: f32, measure: &impl Fn(&str) -> f32,
-) {
-    let full: String = segments.iter().map(|(t, _)| t.as_str()).collect();
-    if measure(&full) <= max_width {
-        return;
-    }
-    let name_indices: Vec<usize> = segments
-        .iter()
-        .enumerate()
-        .filter(|(_, (t, _))| t != "/")
-        .map(|(i, _)| i)
-        .collect();
-    let dir_indices: Vec<usize> = name_indices.iter().rev().skip(1).copied().rev().collect();
-    for i in dir_indices {
-        let text = &segments[i].0;
-        if text == ".." || text == "." || text.chars().count() <= 1 {
-            continue;
-        }
-        segments[i].0 = text.chars().next().unwrap().to_string();
-        let full: String = segments.iter().map(|(t, _)| t.as_str()).collect();
-        if measure(&full) <= max_width {
-            break;
-        }
-    }
-}
-
 impl MdEdit {
     pub fn show_link_completions(&mut self, ui: &mut Ui) {
         if self.renderer.readonly || !self.link_completions.active {
@@ -909,7 +881,9 @@ impl MdEdit {
             completion_popup_size(popup_width - completion_chrome_w(), results.len()),
             ui.ctx().screen_rect(),
         );
-        self.renderer.touch_consuming_rects.push(popup_rect);
+        self.renderer
+            .touch_targets
+            .push((popup_rect, TouchTarget::Popup));
 
         let row_rects = completion_row_rects(popup_rect, results.len());
 

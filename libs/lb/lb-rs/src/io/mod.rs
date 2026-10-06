@@ -6,18 +6,30 @@
 //! and workstations with excellent networks.
 
 pub mod docs;
+pub mod legacy;
 pub mod network;
 
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
 use crate::service::lb_id::LbID;
-use db_rs::hasher::UuidIdentityHasherBuilder;
-use db_rs::{Db, List, LookupTable, Single, TxHandle};
-use db_rs_derive::Schema;
-use std::ops::{Deref, DerefMut};
+use db_rs::View;
+use db_rs::config::Config;
+use db_rs::guard::WriteTx;
+use db_rs::views::{
+    composite_view::{Composite, Schema},
+    hashmap::DbHashMap,
+    option::DbOption,
+    vec::DbVec,
+};
+use db_rs_old::hasher::UuidIdentityHasherBuilder;
+use db_rs_old::{Config as OldConfig, Db};
+use legacy::CoreV4;
+use std::error::Error;
+use std::fs;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use uuid::Uuid;
@@ -25,28 +37,100 @@ use web_time::{Duration, Instant};
 
 pub(crate) type LbDb = Arc<RwLock<CoreDb>>;
 // todo: limit visibility
-pub type CoreDb = CoreV4;
+pub type CoreDb = Composite<CoreV5>;
+pub type MigrationResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
-#[derive(Schema, Debug)]
-#[cfg_attr(feature = "no-network", derive(Clone))]
-pub struct CoreV4 {
-    pub account: Single<Account>,
-    pub last_synced: Single<i64>,
-    pub root: Single<Uuid>,
-    pub local_metadata: LookupTable<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
-    pub base_metadata: LookupTable<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
+#[derive(Default)]
+pub struct CoreV5 {
+    pub account: DbOption<Account>,
+    pub last_synced: DbOption<i64>,
+    pub root: DbOption<Uuid>,
+    pub local_metadata: DbHashMap<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
+    pub base_metadata: DbHashMap<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
 
     /// map from pub key to username
-    pub pub_key_lookup: LookupTable<Owner, String>,
+    pub pub_key_lookup: DbHashMap<Owner, String>,
 
-    pub doc_events: List<DocEvent>,
-    pub id: Single<LbID>,
-    pub pinned_files: List<Uuid>,
+    pub doc_events: DbVec<DocEvent>,
+    pub id: DbOption<LbID>,
+    pub pinned_files: DbVec<Uuid>,
 
     /// Sentinel for `send_debug_info` throttling: the millisecond timestamp of the
     /// most recent panic file we've already uploaded. `None` means we have never
     /// sent debug info; `Some(0)` means we've sent before but no panic file existed.
-    pub last_extracted_panic: Single<i64>,
+    pub last_extracted_panic: DbOption<i64>,
+}
+
+impl Schema for CoreV5 {
+    fn views_mut(&mut self) -> impl AsMut<[&mut dyn View]> {
+        let views: [&mut dyn View; 10] = [
+            &mut self.account,
+            &mut self.last_synced,
+            &mut self.root,
+            &mut self.local_metadata,
+            &mut self.base_metadata,
+            &mut self.pub_key_lookup,
+            &mut self.doc_events,
+            &mut self.id,
+            &mut self.pinned_files,
+            &mut self.last_extracted_panic,
+        ];
+        views
+    }
+}
+
+pub fn init_with_migration(path: &Path) -> MigrationResult<CoreDb> {
+    let directory = path.join("CoreV5");
+    fs::create_dir_all(&directory)?;
+    let mut db = CoreDb::init(&Config::default().log_location(directory))?;
+    let old_path = path.join("CoreV4.db");
+
+    if db.schema.account.is_none() {
+        if !old_path.try_exists()? && !path.join("CoreV4").try_exists()? {
+            return Ok(db);
+        }
+        let source = CoreV4::init(OldConfig {
+            create_db: false,
+            create_path: false,
+            ..OldConfig::in_folder(path)
+        })?;
+        let tx = db.write_tx()?;
+        let dest = &mut db.schema;
+        if let Some(value) = source.account.get() {
+            dest.account.replace(value.clone())?;
+        }
+        if let Some(value) = source.last_synced.get() {
+            dest.last_synced.replace(*value)?;
+        }
+        if let Some(value) = source.root.get() {
+            dest.root.replace(*value)?;
+        }
+        for (key, value) in source.local_metadata.get() {
+            dest.local_metadata.insert(*key, value.clone())?;
+        }
+        for (key, value) in source.base_metadata.get() {
+            dest.base_metadata.insert(*key, value.clone())?;
+        }
+        for (key, value) in source.pub_key_lookup.get() {
+            dest.pub_key_lookup.insert(*key, value.clone())?;
+        }
+        for value in source.doc_events.get() {
+            dest.doc_events.push(*value)?;
+        }
+        if let Some(value) = source.id.get() {
+            dest.id.replace(*value)?;
+        }
+        for value in source.pinned_files.get() {
+            dest.pinned_files.push(*value)?;
+        }
+        if let Some(value) = source.last_extracted_panic.get() {
+            dest.last_extracted_panic.replace(*value)?;
+        }
+        tx.end_tx(&mut db)?;
+        drop(source);
+        fs::remove_file(old_path)?;
+    }
+    Ok(db)
 }
 
 pub struct LbRO<'a> {
@@ -54,27 +138,37 @@ pub struct LbRO<'a> {
 }
 
 impl LbRO<'_> {
-    pub fn db(&self) -> &CoreDb {
-        self.guard.deref()
+    pub fn db(&self) -> &CoreV5 {
+        &self.guard.schema
     }
 }
 
 pub struct LbTx<'a> {
     guard: RwLockWriteGuard<'a, CoreDb>,
-    tx: TxHandle,
+    tx: Option<WriteTx>,
 }
 
 impl LbTx<'_> {
-    pub fn db(&mut self) -> &mut CoreDb {
-        self.guard.deref_mut()
+    pub fn db(&mut self) -> &mut CoreV5 {
+        &mut self.guard.schema
     }
 
-    pub fn end(self) {
-        self.tx.drop_safely().unwrap();
+    pub fn end(mut self) {
+        self.tx.take().unwrap().end_tx(&mut *self.guard).unwrap();
     }
 }
 
-impl LocalLb {
+impl Drop for LbTx<'_> {
+    fn drop(&mut self) {
+        if let Some(tx) = self.tx.take() {
+            if let Err(error) = tx.end_tx(&mut *self.guard) {
+                error!(?error, "failed to flush database transaction on drop");
+            }
+        }
+    }
+}
+
+impl Lb {
     pub async fn ro_tx(&self) -> LbRO<'_> {
         let start = Instant::now();
 
@@ -87,6 +181,19 @@ impl LocalLb {
         LbRO { guard }
     }
 
+    /// note: you cannot call init for the same config, from the same tokio runtime, or you risk
+    /// deadlock. See the test `contended_transactions_do_not_block_the_runtime` for more info.
+    /// several workarounds exist for this situation that shouldn't really be required:
+    /// Lb is cheap to clone within the same runtime
+    /// Different data directories are fine
+    ///
+    /// If this situation actually becomes required:
+    ///
+    /// a config could be added to turn off file locks which is what results in tokio deadlocks, but
+    /// then what are you doing with multiple log writers writing to the same location?
+    ///
+    /// we could incur a small perf penalty and put the begin_tx in a tokio::blocking wrapper. This
+    /// is how tokio wants us to handle this, but I do not want the overhead.
     pub async fn begin_tx(&self) -> LbTx<'_> {
         let start = Instant::now();
 
@@ -96,8 +203,8 @@ impl LocalLb {
             warn!("readwrite transaction lock acquisition took {:?}", start.elapsed());
         }
 
-        let tx = guard.begin_transaction().unwrap();
+        let tx = guard.write_tx().unwrap();
 
-        LbTx { guard, tx }
+        LbTx { guard, tx: Some(tx) }
     }
 }

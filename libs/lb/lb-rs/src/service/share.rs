@@ -1,4 +1,4 @@
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::{File, ShareMode};
@@ -22,7 +22,7 @@ pub struct SharingContact {
     pub total_file_count: u64,
 }
 
-impl LocalLb {
+impl Lb {
     /// Ranked contacts for the signed-in account. This is a local, read-only query;
     /// callers should run it off their UI thread and refresh after metadata changes.
     /// Inheritance follows real metadata parents, never the local placement of a link.
@@ -33,7 +33,7 @@ impl LocalLb {
         let db = tx.db();
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let mut counts: HashMap<Owner, (u64, u64, u64)> = HashMap::new();
-        let root = db.root.get().ok_or(LbErrKind::RootNonexistent)?;
+        let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
         // Walk the accepted tree once; pending trees and link placeholders aren't documents.
         for id in tree.descendants_using_links(root)? {
             if !tree.find(&id)?.is_document() {
@@ -78,7 +78,7 @@ impl LocalLb {
         let mut contacts: Vec<_> = counts
             .into_iter()
             .filter_map(|(owner, (outgoing, incoming, total))| {
-                let username = db.pub_key_lookup.get().get(&owner)?.clone();
+                let username = db.pub_key_lookup.get(&owner)?.clone();
                 Some(SharingContact {
                     username,
                     outgoing_file_count: outgoing,
@@ -177,7 +177,12 @@ impl LocalLb {
         let db = self.ro_tx().await;
         let db = db.db();
 
-        Ok(db.pub_key_lookup.get().values().cloned().collect())
+        Ok(db
+            .pub_key_lookup
+            .iter()
+            .map(|(_, value)| value)
+            .cloned()
+            .collect())
     }
 
     /// Whether `username` is a known Lockbook account (local cache, then server).

@@ -8,7 +8,7 @@ use crate::model::staged::StagedTree;
 use crate::model::symkey;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::service::keychain::Keychain;
-use db_rs::hasher::UuidIdentityHasherBuilder;
+use db_rs_old::hasher::UuidIdentityHasherBuilder;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;

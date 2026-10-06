@@ -2,6 +2,7 @@ use comrak::nodes::{AstNode, NodeTaskItem, NodeValue};
 use egui::{CursorIcon, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 
+use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::widget::utils::consume_indent_columns_ceil;
 use crate::tab::markdown_editor::{Event, MdRender};
 use crate::theme::palette_v2::ThemeExt;
@@ -59,20 +60,28 @@ impl<'ast> MdRender {
             // ui.id().with() instead of Id::new() so two views of the same document
             // get distinct checkbox IDs
             ui.interact(clickable_space, checkbox_id, sense);
+            let check_offset = self.check_offset(node);
+            let toggle = Event::Replace {
+                region: (check_offset, check_offset + 1).into(),
+                text: (if checked { " " } else { "x" }).into(),
+                advance_cursor: false,
+            };
             if checkbox_response.clicked() {
-                let check_offset = self.check_offset(node);
-                let new_check = if checked { ' ' } else { 'x' };
-                self.render_events.push(Event::Replace {
-                    region: (check_offset, check_offset + 1).into(),
-                    text: new_check.into(),
-                    advance_cursor: false,
-                });
+                self.render_events.push(toggle.clone());
             }
             if checkbox_response.hovered() && !self.readonly {
                 ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
                 checkbox_space = checkbox_space.expand(0.5);
             }
-            self.touch_consuming_rects.push(clickable_space);
+            if !self.readonly {
+                // A finger's target: the gutter beside the box and the row's
+                // height, stopping short of the item's text.
+                let target = Rect::from_min_max(
+                    clickable_space.min - Vec2::new(11.0, 4.0),
+                    clickable_space.max + Vec2::new(4.0, 4.0),
+                );
+                self.touch_targets.push((target, TouchTarget::Tap(toggle)));
+            }
             // Click toggles; drag starts a reorder (`click_and_drag`
             // above distinguishes the two).
             self.handle_item_drag_resp(ui, node, &checkbox_response);
@@ -176,7 +185,6 @@ impl<'ast> MdRender {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.item_contents(node),
             self.item_fold_reveal(node),
         );
     }
