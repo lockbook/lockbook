@@ -69,7 +69,7 @@ impl ImageViewer {
         let image_state = state.lock().unwrap().deref().clone();
 
         match image_state {
-            ImageState::Loading => {
+            ImageState::Loading | ImageState::Withheld => {
                 ui.centered_and_justified(|ui| {
                     ui.spinner();
                 });

@@ -214,7 +214,10 @@ impl<'ast> MdEdit {
         };
 
         let node_range = self.renderer.node_range(node);
-        let tap = if self.renderer.readonly {
+        let withheld = self.renderer.embeds.is_withheld(url);
+        let tap = if withheld {
+            Event::LoadEmbed { url: url.to_string() }
+        } else if self.renderer.readonly {
             Event::OpenLink { url: url.to_string(), wikilink: false }
         } else {
             Event::Select { region: node_range.into() }
@@ -222,12 +225,14 @@ impl<'ast> MdEdit {
         self.renderer
             .touch_consume_interaction(ui.id().with(salt), TouchTarget::Tap(tap));
 
-        if open && response.hovered() {
+        if (open || withheld) && response.hovered() {
             ui.ctx()
                 .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
         if response.clicked() {
-            if open {
+            if withheld {
+                self.renderer.embeds.allow(url);
+            } else if open {
                 self.renderer.open_resolved_link(url, ui.ctx(), false);
             } else {
                 ui.memory_mut(|m| m.request_focus(id));

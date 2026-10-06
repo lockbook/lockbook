@@ -111,6 +111,7 @@ pub enum Event {
     EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
     ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
     OpenLink { url: String, wikilink: bool }, // navigate, on the platform
+    LoadEmbed { url: String }, // fetch content left unfetched until asked for
 }
 
 impl From<(Grapheme, Grapheme)> for Region {

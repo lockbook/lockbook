@@ -22,7 +22,10 @@ impl ImageEmbedResolver {
 
 impl EmbedResolver for ImageEmbedResolver {
     fn size(&self, url: &str) -> Vec2 {
-        self.images.dims(url).unwrap_or(Vec2::splat(200.))
+        // a withheld image of unknown size leaves room to say how to load it
+        let withheld = self.images.withheld_in(url, self.file_id);
+        let unknown = if withheld { Vec2::new(440., 160.) } else { Vec2::splat(200.) };
+        self.images.dims(url).unwrap_or(unknown)
     }
 
     fn is_loaded(&self, url: &str) -> bool {
@@ -51,7 +54,18 @@ impl EmbedResolver for ImageEmbedResolver {
             ImageState::Failed(message) => {
                 show_placeholder(ui, rect, Icon::NO_IMAGE, &message);
             }
+            ImageState::Withheld => {
+                show_placeholder(ui, rect, Icon::IMAGE, "Click to load image");
+            }
         }
+    }
+
+    fn is_withheld(&self, url: &str) -> bool {
+        self.images.is_withheld(url)
+    }
+
+    fn allow(&self, url: &str) {
+        self.images.allow(url);
     }
 
     fn prefetch(&self, url: &str) {
@@ -69,16 +83,19 @@ fn show_placeholder(ui: &mut Ui, rect: Rect, icon: Icon, caption: &str) {
     // Clip so a tiny thumbnail's icon/caption can't spill over the card or text.
     let painter = ui.painter().with_clip_rect(rect);
 
-    let icon_size = (rect.width().min(rect.height()) * 0.6).clamp(10.0, 48.0);
+    // Caption (e.g. an error message) only where it fits, the icon above it;
+    // otherwise the icon alone.
+    let captioned = rect.width() >= 160.0 && rect.height() >= 64.0;
+    let icon_rect = if captioned { rect.with_max_y(rect.max.y - 28.0) } else { rect };
+    let icon_size = (icon_rect.width().min(icon_rect.height()) * 0.6).clamp(10.0, 48.0);
     painter.text(
-        rect.center(),
+        icon_rect.center(),
         Align2::CENTER_CENTER,
         icon.icon,
         FontId { size: icon_size, family: egui::FontFamily::Monospace },
         color,
     );
-    // Caption (e.g. an error message) only where it fits; otherwise the icon alone.
-    if rect.width() >= 160.0 && rect.height() >= 64.0 {
+    if captioned {
         painter.text(
             rect.center_bottom() - Vec2::new(0.0, 8.0),
             Align2::CENTER_BOTTOM,
