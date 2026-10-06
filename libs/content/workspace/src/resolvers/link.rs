@@ -11,8 +11,16 @@ pub use crate::file_cache::ResolvedLink;
 #[derive(Clone, PartialEq, Eq)]
 pub enum LinkState {
     Normal,
-    Warning { message: String },
-    Broken { message: String },
+    Warning {
+        message: String,
+    },
+    Broken {
+        message: String,
+    },
+    /// A wikilink to a note that doesn't exist yet; opening it creates the note.
+    Placeholder {
+        message: String,
+    },
 }
 
 pub trait LinkResolver {
@@ -27,6 +35,12 @@ pub trait LinkResolver {
 
     /// State of the given wikilink target for display and hover tooltips.
     fn wikilink_state(&self, title: &str) -> LinkState;
+
+    /// Where opening an unmatched wikilink creates its note: an existing
+    /// folder and the names to create under it, the document last.
+    fn wikilink_placement(&self, _title: &str) -> Option<(Uuid, Vec<String>)> {
+        None
+    }
 }
 
 impl LinkResolver for () {
@@ -56,11 +70,17 @@ const NOT_FOUND_MSG: &str = "Destination not found";
 pub struct FileCacheLinkResolver {
     files: Arc<RwLock<FileCache>>,
     file_id: Uuid,
+    creates_notes: bool,
 }
 
 impl FileCacheLinkResolver {
     pub fn new(files: Arc<RwLock<FileCache>>, file_id: Uuid) -> Self {
-        Self { files, file_id }
+        Self { files, file_id, creates_notes: false }
+    }
+
+    /// Opening a wikilink nothing matches creates the note it names.
+    pub fn creating_notes(self, creates_notes: bool) -> Self {
+        Self { creates_notes, ..self }
     }
 }
 
@@ -106,10 +126,25 @@ impl LinkResolver for FileCacheLinkResolver {
             [] if guard.beyond_scope(title, true, self.file_id).is_some() => {
                 LinkState::Broken { message: BEYOND_SCOPE_MSG.into() }
             }
-            [] => LinkState::Broken { message: NOT_FOUND_MSG.into() },
+            [] => match guard.wikilink_placement(title, self.file_id) {
+                Some((_, names)) if self.creates_notes => LinkState::Placeholder {
+                    message: format!("Open to create {}", names.join("/")),
+                },
+                _ => LinkState::Broken { message: NOT_FOUND_MSG.into() },
+            },
             _ => LinkState::Broken {
                 message: "More than one file matches; add a folder or an extension".into(),
             },
+        }
+    }
+
+    fn wikilink_placement(&self, title: &str) -> Option<(Uuid, Vec<String>)> {
+        match self.wikilink_state(title) {
+            LinkState::Placeholder { .. } => {
+                let guard = self.files.read().unwrap();
+                guard.wikilink_placement(title, self.file_id)
+            }
+            _ => None,
         }
     }
 }

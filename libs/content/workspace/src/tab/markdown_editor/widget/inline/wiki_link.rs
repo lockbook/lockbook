@@ -2,12 +2,23 @@ use comrak::nodes::AstNode;
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::Grapheme;
 
+use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
 
 impl<'ast> MdRender {
     pub fn resolve_wikilink(&self, url: &str) -> Option<Uuid> {
         self.link_resolver.resolve_wikilink(url)
+    }
+
+    /// Open the note a wikilink names. A title nothing matches creates the
+    /// note where the resolver has a place for it.
+    pub fn open_wikilink(&self, title: &str, ctx: &egui::Context, new_tab: bool) {
+        if let Some(file) = self.resolve_wikilink(title) {
+            ctx.open_file(file, new_tab);
+        } else if let Some((parent, names)) = self.link_resolver.wikilink_placement(title) {
+            ctx.create_note(parent, names);
+        }
     }
 
     pub fn layout_wikilink(

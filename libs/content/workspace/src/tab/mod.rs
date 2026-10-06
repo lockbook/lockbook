@@ -715,6 +715,10 @@ pub trait ExtendedOutput {
     /// to type over).
     fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool);
     fn pop_open_ranges(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)>;
+    /// Create `names` under `parent` — folders, then a document last — and
+    /// open the document.
+    fn create_note(&self, parent: Uuid, names: Vec<String>);
+    fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)>;
 }
 
 impl ExtendedOutput for egui::Context {
@@ -769,6 +773,23 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| {
             m.data
                 .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::new("open_ranges"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn create_note(&self, parent: Uuid, names: Vec<String>) {
+        self.memory_mut(|m| {
+            let mut notes: Vec<(Uuid, Vec<String>)> =
+                m.data.get_temp(Id::new("create_notes")).unwrap_or_default();
+            notes.push((parent, names));
+            m.data.insert_temp(Id::new("create_notes"), notes);
+        })
+    }
+
+    fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<(Uuid, Vec<String>)>>(Id::new("create_notes"))
                 .unwrap_or_default()
         })
     }
