@@ -211,7 +211,11 @@ fn a_long_note_without_headings_reads_from_its_start() {
     let mut tools = VaultTools::new(lb.clone(), own.id);
     tools.prepare(&Chat::default(), "u", "/home/");
     let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/log.md"})));
-    assert!(ok && text.starts_with("a line of the log") && text.ends_with("more bytes not shown)"));
+    assert!(ok && text.starts_with("a line of the log"), "{text}");
+    assert!(text.ends_with("of 3000; read on with line 683)"), "{}", &text[text.len() - 60..]);
+    let next = json!({"path": "/home/log.md", "line": 2990});
+    let (text, ok) = done(call(&mut tools, "read", next));
+    assert!(ok && text.ends_with("(lines 2990 to 3000 of 3000)"), "{text}");
     let args = json!({"path": "/home/log.md", "section": "Monday"});
     let (text, ok) = done(call(&mut tools, "read", args));
     assert!(!ok && text.contains("has no headings"), "{text}");
@@ -234,6 +238,11 @@ fn a_csv_reads_and_edits_as_text() {
     let edit = json!({"path": "/home/w2.csv", "old": "2025,0", "new": "2025,10"});
     let (text, ok) = done(call(&mut tools, "edit", edit));
     assert!(ok, "{text}");
+    let rows: String = (0..2000).map(|i| format!("{i},{}\n", i * 3)).collect();
+    write(&lb, "/home/big.csv", &format!("id,amount\n{rows}"));
+    let page = json!({"path": "/home/big.csv", "line": 1500});
+    let (text, ok) = done(call(&mut tools, "read", page));
+    assert!(ok && text.starts_with("id,amount\n1498,4494"), "{}", &text[..40]);
     let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/blob.bin"})));
     assert!(!ok && text.contains("is not text"), "{text}");
 }
