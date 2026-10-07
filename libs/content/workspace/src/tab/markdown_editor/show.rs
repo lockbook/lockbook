@@ -999,11 +999,23 @@ impl MdEdit {
     /// content a frame late. The parse is cheap (~µs); `height()` is
     /// memoized by `LayoutCache`, so the subsequent `show` re-uses the
     /// cached work.
+    /// Remembered until the text or anything a height depends on changes.
     pub fn measure_height(&mut self, width: f32) -> f32 {
         self.renderer.set_width(width);
+        let deps = |r: &super::MdRender| {
+            let [a, b, c, d] = r.height_deps();
+            [r.text_seq, a, b, c, d]
+        };
+        if let Some((at, height)) = self.measured {
+            if at == deps(&self.renderer) {
+                return height;
+            }
+        }
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
-        self.renderer.height(root)
+        let height = self.renderer.height(root);
+        self.measured = Some((deps(&self.renderer), height));
+        height
     }
 
     /// Render active completion popups. Caller invokes this after the main

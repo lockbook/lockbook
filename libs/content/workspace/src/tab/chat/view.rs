@@ -762,6 +762,12 @@ impl Chat {
     fn show_reader(&mut self, ui: &mut Ui, id: Uuid, text: &str, rect: Rect) {
         let at = text_id(id);
         let reader = self.reader(id, text);
+        // Off screen it draws nothing, unless it holds a selection to copy.
+        let (start, end) = reader.renderer.buffer.current.selection;
+        let busy = start != end || !reader.event.internal_events.is_empty();
+        if !ui.is_rect_visible(rect) && !busy && !ui.memory(|m| m.has_focus(at)) {
+            return;
+        }
         if ui.memory(|m| m.has_focus(at)) || !reader.event.internal_events.is_empty() {
             reader.handle_input(ui.ctx(), at);
         }

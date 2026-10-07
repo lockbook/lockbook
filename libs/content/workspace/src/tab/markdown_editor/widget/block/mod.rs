@@ -865,7 +865,7 @@ impl MdRender {
 }
 
 impl<'ast> MdRender {
-    fn height_deps(&self) -> HeightDeps {
+    pub(crate) fn height_deps(&self) -> HeightDeps {
         [
             self.width_seq,
             self.embeds.seq(),

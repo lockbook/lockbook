@@ -1224,10 +1224,13 @@ mod on_its_own {
     #[test]
     fn a_mouse_drag_does_not_scroll() {
         let ctx = context();
-        let (mut chat, last) = long_chat(&ctx);
+        let (mut chat, _) = long_chat(&ctx);
+        // The reply before the last, which stays on screen as the page moves.
+        let entries = &chat.transcript.entries;
+        let earlier = entries[entries.len() - 3].id;
         let top = |ctx: &Context| {
-            let text = egui::Id::new(("chat_text", last));
-            ctx.read_response(text).expect("the last reply").rect.top()
+            let text = egui::Id::new(("chat_text", earlier));
+            ctx.read_response(text).expect("the reply").rect.top()
         };
         let before = top(&ctx);
 
