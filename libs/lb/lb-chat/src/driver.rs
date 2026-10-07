@@ -659,7 +659,7 @@ fn cap_for(provider: &Provider) -> usize {
 /// Leaves a tool its required arguments and the few optional ones reading
 /// needs: the device's own model reaches for the rest and gets them wrong.
 fn slim(tool: &mut wire::ToolSchema) {
-    const KEPT: &[(&str, &str)] = &[("read", "section"), ("list", "path")];
+    const KEPT: &[(&str, &str)] = &[("read", "section"), ("read", "line"), ("list", "path")];
     let required: Vec<String> = tool.parameters["required"]
         .as_array()
         .into_iter()

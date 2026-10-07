@@ -30,6 +30,8 @@ const SNIPPET: usize = 80;
 const LIST_CAP: usize = 200;
 /// Above this, `read` answers with the outline unless a section was asked for.
 const LONG_NOTE: usize = 24 * 1024;
+/// A page of a long file without headings: under the cap on a tool result.
+const PAGE: usize = 12 * 1024;
 /// The largest PDF that is sent to a model.
 const PDF_MAX: usize = 8 * 1024 * 1024;
 /// The size a picture is brought down to for a model: about a megapixel.
@@ -240,11 +242,10 @@ impl VaultTools {
                 )),
             };
         }
-        // With no headings to read by, a long note is read from its start.
-        if text.len() > LONG_NOTE && headings(&text).is_empty() {
-            let rest = text.len() - LONG_NOTE;
-            let start = truncate(&text, LONG_NOTE);
-            return ToolOutcome::ok(format!("{start}\n({rest} more bytes not shown)"));
+        // With no headings to read by, a long file is read a page at a time.
+        let line = args.get("line").and_then(Value::as_u64).unwrap_or(0) as usize;
+        if line > 1 || (text.len() > LONG_NOTE && headings(&text).is_empty()) {
+            return ToolOutcome::ok(page(&path, &text, line.max(1)));
         }
         if text.len() > LONG_NOTE {
             return ToolOutcome::ok(format!(
@@ -674,6 +675,37 @@ fn str_arg(args: &Value, key: &str) -> String {
         .to_string()
 }
 
+/// Lines of `text` from `line` on, as many as fit a page, saying which they
+/// are and where to read on. A table's later pages repeat its header row.
+fn page(path: &str, text: &str, line: usize) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    let total = lines.len();
+    if line > total {
+        return format!("{path} has {total} lines");
+    }
+    let table = path.ends_with(".csv") || path.ends_with(".tsv");
+    let mut out = String::new();
+    if table && line > 1 {
+        out.push_str(lines[0]);
+        out.push('\n');
+    }
+    let mut last = line - 1;
+    for l in &lines[line - 1..] {
+        if last >= line && out.len() + l.len() + 1 > PAGE {
+            break;
+        }
+        out.push_str(l);
+        out.push('\n');
+        last += 1;
+    }
+    let where_ = if last < total {
+        format!("lines {line} to {last} of {total}; read on with line {}", last + 1)
+    } else {
+        format!("lines {line} to {last} of {total}")
+    };
+    format!("{out}({where_})")
+}
+
 /// What search reads through: notes, text files, and chats. Read and edit
 /// take any file that is text.
 fn is_text(path: &str) -> bool {
@@ -852,6 +884,7 @@ pub fn schemas() -> Vec<ToolSchema> {
             json!({
                 "path": { "type": "string", "description": "absolute path of the note" },
                 "section": { "type": "string", "description": "optional heading to read under; a distinct part of it is enough" },
+                "line": { "type": "integer", "description": "optional line to read from, for a long file without headings, such as a CSV; the reply says which lines it holds" },
             }),
             &["path"],
         ),
