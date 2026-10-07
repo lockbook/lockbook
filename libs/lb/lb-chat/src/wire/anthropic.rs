@@ -13,11 +13,10 @@ use super::{
 };
 use crate::provider::{Provider, host};
 
-const MAX_TOKENS: u32 = 16_384;
+/// The room a reply gets, thinking included, when the listing has not said
+/// what the model allows: every model that thinks allows this much.
+const MAX_TOKENS: u32 = 64_000;
 const SMALL_MAX_TOKENS: u32 = 4096;
-/// Thinking counts against the output cap, so a request that asks for it
-/// gets more room. Every model that thinks allows this much.
-const THINKING_MAX_TOKENS: u32 = 64_000;
 /// What a model that thinks against a budget is given to think with.
 const THINKING_BUDGET: u32 = 4096;
 /// Sent with a thinking request: thinking between tool calls where a budget
@@ -84,6 +83,8 @@ struct Delta {
     thinking: Option<String>,
     #[serde(default)]
     signature: Option<String>,
+    #[serde(default)]
+    stop_reason: Option<String>,
 }
 
 /// A thinking block as it arrived and where it sat among the message's text
@@ -315,7 +316,7 @@ pub async fn complete(
     }
     let url = format!("{}/messages", provider.base_url);
 
-    let room = if req.effort.is_some() { THINKING_MAX_TOKENS } else { MAX_TOKENS };
+    let room = crate::models::output(provider).map_or(MAX_TOKENS, |n| n as u32);
     let resp = match send(client, &url, &headers, &body(provider, req, room)).await {
         Err(e) if e.starts_with("400") && e.contains("max_tokens") => {
             send(client, &url, &headers, &body(provider, req, SMALL_MAX_TOKENS)).await?
@@ -437,6 +438,8 @@ pub async fn complete(
                     }
                 }
                 "message_delta" => {
+                    let stop = event.delta.and_then(|d| d.stop_reason);
+                    out.cut |= stop.as_deref() == Some("max_tokens");
                     if let Some(u) = event.usage {
                         out.usage.output = u.output_tokens.unwrap_or(out.usage.output);
                     }

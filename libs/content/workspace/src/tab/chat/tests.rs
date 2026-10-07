@@ -441,6 +441,7 @@ mod on_its_own {
                     id: format!("model-{i}"),
                     display_name: None,
                     window: None,
+                    output: None,
                 })
                 .collect()
         };
@@ -548,6 +549,7 @@ mod on_its_own {
             id: id.into(),
             display_name: None,
             window: None,
+            output: None,
         });
         chat.listings
             .insert("mock".into(), ListingState::Ready(models.to_vec()));
@@ -1446,6 +1448,7 @@ mod on_its_own {
             id: id.into(),
             display_name: None,
             window: None,
+            output: None,
         });
         chat.listings
             .insert("mock".into(), ListingState::Ready(listed.to_vec()));
