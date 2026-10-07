@@ -365,6 +365,9 @@ pub struct MdEdit {
     /// wheel scroll free to move the cursor out of view.
     overflow_follow: (usize, (Grapheme, Grapheme), Rect),
 
+    /// The last `measure_height` and what it depended on.
+    measured: Option<([u64; 5], f32)>,
+
     /// Momentum from the last scroll-area frame; used by `will_consume_touch`
     /// to block touch cursor placement during momentum scroll.
     pub scroll_area_velocity: Vec2,
@@ -437,6 +440,7 @@ impl MdEdit {
             overflow_scroll: 0.0,
             standalone: true,
             overflow_follow: (0, Default::default(), Rect::ZERO),
+            measured: None,
             scroll_area_velocity: Default::default(),
             file_id,
             emoji_completions: Default::default(),
@@ -1005,6 +1009,7 @@ impl Editor {
                 overflow_scroll: 0.0,
                 standalone: false,
                 overflow_follow: (0, Default::default(), Rect::ZERO),
+                measured: None,
                 scroll_area_velocity: Default::default(),
                 file_id,
                 emoji_completions: Default::default(),
