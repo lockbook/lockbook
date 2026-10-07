@@ -54,6 +54,7 @@ const EFFORTS: &[(&str, &str, &[&str])] = &[
     ("api.groq.com", "openai/gpt-oss-120b", &["low", "medium", "high"]),
     ("api.groq.com", "openai/gpt-oss-20b", &["low", "medium", "high"]),
     ("api.groq.com", "qwen/qwen3.8-27b", &["none", "low", "medium"]),
+    ("api.anthropic.com", "claude-haiku-5-5", &["low", "medium", "high", "xhigh", "max"]),
     ("api.anthropic.com", "claude-sonnet-5-5", &["low", "medium", "high", "xhigh", "max"]),
     ("api.anthropic.com", "claude-opus-5-5", &["low", "medium", "high", "xhigh", "max"]),
     ("api.anthropic.com", "claude-fable-5-1", &["low", "medium", "high", "xhigh", "max"]),
@@ -68,6 +69,11 @@ const EFFORTS: &[(&str, &str, &[&str])] = &[
     ("api.anthropic.com", "claude-haiku-4-5-20251001", &["on"]),
     ("api.anthropic.com", "claude-sonnet-4-5-20250929", &["on"]),
     ("openrouter.ai", "anthropic/claude-haiku-4.5", &["none", "low", "medium", "high"]),
+    (
+        "openrouter.ai",
+        "anthropic/claude-haiku-5.5",
+        &["none", "low", "medium", "high", "xhigh", "max"],
+    ),
     ("openrouter.ai", "anthropic/claude-sonnet-5.5", &["low", "medium", "high", "xhigh", "max"]),
     ("openrouter.ai", "anthropic/claude-opus-5.5", &["low", "medium", "high", "xhigh", "max"]),
     ("openrouter.ai", "openai/gpt-5.5", &["none", "low", "medium", "high", "xhigh"]),
@@ -79,6 +85,7 @@ const SEES: &[(&str, &[&str])] = &[
     (
         "api.anthropic.com",
         &[
+            "claude-haiku-5-5",
             "claude-sonnet-5-5",
             "claude-opus-5-5",
             "claude-fable-5-1",
@@ -106,6 +113,7 @@ const SEES: &[(&str, &[&str])] = &[
         "openrouter.ai",
         &[
             "anthropic/claude-haiku-4.5",
+            "anthropic/claude-haiku-5.5",
             "anthropic/claude-sonnet-5.5",
             "anthropic/claude-opus-5.5",
             "openai/gpt-5.5",
