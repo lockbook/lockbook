@@ -165,6 +165,7 @@ impl Driver {
                     made: Made::default(),
                     artist: None,
                     result_cap: TOOL_RESULT_CAP,
+                    squeeze: 1.0,
                 }
                 .run(cmd_rx);
             })
@@ -201,6 +202,9 @@ struct Worker {
     artist: Option<(Provider, &'static str)>,
     /// Bytes of a tool result kept, for this round's model.
     result_cap: usize,
+    /// The share of the estimated budget used, lowered when a provider
+    /// refuses a prompt as too long for its window.
+    squeeze: f64,
 }
 
 /// Where settled lines go, and who is told of them.
@@ -420,6 +424,7 @@ impl Worker {
 
     fn rounds(&mut self, cmds: &mut UnboundedReceiver<Cmd>) {
         let user = self.config.user.clone();
+        let mut squeezed = false;
         loop {
             let (provider, request) = match self.prepare(false) {
                 Ok(ready) => ready,
@@ -436,11 +441,18 @@ impl Worker {
                     }
                     break;
                 }
+                // Too long for the window by the provider's own count: the
+                // round goes again, cut to fit.
+                Outcome::Failed(err) if !squeezed && overflow(&err).is_some() => {
+                    self.squeeze *= overflow(&err).unwrap_or(1.0) * 0.9;
+                    squeezed = true;
+                }
                 Outcome::Failed(err) => {
                     self.lines.settle(Entry::error(&user, err));
                     break;
                 }
                 Outcome::Finished(mut completion) => {
+                    squeezed = false;
                     keep_made(&mut *self.tools, &mut completion);
                     // What the provider ran itself came before what it said.
                     let served = completion.served.iter().map(|s| {
@@ -564,7 +576,7 @@ impl Worker {
             let fixed = tools.iter().fold(system.len(), |sum, tool| {
                 sum + tool.name.len() + tool.description.len() + tool.parameters.to_string().len()
             });
-            (window as usize * 3).saturating_sub(fixed)
+            ((window as usize * 3).saturating_sub(fixed) as f64 * self.squeeze) as usize
         });
         let (sees, reads) = (provider.sees(), provider.reads_pdfs());
         let eyes = &mut self.tools;
@@ -618,6 +630,25 @@ impl Worker {
             }
         }
     }
+}
+
+/// The share of a prompt that would have fit, from a provider's refusal of
+/// it as too long: Anthropic's "N tokens > M maximum", OpenAI's "maximum
+/// context length is M tokens ... resulted in N tokens".
+fn overflow(err: &str) -> Option<f64> {
+    let numbers = |s: &str| -> Vec<f64> {
+        s.split(|c: char| !c.is_ascii_digit())
+            .filter_map(|n| n.parse().ok())
+            .collect()
+    };
+    let (sent, most) = if let Some(at) = err.find("prompt is too long") {
+        let n = numbers(&err[at..]);
+        (*n.first()?, *n.get(1)?)
+    } else {
+        let n = numbers(&err[err.find("maximum context length is")?..]);
+        (*n.get(1)?, *n.first()?)
+    };
+    (sent > most && most > 0.0).then(|| most / sent)
 }
 
 /// Bytes of a tool result kept for `provider`'s model.
@@ -701,6 +732,15 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::*;
+
+    #[test]
+    fn a_prompt_too_long_says_how_much_fits() {
+        let anthropic = "400 Bad Request: prompt is too long: 1018035 tokens > 1000000 maximum";
+        assert!((overflow(anthropic).unwrap() - 1_000_000.0 / 1_018_035.0).abs() < 1e-9);
+        let openai = "This model's maximum context length is 128000 tokens. However, your messages resulted in 160000 tokens.";
+        assert!((overflow(openai).unwrap() - 0.8).abs() < 1e-9);
+        assert_eq!(overflow("429 Too Many Requests"), None);
+    }
     use crate::mock::{self, sse_call, sse_text};
     use crate::provider::Kind;
     use crate::store::MemStore;
