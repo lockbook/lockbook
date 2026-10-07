@@ -845,7 +845,7 @@ fn shape_to_items(
                     natural: 0.0,
                     source_range: (source_range.start(), source_range.start()),
                     visible_byte_range: lo_u..lo_u,
-                    buffer: empty_buffer(&fs, row_height, ppi),
+                    buffer: shape_chunk(&fs, &cache, "", &format, row_height, width, ppi).0,
                     cluster_advances: Vec::new(),
                 });
             }
@@ -1104,7 +1104,7 @@ fn emit_cluster_split_boxes(
                 natural: 0.0,
                 source_range: (start_g + i, start_g + i),
                 visible_byte_range: abs_lo..abs_lo,
-                buffer: empty_buffer(fs, row_height, ppi),
+                buffer: shape_chunk(fs, cache, "", format, row_height, width, ppi).0,
                 cluster_advances: Vec::new(),
             });
         }
@@ -1122,20 +1122,6 @@ fn emit_cluster_split_boxes(
             atomic: false,
         });
     }
-}
-
-/// An empty (no-text) buffer used for zero-width separators. Cheap;
-/// glyphon caches the empty-shape result.
-fn empty_buffer(
-    fs: &std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>, row_height: f32, ppi: f32,
-) -> std::sync::Arc<std::sync::RwLock<glyphon::Buffer>> {
-    use std::sync::{Arc, RwLock};
-    let metric = row_height * ppi;
-    let buffer = {
-        let mut guard = fs.lock().unwrap();
-        glyphon::Buffer::new(&mut guard, glyphon::Metrics::new(metric, metric))
-    };
-    Arc::new(RwLock::new(buffer))
 }
 
 /// Map a visible byte range back to source. Returns `(start, start)`
