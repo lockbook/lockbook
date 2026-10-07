@@ -6,6 +6,7 @@
 //! being short and what stops a retry; the newest result and the last
 //! message on always stay.
 
+use lb_rs::Uuid;
 use lb_rs::model::chat::{Body, Chat};
 
 use crate::territory::Territory;
@@ -159,7 +160,8 @@ pub fn system_prompt(
 /// `see` gives the picture or PDF a `read` looked at, for a model that
 /// takes it.
 pub fn turns(
-    chat: &Chat, user: &str, budget: Option<usize>, see: &mut dyn FnMut(&str) -> Option<Media>,
+    chat: &Chat, user: &str, budget: Option<usize>,
+    see: &mut dyn FnMut(&str, Option<Uuid>) -> Option<Media>,
 ) -> Vec<Turn> {
     let sizes: Vec<usize> = chat
         .entries
@@ -236,7 +238,11 @@ pub fn turns(
                 // time, from the file as it is now.
                 let path = args.get("path").and_then(|p| p.as_str());
                 let picture = path.filter(|p| name == "read" && *ok && !elided && shown(p));
-                let media: Vec<Media> = picture.and_then(&mut *see).into_iter().collect();
+                let file = entry
+                    .extra
+                    .get("file")
+                    .and_then(|v| serde_json::from_value(v.clone()).ok());
+                let media: Vec<Media> = picture.and_then(|p| see(p, file)).into_iter().collect();
                 let text = match (elided, picture.is_some() && media.is_empty()) {
                     (true, _) => ELIDED.to_string(),
                     (false, true) => format!("{result}\n{UNSEEN}"),
@@ -303,7 +309,7 @@ mod tests {
     }
 
     fn fold(chat: &Chat) -> Vec<Turn> {
-        turns(chat, "u", None, &mut |_| None)
+        turns(chat, "u", None, &mut |_, _| None)
     }
 
     #[test]
@@ -393,16 +399,32 @@ mod tests {
         chat.push(at(2, Entry::tool("u", "read", json!({"path": "/a.png"}), "a picture", true)));
         chat.push(at(3, Entry::tool("u", "read", json!({"path": "/b.md"}), "a note", true)));
         let picture = Media { mime: "image/png".into(), data: "AAAA".into() };
-        let results = |see: &mut dyn FnMut(&str) -> Option<Media>| {
+        let results = |see: &mut dyn FnMut(&str, Option<Uuid>) -> Option<Media>| {
             let turns = turns(&chat, "u", None, see);
             let Turn::ToolResults(results) = &turns[2] else { panic!() };
             results.clone()
         };
-        let seen = results(&mut |path| (path == "/a.png").then(|| picture.clone()));
+        let seen = results(&mut |path, _| (path == "/a.png").then(|| picture.clone()));
         assert_eq!((seen[0].text.as_str(), &seen[0].media), ("a picture", &vec![picture.clone()]));
         assert_eq!((seen[1].text.as_str(), seen[1].media.len()), ("a note", 0));
-        let unseen = results(&mut |_| None);
+        let unseen = results(&mut |_, _| None);
         assert_eq!(unseen[0].text, format!("a picture\n{UNSEEN}"));
+    }
+
+    /// A read that kept its file is looked up by it, so what it saw is
+    /// still shown after the file moves.
+    #[test]
+    fn a_read_follows_its_file() {
+        let file = Uuid::new_v4();
+        let mut read = Entry::tool("u", "read", json!({"path": "/old.pdf"}), "a PDF", true);
+        read.extra.insert("file".into(), json!(file));
+        let mut chat = Chat::default();
+        chat.push(at(1, Entry::user("u", "look")));
+        chat.push(at(2, read));
+        let pdf = Media { mime: "application/pdf".into(), data: "AAAA".into() };
+        let turns = turns(&chat, "u", None, &mut |_, id| (id == Some(file)).then(|| pdf.clone()));
+        let Turn::ToolResults(results) = &turns[2] else { panic!() };
+        assert_eq!(results[0].media, vec![pdf]);
     }
 
     #[test]
@@ -432,7 +454,7 @@ mod tests {
     }
 
     fn results_within(chat: &Chat, budget: Option<usize>) -> Vec<String> {
-        let turns = turns(chat, "u", budget, &mut |_| None);
+        let turns = turns(chat, "u", budget, &mut |_, _| None);
         let Turn::ToolResults(results) = &turns[2] else { panic!() };
         results.iter().map(|r| r.text.clone()).collect()
     }
@@ -498,7 +520,7 @@ mod tests {
         for budget in [0, 100, 1000, 5000] {
             for n in 2..60 {
                 let chat = with_uneven_tools(n);
-                let turns = turns(&chat, "u", Some(budget), &mut |_| None);
+                let turns = turns(&chat, "u", Some(budget), &mut |_, _| None);
                 let results = results_within(&chat, Some(budget));
                 let first_kept = results.iter().position(|r| r != ELIDED).unwrap();
                 assert!(results[first_kept..].iter().all(|r| r != ELIDED), "{budget} {n}");
@@ -542,7 +564,7 @@ mod tests {
     #[test]
     fn a_small_window_keeps_the_last_exchange() {
         let chat = talkative(12);
-        let turns = turns(&chat, "u", Some(1500), &mut |_| None);
+        let turns = turns(&chat, "u", Some(1500), &mut |_, _| None);
         let Turn::User(first) = &turns[0] else { panic!("{turns:?}") };
         assert!(first.starts_with(DROPPED), "{first}");
         assert!(
@@ -571,7 +593,7 @@ mod tests {
     #[test]
     fn a_large_window_keeps_every_exchange() {
         let chat = talkative(12);
-        let turns = turns(&chat, "u", Some(1_000_000), &mut |_| None);
+        let turns = turns(&chat, "u", Some(1_000_000), &mut |_, _| None);
         let Turn::User(first) = &turns[0] else { panic!() };
         assert!(first.starts_with("q0 "));
         let all = turns

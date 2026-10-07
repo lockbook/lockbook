@@ -2,6 +2,7 @@
 //! each call through `call()`; the vault toolset lives with the territory
 //! rules, this module only fixes the shape.
 
+use lb_rs::Uuid;
 use lb_rs::model::chat::{Chat, Mention};
 
 use crate::wire::{Call, Media, ToolSchema};
@@ -40,6 +41,14 @@ pub trait Tools: Send {
     /// The picture or PDF at `path` as a model is shown it, a picture
     /// brought down in size; nothing when it is gone or out of reach.
     fn media(&mut self, _path: &str) -> Option<Media> {
+        None
+    }
+    /// The file at `path`, so a read can follow it when it moves.
+    fn file_of(&mut self, _path: &str) -> Option<Uuid> {
+        None
+    }
+    /// Where `file` is now.
+    fn path_of(&mut self, _file: Uuid) -> Option<String> {
         None
     }
     /// Keeps something the model made as a file named `name` in the

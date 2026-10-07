@@ -487,7 +487,15 @@ impl Worker {
                 }
             };
             let result = truncate(&text, self.result_cap);
+            // A read keeps the file it read, so what it saw follows a move.
+            let file = (ok && call.name == "read")
+                .then(|| call.args.get("path").and_then(|p| p.as_str()))
+                .flatten()
+                .and_then(|path| self.tools.file_of(path));
             let mut entry = Entry::tool(&user, call.name, call.args, result, ok);
+            if let Some(file) = file {
+                entry.extra.insert("file".into(), json!(file));
+            }
             if let Some(echo) = call.echo.and_then(|e| serde_json::to_value(e).ok()) {
                 entry.extra.insert("echo".into(), echo);
             }
@@ -560,8 +568,9 @@ impl Worker {
         });
         let (sees, reads) = (provider.sees(), provider.reads_pdfs());
         let eyes = &mut self.tools;
-        let mut see = |path: &str| {
-            eyes.media(path)
+        let mut see = |path: &str, file: Option<Uuid>| {
+            let now = file.and_then(|id| eyes.path_of(id));
+            eyes.media(now.as_deref().unwrap_or(path))
                 .filter(|m| if m.is_pdf() { reads } else { sees })
         };
         let turns = context::turns(&chat, &self.config.user, budget, &mut see);
@@ -1081,7 +1090,7 @@ mod tests {
         );
 
         // The same transcript, folded for a different provider.
-        let turns = context::turns(&chat, "u", None, &mut |_| None);
+        let turns = context::turns(&chat, "u", None, &mut |_, _| None);
         let req = Request { turns, ..Default::default() };
         let other = Provider {
             name: "other".into(),

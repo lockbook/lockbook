@@ -598,6 +598,14 @@ impl Tools for VaultTools {
             .collect()
     }
 
+    fn file_of(&mut self, path: &str) -> Option<Uuid> {
+        self.visible_file(&normalize(path)).ok().map(|f| f.id)
+    }
+
+    fn path_of(&mut self, file: Uuid) -> Option<String> {
+        self.lb.get_path_by_id(file).ok()
+    }
+
     /// At most about a megapixel: as JPEG, or PNG where it has an alpha.
     fn media(&mut self, path: &str) -> Option<Media> {
         let path = normalize(path);
