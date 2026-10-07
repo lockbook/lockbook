@@ -217,6 +217,27 @@ fn a_long_note_without_headings_reads_from_its_start() {
     assert!(!ok && text.contains("has no headings"), "{text}");
 }
 
+/// Any file of text reads and edits, whatever it is called; one that is not
+/// text says so.
+#[test]
+fn a_csv_reads_and_edits_as_text() {
+    let lb = account();
+    write(&lb, "/home/w2.csv", "year,wages\n2025,0\n");
+    let blob = lb.create_at_path("/home/blob.bin").unwrap();
+    lb.write_document(blob.id, &[0xff, 0xfe, 0x00, 0x9f])
+        .unwrap();
+    let own = lb.create_at_path("/home/talk.chat").unwrap();
+    let mut tools = VaultTools::new(lb.clone(), own.id);
+    tools.prepare(&Chat::default(), "u", "/home/");
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/w2.csv"})));
+    assert!(ok && text.contains("2025,0"), "{text}");
+    let edit = json!({"path": "/home/w2.csv", "old": "2025,0", "new": "2025,10"});
+    let (text, ok) = done(call(&mut tools, "edit", edit));
+    assert!(ok, "{text}");
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/blob.bin"})));
+    assert!(!ok && text.contains("is not text"), "{text}");
+}
+
 /// A search is offered once an engine is set up, and a page is fetched only
 /// from an address the chat was given, not one the model made up.
 #[test]

@@ -96,10 +96,8 @@ impl VaultTools {
         self.file_at(path)?.ok_or(missing)
     }
 
+    /// What a file says, when it is text of any kind: a note, a CSV, JSON.
     fn text_of(&self, file: &File, path: &str) -> Result<String, String> {
-        if !is_text(path) {
-            return Err(format!("{path} is not a text note"));
-        }
         let bytes = self
             .lb
             .read_document(file.id, false)
@@ -410,7 +408,7 @@ impl VaultTools {
             Ok(f) => f,
             Err(e) => return ToolOutcome::err(e),
         };
-        if !is_text(&path) || path.ends_with(".chat") {
+        if path.ends_with(".chat") {
             return ToolOutcome::err(format!("{path} is not an editable note"));
         }
         for _ in 0..8 {
@@ -418,7 +416,9 @@ impl VaultTools {
                 Ok(r) => r,
                 Err(e) => return ToolOutcome::err(e.to_string()),
             };
-            let text = String::from_utf8_lossy(&bytes).into_owned();
+            let Ok(text) = String::from_utf8(bytes) else {
+                return ToolOutcome::err(format!("{path} is not text"));
+            };
             let count = text.matches(&old).count();
             if count == 0 {
                 return ToolOutcome::err("old text not found; read the note and copy it exactly");
@@ -674,6 +674,8 @@ fn str_arg(args: &Value, key: &str) -> String {
         .to_string()
 }
 
+/// What search reads through: notes, text files, and chats. Read and edit
+/// take any file that is text.
 fn is_text(path: &str) -> bool {
     path.ends_with(".md") || path.ends_with(".txt") || path.ends_with(".chat")
 }
@@ -846,7 +848,7 @@ pub fn schemas() -> Vec<ToolSchema> {
         ),
         schema(
             "read",
-            "Read a note. A long note answers with its headings and their sizes; pass section to read under one. A chat reads as a note with a heading per message. A picture, a drawing, or a PDF is shown to you; a recording is read as its transcript.",
+            "Read a note, or any file of text such as a CSV. A long note answers with its headings and their sizes; pass section to read under one. A chat reads as a note with a heading per message. A picture, a drawing, or a PDF is shown to you; a recording is read as its transcript.",
             json!({
                 "path": { "type": "string", "description": "absolute path of the note" },
                 "section": { "type": "string", "description": "optional heading to read under; a distinct part of it is enough" },
