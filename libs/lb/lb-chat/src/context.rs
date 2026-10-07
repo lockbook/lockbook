@@ -6,6 +6,8 @@
 //! being short and what stops a retry; the newest result and the last
 //! message on always stay.
 
+use std::collections::HashMap;
+
 use lb_rs::Uuid;
 use lb_rs::model::chat::{Body, Chat};
 
@@ -21,6 +23,8 @@ pub const SERVED: &str = "(what this returned was read when it ran; only this mu
 /// Said under a picture or PDF that was read and cannot be shown.
 pub const UNSEEN: &str = "(not shown: this model takes no such file, or the file is gone)";
 pub const ELIDED: &str = "(result no longer in context)";
+/// Said under a read of a file that a later read shows.
+pub const AGAIN: &str = "(shown with a later read of the same file)";
 /// Opens what is left of a chat whose start no longer fits.
 pub const DROPPED: &str = "(earlier conversation no longer in context)";
 
@@ -79,9 +83,22 @@ fn fit(turns: &mut Vec<Turn>, budget: usize) {
     }
 }
 
+/// What a picture or PDF weighs, in bytes of text. A PDF's pages go as
+/// pictures and text, which Claude counted at about a third of its base64.
+fn media_weight(media: &Media) -> usize {
+    if media.is_pdf() { media.data.len() / 3 } else { PICTURE_BYTES }
+}
+
+/// The file a tool entry kept, for a read that follows it.
+fn file_of(entry: &lb_rs::model::chat::Entry) -> Option<Uuid> {
+    entry
+        .extra
+        .get("file")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+}
+
 /// What a turn weighs against the window, in bytes of text.
 fn weight(turn: &Turn) -> usize {
-    let media = |m: &Media| if m.is_pdf() { m.data.len() / 8 } else { PICTURE_BYTES };
     match turn {
         Turn::User(text) => text.len(),
         Turn::Assistant { text, calls } => {
@@ -93,7 +110,7 @@ fn weight(turn: &Turn) -> usize {
         }
         Turn::ToolResults(results) => results
             .iter()
-            .map(|r| r.text.len() + r.media.iter().map(media).sum::<usize>())
+            .map(|r| r.text.len() + r.media.iter().map(media_weight).sum::<usize>())
             .sum(),
     }
 }
@@ -163,15 +180,44 @@ pub fn turns(
     chat: &Chat, user: &str, budget: Option<usize>,
     see: &mut dyn FnMut(&str, Option<Uuid>) -> Option<Media>,
 ) -> Vec<Turn> {
+    // Each picture or PDF goes once, with the latest read of it, looked at
+    // afresh from the file as it is now.
+    let mut latest: HashMap<String, Uuid> = HashMap::new();
+    for e in chat.entries.iter().filter(|e| e.from == user) {
+        if let Body::Tool { name, args, ok: true, .. } = &e.body {
+            let path = args.get("path").and_then(|p| p.as_str());
+            if let Some(path) = path.filter(|p| name == "read" && shown(p)) {
+                latest.insert(file_of(e).map_or(path.to_string(), |f| f.to_string()), e.id);
+            }
+        }
+    }
+    let mut media: HashMap<Uuid, Vec<Media>> = HashMap::new();
+    for e in chat
+        .entries
+        .iter()
+        .filter(|e| latest.values().any(|id| *id == e.id))
+    {
+        if let Body::Tool { args, .. } = &e.body {
+            let path = args
+                .get("path")
+                .and_then(|p| p.as_str())
+                .unwrap_or_default();
+            media.insert(e.id, see(path, file_of(e)).into_iter().collect());
+        }
+    }
     let sizes: Vec<usize> = chat
         .entries
         .iter()
         .filter(|e| e.from == user)
         .filter_map(|e| match &e.body {
-            Body::Tool { name, args, result, ok, .. } if *ok => {
-                let path = args.get("path").and_then(|p| p.as_str());
-                let picture = name == "read" && path.is_some_and(shown);
-                Some(result.len() + if picture { PICTURE_BYTES } else { 0 })
+            Body::Tool { result, ok, .. } if *ok => {
+                let shown: usize = media
+                    .get(&e.id)
+                    .into_iter()
+                    .flatten()
+                    .map(media_weight)
+                    .sum();
+                Some(result.len() + shown)
             }
             Body::Tool { .. } => Some(0),
             _ => None,
@@ -234,19 +280,16 @@ pub fn turns(
                         .filter(|_| !(elided && *server))
                         .and_then(|v| serde_json::from_value(v.clone()).ok()),
                 };
-                // A picture or PDF that was read is looked at afresh each
-                // time, from the file as it is now.
                 let path = args.get("path").and_then(|p| p.as_str());
-                let picture = path.filter(|p| name == "read" && *ok && !elided && shown(p));
-                let file = entry
-                    .extra
-                    .get("file")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
-                let media: Vec<Media> = picture.and_then(|p| see(p, file)).into_iter().collect();
-                let text = match (elided, picture.is_some() && media.is_empty()) {
-                    (true, _) => ELIDED.to_string(),
-                    (false, true) => format!("{result}\n{UNSEEN}"),
-                    (false, false) => result.clone(),
+                let picture = path.is_some_and(|p| name == "read" && *ok && !elided && shown(p));
+                let again = picture && !media.contains_key(&entry.id);
+                let media =
+                    if elided { Vec::new() } else { media.remove(&entry.id).unwrap_or_default() };
+                let text = match (elided, again, picture && media.is_empty()) {
+                    (true, ..) => ELIDED.to_string(),
+                    (false, true, _) => format!("{result}\n{AGAIN}"),
+                    (false, false, true) => format!("{result}\n{UNSEEN}"),
+                    (false, false, false) => result.clone(),
                 };
                 let result = ToolResult { id: entry.id.to_string(), text, ok: *ok, media };
                 let n = turns.len();
@@ -409,6 +452,28 @@ mod tests {
         assert_eq!((seen[1].text.as_str(), seen[1].media.len()), ("a note", 0));
         let unseen = results(&mut |_, _| None);
         assert_eq!(unseen[0].text, format!("a picture\n{UNSEEN}"));
+    }
+
+    /// A file read twice goes once, with the later read; the earlier says so.
+    #[test]
+    fn a_file_read_again_is_shown_once() {
+        let mut chat = Chat::default();
+        chat.push(at(1, Entry::user("u", "look")));
+        chat.push(at(2, Entry::tool("u", "read", json!({"path": "/a.pdf"}), "first", true)));
+        chat.push(at(3, Entry::tool("u", "read", json!({"path": "/a.pdf"}), "second", true)));
+        let pdf = Media { mime: "application/pdf".into(), data: "AAAA".into() };
+        let mut looks = 0;
+        let turns = turns(&chat, "u", None, &mut |_, _| {
+            looks += 1;
+            Some(pdf.clone())
+        });
+        let Turn::ToolResults(results) = &turns[2] else { panic!() };
+        assert_eq!(looks, 1);
+        assert_eq!(
+            (results[0].text.clone(), results[0].media.len()),
+            (format!("first\n{AGAIN}"), 0)
+        );
+        assert_eq!((results[1].text.as_str(), results[1].media.len()), ("second", 1));
     }
 
     /// A read that kept its file is looked up by it, so what it saw is
