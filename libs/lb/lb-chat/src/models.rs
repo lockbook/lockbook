@@ -18,12 +18,15 @@ pub struct ModelInfo {
     pub display_name: Option<String>,
     /// Context window in tokens, when the endpoint reports one.
     pub window: Option<u64>,
+    /// The most a reply may hold in tokens, thinking included, when the
+    /// endpoint reports it.
+    pub output: Option<u64>,
 }
 
 impl ModelInfo {
     #[cfg(test)]
     fn bare(id: &str) -> Self {
-        Self { id: id.to_string(), display_name: None, window: None }
+        Self { id: id.to_string(), display_name: None, window: None, output: None }
     }
 
     /// The display name when the endpoint offers one, else the id made
@@ -47,6 +50,7 @@ pub async fn list_models(provider: &Provider) -> Result<Vec<ModelInfo>, String> 
                 id: crate::wire::apple::MODEL.into(),
                 display_name: Some("Apple Intelligence".into()),
                 window: Some(crate::wire::apple::WINDOW),
+                output: None,
             }]
         }),
     }
@@ -61,8 +65,9 @@ pub fn list_models_blocking(provider: &Provider) -> Result<Vec<ModelInfo>, Strin
     rt.block_on(list_models(provider))
 }
 
-/// What each `(base_url, model)` asked about reported, a failure included.
-static WINDOWS: Mutex<Vec<(String, String, Option<u64>)>> = Mutex::new(Vec::new());
+/// What each `(base_url, model)` asked about was listed as, a failure
+/// included.
+static LISTED: Mutex<Vec<(String, String, Option<ModelInfo>)>> = Mutex::new(Vec::new());
 
 /// What a hosted model is taken to hold when its listing does not say: the
 /// frontier models' windows are at least this.
@@ -77,25 +82,35 @@ pub fn window(provider: &Provider) -> u64 {
     if provider.kind == Kind::Apple {
         return crate::wire::apple::WINDOW;
     }
-    let known = |windows: &[(String, String, Option<u64>)]| {
-        windows
-            .iter()
-            .find(|(url, model, _)| *url == provider.base_url && *model == provider.model)
-            .map(|(_, _, window)| *window)
-    };
-    let cached = known(&WINDOWS.lock().unwrap());
-    let listed = match cached {
-        Some(window) => window,
+    let listed = match cached(provider) {
+        Some(info) => info,
         None => {
-            let window = list_models_blocking(provider)
+            let info = list_models_blocking(provider)
                 .ok()
-                .and_then(|models| models.into_iter().find(|m| m.id == provider.model)?.window);
-            let model = (provider.base_url.clone(), provider.model.clone(), window);
-            WINDOWS.lock().unwrap().push(model);
-            window
+                .and_then(|models| models.into_iter().find(|m| m.id == provider.model));
+            let model = (provider.base_url.clone(), provider.model.clone(), info.clone());
+            LISTED.lock().unwrap().push(model);
+            info
         }
     };
-    listed.unwrap_or_else(|| assumed(provider))
+    listed
+        .and_then(|info| info.window)
+        .unwrap_or_else(|| assumed(provider))
+}
+
+/// The most a reply from the provider's model may hold, as its listing said
+/// when `window` asked it.
+pub(crate) fn output(provider: &Provider) -> Option<u64> {
+    cached(provider)??.output
+}
+
+fn cached(provider: &Provider) -> Option<Option<ModelInfo>> {
+    LISTED
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|(url, model, _)| *url == provider.base_url && *model == provider.model)
+        .map(|(_, _, info)| info.clone())
 }
 
 fn assumed(provider: &Provider) -> u64 {
@@ -193,6 +208,7 @@ async fn list_openai(provider: &Provider) -> Result<Vec<ModelInfo>, String> {
                 .or(m.max_context_length)
                 .or(m.context_window)
                 .or(m.meta.and_then(|meta| meta.n_ctx)),
+            output: None,
         })
         .collect();
     // These first-party hosts list every generation and dated snapshot with
@@ -229,6 +245,8 @@ async fn list_anthropic(provider: &Provider) -> Result<Vec<ModelInfo>, String> {
         display_name: Option<String>,
         #[serde(default)]
         max_input_tokens: Option<u64>,
+        #[serde(default)]
+        max_tokens: Option<u64>,
     }
 
     let resp = client()?
@@ -250,6 +268,7 @@ async fn list_anthropic(provider: &Provider) -> Result<Vec<ModelInfo>, String> {
                 id: m.id,
                 display_name: m.display_name.filter(|n| !n.is_empty()),
                 window: m.max_input_tokens,
+                output: m.max_tokens,
             })
             .collect(),
     ))

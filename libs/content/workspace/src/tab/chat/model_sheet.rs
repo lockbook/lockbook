@@ -730,7 +730,7 @@ mod tests {
     use lb_chat::ModelInfo;
 
     fn model(id: &str) -> ModelInfo {
-        ModelInfo { id: id.into(), display_name: None, window: None }
+        ModelInfo { id: id.into(), display_name: None, window: None, output: None }
     }
 
     fn listings() -> (Vec<String>, HashMap<String, ListingState>) {
@@ -814,6 +814,7 @@ mod tests {
                 id: "on-device".into(),
                 display_name: Some("Apple Intelligence".into()),
                 window: None,
+                output: None,
             }]),
         );
         for filter in ["appl", "apple", "Apple Intelligence"] {

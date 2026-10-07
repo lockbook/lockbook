@@ -474,7 +474,16 @@ impl Worker {
                         break;
                     }
                     let said = reply(&user, &provider, &completion, false);
-                    if !self.lines.settle(said) || completion.calls.is_empty() {
+                    if !self.lines.settle(said) {
+                        break;
+                    }
+                    // Its last call may be cut off mid-argument, so none run.
+                    if completion.cut {
+                        let why = "the reply ran out of room before it finished";
+                        self.lines.settle(Entry::error(&user, why));
+                        break;
+                    }
+                    if completion.calls.is_empty() {
                         break;
                     }
                     if !self.run_tools(completion.calls, cmds) {
@@ -1207,6 +1216,45 @@ mod tests {
             json!({ "type": "thinking", "thinking": "hm", "signature": "SIG" })
         );
         assert_eq!(sent[1]["messages"][1]["content"][1]["type"], "tool_use");
+    }
+
+    /// A reply that runs out of room says so, and its call, cut off
+    /// mid-argument, does not run. Unlisted, Claude gets the room thinking needs.
+    #[test]
+    fn a_reply_out_of_room_says_so() {
+        let cut = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+            data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"echo\"}}\n\n\
+            data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"text\\\":\\\"x\"}}\n\n\
+            data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"max_tokens\"},\"usage\":{\"output_tokens\":64000}}\n\n\
+            data: {\"type\":\"message_stop\"}\n\n"
+            .to_string();
+        let store = MemStore::default();
+        let (url, bodies) = mock::serve(vec![cut]);
+        let config = Config {
+            user: "u".into(),
+            working_dir: "/".into(),
+            provider: Box::new(move || {
+                Ok(Provider {
+                    name: "claude".into(),
+                    display_name: None,
+                    needs_key: false,
+                    kind: Kind::Anthropic,
+                    base_url: url.clone(),
+                    api_key: Some("k".into()),
+                    model: "m".into(),
+                    effort: None,
+                })
+            }),
+            window: |_| None,
+        };
+        let d = Driver::spawn(store.clone(), Mock, config, || {});
+        d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
+        wait_for_run(&d);
+        let chat = store.chat();
+        assert_eq!(kinds(&chat), ["user", "assistant", "error"]);
+        assert!(chat.entries[2].text().contains("ran out of room"));
+        let sent: serde_json::Value = serde_json::from_str(&bodies.recv().unwrap()).unwrap();
+        assert_eq!(sent["max_tokens"], 64_000);
     }
 
     /// Replies settle without the whitespace models pad them with; a reply

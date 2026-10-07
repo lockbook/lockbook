@@ -117,6 +117,8 @@ pub struct Completion {
     pub served: Vec<Served>,
     pub calls: Vec<Call>,
     pub usage: Usage,
+    /// The reply reached the most it may hold and was cut off there.
+    pub cut: bool,
 }
 
 pub const STREAM_IDLE: Duration = Duration::from_secs(120);
