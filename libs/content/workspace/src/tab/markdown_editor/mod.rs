@@ -1124,7 +1124,13 @@ impl Editor {
                                     self.show_scrollable_editor(ui, root);
                                     true
                                 } else {
-                                    // show toolbar settings
+                                    // the open menu is a popup: its touches
+                                    // stay with egui, not the iOS text page
+                                    self.edit.renderer.touch_targets.clear();
+                                    self.edit
+                                        .renderer
+                                        .touch_targets
+                                        .push((ui.max_rect(), TouchTarget::Popup));
                                     self.show_toolbar_menu(ui);
                                     false
                                 }
