@@ -293,7 +293,6 @@
     <string name="pending_shares_empty_message">When others share files with you, they\'ll appear here.</string>
 
     <string name="sharing_contacts">People you share with</string>
-    <string name="no_sharing_contacts">No shared files yet</string>
     <string name="add_person">Add person</string>
     <string name="grant_access">Grant access</string>
     <string name="grant_access_description">Choose a Lockbook user and their access level.</string>
@@ -311,7 +310,7 @@
     </plurals>
     <string name="send">Send</string>
     <string name="send_lockbook_link">Send Lockbook link</string>
-    <string name="send_lockbook_link_description">Live item · access required</string>
+    <string name="send_lockbook_link_description">Only Lockbook users you share with by username can open this link.</string>
     <string name="copy_link">Copy link</string>
     <string name="copy_lockbook_link">Copy Lockbook link</string>
     <string name="lockbook_link_copied">Lockbook link copied</string>

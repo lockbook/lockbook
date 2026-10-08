@@ -172,6 +172,7 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
 
     private fun updateAccessRow() {
         val hasShares = sharedUsernames.isNotEmpty()
+        binding.shareFileContactsHeading.isVisible = hasShares
         binding.shareFileAccessEmpty.isVisible = !hasShares
         binding.shareFileAccessPeople.isVisible = hasShares
         binding.shareFileAvatarList.removeAllViews()
