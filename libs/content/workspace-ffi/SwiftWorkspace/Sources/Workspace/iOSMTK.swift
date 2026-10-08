@@ -395,7 +395,11 @@
 
             set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
-            let overlap = max(0, mtkView.bounds.maxY - keyboardTop)
+            var overlap = max(0, mtkView.bounds.maxY - keyboardTop)
+            // The toolbar is chrome: it clears the home indicator the page runs under.
+            if mtkView.workspaceOutput?.mobileToolbarShown == true {
+                overlap = max(overlap, mtkView.safeAreaInsets.bottom)
+            }
             set_ws_inset(wsHandle, Float(overlap * scale()))
 
             handle(ios_frame(wsHandle))
