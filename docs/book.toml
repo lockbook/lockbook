@@ -2,4 +2,13 @@
 authors = ["Lockbook Maintainers"]
 language = "en"
 src = "."
-title = "Lockbook"
+title = "Lockbook Documentation"
+description = "Guides for using, building, and contributing to Lockbook, the open-source encrypted notebook."
+
+[output.html]
+theme = "theme"
+default-theme = "light"
+preferred-dark-theme = "coal"
+additional-css = ["theme/lockbook.css"]
+no-section-label = true
+site-url = "/docs/"
