@@ -11,8 +11,11 @@ import android.os.Build
 import android.os.Bundle
 import android.view.*
 import android.widget.EditText
+import androidx.annotation.IdRes
 import androidx.annotation.StringRes
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
+import androidx.core.view.MenuCompat
 import androidx.core.view.doOnLayout
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
@@ -22,6 +25,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.preference.PreferenceManager
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.App
 import app.lockbook.R
@@ -58,16 +62,22 @@ class FilesListFragment :
     val binding get() = _binding!!
     private var fileActionDispatcher: FileSelectionActionDispatcher? = null
     private var originalListPaddingBottom = 0
+    private var bottomNavigationInset = 0
+    private var selectionBottomBarInset = 0
     private var folderTransition: Animator? = null
     private var folderTransitionId = 0
+    private var latestFiles: List<FileViewHolderInfo> = emptyList()
+    private var sortOptions = FileSortOptions()
 
     private var currentTab: WorkspaceTab = WorkspaceTab.welcome
     private val fileTreeAdapter by lazy {
         FileTreeAdapter(
             onItemClick = ::onFileItemClicked,
             onItemLongClick = ::onFileItemLongClicked,
+            precedingItemCount = 1,
         )
     }
+    private val fileSortAdapter by lazy { FileSortAdapter(::showFileSortMenu) }
     private val pinnedFilesAdapter by lazy {
         PinnedFilesAdapter(
             onItemClick = { enterFile(it.file) },
@@ -93,6 +103,19 @@ class FilesListFragment :
         savedInstanceState: Bundle?,
     ): View {
         _binding = FragmentFilesListBinding.inflate(inflater, container, false)
+        sortOptions =
+            FileSortOptions(
+                criterion =
+                    savedInstanceState
+                        ?.getString(FILE_SORT_CRITERION_STATE)
+                        ?.let(FileSortCriterion::valueOf)
+                        ?: FileSortCriterion.LastModified,
+                direction =
+                    savedInstanceState
+                        ?.getString(FILE_SORT_DIRECTION_STATE)
+                        ?.let(FileSortDirection::valueOf)
+                        ?: FileSortDirection.Descending,
+            )
         originalListPaddingBottom = binding.filesList.paddingBottom
         model.notifyUpdateFilesUI.observe(
             viewLifecycleOwner,
@@ -187,23 +210,72 @@ class FilesListFragment :
     private fun observeFilesList() {
         model.files.observe(viewLifecycleOwner) { files ->
             val currentFiles = files.orEmpty()
+            latestFiles = currentFiles
             selectionModel.reconcile(
                 FileSelectionSource.Files,
                 currentFiles.map { item -> item.fileMetadata },
             )
-            fileTreeAdapter.submitList(currentFiles.toList()) {
-                fileTreeAdapter.setSelectedFileIds(
-                    selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Files),
-                )
-                binding.filesEmptyFolder.visibility = if (currentFiles.isEmpty()) View.VISIBLE else View.GONE
+            renderSortedFiles()
+        }
+    }
+
+    private fun renderSortedFiles() {
+        val sortedFiles = sortFileItems(latestFiles, sortOptions)
+        val fileCountChanged = fileTreeAdapter.itemCount != sortedFiles.size
+        fileSortAdapter.update(sortOptions, sortedFiles.size)
+        fileTreeAdapter.submitList(sortedFiles) {
+            if (fileCountChanged) {
+                fileTreeAdapter.refreshSegmentedAppearance()
             }
+            fileTreeAdapter.setSelectedFileIds(
+                selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Files),
+            )
+            binding.filesEmptyFolder.visibility = if (latestFiles.isEmpty()) View.VISIBLE else View.GONE
         }
     }
 
     private fun setUpFilesList() {
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
-        recyclerView.adapter = fileTreeAdapter
+        recyclerView.adapter = ConcatAdapter(fileSortAdapter, fileTreeAdapter)
         recyclerView.itemAnimator = null
+        (requireActivity() as MainScreenActivity).configureBottomNavigationFor(recyclerView) { height ->
+            if (_binding == null) return@configureBottomNavigationFor
+            bottomNavigationInset = height
+            updateListBottomPadding()
+        }
+    }
+
+    internal fun navigateToRoot(): Boolean {
+        if (model.fileModel.isAtRoot()) return false
+
+        unselectFiles()
+        enterFolder(model.fileModel.root, animate = false)
+        recyclerView.scrollToPosition(0)
+        return true
+    }
+
+    private fun showFileSortMenu(anchor: View) {
+        val popup = PopupMenu(requireContext(), anchor, Gravity.START)
+        popup.menuInflater.inflate(R.menu.menu_file_sort, popup.menu)
+        MenuCompat.setGroupDividerEnabled(popup.menu, true)
+        popup.menu.syncCheckedSortOptions(sortOptions)
+
+        popup.setOnMenuItemClickListener { item ->
+            val updatedOptions =
+                sortOptions.withMenuSelection(item.itemId)
+                    ?: return@setOnMenuItemClickListener false
+
+            sortOptions = updatedOptions
+            popup.menu.syncCheckedSortOptions(sortOptions)
+            renderSortedFiles()
+            true
+        }
+        recyclerView.stopScroll()
+        anchor.post {
+            if (_binding != null && anchor.isAttachedToWindow) {
+                popup.show()
+            }
+        }
     }
 
     private fun setUpPinnedFiles() {
@@ -302,12 +374,26 @@ class FilesListFragment :
         val selectedIds = state.selectedIdsFor(FileSelectionSource.Files)
         fileTreeAdapter.setSelectedFileIds(selectedIds)
         if (selectedIds.isEmpty()) {
-            binding.filesList.updatePadding(bottom = originalListPaddingBottom)
+            selectionBottomBarInset = 0
+            updateListBottomPadding()
         } else {
             (requireActivity() as MainScreenActivity).fileSelectionBottomBarView.doOnLayout { sheet ->
-                binding.filesList.updatePadding(bottom = originalListPaddingBottom + sheet.height)
+                if (
+                    selectionModel.uiState.value
+                        .selectedIdsFor(FileSelectionSource.Files)
+                        .isNotEmpty()
+                ) {
+                    selectionBottomBarInset = sheet.height
+                    updateListBottomPadding()
+                }
             }
         }
+    }
+
+    private fun updateListBottomPadding() {
+        binding.filesList.updatePadding(
+            bottom = originalListPaddingBottom + maxOf(bottomNavigationInset, selectionBottomBarInset),
+        )
     }
 
     internal fun dispatchSelectionAction(
@@ -320,7 +406,7 @@ class FilesListFragment :
     private fun enterFile(item: File) {
         when (item.type) {
             FileType.Document -> {
-                mainScreenModel.navigate(MainNavigationAction.OpenDocument(item.id, newFile = true))
+                mainScreenModel.navigate(MainNavigationAction.OpenDocument(item.id, newFile = false))
             }
 
             FileType.Folder -> {
@@ -454,6 +540,7 @@ class FilesListFragment :
             }
 
             is UpdateFilesUI.UpdateBreadcrumbBar -> {
+                (activity as? MainScreenActivity)?.showBottomNavigation()
                 model._breadcrumbItems.value = getBreadcrumbItems()
             }
 
@@ -586,6 +673,12 @@ class FilesListFragment :
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(FILE_SORT_CRITERION_STATE, sortOptions.criterion.name)
+        outState.putString(FILE_SORT_DIRECTION_STATE, sortOptions.direction.name)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onDestroyView() {
         fileActionDispatcher = null
         binding.filesList.adapter = null
@@ -598,6 +691,71 @@ class FilesListFragment :
 private const val FOLDER_TRANSITION_FADE_OUT_DURATION = 70L
 private const val FOLDER_TRANSITION_FADE_IN_DURATION = 160L
 private const val FOLDER_TRANSITION_TRANSLATION_DP = 24f
+private const val FILE_SORT_CRITERION_STATE = "file_sort_criterion"
+private const val FILE_SORT_DIRECTION_STATE = "file_sort_direction"
+
+internal fun sortFileItems(
+    items: List<FileViewHolderInfo>,
+    options: FileSortOptions,
+): List<FileViewHolderInfo> {
+    val ascendingComparator =
+        when (options.criterion) {
+            FileSortCriterion.LastModified -> {
+                compareBy<FileViewHolderInfo> { it.fileMetadata.lastModified }
+                    .thenBy { it.fileMetadata.name.lowercase(Locale.ROOT) }
+            }
+
+            FileSortCriterion.Alphabetical -> {
+                compareBy<FileViewHolderInfo> { it.fileMetadata.name.lowercase(Locale.ROOT) }
+                    .thenBy { it.fileMetadata.name }
+            }
+        }
+    val directionalComparator =
+        if (options.direction == FileSortDirection.Ascending) {
+            ascendingComparator
+        } else {
+            ascendingComparator.reversed()
+        }
+
+    return items.sortedWith(
+        compareBy<FileViewHolderInfo> { it is FileViewHolderInfo.DocumentViewHolderInfo }
+            .then(directionalComparator),
+    )
+}
+
+internal fun FileSortOptions.withMenuSelection(
+    @IdRes menuItemId: Int,
+): FileSortOptions? =
+    when (menuItemId) {
+        R.id.sort_by_last_modified -> copy(criterion = FileSortCriterion.LastModified)
+        R.id.sort_by_alphabetical -> copy(criterion = FileSortCriterion.Alphabetical)
+        R.id.sort_ascending -> copy(direction = FileSortDirection.Ascending)
+        R.id.sort_descending -> copy(direction = FileSortDirection.Descending)
+        else -> null
+    }
+
+private fun Menu.syncCheckedSortOptions(options: FileSortOptions) {
+    setGroupCheckable(R.id.file_sort_criterion_group, true, true)
+    setGroupCheckable(R.id.file_sort_direction_group, true, true)
+
+    findItem(R.id.sort_by_last_modified).isChecked = false
+    findItem(R.id.sort_by_alphabetical).isChecked = false
+    findItem(R.id.sort_ascending).isChecked = false
+    findItem(R.id.sort_descending).isChecked = false
+
+    findItem(
+        when (options.criterion) {
+            FileSortCriterion.LastModified -> R.id.sort_by_last_modified
+            FileSortCriterion.Alphabetical -> R.id.sort_by_alphabetical
+        },
+    ).isChecked = true
+    findItem(
+        when (options.direction) {
+            FileSortDirection.Ascending -> R.id.sort_ascending
+            FileSortDirection.Descending -> R.id.sort_descending
+        },
+    ).isChecked = true
+}
 
 sealed class UpdateFilesUI {
     object UpdateBreadcrumbBar : UpdateFilesUI()

@@ -32,9 +32,9 @@ pub struct NameComponents {
 
 impl NameComponents {
     pub fn from(file_name: &str) -> NameComponents {
-        let extension_location = file_name.rfind('.').and_then(|location| {
-            if location == file_name.len() - 1 { None } else { Some(location) }
-        });
+        let extension_location = file_name
+            .rfind('.')
+            .filter(|&location| location != file_name.len() - 1);
 
         let name_with_variant = match extension_location {
             Some(location) => &file_name[..location],

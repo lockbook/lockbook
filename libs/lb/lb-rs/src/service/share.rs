@@ -1,4 +1,4 @@
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbResult};
 use crate::model::file::{File, ShareMode};
@@ -8,7 +8,7 @@ use crate::service::events::Actor;
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
-impl LocalLb {
+impl Lb {
     // todo: this can check whether the username is known already
     #[instrument(level = "debug", skip(self))]
     pub async fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {
@@ -91,7 +91,12 @@ impl LocalLb {
         let db = self.ro_tx().await;
         let db = db.db();
 
-        Ok(db.pub_key_lookup.get().values().cloned().collect())
+        Ok(db
+            .pub_key_lookup
+            .iter()
+            .map(|(_, value)| value)
+            .cloned()
+            .collect())
     }
 
     /// Whether `username` is a known Lockbook account (local cache, then server).

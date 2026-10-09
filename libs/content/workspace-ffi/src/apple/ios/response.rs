@@ -1,9 +1,9 @@
 use lb_c::Uuid;
 use lb_c::model::text::offset_types::{Grapheme, RangeExt as _};
 use std::ffi::{CString, c_char};
-use workspace_rs::tab::markdown_editor::input::{Bound, Location, Region};
+use workspace_rs::tab::markdown_editor::input::{Location, Region};
 
-use super::super::macos::response::CUrls;
+use super::super::macos::response::{CBytes, CUrls};
 use super::super::response::*;
 
 #[repr(C)]
@@ -11,6 +11,7 @@ pub struct IOSResponse {
     // platform response
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
+    pub copied_image: CBytes,
     pub urls_opened: CUrls,
     pub open_camera: bool,
     pub has_virtual_keyboard_shown: bool,
@@ -18,30 +19,32 @@ pub struct IOSResponse {
 
     // widget response
     pub selected_file: CUuid,
+    pub selected_tab: CUuid,
     pub doc_created: CUuid,
     pub tabs_changed: bool,
 
     pub text_updated: bool,
     pub selection_updated: bool,
-    pub scroll_updated: bool,
     pub tab_title_clicked: bool,
     pub selected_folder_changed: bool,
 
-    /// Screen rect (points) the native text-interaction overlay (`MdView`)
-    /// should occupy — the editor viewport minus the find widget and toolbar.
+    /// Screen rect (points) of the platform's text view: the editor viewport
+    /// minus the find widget and toolbar.
     pub has_text_interaction_rect: bool,
     pub text_interaction_rect: CRect,
 
     pub mobile_toolbar_shown: bool,
 
+    /// The editor's find or replace field has focus: keystrokes are its,
+    /// and the document's selection UI hides.
+    pub chrome_text_focused: bool,
+
     /// Present the edit menu (copy/paste) at this point — set on tapping a
-    /// selected image. Egui screen points; `MdView` converts to local space.
+    /// selected image, in egui screen points.
     pub has_context_menu: bool,
     pub context_menu_x: f64,
     pub context_menu_y: f64,
-    /// The menu is over a selected atom (image, link card/capsule) — offer "Edit"
-    /// (`enter_selected_atom`) alongside the standard actions.
-    pub context_menu_for_atom: bool,
+    pub context_menu_for_image: bool,
 }
 
 impl From<crate::Response> for IOSResponse {
@@ -50,6 +53,7 @@ impl From<crate::Response> for IOSResponse {
             workspace:
                 workspace_rs::Response {
                     selected_file,
+                    selected_session,
                     file_renamed: _,
                     file_moved: _,
                     file_deleted: _,
@@ -58,7 +62,7 @@ impl From<crate::Response> for IOSResponse {
                     file_created,
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
-                    markdown_editor_scroll_updated,
+                    markdown_editor_scroll_updated: _,
                     text_interaction_rect,
                     mobile_toolbar_shown,
                     tabs_changed,
@@ -69,6 +73,7 @@ impl From<crate::Response> for IOSResponse {
                 },
             redraw_in,
             copied_text,
+            copied_image,
             urls_opened,
             cursor: _,
             virtual_keyboard_shown,
@@ -91,20 +96,25 @@ impl From<crate::Response> for IOSResponse {
         };
         Self {
             selected_file: selected_file.unwrap_or_default().into(),
+            selected_tab: selected_session
+                .map(|id| id.as_uuid())
+                .unwrap_or_default()
+                .into(),
             doc_created,
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text: CString::new(copied_text).unwrap().into_raw(),
+            copied_image: copied_image.into(),
             urls_opened,
             open_camera,
             text_updated: markdown_editor_text_updated,
             selection_updated: markdown_editor_selection_updated,
-            scroll_updated: markdown_editor_scroll_updated,
             tab_title_clicked,
             has_virtual_keyboard_shown: virtual_keyboard_shown.is_some(),
             virtual_keyboard_shown: virtual_keyboard_shown.unwrap_or_default(),
             selected_folder_changed,
             mobile_toolbar_shown,
+            chrome_text_focused: false,
             has_text_interaction_rect: text_interaction_rect.is_some(),
             text_interaction_rect: text_interaction_rect
                 .map(|r| CRect {
@@ -117,9 +127,9 @@ impl From<crate::Response> for IOSResponse {
             has_context_menu: context_menu.is_some(),
             context_menu_x: context_menu.map(|(p, _)| p.x as f64).unwrap_or_default(),
             context_menu_y: context_menu.map(|(p, _)| p.y as f64).unwrap_or_default(),
-            context_menu_for_atom: matches!(
+            context_menu_for_image: matches!(
                 context_menu,
-                Some((_, workspace_rs::tab::ContextMenuTarget::Atom))
+                Some((_, workspace_rs::tab::ContextMenuTarget::Image))
             ),
         }
     }
@@ -133,10 +143,18 @@ pub struct UITextSelectionRects {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone)]
+pub struct CTabInfo {
+    pub session_id: CUuid,
+    pub dest_kind: i32,
+    pub dest_file: CUuid,
+}
+
+#[repr(C)]
 #[derive(Debug)]
-pub struct TabsIds {
+pub struct CTabs {
     pub size: i32,
-    pub ids: *const CUuid,
+    pub tabs: *const CTabInfo,
 }
 
 impl Default for UITextSelectionRects {
@@ -186,7 +204,7 @@ impl From<Option<(Grapheme, Grapheme)>> for CTextRange {
 pub struct CTextPosition {
     /// used to represent a non-existent state of this struct
     pub none: bool,
-    pub pos: usize, // represents a grapheme index
+    pub pos: usize, // UTF-16 offset, as UIKit counts
 }
 
 impl Default for CTextPosition {
@@ -237,19 +255,6 @@ pub enum CTextGranularity {
     Document = 5,
 }
 
-impl From<CTextGranularity> for Bound {
-    fn from(val: CTextGranularity) -> Bound {
-        match val {
-            CTextGranularity::Character => unimplemented!(),
-            CTextGranularity::Word => Bound::Word,
-            CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
-            CTextGranularity::Paragraph => Bound::Paragraph,
-            CTextGranularity::Line => Bound::Line,
-            CTextGranularity::Document => Bound::Doc,
-        }
-    }
-}
-
 #[repr(C)]
 #[derive(Debug, Default, Clone)]
 pub struct CRect {
@@ -295,4 +300,21 @@ impl From<CTextPosition> for Option<Grapheme> {
     fn from(value: CTextPosition) -> Self {
         if value.none { None } else { Some(value.pos.into()) }
     }
+}
+
+/// What the focused text field is, for the platform's input traits.
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CTextTraits {
+    /// A text field is focused; without one the rest means nothing.
+    pub valid: bool,
+    pub editable: bool,
+    pub secure: bool,
+    pub single_line: bool,
+    /// A shortcode or link completion is being typed: autocorrect would
+    /// rewrite the query.
+    pub completions: bool,
+    /// The chat composer: a hardware Return sends, with Shift it breaks the
+    /// line.
+    pub send_on_return: bool,
 }

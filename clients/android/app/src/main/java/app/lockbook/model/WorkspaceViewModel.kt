@@ -9,9 +9,11 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.util.SingleMutableLiveData
+import app.lockbook.util.StagedAttachment
 import app.lockbook.workspace.NULL_UUID
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import net.lockbook.File
+import java.util.ArrayDeque
 
 class WorkspaceViewModel : ViewModel() {
     /** request workspace to  open a file **/
@@ -38,11 +40,15 @@ class WorkspaceViewModel : ViewModel() {
     val hideToolbar: LiveData<Float>
         get() = _hideToolbar
 
-    var tabs = emptyDataSourceTyped<File>()
+    var tabs = emptyDataSourceTyped<OpenTab>()
 
     val _keyboardVisible = MutableLiveData<Boolean>()
     val keyboardVisible: LiveData<Boolean>
         get() = _keyboardVisible
+
+    val _nativeMarkdownToolbarVisible = MutableLiveData(false)
+    val nativeMarkdownToolbarVisible: LiveData<Boolean>
+        get() = _nativeMarkdownToolbarVisible
 
     val _showKeyboard = MutableLiveData<Boolean>()
     val showKeyboard: LiveData<Boolean>
@@ -55,6 +61,17 @@ class WorkspaceViewModel : ViewModel() {
     val _bottomInset = MutableLiveData<Int>()
     val bottomInset: LiveData<Int>
         get() = _bottomInset
+
+    val _takePhotoRequested = SingleMutableLiveData<Unit>()
+    val takePhotoRequested: LiveData<Unit>
+        get() = _takePhotoRequested
+
+    val _choosePhotosRequested = SingleMutableLiveData<Unit>()
+    val choosePhotosRequested: LiveData<Unit>
+        get() = _choosePhotosRequested
+
+    /** Holds staged files until the workspace copies their bytes into a paste event. */
+    private val pendingAttachments = ArrayDeque<StagedAttachment>()
 
     /** request workspace view to navigate within tab history **/
     private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
@@ -74,13 +91,18 @@ class WorkspaceViewModel : ViewModel() {
         _workspaceBackRequested.postValue(Unit)
     }
 
-    fun requestWorkspaceForward() {
-        _workspaceForwardRequested.postValue(Unit)
-    }
-
     fun notifyBackGestureStarted() {
         _backGestureStarted.postValue(Unit)
     }
+
+    internal fun enqueueAttachment(attachment: StagedAttachment) {
+        pendingAttachments.addLast(attachment)
+    }
+
+    internal fun nextAttachment(): StagedAttachment? = pendingAttachments.firstOrNull()
+
+    /** Removes the file after native code has copied it (or rejected it). */
+    internal fun removeNextAttachment(): StagedAttachment? = pendingAttachments.pollFirst()
 
     fun openFile(request: OpenFileRequest) {
         _openFile.value = request
@@ -105,12 +127,18 @@ enum class OpenFilePresentation {
 data class WorkspaceTab(
     val id: String,
     val type: WorkspaceTabType,
+    val sessionId: String = NULL_UUID,
 ) {
     companion object {
         // Helper to represent the "empty" or default welcome state
         val welcome = WorkspaceTab(NULL_UUID, WorkspaceTabType.Welcome)
     }
 }
+
+data class OpenTab(
+    val sessionId: String,
+    val file: File,
+)
 
 enum class WorkspaceTabType(
     val value: Int,

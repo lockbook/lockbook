@@ -23,8 +23,8 @@ struct WorkspaceTabsList: View {
 
     let fileTreeModel: FileTreeModel
 
-    @State private var tabIds: [UUID] = []
-    @State private var recentlyClosed: [UUID] = []
+    @State private var tabs: [WorkspaceTabInfo] = []
+    @State private var recentlyClosed: [WorkspaceTabInfo] = []
     @State private var selection = SelectionModel()
     @State private var dropTargetId: UUID? = nil
     @State private var endZoneTargeted = false
@@ -34,19 +34,19 @@ struct WorkspaceTabsList: View {
 
     var body: some View {
         Group {
-            if tabIds.isEmpty, recentlyClosed.isEmpty {
+            if tabs.isEmpty, recentlyClosed.isEmpty {
                 emptyTabs
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        if tabIds.isEmpty {
+                        if tabs.isEmpty {
                             emptyTabs
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 28)
                         } else {
-                            ForEach(tabIds, id: \.self) { id in
-                                tabRow(id)
+                            ForEach(tabs) { tab in
+                                tabRow(tab)
                             }
                         }
 
@@ -60,8 +60,8 @@ struct WorkspaceTabsList: View {
                                 .padding(.top, 14)
                                 .padding(.leading, 10)
 
-                            ForEach(recentlyClosed, id: \.self) { id in
-                                recentlyClosedRow(id)
+                            ForEach(recentlyClosed) { tab in
+                                recentlyClosedRow(tab)
                             }
                         }
                     }
@@ -78,6 +78,9 @@ struct WorkspaceTabsList: View {
         }
         .onAppear(perform: refresh)
         .onChange(of: workspaceOutput.tabCount) {
+            refresh()
+        }
+        .onChange(of: workspaceOutput.currentSession) {
             refresh()
         }
         .onChange(of: workspaceOutput.openDoc) {
@@ -138,7 +141,7 @@ struct WorkspaceTabsList: View {
             .disabled(selection.selectedIds.isEmpty)
             .padding(.bottom, 10)
             .transition(.move(edge: .bottom).combined(with: .opacity))
-        } else if !tabIds.isEmpty {
+        } else if !tabs.isEmpty {
             Button {
                 workspaceInput.closeAllTabs()
             } label: {
@@ -173,9 +176,10 @@ struct WorkspaceTabsList: View {
         .padding(.horizontal, 20)
     }
 
-    private func tabRow(_ id: UUID) -> some View {
-        let isCurrent = id == workspaceOutput.openDoc
-        let name = filesModel.idsToFiles[id]?.name ?? "unknown"
+    private func tabRow(_ tab: WorkspaceTabInfo) -> some View {
+        let id = tab.id
+        let isCurrent = id == workspaceOutput.currentSession
+        let name = tabName(tab)
 
         return HStack(spacing: 8) {
             SelectionIndicator(selection: selection, id: id)
@@ -186,7 +190,7 @@ struct WorkspaceTabsList: View {
                 .padding(.vertical, 8)
                 .padding(.trailing, 2)
 
-            Image(systemName: FileIconHelper.docNameToSystemImageName(name: name))
+            Image(systemName: tabIcon(tab, name: name))
                 .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary)
 
             Text(name)
@@ -194,10 +198,10 @@ struct WorkspaceTabsList: View {
                 .truncationMode(.tail)
                 .onTapGesture {
                     selection.handleTap(id: id, orderedIds: { tabIds }) {
-                        if isCurrent {
-                            renameTarget = filesModel.idsToFiles[id]
+                        if isCurrent, let fileId = tab.destFile {
+                            renameTarget = filesModel.idsToFiles[fileId]
                         } else {
-                            workspaceInput.openFile(id: id)
+                            workspaceInput.activateTab(id: id)
                         }
                     }
                 }
@@ -206,7 +210,7 @@ struct WorkspaceTabsList: View {
 
             if !selection.selecting {
                 Button {
-                    workspaceInput.closeDoc(id: id)
+                    workspaceInput.closeTab(id: id)
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
@@ -226,7 +230,7 @@ struct WorkspaceTabsList: View {
         .contentShape(Rectangle())
         .onTapGesture {
             selection.handleTap(id: id, orderedIds: { tabIds }) {
-                workspaceInput.openFile(id: id)
+                workspaceInput.activateTab(id: id)
             }
         }
         .onMiddleClick {
@@ -234,7 +238,7 @@ struct WorkspaceTabsList: View {
         }
         .selectSwipe(selection, id: id)
         .contextMenu {
-            tabMenu(id)
+            tabMenu(tab)
         }
         .draggable(TabDragItem(id: id))
         .dropDestination(for: TabDragItem.self) { items, _ in
@@ -271,7 +275,8 @@ struct WorkspaceTabsList: View {
     }
 
     @ViewBuilder
-    private func tabMenu(_ id: UUID) -> some View {
+    private func tabMenu(_ tab: WorkspaceTabInfo) -> some View {
+        let id = tab.id
         if selection.selecting {
             contextMenuItem("Done Selecting", systemImage: "checkmark.circle.fill") {
                 withAnimation {
@@ -279,9 +284,9 @@ struct WorkspaceTabsList: View {
                 }
             }
         } else {
-            if supportsMultipleWindows {
+            if supportsMultipleWindows, let fileId = tab.destFile, tab.destKind == .file {
                 contextMenuItem("Open in New Window", systemImage: "macwindow.badge.plus") {
-                    openWindow(id: documentWindowId, value: id)
+                    openWindow(id: documentWindowId, value: fileId)
                 }
 
                 Divider()
@@ -294,17 +299,17 @@ struct WorkspaceTabsList: View {
             contextMenuItem("Close Others", systemImage: "xmark.square") {
                 close(tabIds.filter { $0 != id })
             }
-            .disabled(tabIds.count < 2)
+            .disabled(tabs.count < 2)
 
             contextMenuItem("Close Above", systemImage: "arrow.up.to.line") {
                 closeAbove(id)
             }
-            .disabled(tabIds.first == id)
+            .disabled(tabs.first?.id == id)
 
             contextMenuItem("Close Below", systemImage: "arrow.down.to.line") {
                 closeBelow(id)
             }
-            .disabled(tabIds.last == id)
+            .disabled(tabs.last?.id == id)
 
             contextMenuItem("Close All", systemImage: "xmark.circle") {
                 workspaceInput.closeAllTabs()
@@ -312,8 +317,10 @@ struct WorkspaceTabsList: View {
 
             Divider()
 
-            contextMenuItem("Rename", systemImage: "pencil") {
-                renameTarget = filesModel.idsToFiles[id]
+            if let fileId = tab.destFile, tab.destKind == .file {
+                contextMenuItem("Rename", systemImage: "pencil") {
+                    renameTarget = filesModel.idsToFiles[fileId]
+                }
             }
 
             contextMenuItem("Reopen Closed Tab", systemImage: "arrow.uturn.left") {
@@ -331,8 +338,8 @@ struct WorkspaceTabsList: View {
         }
     }
 
-    private func recentlyClosedRow(_ id: UUID) -> some View {
-        let name = filesModel.idsToFiles[id]?.name ?? "unknown"
+    private func recentlyClosedRow(_ tab: WorkspaceTabInfo) -> some View {
+        let name = tabName(tab)
 
         return HStack(spacing: 8) {
             Image(systemName: "line.3.horizontal")
@@ -356,12 +363,12 @@ struct WorkspaceTabsList: View {
         .padding(.horizontal, 8)
         .contentShape(Rectangle())
         .onTapGesture {
-            workspaceInput.reopenClosedFile(id: id)
+            workspaceInput.reopenClosedTab(id: tab.id)
             withAnimation {
                 refresh()
             }
         }
-        .draggable(TabDragItem(id: id))
+        .draggable(TabDragItem(id: tab.id))
     }
 
     private var closeCountLabel: String {
@@ -371,24 +378,44 @@ struct WorkspaceTabsList: View {
 
     private func close(_ ids: [UUID]) {
         for id in ids {
-            workspaceInput.closeDoc(id: id)
+            workspaceInput.closeTab(id: id)
+        }
+    }
+
+    private var tabIds: [UUID] {
+        tabs.map(\.id)
+    }
+
+    private func tabName(_ tab: WorkspaceTabInfo) -> String {
+        if tab.destKind == .file, let fileId = tab.destFile {
+            return filesModel.idsToFiles[fileId]?.name ?? tab.displayName
+        }
+        return tab.displayName
+    }
+
+    private func tabIcon(_ tab: WorkspaceTabInfo, name: String) -> String {
+        switch tab.destKind {
+        case .search: "magnifyingglass"
+        case .mindMap: "point.3.connected.trianglepath.dotted"
+        case .spaceInspector: "chart.pie"
+        case .file: FileIconHelper.docNameToSystemImageName(name: name)
         }
     }
 
     private func closeAbove(_ id: UUID) {
-        guard let index = tabIds.firstIndex(of: id) else {
+        guard let index = tabs.firstIndex(where: { $0.id == id }) else {
             return
         }
 
-        close(Array(tabIds[..<index]))
+        close(tabs[..<index].map(\.id))
     }
 
     private func closeBelow(_ id: UUID) {
-        guard let index = tabIds.firstIndex(of: id) else {
+        guard let index = tabs.firstIndex(where: { $0.id == id }) else {
             return
         }
 
-        close(Array(tabIds[(index + 1)...]))
+        close(tabs[(index + 1)...].map(\.id))
     }
 
     private func closeSelected() {
@@ -416,16 +443,16 @@ struct WorkspaceTabsList: View {
             return false
         }
 
-        let targetIndex = target.flatMap { tabIds.firstIndex(of: $0) } ?? tabIds.count
+        let targetIndex = target.flatMap { id in tabs.firstIndex(where: { $0.id == id }) } ?? tabs.count
 
-        guard let from = tabIds.firstIndex(of: dragged) else {
-            guard recentlyClosed.contains(dragged) else {
+        guard let from = tabs.firstIndex(where: { $0.id == dragged }) else {
+            guard recentlyClosed.contains(where: { $0.id == dragged }) else {
                 return false
             }
 
-            workspaceInput.reopenClosedFile(id: dragged)
+            workspaceInput.reopenClosedTab(id: dragged)
             // Reopen may insert mid-strip; move to the drop target if needed.
-            let openIds = workspaceInput.getTabsIds()
+            let openIds = workspaceInput.getTabs().map(\.id)
             if let reopenedFrom = openIds.firstIndex(of: dragged), reopenedFrom != targetIndex {
                 let to = reopenedFrom < targetIndex ? targetIndex - 1 : targetIndex
                 if to != reopenedFrom, to >= 0, to < openIds.count {
@@ -446,7 +473,7 @@ struct WorkspaceTabsList: View {
         }
 
         withAnimation {
-            tabIds.move(fromOffsets: [from], toOffset: targetIndex)
+            tabs.move(fromOffsets: [from], toOffset: targetIndex)
         }
         workspaceInput.moveTab(from: from, to: to)
 
@@ -462,13 +489,19 @@ struct WorkspaceTabsList: View {
     }
 
     private func refresh() {
-        tabIds = workspaceInput.getTabsIds()
+        tabs = workspaceInput.getTabs()
         canNavBack = workspaceInput.canNavBack()
         canNavForward = workspaceInput.canNavForward()
 
-        let open = Set(tabIds)
-        recentlyClosed = workspaceInput.getRecentlyClosedTabs()
-            .filter { filesModel.idsToFiles[$0] != nil && !open.contains($0) }
+        let open = Set(tabs.map(\.id))
+        recentlyClosed = workspaceInput.getRecentlyClosedTabs().filter { tab in
+            guard !open.contains(tab.id) else { return false }
+            if tab.destKind == .file {
+                guard let fileId = tab.destFile else { return false }
+                return filesModel.idsToFiles[fileId] != nil
+            }
+            return true
+        }
     }
 }
 

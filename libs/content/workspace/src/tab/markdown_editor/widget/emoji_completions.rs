@@ -1,17 +1,23 @@
-use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, Vec2};
+use std::collections::HashSet;
+
+use egui::{Context, Id, Key, Modifiers, Sense, Ui};
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::TextBufferArea;
+use crate::style::ThemeExt as _;
 use crate::tab::markdown_editor::MdEdit;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
-use crate::tab::markdown_editor::widget::completion_popup_rect;
+use crate::tab::markdown_editor::widget::{
+    completion_font, completion_line_h, completion_popup_rect, completion_popup_size,
+    completion_row_rects, completion_text_rect,
+};
 use crate::widgets::GlyphonLabel;
 
 const MAX_RESULTS: usize = 5;
-const MIN_QUERY_LEN: usize = 2;
-const POPUP_PADDING: f32 = 24.0; // 8 left + 8 gap + 8 right
 
 #[derive(Default)]
 pub struct EmojiCompletions {
@@ -57,7 +63,7 @@ impl EmojiCompletions {
             return;
         }
 
-        let has_results = !search(&query).is_empty();
+        let has_results = !results_for(buffer, &query).is_empty();
         self.active = has_results;
         // +1 to skip the opening colon
         self.search_term_range =
@@ -89,7 +95,7 @@ impl EmojiCompletions {
         if self.suppressed.as_deref() == Some(query.as_str()) {
             return;
         }
-        let results = search(&query);
+        let results = results_for(buffer, &query);
         if results.is_empty() {
             return;
         }
@@ -194,14 +200,9 @@ fn detect_query(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
         let g = grapheme_at(buffer, i);
 
         if g == ":" {
-            // Don't trigger when ':' immediately follows a word character, so
-            // tokens like "http://", "e.g.:", or "v1.0:" are ignored.
-            if i > 0
-                && grapheme_at(buffer, i - 1)
-                    .chars()
-                    .next()
-                    .is_some_and(|c| c.is_alphanumeric())
-            {
+            // Don't trigger when ':' is phrase punctuation after a word, including
+            // a word wrapped in markdown: `**word**:`, `*word*:`, `` `code`: ``.
+            if colon_follows_word(buffer, i) {
                 return None;
             }
             colon_idx = i;
@@ -241,18 +242,96 @@ fn detect_query(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
     Some((Grapheme(colon_idx), Grapheme(j)))
 }
 
+/// Closers that wrap a word immediately before a colon (`**word**:`, `[label]:`).
+fn is_markup_closer(c: char) -> bool {
+    matches!(c, '*' | '_' | '~' | '`' | ')' | ']' | '"' | '\'')
+}
+
+/// True when `:` follows a word (possibly wrapped in emphasis/code/link markup).
+fn colon_follows_word(buffer: &Buffer, colon_idx: usize) -> bool {
+    let mut k = colon_idx;
+    while k > 0 {
+        let Some(c) = grapheme_at(buffer, k - 1).chars().next() else {
+            break;
+        };
+        if is_markup_closer(c) {
+            k -= 1;
+            continue;
+        }
+        return c.is_alphanumeric();
+    }
+    false
+}
+
 fn query_from_range(buffer: &Buffer, range: (Grapheme, Grapheme)) -> Option<String> {
     let raw = &buffer[range];
-    // Strip surrounding colons to get the bare shortcode name.
+    // Strip surrounding colons to get the bare shortcode name. Empty (`:`) is
+    // a valid query: in-doc recents, if any.
     let query = raw.trim_matches(':').to_string();
-    if query.len() < MIN_QUERY_LEN {
-        return None;
-    }
     // A space inside means ':' was prose punctuation, not a shortcode opener.
     if query.chars().any(|c| c.is_whitespace()) {
         return None;
     }
     Some(query)
+}
+
+fn results_for(buffer: &Buffer, query: &str) -> Vec<&'static emojis::Emoji> {
+    if query.is_empty() { used_in_document(buffer) } else { search(query) }
+}
+
+/// Unique emojis already in this note, first appearance first. Stops after
+/// [`MAX_RESULTS`] so a long doc doesn't get a full scan when the list is full.
+fn used_in_document(buffer: &Buffer) -> Vec<&'static emojis::Emoji> {
+    let text = buffer.current.text.as_str();
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    let mut i = 0;
+    while i < text.len() && out.len() < MAX_RESULTS {
+        if text.as_bytes()[i] == b':' {
+            if let Some((end, code)) = parse_ascii_shortcode(&text[i..]) {
+                if let Some(e) = emojis::get_by_shortcode(code) {
+                    if seen.insert(e.as_str()) {
+                        out.push(e);
+                    }
+                }
+                i += end;
+                continue;
+            }
+        }
+        let g = text[i..].graphemes(true).next().unwrap_or("");
+        if g.is_empty() {
+            break;
+        }
+        if let Some(e) = emojis::get(g) {
+            if seen.insert(e.as_str()) {
+                out.push(e);
+            }
+        }
+        i += g.len();
+    }
+    out
+}
+
+/// `:shortcode:` starting at `s`. `shortcode` is ascii `[A-Za-z0-9_+-]`.
+fn parse_ascii_shortcode(s: &str) -> Option<(usize, &str)> {
+    let bytes = s.as_bytes();
+    if bytes.first() != Some(&b':') {
+        return None;
+    }
+    let mut j = 1;
+    while j < bytes.len() {
+        match bytes[j] {
+            b':' => {
+                if j == 1 {
+                    return None;
+                }
+                return Some((j + 1, &s[1..j]));
+            }
+            c if c.is_ascii_alphanumeric() || c == b'_' || c == b'+' || c == b'-' => j += 1,
+            _ => return None,
+        }
+    }
+    None
 }
 
 /// Returns a bool per shortcode character: true if that character was consumed
@@ -367,7 +446,7 @@ impl MdEdit {
             return;
         }
 
-        let results = search(&query);
+        let results = results_for(&self.renderer.buffer, &query);
         if results.is_empty() {
             return;
         }
@@ -378,8 +457,9 @@ impl MdEdit {
         };
 
         // -- Measure content -------------------------------------------------------
-        let text_color = ui.visuals().text_color();
-        let hint_color = ui.visuals().weak_text_color();
+        let t = ui.ctx().get_lb_theme();
+        let text_color = t.neutral_fg();
+        let hint_color = t.neutral_fg_secondary();
         let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) { "⌘" } else { "^" };
 
         let shortcodes: Vec<&str> = results
@@ -408,8 +488,8 @@ impl MdEdit {
                 let span_refs: Vec<(&str, bool)> =
                     s.iter().map(|(t, b)| (t.as_str(), *b)).collect();
                 let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                    .font_size(self.renderer.layout.completion_font_size)
-                    .line_height(self.renderer.layout.completion_line_height);
+                    .font_size(completion_font())
+                    .line_height(completion_line_h());
                 if let Some(hint) = hints.get(i) {
                     label = label.hint(hint, hint_color);
                 }
@@ -418,28 +498,17 @@ impl MdEdit {
             .fold(0.0_f32, f32::max);
 
         // -- Position popup --------------------------------------------------------
-        let popup_width = max_width + POPUP_PADDING;
-        let popup_height = results.len() as f32 * self.renderer.layout.completion_row_height;
         let popup_rect = completion_popup_rect(
             cursor_top,
             cursor_bot,
-            Vec2::new(popup_width, popup_height),
+            completion_popup_size(max_width, results.len()),
             ui.ctx().screen_rect(),
         );
-        let popup_width = popup_rect.width();
-        self.renderer.touch_consuming_rects.push(popup_rect);
+        self.renderer
+            .touch_targets
+            .push((popup_rect, TouchTarget::Popup));
 
-        let row_rects: Vec<Rect> = (0..results.len())
-            .map(|i| {
-                Rect::from_min_size(
-                    Pos2::new(
-                        popup_rect.min.x,
-                        popup_rect.min.y + i as f32 * self.renderer.layout.completion_row_height,
-                    ),
-                    Vec2::new(popup_width, self.renderer.layout.completion_row_height),
-                )
-            })
-            .collect();
+        let row_rects = completion_row_rects(popup_rect, results.len());
 
         // -- Interaction -----------------------------------------------------------
         let hover_pos = ui.input(|i| i.pointer.hover_pos());
@@ -465,18 +534,13 @@ impl MdEdit {
         let mut text_areas: Vec<TextBufferArea> = Vec::new();
 
         for (idx, spans) in spans.iter().enumerate() {
-            let rect = row_rects[idx];
-            let text_top = rect.min.y + 4.0;
-            let content_rect = Rect::from_min_size(
-                Pos2::new(rect.min.x + 8.0, text_top),
-                Vec2::new(popup_width - 16.0, self.renderer.layout.completion_line_height),
-            );
+            let content_rect = completion_text_rect(row_rects[idx]);
 
             let span_refs: Vec<(&str, bool)> =
                 spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
             let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                .font_size(self.renderer.layout.completion_font_size)
-                .line_height(self.renderer.layout.completion_line_height);
+                .font_size(completion_font())
+                .line_height(completion_line_h());
             if let Some(hint) = hints.get(idx) {
                 label = label.hint(hint, hint_color);
             }
@@ -500,5 +564,68 @@ impl MdEdit {
                 shortcodes[idx],
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{detect_query, parse_ascii_shortcode, used_in_document};
+    use lb_rs::model::text::buffer::Buffer;
+
+    fn cursor_at_end(s: &str) -> Buffer {
+        let mut buffer = Buffer::from(s);
+        let end = buffer.current.segs.last_cursor_position();
+        buffer.current.selection = (end, end);
+        buffer
+    }
+
+    #[test]
+    fn colon_after_word_does_not_trigger() {
+        assert!(detect_query(&cursor_at_end("word:")).is_none());
+        assert!(detect_query(&cursor_at_end("**word**:")).is_none());
+        assert!(detect_query(&cursor_at_end("*word*:")).is_none());
+        assert!(detect_query(&cursor_at_end("_word_:")).is_none());
+        assert!(detect_query(&cursor_at_end("`code`:")).is_none());
+        assert!(detect_query(&cursor_at_end("~~strike~~:")).is_none());
+        assert!(detect_query(&cursor_at_end("[label]:")).is_none());
+        assert!(detect_query(&cursor_at_end("http://")).is_none());
+    }
+
+    #[test]
+    fn colon_after_space_or_start_does_trigger() {
+        assert!(detect_query(&cursor_at_end(":")).is_some());
+        assert!(detect_query(&cursor_at_end("word :")).is_some());
+        assert!(detect_query(&cursor_at_end("**word** :")).is_some());
+        assert!(detect_query(&cursor_at_end("word :smi")).is_some());
+    }
+
+    #[test]
+    fn empty_note_has_no_in_doc_recents() {
+        let buffer = Buffer::from("hello :");
+        assert!(used_in_document(&buffer).is_empty());
+    }
+
+    #[test]
+    fn in_doc_recents_first_appearance_and_cap() {
+        let buffer = Buffer::from(":tada: hi 🎉 more :smile: :heart: :fire: :star: :100:");
+        let got: Vec<&str> = used_in_document(&buffer)
+            .iter()
+            .map(|e| e.as_str())
+            .collect();
+        let tada = emojis::get_by_shortcode("tada").unwrap().as_str();
+        let smile = emojis::get_by_shortcode("smile").unwrap().as_str();
+        let heart = emojis::get_by_shortcode("heart").unwrap().as_str();
+        let fire = emojis::get_by_shortcode("fire").unwrap().as_str();
+        let star = emojis::get_by_shortcode("star").unwrap().as_str();
+        assert_eq!(got, vec![tada, smile, heart, fire, star]);
+    }
+
+    #[test]
+    fn parse_shortcode_token() {
+        assert_eq!(parse_ascii_shortcode(":tada: more"), Some((6, "tada")));
+        assert_eq!(parse_ascii_shortcode(":+1:"), Some((4, "+1")));
+        assert!(parse_ascii_shortcode(":").is_none());
+        assert!(parse_ascii_shortcode("::").is_none());
+        assert!(parse_ascii_shortcode("http://x").is_none());
     }
 }

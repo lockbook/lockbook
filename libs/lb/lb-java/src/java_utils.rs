@@ -131,8 +131,8 @@ pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject
         .unwrap();
 
     // trace
-    if !err.backtrace.is_empty() {
-        let msg = jni_string(env, err.backtrace);
+    if let Some(trace) = err.backtrace {
+        let msg = jni_string(env, trace.to_string());
         env.set_field(&obj, "trace", "Ljava/lang/String;", JValue::Object(&msg))
             .unwrap();
     }

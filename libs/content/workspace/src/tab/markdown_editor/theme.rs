@@ -11,8 +11,8 @@ impl MdRender {
 
         let rounding = egui::CornerRadius::same(2);
         let expansion = 0.0;
-        let bg_stroke = Stroke::new(1.0, theme.neutral_bg_tertiary());
-        let fg_stroke = Stroke::new(1.5, self.ctx.get_lb_theme().neutral_fg());
+        let bg_stroke = Stroke::new(1.0_f32, theme.neutral_bg_tertiary());
+        let fg_stroke = Stroke::new(1.5_f32, self.ctx.get_lb_theme().neutral_fg());
         ui.visuals_mut().widgets = Widgets {
             noninteractive: WidgetVisuals {
                 weak_bg_fill: theme.neutral_bg_tertiary(),

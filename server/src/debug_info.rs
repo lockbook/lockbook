@@ -1,8 +1,7 @@
 use crate::ServerError::ClientError;
+use crate::guard::ServerTx;
 use std::fmt::Debug;
-use std::ops::DerefMut;
 
-use db_rs::Db;
 use lb_rs::model::{
     account::BETA_USERS,
     api::{UpsertDebugInfoError, UpsertDebugInfoRequest},
@@ -20,7 +19,7 @@ use crate::{
         stripe_client::StripeClient,
     },
     document_service::DocumentService,
-    schema::ServerDb,
+    schema::ServerV6,
 };
 
 impl<S, A, G, D> ServerState<S, A, G, D>
@@ -35,9 +34,8 @@ where
     ) -> Result<(), ServerError<UpsertDebugInfoError>> {
         let mut lock = self.index_db.lock().await;
 
-        let db = lock.deref_mut();
-
-        let tx = db.begin_transaction()?;
+        let mut tx = ServerTx::begin(&mut lock)?;
+        let db = &mut *tx;
 
         if !Self::is_beta_user::<UpsertDebugInfoError>(db, &context.public_key) {
             return Err(ClientError(UpsertDebugInfoError::NotPermissioned));
@@ -65,7 +63,7 @@ where
             }
         }
 
-        tx.drop_safely()?;
+        tx.end()?;
 
         Ok(())
     }
@@ -117,8 +115,8 @@ where
         Ok(())
     }
 
-    pub fn is_beta_user<E: Debug>(db: &ServerDb, public_key: &PublicKey) -> bool {
-        let is_beta = match db.accounts.get().get(&Owner(*public_key)) {
+    pub fn is_beta_user<E: Debug>(db: &ServerV6, public_key: &PublicKey) -> bool {
+        let is_beta = match db.accounts.get(&Owner(*public_key)) {
             None => false,
             Some(account) => BETA_USERS.contains(&account.username.as_str()),
         };

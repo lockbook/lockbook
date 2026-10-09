@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<com.google.android.material.listitem.ListItemLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="12dp"
+    android:layout_marginVertical="1dp"
+    tools:ignore="UnusedAttribute">
+
+    <com.google.android.material.listitem.ListItemCardView
+        android:id="@+id/file_sort_holder"
+        style="?attr/listItemCardViewSegmentedStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/file_sort_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="@color/file_tree_item_text_color"
+                tools:text="Date modified" />
+
+            <FrameLayout
+                android:layout_width="49dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="4dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/file_sort_arrow"
+                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:contentDescription="@string/sort_descending"
+                    app:icon="@drawable/ic_baseline_arrow_down_24" />
+
+                <View
+                    android:id="@+id/file_sort_popup_anchor"
+                    android:layout_width="1dp"
+                    android:layout_height="1dp"
+                    android:layout_gravity="end|top"
+                    android:background="@android:color/transparent"
+                    android:importantForAccessibility="no" />
+
+            </FrameLayout>
+
+        </LinearLayout>
+
+    </com.google.android.material.listitem.ListItemCardView>
+
+</com.google.android.material.listitem.ListItemLayout>

@@ -1,16 +1,18 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{Pos2, Rect, Stroke, Ui, UiBuilder, Vec2};
+use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     Grapheme, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
+use crate::style::chrome::HOVER_ANIM_SECS;
+use crate::style::{
+    FG_HOVER, FG_PRESS, Radius, ThemeExt as _, phosphor, phosphor_font_id, sense_click, tip_text,
+};
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
-
-use crate::theme::icons::Icon;
-use crate::theme::palette_v2::ThemeExt as _;
-use crate::widgets::IconButton;
 
 impl<'ast> MdRender {
     pub fn heading_row_height(&self, level: u8) -> f32 {
@@ -205,17 +207,14 @@ impl<'ast> MdRender {
                 || fold_button_space.contains(pointer)
                 || self.fold(node).is_some()
                 || self.selected_block(node));
-        if !show_fold_button {
-            return;
+        if show_fold_button {
+            self.show_fold_button(
+                ui,
+                node,
+                (fold_button_size, fold_button_icon_size, fold_button_space),
+                self.heading_fold_reveal(node),
+            );
         }
-
-        self.show_fold_button(
-            ui,
-            node,
-            (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.heading_contents(node),
-            self.heading_fold_reveal(node),
-        );
     }
 
     // https://github.github.com/gfm/#setext-headings
@@ -428,47 +427,70 @@ impl<'ast> MdRender {
 
     pub fn show_fold_button(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, size_icon_size_space: (f32, f32, Rect),
-        contents: (Grapheme, Grapheme), fold_reveal: bool,
+        fold_reveal: bool,
     ) {
-        let (size, icon_size, space) = size_icon_size_space;
-        self.touch_consuming_rects.push(space);
+        let (_size, icon_size, space) = size_icon_size_space;
+        let folded = self.fold(node).is_some();
+        let toggle = Event::ToggleFold { node: Some(self.node_range(node)) };
+        // A finger's target: the gutter around the button, the row's height.
+        let target =
+            Rect::from_min_max(space.min - Vec2::new(6.0, 4.0), space.max + Vec2::new(6.0, 4.0));
+        self.touch_targets
+            .push((target, TouchTarget::Tap(toggle.clone())));
 
-        if self.fold(node).is_some() {
-            // Non-advancing child: this paints for off-screen neighbor rows
-            // too, and advancing the layout cursor there displaces siblings
-            // laid out after the editor (the mobile toolbar, #4892).
-            let ui = &mut ui.new_child(UiBuilder::new().max_rect(space));
-            {
-                let theme = self.ctx.get_lb_theme();
-                let icon = Icon::CHEVRON_RIGHT.size(icon_size).color(if fold_reveal {
-                    theme.neutral_fg_secondary()
-                } else {
-                    theme.fg().get_color(theme.prefs().primary)
-                });
-                if IconButton::new(icon)
-                    .size(size)
-                    .tooltip("Show Contents")
-                    .show(ui)
-                    .clicked()
-                {
-                    self.apply_fold(node, contents, true);
-                }
-            }
-        } else if self.foldable(node).is_some() {
-            let ui = &mut ui.new_child(UiBuilder::new().max_rect(space));
-            {
-                let icon = Icon::CHEVRON_DOWN
-                    .size(icon_size)
-                    .color(self.ctx.get_lb_theme().neutral_fg_secondary());
-                if IconButton::new(icon)
-                    .size(size)
-                    .tooltip("Hide Contents")
-                    .show(ui)
-                    .clicked()
-                {
-                    self.apply_fold(node, contents, false);
-                }
-            }
+        if !folded && self.foldable(node).is_none() {
+            return;
+        }
+
+        // Interact on the gutter rect — do not allocate in the parent ui
+        // (off-screen neighbor rows would displace the mobile toolbar, #4892).
+        let range = self.node_range(node);
+        let id = ui
+            .id()
+            .with(("md_fold_btn", range.start().0, range.end().0));
+        let resp = ui.interact(space, id, sense_click());
+        if resp.hovered() {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+        }
+
+        let t = self.ctx.get_lb_theme();
+        let over = resp.hovered() || ui.ctx().rect_contains_pointer(ui.layer_id(), space);
+        let hover = if over {
+            ui.ctx()
+                .animate_bool_with_time(resp.id.with("icon_hov"), true, HOVER_ANIM_SECS)
+        } else {
+            let _ = ui
+                .ctx()
+                .animate_bool_with_time(resp.id.with("icon_hov"), false, 0.0);
+            0.0
+        };
+        if hover > 0.0 {
+            let amt = if folded && !fold_reveal { FG_PRESS * hover } else { FG_HOVER * hover };
+            ui.painter().rect_filled(
+                space,
+                Radius::Sm.corner(),
+                t.wash_toward_neutral_fg(t.neutral_bg(), amt),
+            );
+        }
+
+        let glyph = if folded { phosphor::CARET_RIGHT } else { phosphor::CARET_DOWN };
+        let color = if folded && !fold_reveal {
+            t.accent()
+        } else {
+            t.neutral_fg_secondary()
+                .lerp_to_gamma(t.neutral_fg(), hover)
+        };
+        let g = ui.painter().layout_no_wrap(
+            glyph.into(),
+            phosphor_font_id(icon_size),
+            Color32::PLACEHOLDER,
+        );
+        ui.painter()
+            .galley(space.center() - g.size() / 2.0, g, color);
+        tip_text(ui.ctx(), &resp, if folded { "Show Contents" } else { "Hide Contents" });
+
+        if resp.clicked() {
+            self.render_events.push(toggle);
         }
     }
 

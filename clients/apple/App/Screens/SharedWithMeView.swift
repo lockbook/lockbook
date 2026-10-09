@@ -213,9 +213,16 @@ struct PendingShareRowView: View {
 
     @ViewBuilder
     private var menuItems: some View {
-        if !file.isFolder, supportsMultipleWindows {
-            contextMenuItem("Open in New Window", systemImage: "macwindow.badge.plus") {
-                openInNewWindow()
+        if !file.isFolder {
+            contextMenuItem("Open in New Tab", systemImage: "plus.rectangle.on.rectangle") {
+                workspaceInput.openFile(id: file.id, newTab: true)
+                homeState.compactColumn = .detail
+            }
+
+            if supportsMultipleWindows {
+                contextMenuItem("Open in New Window", systemImage: "macwindow.badge.plus") {
+                    openInNewWindow()
+                }
             }
 
             Divider()

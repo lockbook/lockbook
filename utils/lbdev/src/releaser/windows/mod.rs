@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod desktop;
+pub mod store;
 
 use std::fs;
 use std::path::Path;

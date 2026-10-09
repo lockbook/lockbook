@@ -91,7 +91,7 @@ where
     pub fn assert_all_filenames_size_limit(&self) -> LbResult<()> {
         for file in self.all_files()? {
             if file.secret_name().encrypted_value.value.len() > MAX_ENCRYPTED_FILENAME_LENGTH {
-                return Err(LbErrKind::Validation(ValidationFailure::FileNameTooLong(*file.id())))?;
+                Err(LbErrKind::Validation(ValidationFailure::FileNameTooLong(*file.id())))?;
             }
         }
         Ok(())

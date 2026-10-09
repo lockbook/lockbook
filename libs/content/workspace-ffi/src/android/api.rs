@@ -12,6 +12,61 @@ use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
 use super::keyboard::AndroidKeys;
 use super::response::*;
 use crate::WgpuWorkspace;
+use workspace_rs::tab::markdown_editor::MarkdownToolbarAction;
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarStateNative(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let state = obj
+        .workspace
+        .current_tab_markdown_mut()
+        .map(|editor| editor.android_toolbar_state())
+        .unwrap_or_default();
+    env.new_string(serde_json::to_string(&state).expect("serialize toolbar state"))
+        .expect("create toolbar state")
+        .into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_canEditMarkdown(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .current_tab_markdown()
+        .is_some_and(|editor| !editor.edit.renderer.readonly && !editor.edit.renderer.plaintext)
+        as jboolean
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarActionNative(
+    mut env: JNIEnv, _: JClass, obj: jlong, action: JString,
+) {
+    let Ok(action) = env.get_string(&action) else { return };
+    let action: String = action.into();
+    let Ok(action) = serde_json::from_str::<MarkdownToolbarAction>(&action) else { return };
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(editor) = obj.workspace.current_tab_markdown_mut() {
+        if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
+            return;
+        }
+        let event = editor.android_toolbar_action(action);
+        obj.renderer.context.push_markdown_event(event);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setNativeMarkdownToolbarHeight(
+    _env: JNIEnv, _: JClass, obj: jlong, height: jfloat,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer.context.memory_mut(|m| {
+        m.data
+            .insert_temp(egui::Id::new("android_native_markdown_toolbar_height"), height.max(0.0))
+    });
+}
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
@@ -84,6 +139,9 @@ fn android_response_to_java<'local>(
     let doc_created = env
         .new_string(response.doc_created.to_string())
         .expect("create doc_created string");
+    let failure_message = env
+        .new_string(response.failure_message)
+        .expect("create failure message");
 
     let virtual_keyboard_shown: JObject = match response.virtual_keyboard_shown {
         Some(value) => {
@@ -98,7 +156,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZ)V",
+        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZLjava/lang/String;)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -114,9 +172,42 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.edit_menu_for_atom { 1 } else { 0 }),
             JValue::Bool(if response.selection_updated { 1 } else { 0 }),
             JValue::Bool(if response.text_updated { 1 } else { 0 }),
+            JValue::Object(&JObject::from(failure_message)),
         ],
     )
     .expect("create AndroidResponse")
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_queueFileForEditorImport(
+    mut env: JNIEnv, _: JClass, obj: jlong, path: JString, name: JString,
+) -> jboolean {
+    let parsed: Result<Vec<String>, _> = [path, name]
+        .iter()
+        .map(|s| env.get_string(s).map(Into::into))
+        .collect();
+    let Ok(parsed) = parsed else { return 0 };
+    if obj == 0 {
+        return 0;
+    }
+    let Ok(metadata) = std::fs::metadata(&parsed[0]) else { return 0 };
+    if metadata.len() == 0 || metadata.len() > workspace_rs::tab::MAX_ATTACHMENT_SIZE_BYTES as u64 {
+        return 0;
+    }
+    let Ok(data) = std::fs::read(&parsed[0]) else { return 0 };
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let Some(tab) = obj.workspace.current_tab() else { return 0 };
+    let Some(md) = tab.markdown() else { return 0 };
+    if tab.read_only || md.edit.renderer.readonly || md.edit.renderer.plaintext {
+        return 0;
+    }
+    obj.renderer
+        .context
+        .push_event(workspace_rs::tab::Event::Paste {
+            content: vec![ClipContent::NamedImage { name: parsed[1].clone(), data }],
+            position: egui::Pos2::ZERO,
+        });
+    1
 }
 
 #[no_mangle]
@@ -441,10 +532,20 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    // Always open in a new tab (pre-#4918 / mobile strip behavior). `new_file`
-    // is retained for the JNI signature used by Kotlin callers.
-    let _ = new_file;
-    obj.workspace.open_file(id, true, true);
+    obj.workspace.open_file(id, true, new_file == 1);
+    get_current_tab(obj)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_activateDoc(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
+) -> jint {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+    obj.workspace
+        .make_current_by_session(workspace_rs::tab::SessionId::from_uuid(id));
     get_current_tab(obj)
 }
 
@@ -470,14 +571,32 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    if let Some(tab_id) = obj
-        .workspace
-        .tab_strip
-        .iter()
-        .position(|s| s.dest.id() == id)
-    {
-        obj.workspace.close_tab(tab_id);
-    }
+    obj.workspace.close_tabs_for_dest(id);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeSession(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+    obj.workspace
+        .close_session(workspace_rs::tab::SessionId::from_uuid(id));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_navigateDoc(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
+) -> jint {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+    obj.workspace
+        .navigate_to(workspace_rs::tab::Destination::File(id));
+    get_current_tab(obj)
 }
 
 #[no_mangle]
@@ -532,7 +651,11 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
 ) -> jobjectArray {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let ids = obj.workspace.tab_strip.iter().map(|s| s.dest.id());
+    let ids = obj
+        .workspace
+        .tab_strip
+        .iter()
+        .map(|s| format!("{} {}", s.id.as_uuid(), s.dest.id()));
 
     let string_class = env.find_class("java/lang/String").unwrap();
 
@@ -561,16 +684,27 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
         .current_tab_id()
         .unwrap_or_default()
         .to_string();
+    let session = obj
+        .workspace
+        .current_tab
+        .map(|id| id.as_uuid())
+        .unwrap_or_default()
+        .to_string();
 
     let cls = _env
         .find_class("app/lockbook/workspace/NativeWorkspaceTab")
         .expect("find NativeWorkspaceTab class");
     let id = _env.new_string(id).expect("create tab id string");
+    let session = _env.new_string(session).expect("create session id string");
 
     _env.new_object(
         cls,
-        "(Ljava/lang/String;I)V",
-        &[JValue::Object(&JObject::from(id)), JValue::Int(tab_type)],
+        "(Ljava/lang/String;ILjava/lang/String;)V",
+        &[
+            JValue::Object(&JObject::from(id)),
+            JValue::Int(tab_type),
+            JValue::Object(&JObject::from(session)),
+        ],
     )
     .expect("create NativeWorkspaceTab")
     .into_raw()
@@ -599,10 +733,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_unfocusTitle(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    if let Some(dest) = obj.workspace.current_tab.clone() {
-        if let Some(slot) = obj.workspace.tab_strip.iter_mut().find(|s| s.dest == dest) {
-            slot.rename = None;
-        }
+    if let Some(tab_id) = obj.workspace.current_tab {
+        obj.workspace.clear_tab_rename(tab_id);
     }
 }
 

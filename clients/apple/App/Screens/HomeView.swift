@@ -71,6 +71,9 @@ struct HomeView: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .sidebarToggle)
+                    .navigationBarBackButtonHidden(
+                        horizontalSizeClass == .compact && workspaceOutput.currentSession != nil
+                    )
                 #else
                     .background {
                         DetailWidthReader { detailWidth = $0 }
@@ -84,7 +87,19 @@ struct HomeView: View {
                     }
 
                     #if os(iOS)
-                        if horizontalSizeClass == .regular,
+                        if horizontalSizeClass == .compact, workspaceOutput.currentSession != nil {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button {
+                                    if workspaceInput.canNavBack() {
+                                        workspaceInput.navBack()
+                                    } else {
+                                        homeState.compactColumn = .sidebar
+                                    }
+                                } label: {
+                                    Image(systemName: "chevron.left")
+                                }
+                            }
+                        } else if horizontalSizeClass == .regular,
                            homeState.splitViewVisibility != .all,
                            !keyboardVisible
                         {
@@ -213,10 +228,16 @@ struct HomeView: View {
         }
         .onAppear {
             workspaceInput.setSidebarOpen(nativeSidebarOpen)
+            applyDesktopTabPolicy()
         }
         .onChange(of: nativeSidebarOpen) { _, open in
             workspaceInput.setSidebarOpen(open)
         }
+        #if os(iOS)
+            .onChange(of: horizontalSizeClass) {
+                applyDesktopTabPolicy()
+            }
+        #endif
         .onChange(of: AppState.lb.events.status, initial: true) { _, status in
             filesModel.recomputeStatusDots(status: status)
             reconcileSyncPill()
@@ -258,6 +279,24 @@ struct HomeView: View {
                     .frame(minWidth: 420, minHeight: 520)
                 #endif
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .findInDocument)) { _ in
+            workspaceInput.showFindInDoc()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .searchEverywhere)) { _ in
+            #if os(iOS)
+                searchModel.mode = .content
+                searchEverywhere()
+            #endif
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openByName)) { _ in
+            #if os(iOS)
+                searchModel.mode = .path
+                searchEverywhere()
+            #endif
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .closeActiveTab)) { _ in
+            workspaceInput.closeActiveTab()
         }
         .onReceive(NotificationCenter.default.publisher(for: .createNewFile)) { _ in
             #if os(macOS)
@@ -450,6 +489,7 @@ struct HomeView: View {
                 homeState.compactColumn = .sidebar
                 homeState.splitViewVisibility = .all
             }
+            NotificationCenter.default.post(name: .focusSearchField, object: nil)
         }
 
         private var tabsDrawer: some View {
@@ -856,6 +896,14 @@ struct HomeView: View {
         }
     }
 
+    private func applyDesktopTabPolicy() {
+        #if os(iOS)
+            workspaceInput.setDesktopTabPolicy(horizontalSizeClass == .regular)
+        #else
+            workspaceInput.setDesktopTabPolicy(true)
+        #endif
+    }
+
     private var detailTitle: String {
         #if os(macOS)
             openDocFile == nil ? "Lockbook" : ""
@@ -872,7 +920,8 @@ struct HomeView: View {
         } else {
             WorkspaceView()
                 .frame(minWidth: 5, minHeight: 5)
-                .ignoresSafeArea(.keyboard)
+                // One modifier: the view keeps its height across keyboard transitions.
+                .ignoresSafeArea(.all, edges: .bottom)
         }
     }
 }

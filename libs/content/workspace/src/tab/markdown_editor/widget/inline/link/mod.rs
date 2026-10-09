@@ -14,6 +14,8 @@ use lb_rs::model::text::operation_types::Operation;
 use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
+use crate::style::{phosphor, phosphor_font_id};
+use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
@@ -22,7 +24,6 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
-use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
@@ -282,8 +283,8 @@ impl<'ast> MdRender {
                     ui.painter().text(
                         icon_rect.center(),
                         egui::Align2::CENTER_CENTER,
-                        Icon::LINK.icon,
-                        egui::FontId::monospace(size),
+                        phosphor::LINK,
+                        phosphor_font_id(size),
                         self.ctx.get_lb_theme().neutral_fg_secondary(),
                     );
                 }
@@ -316,11 +317,11 @@ impl<'ast> MdRender {
         self.link_resolver.resolve_link(url)
     }
 
-    /// Open `url` in a new tab, navigating in-app for internal file links and
-    /// to the browser otherwise. Shared by link and image interaction handlers.
-    pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context) {
+    /// Open `url` in-app for internal file links and in the browser otherwise.
+    /// `new_tab` is only for an explicit new-tab request (cmd-click / multi-open).
+    pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context, new_tab: bool) {
         match self.resolve_link(url) {
-            Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, true),
+            Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, new_tab),
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
@@ -418,8 +419,8 @@ impl<'ast> MdRender {
         }
     }
 
-    /// Hover → `PointingHand` + Warning/Broken tooltip; click → open
-    /// in a new tab. The producer's interaction scope is the gate: cmd
+    /// Hover → `PointingHand` + Warning/Broken tooltip; click → navigate
+    /// in place. The producer's interaction scope is the gate: cmd
     /// held (desktop), read-only, or touch — where the click instead
     /// selects the link and pops the menu ([`MdEdit::handle_link_menu_taps`]).
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
@@ -432,10 +433,13 @@ impl<'ast> MdRender {
             };
             let id = parent_base.with(Self::link_interaction_id_salt(self.node_range(node)));
 
-            // iOS routes touches through `touch_consuming_rects` —
-            // without these entries a tap on the open-link button would
-            // place the cursor instead of reaching the click handler below.
-            self.touch_consume_interaction(id);
+            let open = Event::OpenLink { url: url.clone(), wikilink: is_wikilink };
+            let tap = if self.readonly {
+                open.clone()
+            } else {
+                Event::Select { region: self.node_range(node).into() }
+            };
+            self.touch_consume_interaction(id, TouchTarget::Tap(tap));
 
             let Some(response) = self.interaction_responses.get(&id) else {
                 continue;
@@ -465,13 +469,7 @@ impl<'ast> MdRender {
             }
 
             if response.clicked() && (self.readonly || !self.touch_mode) {
-                if is_wikilink {
-                    if let Some(file_id) = self.resolve_wikilink(&url) {
-                        ui.ctx().open_file(file_id, true);
-                    }
-                } else {
-                    self.open_resolved_link(&url, ui.ctx());
-                }
+                self.render_events.push(open);
                 return;
             }
         }
@@ -730,7 +728,7 @@ fn alone_on_line<'a>(
     true
 }
 
-/// A choice from the desktop link context menu ([`link_menu_buttons`]).
+/// A choice from the desktop link context menu ([`fill_link_menu`]).
 #[derive(Clone, Copy)]
 pub enum LinkMenuAction {
     Open,
@@ -753,32 +751,30 @@ pub struct LinkMenuTarget {
 
 /// The link section of a desktop context menu; `editable` gates "Edit",
 /// `refreshable` gates "Refresh Preview" (rendered previews only).
-pub fn link_menu_buttons(
-    ui: &mut egui::Ui, is_image: bool, editable: bool, refreshable: bool,
-) -> Option<LinkMenuAction> {
-    let mut action = None;
+///
+/// `map` wraps each [`LinkMenuAction`] so a host menu can mix link items with
+/// Cut / Copy / Paste without a second entry list.
+pub fn fill_link_menu<T>(
+    e: &mut crate::style::context_menu::Entries<T>, is_image: bool, editable: bool,
+    refreshable: bool, map: impl Fn(LinkMenuAction) -> T,
+) {
     let (open, copy, edit) = if is_image {
         ("Open Image", "Copy URL", "Edit Image")
     } else {
         ("Open Link", "Copy Link", "Edit Link")
     };
-    if ui.button(open).clicked() {
-        action = Some(LinkMenuAction::Open);
-        ui.close();
+    e.item(crate::style::phosphor::ARROW_SQUARE_OUT, open, map(LinkMenuAction::Open));
+    e.item(crate::style::phosphor::COPY, copy, map(LinkMenuAction::Copy));
+    if editable {
+        e.item(crate::style::phosphor::PENCIL, edit, map(LinkMenuAction::Edit));
     }
-    if ui.button(copy).clicked() {
-        action = Some(LinkMenuAction::Copy);
-        ui.close();
+    if refreshable {
+        e.item(
+            crate::style::phosphor::ARROWS_CLOCKWISE,
+            "Refresh Preview",
+            map(LinkMenuAction::Refresh),
+        );
     }
-    if editable && ui.button(edit).clicked() {
-        action = Some(LinkMenuAction::Edit);
-        ui.close();
-    }
-    if refreshable && ui.button("Refresh Preview").clicked() {
-        action = Some(LinkMenuAction::Refresh);
-        ui.close();
-    }
-    action
 }
 
 impl<'ast> MdEdit {

@@ -157,7 +157,7 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
             r.frame_reset = true;
         }
 
-        let pending: Vec<_> = r.layers[idx].pending.drain(..).collect();
+        let pending: Vec<_> = std::mem::take(&mut r.layers[idx].pending);
         if pending.is_empty() {
             return Vec::new();
         }

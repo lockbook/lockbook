@@ -15,6 +15,7 @@ import app.lockbook.R
 import app.lockbook.databinding.FileSelectionActionButtonBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.FileTreeViewModel
+import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
 import app.lockbook.model.TransientScreen
 import com.google.android.material.color.MaterialColors
@@ -35,6 +36,11 @@ internal enum class FileSelectionAction(
     val destructive: Boolean = false,
 ) {
     Rename(R.string.menu_list_files_rename, R.drawable.ic_baseline_text_format_24, singleSelectionOnly = true),
+    OpenInNewTab(
+        R.string.menu_list_files_open_in_new_tab,
+        R.drawable.ic_outline_tab_24,
+        documentOnly = true,
+    ),
     Duplicate(
         R.string.duplicate,
         R.drawable.baseline_content_copy_24,
@@ -52,7 +58,7 @@ internal enum class FileSelectionAction(
     fun isAvailableFor(files: List<File>): Boolean =
         files.isNotEmpty() &&
             (!singleSelectionOnly || files.size == 1) &&
-            (!documentOnly || files.singleOrNull()?.type == File.FileType.Document)
+            (!documentOnly || files.any { it.type == File.FileType.Document })
 }
 
 internal class FileSelectionBottomBarController(
@@ -170,6 +176,15 @@ internal class FileSelectionActionDispatcher(
 
             FileSelectionAction.Rename -> {
                 files.singleOrNull()?.let { mainScreenModel.launchTransientScreen(TransientScreen.Rename(it)) }
+            }
+
+            FileSelectionAction.OpenInNewTab -> {
+                files
+                    .filter { it.type == File.FileType.Document }
+                    .forEach { file ->
+                        mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = true))
+                    }
+                onClearSelection()
             }
 
             FileSelectionAction.Duplicate -> {

@@ -28,7 +28,7 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use serde_json::json;
 
 use crate::GlyphonRendererCallback;
-use crate::file_cache::FileCache;
+use crate::file_cache::{FileCache, FilesExt};
 use crate::resolvers::FileCacheLinkResolver;
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
 use crate::theme::icons::Icon;
@@ -364,6 +364,13 @@ pub struct Chat {
     /// (iOS) text bridge didn't originate — a send-clear, edit-prefill, or
     /// stash-restore — so we tell it to re-sync its caret.
     composer_seq: usize,
+    /// `MdRender::text_seq` last frame. Unlike `composer_seq`, this ignores
+    /// caret-only changes — send-clear must report `text_updated` so iOS
+    /// drops UITextPositions from the message that was just sent.
+    composer_text_seq: u64,
+    /// Whether the connect step's key field was the focused field last
+    /// frame; a switch is a new text for the bridge.
+    key_field_shown: bool,
     /// Sending while scrolled up jumps back to the bottom (which also
     /// re-sticks the scroll). Set on submit, consumed next frame.
     scroll_to_bottom: bool,
@@ -675,6 +682,8 @@ impl Chat {
             key_field_hit_rect: Rect::NOTHING,
             composer_rect: Rect::NOTHING,
             composer_seq: 0,
+            composer_text_seq: 0,
+            key_field_shown: false,
             scroll_to_bottom: false,
             branch_choice: HashMap::new(),
             branch_anchor: None,
@@ -860,6 +869,11 @@ impl Chat {
 
     /// The editor the native (iOS) text bridge should target: the masked key
     /// field while the connect step is open, otherwise the composer.
+    /// The composer is the focused field (not the connect step's key field).
+    pub fn composing(&self) -> bool {
+        self.key_entry.is_none()
+    }
+
     pub fn focused_field(&mut self) -> &mut MdEdit {
         if self.key_entry.is_some() { &mut self.key_field } else { &mut self.composer }
     }
@@ -1528,7 +1542,7 @@ fn tool_errored(msg: &Message) -> bool {
 /// Whether a file (or any ancestor) is shared — a shared chat is a group
 /// conversation, which gets no agent.
 fn is_shared(files: &FileCache, mut id: Uuid) -> bool {
-    while let Some(f) = files.files.get(&id) {
+    while let Some(f) = files.get_by_id(id) {
         if !f.shares.is_empty() {
             return true;
         }

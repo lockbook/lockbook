@@ -9,36 +9,32 @@ async fn rename_document() {
     let account = core.get_account().unwrap();
 
     let doc = core.create_at_path("test.md").await.unwrap().id;
-    let doc = local(&core)
+    let doc = core
         .begin_tx()
         .await
         .db()
         .local_metadata
-        .get()
         .get(&doc)
         .unwrap()
         .clone();
-    local(&core)
-        .client
-        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] })
+    core.client
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] })
         .await
         .unwrap();
 
     let old = doc.clone();
     core.rename_file(doc.id(), &random_name()).await.unwrap();
-    let new = local(&core)
+    let new = core
         .begin_tx()
         .await
         .db()
         .local_metadata
-        .get()
         .get(doc.id())
         .unwrap()
         .clone();
 
-    local(&core)
-        .client
-        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::edit(old, new)] })
+    core.client
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(old, new)] })
         .await
         .unwrap();
 }

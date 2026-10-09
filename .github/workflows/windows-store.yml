@@ -1,0 +1,52 @@
+name: Windows Store Package
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  pack-x64:
+    if: github.repository == 'lockbook/lockbook'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack x64 MSIX
+        run: cargo run -p lbdev -- releaser windows store-pack
+      - name: Upload x64 MSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix-x64
+          path: windows-build/msix/lockbook-x64.msix
+
+  pack-arm64:
+    if: github.repository == 'lockbook/lockbook'
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack arm64 MSIX
+        run: cargo run -p lbdev -- releaser windows store-pack-arm
+      - name: Upload arm64 MSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix-arm64
+          path: windows-build/msix/lockbook-arm64.msix
+
+  bundle:
+    if: github.repository == 'lockbook/lockbook'
+    needs: [pack-x64, pack-arm64]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download MSIX packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: msix-*
+          merge-multiple: true
+          path: windows-build/msix
+      - name: Bundle MSIX packages
+        run: cargo run -p lbdev -- releaser windows store-bundle
+      - name: Upload msixbundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockbook-msixbundle
+          path: windows-build/Lockbook.msixbundle

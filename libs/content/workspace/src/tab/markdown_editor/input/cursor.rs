@@ -1,6 +1,6 @@
 use std::mem;
 
-use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
+use egui::{Color32, Pos2, Rangef, Rect, Sense, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::ExtendedInput as _;
@@ -59,15 +59,25 @@ impl MdEdit {
         }
     }
 
-    /// Draws a cursor at the provided offset with the provided accent color.
+    /// Draws a caret at the provided offset.
     // todo: improve cursor rendering at the end of inline code segments and similar constructs
-    pub fn show_offset(&self, ui: &mut Ui, offset: Grapheme, accent: Color32) {
+    pub fn show_offset(
+        &self, ui: &mut Ui, offset: Grapheme, accent: Color32, time_since_interact: Option<f64>,
+    ) {
         if let Some([top, bot]) = self.cursor_line(offset) {
-            ui.painter().clone().vline(
-                top.x,
-                Rangef { min: top.y, max: bot.y },
-                Stroke::new(2., accent),
-            );
+            let paint = |alpha| {
+                crate::widgets::paint_caret(
+                    ui,
+                    top.x,
+                    Rangef::new(top.y, bot.y),
+                    accent.gamma_multiply(alpha),
+                );
+            };
+            if let Some(dt) = time_since_interact {
+                crate::widgets::with_blinking_caret(ui, dt, paint);
+            } else {
+                paint(1.0);
+            }
         }
     }
 
@@ -233,6 +243,24 @@ impl MdEdit {
         };
         let y_range = y_range.expand(self.renderer.layout.row_spacing / 2.);
         Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])
+    }
+}
+
+impl MdEdit {
+    /// [`MdRender::range_rects`] for a platform text system, which places
+    /// the end handle in the last rect. A range ending at the start of a
+    /// line selects no glyph there, so the end caret's sliver is added on
+    /// that line.
+    pub fn selection_rects(&self, range: (Grapheme, Grapheme)) -> Vec<Rect> {
+        let mut rects = self.renderer.range_rects(range);
+        if let Some([top, bottom]) = self.cursor_line(range.end()) {
+            let mid_y = (top.y + bottom.y) / 2.;
+            let covered = rects.iter().any(|r| r.y_range().contains(mid_y));
+            if !covered {
+                rects.push(Rect::from_min_max(top, Pos2::new(bottom.x + 2., bottom.y)));
+            }
+        }
+        rects
     }
 }
 

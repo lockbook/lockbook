@@ -8,13 +8,13 @@ use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::meta::Meta;
 use crate::service::events::Actor;
-use crate::{DEFAULT_API_LOCATION, LocalLb};
+use crate::{DEFAULT_API_LOCATION, Lb};
 use libsecp256k1::SecretKey;
 use qrcode_generator::QrCodeEcc;
 
 use crate::io::network::ApiError;
 
-impl LocalLb {
+impl Lb {
     /// CoreError::AccountExists,
     /// CoreError::UsernameTaken,
     /// CoreError::UsernameInvalid,
@@ -34,7 +34,7 @@ impl LocalLb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
-        if db.account.get().is_some() {
+        if db.account.as_ref().is_some() {
             return Err(LbErrKind::AccountExists.into());
         }
 
@@ -49,10 +49,10 @@ impl LocalLb {
             .await?
             .last_synced;
 
-        db.account.insert(account.clone())?;
+        db.account.replace(account.clone())?;
         db.base_metadata.insert(root_id, root)?;
-        db.last_synced.insert(last_synced as i64)?;
-        db.root.insert(root_id)?;
+        db.last_synced.replace(last_synced as i64)?;
+        db.root.replace(root_id)?;
         db.pub_key_lookup
             .insert(Owner(account.public_key()), account.username.clone())?;
 
@@ -171,7 +171,7 @@ impl LocalLb {
 
         let mut tx = self.begin_tx().await;
         let db = tx.db();
-        db.account.insert(account.clone())?;
+        db.account.replace(account.clone())?;
         self.keychain.cache_account(account.clone()).await?;
 
         Ok(account)
@@ -192,7 +192,7 @@ impl LocalLb {
 
         let mut tx = self.begin_tx().await;
         let db = tx.db();
-        db.account.insert(account.clone())?;
+        db.account.replace(account.clone())?;
         self.keychain.cache_account(account.clone()).await?;
 
         Ok(account)
@@ -204,6 +204,23 @@ impl LocalLb {
         let private_key = Account::phrase_to_private_key(phrase)?;
         self.import_account_private_key_v2(private_key, api_url)
             .await
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn export_account_private_key(&self) -> LbResult<String> {
+        let account = self.get_account()?;
+        Ok(base64::encode(account.private_key.serialize()))
+    }
+
+    pub fn export_account_phrase(&self) -> LbResult<String> {
+        let account = self.get_account()?;
+        Ok(account.get_phrase()?.join(" "))
+    }
+
+    pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
+        let acct_secret = self.export_account_private_key()?;
+        qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
+            .map_err(|err| core_err_unexpected(err).into())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -222,10 +239,10 @@ impl LocalLb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
-        db.account.clear()?;
-        db.last_synced.clear()?;
+        db.account.take()?;
+        db.last_synced.take()?;
         db.base_metadata.clear()?;
-        db.root.clear()?;
+        db.root.take()?;
         db.local_metadata.clear()?;
         db.pub_key_lookup.clear()?;
 
@@ -444,23 +461,4 @@ ___
 > ---
 > ___
 "#;
-}
-
-impl crate::Lb {
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn export_account_private_key(&self) -> LbResult<String> {
-        let account = self.get_account()?;
-        Ok(base64::encode(account.private_key.serialize()))
-    }
-
-    pub fn export_account_phrase(&self) -> LbResult<String> {
-        let account = self.get_account()?;
-        Ok(account.get_phrase()?.join(" "))
-    }
-
-    pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        let acct_secret = self.export_account_private_key()?;
-        qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
-            .map_err(|err| core_err_unexpected(err).into())
-    }
 }

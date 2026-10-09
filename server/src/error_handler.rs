@@ -7,7 +7,7 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use base64::DecodeError;
-use db_rs::DbError;
+use db_rs::errors::Error as DbError;
 use jsonwebtoken::errors::ErrorKind;
 use lb_rs::model::api::*;
 use lb_rs::model::errors::{DiffError, LbErr, LbErrKind};

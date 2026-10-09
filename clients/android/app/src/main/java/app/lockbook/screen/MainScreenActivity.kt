@@ -7,7 +7,9 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.view.HapticFeedbackConstants
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
@@ -20,6 +22,7 @@ import androidx.core.content.FileProvider
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnLayout
 import androidx.core.view.forEach
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
@@ -27,6 +30,7 @@ import androidx.fragment.app.*
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.billing.BillingEvent
@@ -52,6 +56,7 @@ class MainScreenActivity : AppCompatActivity() {
     private lateinit var fileSelectionBottomBarController: FileSelectionBottomBarController
 
     private var isFileSelectionActive = false
+    private var isBottomNavigationHidden = false
 
     internal val fileSelectionBottomBarView: View
         get() = binding.fileSelectionBottomBar.root
@@ -134,6 +139,11 @@ class MainScreenActivity : AppCompatActivity() {
 
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.bottomNavigation.doOnLayout { navigation ->
+            val layoutParams = binding.createFileFab.layoutParams as ViewGroup.MarginLayoutParams
+            layoutParams.bottomMargin += navigation.height
+            binding.createFileFab.layoutParams = layoutParams
+        }
         ViewCompat.setOnApplyWindowInsetsListener(fileSelectionBottomBarView) { view, windowInsets ->
             view.updatePadding(
                 bottom = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom,
@@ -185,7 +195,11 @@ class MainScreenActivity : AppCompatActivity() {
             this@MainScreenActivity.lifecycle.addObserver(this)
             billingEvent.observe(this@MainScreenActivity) { billingEvent ->
                 when (billingEvent) {
-                    is BillingEvent.SuccessfulPurchase -> {
+                    BillingEvent.SuccessfulPurchase -> {
+                        handleMainUiEffect(MainUiEffect.ShowSubscriptionConfirmed)
+                    }
+
+                    is BillingEvent.GooglePlayPurchase -> {
                         mainScreenModel.confirmSubscription(billingEvent.purchaseToken, billingEvent.accountId)
                     }
 
@@ -341,13 +355,24 @@ class MainScreenActivity : AppCompatActivity() {
                     R.id.pendingSharesFragment -> SidebarRoot.PendingShares
                     else -> return@setOnItemSelectedListener false
                 }
+            setBottomNavigationHidden(hidden = false)
             mainScreenModel.navigate(MainNavigationAction.SelectSidebar(destination))
             true
+        }
+        binding.bottomNavigation.setOnItemReselectedListener { item ->
+            if (!isFileSelectionActive && item.itemId == R.id.filesListFragment) {
+                (maybeGetFilesFragment() as? FilesListFragment)?.let { filesFragment ->
+                    if (filesFragment.navigateToRoot()) {
+                        binding.bottomNavigation.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    }
+                }
+            }
         }
     }
 
     internal fun setFileSelectionActive(isActive: Boolean) {
         isFileSelectionActive = isActive
+        if (isActive) setBottomNavigationHidden(hidden = false)
         binding.sidebarSearchBar.isEnabled = !isActive
         binding.bottomNavigation.isEnabled = !isActive
         binding.bottomNavigation.menu.forEach { item ->
@@ -357,6 +382,56 @@ class MainScreenActivity : AppCompatActivity() {
             .menu
             .findItem(R.id.menu_files_list_open_ws)
             ?.isEnabled = !isActive
+    }
+
+    internal fun showBottomNavigation() {
+        setBottomNavigationHidden(hidden = false)
+    }
+
+    internal fun configureBottomNavigationFor(
+        recyclerView: RecyclerView,
+        onNavigationHeight: (Int) -> Unit,
+    ) {
+        recyclerView.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(
+                    recyclerView: RecyclerView,
+                    dx: Int,
+                    dy: Int,
+                ) {
+                    if (!isFileSelectionActive && dy != 0) {
+                        setBottomNavigationHidden(hidden = dy > 0)
+                    }
+                }
+            },
+        )
+        binding.bottomNavigation.doOnLayout { navigation -> onNavigationHeight(navigation.height) }
+    }
+
+    private fun setBottomNavigationHidden(hidden: Boolean) {
+        if (isBottomNavigationHidden == hidden) return
+        isBottomNavigationHidden = hidden
+
+        val navigation = binding.bottomNavigation
+        val targetTranslation = if (hidden) navigation.height.toFloat() else 0f
+        val fabTargetTranslation = targetTranslation * CREATE_FAB_NAVIGATION_TRANSLATION_RATIO
+        navigation.animate().cancel()
+        binding.createFileFab.animate().cancel()
+        if (!navigation.isLaidOut) {
+            navigation.translationY = targetTranslation
+            binding.createFileFab.translationY = fabTargetTranslation
+        } else {
+            navigation
+                .animate()
+                .translationY(targetTranslation)
+                .setDuration(BOTTOM_NAVIGATION_ANIMATION_DURATION)
+                .start()
+            binding.createFileFab
+                .animate()
+                .translationY(fabTargetTranslation)
+                .setDuration(BOTTOM_NAVIGATION_ANIMATION_DURATION)
+                .start()
+        }
     }
 
     private fun dispatchFileSelectionAction(
@@ -717,7 +792,7 @@ class MainScreenActivity : AppCompatActivity() {
             uris.add(
                 FileProvider.getUriForFile(
                     this,
-                    "app.lockbook.fileprovider",
+                    "$packageName.fileprovider",
                     file,
                 ),
             )
@@ -740,6 +815,8 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        binding.bottomNavigation.animate().cancel()
+        binding.createFileFab.animate().cancel()
         super.onDestroy()
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }
@@ -765,3 +842,6 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 }
+
+private const val BOTTOM_NAVIGATION_ANIMATION_DURATION = 160L
+private const val CREATE_FAB_NAVIGATION_TRANSLATION_RATIO = 0.8f

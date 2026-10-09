@@ -18,7 +18,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cargo run -p lbdev -- releaser github-release
-  
+
   call_publish:
     needs: release
     uses: ./.github/workflows/publish-crate.yml
@@ -29,6 +29,7 @@ jobs:
     needs: release
     uses: ./.github/workflows/flatpak.yml
     secrets: inherit
+
 
   deploy_android:
     needs: release
@@ -45,6 +46,11 @@ jobs:
   deploy_windows_arm:
     needs: release
     uses: ./.github/workflows/windows-arm.yml
+    secrets: inherit
+
+  package_windows_store:
+    needs: release
+    uses: ./.github/workflows/windows-store.yml
     secrets: inherit
 
   deploy_apple:

@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature
         android:name="android.hardware.vulkan.level"
@@ -45,7 +46,7 @@
         <activity android:name=".screen.UpgradeAccountActivity" />
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="app.lockbook.fileprovider"
+            android:authorities="${applicationId}.fileprovider"
             android:grantUriPermissions="true"
             android:exported="false">
             <meta-data

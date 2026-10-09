@@ -5,10 +5,10 @@ use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::defense::SERVER_BANDWIDTH_CAP;
 use crate::document_service::DocumentService;
-use crate::schema::ServerDb;
+use crate::guard::ServerTx;
+use crate::schema::ServerV6;
 
 use crate::{RequestContext, ServerState};
-use db_rs::Db;
 use lb_rs::model::api::{UpsertError, *};
 use lb_rs::model::clock::get_time;
 use lb_rs::model::errors::{LbErrKind, LbResult};
@@ -19,7 +19,6 @@ use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::ops::DerefMut;
 use tracing::{debug, error, warn};
 
 impl<S, A, G, D> ServerState<S, A, G, D>
@@ -39,8 +38,8 @@ where
         let mut current_deleted = HashSet::new();
 
         let mut lock = self.index_db.lock().await;
-        let db = lock.deref_mut();
-        let tx = db.begin_transaction()?;
+        let mut tx = ServerTx::begin(&mut lock)?;
+        let db = &mut *tx;
 
         // fail fast on things like access control
         let mut tree = ServerTree::new(
@@ -139,7 +138,7 @@ where
 
         db.last_seen.insert(req_owner, get_time().0 as u64)?;
 
-        tx.drop_safely()?;
+        tx.end()?;
 
         Ok(())
     }
@@ -178,10 +177,10 @@ where
 
         // phase 1: validate request before io
         let mut lock = self.index_db.lock().await;
-        let db = lock.deref_mut();
+        let mut tx = ServerTx::begin(&mut lock)?;
+        let db = &mut *tx;
         let og_meta = db
             .metas
-            .get()
             .get(&id)
             .ok_or(ClientError(DocumentNotFound))?
             .clone();
@@ -234,6 +233,7 @@ where
         }
 
         db.scheduled_file_cleanups.remove(&(id, hmac_bytes))?;
+        tx.end()?;
         drop(lock);
 
         self.document_service
@@ -243,8 +243,8 @@ where
 
         let result = async {
             let mut lock = self.index_db.lock().await;
-            let db = lock.deref_mut();
-            let tx = db.begin_transaction()?;
+            let mut tx = ServerTx::begin(&mut lock)?;
+            let db = &mut *tx;
 
             let mut tree = ServerTree::new(
                 requester,
@@ -285,7 +285,7 @@ where
                     .insert((id, old_hmac), get_time().0)?;
             }
 
-            tx.drop_safely()?;
+            tx.end()?;
             drop(lock);
             Ok(())
         };
@@ -310,10 +310,10 @@ where
         let requester = Owner(context.public_key);
         {
             let mut lock = self.index_db.lock().await;
-            let db = lock.deref_mut();
-            let tx = db.begin_transaction()?;
+            let mut tx = ServerTx::begin(&mut lock)?;
+            let db = &mut *tx;
 
-            let meta_exists = db.metas.get().get(&request.id).is_some();
+            let meta_exists = db.metas.get(&request.id).is_some();
 
             let mut tree = ServerTree::new(
                 requester,
@@ -336,7 +336,7 @@ where
                 return Err(ClientError(GetDocumentError::DocumentNotFound));
             }
 
-            tx.drop_safely()?;
+            tx.end()?;
         };
 
         let Some(content) = self
@@ -348,20 +348,18 @@ where
         };
 
         let mut lock = self.index_db.lock().await;
-        let db = lock.deref_mut();
-        let tx = db.begin_transaction()?;
+        let mut tx = ServerTx::begin(&mut lock)?;
+        let db = &mut *tx;
 
         if self.config.features.bandwidth_controls {
-            let mut server_wide = db.server_egress.get().cloned().unwrap_or_default();
+            let mut server_wide = db.server_egress.as_ref().cloned().unwrap_or_default();
             let mut account_bandwidth = db
                 .egress_by_owner
-                .get()
                 .get(&requester)
                 .cloned()
                 .unwrap_or_default();
             let account_bandwidth_cap = db
                 .accounts
-                .get()
                 .get(&requester)
                 .map(|account| account.billing_info.bandwidth_cap())
                 .unwrap_or_default();
@@ -379,11 +377,11 @@ where
             server_wide.increase_by(doc_size);
             account_bandwidth.increase_by(doc_size);
 
-            db.server_egress.insert(server_wide)?;
+            db.server_egress.replace(server_wide)?;
             db.egress_by_owner.insert(requester, account_bandwidth)?;
         }
 
-        tx.drop_safely()?;
+        tx.end()?;
 
         Ok(GetDocumentResponse { content })
     }
@@ -392,8 +390,9 @@ where
         &self, context: RequestContext<GetFileIdsRequest>,
     ) -> Result<GetFileIdsResponse, ServerError<GetFileIdsError>> {
         let owner = Owner(context.public_key);
-        let mut db = self.index_db.lock().await;
-        let db = db.deref_mut();
+        let mut guard = self.index_db.lock().await;
+        let mut tx = ServerTx::begin(&mut guard)?;
+        let db = &mut *tx;
 
         Ok(GetFileIdsResponse {
             ids: ServerTree::new(
@@ -415,8 +414,10 @@ where
         let request = &context.request;
         let owner = Owner(context.public_key);
 
-        let mut db = self.index_db.lock().await;
-        let db = db.deref_mut();
+        let mut guard = self.index_db.lock().await;
+        let mut tx = ServerTx::begin(&mut guard)?;
+        let db = &mut *tx;
+
         let mut tree = ServerTree::new(
             owner,
             &mut db.owned_files,
@@ -460,9 +461,9 @@ where
         let mut docs_to_delete = Vec::new();
 
         {
-            let mut db = self.index_db.lock().await;
-            let db = db.deref_mut();
-            let tx = db.begin_transaction()?;
+            let mut guard = self.index_db.lock().await;
+            let mut tx = ServerTx::begin(&mut guard)?;
+            let db = &mut *tx;
 
             if !Self::is_admin::<AdminDisappearFileError>(
                 db,
@@ -475,7 +476,6 @@ where
             let owner = {
                 let meta = db
                     .metas
-                    .get()
                     .get(&context.request.id)
                     .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
                 if meta.is_root() {
@@ -550,13 +550,12 @@ where
 
             let username = db
                 .accounts
-                .get()
                 .get(&Owner(context.public_key))
                 .map(|account| account.username.clone())
                 .unwrap_or_else(|| "~unknown~".to_string());
             warn!(?username, ?context.request.id, "Disappeared file");
 
-            tx.drop_safely()?;
+            tx.end()?;
         }
 
         for (id, version) in docs_to_delete {
@@ -570,9 +569,11 @@ where
         &self, context: RequestContext<AdminValidateAccountRequest>,
     ) -> Result<AdminValidateAccount, ServerError<AdminValidateAccountError>> {
         let request = &context.request;
-        let mut db = self.index_db.lock().await;
+        let mut guard = self.index_db.lock().await;
+        let mut tx = ServerTx::begin(&mut guard)?;
+        let db = &mut *tx;
         if !Self::is_admin::<AdminValidateAccountError>(
-            &db,
+            db,
             &context.public_key,
             &self.config.admin.admins,
         )? {
@@ -581,15 +582,14 @@ where
 
         let owner = *db
             .usernames
-            .get()
             .get(&request.username)
             .ok_or(ClientError(AdminValidateAccountError::UserNotFound))?;
 
-        Ok(self.validate_account_helper(&mut db, owner)?)
+        Ok(self.validate_account_helper(db, owner)?)
     }
 
     pub fn validate_account_helper(
-        &self, db: &mut ServerDb, owner: Owner,
+        &self, db: &mut ServerV6, owner: Owner,
     ) -> LbResult<AdminValidateAccount> {
         let mut result = AdminValidateAccount::default();
 
@@ -639,8 +639,9 @@ where
     pub async fn admin_validate_server(
         &self, context: RequestContext<AdminValidateServerRequest>,
     ) -> Result<AdminValidateServer, ServerError<AdminValidateServerError>> {
-        let mut db = self.index_db.lock().await;
-        let db = db.deref_mut();
+        let mut guard = self.index_db.lock().await;
+        let mut tx = ServerTx::begin(&mut guard)?;
+        let db = &mut *tx;
 
         if !Self::is_admin::<AdminValidateServerError>(
             db,
@@ -653,7 +654,12 @@ where
         let mut result: AdminValidateServer = Default::default();
 
         let mut deleted_ids = HashSet::new();
-        for (id, meta) in db.metas.get().clone() {
+        for (id, meta) in db
+            .metas
+            .iter()
+            .map(|(key, value)| (*key, value.clone()))
+            .collect::<HashMap<_, _>>()
+        {
             // todo: optimize
             let mut tree = ServerTree::new(
                 meta.owner(),
@@ -669,7 +675,12 @@ where
         }
 
         // validate accounts
-        for (owner, account) in db.accounts.get().clone() {
+        for (owner, account) in db
+            .accounts
+            .iter()
+            .map(|(key, value)| (*key, value.clone()))
+            .collect::<HashMap<_, _>>()
+        {
             let validation = self.validate_account_helper(db, owner)?;
             if !validation.is_empty() {
                 result
@@ -679,8 +690,13 @@ where
         }
 
         // validate index: usernames
-        for (username, owner) in db.usernames.get().clone() {
-            if let Some(account) = db.accounts.get().get(&owner) {
+        for (username, owner) in db
+            .usernames
+            .iter()
+            .map(|(key, value)| (key.clone(), *value))
+            .collect::<HashMap<_, _>>()
+        {
+            if let Some(account) = db.accounts.get(&owner) {
                 if username != account.username {
                     result
                         .usernames_mapped_to_wrong_accounts
@@ -692,8 +708,13 @@ where
                     .insert(username, owner);
             }
         }
-        for (_, account) in db.accounts.get().clone() {
-            if db.usernames.get().get(&account.username).is_none() {
+        for (_, account) in db
+            .accounts
+            .iter()
+            .map(|(key, value)| (*key, value.clone()))
+            .collect::<HashMap<_, _>>()
+        {
+            if db.usernames.get(&account.username).is_none() {
                 result
                     .usernames_unmapped_to_accounts
                     .insert(account.username.clone());
@@ -701,9 +722,14 @@ where
         }
 
         // validate index: owned_files
-        for (owner, ids) in db.owned_files.get().clone() {
+        for (owner, ids) in db
+            .owned_files
+            .iter()
+            .map(|(key, value)| (*key, value.clone()))
+            .collect::<HashMap<_, _>>()
+        {
             for id in ids {
-                if let Some(meta) = db.metas.get().get(&id) {
+                if let Some(meta) = db.metas.get(&id) {
                     if meta.owner() != owner {
                         insert(&mut result.owners_mapped_to_unowned_files, owner, id);
                     }
@@ -712,8 +738,13 @@ where
                 }
             }
         }
-        for (id, meta) in db.metas.get().clone() {
-            if let Some(ids) = db.owned_files.get().get(&meta.owner()) {
+        for (id, meta) in db
+            .metas
+            .iter()
+            .map(|(key, value)| (*key, value.clone()))
+            .collect::<HashMap<_, _>>()
+        {
+            if let Some(ids) = db.owned_files.get(&meta.owner()) {
                 if !ids.contains(&id) {
                     insert(&mut result.owners_unmapped_to_owned_files, meta.owner(), *meta.id());
                 }
@@ -723,9 +754,14 @@ where
         }
 
         // validate index: shared_files
-        for (sharee, ids) in db.shared_files.get().clone() {
+        for (sharee, ids) in db
+            .shared_files
+            .iter()
+            .map(|(key, value)| (*key, value.clone()))
+            .collect::<HashMap<_, _>>()
+        {
             for id in ids {
-                if let Some(meta) = db.metas.get().get(&id) {
+                if let Some(meta) = db.metas.get(&id) {
                     if !meta.user_access_keys().iter().any(|k| {
                         !k.deleted && k.encrypted_for == sharee.0 && k.encrypted_by != sharee.0
                     }) {
@@ -739,7 +775,12 @@ where
                 }
             }
         }
-        for (id, meta) in db.metas.get().clone() {
+        for (id, meta) in db
+            .metas
+            .iter()
+            .map(|(key, value)| (*key, value.clone()))
+            .collect::<HashMap<_, _>>()
+        {
             // check for implicit deletion (can't use server tree which depends on index)
             let mut deleted = false;
             let mut ancestor = meta.clone();
@@ -751,7 +792,7 @@ where
                 if ancestor.is_root() {
                     break;
                 }
-                match db.metas.get().get(ancestor.parent()) {
+                match db.metas.get(ancestor.parent()) {
                     Some(parent) => ancestor = parent.clone(),
                     None => {
                         error!("missing parent for file {:?}", ancestor.parent());
@@ -769,7 +810,7 @@ where
                     continue;
                 }
                 let sharee = Owner(k.encrypted_for);
-                if let Some(ids) = db.shared_files.get().get(&sharee) {
+                if let Some(ids) = db.shared_files.get(&sharee) {
                     let self_share = k.encrypted_for == k.encrypted_by;
                     let indexed_share = ids.contains(&id);
                     if self_share && indexed_share {
@@ -784,9 +825,14 @@ where
         }
 
         // validate index: file_children
-        for (parent_id, child_ids) in db.file_children.get().clone() {
+        for (parent_id, child_ids) in db
+            .file_children
+            .iter()
+            .map(|(key, value)| (*key, value.clone()))
+            .collect::<HashMap<_, _>>()
+        {
             for child_id in child_ids {
-                if let Some(meta) = db.metas.get().get(&child_id) {
+                if let Some(meta) = db.metas.get(&child_id) {
                     if meta.parent() != &parent_id {
                         insert(
                             &mut result.files_mapped_as_parent_to_non_children,
@@ -803,8 +849,13 @@ where
                 }
             }
         }
-        for (id, meta) in db.metas.get().clone() {
-            if let Some(child_ids) = db.file_children.get().get(meta.parent()) {
+        for (id, meta) in db
+            .metas
+            .iter()
+            .map(|(key, value)| (*key, value.clone()))
+            .collect::<HashMap<_, _>>()
+        {
+            if let Some(child_ids) = db.file_children.get(meta.parent()) {
                 if meta.is_root() && child_ids.contains(&id) {
                     result.files_mapped_as_parent_to_self.insert(id);
                 } else if !meta.is_root() && !child_ids.contains(&id) {
@@ -816,7 +867,12 @@ where
         }
 
         // validate presence of documents
-        for (id, meta) in db.metas.get().clone() {
+        for (id, meta) in db
+            .metas
+            .iter()
+            .map(|(key, value)| (*key, value.clone()))
+            .collect::<HashMap<_, _>>()
+        {
             if let Some(hmac) = meta.document_hmac() {
                 if !deleted_ids.contains(&id) && !self.document_service.exists(&id, hmac) {
                     result.files_with_hmacs_and_no_contents.insert(id);
@@ -831,8 +887,10 @@ where
         &self, context: RequestContext<AdminFileInfoRequest>,
     ) -> Result<AdminFileInfoResponse, ServerError<AdminFileInfoError>> {
         let request = &context.request;
-        let mut db = self.index_db.lock().await;
-        let db = db.deref_mut();
+        let mut guard = self.index_db.lock().await;
+        let mut tx = ServerTx::begin(&mut guard)?;
+        let db = &mut *tx;
+
         if !Self::is_admin::<AdminFileInfoError>(
             db,
             &context.public_key,
@@ -843,7 +901,6 @@ where
 
         let file = db
             .metas
-            .get()
             .get(&request.id)
             .ok_or(ClientError(AdminFileInfoError::FileNonexistent))?
             .clone();
@@ -876,24 +933,47 @@ where
     pub async fn admin_rebuild_index(
         &self, context: RequestContext<AdminRebuildIndexRequest>,
     ) -> Result<(), ServerError<AdminRebuildIndexError>> {
-        let mut db = self.index_db.lock().await;
-
+        let mut guard = self.index_db.lock().await;
+        let mut tx = ServerTx::begin(&mut guard)?;
+        let db = &mut *tx;
         match context.request.index {
             ServerIndex::OwnedFiles => {
                 db.owned_files.clear()?;
-                for owner in db.accounts.get().clone().keys() {
+                for owner in db
+                    .accounts
+                    .iter()
+                    .map(|(key, value)| (*key, value.clone()))
+                    .collect::<HashMap<_, _>>()
+                    .keys()
+                {
                     db.owned_files.create_key(*owner)?;
                 }
-                for (id, file) in db.metas.get().clone() {
+                for (id, file) in db
+                    .metas
+                    .iter()
+                    .map(|(key, value)| (*key, value.clone()))
+                    .collect::<HashMap<_, _>>()
+                {
                     db.owned_files.insert(file.owner(), id)?;
                 }
             }
             ServerIndex::SharedFiles => {
                 db.shared_files.clear()?;
-                for owner in db.accounts.get().clone().keys() {
+                for owner in db
+                    .accounts
+                    .iter()
+                    .map(|(key, value)| (*key, value.clone()))
+                    .collect::<HashMap<_, _>>()
+                    .keys()
+                {
                     db.shared_files.create_key(*owner)?;
                 }
-                for (id, file) in db.metas.get().clone() {
+                for (id, file) in db
+                    .metas
+                    .iter()
+                    .map(|(key, value)| (*key, value.clone()))
+                    .collect::<HashMap<_, _>>()
+                {
                     // check for implicit deletion (can't use server tree which depends on index)
                     let mut deleted = false;
                     let mut ancestor = file.clone();
@@ -905,7 +985,7 @@ where
                         if ancestor.is_root() {
                             break;
                         }
-                        match db.metas.get().get(ancestor.parent()) {
+                        match db.metas.get(ancestor.parent()) {
                             Some(parent) => ancestor = parent.clone(),
                             None => {
                                 error!("missing parent for file {:?}", ancestor.parent());
@@ -929,14 +1009,26 @@ where
             }
             ServerIndex::FileChildren => {
                 db.file_children.clear()?;
-                for id in db.metas.get().clone().keys() {
+                for id in db
+                    .metas
+                    .iter()
+                    .map(|(key, value)| (*key, value.clone()))
+                    .collect::<HashMap<_, _>>()
+                    .keys()
+                {
                     db.file_children.create_key(*id)?;
                 }
-                for (id, file) in db.metas.get().clone() {
+                for (id, file) in db
+                    .metas
+                    .iter()
+                    .map(|(key, value)| (*key, value.clone()))
+                    .collect::<HashMap<_, _>>()
+                {
                     db.file_children.insert(*file.parent(), id)?;
                 }
             }
         }
+        tx.end()?;
         Ok(())
     }
 }

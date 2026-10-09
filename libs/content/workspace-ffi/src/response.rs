@@ -3,6 +3,7 @@ use egui::{
     ViewportOutput,
 };
 use workspace_rs::tab::{ContextMenuTarget, ExtendedOutput};
+use workspace_rs::widgets::image_cache::encode_png;
 
 // This general purpose workspace-ffi response captures the workspace widget response and platform response, but each
 // platform translates the workspace response into its own platform-specific response with just those fields that make
@@ -15,6 +16,7 @@ pub struct Response {
     // platform response
     pub redraw_in: Option<u64>,
     pub copied_text: String,
+    pub copied_image: Vec<u8>,
     pub urls_opened: Vec<String>,
     pub cursor: CursorIcon,
     pub virtual_keyboard_shown: Option<bool>,
@@ -53,6 +55,18 @@ impl Response {
                 .find_map(
                     |c| if let OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None },
                 )
+                .unwrap_or_default(),
+            copied_image: platform
+                .commands
+                .iter()
+                .find_map(|c| if let OutputCommand::CopyImage(i) = c { Some(i) } else { None })
+                .and_then(|i| match encode_png(i) {
+                    Ok(png) => Some(png),
+                    Err(err) => {
+                        eprintln!("failed to encode copied image: {err}");
+                        None
+                    }
+                })
                 .unwrap_or_default(),
             urls_opened: platform
                 .commands

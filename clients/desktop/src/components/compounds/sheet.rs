@@ -203,6 +203,8 @@ pub struct SheetFooterOpts {
     pub cancel_label: &'static str,
     /// Badge on the primary; default [`shortcut_return`] (⌘⏎).
     pub primary_shortcut: Option<Shortcut>,
+    /// When set, the right action is a quiet Copy with check feedback (no kbd badge).
+    pub copy_feedback: Option<&'static str>,
 }
 
 impl Default for SheetFooterOpts {
@@ -215,6 +217,7 @@ impl Default for SheetFooterOpts {
             show_primary: true,
             cancel_label: "Cancel",
             primary_shortcut: None,
+            copy_feedback: None,
         }
     }
 }
@@ -244,6 +247,18 @@ impl SheetFooterOpts {
     pub fn back_only(mut self) -> Self {
         self.show_primary = false;
         self.cancel_label = "Back";
+        self
+    }
+
+    /// Quiet left label (e.g. `"Back"` with a right-side action still shown).
+    pub fn cancel_label(mut self, label: &'static str) -> Self {
+        self.cancel_label = label;
+        self
+    }
+
+    /// Quiet right Copy action: check feedback, no kbd badge.
+    pub fn copy_feedback(mut self, id: &'static str) -> Self {
+        self.copy_feedback = Some(id);
         self
     }
 
@@ -307,20 +322,31 @@ pub fn sheet_footer(
             egui::Rect::from_min_size(pos2(primary_left, top_left.y), vec2(primary_max, row_h));
         let _ = place_at(ui, primary_rect, Layout::right_to_left(egui::Align::Center), |ui| {
             ui.set_max_width(primary_max);
-            let mut primary = if opts.danger {
-                Button::primary(t, primary_label).danger()
-            } else if opts.accent {
-                Button::primary(t, primary_label).accent()
+            let clicked = if let Some(fid) = opts.copy_feedback {
+                Button::quiet(t, primary_label)
+                    .enabled(opts.primary_enabled)
+                    .copy_feedback(fid)
+                    .height(row_h)
+                    .max_width(primary_max)
+                    .show(ui)
+                    .clicked()
             } else {
-                Button::primary(t, primary_label)
-            }
-            .enabled(opts.primary_enabled)
-            .height(row_h)
-            .max_width(primary_max);
-            if opts.primary_enabled {
-                primary = primary.shortcut(primary_sc);
-            }
-            if primary.show(ui).clicked() {
+                let mut primary = if opts.danger {
+                    Button::primary(t, primary_label).danger()
+                } else if opts.accent {
+                    Button::primary(t, primary_label).accent()
+                } else {
+                    Button::primary(t, primary_label)
+                }
+                .enabled(opts.primary_enabled)
+                .height(row_h)
+                .max_width(primary_max);
+                if opts.primary_enabled {
+                    primary = primary.shortcut(primary_sc);
+                }
+                primary.show(ui).clicked()
+            };
+            if clicked {
                 out.primary = true;
             }
         });

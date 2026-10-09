@@ -33,7 +33,7 @@ async fn new_file() {
 async fn new_file_name_same_as_username() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
-    core.create_at_path(&format!("/{}", &account.username))
+    core.create_at_path(&format!("/{}", account.username))
         .await
         .unwrap();
     core.sync().await.unwrap();

@@ -52,6 +52,7 @@ public class Lb {
     public static native void deletePendingShare(String id) throws LbError;
 
     public static native void upgradeAccountGooglePlay(String purchaseToken, String accountId) throws LbError;
+    public static native void upgradeAccountStripe(String number, int expirationYear, int expirationMonth, String cvc) throws LbError;
     public static native SubscriptionInfo getSubscriptionInfo() throws LbError;
     public static native void cancelSubscription() throws LbError;
 

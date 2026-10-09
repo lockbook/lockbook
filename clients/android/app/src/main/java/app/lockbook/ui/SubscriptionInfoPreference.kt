@@ -12,7 +12,7 @@ import androidx.core.net.toUri
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
-import app.lockbook.billing.BillingClientLifecycle.Companion.SUBSCRIPTION_URI
+import app.lockbook.billing.GOOGLE_PLAY_SUBSCRIPTION_URI
 import app.lockbook.util.*
 import net.lockbook.SubscriptionInfo
 import net.lockbook.SubscriptionInfo.AppStore
@@ -42,7 +42,7 @@ class SubscriptionInfoPreference(
         solvePaymentIssue = holder.itemView.findViewById(R.id.solve_payment_issue)
 
         solvePaymentIssue.setOnClickListener {
-            getSettingsFragment().requireActivity().startActivity(Intent(Intent.ACTION_VIEW, SUBSCRIPTION_URI.toUri()))
+            getSettingsFragment().requireActivity().startActivity(Intent(Intent.ACTION_VIEW, GOOGLE_PLAY_SUBSCRIPTION_URI.toUri()))
         }
 
         getSettingsFragment().model.determineSettingsInfo.observe(getSettingsFragment()) { settingsInfo ->

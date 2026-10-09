@@ -8,9 +8,9 @@ const SETTINGS_W: f32 = 760.0;
 const SETTINGS_H: f32 = 560.0;
 /// Outer margin from screen edges (and below traffic lights on macOS).
 const SCREEN_MARGIN: f32 = 40.0;
-/// Frameless macOS: keep plate clear of traffic lights.
+/// Frameless macOS: keep plate clear of the titleband.
 #[cfg(target_os = "macos")]
-const TOP_SAFE: f32 = 28.0;
+const TOP_SAFE: f32 = crate::shell::titlebar::HEADER_H;
 #[cfg(not(target_os = "macos"))]
 const TOP_SAFE: f32 = 0.0;
 

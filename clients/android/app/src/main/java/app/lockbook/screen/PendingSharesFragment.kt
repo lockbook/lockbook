@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.MutableLiveData
@@ -58,7 +59,9 @@ class PendingSharesFragment : Fragment() {
 
         tabLayout.addOnTabSelectedListener(
             object : TabLayout.OnTabSelectedListener {
-                override fun onTabSelected(tab: TabLayout.Tab?) {}
+                override fun onTabSelected(tab: TabLayout.Tab?) {
+                    (activity as? MainScreenActivity)?.showBottomNavigation()
+                }
 
                 override fun onTabUnselected(tab: TabLayout.Tab?) {}
 
@@ -173,6 +176,7 @@ class TabFragment : Fragment() {
     var currentParent: File? = null
 
     private lateinit var sharedFilesAdapter: SharedFilesAdapter
+    private var originalListPaddingBottom = 0
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -198,6 +202,11 @@ class TabFragment : Fragment() {
         binding.sharedFilesList.layoutManager = LinearLayoutManager(requireContext())
         binding.sharedFilesList.adapter = sharedFilesAdapter
         binding.sharedFilesList.itemAnimator = null
+        originalListPaddingBottom = binding.sharedFilesList.paddingBottom
+        (requireActivity() as MainScreenActivity).configureBottomNavigationFor(binding.sharedFilesList) { height ->
+            if (_binding == null) return@configureBottomNavigationFor
+            binding.sharedFilesList.updatePadding(bottom = originalListPaddingBottom + height)
+        }
 
         parentFragmentManager.setFragmentResultListener(DeleteSharedDialogFragment.DELETE_SHARE_REQUEST_KEY, this) { _, bundle ->
             val deletedFileId = bundle.getString(DeleteSharedDialogFragment.DELETE_SHARE_BUNDLE_KEY)
@@ -258,6 +267,7 @@ class TabFragment : Fragment() {
 
     private fun openSharedFile(item: File) {
         if (item.type == FileType.Folder) {
+            (activity as? MainScreenActivity)?.showBottomNavigation()
             if (item.id == PARENT_ID) {
                 promoteCurrentParent()
             } else {
@@ -265,7 +275,7 @@ class TabFragment : Fragment() {
             }
             setFilesGroupedByDate()
         } else {
-            mainScreenModel.navigate(MainNavigationAction.OpenDocument(item.id, newFile = true))
+            mainScreenModel.navigate(MainNavigationAction.OpenDocument(item.id, newFile = false))
         }
     }
 
@@ -279,12 +289,16 @@ class TabFragment : Fragment() {
         if (currentParent == null) {
             false
         } else {
+            (activity as? MainScreenActivity)?.showBottomNavigation()
             promoteCurrentParent()
             setFilesGroupedByDate()
             true
         }
 
     fun setTabDefaultFiles() {
+        if (currentParent != null) {
+            (activity as? MainScreenActivity)?.showBottomNavigation()
+        }
         currentParent = null
         setFilesGroupedByDate()
     }

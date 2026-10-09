@@ -5,21 +5,48 @@ use egui::{self, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
+use crate::file_cache::ResolvedLink;
+use crate::style::ThemeExt;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
-use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, link_menu_buttons};
+use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
+use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
 impl MdRender {
+    /// Prefetch textures under `node` so the image cache does not drop them.
+    /// Used for off-screen neighbors about to scroll into view. Covers
+    /// markdown `![]()` images and link-preview thumbnails/favicons.
     pub fn warm_images<'a>(&self, node: &'a comrak::nodes::AstNode<'a>) {
         for descendant in node.descendants() {
-            let url = match &descendant.data.borrow().value {
-                comrak::nodes::NodeValue::Image(link) => link.url.clone(),
-                _ => continue,
-            };
-            self.embeds.prefetch(&url);
+            match &descendant.data.borrow().value {
+                NodeValue::Image(link) => {
+                    self.embeds.prefetch(&link.url);
+                }
+                NodeValue::Link(link) => {
+                    let resolved = match self.resolve_link(&link.url) {
+                        Some(ResolvedLink::External(url)) => url,
+                        _ => continue,
+                    };
+                    let Some(arc) = self.layout_cache.link_meta.borrow().get(&resolved).cloned()
+                    else {
+                        continue;
+                    };
+                    let LinkMetaState::Loaded(meta) = &*arc.lock().unwrap() else {
+                        continue;
+                    };
+                    if let Some(url) = meta.thumbnail_url.as_deref() {
+                        self.embeds.prefetch(url);
+                    }
+                    if let Some(url) = meta.favicon_url.as_deref() {
+                        self.embeds.prefetch(url);
+                    }
+                }
+                _ => {}
+            }
         }
     }
 }
@@ -56,6 +83,12 @@ impl<'ast> MdRender {
                 .min(image_max_size.y / target.y)
                 .min(1.0);
             return (target * scale).max(Vec2::ZERO);
+        }
+
+        // A degenerate texture (a decode with no size yet, a failed one)
+        // collapses rather than dividing by zero into NaN geometry.
+        if natural.x <= 0.0 || natural.y <= 0.0 {
+            return Vec2::ZERO;
         }
 
         // only shrink images, never stretch beyond their natural size
@@ -137,13 +170,14 @@ impl<'ast> MdRender {
     }
 
     /// Recompute [`super::super::super::bounds::Bounds::images`] — the source
-    /// range of every inline image. Empty when images render raw (disabled),
-    /// since then the source is plain editable text. Depends on text only.
-    pub fn calc_image_bounds<'a>(&mut self, root: &'a AstNode<'a>) {
+    /// range of every inline image. Images are empty when they render raw
+    /// (disabled), since then the source is plain editable text. Depends on
+    /// text only.
+    pub fn calc_atom_bounds<'a>(&mut self, root: &'a AstNode<'a>) {
         let mut images = Vec::new();
-        if !self.disable_images {
-            for node in root.descendants() {
-                if matches!(node.data.borrow().value, NodeValue::Image(_)) {
+        for node in root.descendants() {
+            if let NodeValue::Image(_) = node.data.borrow().value {
+                if !self.disable_images {
                     images.push(self.node_range(node));
                 }
             }
@@ -165,8 +199,8 @@ impl<'ast> MdEdit {
     /// capsule): when `open`, a click opens `url`, else it selects the node
     /// and (touch) pops the edit menu as an `Atom` target, so the platform
     /// offers "Edit" (`Event::EnterAtom`). Desktop right-click shows the link
-    /// menu ([`link_menu_buttons`]). Registers the fragment rects in
-    /// `touch_consuming_rects` so iOS routes the tap here; `salt` identifies
+    /// menu ([`fill_link_menu`]). Registers the fragment rects as a touch
+    /// target, whose tap selects the node or (read-only) opens; `salt` identifies
     /// the fragment's `Sense::click` scope. No-op if the embed wasn't rendered
     /// this frame. The per-kind handlers differ only in node lookup.
     #[allow(clippy::too_many_arguments)]
@@ -179,16 +213,22 @@ impl<'ast> MdEdit {
             None => return,
         };
 
-        self.renderer.touch_consume_interaction(ui.id().with(salt));
-
         let node_range = self.renderer.node_range(node);
+        let tap = if self.renderer.readonly {
+            Event::OpenLink { url: url.to_string(), wikilink: false }
+        } else {
+            Event::Select { region: node_range.into() }
+        };
+        self.renderer
+            .touch_consume_interaction(ui.id().with(salt), TouchTarget::Tap(tap));
+
         if open && response.hovered() {
             ui.ctx()
                 .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
         if response.clicked() {
             if open {
-                self.renderer.open_resolved_link(url, ui.ctx());
+                self.renderer.open_resolved_link(url, ui.ctx(), false);
             } else {
                 ui.memory_mut(|m| m.request_focus(id));
                 let region = Region::BetweenLocations {
@@ -208,11 +248,14 @@ impl<'ast> MdEdit {
             let editable = !self.renderer.readonly;
             // cards/capsules render fetched previews; images don't
             let refreshable = !is_image && self.renderer.contact_linked_sites;
-            let mut action = None;
-            response
-                .context_menu(|ui| action = link_menu_buttons(ui, is_image, editable, refreshable));
+            let t = ui.ctx().get_lb_theme();
+            let action = crate::style::context_menu::show(&response, &t, |e| {
+                fill_link_menu(e, is_image, editable, refreshable, |a| a);
+            });
             match action {
-                Some(LinkMenuAction::Open) => self.renderer.open_resolved_link(url, ui.ctx()),
+                Some(LinkMenuAction::Open) => {
+                    self.renderer.open_resolved_link(url, ui.ctx(), false)
+                }
                 Some(LinkMenuAction::Copy) => ui.ctx().copy_text(url.to_string()),
                 Some(LinkMenuAction::Refresh) => self.renderer.refresh_link_meta(url),
                 Some(LinkMenuAction::Edit) => {

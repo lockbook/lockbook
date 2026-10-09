@@ -16,20 +16,21 @@ use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
+use crate::style::phosphor;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::bounds::FoldBounds;
 use crate::tab::markdown_editor::input::{Advance, Bound, Increment, Region};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FontFamily, Format, Layout, StyleInfo,
 };
 use crate::tab::markdown_editor::{Event, MdEdit, MdRender};
-use crate::theme::icons::Icon;
 
 pub const FOLD_TAG: &str = "<!-- {\"fold\":true} -->";
 
 /// Visible glyph of the chip a folded section's tag renders as — a
-/// single icon, so the dots are spaced as drawn rather than as three
-/// text glyphs ([`Icon::DOTS_HORIZONTAL`]).
-pub const FOLD_CHIP_TEXT: &str = Icon::DOTS_HORIZONTAL.icon;
+/// single Phosphor mark, so the dots are spaced as drawn rather than
+/// as three text glyphs.
+pub const FOLD_CHIP_TEXT: &str = phosphor::DOTS_THREE;
 
 /// Click-target id for a fold's chip. Keyed by tag range so layout and
 /// interaction handling derive the same id without the AST node.
@@ -122,7 +123,8 @@ impl<'ast> MdRender {
         layout.push_override(node_range.start().into_range(), " ", self.text_format(parent));
         // Interaction outside the style scope so the capsule's side
         // pads are part of the click target.
-        let format = Format { family: FontFamily::Icons, ..self.text_format_html_inline(parent) };
+        let format =
+            Format { family: FontFamily::Phosphor, ..self.text_format_html_inline(parent) };
         layout.interaction_open(fold_chip_id_salt(fold.tag), egui::Sense::click());
         layout.style_open(StyleInfo {
             format: format.clone(),
@@ -148,21 +150,16 @@ impl<'ast> MdRender {
                 continue;
             };
 
-            // iOS routes touches through `touch_consuming_rects` —
-            // without this entry a tap on the chip would place the
-            // cursor instead of reaching the expand handler below.
-            self.touch_consume_interaction(id);
+            let unfold =
+                Event::Replace { region: fold.tag.into(), text: "".into(), advance_cursor: false };
+            self.touch_consume_interaction(id, TouchTarget::Tap(unfold.clone()));
 
             if response.hovered() {
                 ui.ctx()
                     .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
             }
             if response.clicked() {
-                self.render_events.push(Event::Replace {
-                    region: fold.tag.into(),
-                    text: "".into(),
-                    advance_cursor: false,
-                });
+                self.render_events.push(unfold);
             }
             response.on_hover_text("Show Contents");
         }
@@ -301,6 +298,19 @@ impl MdRender {
 // ─── event hooks ─────────────────────────────────────────────────────
 
 impl<'ast> MdEdit {
+    /// Selections are snapped out of fold sections, but an edit can still
+    /// leave one inside, e.g. indenting an item into a folded item; after
+    /// an edit or a user move, unfold around it.
+    pub fn unfold_after_edit<'a>(
+        &mut self, arena: &'a Arena<'a>, edited: bool, undo_redo: bool,
+    ) -> buffer::Response {
+        if edited && !undo_redo && !self.renderer.readonly && !self.renderer.plaintext {
+            self.unfold_at_selection(arena)
+        } else {
+            buffer::Response::default()
+        }
+    }
+
     /// Apply [`MdRender::unfold_ops_for_selection`], reparsing on
     /// change so this frame renders the unfolded state.
     pub fn unfold_at_selection<'a>(&mut self, arena: &'a Arena<'a>) -> buffer::Response {

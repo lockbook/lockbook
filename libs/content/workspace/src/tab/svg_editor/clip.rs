@@ -22,75 +22,80 @@ impl SVGEditor {
             match custom_event {
                 crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
                     for clip in content {
-                        match clip {
-                            ClipContent::Image(data) => {
-                                let file =
-                                    crate::tab::import_image(&self.lb, self.open_file, &data);
-
-                                let img = image::load_from_memory(&data).unwrap();
-
-                                let paste_pos = ui.input(|r| {
-                                    r.pointer.hover_pos().unwrap_or(
-                                        self.input_ctx
-                                            .last_touch
-                                            .unwrap_or(ui.available_rect_before_wrap().center()),
-                                    )
-                                });
-
-                                let img_rect = egui::Rect::from_min_size(
-                                    paste_pos,
-                                    egui::vec2(img.width() as f32, img.height() as f32),
-                                );
-
-                                let transform = if ui.available_rect_before_wrap().width()
-                                    < img_rect.width() * 2.0
-                                    || ui.available_rect_before_wrap().height()
-                                        < img_rect.height() * 2.0
-                                {
-                                    get_rect_identity_transform(
-                                        ui.available_rect_before_wrap(),
-                                        img_rect,
-                                        0.5,
-                                        paste_pos,
-                                    )
-                                } else {
-                                    Some(Transform::identity().post_translate(
-                                        paste_pos.x - img_rect.center().x,
-                                        paste_pos.y - img_rect.center().y,
-                                    ))
-                                }
-                                .unwrap_or_default();
-
-                                let fitted_img_rect = transform_rect(img_rect, transform);
-
-                                let id = Uuid::new_v4();
-                                self.buffer.elements.insert(
-                                    id,
-                                    Element::Image(Box::new(Image {
-                                        data: resvg::usvg::ImageKind::PNG(data.into()),
-                                        visibility: resvg::usvg::Visibility::Visible,
-                                        transform,
-                                        view_box: NonZeroRect::from_xywh(
-                                            fitted_img_rect.min.x,
-                                            fitted_img_rect.min.y,
-                                            fitted_img_rect.width(),
-                                            fitted_img_rect.height(),
-                                        )
-                                        .unwrap(),
-                                        href: file.id,
-                                        opacity: 1.0,
-                                        diff_state: DiffState::new(),
-                                        deleted: false,
-                                    })),
-                                );
-
-                                // self.toolbar.active_tool = Tool::Selection;
-
-                                // self.toolbar.selection.selected_elements =
-                                //     vec![SelectedElement { id, transform: Transform::identity() }];
-                            }
+                        let (name, data) = match clip {
+                            ClipContent::Image(data) => (None, data),
+                            ClipContent::NamedImage { name, data } => (Some(name), data),
                             ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
+                        };
+                        let Ok(file) = crate::tab::import_image(
+                            &self.lb,
+                            self.open_file,
+                            name.as_deref(),
+                            &data,
+                        ) else {
+                            continue;
+                        };
+
+                        let img = image::load_from_memory(&data).unwrap();
+
+                        let paste_pos = ui.input(|r| {
+                            r.pointer.hover_pos().unwrap_or(
+                                self.input_ctx
+                                    .last_touch
+                                    .unwrap_or(ui.available_rect_before_wrap().center()),
+                            )
+                        });
+
+                        let img_rect = egui::Rect::from_min_size(
+                            paste_pos,
+                            egui::vec2(img.width() as f32, img.height() as f32),
+                        );
+
+                        let transform = if ui.available_rect_before_wrap().width()
+                            < img_rect.width() * 2.0
+                            || ui.available_rect_before_wrap().height() < img_rect.height() * 2.0
+                        {
+                            get_rect_identity_transform(
+                                ui.available_rect_before_wrap(),
+                                img_rect,
+                                0.5,
+                                paste_pos,
+                            )
+                        } else {
+                            Some(Transform::identity().post_translate(
+                                paste_pos.x - img_rect.center().x,
+                                paste_pos.y - img_rect.center().y,
+                            ))
                         }
+                        .unwrap_or_default();
+
+                        let fitted_img_rect = transform_rect(img_rect, transform);
+
+                        let id = Uuid::new_v4();
+                        self.buffer.elements.insert(
+                            id,
+                            Element::Image(Box::new(Image {
+                                data: resvg::usvg::ImageKind::PNG(data.into()),
+                                visibility: resvg::usvg::Visibility::Visible,
+                                transform,
+                                view_box: NonZeroRect::from_xywh(
+                                    fitted_img_rect.min.x,
+                                    fitted_img_rect.min.y,
+                                    fitted_img_rect.width(),
+                                    fitted_img_rect.height(),
+                                )
+                                .unwrap(),
+                                href: file.id,
+                                opacity: 1.0,
+                                diff_state: DiffState::new(),
+                                deleted: false,
+                            })),
+                        );
+
+                        // self.toolbar.active_tool = Tool::Selection;
+
+                        // self.toolbar.selection.selected_elements =
+                        //     vec![SelectedElement { id, transform: Transform::identity() }];
                     }
                 }
                 _ => {}
