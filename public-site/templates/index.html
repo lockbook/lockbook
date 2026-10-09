@@ -1081,9 +1081,35 @@ COMMANDS
     function start() {
       if (started) return;
       started = true;
+
+      // eframe 0.32 appends one hidden, autofocused input per canvas to body.
+      // Native autofocus bypasses the focus() guard above and scrolls to its
+      // initial position at the top of the page. Removing the attribute alone
+      // doesn't cancel queued autofocus, so keep each input inert until eframe
+      // explicitly focuses it in response to interacting with a demo.
+      var pendingInputs = FRAMES.length;
+      var demoInputs = new MutationObserver(function (records) {
+        records.forEach(function (record) {
+          record.addedNodes.forEach(function (node) {
+            if (node.nodeType === 1 && node.matches('input[autofocus][autocapitalize="off"]')) {
+              node.removeAttribute('autofocus');
+              node.inert = true;
+              var focus = node.focus;
+              node.focus = function (opts) {
+                this.inert = false;
+                return focus.call(this, opts);
+              };
+              if (--pendingInputs === 0) demoInputs.disconnect();
+            }
+          });
+        });
+      });
+      demoInputs.observe(document.body, { childList: true });
+
       import('/wasm/public-site.js')
         .then(function (m) { return m.default('/wasm/public-site_bg.wasm'); })
         .catch(function (err) {
+          demoInputs.disconnect();
           console.error('Lockbook WASM init failed:', err);
           FRAMES.forEach(function (f) {
             var o = document.getElementById(f.overlay);
