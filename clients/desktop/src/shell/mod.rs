@@ -41,6 +41,7 @@ use egui::{Area, CentralPanel, Frame, Id, Order, SidePanel};
 use lb::Uuid;
 use lb::service::events::{self, Event};
 use workspace_rs::file_cache::FilesExt;
+use workspace_rs::search::SearchType;
 
 use crate::components::{
     self, Space, Spacer, Theme, ThemeExt, ThemeFamily, TypeRole, handle_toggle_shortcut,
@@ -670,7 +671,7 @@ impl ShellApp {
                 self.queue.push(A::SaveAll);
             }
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::O)) {
-                self.queue.push(A::OpenSearch);
+                self.queue.push(A::OpenSearch(Some(SearchType::Path)));
             }
             // History: Cmd+[ ] on Apple (Option+arrows are word motion).
             // Elsewhere Alt+arrows (exact, so Alt+Shift still reaches the editor).

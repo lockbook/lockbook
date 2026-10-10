@@ -69,7 +69,8 @@ impl Workspace {
         }
         self.update_window_title();
         if self.out.tabs_changed || self.current_tab_changed {
-            self.cfg.set_tabs(&self.tab_strip, &self.current_tab);
+            self.cfg
+                .set_tabs(&self.tab_strip, &self.current_tab, &self.last_search);
             self.current_tab_changed = false;
         }
 
@@ -192,7 +193,7 @@ impl Workspace {
     fn show_current_tab_content(&mut self, ui: &mut egui::Ui) {
         // Search renders here (not via `Tab::show`) so its preview pane can use
         // the workspace's async file loader.
-        if matches!(self.current_dest(), Some(crate::tab::Destination::Search)) {
+        if matches!(self.current_dest(), Some(crate::tab::Destination::Search(_))) {
             self.show_search_tab(ui);
             return;
         }
@@ -523,7 +524,7 @@ impl Workspace {
             .is_some_and(|md| md.edit.emoji_completions.active || md.edit.link_completions.active);
         // The search tab claims Cmd+1–9 to quick-open results, so don't let the
         // workspace consume them for tab switching while search is showing.
-        let search_active = matches!(self.current_dest(), Some(crate::tab::Destination::Search));
+        let search_active = matches!(self.current_dest(), Some(crate::tab::Destination::Search(_)));
         let current_idx = self.current_slot_index().unwrap_or(0);
         let mut goto_tab = None;
         self.ctx.input_mut(|input| {
