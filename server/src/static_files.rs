@@ -172,6 +172,7 @@ mod tests {
         assert!(body.contains("href=\"/favicon/site.webmanifest\""));
         assert!(body.contains("src=\"/lockbook-mark.svg\""));
         assert_eq!(body.matches(">Get Lockbook</a>").count(), 1);
+        assert!(body.contains("href=\"https://lockbook.net/download/\""));
         assert!(!body.contains("<footer>"));
         assert!(body.contains("--lb-open-accent: #207fdf"));
         assert!(body.contains("--lb-open-accent: #66b2ff"));

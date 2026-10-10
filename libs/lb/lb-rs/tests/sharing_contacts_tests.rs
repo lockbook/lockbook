@@ -52,6 +52,7 @@ async fn account_contacts_count_documents_in_both_directions() {
     let bob = Account::new("bob".into(), "unused".into());
     let carol = Account::new("carol".into(), "unused".into());
     let dave = Account::new("dave".into(), "unused".into());
+    let unknown = Account::new("unknown".into(), "unused".into());
     core.keychain.cache_account(adam.clone()).await.unwrap();
     let root = Meta::create_root(&adam).unwrap();
     let mut folder = node(&adam, *root.id(), FileType::Folder);
@@ -66,6 +67,8 @@ async fn account_contacts_count_documents_in_both_directions() {
     deleted.set_deleted(true);
     let mut outgoing = node(&adam, *root.id(), FileType::Document);
     share(&mut outgoing, &adam, &bob);
+    let mut unknown_share = node(&adam, *root.id(), FileType::Document);
+    share(&mut unknown_share, &adam, &unknown);
     let mut incoming = node(&bob, Uuid::new_v4(), FileType::Folder);
     share(&mut incoming, &bob, &adam);
     share(&mut incoming, &bob, &carol); // A third party is not Adam's contact.
@@ -85,8 +88,24 @@ async fn account_contacts_count_documents_in_both_directions() {
             .insert(Owner(account.public_key()), account.username.clone())
             .unwrap();
     }
+    db.pub_key_lookup
+        .insert(Owner(unknown.public_key()), "<unknown>".into())
+        .unwrap();
     for (owner, files) in [
-        (&adam, vec![root, folder.clone(), first, nested, second, deleted, outgoing, link.clone()]),
+        (
+            &adam,
+            vec![
+                root,
+                folder.clone(),
+                first,
+                nested,
+                second,
+                deleted,
+                outgoing,
+                unknown_share,
+                link.clone(),
+            ],
+        ),
         (&bob, vec![incoming.clone(), received1, received2]),
         (&carol, vec![pending]),
     ] {

@@ -17,6 +17,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
 
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
         <LinearLayout
             android:id="@+id/share_file_main_content"
             android:layout_width="match_parent"
@@ -49,21 +53,12 @@
                 android:layout_marginTop="20dp"
                 android:orientation="vertical">
 
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/share_file_contacts_heading"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/sharing_contacts"
-                    android:textAppearance="?attr/textAppearanceLabelLarge"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:visibility="gone" />
-
                 <LinearLayout
                     android:id="@+id/share_file_access_empty"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:gravity="center_vertical"
+                    android:gravity="end|center_vertical"
                     android:minHeight="52dp"
                     android:orientation="horizontal">
 
@@ -108,7 +103,7 @@
                         android:layout_height="56dp"
                         android:layout_marginStart="8dp"
                         android:clickable="true"
-                        android:contentDescription="@string/add_person"
+                        android:contentDescription="@string/add_user"
                         android:focusable="true"
                         app:cardBackgroundColor="?attr/colorPrimary"
                         app:cardCornerRadius="28dp"
@@ -129,19 +124,11 @@
 
             </LinearLayout>
 
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:text="@string/send"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
-                android:textColor="?attr/colorOnSurfaceVariant" />
-
             <LinearLayout
                 android:id="@+id/share_file_link_actions"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="18dp"
                 android:gravity="center_vertical"
                 android:minHeight="60dp"
                 android:orientation="horizontal">
@@ -162,13 +149,13 @@
                     <com.google.android.material.textview.MaterialTextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/send_lockbook_link"
+                        android:text="@string/copy_lockbook_link"
                         android:textAppearance="?attr/textAppearanceTitleSmall" />
 
                     <com.google.android.material.textview.MaterialTextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/send_lockbook_link_description"
+                        android:text="@string/lockbook_link_privacy_note"
                         android:textAppearance="?attr/textAppearanceBodySmall"
                         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -182,15 +169,6 @@
                     android:contentDescription="@string/copy_lockbook_link"
                     app:icon="@drawable/baseline_content_copy_24" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/share_file_send_link"
-                    style="@style/Widget.Material3.Button.IconButton.Filled"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:contentDescription="@string/send_lockbook_link"
-                    app:icon="@drawable/ic_baseline_share_24" />
-
             </LinearLayout>
 
         </LinearLayout>
@@ -200,7 +178,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:visibility="gone"
+            android:visibility="invisible"
             tools:visibility="visible">
 
             <LinearLayout
@@ -217,23 +195,35 @@
                     android:contentDescription="@string/back"
                     app:icon="@drawable/ic_baseline_arrow_back_24" />
 
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/share_file_invite_title"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
-                    android:text="@string/share_with_lockbook_user"
-                    android:textAppearance="?attr/textAppearanceTitleLarge" />
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/share_file_invite_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/add_user"
+                        android:textAppearance="?attr/textAppearanceHeadlineSmall" />
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/share_file_invite_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:ellipsize="middle"
+                        android:focusable="true"
+                        android:maxLines="1"
+                        android:textAppearance="?attr/textAppearanceBodyMedium"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        tools:text="project-notes.md" />
+
+                </LinearLayout>
 
             </LinearLayout>
-
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="@string/grant_access_description"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:textColor="?attr/colorOnSurfaceVariant" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/share_file_username_layout"
@@ -314,6 +304,8 @@
                 android:text="@string/grant_access" />
 
         </LinearLayout>
+
+        </FrameLayout>
 
     </LinearLayout>
 

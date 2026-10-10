@@ -292,11 +292,8 @@
     <string name="create_link_file_for">Creating link for \"%s\".</string>
     <string name="pending_shares_empty_message">When others share files with you, they\'ll appear here.</string>
 
-    <string name="sharing_contacts">People you share with</string>
-    <string name="add_person">Add person</string>
+    <string name="add_user">Add user</string>
     <string name="grant_access">Grant access</string>
-    <string name="grant_access_description">Choose a Lockbook user and their access level.</string>
-    <string name="share_with_lockbook_user">Add person</string>
     <string name="share_with_user">Share with a user</string>
     <string name="share_with_named_user">Share with %1$s</string>
     <string name="export">Export</string>
@@ -308,12 +305,9 @@
         <item quantity="one">Exported %1$d file</item>
         <item quantity="other">Exported %1$d files</item>
     </plurals>
-    <string name="send">Send</string>
-    <string name="send_lockbook_link">Send Lockbook link</string>
-    <string name="send_lockbook_link_description">Only Lockbook users you share with by username can open this link.</string>
+    <string name="lockbook_link_privacy_note">Only Lockbook users you add can open this link.</string>
     <string name="copy_link">Copy link</string>
     <string name="copy_lockbook_link">Copy Lockbook link</string>
-    <string name="lockbook_link_copied">Lockbook link copied</string>
     <string name="invalid_lockbook_link">This Lockbook link is invalid.</string>
     <string name="open_link_not_found">The linked file could not be found.</string>
     <string name="username">Username</string>

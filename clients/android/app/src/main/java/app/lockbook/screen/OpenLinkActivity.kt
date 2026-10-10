@@ -7,6 +7,8 @@ import app.lockbook.R
 import app.lockbook.util.OpenLinkParser
 import app.lockbook.util.PendingOpenLinkStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import net.lockbook.Lb
+import net.lockbook.LbError
 
 class OpenLinkActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,6 +30,13 @@ class OpenLinkActivity : AppCompatActivity() {
                 .setPositiveButton(android.R.string.ok) { _, _ -> finish() }
                 .setOnCancelListener { finish() }
                 .show()
+            return
+        }
+
+        try {
+            Lb.getAccount()
+        } catch (_: LbError) {
+            finish()
             return
         }
 

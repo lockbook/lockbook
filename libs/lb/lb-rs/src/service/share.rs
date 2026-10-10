@@ -79,6 +79,10 @@ impl Lb {
             .into_iter()
             .filter_map(|(owner, (outgoing, incoming, total))| {
                 let username = db.pub_key_lookup.get(&owner)?.clone();
+                let trimmed = username.trim();
+                if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("<unknown>") {
+                    return None;
+                }
                 Some(SharingContact {
                     username,
                     outgoing_file_count: outgoing,

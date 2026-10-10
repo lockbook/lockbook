@@ -8,7 +8,6 @@ package app.lockbook.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -22,6 +21,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
@@ -30,7 +30,6 @@ import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.SheetShareFileBinding
 import app.lockbook.model.FileTreeViewModel
-import app.lockbook.screen.MainScreenActivity
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.util.OpenLinkBuilder
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -86,6 +85,7 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
         val singleFile = files.single()
         binding.shareFileName.text = singleFile.name
+        binding.shareFileInviteName.text = singleFile.name
         fileTreeViewModel.sharingContacts.observe(viewLifecycleOwner) { contacts ->
             sharedUsernames.clear()
             contacts.forEach { addParticipant(it.username) }
@@ -125,7 +125,6 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             }
         }
         binding.shareFileCopyLink.setOnClickListener { copyLockbookLink() }
-        binding.shareFileSendLink.setOnClickListener { shareLockbookLink() }
         if (savedInstanceState?.getBoolean(INVITE_FORM_VISIBLE_KEY) == true) showInviteForm(clearUsername = false)
     }
 
@@ -155,13 +154,13 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             binding.shareFileUsername.setText(username)
             binding.shareFileUsername.setSelection(binding.shareFileUsername.length())
         }
-        binding.shareFileMainContent.isVisible = false
+        binding.shareFileMainContent.visibility = View.INVISIBLE
         binding.shareFileInviteForm.isVisible = true
         binding.shareFileUsername.requestFocus()
     }
 
     private fun showMainSheet() {
-        binding.shareFileInviteForm.isVisible = false
+        binding.shareFileInviteForm.visibility = View.INVISIBLE
         binding.shareFileMainContent.isVisible = true
         binding.shareFileErrorContainer.isVisible = false
         binding.shareFileUsernameLayout.error = null
@@ -172,7 +171,6 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
 
     private fun updateAccessRow() {
         val hasShares = sharedUsernames.isNotEmpty()
-        binding.shareFileContactsHeading.isVisible = hasShares
         binding.shareFileAccessEmpty.isVisible = !hasShares
         binding.shareFileAccessPeople.isVisible = hasShares
         binding.shareFileAvatarList.removeAllViews()
@@ -189,13 +187,18 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             (binding.shareFileAccessPeople.width - addButtonWidth - avatarSpacing).coerceAtLeast(minLabelWidth)
         val labelWidth = (availableWidth / sharedUsernames.size).coerceIn(minLabelWidth, maxLabelWidth)
         val primaryColor = MaterialColors.getColor(binding.root, androidx.appcompat.R.attr.colorPrimary)
-        val labelColor = MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorOnSurfaceVariant)
+        val backgroundColors =
+            intArrayOf(
+                MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorSurface),
+                MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorSurfaceContainerLow),
+            )
         sharedUsernames.forEachIndexed { index, username ->
             val colorIndex = Math.floorMod(username.lowercase(Locale.ROOT).hashCode(), 8)
             val seedColor = Color.HSVToColor(floatArrayOf(colorIndex * 45f, 0.65f, 0.8f))
             val colorRoles = MaterialColors.getColorRoles(requireContext(), MaterialColors.harmonize(seedColor, primaryColor))
             val avatarColor = colorRoles.accentContainer
             val initialColor = colorRoles.onAccentContainer
+            val labelColor = readableUsernameColor(colorRoles.accent, backgroundColors)
             val avatar =
                 TextView(requireContext()).apply {
                     text = username.take(1).uppercase()
@@ -243,8 +246,34 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         }
     }
 
+    private fun readableUsernameColor(accent: Int, backgrounds: IntArray): Int {
+        if (backgrounds.all { ColorUtils.calculateContrast(accent, it) >= 4.5 }) return accent
+
+        val dark = backgrounds.minOf { ColorUtils.calculateContrast(Color.BLACK, it) }
+        val light = backgrounds.minOf { ColorUtils.calculateContrast(Color.WHITE, it) }
+        val target = if (dark > light) Color.BLACK else Color.WHITE
+        var low = 0f
+        var high = 1f
+        var readable = target
+        repeat(12) {
+            val blend = (low + high) / 2f
+            val candidate = ColorUtils.blendARGB(accent, target, blend)
+            if (backgrounds.all { ColorUtils.calculateContrast(candidate, it) >= 4.5 }) {
+                readable = candidate
+                high = blend
+            } else {
+                low = blend
+            }
+        }
+        return readable
+    }
+
     private fun addParticipant(username: String) {
-        if (username.isNotBlank() && sharedUsernames.none { it.equals(username, ignoreCase = true) }) {
+        if (
+            username.isNotBlank() &&
+            !username.trim().equals("<unknown>", ignoreCase = true) &&
+            sharedUsernames.none { it.equals(username, ignoreCase = true) }
+        ) {
             sharedUsernames.add(username)
         }
     }
@@ -309,13 +338,9 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         message: String,
         offerLink: Boolean = false,
     ) {
-        val activity = activity as? MainScreenActivity ?: return
         Snackbar
-            .make(activity.findViewById(android.R.id.content), message, Snackbar.LENGTH_SHORT)
+            .make(binding.root, message, Snackbar.LENGTH_SHORT)
             .apply {
-                if (activity.fileActionSnackbarAnchorView.isShown) {
-                    setAnchorView(activity.fileActionSnackbarAnchorView)
-                }
                 if (offerLink) setAction(R.string.copy_link) { copyLockbookLink() }
             }.show()
     }
@@ -329,18 +354,6 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             clipboard.setPrimaryClip(
                 ClipData.newPlainText(currentContext.getString(R.string.copy_lockbook_link), lockbookLink()),
             )
-            showSuccessSnackbar(getString(R.string.lockbook_link_copied))
-        }.onFailure(::showUnexpectedError)
-    }
-
-    private fun shareLockbookLink() {
-        runCatching {
-            val send =
-                Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, lockbookLink())
-                }
-            startActivity(Intent.createChooser(send, getString(R.string.send_lockbook_link)))
         }.onFailure(::showUnexpectedError)
     }
 
