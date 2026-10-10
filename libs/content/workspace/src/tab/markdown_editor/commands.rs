@@ -10,11 +10,13 @@ use super::widget::block::drag::{BlockDragAction, TouchReorder};
 use super::{MdEdit, TouchTarget};
 
 impl MdEdit {
-    /// The touch target painted under `pos` last frame.
+    /// The touch target painted under `pos` last frame: of several, the one
+    /// painted last, which is on top.
     pub fn touch_target_at(&self, pos: Pos2) -> Option<&TouchTarget> {
         self.renderer
             .touch_targets
             .iter()
+            .rev()
             .find(|(rect, _)| rect.contains(pos))
             .map(|(_, target)| target)
     }

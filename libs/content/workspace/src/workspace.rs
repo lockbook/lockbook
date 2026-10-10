@@ -24,6 +24,7 @@ use web_time::{Duration, Instant};
 
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
+use crate::links::{LinkIndex, Reader as LinkReader, Upkeep as LinkUpkeep};
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
@@ -86,6 +87,11 @@ pub struct Workspace {
     // Files and task status
     pub tasks: TaskManager,
     pub files: Arc<RwLock<FileCache>>,
+    /// What every note links to and what links to every file, current with
+    /// `files` and with each note as it is written.
+    pub links: Arc<RwLock<LinkIndex>>,
+    pub(crate) link_reader: LinkReader,
+    pub(crate) link_upkeep: LinkUpkeep,
     pub images: ImageCache,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
@@ -177,6 +183,9 @@ impl Workspace {
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,
+            links: Default::default(),
+            link_reader: LinkReader::new(core, ctx),
+            link_upkeep: Default::default(),
             images,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
@@ -210,6 +219,7 @@ impl Workspace {
             let files = ws.files.read().unwrap();
             ws.landing_page.update_recent_files(&files);
         }
+        ws.read_all_links();
 
         let (open_sessions, current_tab_index) = ws.cfg.get_sessions();
         let current_session_id = current_tab_index
@@ -1003,10 +1013,14 @@ impl Workspace {
     pub fn process_bg_tasks(&mut self) {
         loop {
             match self.ws_rx.try_recv() {
-                Ok(WsUpdates::FileCacheComputed(file_cache)) => {
+                Ok(WsUpdates::FileCacheComputed(mut file_cache)) => {
+                    // of those computed since the last frame, the newest stands
+                    while let Ok(WsUpdates::FileCacheComputed(newer)) = self.ws_rx.try_recv() {
+                        file_cache = newer;
+                    }
                     let file_cache = file_cache.unwrap();
                     self.landing_page.update_recent_files(&file_cache);
-                    *self.files.write().unwrap() = file_cache;
+                    self.replace_files(file_cache);
                     self.out.file_cache_updated = true;
 
                     for tab in self.tabs.values_mut() {
@@ -1050,6 +1064,7 @@ impl Workspace {
                 Ok(evt) => {
                     match evt {
                         Event::DocumentWritten(id, actor) => {
+                            self.links_follow_write(id);
                             let event_origin = match actor {
                                 Actor::Sync => {
                                     self.core.app_foregrounded();
@@ -1164,7 +1179,7 @@ impl Workspace {
                     continue;
                 };
                 let link = crate::tab::imported_image_link(&cache, file_id, &file);
-                *self.files.write().unwrap() = cache;
+                self.replace_files(cache);
                 match link {
                     Ok(link) => {
                         self.ctx
@@ -1323,10 +1338,14 @@ impl Workspace {
                                             ctx: self.ctx.clone(),
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
-                                            link_resolver: Box::new(FileCacheLinkResolver::new(
-                                                Arc::clone(&self.files),
-                                                id,
-                                            )),
+                                            link_resolver: Box::new(
+                                                FileCacheLinkResolver::new(
+                                                    Arc::clone(&self.files),
+                                                    id,
+                                                )
+                                                .creating_notes(!tab.read_only)
+                                                .copying_external_urls(core.clone()),
+                                            ),
                                             files: Arc::clone(&self.files),
                                             embeds: Box::new(ImageEmbedResolver::new(
                                                 self.images.clone(),
@@ -1502,6 +1521,42 @@ impl Workspace {
             self.open_file(file.id, true, false);
         }
         self.out.file_created = Some(result);
+        self.ctx.request_repaint();
+    }
+
+    /// Create `names` under `parent` — folders, then a document last — and
+    /// navigate to the document.
+    pub fn create_note_at(&mut self, parent: Uuid, names: &[String]) {
+        let mut parent = parent;
+        for (i, name) in names.iter().enumerate() {
+            let file_type =
+                if i + 1 == names.len() { FileType::Document } else { FileType::Folder };
+            let result = self
+                .core
+                .create_file(name, &parent, file_type)
+                .map_err(|err| format!("{err:?}"));
+            match &result {
+                Ok(file) => {
+                    self.files
+                        .write()
+                        .unwrap()
+                        .insert_created_file(file.clone());
+                    self.out.file_cache_updated = true;
+                    parent = file.id;
+                }
+                Err(err) => {
+                    self.out
+                        .failure_messages
+                        .push(format!("Create failed: {err}"));
+                    self.out.file_created = Some(result);
+                    return;
+                }
+            }
+            if file_type == FileType::Document {
+                self.navigate_to(crate::tab::Destination::File(parent));
+                self.out.file_created = Some(result);
+            }
+        }
         self.ctx.request_repaint();
     }
 
@@ -1758,6 +1813,10 @@ pub struct WsPresistentData {
     /// replaces.
     #[serde(default = "default_open_in_new_tab")]
     open_in_new_tab: bool,
+    /// Broken links the user was offered a rewrite of and left as they are:
+    /// the note, and the destination as written. They aren't offered again.
+    #[serde(default)]
+    links_left: Vec<(Uuid, String)>,
 }
 
 impl Default for WsPresistentData {
@@ -1776,6 +1835,7 @@ impl Default for WsPresistentData {
             zoom_factor: 1.,
             image_dims: HashMap::default(),
             contact_linked_sites: false,
+            links_left: Vec::default(),
         }
     }
 }
@@ -1943,6 +2003,15 @@ impl WsPersistentStore {
         let mut data_lock = self.data.write().unwrap();
         data_lock.image_dims.extend(new_dims);
         drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn links_left(&self) -> Vec<(Uuid, String)> {
+        self.data.read().unwrap().links_left.clone()
+    }
+
+    pub fn set_links_left(&self, links: Vec<(Uuid, String)>) {
+        self.data.write().unwrap().links_left = links;
         self.write_to_file();
     }
 

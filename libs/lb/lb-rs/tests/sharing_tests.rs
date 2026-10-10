@@ -1299,6 +1299,45 @@ async fn reject_share() {
 }
 
 #[tokio::test]
+async fn rejected_share_is_no_longer_listed() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
+    let recipient = cores[1].get_account().unwrap().username.clone();
+    let root = cores[0].root().await.unwrap();
+
+    let folder = cores[0]
+        .create_file("folder", &root.id, FileType::Folder)
+        .await
+        .unwrap();
+    cores[0]
+        .share_file(folder.id, &recipient, ShareMode::Write)
+        .await
+        .unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
+    assert_eq!(
+        cores[0]
+            .get_file_by_id(folder.id)
+            .await
+            .unwrap()
+            .shares
+            .len(),
+        1
+    );
+
+    cores[1].reject_share(&folder.id).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
+    assert!(
+        cores[0]
+            .get_file_by_id(folder.id)
+            .await
+            .unwrap()
+            .shares
+            .is_empty()
+    );
+}
+
+#[tokio::test]
 async fn delete_link_to_share() {
     let cores = [
         test_core_with_account().await,

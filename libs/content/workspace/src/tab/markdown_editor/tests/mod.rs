@@ -27,5 +27,6 @@ mod edit_props;
 mod folding;
 mod ios_host;
 mod link_card;
+mod links;
 mod regressions;
 mod render_props;

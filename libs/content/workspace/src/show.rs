@@ -31,6 +31,7 @@ pub const SEARCH_SHORTCUT: egui::KeyboardShortcut =
 impl Workspace {
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         visuals::apply(ui.style_mut());
+        let bounds = ui.max_rect();
 
         if let Some(cache) = self
             .ctx
@@ -52,6 +53,7 @@ impl Workspace {
 
         self.process_bg_tasks();
         self.process_lb_updates();
+        self.process_links();
         self.process_task_updates();
         self.process_keys();
         self.process_clip_events();
@@ -67,6 +69,7 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
             self.landing_page_first_frame = true;
         }
+        self.show_link_notice(ui, bounds);
         self.update_window_title();
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg.set_tabs(&self.tab_strip, &self.current_tab);
@@ -139,28 +142,16 @@ impl Workspace {
                         w.commands.retain(|c| {
                             let egui::OutputCommand::OpenUrl(url) = c else { return true };
 
-                            // lb://uuid — direct internal link
-                            if let Some(id_str) = url.url.strip_prefix("lb://") {
-                                if let Ok(id) = Uuid::parse_str(id_str) {
-                                    open_ids.push((id, url.new_tab));
+                            // files open in the app; an internal destination
+                            // that doesn't resolve goes nowhere
+                            match self.files.read().unwrap().resolve_link(&url.url, id) {
+                                Some(ResolvedLink::File(file_id)) => {
+                                    open_ids.push((file_id, url.new_tab));
+                                    false
                                 }
-                                return false;
+                                Some(ResolvedLink::External(_)) => true,
+                                None => false,
                             }
-
-                            let files_arc = std::sync::Arc::clone(&self.files);
-                            let files_guard = files_arc.read().unwrap();
-                            let Some(from_id) = files_guard.get_by_id(id).map(|f| f.parent) else {
-                                return true;
-                            };
-
-                            let Some(ResolvedLink::File(file_id)) =
-                                files_guard.resolve_link(&url.url, from_id)
-                            else {
-                                return true;
-                            };
-
-                            open_ids.push((file_id, url.new_tab));
-                            false
                         });
                     });
                 }
@@ -184,6 +175,9 @@ impl Workspace {
                     } else {
                         self.navigate_to_range(id, range);
                     }
+                }
+                for (parent, names) in ui.ctx().pop_create_notes() {
+                    self.create_note_at(parent, &names);
                 }
             });
         });

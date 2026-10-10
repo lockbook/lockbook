@@ -711,15 +711,14 @@ impl MdEdit {
                         match action {
                             LinkMenuAction::Open => {
                                 if link.is_wikilink {
-                                    if let Some(file_id) = self.renderer.resolve_wikilink(&link.url)
-                                    {
-                                        ui.ctx().open_file(file_id, false);
-                                    }
+                                    self.renderer.open_wikilink(&link.url, ui.ctx(), false);
                                 } else {
                                     self.renderer.open_resolved_link(&link.url, ui.ctx(), false);
                                 }
                             }
-                            LinkMenuAction::Copy => ui.ctx().copy_text(link.url.clone()),
+                            LinkMenuAction::Copy => ui
+                                .ctx()
+                                .copy_text(self.renderer.link_to_copy(&link.url, link.is_wikilink)),
                             LinkMenuAction::Refresh => self.renderer.refresh_link_meta(&link.url),
                             LinkMenuAction::Edit => {
                                 if link.force_reveal {

@@ -1,4 +1,3 @@
-use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
@@ -522,13 +521,12 @@ impl<'ast> MdEdit {
             Event::OpenLink { url, wikilink } => {
                 let ctx = self.renderer.ctx.clone();
                 if wikilink {
-                    if let Some(file) = self.renderer.resolve_wikilink(&url) {
-                        ctx.open_file(file, false);
-                    }
+                    self.renderer.open_wikilink(&url, &ctx, false);
                 } else {
                     self.renderer.open_resolved_link(&url, &ctx, false);
                 }
             }
+            Event::LoadEmbed { url } => self.renderer.embeds.allow(&url),
             Event::EnterAtom => {
                 if !self.enter_at_image(root, operations) {
                     self.enter_at_link(root, operations);
@@ -919,6 +917,26 @@ impl<'ast> MdEdit {
             self.insert_head(range.start(), style.clone(), operations);
             operations.push(Operation::Select(selection));
             self.insert_tail(range.start(), style, operations);
+            return;
+        }
+
+        // a link has one destination, so it can't be cropped to the selection:
+        // each link the selection touches is unlinked whole
+        if unapply && matches!(style, NodeValue::Link(_)) {
+            for node in root.descendants() {
+                let node_range = self.renderer.node_range(node);
+                if node.node_type() != style || !node_range.intersects(&range, true) {
+                    continue;
+                }
+                let (head, tail) = (self.renderer.head_range(node), self.renderer.tail_range(node));
+                let syntax = match (head, tail) {
+                    (Some(head), Some(tail)) => vec![head, tail],
+                    _ => vec![node_range], // nothing is linked: `[]()`
+                };
+                for range in syntax {
+                    operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                }
+            }
             return;
         }
 

@@ -18,6 +18,14 @@ pub trait EmbedResolver {
     /// it's the egress point reached from otherwise pure-looking layout code.
     fn prefetch(&self, url: &str);
 
+    /// Whether `url` is content left unfetched until the user asks for it
+    /// with [`Self::allow`].
+    fn is_withheld(&self, _url: &str) -> bool {
+        false
+    }
+
+    fn allow(&self, _url: &str) {}
+
     /// Increment this to signal when any return value could change.
     fn seq(&self) -> u64;
 }

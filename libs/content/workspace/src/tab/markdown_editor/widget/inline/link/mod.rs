@@ -41,6 +41,7 @@ impl<'ast> MdRender {
             LinkState::Normal => theme.fg().blue,
             LinkState::Warning { .. } => theme.fg().yellow,
             LinkState::Broken { .. } => theme.fg().red,
+            LinkState::Placeholder { .. } => theme.fg().blue.gamma_multiply(0.7),
         };
         Format { color, underline: true, ..parent_text_format }
     }
@@ -317,7 +318,8 @@ impl<'ast> MdRender {
         self.link_resolver.resolve_link(url)
     }
 
-    /// Open `url` in-app for internal file links and in the browser otherwise.
+    /// Open `url` in-app for internal file links and in the browser for web
+    /// URLs; a destination that doesn't resolve opens nothing.
     /// `new_tab` is only for an explicit new-tab request (cmd-click / multi-open).
     pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context, new_tab: bool) {
         match self.resolve_link(url) {
@@ -325,7 +327,7 @@ impl<'ast> MdRender {
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
-            None => ctx.open_url(egui::OpenUrl { url: url.into(), new_tab: true }),
+            None => {}
         }
     }
 
@@ -337,21 +339,42 @@ impl<'ast> MdRender {
         self.link_resolver.wikilink_state(url)
     }
 
-    /// URL (or wikilink target) of the first link-like node whose source range
-    /// intersects the current selection — gates and feeds the platform edit
-    /// menu's "Open Link" / "Copy Link".
+    /// What copying a link puts on the clipboard. A link to a file copies as
+    /// the file's external URL, any `#fragment` kept: the one form that means
+    /// the same file wherever it is pasted. Anything else copies as written.
+    pub fn link_to_copy(&self, url: &str, wikilink: bool) -> String {
+        let file = if wikilink {
+            self.resolve_wikilink(url)
+        } else {
+            match self.resolve_link(url) {
+                Some(ResolvedLink::File(id)) => Some(id),
+                _ => None,
+            }
+        };
+        let Some(external) = file.and_then(|id| self.link_resolver.external_url(id)) else {
+            return url.into();
+        };
+        match url.split_once('#') {
+            Some((_, fragment)) => format!("{external}#{fragment}"),
+            None => external,
+        }
+    }
+
+    /// What to copy ([`Self::link_to_copy`]) for the first link-like node
+    /// whose source range intersects the current selection — gates and feeds
+    /// the platform edit menu's "Open Link" / "Copy Link".
     pub fn selection_open_target(&mut self) -> Option<String> {
         let arena = Arena::new();
         let root = self.reparse(&arena);
         let selection = self.buffer.current.selection;
         for node in root.descendants() {
-            let url = match &node.data.borrow().value {
-                NodeValue::Link(l) | NodeValue::Image(l) => l.url.clone(),
-                NodeValue::WikiLink(nwl) => nwl.url.clone(),
+            let (url, wikilink) = match &node.data.borrow().value {
+                NodeValue::Link(l) | NodeValue::Image(l) => (l.url.clone(), false),
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
                 _ => continue,
             };
             if !url.is_empty() && self.node_range(node).intersects(&selection, true) {
-                return Some(url);
+                return Some(self.link_to_copy(&url, wikilink));
             }
         }
         None
@@ -370,6 +393,7 @@ impl<'ast> MdRender {
 
         let mut file_ids = vec![];
         let mut urls = vec![];
+        let mut placeholders = vec![];
 
         for node in root.descendants() {
             let node_range = self.node_range(node);
@@ -388,8 +412,9 @@ impl<'ast> MdRender {
             };
 
             if is_wikilink {
-                if let Some(id) = self.resolve_wikilink(&url) {
-                    file_ids.push(id);
+                match self.resolve_wikilink(&url) {
+                    Some(id) => file_ids.push(id),
+                    None => placeholders.push(url),
                 }
                 continue;
             }
@@ -399,10 +424,13 @@ impl<'ast> MdRender {
                 Some(ResolvedLink::External(url)) => {
                     urls.push(egui::OpenUrl { url, new_tab: false });
                 }
-                None => {
-                    urls.push(egui::OpenUrl { url, new_tab: false });
-                }
+                None => {}
             }
+        }
+
+        // a lone wikilink to a note that doesn't exist creates it
+        if let ([], [], [title]) = (&file_ids[..], &urls[..], &placeholders[..]) {
+            self.open_wikilink(title, ctx, false);
         }
 
         let new_tab = file_ids.len() + urls.len() > 1;
@@ -454,7 +482,10 @@ impl<'ast> MdRender {
                 } else {
                     self.link_state_for_url(&url)
                 };
-                if let LinkState::Warning { message } | LinkState::Broken { message } = &state {
+                if let LinkState::Warning { message }
+                | LinkState::Broken { message }
+                | LinkState::Placeholder { message } = &state
+                {
                     if let Some(pos) = ui.ctx().pointer_hover_pos() {
                         egui::Area::new(id.with("link_warning"))
                             .order(egui::Order::Tooltip)
