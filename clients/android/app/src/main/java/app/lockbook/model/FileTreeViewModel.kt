@@ -354,7 +354,10 @@ class FileTreeViewModel(
             ) {
                 true
             } else {
-                lbEvent.metadataChanged || lbEvent.pendingSharesChanged || lbEvent.documentWritten
+                lbEvent.metadataChanged ||
+                    lbEvent.pendingSharesChanged ||
+                    lbEvent.documentWritten ||
+                    lbEvent.ipcChangesApplied
             }
 
         if (metaOrContentDirty) {

@@ -1,7 +1,9 @@
+use db_rs::View;
 pub use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::*;
 use uuid::Uuid;
 
+use crate::io::CoreV5;
 use crate::{Lb, LbErrKind};
 
 #[derive(Clone)]
@@ -19,6 +21,10 @@ pub enum Event {
     /// The contents of this document have changed either by this lb
     /// library or as a result of sync
     DocumentWritten(Uuid, Actor),
+
+    /// Changes from another process have been applied to our local views.
+    /// Cached metadata and document contents may need to be reloaded.
+    IpcChangesApplied,
 
     PendingSharesChanged,
 
@@ -79,6 +85,33 @@ impl EventSubs {
 }
 
 impl Lb {
+    pub(crate) async fn notify_catch_up(&self, db: &CoreV5, previous_seq: u64) {
+        if db.account.last_modified() > previous_seq && self.get_account().is_err() {
+            if let Some(account) = db.account.as_ref() {
+                self.keychain.cache_account(account.clone()).await.unwrap();
+                self.events.signed_in();
+            }
+        }
+
+        let changed = [
+            db.account.last_modified(),
+            db.root.last_modified(),
+            db.base_metadata.last_modified(),
+            db.local_metadata.last_modified(),
+            db.pub_key_lookup.last_modified(),
+            db.pinned_files.last_modified(),
+            db.last_synced.last_modified(),
+        ]
+        .into_iter()
+        .any(|seq| seq > previous_seq);
+
+        // Read activity is deliberately excluded: reloading documents records
+        // more reads, which must not trigger reloads in the other process.
+        if changed {
+            self.events.queue(Event::IpcChangesApplied);
+        }
+    }
+
     pub fn subscribe(&self) -> Receiver<Event> {
         self.events.tx.subscribe()
     }
