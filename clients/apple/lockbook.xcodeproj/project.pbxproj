@@ -11,6 +11,8 @@
 		AA00000000000000000000B3 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* AppIcon.icon */; };
 		AA0000000000000000000C53 /* CodeScanner in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000C52 /* CodeScanner */; };
 		AB00000000000000000000E9 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB00000000000000000000E1 /* ShareExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AC00000000000000000000E9 /* PinnedDocumentsWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AC00000000000000000000E1 /* PinnedDocumentsWidget.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AC00000000000000000000B2 /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = AC00000000000000000000B1 /* Bridge */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -20,6 +22,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = AB00000000000000000000E0;
 			remoteInfo = ShareExtension;
+		};
+		AC00000000000000000000EA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EA5C7D632516605F00F7F358 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AC00000000000000000000E0;
+			remoteInfo = PinnedDocumentsWidget;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -31,6 +40,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				AB00000000000000000000E9 /* ShareExtension.appex in Embed Foundation Extensions */,
+				AC00000000000000000000E9 /* PinnedDocumentsWidget.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -41,6 +51,7 @@
 		47728DB12EC921DD005F9C91 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		AA00000000000000000000A6 /* Lockbook.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lockbook.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB00000000000000000000E1 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC00000000000000000000E1 /* PinnedDocumentsWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PinnedDocumentsWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -51,11 +62,19 @@
 			);
 			target = AB00000000000000000000E0 /* ShareExtension */;
 		};
+		AC00000000000000000000E3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = AC00000000000000000000E0 /* PinnedDocumentsWidget */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		AA00000000000000000000A1 /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = App; sourceTree = "<group>"; };
 		AB00000000000000000000E2 /* ShareExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (AB00000000000000000000E3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = ShareExtension; sourceTree = "<group>"; };
+		AC00000000000000000000E2 /* PinnedDocumentsWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (AC00000000000000000000E3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = PinnedDocumentsWidget; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +94,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AC00000000000000000000E6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC00000000000000000000B2 /* Bridge in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -83,6 +110,7 @@
 			children = (
 				AA00000000000000000000A1 /* App */,
 				AB00000000000000000000E2 /* ShareExtension */,
+				AC00000000000000000000E2 /* PinnedDocumentsWidget */,
 				47728DB12EC921DD005F9C91 /* AppIcon.icon */,
 				EA5C7D702516606000F7F358 /* Products */,
 			);
@@ -93,6 +121,7 @@
 			children = (
 				AA00000000000000000000A6 /* Lockbook.app */,
 				AB00000000000000000000E1 /* ShareExtension.appex */,
+				AC00000000000000000000E1 /* PinnedDocumentsWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -113,6 +142,7 @@
 			);
 			dependencies = (
 				AB00000000000000000000EB /* PBXTargetDependency */,
+				AC00000000000000000000EB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				AA00000000000000000000A1 /* App */,
@@ -148,6 +178,29 @@
 			productReference = AB00000000000000000000E1 /* ShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		AC00000000000000000000E0 /* PinnedDocumentsWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AC00000000000000000000E4 /* Build configuration list for PBXNativeTarget "PinnedDocumentsWidget" */;
+			buildPhases = (
+				AC00000000000000000000E5 /* Sources */,
+				AC00000000000000000000E6 /* Frameworks */,
+				AC00000000000000000000E7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AC00000000000000000000E2 /* PinnedDocumentsWidget */,
+			);
+			name = PinnedDocumentsWidget;
+			packageProductDependencies = (
+				AC00000000000000000000B1 /* Bridge */,
+			);
+			productName = PinnedDocumentsWidget;
+			productReference = AC00000000000000000000E1 /* PinnedDocumentsWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -177,6 +230,7 @@
 			targets = (
 				AA00000000000000000000A2 /* Lockbook */,
 				AB00000000000000000000E0 /* ShareExtension */,
+				AC00000000000000000000E0 /* PinnedDocumentsWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -191,6 +245,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		AB00000000000000000000E7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC00000000000000000000E7 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -214,6 +275,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AC00000000000000000000E5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -222,6 +290,12 @@
 			platformFilter = ios;
 			target = AB00000000000000000000E0 /* ShareExtension */;
 			targetProxy = AB00000000000000000000EA /* PBXContainerItemProxy */;
+		};
+		AC00000000000000000000EB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = AC00000000000000000000E0 /* PinnedDocumentsWidget */;
+			targetProxy = AC00000000000000000000EA /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -401,6 +475,39 @@
 			};
 			name = Debug;
 		};
+		AC00000000000000000000EC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
+				CODE_SIGN_ENTITLEMENTS = PinnedDocumentsWidget/PinnedDocumentsWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20260924.173304;
+				DEVELOPMENT_TEAM = 39ZS78S25U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PinnedDocumentsWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 26.9.25;
+				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.PinnedDocumentsWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		AB00000000000000000000ED /* Development */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -432,6 +539,39 @@
 			};
 			name = Development;
 		};
+		AC00000000000000000000ED /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
+				CODE_SIGN_ENTITLEMENTS = PinnedDocumentsWidget/PinnedDocumentsWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20260924.173304;
+				DEVELOPMENT_TEAM = 39ZS78S25U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PinnedDocumentsWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 26.9.25;
+				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.PinnedDocumentsWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Development;
+		};
 		AB00000000000000000000EE /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -451,6 +591,39 @@
 				);
 				MARKETING_VERSION = 26.10.9;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AC00000000000000000000EE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
+				CODE_SIGN_ENTITLEMENTS = PinnedDocumentsWidget/PinnedDocumentsWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20260924.173304;
+				DEVELOPMENT_TEAM = 39ZS78S25U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PinnedDocumentsWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 26.9.25;
+				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.PinnedDocumentsWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -671,6 +844,16 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		AC00000000000000000000E4 /* Build configuration list for PBXNativeTarget "PinnedDocumentsWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC00000000000000000000EC /* Debug */,
+				AC00000000000000000000ED /* Development */,
+				AC00000000000000000000EE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "lockbook" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -710,6 +893,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA0000000000000000000C51 /* XCRemoteSwiftPackageReference "CodeScanner" */;
 			productName = CodeScanner;
+		};
+		AC00000000000000000000B1 /* Bridge */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Bridge;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
