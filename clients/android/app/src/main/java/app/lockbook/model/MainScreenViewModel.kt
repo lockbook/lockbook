@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import net.lockbook.Lb
 import net.lockbook.LbError
-import java.io.File
 
 class MainScreenViewModel(
     application: Application,
@@ -51,8 +50,6 @@ class MainScreenViewModel(
     val navigationState: StateFlow<MainNavigationState> = _navigationState.asStateFlow()
     val navigationEffects = _navigationEffects.receiveAsFlow()
 
-    val exportImportModel = ExportImportModel(_mainUiEffect)
-
     fun launchActivityScreen(screen: ActivityScreen) {
         activityScreen = screen
         _launchActivityScreen.postValue(activityScreen)
@@ -75,21 +72,11 @@ class MainScreenViewModel(
         return transition.handled
     }
 
-    fun showProgressOverlay(show: Boolean) {
-        _mainUiEffect.value = MainUiEffect.ShowHideProgressOverlay(show)
-    }
-
-    fun shareSelectedFiles(
-        selectedFiles: List<net.lockbook.File>,
-        appDataDir: File,
+    fun showProgressOverlay(
+        show: Boolean,
+        messageRes: Int? = null,
     ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                exportImportModel.exportDocuments(selectedFiles, appDataDir)
-            } catch (err: LbError) {
-                _mainUiEffect.postValue(MainUiEffect.NotifyError(err))
-            }
-        }
+        _mainUiEffect.value = MainUiEffect.ShowHideProgressOverlay(show, messageRes)
     }
 
     fun confirmSubscription(
@@ -184,11 +171,7 @@ sealed class TransientScreen {
     ) : TransientScreen()
 
     data class Share(
-        val file: net.lockbook.File,
-    ) : TransientScreen()
-
-    data class ShareExport(
-        val files: List<File>,
+        val files: List<net.lockbook.File>,
     ) : TransientScreen()
 
     data class Delete(
@@ -199,10 +182,7 @@ sealed class TransientScreen {
 sealed class MainUiEffect {
     data class ShowHideProgressOverlay(
         val show: Boolean,
-    ) : MainUiEffect()
-
-    data class ShareDocuments(
-        val files: ArrayList<File>,
+        val messageRes: Int? = null,
     ) : MainUiEffect()
 
     data class NotifyError(

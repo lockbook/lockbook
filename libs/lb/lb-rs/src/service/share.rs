@@ -1,14 +1,104 @@
 use crate::Lb;
 use crate::model::api::GetPublicKeyRequest;
-use crate::model::errors::{LbErr, LbResult};
+use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::{File, ShareMode};
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
 use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
 use libsecp256k1::PublicKey;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
+/// Account-wide sharing relationships, based on the current local metadata snapshot.
+/// Counts documents, not folders or link placeholders. Pending incoming shares are excluded.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SharingContact {
+    pub username: String,
+    pub outgoing_file_count: u64,
+    pub incoming_file_count: u64,
+    /// Distinct documents shared in either direction.
+    pub total_file_count: u64,
+}
+
 impl Lb {
+    /// Ranked contacts for the signed-in account. This is a local, read-only query;
+    /// callers should run it off their UI thread and refresh after metadata changes.
+    /// Inheritance follows real metadata parents, never the local placement of a link.
+    #[instrument(level = "debug", skip(self))]
+    pub async fn get_sharing_contacts(&self) -> LbResult<Vec<SharingContact>> {
+        let me = self.keychain.get_pk()?;
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        let mut counts: HashMap<Owner, (u64, u64, u64)> = HashMap::new();
+        let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
+        // Walk the accepted tree once; pending trees and link placeholders aren't documents.
+        for id in tree.descendants_using_links(root)? {
+            if !tree.find(&id)?.is_document() {
+                continue;
+            }
+            let mut outgoing = HashSet::new();
+            let mut incoming = HashSet::new();
+            let mut visited = HashSet::new();
+            let mut current = id;
+            let mut deleted = false;
+            while visited.insert(current) {
+                let Some(file) = tree.maybe_find(&current) else { break };
+                if file.explicitly_deleted() {
+                    deleted = true;
+                    break;
+                }
+                for access in file.user_access_keys() {
+                    if access.deleted || access.encrypted_by == access.encrypted_for {
+                        continue;
+                    }
+                    if access.encrypted_by == me {
+                        outgoing.insert(Owner(access.encrypted_for));
+                    } else if access.encrypted_for == me {
+                        incoming.insert(Owner(access.encrypted_by));
+                    }
+                }
+                if file.is_root() {
+                    break;
+                }
+                current = *file.parent();
+            }
+            if deleted {
+                continue;
+            }
+            for user in outgoing.union(&incoming) {
+                let count = counts.entry(*user).or_default();
+                count.0 += u64::from(outgoing.contains(user));
+                count.1 += u64::from(incoming.contains(user));
+                count.2 += 1;
+            }
+        }
+        let mut contacts: Vec<_> = counts
+            .into_iter()
+            .filter_map(|(owner, (outgoing, incoming, total))| {
+                let username = db.pub_key_lookup.get(&owner)?.clone();
+                let trimmed = username.trim();
+                if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("<unknown>") {
+                    return None;
+                }
+                Some(SharingContact {
+                    username,
+                    outgoing_file_count: outgoing,
+                    incoming_file_count: incoming,
+                    total_file_count: total,
+                })
+            })
+            .collect();
+        contacts.sort_by(|a, b| {
+            b.total_file_count
+                .cmp(&a.total_file_count)
+                .then_with(|| a.username.cmp(&b.username))
+        });
+        Ok(contacts)
+    }
+
     // todo: this can check whether the username is known already
     #[instrument(level = "debug", skip(self))]
     pub async fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {

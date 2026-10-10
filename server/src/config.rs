@@ -150,6 +150,8 @@ pub struct ServerConfig {
     pub ssl_cert_location: Option<String>,
     pub ssl_private_key_location: Option<String>,
     pub min_core_version: VersionReq,
+    /// Externally reachable HTTPS origin used in links handed to native apps.
+    pub public_url: String,
 }
 
 impl ServerConfig {
@@ -163,6 +165,7 @@ impl ServerConfig {
         let ssl_cert_location = env_or_empty("SSL_CERT_LOCATION");
         let ssl_private_key_location = env_or_empty("SSL_PRIVATE_KEY_LOCATION");
         let min_core_version = VersionReq::parse(&env_or_panic("MIN_CORE_VERSION")).unwrap();
+        let public_url = env::var("PUBLIC_URL").unwrap_or_else(|_| env_or_panic("API_URL"));
 
         match (&discord_webhook_url, &pd_api_key, &ssl_cert_location, &ssl_private_key_location) {
             (Some(_), Some(_), Some(_), Some(_)) | (None, None, None, None) => {}
@@ -181,6 +184,7 @@ impl ServerConfig {
             ssl_cert_location,
             ssl_private_key_location,
             min_core_version,
+            public_url,
         }
     }
 }

@@ -42,6 +42,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
+import app.lockbook.model.FileOperationsViewModel
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.MainNavigationAction
@@ -85,6 +86,7 @@ class WorkspaceFragment : Fragment() {
     val binding get() = _binding!!
 
     private val mainScreenModel: MainScreenViewModel by activityViewModels()
+    private val fileOperations: FileOperationsViewModel by activityViewModels()
     private val model: WorkspaceViewModel by activityViewModels()
 
     private var bottomSheetContractedHeight = 0
@@ -327,13 +329,13 @@ class WorkspaceFragment : Fragment() {
                         .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
 
                     getCurrentFile()?.let {
-                        mainScreenModel.launchTransientScreen(TransientScreen.Share(it))
+                        mainScreenModel.launchTransientScreen(TransientScreen.Share(listOf(it)))
                     }
                 }
 
-                R.id.menu_text_editor_share_externally -> {
+                R.id.menu_text_editor_export -> {
                     getCurrentFile()?.let {
-                        mainScreenModel.shareSelectedFiles(listOf(it), requireContext().cacheDir)
+                        fileOperations.prepareExport(listOf(it), requireContext().cacheDir)
                     }
                 }
             }
@@ -605,9 +607,8 @@ class WorkspaceFragment : Fragment() {
                     .isVisible =
                     false
                 binding.workspaceToolbar.menu
-                    .findItem(R.id.menu_text_editor_share_externally)
-                    .isVisible =
-                    false
+                    .findItem(R.id.menu_text_editor_export)
+                    .isVisible = false
                 binding.workspaceToolbar.setTitle("")
             }
 
@@ -622,9 +623,8 @@ class WorkspaceFragment : Fragment() {
                     .findItem(R.id.menu_text_editor_share)
                     .isVisible = true
                 binding.workspaceToolbar.menu
-                    .findItem(R.id.menu_text_editor_share_externally)
-                    .isVisible =
-                    true
+                    .findItem(R.id.menu_text_editor_export)
+                    .isVisible = true
                 binding.workspaceToolbar.setTitle(tabTitle)
             }
         }

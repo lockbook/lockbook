@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.lockbook",
+      "sha256_cert_fingerprints": [
+        "80:9E:9F:4B:1B:D9:26:31:A1:4B:34:33:B7:0E:74:38:81:2A:92:9C:D9:60:A6:F1:93:2E:0F:56:2E:CE:38:67"
+      ]
+    }
+  }
+]

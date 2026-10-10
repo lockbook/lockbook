@@ -86,24 +86,34 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-        <FrameLayout
+        <LinearLayout
             android:id="@+id/progress_overlay"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:animateLayoutChanges="true"
             android:background="?attr/colorSurface"
             android:clickable="true"
+            android:gravity="center"
+            android:orientation="vertical"
             android:visibility="gone"
 
             tools:ignore="KeyboardInaccessibleWidget">
 
             <com.google.android.material.progressindicator.CircularProgressIndicator
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
                 android:indeterminate="true" />
 
-        </FrameLayout>
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/progress_overlay_message"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:accessibilityLiveRegion="polite"
+                android:textAppearance="?attr/textAppearanceBodyLarge"
+                android:visibility="gone" />
+
+        </LinearLayout>
 
         </app.lockbook.screen.AdaptiveWorkspaceShell>
 

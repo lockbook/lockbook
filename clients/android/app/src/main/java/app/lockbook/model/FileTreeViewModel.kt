@@ -24,15 +24,19 @@ import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.Lb
+import net.lockbook.LbError
 import net.lockbook.LbEvent
 import net.lockbook.LbStatus
+import net.lockbook.SharingContact
 import net.lockbook.Usage
 import org.json.JSONArray
 import org.json.JSONObject
@@ -58,6 +62,14 @@ class FileTreeViewModel(
         get() = _notifyUpdateFilesUI
 
     lateinit var fileModel: FileModel
+
+    private val contactRefreshRequests = Channel<Unit>(Channel.CONFLATED)
+    private val _sharingContacts = MutableLiveData<List<SharingContact>>(emptyList())
+    val sharingContacts: LiveData<List<SharingContact>> = _sharingContacts
+
+    fun refreshSharingContacts() {
+        contactRefreshRequests.trySend(Unit)
+    }
 
     // / the list of files that the file tree displays in the UI
     val _files = MutableLiveData<List<FileViewHolderInfo>>(emptyList())
@@ -105,6 +117,17 @@ class FileTreeViewModel(
 
     init {
         startUpInRoot()
+        viewModelScope.launch {
+            for (request in contactRefreshRequests) {
+                try {
+                    val contacts: List<SharingContact> = withContext(Dispatchers.IO) { Lb.getSharingContacts().toList() }
+                    _sharingContacts.value = contacts
+                } catch (error: LbError) {
+                    Timber.e(error, "Unable to refresh sharing contacts")
+                }
+            }
+        }
+        refreshSharingContacts()
         loadPinnedFiles()
         getStatus()
     }
@@ -192,6 +215,7 @@ class FileTreeViewModel(
 
     fun reloadFiles() {
         fileModel.refreshFiles()
+        refreshSharingContacts()
 
         refreshFilesDataSource()
     }
@@ -359,6 +383,9 @@ class FileTreeViewModel(
 
         if (metaOrContentDirty) {
             fileModel.refreshFiles()
+        }
+        if (lbEvent == null || lbEvent.metadataChanged || lbEvent.pendingSharesChanged) {
+            refreshSharingContacts()
         }
 
         refreshFilesDataSource()
