@@ -73,6 +73,7 @@ class MainScreenActivity : AppCompatActivity() {
         private const val PENDING_SHARES_FRAGMENT_TAG = "PendingShares"
         private const val CREATE_LINK_FRAGMENT_TAG = "CreateLink"
         private const val WORKSPACE_FRAGMENT_TAG = "Workspace"
+        private const val PENDING_OPEN_FILE_ID_KEY = "pending_open_file_id"
     }
 
     private val fragmentFinishedCallback =
@@ -127,10 +128,12 @@ class MainScreenActivity : AppCompatActivity() {
     private val fileSelectionModel: FileSelectionViewModel by viewModels()
 
     private val fileTreeViewModel: FileTreeViewModel by viewModels()
+    private var pendingOpenFileId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        pendingOpenFileId = savedInstanceState?.getString(PENDING_OPEN_FILE_ID_KEY)?.let(::canonicalFileId)
         if (savedInstanceState == null && !acceptOpenLink(intent, coldStart = true)) return
 
         enableEdgeToEdge(
@@ -263,7 +266,7 @@ class MainScreenActivity : AppCompatActivity() {
                 }
 
                 is TransientScreen.Share -> {
-                    ShareFileBottomSheetFragment.newInstance(screen.files.map { it.id }).show(
+                    ShareFileBottomSheetFragment.newInstance(screen.file.id).show(
                         supportFragmentManager,
                         ShareFileBottomSheetFragment.TAG,
                     )
@@ -300,9 +303,6 @@ class MainScreenActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    fileOperations.opening.collect(::renderOpening)
-                }
                 launch {
                     fileOperations.exporting.collect(::renderExport)
                 }
@@ -380,6 +380,11 @@ class MainScreenActivity : AppCompatActivity() {
         if (acceptOpenLink(intent, coldStart = false)) consumePendingOpenLink()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        pendingOpenFileId?.let { outState.putString(PENDING_OPEN_FILE_ID_KEY, it) }
+        super.onSaveInstanceState(outState)
+    }
+
     private fun acceptOpenLink(intent: Intent, coldStart: Boolean): Boolean {
         if (intent.action != Intent.ACTION_VIEW) return true
 
@@ -400,57 +405,25 @@ class MainScreenActivity : AppCompatActivity() {
             return false
         }
 
-        PendingOpenLinkStore.save(this, fileId)
+        pendingOpenFileId = fileId
         return true
     }
 
     private fun consumePendingOpenLink() {
-        PendingOpenLinkStore.peek(this)?.let(fileOperations::open)
-    }
-
-    private fun renderOpening(state: OpenLinkState) {
-        renderFileOperationProgress()
-        when (state) {
-            OpenLinkState.Idle -> {
-                Unit
-            }
-
-            OpenLinkState.Running -> {
-                Unit
-            }
-
-            is OpenLinkState.Complete -> {
-                val result = state.result
-                fileTreeViewModel.reloadFiles()
-                when {
-                    result.fileFound -> {
-                        workspaceModel.openFile(
-                            OpenFileRequest(
-                                id = result.fileId,
-                                newFile = false,
-                                presentation = OpenFilePresentation.ShowDetail,
-                            ),
-                        )
-                        mainScreenModel.navigate(MainNavigationAction.FocusDetail)
-                    }
-
-                    result.error != null -> {
-                        alertModel.notifyError(result.error)
-                    }
-
-                    else -> {
-                        alertModel.notify(getString(R.string.open_link_not_found))
-                    }
-                }
-                acknowledgeOpenLink(result)
-            }
+        val fileId = pendingOpenFileId ?: return
+        pendingOpenFileId = null
+        if (fileTreeViewModel.fileModel.idsAndFiles.containsKey(fileId)) {
+            workspaceModel.openFile(
+                OpenFileRequest(
+                    id = fileId,
+                    newFile = false,
+                    presentation = OpenFilePresentation.ShowDetail,
+                ),
+            )
+            mainScreenModel.navigate(MainNavigationAction.FocusDetail)
+        } else {
+            alertModel.notify(getString(R.string.open_link_not_found))
         }
-    }
-
-    private fun acknowledgeOpenLink(result: OpenLinkResult) {
-        PendingOpenLinkStore.acknowledge(this, result.fileId)
-        fileOperations.acknowledgeOpening()
-        consumePendingOpenLink()
     }
 
     private fun renderExport(state: ExportState) {
@@ -675,16 +648,6 @@ class MainScreenActivity : AppCompatActivity() {
         when (effect) {
             is MainUiEffect.NotifyError -> {
                 alertModel.notifyError(effect.error)
-            }
-
-            is MainUiEffect.ShowHideProgressOverlay -> {
-                binding.progressOverlayMessage.isVisible = effect.show && effect.messageRes != null
-                effect.messageRes?.let(binding.progressOverlayMessage::setText)
-                if (effect.show) {
-                    Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 100, 500)
-                } else {
-                    Animate.animateVisibility(binding.progressOverlay, View.GONE, 0, 500)
-                }
             }
 
             MainUiEffect.ShowSubscriptionConfirmed -> {
@@ -939,10 +902,13 @@ class MainScreenActivity : AppCompatActivity() {
 
     private fun renderFileOperationProgress() {
         val exporting = fileOperations.exporting.value.let { it == ExportState.Preparing || it == ExportState.Copying }
-        mainScreenModel.showProgressOverlay(
-            fileOperations.opening.value == OpenLinkState.Running || exporting,
-            if (exporting) R.string.exporting else null,
-        )
+        binding.progressOverlayMessage.isVisible = exporting
+        if (exporting) {
+            binding.progressOverlayMessage.setText(R.string.exporting)
+            Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 100, 500)
+        } else {
+            Animate.animateVisibility(binding.progressOverlay, View.GONE, 0, 500)
+        }
     }
 
     override fun onDestroy() {

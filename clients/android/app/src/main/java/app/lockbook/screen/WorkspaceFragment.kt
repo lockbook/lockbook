@@ -329,7 +329,7 @@ class WorkspaceFragment : Fragment() {
                         .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
 
                     getCurrentFile()?.let {
-                        mainScreenModel.launchTransientScreen(TransientScreen.Share(listOf(it)))
+                        mainScreenModel.launchTransientScreen(TransientScreen.Share(it))
                     }
                 }
 

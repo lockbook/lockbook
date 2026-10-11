@@ -51,20 +51,17 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
     private var _binding: SheetShareFileBinding? = null
     private val binding get() = _binding!!
     private val fileTreeViewModel: FileTreeViewModel by activityViewModels()
-    private val files: List<File> by lazy {
-        requireArguments().getStringArrayList(FILE_IDS_KEY)!!.map(Lb::getFileById)
-    }
-    private val file: File get() = files.single()
-    private val sharedUsernames = linkedSetOf<String>()
+    private val file: File by lazy { Lb.getFileById(requireArguments().getString(FILE_ID_KEY)!!) }
+    private var sharedUsernames: List<String> = emptyList()
 
     companion object {
         const val TAG = "ShareFileBottomSheetFragment"
-        private const val FILE_IDS_KEY = "file_ids"
+        private const val FILE_ID_KEY = "file_id"
         private const val INVITE_FORM_VISIBLE_KEY = "invite_form_visible"
 
-        fun newInstance(fileIds: List<String>): ShareFileBottomSheetFragment =
+        fun newInstance(fileId: String): ShareFileBottomSheetFragment =
             ShareFileBottomSheetFragment().apply {
-                arguments = Bundle().apply { putStringArrayList(FILE_IDS_KEY, ArrayList(fileIds)) }
+                arguments = Bundle().apply { putString(FILE_ID_KEY, fileId) }
             }
     }
 
@@ -82,12 +79,10 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         savedInstanceState: Bundle?,
     ) {
         super.onViewCreated(view, savedInstanceState)
-        val singleFile = files.single()
-        binding.shareFileName.text = singleFile.name
-        binding.shareFileInviteName.text = singleFile.name
+        binding.shareFileName.text = file.name
+        binding.shareFileInviteName.text = file.name
         fileTreeViewModel.sharingContacts.observe(viewLifecycleOwner) { contacts ->
-            sharedUsernames.clear()
-            contacts.forEach { addParticipant(it.username) }
+            sharedUsernames = contacts.map { it.username }
             updateAccessRow()
         }
         binding.shareFileAccessPeople.doOnLayout { updateAccessRow() }
@@ -265,16 +260,6 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             }
         }
         return readable
-    }
-
-    private fun addParticipant(username: String) {
-        if (
-            username.isNotBlank() &&
-            !username.trim().equals("<unknown>", ignoreCase = true) &&
-            sharedUsernames.none { it.equals(username, ignoreCase = true) }
-        ) {
-            sharedUsernames.add(username)
-        }
     }
 
     private fun shareFile() {

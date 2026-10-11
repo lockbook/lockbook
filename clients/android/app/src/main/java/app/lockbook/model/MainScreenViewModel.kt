@@ -72,13 +72,6 @@ class MainScreenViewModel(
         return transition.handled
     }
 
-    fun showProgressOverlay(
-        show: Boolean,
-        messageRes: Int? = null,
-    ) {
-        _mainUiEffect.value = MainUiEffect.ShowHideProgressOverlay(show, messageRes)
-    }
-
     fun confirmSubscription(
         purchaseToken: String,
         accountId: String,
@@ -171,7 +164,7 @@ sealed class TransientScreen {
     ) : TransientScreen()
 
     data class Share(
-        val files: List<net.lockbook.File>,
+        val file: net.lockbook.File,
     ) : TransientScreen()
 
     data class Delete(
@@ -180,11 +173,6 @@ sealed class TransientScreen {
 }
 
 sealed class MainUiEffect {
-    data class ShowHideProgressOverlay(
-        val show: Boolean,
-        val messageRes: Int? = null,
-    ) : MainUiEffect()
-
     data class NotifyError(
         val error: LbError,
     ) : MainUiEffect()

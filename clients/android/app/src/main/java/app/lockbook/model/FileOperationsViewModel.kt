@@ -21,22 +21,6 @@ import java.io.File
 import java.io.IOException
 import java.util.Locale
 
-internal sealed interface OpenLinkState {
-    data object Idle : OpenLinkState
-
-    data object Running : OpenLinkState
-
-    data class Complete(
-        val result: OpenLinkResult,
-    ) : OpenLinkState
-}
-
-internal data class OpenLinkResult(
-    val fileId: String,
-    val fileFound: Boolean = false,
-    val error: LbError? = null,
-)
-
 internal data class ExportResult(
     val saved: Int,
     val total: Int,
@@ -70,8 +54,6 @@ internal sealed interface ExportState {
 class FileOperationsViewModel(
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    private val mutableOpening = MutableStateFlow<OpenLinkState>(OpenLinkState.Idle)
-    internal val opening = mutableOpening.asStateFlow()
     private val mutableExport =
         MutableStateFlow<ExportState>(
             when {
@@ -87,27 +69,6 @@ class FileOperationsViewModel(
         set(files) {
             savedStateHandle[PENDING_EXPORT_FILES_KEY] = ArrayList(files.map { it.absolutePath })
         }
-
-    fun open(fileId: String) {
-        if (mutableOpening.value != OpenLinkState.Idle) return
-        mutableOpening.value = OpenLinkState.Running
-        viewModelScope.launch {
-            mutableOpening.value =
-                OpenLinkState.Complete(
-                    withContext(Dispatchers.IO) {
-                        resolveOpenLink(
-                            fileId,
-                            sync = { Lb.sync() },
-                            fileExists = { Lb.getFileById(it) != null },
-                        )
-                    },
-                )
-        }
-    }
-
-    internal fun acknowledgeOpening() {
-        if (mutableOpening.value is OpenLinkState.Complete) mutableOpening.value = OpenLinkState.Idle
-    }
 
     fun prepareExport(
         selectedFiles: List<net.lockbook.File>,
@@ -249,24 +210,3 @@ class FileOperationsViewModel(
 
 internal fun exportMimeType(file: File): String =
     MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase(Locale.ROOT)) ?: "application/octet-stream"
-
-internal fun resolveOpenLink(
-    fileId: String,
-    sync: () -> Unit,
-    fileExists: (String) -> Boolean,
-): OpenLinkResult {
-    val syncError =
-        try {
-            sync()
-            null
-        } catch (error: LbError) {
-            error
-        }
-    val found =
-        try {
-            fileExists(fileId)
-        } catch (_: LbError) {
-            false
-        }
-    return OpenLinkResult(fileId, fileFound = found, error = syncError)
-}

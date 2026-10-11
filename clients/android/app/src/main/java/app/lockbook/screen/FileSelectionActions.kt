@@ -203,7 +203,7 @@ internal class FileSelectionActionDispatcher(
             }
 
             FileSelectionAction.Share -> {
-                files.singleOrNull()?.let { mainScreenModel.launchTransientScreen(TransientScreen.Share(listOf(it))) }
+                files.singleOrNull()?.let { mainScreenModel.launchTransientScreen(TransientScreen.Share(it)) }
                 onClearSelection()
             }
 
