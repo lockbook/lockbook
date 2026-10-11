@@ -341,6 +341,19 @@ pub extern "system" fn Java_net_lockbook_Lb_getFileById<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_getFileLinkUrl<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+
+    match lb.get_file_link_url(id) {
+        Ok(url) => jni_string(&mut env, url).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_nextName<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jparent_id: JString<'local>,
     jdesired: JString<'local>,

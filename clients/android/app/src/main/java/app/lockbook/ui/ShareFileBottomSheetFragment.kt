@@ -31,7 +31,6 @@ import app.lockbook.R
 import app.lockbook.databinding.SheetShareFileBinding
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.screen.UpdateFilesUI
-import app.lockbook.util.OpenLinkBuilder
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -345,14 +344,12 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             }.show()
     }
 
-    private fun lockbookLink(): String = OpenLinkBuilder.build(Lb.getAccount().apiUrl, file.id)
-
     private fun copyLockbookLink() {
         runCatching {
             val currentContext = context ?: return
             val clipboard = currentContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(
-                ClipData.newPlainText(currentContext.getString(R.string.copy_lockbook_link), lockbookLink()),
+                ClipData.newPlainText(currentContext.getString(R.string.copy_lockbook_link), Lb.getFileLinkUrl(file.id)),
             )
         }.onFailure(::showUnexpectedError)
     }
