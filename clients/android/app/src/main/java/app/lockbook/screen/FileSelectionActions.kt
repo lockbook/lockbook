@@ -208,7 +208,7 @@ internal class FileSelectionActionDispatcher(
             }
 
             FileSelectionAction.Export -> {
-                fileOperations.prepareExport(files, fragment.requireContext().cacheDir)
+                fileOperations.requestExport(files)
                 onClearSelection()
             }
         }

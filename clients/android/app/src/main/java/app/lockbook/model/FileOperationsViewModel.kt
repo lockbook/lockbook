@@ -33,7 +33,8 @@ internal sealed interface ExportState {
     data object Preparing : ExportState
 
     data class ChooseDestination(
-        val files: List<File>,
+        val selectedIds: List<String>,
+        val singleDocument: net.lockbook.File?,
     ) : ExportState
 
     data object AwaitingDestination : ExportState
@@ -57,67 +58,53 @@ class FileOperationsViewModel(
     private val mutableExport =
         MutableStateFlow<ExportState>(
             when {
-                pendingExportFiles.isNotEmpty() -> ExportState.AwaitingDestination
+                pendingExportIds.isNotEmpty() -> ExportState.AwaitingDestination
                 savedStateHandle.get<Boolean>(EXPORT_IN_PROGRESS_KEY) == true -> ExportState.Failed()
                 else -> ExportState.Idle
             },
         )
     internal val exporting = mutableExport.asStateFlow()
 
-    private var pendingExportFiles: List<File>
-        get() = savedStateHandle.get<ArrayList<String>>(PENDING_EXPORT_FILES_KEY)?.map(::File).orEmpty()
-        set(files) {
-            savedStateHandle[PENDING_EXPORT_FILES_KEY] = ArrayList(files.map { it.absolutePath })
+    private var pendingExportIds: List<String>
+        get() = savedStateHandle.get<ArrayList<String>>(PENDING_EXPORT_IDS_KEY).orEmpty()
+        set(ids) {
+            savedStateHandle[PENDING_EXPORT_IDS_KEY] = ArrayList(ids)
+        }
+    private var pendingSingleDocument: Boolean
+        get() = savedStateHandle[SINGLE_DOCUMENT_KEY] ?: false
+        set(value) {
+            savedStateHandle[SINGLE_DOCUMENT_KEY] = value
         }
 
-    fun prepareExport(
-        selectedFiles: List<net.lockbook.File>,
-        appDataDir: File,
-    ) {
+    fun requestExport(selectedFiles: List<net.lockbook.File>) {
         if (mutableExport.value != ExportState.Idle) return
-        savedStateHandle[EXPORT_IN_PROGRESS_KEY] = true
-        mutableExport.value = ExportState.Preparing
-        viewModelScope.launch {
-            try {
-                val exported =
-                    withContext(Dispatchers.IO) {
-                        val shareRoot = File(appDataDir, "share")
-                        clearShareStorage(shareRoot)
-                        val documents = mutableListOf<net.lockbook.File>()
-                        collectDocuments(selectedFiles, documents)
-                        val shareFolder = File(shareRoot, System.currentTimeMillis().toString()).apply { mkdirs() }
-                        documents.distinctBy { it.id }.map { file ->
-                            val itemFolder = File(shareFolder, file.id).apply { mkdir() }
-                            Lb.exportFile(file.id, itemFolder.absolutePath, false)
-                            File(itemFolder, file.name).absoluteFile
-                        }
-                    }
-                mutableExport.value = if (exported.isEmpty()) ExportState.NoDocuments else ExportState.ChooseDestination(exported)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: LbError) {
-                mutableExport.value = ExportState.Failed(error)
-            } catch (_: Exception) {
-                mutableExport.value = ExportState.Failed()
-            }
+        val exportable = selectedFiles.filter { it.type != FileType.Link }
+        if (exportable.isEmpty()) {
+            mutableExport.value = ExportState.NoDocuments
+            return
         }
+        val singleDocument = exportable.singleOrNull()?.takeIf { it.type == FileType.Document }
+        mutableExport.value = ExportState.ChooseDestination(exportable.map { it.id }, singleDocument)
     }
 
-    internal fun takeExportPickerRequest(): List<File>? {
+    internal fun takeExportPickerRequest(): ExportState.ChooseDestination? {
         val state = mutableExport.value as? ExportState.ChooseDestination ?: return null
-        pendingExportFiles = state.files
+        pendingExportIds = state.selectedIds
+        pendingSingleDocument = state.singleDocument != null
         mutableExport.value = ExportState.AwaitingDestination
-        return state.files
+        return state
     }
 
     internal fun finishExport() {
-        pendingExportFiles = emptyList()
+        pendingExportIds = emptyList()
+        pendingSingleDocument = false
         savedStateHandle[EXPORT_IN_PROGRESS_KEY] = false
         mutableExport.value = ExportState.Idle
     }
 
     internal fun exportPickerFailed() {
-        pendingExportFiles = emptyList()
+        pendingExportIds = emptyList()
+        pendingSingleDocument = false
         mutableExport.value = ExportState.Failed()
     }
 
@@ -145,49 +132,95 @@ class FileOperationsViewModel(
     fun export(
         destination: Uri,
         resolver: ContentResolver,
+        appDataDir: File,
     ) {
         if (mutableExport.value != ExportState.AwaitingDestination) return
-        val files = pendingExportFiles
-        if (files.isEmpty()) return
-        pendingExportFiles = emptyList()
-        mutableExport.value = ExportState.Copying
+        val ids = pendingExportIds
+        if (ids.isEmpty()) return
+        val singleDocument = pendingSingleDocument
+        pendingExportIds = emptyList()
+        pendingSingleDocument = false
+        savedStateHandle[EXPORT_IN_PROGRESS_KEY] = true
+        mutableExport.value = ExportState.Preparing
         viewModelScope.launch {
-            mutableExport.value =
-                ExportState.Complete(
-                    withContext(Dispatchers.IO) {
-                        var saved = 0
-                        try {
-                            if (files.size == 1) {
-                                writeFile(resolver, files.single(), destination)
-                                saved = 1
-                            } else {
-                                val parent =
-                                    DocumentsContract.buildDocumentUriUsingTree(
-                                        destination,
-                                        DocumentsContract.getTreeDocumentId(destination),
-                                    )
-                                for (source in files) {
-                                    val created =
-                                        DocumentsContract.createDocument(resolver, parent, exportMimeType(source), source.name)
-                                            ?: throw IOException("Could not create ${source.name}")
-                                    try {
-                                        writeFile(resolver, source, created)
-                                    } catch (error: Exception) {
-                                        runCatching { DocumentsContract.deleteDocument(resolver, created) }
-                                        throw error
-                                    }
-                                    saved++
-                                }
-                            }
-                            ExportResult(saved, files.size, succeeded = true)
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (_: Exception) {
-                            ExportResult(saved, files.size, succeeded = false)
-                        }
-                    },
-                )
+            try {
+                val files = withContext(Dispatchers.IO) { prepareFiles(ids, appDataDir) }
+                if (files.isEmpty()) {
+                    if (singleDocument) withContext(Dispatchers.IO) { deleteCreatedDocument(resolver, destination) }
+                    mutableExport.value = ExportState.NoDocuments
+                    return@launch
+                }
+                mutableExport.value = ExportState.Copying
+                mutableExport.value =
+                    ExportState.Complete(
+                        withContext(Dispatchers.IO) { copyFiles(files, destination, resolver, singleDocument) },
+                    )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: LbError) {
+                if (singleDocument) withContext(Dispatchers.IO) { deleteCreatedDocument(resolver, destination) }
+                mutableExport.value = ExportState.Failed(error)
+            } catch (_: Exception) {
+                if (singleDocument) withContext(Dispatchers.IO) { deleteCreatedDocument(resolver, destination) }
+                mutableExport.value = ExportState.Failed()
+            }
         }
+    }
+
+    private fun prepareFiles(ids: List<String>, appDataDir: File): List<File> {
+        val shareRoot = File(appDataDir, "share")
+        clearShareStorage(shareRoot)
+        val documents = mutableListOf<net.lockbook.File>()
+        collectDocuments(ids.map(Lb::getFileById), documents)
+        val shareFolder = File(shareRoot, System.currentTimeMillis().toString()).apply { mkdirs() }
+        return documents.distinctBy { it.id }.map { file ->
+            val itemFolder = File(shareFolder, file.id).apply { mkdir() }
+            Lb.exportFile(file.id, itemFolder.absolutePath, false)
+            File(itemFolder, file.name).absoluteFile
+        }
+    }
+
+    private fun copyFiles(
+        files: List<File>,
+        destination: Uri,
+        resolver: ContentResolver,
+        singleDocument: Boolean,
+    ): ExportResult {
+        var saved = 0
+        try {
+            if (singleDocument) {
+                writeFile(resolver, files.single(), destination)
+                saved = 1
+            } else {
+                val parent =
+                    DocumentsContract.buildDocumentUriUsingTree(
+                        destination,
+                        DocumentsContract.getTreeDocumentId(destination),
+                    )
+                for (source in files) {
+                    val created =
+                        DocumentsContract.createDocument(resolver, parent, exportMimeType(source), source.name)
+                            ?: throw IOException("Could not create ${source.name}")
+                    try {
+                        writeFile(resolver, source, created)
+                    } catch (error: Exception) {
+                        runCatching { DocumentsContract.deleteDocument(resolver, created) }
+                        throw error
+                    }
+                    saved++
+                }
+            }
+            return ExportResult(saved, files.size, succeeded = true)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            if (singleDocument) deleteCreatedDocument(resolver, destination)
+            return ExportResult(saved, files.size, succeeded = false)
+        }
+    }
+
+    private fun deleteCreatedDocument(resolver: ContentResolver, destination: Uri) {
+        runCatching { DocumentsContract.deleteDocument(resolver, destination) }
     }
 
     private fun writeFile(
@@ -203,10 +236,15 @@ class FileOperationsViewModel(
     }
 
     companion object {
-        private const val PENDING_EXPORT_FILES_KEY = "pending_export_files"
+        private const val PENDING_EXPORT_IDS_KEY = "pending_export_ids"
+        private const val SINGLE_DOCUMENT_KEY = "export_single_document"
         private const val EXPORT_IN_PROGRESS_KEY = "export_in_progress"
     }
 }
 
 internal fun exportMimeType(file: File): String =
-    MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase(Locale.ROOT)) ?: "application/octet-stream"
+    exportMimeType(file.name)
+
+internal fun exportMimeType(fileName: String): String =
+    MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileName.substringAfterLast('.', "").lowercase(Locale.ROOT))
+        ?: "application/octet-stream"

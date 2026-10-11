@@ -119,7 +119,7 @@ class MainScreenActivity : AppCompatActivity() {
                 return@registerForActivityResult
             }
 
-            fileOperations.export(destination, application.contentResolver)
+            fileOperations.export(destination, application.contentResolver, cacheDir)
         }
 
     val mainScreenModel: MainScreenViewModel by viewModels()
@@ -876,13 +876,13 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun launchExportChooser(files: List<File>) {
+    private fun launchExportChooser(request: ExportState.ChooseDestination) {
         val intent =
-            if (files.size == 1) {
+            if (request.singleDocument != null) {
                 Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
-                    type = exportMimeType(files.single())
-                    putExtra(Intent.EXTRA_TITLE, files.single().name)
+                    type = exportMimeType(request.singleDocument.name)
+                    putExtra(Intent.EXTRA_TITLE, request.singleDocument.name)
                 }
             } else {
                 Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)

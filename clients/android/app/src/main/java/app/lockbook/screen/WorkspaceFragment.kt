@@ -335,7 +335,7 @@ class WorkspaceFragment : Fragment() {
 
                 R.id.menu_text_editor_export -> {
                     getCurrentFile()?.let {
-                        fileOperations.prepareExport(listOf(it), requireContext().cacheDir)
+                        fileOperations.requestExport(listOf(it))
                     }
                 }
             }
