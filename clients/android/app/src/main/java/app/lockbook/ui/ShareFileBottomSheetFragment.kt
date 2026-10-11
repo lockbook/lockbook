@@ -293,7 +293,6 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
                     binding.shareFileAddUser.isEnabled = true
                     binding.shareFileBack.isEnabled = true
                     binding.shareFileUsername.text?.clear()
-                    fileTreeViewModel.refreshSharingContacts()
                     showMainSheet()
                     showSuccessSnackbar(getString(R.string.shared_with, username), offerLink = true)
                 }
