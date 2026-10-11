@@ -40,7 +40,9 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             startFromExistingAccount()
         } catch (err: LbError) {
             if (err.kind == LbEC.AccountNonexistent) {
-                startActivity(Intent(this, OnBoardingActivity::class.java))
+                if (intent.action != Intent.ACTION_VIEW) {
+                    startActivity(Intent(this, OnBoardingActivity::class.java))
+                }
                 finish()
             } else {
                 alertModel.notifyError(err)
@@ -68,6 +70,10 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
     private fun launchListFilesActivity() {
         val intent = Intent(this, MainScreenActivity::class.java)
+        if (this.intent.action == Intent.ACTION_VIEW) {
+            intent.action = Intent.ACTION_VIEW
+            intent.data = this.intent.data
+        }
         intent.addFlags(
             Intent.FLAG_ACTIVITY_NO_ANIMATION or
                 Intent.FLAG_ACTIVITY_CLEAR_TOP or

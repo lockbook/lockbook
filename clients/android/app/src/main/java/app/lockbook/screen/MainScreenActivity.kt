@@ -42,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.Lb
+import net.lockbook.LbError
 import net.lockbook.LbStatus
 import java.io.File
 import java.lang.ref.WeakReference
@@ -129,6 +130,8 @@ class MainScreenActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (savedInstanceState == null && !acceptOpenLink(intent, coldStart = true)) return
 
         enableEdgeToEdge(
             navigationBarStyle =
@@ -374,7 +377,31 @@ class MainScreenActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        consumePendingOpenLink()
+        if (acceptOpenLink(intent, coldStart = false)) consumePendingOpenLink()
+    }
+
+    private fun acceptOpenLink(intent: Intent, coldStart: Boolean): Boolean {
+        if (intent.action != Intent.ACTION_VIEW) return true
+
+        val fileId = intent.dataString?.let(OpenLinkParser::parse)
+        if (fileId == null) {
+            MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.invalid_lockbook_link)
+                .setPositiveButton(android.R.string.ok) { _, _ -> if (coldStart) finish() }
+                .setOnCancelListener { if (coldStart) finish() }
+                .show()
+            return false
+        }
+
+        try {
+            Lb.getAccount()
+        } catch (_: LbError) {
+            if (coldStart) finish()
+            return false
+        }
+
+        PendingOpenLinkStore.save(this, fileId)
+        return true
     }
 
     private fun consumePendingOpenLink() {
@@ -919,8 +946,8 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        binding.bottomNavigation.animate().cancel()
-        binding.createFileFab.animate().cancel()
+        _binding?.bottomNavigation?.animate()?.cancel()
+        _binding?.createFileFab?.animate()?.cancel()
         super.onDestroy()
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }

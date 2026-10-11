@@ -28,12 +28,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
-        <activity
-            android:name=".screen.OpenLinkActivity"
-            android:exported="true"
-            android:launchMode="singleTop"
-            android:noHistory="true">
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -60,8 +54,7 @@
             android:alwaysRetainTaskState="true" />
         <activity android:name=".screen.MainScreenActivity"
             android:windowSoftInputMode="stateUnspecified"
-            android:configChanges="orientation|screenSize"
-            />
+            android:configChanges="orientation|screenSize" />
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.DebugInfoActivity" />
         <activity android:name=".screen.UpgradeAccountActivity" />
