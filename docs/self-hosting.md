@@ -21,6 +21,7 @@
 Our server is configurable via environment variables. The [`config.rs`](https://github.com/lockbook/lockbook/blob/master/server/src/config.rs) file is optimized to document the env vars we use. Some notable variables are:
   * `ENVIRONMENT` allows you to put the server in `PROD` mode, binding to `0.0.0.0` instead of `127.0.0.1` to allow external traffic to reach the server, but also requiring you to provide `SSL_CERT_LOCATION` and `SSL_PRIVATE_KEY_LOCATION`.
   * You can update the `local.env` that `lbdev` launches the server with. Once you have a configuration that meets your goals you can move away from `lbdev`. In production we use this `systemd` service specification: https://github.com/lockbook/lockbook/blob/master/server/etc/systemd/system/lockbook-server.service.
+  * When running a production build, copy `server/static` to `/usr/share/lockbook-server/static` on the server before starting the binary. Local builds read `server/static` from the source checkout.
 
 ## Configuring a client
 * Clients with env vars easily accessible can be pointed at a different server during account creation / login by setting the `API_URL` environment variable. Server logs will indicate whether the account was created in the right place. All lockbook clients expose the concept of `debug_info`, generally in settings which displays the current `server_url` as another mechanism of debugging. 

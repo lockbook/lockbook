@@ -52,7 +52,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(stripe_webhooks(&server_state))
         .or(google_play_notification_webhooks(&server_state))
         .or(app_store_notification_webhooks(&server_state))
-        .or(static_routes(&cfg.server.public_url));
+        .or(static_routes(
+            &std::env::var("API_URL").expect("API_URL must be set"),
+            if cfg.is_prod() {
+                Path::new("/usr/share/lockbook-server/static")
+            } else {
+                Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/static"))
+            },
+        ));
 
     let server = warp::serve(routes);
 

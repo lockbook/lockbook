@@ -1,28 +1,25 @@
+use std::path::Path;
 use tracing::{Level, info, span};
 use uuid::Uuid;
-use warp::{Filter, http::Response, hyper::Body};
+use warp::Filter;
 
-const APPLE_APP_SITE_ASSOCIATION: &str = include_str!("../static/apple-app-site-association");
-const ANDROID_ASSET_LINKS: &str = include_str!("../static/assetlinks.json");
 const OPEN_HTML: &str = include_str!("../static/open.html");
-const LOCKBOOK_LOGO: &[u8] = include_bytes!("../static/favicon/web-app-manifest-512x512.png");
 
 pub fn static_routes(
-    public_url: &str,
+    api_url: &str, static_dir: &Path,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    let public_origin = canonical_https_origin(public_url).unwrap_or_else(|| {
-        panic!("PUBLIC_URL must be an HTTPS origin without credentials, path, query, or fragment")
+    let server_origin = canonical_api_origin(api_url).unwrap_or_else(|| {
+        panic!("API_URL must be an HTTP(S) origin without credentials, path, query, or fragment")
     });
-    open_route(public_origin)
-        .or(well_known_route())
-        .or(logo_route())
-        .or(mark_route())
-        .or(preview_image_route())
-        .or(favicon_route())
+    assert!(static_dir.is_dir(), "static asset directory does not exist: {}", static_dir.display());
+    open_route(server_origin)
+        .or(well_known_route(static_dir))
+        .or(logo_route(static_dir))
+        .or(warp::fs::dir(static_dir.to_path_buf()).map(cached_file))
 }
 
 fn open_route(
-    public_origin: String,
+    server_origin: String,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path("open")
         .and(warp::path::param::<Uuid>())
@@ -31,95 +28,53 @@ fn open_route(
             let span = span!(Level::INFO, "matched_request", method = "GET", route = "/open");
             let _enter = span.enter();
             info!(%uuid, "external link routed");
-            warp::reply::html(get_files_preview_html(&public_origin, uuid))
+            warp::reply::html(get_files_preview_html(&server_origin, uuid))
         })
 }
 
-fn well_known_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn well_known_route(
+    static_dir: &Path,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path(".well-known")
         .and(
             warp::path("apple-app-site-association")
-                .map(|| json_response(APPLE_APP_SITE_ASSOCIATION))
-                .or(warp::path("assetlinks.json").map(|| json_response(ANDROID_ASSET_LINKS)))
+                .and(warp::fs::file(static_dir.join("apple-app-site-association")))
+                .or(warp::path("assetlinks.json")
+                    .and(warp::fs::file(static_dir.join("assetlinks.json"))))
                 .unify(),
         )
         .and(warp::path::end())
+        .map(|file| warp::reply::with_header(file, "Content-Type", "application/json"))
 }
 
-fn logo_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn logo_route(
+    static_dir: &Path,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path("lockbook-logo.png")
         .and(warp::path::end())
-        .map(|| asset_response("image/png", LOCKBOOK_LOGO))
+        .and(warp::fs::file(static_dir.join("favicon/web-app-manifest-512x512.png")))
+        .map(cached_file)
 }
 
-fn preview_image_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone
-{
-    warp::path("open-preview.png")
-        .and(warp::path::end())
-        .map(|| asset_response("image/png", include_bytes!("../static/open-preview.png")))
+fn cached_file(file: warp::fs::File) -> impl warp::Reply {
+    warp::reply::with_header(
+        warp::reply::with_header(file, "Cache-Control", "public, max-age=86400"),
+        "X-Content-Type-Options",
+        "nosniff",
+    )
 }
 
-fn mark_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::path("lockbook-mark.svg")
-        .and(warp::path::end())
-        .map(|| asset_response("image/svg+xml", include_bytes!("../static/lockbook-mark.svg")))
-}
-
-fn favicon_route() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::path("favicon")
-        .and(warp::path::param::<String>())
-        .and(warp::path::end())
-        .and_then(|name: String| async move {
-            let (content_type, bytes): (&str, &'static [u8]) = match name.as_str() {
-                "favicon.svg" => ("image/svg+xml", include_bytes!("../static/favicon/favicon.svg")),
-                "favicon.ico" => ("image/x-icon", include_bytes!("../static/favicon/favicon.ico")),
-                "favicon-96x96.png" => {
-                    ("image/png", include_bytes!("../static/favicon/favicon-96x96.png"))
-                }
-                "apple-touch-icon.png" => {
-                    ("image/png", include_bytes!("../static/favicon/apple-touch-icon.png"))
-                }
-                "web-app-manifest-192x192.png" => {
-                    ("image/png", include_bytes!("../static/favicon/web-app-manifest-192x192.png"))
-                }
-                "web-app-manifest-512x512.png" => ("image/png", LOCKBOOK_LOGO),
-                "site.webmanifest" => (
-                    "application/manifest+json",
-                    include_bytes!("../static/favicon/site.webmanifest"),
-                ),
-                _ => return Err(warp::reject::not_found()),
-            };
-            Ok::<_, warp::Rejection>(asset_response(content_type, bytes))
-        })
-}
-
-fn asset_response(content_type: &str, bytes: &'static [u8]) -> Response<Body> {
-    Response::builder()
-        .header("Content-Type", content_type)
-        .header("Cache-Control", "public, max-age=86400")
-        .header("X-Content-Type-Options", "nosniff")
-        .body(Body::from(bytes))
-        .unwrap()
-}
-
-fn json_response(body: &'static str) -> Response<Body> {
-    Response::builder()
-        .header("Content-Type", "application/json")
-        .body(Body::from(body))
-        .unwrap()
-}
-
-pub fn get_files_preview_html(public_origin: &str, uuid: Uuid) -> String {
+pub fn get_files_preview_html(server_origin: &str, uuid: Uuid) -> String {
     let id = uuid.to_string();
     OPEN_HTML
-        .replace("{{OPEN_URL}}", &format!("{public_origin}/open/{id}"))
-        .replace("{{PREVIEW_IMAGE}}", &format!("{public_origin}/open-preview.png"))
+        .replace("{{OPEN_URL}}", &format!("{server_origin}/open/{id}"))
+        .replace("{{PREVIEW_IMAGE}}", &format!("{server_origin}/open-preview.png"))
         .replace("{{HANDOFF}}", &format!("lb://{id}"))
 }
 
-fn canonical_https_origin(value: &str) -> Option<String> {
+fn canonical_api_origin(value: &str) -> Option<String> {
     let parsed = reqwest::Url::parse(value).ok()?;
-    if parsed.scheme() != "https"
+    if !matches!(parsed.scheme(), "http" | "https")
         || parsed.host_str().is_none()
         || !parsed.username().is_empty()
         || parsed.password().is_some()
@@ -138,11 +93,17 @@ mod tests {
 
     const ID: &str = "a6743b18-c7ef-4960-9825-8022e2fa5672";
 
+    fn routes(
+        api_url: &str,
+    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        static_routes(api_url, Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/static")))
+    }
+
     #[tokio::test]
     async fn valid_open_route_has_explicit_escaped_handoff_and_metadata() {
         let response = warp::test::request()
             .path(&format!("/open/{ID}"))
-            .reply(&static_routes("https://Notes.Example.com:443/"))
+            .reply(&routes("https://Notes.Example.com:443/"))
             .await;
         assert_eq!(response.status(), 200);
         let body = std::str::from_utf8(response.body()).unwrap();
@@ -173,7 +134,7 @@ mod tests {
     async fn ipv6_handoff_and_preview_keep_valid_authorities() {
         let response = warp::test::request()
             .path(&format!("/open/{ID}"))
-            .reply(&static_routes("https://[::1]:8443/"))
+            .reply(&routes("https://[::1]:8443/"))
             .await;
         let body = std::str::from_utf8(response.body()).unwrap();
         assert!(body.contains(&format!("lb://{ID}")));
@@ -186,7 +147,7 @@ mod tests {
         for path in [format!("/open/not-a-uuid"), format!("/open/{ID}/extra")] {
             let response = warp::test::request()
                 .path(&path)
-                .reply(&static_routes("https://example.com"))
+                .reply(&routes("https://example.com"))
                 .await;
             assert_eq!(response.status(), 404);
         }
@@ -197,7 +158,7 @@ mod tests {
         for path in ["/.well-known/apple-app-site-association", "/.well-known/assetlinks.json"] {
             let response = warp::test::request()
                 .path(path)
-                .reply(&static_routes("https://example.com"))
+                .reply(&routes("https://example.com"))
                 .await;
             assert_eq!(response.status(), 200);
             assert_eq!(response.headers()["content-type"], "application/json");
@@ -217,7 +178,7 @@ mod tests {
         ] {
             let response = warp::test::request()
                 .path(path)
-                .reply(&static_routes("https://example.com"))
+                .reply(&routes("https://example.com"))
                 .await;
             assert_eq!(response.status(), 200, "{path}");
             assert_eq!(response.headers()["content-type"], content_type, "{path}");
@@ -227,29 +188,30 @@ mod tests {
         }
         let unknown = warp::test::request()
             .path("/favicon/unknown.png")
-            .reply(&static_routes("https://example.com"))
+            .reply(&routes("https://example.com"))
             .await;
         assert_eq!(unknown.status(), 404);
     }
 
     #[test]
-    fn configured_origin_must_be_safe_https() {
+    fn configured_api_origin_must_be_safe() {
+        assert_eq!(canonical_api_origin("https://[::1]:8443/"), Some("https://[::1]:8443".into()));
+        assert_eq!(canonical_api_origin("https://[::1]:443/"), Some("https://[::1]".into()));
         assert_eq!(
-            canonical_https_origin("https://[::1]:8443/"),
-            Some("https://[::1]:8443".into())
-        );
-        assert_eq!(canonical_https_origin("https://[::1]:443/"), Some("https://[::1]".into()));
-        assert_eq!(
-            canonical_https_origin("https://EXAMPLE.com:443/"),
+            canonical_api_origin("https://EXAMPLE.com:443/"),
             Some("https://example.com".into())
         );
+        assert_eq!(
+            canonical_api_origin("http://localhost:8000"),
+            Some("http://localhost:8000".into())
+        );
         for invalid in [
-            "http://example.com",
+            "ftp://example.com",
             "https://user@example.com",
             "https://example.com/path",
             "https://example.com/?query=true",
         ] {
-            assert_eq!(canonical_https_origin(invalid), None);
+            assert_eq!(canonical_api_origin(invalid), None);
         }
     }
 }
