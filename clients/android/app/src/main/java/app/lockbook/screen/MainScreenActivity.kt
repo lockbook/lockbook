@@ -73,7 +73,6 @@ class MainScreenActivity : AppCompatActivity() {
         private const val PENDING_SHARES_FRAGMENT_TAG = "PendingShares"
         private const val CREATE_LINK_FRAGMENT_TAG = "CreateLink"
         private const val WORKSPACE_FRAGMENT_TAG = "Workspace"
-        private const val PENDING_OPEN_FILE_ID_KEY = "pending_open_file_id"
     }
 
     private val fragmentFinishedCallback =
@@ -128,13 +127,16 @@ class MainScreenActivity : AppCompatActivity() {
     private val fileSelectionModel: FileSelectionViewModel by viewModels()
 
     private val fileTreeViewModel: FileTreeViewModel by viewModels()
-    private var pendingOpenFileId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        pendingOpenFileId = savedInstanceState?.getString(PENDING_OPEN_FILE_ID_KEY)?.let(::canonicalFileId)
-        if (savedInstanceState == null && !acceptOpenLink(intent, coldStart = true)) return
+        val launchFileId =
+            if (savedInstanceState == null && intent.action == Intent.ACTION_VIEW) {
+                parseOpenLink(intent, coldStart = true) ?: return
+            } else {
+                null
+            }
 
         enableEdgeToEdge(
             navigationBarStyle =
@@ -371,23 +373,18 @@ class MainScreenActivity : AppCompatActivity() {
             }
         }
 
-        consumePendingOpenLink()
+        launchFileId?.let(::openLinkedFile)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (acceptOpenLink(intent, coldStart = false)) consumePendingOpenLink()
+        if (intent.action == Intent.ACTION_VIEW) {
+            parseOpenLink(intent, coldStart = false)?.let(::openLinkedFile)
+        }
     }
 
-    override fun onSaveInstanceState(outState: Bundle) {
-        pendingOpenFileId?.let { outState.putString(PENDING_OPEN_FILE_ID_KEY, it) }
-        super.onSaveInstanceState(outState)
-    }
-
-    private fun acceptOpenLink(intent: Intent, coldStart: Boolean): Boolean {
-        if (intent.action != Intent.ACTION_VIEW) return true
-
+    private fun parseOpenLink(intent: Intent, coldStart: Boolean): String? {
         val fileId = intent.dataString?.let(OpenLinkParser::parse)
         if (fileId == null) {
             MaterialAlertDialogBuilder(this)
@@ -395,23 +392,20 @@ class MainScreenActivity : AppCompatActivity() {
                 .setPositiveButton(android.R.string.ok) { _, _ -> if (coldStart) finish() }
                 .setOnCancelListener { if (coldStart) finish() }
                 .show()
-            return false
+            return null
         }
 
         try {
             Lb.getAccount()
         } catch (_: LbError) {
             if (coldStart) finish()
-            return false
+            return null
         }
 
-        pendingOpenFileId = fileId
-        return true
+        return fileId
     }
 
-    private fun consumePendingOpenLink() {
-        val fileId = pendingOpenFileId ?: return
-        pendingOpenFileId = null
+    private fun openLinkedFile(fileId: String) {
         if (fileTreeViewModel.fileModel.idsAndFiles.containsKey(fileId)) {
             workspaceModel.openFile(
                 OpenFileRequest(

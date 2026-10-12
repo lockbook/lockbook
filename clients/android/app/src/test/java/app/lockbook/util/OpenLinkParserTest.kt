@@ -47,6 +47,7 @@ class OpenLinkParserTest {
         assertEquals(id, canonicalFileId(id.uppercase()))
         assertEquals("00000000-0000-0000-0000-000000000000", canonicalFileId("00000000-0000-0000-0000-000000000000"))
         assertNull(canonicalFileId("not-a-uuid"))
+        assertNull(canonicalFileId("1-1-1-1-1"))
         assertNull(canonicalFileId("lb://$id"))
     }
 

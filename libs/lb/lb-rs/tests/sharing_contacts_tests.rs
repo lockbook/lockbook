@@ -119,7 +119,7 @@ async fn account_contacts_count_documents_in_both_directions() {
 
     assert_eq!(
         lb.get_sharing_contacts().await.unwrap(),
-        vec![contact("bob", 1, 2), contact("alice", 2, 0)]
+        vec![contact("bob", 1, 2), contact("alice", 2, 0), contact("carol", 0, 1)]
     );
 
     // A deleted foreign share root must not count even while its accepted link remains.
@@ -132,7 +132,7 @@ async fn account_contacts_count_documents_in_both_directions() {
     tx.end();
     assert_eq!(
         lb.get_sharing_contacts().await.unwrap(),
-        vec![contact("alice", 2, 0), contact("bob", 1, 0)]
+        vec![contact("alice", 2, 0), contact("bob", 1, 0), contact("carol", 0, 1)]
     );
 
     incoming.set_deleted(false);
@@ -148,7 +148,7 @@ async fn account_contacts_count_documents_in_both_directions() {
     tx.end();
     assert_eq!(
         lb.get_sharing_contacts().await.unwrap(),
-        vec![contact("alice", 1, 0), contact("bob", 1, 0)]
+        vec![contact("bob", 1, 2), contact("alice", 1, 0), contact("carol", 0, 1)]
     );
 }
 

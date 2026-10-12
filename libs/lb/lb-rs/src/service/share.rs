@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 /// Account-wide sharing relationships, based on the current local metadata snapshot.
-/// Counts documents, not folders or link placeholders. Pending incoming shares are excluded.
+/// Counts documents, not folders or link placeholders, including pending incoming shares.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SharingContact {
     pub username: String,
@@ -24,7 +24,7 @@ pub struct SharingContact {
 
 impl Lb {
     /// Ranked contacts for the signed-in account. This is a local, read-only query;
-    /// callers should run it off their UI thread and refresh after metadata changes.
+    /// callers should run it off their UI thread.
     /// Inheritance follows real metadata parents, never the local placement of a link.
     #[instrument(level = "debug", skip(self))]
     pub async fn get_sharing_contacts(&self) -> LbResult<Vec<SharingContact>> {
@@ -34,8 +34,11 @@ impl Lb {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let mut counts: HashMap<Owner, (u64, u64, u64)> = HashMap::new();
         let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
-        // Walk the accepted tree once; pending trees and link placeholders aren't documents.
-        for id in tree.descendants_using_links(root)? {
+        // A document can be reachable through an accepted link and a pending share.
+        // Count each metadata ID only once, regardless of how it was reached.
+        let mut document_ids = tree.descendants_using_links(root)?;
+        document_ids.extend(tree.non_deleted_pending_files(&self.keychain)?);
+        for id in document_ids {
             if !tree.find(&id)?.is_document() {
                 continue;
             }

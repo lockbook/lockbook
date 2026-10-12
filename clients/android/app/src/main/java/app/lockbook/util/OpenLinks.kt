@@ -3,11 +3,13 @@ package app.lockbook.util
 import java.net.URI
 import java.util.UUID
 
-private val uuidPattern = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
-
 internal fun canonicalFileId(value: String): String? {
-    if (!uuidPattern.matches(value)) return null
-    return UUID.fromString(value).toString()
+    val canonical = try {
+        UUID.fromString(value).toString()
+    } catch (_: IllegalArgumentException) {
+        return null
+    }
+    return canonical.takeIf { it.equals(value, ignoreCase = true) }
 }
 
 object OpenLinkParser {
