@@ -153,7 +153,10 @@ class FileOperationsViewModel(
         }
     }
 
-    private fun prepareFiles(ids: List<String>, appDataDir: File): List<File> {
+    private fun prepareFiles(
+        ids: List<String>,
+        appDataDir: File,
+    ): List<File> {
         val shareRoot = File(appDataDir, "share")
         clearShareStorage(shareRoot)
         val shareFolder = File(shareRoot, System.currentTimeMillis().toString()).apply { mkdirs() }
@@ -196,11 +199,18 @@ class FileOperationsViewModel(
         }
     }
 
-    private fun deleteCreatedDocument(resolver: ContentResolver, destination: Uri) {
+    private fun deleteCreatedDocument(
+        resolver: ContentResolver,
+        destination: Uri,
+    ) {
         runCatching { DocumentsContract.deleteDocument(resolver, destination) }
     }
 
-    private fun copyItem(resolver: ContentResolver, source: File, parent: Uri) {
+    private fun copyItem(
+        resolver: ContentResolver,
+        source: File,
+        parent: Uri,
+    ) {
         val mimeType = if (source.isDirectory) DocumentsContract.Document.MIME_TYPE_DIR else exportMimeType(source)
         val created =
             DocumentsContract.createDocument(resolver, parent, mimeType, source.name)
@@ -237,8 +247,7 @@ class FileOperationsViewModel(
     }
 }
 
-internal fun exportMimeType(file: File): String =
-    exportMimeType(file.name)
+internal fun exportMimeType(file: File): String = exportMimeType(file.name)
 
 internal fun exportMimeType(fileName: String): String =
     MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileName.substringAfterLast('.', "").lowercase(Locale.ROOT))

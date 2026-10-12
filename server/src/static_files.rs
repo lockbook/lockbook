@@ -144,7 +144,7 @@ mod tests {
 
     #[tokio::test]
     async fn invalid_open_routes_are_not_found() {
-        for path in [format!("/open/not-a-uuid"), format!("/open/{ID}/extra")] {
+        for path in ["/open/not-a-uuid".to_string(), format!("/open/{ID}/extra")] {
             let response = warp::test::request()
                 .path(&path)
                 .reply(&routes("https://example.com"))

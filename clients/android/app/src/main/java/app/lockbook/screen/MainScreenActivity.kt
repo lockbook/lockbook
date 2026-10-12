@@ -384,7 +384,10 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun parseOpenLink(intent: Intent, coldStart: Boolean): String? {
+    private fun parseOpenLink(
+        intent: Intent,
+        coldStart: Boolean,
+    ): String? {
         val fileId = intent.dataString?.let(OpenLinkParser::parse)
         if (fileId == null) {
             MaterialAlertDialogBuilder(this)

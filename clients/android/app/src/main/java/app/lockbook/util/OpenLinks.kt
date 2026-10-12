@@ -4,11 +4,12 @@ import java.net.URI
 import java.util.UUID
 
 internal fun canonicalFileId(value: String): String? {
-    val canonical = try {
-        UUID.fromString(value).toString()
-    } catch (_: IllegalArgumentException) {
-        return null
-    }
+    val canonical =
+        try {
+            UUID.fromString(value).toString()
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
     return canonical.takeIf { it.equals(value, ignoreCase = true) }
 }
 

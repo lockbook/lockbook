@@ -240,7 +240,10 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         }
     }
 
-    private fun readableUsernameColor(accent: Int, backgrounds: IntArray): Int {
+    private fun readableUsernameColor(
+        accent: Int,
+        backgrounds: IntArray,
+    ): Int {
         if (backgrounds.all { ColorUtils.calculateContrast(accent, it) >= 4.5 }) return accent
 
         val dark = backgrounds.minOf { ColorUtils.calculateContrast(Color.BLACK, it) }
