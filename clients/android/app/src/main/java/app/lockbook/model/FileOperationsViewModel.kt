@@ -78,13 +78,12 @@ class FileOperationsViewModel(
 
     fun requestExport(selectedFiles: List<net.lockbook.File>) {
         if (mutableExport.value != ExportState.Idle) return
-        val exportable = selectedFiles.filter { it.type != FileType.Link }
-        if (exportable.isEmpty()) {
+        if (selectedFiles.isEmpty()) {
             mutableExport.value = ExportState.NoDocuments
             return
         }
-        val singleDocument = exportable.singleOrNull()?.takeIf { it.type == FileType.Document }
-        mutableExport.value = ExportState.ChooseDestination(exportable.map { it.id }, singleDocument)
+        val singleDocument = selectedFiles.singleOrNull()?.takeIf { it.type == FileType.Document }
+        mutableExport.value = ExportState.ChooseDestination(selectedFiles.map { it.id }, singleDocument)
     }
 
     internal fun takeExportPickerRequest(): ExportState.ChooseDestination? {
@@ -106,19 +105,6 @@ class FileOperationsViewModel(
         pendingExportIds = emptyList()
         pendingSingleDocument = false
         mutableExport.value = ExportState.Failed()
-    }
-
-    private fun collectDocuments(
-        selectedFiles: List<net.lockbook.File>,
-        documents: MutableList<net.lockbook.File>,
-    ) {
-        selectedFiles.forEach { file ->
-            when (file.type) {
-                FileType.Document -> documents.add(file)
-                FileType.Folder -> collectDocuments(Lb.getChildren(file.id).toList(), documents)
-                FileType.Link -> Unit
-            }
-        }
     }
 
     private fun clearShareStorage(shareFolder: File) {
@@ -170,13 +156,12 @@ class FileOperationsViewModel(
     private fun prepareFiles(ids: List<String>, appDataDir: File): List<File> {
         val shareRoot = File(appDataDir, "share")
         clearShareStorage(shareRoot)
-        val documents = mutableListOf<net.lockbook.File>()
-        collectDocuments(ids.map(Lb::getFileById), documents)
         val shareFolder = File(shareRoot, System.currentTimeMillis().toString()).apply { mkdirs() }
-        return documents.distinctBy { it.id }.map { file ->
-            val itemFolder = File(shareFolder, file.id).apply { mkdir() }
-            Lb.exportFile(file.id, itemFolder.absolutePath, false)
-            File(itemFolder, file.name).absoluteFile
+        return ids.distinct().map { id ->
+            val itemFolder = File(shareFolder, id).apply { mkdir() }
+            Lb.exportFile(id, itemFolder.absolutePath, false)
+            itemFolder.listFiles()?.singleOrNull()
+                ?: throw IOException("Exported item $id was not found")
         }
     }
 
@@ -198,15 +183,7 @@ class FileOperationsViewModel(
                         DocumentsContract.getTreeDocumentId(destination),
                     )
                 for (source in files) {
-                    val created =
-                        DocumentsContract.createDocument(resolver, parent, exportMimeType(source), source.name)
-                            ?: throw IOException("Could not create ${source.name}")
-                    try {
-                        writeFile(resolver, source, created)
-                    } catch (error: Exception) {
-                        runCatching { DocumentsContract.deleteDocument(resolver, created) }
-                        throw error
-                    }
+                    copyItem(resolver, source, parent)
                     saved++
                 }
             }
@@ -221,6 +198,24 @@ class FileOperationsViewModel(
 
     private fun deleteCreatedDocument(resolver: ContentResolver, destination: Uri) {
         runCatching { DocumentsContract.deleteDocument(resolver, destination) }
+    }
+
+    private fun copyItem(resolver: ContentResolver, source: File, parent: Uri) {
+        val mimeType = if (source.isDirectory) DocumentsContract.Document.MIME_TYPE_DIR else exportMimeType(source)
+        val created =
+            DocumentsContract.createDocument(resolver, parent, mimeType, source.name)
+                ?: throw IOException("Could not create ${source.name}")
+        try {
+            if (source.isDirectory) {
+                val children = source.listFiles() ?: throw IOException("Could not read ${source.name}")
+                children.forEach { child -> copyItem(resolver, child, created) }
+            } else {
+                writeFile(resolver, source, created)
+            }
+        } catch (error: Exception) {
+            deleteCreatedDocument(resolver, created)
+            throw error
+        }
     }
 
     private fun writeFile(
