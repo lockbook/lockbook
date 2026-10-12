@@ -55,7 +55,6 @@
     <string name="menu_list_files_move">Move</string>
     <string name="menu_list_files_share">Share</string>
     <string name="menu_list_files_open_in_new_tab">New tab</string>
-    <string name="workspace_share_externally">Share externally</string>
     <string name="workspace_take_photo">Take photo</string>
     <string name="workspace_choose_photo">Choose from photos</string>
     <string name="workspace_photo_selection_limit">You can choose up to 10 photos at a time.</string>
@@ -293,15 +292,29 @@
     <string name="create_link_file_for">Creating link for \"%s\".</string>
     <string name="pending_shares_empty_message">When others share files with you, they\'ll appear here.</string>
 
+    <string name="add_user">Add user</string>
+    <string name="grant_access">Grant access</string>
+    <string name="share_with_user">Share with a user</string>
+    <string name="share_with_named_user">Share with %1$s</string>
     <string name="export">Export</string>
-    <string name="write_access">Write access</string>
-    <string name="read_access">Read access</string>
+    <string name="exporting">Exporting…</string>
+    <string name="export_no_documents">There are no documents to export.</string>
+    <string name="export_failed">Could not export. Try another location.</string>
+    <string name="export_partially_failed">Exported %1$d of %2$d files. The remaining files could not be saved.</string>
+    <plurals name="exported_files">
+        <item quantity="one">Exported %1$d file</item>
+        <item quantity="other">Exported %1$d files</item>
+    </plurals>
+    <string name="lockbook_link_privacy_note">Only Lockbook users you add can open this link.</string>
+    <string name="copy_link">Copy link</string>
+    <string name="copy_lockbook_link">Copy Lockbook link</string>
+    <string name="invalid_lockbook_link">This Lockbook link is invalid.</string>
+    <string name="open_link_not_found">The linked file could not be found.</string>
     <string name="username">Username</string>
 
     <string name="share_mode_read">Read</string>
     <string name="share_mode_write">Write</string>
     <string name="access_mode">Access mode</string>
-    <string name="people_with_access">People with access</string>
     <string name="shared_with">Shared with %1$s</string>
     <string name="link_destination">Link destination</string>
     <string name="created_link">Created link!</string>

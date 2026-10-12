@@ -2,10 +2,8 @@
 
 package app.lockbook.screen
 
-import android.content.ClipData
 import android.content.Intent
 import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -18,7 +16,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -45,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.Lb
+import net.lockbook.LbError
 import net.lockbook.LbStatus
 import java.io.File
 import java.lang.ref.WeakReference
@@ -113,21 +111,32 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
     private val onExport =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            mainScreenModel.showProgressOverlay(false)
-            mainScreenModel.exportImportModel.isLoadingOverlayVisible = false
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val destination = result.data?.data
+            if (result.resultCode != RESULT_OK || destination == null) {
+                finishExport()
+                return@registerForActivityResult
+            }
 
-            currentFilesFragment()?.unselectFiles()
+            fileOperations.export(destination, application.contentResolver, cacheDir)
         }
 
     val mainScreenModel: MainScreenViewModel by viewModels()
     val workspaceModel: WorkspaceViewModel by viewModels()
+    private val fileOperations: FileOperationsViewModel by viewModels()
     private val fileSelectionModel: FileSelectionViewModel by viewModels()
 
     private val fileTreeViewModel: FileTreeViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val launchFileId =
+            if (savedInstanceState == null && intent.action == Intent.ACTION_VIEW) {
+                parseOpenLink(intent, coldStart = true) ?: return
+            } else {
+                null
+            }
 
         enableEdgeToEdge(
             navigationBarStyle =
@@ -218,10 +227,6 @@ class MainScreenActivity : AppCompatActivity() {
             }
         }
 
-        if (mainScreenModel.exportImportModel.isLoadingOverlayVisible) {
-            handleMainUiEffect(MainUiEffect.ShowHideProgressOverlay(mainScreenModel.exportImportModel.isLoadingOverlayVisible))
-        }
-
         mainScreenModel.launchActivityScreen.observe(
             this,
         ) { screen ->
@@ -283,10 +288,6 @@ class MainScreenActivity : AppCompatActivity() {
                     )
                 }
 
-                is TransientScreen.ShareExport -> {
-                    finalizeShare(screen.files)
-                }
-
                 is TransientScreen.Delete -> {
                     DeleteFilesDialogFragment.newInstance(screen.files.map { it.id }).show(
                         supportFragmentManager,
@@ -304,6 +305,9 @@ class MainScreenActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    fileOperations.exporting.collect(::renderExport)
+                }
                 launch {
                     mainScreenModel.navigationState.collect(::renderNavigation)
                 }
@@ -366,6 +370,102 @@ class MainScreenActivity : AppCompatActivity() {
                         binding.bottomNavigation.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                     }
                 }
+            }
+        }
+
+        launchFileId?.let(::openLinkedFile)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action == Intent.ACTION_VIEW) {
+            parseOpenLink(intent, coldStart = false)?.let(::openLinkedFile)
+        }
+    }
+
+    private fun parseOpenLink(
+        intent: Intent,
+        coldStart: Boolean,
+    ): String? {
+        val fileId = intent.dataString?.let(OpenLinkParser::parse)
+        if (fileId == null) {
+            MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.invalid_lockbook_link)
+                .setPositiveButton(android.R.string.ok) { _, _ -> if (coldStart) finish() }
+                .setOnCancelListener { if (coldStart) finish() }
+                .show()
+            return null
+        }
+
+        try {
+            Lb.getAccount()
+        } catch (_: LbError) {
+            if (coldStart) finish()
+            return null
+        }
+
+        return fileId
+    }
+
+    private fun openLinkedFile(fileId: String) {
+        if (fileTreeViewModel.fileModel.idsAndFiles.containsKey(fileId)) {
+            workspaceModel.openFile(
+                OpenFileRequest(
+                    id = fileId,
+                    newFile = false,
+                    presentation = OpenFilePresentation.ShowDetail,
+                ),
+            )
+            mainScreenModel.navigate(MainNavigationAction.FocusDetail)
+        } else {
+            alertModel.notify(getString(R.string.open_link_not_found))
+        }
+    }
+
+    private fun renderExport(state: ExportState) {
+        renderFileOperationProgress()
+        when (state) {
+            ExportState.Idle -> {
+                Unit
+            }
+
+            ExportState.Preparing, ExportState.Copying -> {
+                Unit
+            }
+
+            is ExportState.ChooseDestination -> {
+                fileOperations.takeExportPickerRequest()?.let(::launchExportChooser)
+            }
+
+            ExportState.AwaitingDestination -> {
+                Unit
+            }
+
+            ExportState.NoDocuments -> {
+                finishExport()
+                alertModel.notify(getString(R.string.export_no_documents))
+            }
+
+            is ExportState.Failed -> {
+                finishExport()
+                if (state.error != null) {
+                    alertModel.notifyError(state.error)
+                } else {
+                    alertModel.notify(getString(R.string.export_failed))
+                }
+            }
+
+            is ExportState.Complete -> {
+                val result = state.result
+                finishExport()
+                val message =
+                    when {
+                        result.succeeded -> resources.getQuantityString(R.plurals.exported_files, result.saved, result.saved)
+                        result.saved > 0 -> getString(R.string.export_partially_failed, result.saved, result.total)
+                        else -> getString(R.string.export_failed)
+                    }
+                alertModel.notify(message)
             }
         }
     }
@@ -545,18 +645,6 @@ class MainScreenActivity : AppCompatActivity() {
         when (effect) {
             is MainUiEffect.NotifyError -> {
                 alertModel.notifyError(effect.error)
-            }
-
-            is MainUiEffect.ShareDocuments -> {
-                finalizeShare(effect.files)
-            }
-
-            is MainUiEffect.ShowHideProgressOverlay -> {
-                if (effect.show) {
-                    Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 100, 500)
-                } else {
-                    Animate.animateVisibility(binding.progressOverlay, View.GONE, 0, 500)
-                }
             }
 
             MainUiEffect.ShowSubscriptionConfirmed -> {
@@ -785,38 +873,44 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun finalizeShare(files: List<File>) {
-        val uris = ArrayList<Uri>()
-
-        for (file in files) {
-            uris.add(
-                FileProvider.getUriForFile(
-                    this,
-                    "$packageName.fileprovider",
-                    file,
-                ),
-            )
+    private fun launchExportChooser(request: ExportState.ChooseDestination) {
+        val intent =
+            if (request.singleDocument != null) {
+                Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = exportMimeType(request.singleDocument.name)
+                    putExtra(Intent.EXTRA_TITLE, request.singleDocument.name)
+                }
+            } else {
+                Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            }
+        try {
+            onExport.launch(intent)
+        } catch (_: android.content.ActivityNotFoundException) {
+            fileOperations.exportPickerFailed()
         }
+    }
 
-        val intent = Intent(Intent.ACTION_SEND_MULTIPLE)
-        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+    private fun finishExport() {
+        fileOperations.finishExport()
+        renderFileOperationProgress()
+        currentFilesFragment()?.unselectFiles()
+    }
 
-        val clipData = ClipData.newRawUri(null, Uri.EMPTY)
-        uris.forEach { uri ->
-            clipData.addItem(ClipData.Item(uri))
+    private fun renderFileOperationProgress() {
+        val exporting = fileOperations.exporting.value.let { it == ExportState.Preparing || it == ExportState.Copying }
+        binding.progressOverlayMessage.isVisible = exporting
+        if (exporting) {
+            binding.progressOverlayMessage.setText(R.string.exporting)
+            Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 100, 500)
+        } else {
+            Animate.animateVisibility(binding.progressOverlay, View.GONE, 0, 500)
         }
-
-        intent.clipData = clipData
-        intent.type = "*/*"
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-
-        onExport.launch(Intent.createChooser(intent, "Send multiple files."))
     }
 
     override fun onDestroy() {
-        binding.bottomNavigation.animate().cancel()
-        binding.createFileFab.animate().cancel()
+        _binding?.bottomNavigation?.animate()?.cancel()
+        _binding?.createFileFab?.animate()?.cancel()
         super.onDestroy()
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }

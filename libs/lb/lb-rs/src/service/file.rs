@@ -221,7 +221,7 @@ impl Lb {
             other => other,
         };
 
-        Ok(format!("{}/open/{}", link_url, id))
+        Ok(format!("{}/open/{}", link_url.trim_end_matches('/'), id))
     }
 
     pub async fn local_changes(&self) -> Vec<Uuid> {
