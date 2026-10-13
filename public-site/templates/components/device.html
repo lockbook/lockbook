@@ -1,0 +1,12 @@
+{% component device_screenshot(kind, src, width, height, alt, platform="", active=false, hero=false, lazy=true) %}
+<div class="device device--{{ kind }}{% if active %} is-on{% endif %}"{% if platform %} data-platform="{{ platform }}"{% endif %}{% if hero %} id="hero-device"{% endif %}>
+  <div class="device-display">
+    <span class="device-camera" aria-hidden="true"></span>
+    <div class="device-screen">
+      <img class="shot"{% if hero %} id="hero-img"{% endif %} src="{{ src }}" width="{{ width }}" height="{{ height }}"{% if lazy %} loading="lazy"{% endif %}
+           alt="{{ alt }}" />
+    </div>
+  </div>
+  <div class="device-base" aria-hidden="true"></div>
+</div>
+{% endcomponent device_screenshot %}
