@@ -238,10 +238,8 @@ fn drag_strip(ctx: &egui::Context) {
 
 fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
     let y = HEADER_CENTER - icon_size() / 2.0;
-    // Always over the canvas titleband: sidebar head when open, tab-strip bar
-    // (left inset past traffic lights) when closed. Do not flip ground with
-    // sidebar_open.
-    let ground = t.neutral_bg();
+    // Pane cluster always sits on titleband chrome (tab strip / sidebar head).
+    let ground = t.neutral_bg_secondary();
     let cluster_w = left_chrome_w();
     let cluster_h = icon_size();
     // Same-frame blocker: drag_strip runs after this in `show`.
@@ -286,7 +284,7 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
                 }
                 let slot = Rect::from_min_size(pos2(x, origin.y), vec2(icon_size(), cluster_h));
                 let (resp, _) = place_at(ui, slot, Layout::top_down(Align::Min), |ui| {
-                    titlebar_icon(ui, t, icon, enabled, enabled, ground, tip)
+                    titlebar_icon(ui, t, icon, false, enabled, ground, tip)
                 });
                 if enabled && resp.clicked() {
                     queue.push(action);
@@ -297,7 +295,8 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
         });
 }
 
-/// Titleband icon: pane toggles (active ink) and back/forward (disabled = mute, no hover).
+/// Titleband icon: pane toggles (accent when selected) and back/forward
+/// (foreground when enabled; muted, no hover, when disabled).
 fn titlebar_icon(
     ui: &mut egui::Ui, t: &Theme, icon: &'static str, active: bool, enabled: bool,
     ground: egui::Color32, tip: &str,

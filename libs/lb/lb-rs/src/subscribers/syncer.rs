@@ -13,7 +13,7 @@ use usvg::Transform;
 use uuid::Uuid;
 
 use crate::{
-    LbErrKind, LbResult, LocalLb,
+    Lb, LbErrKind, LbResult,
     io::network::ApiError,
     model::{
         ValidationFailure,
@@ -24,7 +24,7 @@ use crate::{
             GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
         },
         chat,
-        crypto::{DecryptedDocument, EncryptedDocument},
+        crypto::{AESKey, DecryptedDocument, EncryptedDocument},
         errors::{LbErr, Unexpected},
         file::ShareMode,
         file_like::FileLike,
@@ -67,7 +67,7 @@ pub struct SyncState {
 // should_fetch is going to be a tree fn that will return true if:
 //     is md or svg that descends from
 
-impl LocalLb {
+impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn sync(&self) -> LbResult<()> {
         let mut sync_state = self.syncer.lock().await;
@@ -127,7 +127,7 @@ impl LocalLb {
         let db = tx.db();
 
         *state = Default::default();
-        state.last_synced = db.last_synced.get().copied().unwrap_or_default() as u64;
+        state.last_synced = db.last_synced.as_ref().copied().unwrap_or_default() as u64;
 
         Ok(())
     }
@@ -148,7 +148,7 @@ impl LocalLb {
         let mut prunable_ids = base_ids;
         prunable_ids.retain(|id| !server_ids.contains(id));
         for id in prunable_ids.clone() {
-            prunable_ids.extend(local.descendants(&id)?.into_iter());
+            prunable_ids.extend(local.descendants(&id)?);
         }
         for id in &prunable_ids {
             if let Some(base_file) = local.tree.base.maybe_find(id) {
@@ -212,7 +212,7 @@ impl LocalLb {
 
         // initialize root if this is the first pull on this device
         let mut root_id = None;
-        if db.root.get().is_none() {
+        if db.root.as_ref().is_none() {
             let root = deduped_changes
                 .all_files()?
                 .into_iter()
@@ -373,7 +373,9 @@ impl LocalLb {
             let mut files_to_unshare: HashSet<Uuid> = HashSet::new();
             let mut links_to_delete: HashSet<Uuid> = HashSet::new();
             let mut rename_increments: HashMap<Uuid, usize> = HashMap::new();
-            let mut duplicate_file_ids: HashMap<Uuid, Uuid> = HashMap::new();
+            // Id and key share one lifetime: the merge, including construction retries.
+            // A new key per attempt encrypts with the key cached by the failed attempt.
+            let mut duplicate_file_ids: HashMap<Uuid, (Uuid, AESKey)> = HashMap::new();
 
             'merge_construction: loop {
                 // process just the edits which allow us to check deletions in the result
@@ -698,16 +700,17 @@ impl LocalLb {
                                     DocumentType::Other => {
                                         // duplicate file
                                         let merge_parent = *merge.find(&id)?.parent();
-                                        let duplicate_id = if let Some(&duplicate_id) =
-                                            duplicate_file_ids.get(&id)
-                                        {
-                                            duplicate_id
-                                        } else {
-                                            let duplicate_id = Uuid::new_v4();
-                                            duplicate_file_ids.insert(id, duplicate_id);
-                                            rename_increments.insert(duplicate_id, 1);
-                                            duplicate_id
-                                        };
+                                        let (duplicate_id, duplicate_key) =
+                                            if let Some(&tracked) = duplicate_file_ids.get(&id) {
+                                                tracked
+                                            } else {
+                                                let duplicate_id = Uuid::new_v4();
+                                                let duplicate_key = symkey::generate_key();
+                                                duplicate_file_ids
+                                                    .insert(id, (duplicate_id, duplicate_key));
+                                                rename_increments.insert(duplicate_id, 1);
+                                                (duplicate_id, duplicate_key)
+                                            };
 
                                         let mut merge_name = merge_name;
                                         merge_name = NameComponents::from(&merge_name)
@@ -721,7 +724,7 @@ impl LocalLb {
 
                                         merge.create_unvalidated(
                                             duplicate_id,
-                                            symkey::generate_key(),
+                                            duplicate_key,
                                             &merge_parent,
                                             &merge_name,
                                             FileType::Document,
@@ -829,7 +832,7 @@ impl LocalLb {
                                 // pick one local id and generate a non-conflicting filename
                                 let mut progress = false;
                                 for &id in ids {
-                                    if duplicate_file_ids.values().any(|&dup| dup == id) {
+                                    if duplicate_file_ids.values().any(|&(dup, _)| dup == id) {
                                         *rename_increments.entry(id).or_insert(0) += 1;
                                         progress = true;
                                         break;
@@ -983,10 +986,10 @@ impl LocalLb {
     async fn commit_last_synced(&self, state: &mut SyncState) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
-        db.last_synced.insert(state.updates_as_of as i64)?;
+        db.last_synced.replace(state.updates_as_of as i64)?;
 
         if let Some(root) = state.new_root {
-            db.root.insert(root)?;
+            db.root.replace(root)?;
         }
 
         Ok(())
@@ -998,16 +1001,16 @@ impl LocalLb {
         {
             let tx = self.ro_tx().await;
             let db = tx.db();
-            for file in db.base_metadata.get().values() {
+            for file in db.base_metadata.iter().map(|(_, value)| value) {
                 for user_access_key in file.user_access_keys() {
                     let enc_by = Owner(user_access_key.encrypted_by);
                     let enc_for = Owner(user_access_key.encrypted_for);
 
-                    if !db.pub_key_lookup.get().contains_key(&enc_by) {
+                    if !db.pub_key_lookup.contains_key(&enc_by) {
                         missing_owners.insert(enc_by);
                     }
 
-                    if !db.pub_key_lookup.get().contains_key(&enc_for) {
+                    if !db.pub_key_lookup.contains_key(&enc_for) {
                         missing_owners.insert(enc_for);
                     }
                 }
@@ -1207,7 +1210,7 @@ impl LocalLb {
 
         let last_sent = {
             let tx = self.ro_tx().await;
-            tx.db().last_extracted_panic.get().copied()
+            tx.db().last_extracted_panic.as_ref().copied()
         };
 
         let should_send = match (last_sent, max_panic_time) {
@@ -1235,7 +1238,7 @@ impl LocalLb {
             {
                 Ok(_) => {
                     let mut tx = bg_self.begin_tx().await;
-                    if let Err(e) = tx.db().last_extracted_panic.insert(new_marker) {
+                    if let Err(e) = tx.db().last_extracted_panic.replace(new_marker) {
                         warn!("could not record last_extracted_panic: {e:?}");
                     }
                     tx.end();
@@ -1363,7 +1366,7 @@ impl LocalLb {
         });
     }
 
-    async fn user_active(&self) -> bool {
+    pub(crate) async fn user_active(&self) -> bool {
         let last_seen = self.user_last_seen.read().await;
         last_seen.elapsed() < Duration::from_secs(15)
     }
@@ -1392,7 +1395,7 @@ impl LocalLb {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        let Some(root) = db.root.get() else {
+        let Some(root) = db.root.as_ref() else {
             return Ok(());
         };
 

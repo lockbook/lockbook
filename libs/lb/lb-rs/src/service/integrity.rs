@@ -7,10 +7,10 @@ use crate::model::file_metadata::Owner;
 use crate::model::filename::DocumentType;
 use crate::model::tree_like::TreeLike;
 
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::errors::{LbErrKind, LbResult, Warning};
 
-impl LocalLb {
+impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn test_repo_integrity(&self, check_docs: bool) -> LbResult<Vec<Warning>> {
         let tx = self.ro_tx().await;
@@ -18,8 +18,8 @@ impl LocalLb {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        if db.last_synced.get().unwrap_or(&0) != &0 && db.root.get().is_none() {
-            return Err(LbErrKind::RootNonexistent)?;
+        if db.last_synced.as_ref().unwrap_or(&0) != &0 && db.root.as_ref().is_none() {
+            Err(LbErrKind::RootNonexistent)?;
         }
 
         tree.validate(Owner(self.keychain.get_pk()?))?;
@@ -27,10 +27,10 @@ impl LocalLb {
         for id in tree.ids() {
             let name = tree.name(&id, &self.keychain)?;
             if name.is_empty() {
-                return Err(LbErrKind::FileNameEmpty)?; // todo: context candidate
+                Err(LbErrKind::FileNameEmpty)?; // todo: context candidate
             }
             if name.contains('/') {
-                return Err(LbErrKind::FileNameContainsSlash)?; // todo: context candidate
+                Err(LbErrKind::FileNameContainsSlash)?; // todo: context candidate
             }
         }
 

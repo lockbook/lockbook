@@ -9,12 +9,15 @@ import androidx.annotation.StringRes
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.FileSelectionActionButtonBinding
 import app.lockbook.model.AlertModel
+import app.lockbook.model.FileOperationsViewModel
 import app.lockbook.model.FileTreeViewModel
+import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
 import app.lockbook.model.TransientScreen
 import com.google.android.material.color.MaterialColors
@@ -35,6 +38,11 @@ internal enum class FileSelectionAction(
     val destructive: Boolean = false,
 ) {
     Rename(R.string.menu_list_files_rename, R.drawable.ic_baseline_text_format_24, singleSelectionOnly = true),
+    OpenInNewTab(
+        R.string.menu_list_files_open_in_new_tab,
+        R.drawable.ic_outline_tab_24,
+        documentOnly = true,
+    ),
     Duplicate(
         R.string.duplicate,
         R.drawable.baseline_content_copy_24,
@@ -43,7 +51,7 @@ internal enum class FileSelectionAction(
     ),
     Move(R.string.menu_list_files_move, R.drawable.ic_baseline_content_cut_24),
     Pin(R.string.pin, R.drawable.ic_outline_push_pin_24),
-    Share(R.string.menu_list_files_share, R.drawable.ic_outline_folder_shared_24, singleSelectionOnly = true),
+    Share(R.string.menu_list_files_share, R.drawable.ic_baseline_group_24, singleSelectionOnly = true),
     Export(R.string.export, R.drawable.ic_baseline_share_24),
     Info(R.string.menu_list_files_info, R.drawable.ic_baseline_info_24, singleSelectionOnly = true),
     Delete(R.string.menu_list_files_delete, R.drawable.ic_outline_delete_24, destructive = true),
@@ -52,7 +60,7 @@ internal enum class FileSelectionAction(
     fun isAvailableFor(files: List<File>): Boolean =
         files.isNotEmpty() &&
             (!singleSelectionOnly || files.size == 1) &&
-            (!documentOnly || files.singleOrNull()?.type == File.FileType.Document)
+            (!documentOnly || files.any { it.type == File.FileType.Document })
 }
 
 internal class FileSelectionBottomBarController(
@@ -153,6 +161,7 @@ internal class FileSelectionActionDispatcher(
     private val onAddPinnedEmoji: ((File) -> Unit)? = null,
 ) {
     private val alertModel = AlertModel(WeakReference(fragment.requireActivity()), snackbarAnchor)
+    private val fileOperations: FileOperationsViewModel by fragment.activityViewModels()
 
     fun dispatch(
         action: FileSelectionAction,
@@ -172,6 +181,15 @@ internal class FileSelectionActionDispatcher(
                 files.singleOrNull()?.let { mainScreenModel.launchTransientScreen(TransientScreen.Rename(it)) }
             }
 
+            FileSelectionAction.OpenInNewTab -> {
+                files
+                    .filter { it.type == File.FileType.Document }
+                    .forEach { file ->
+                        mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = true))
+                    }
+                onClearSelection()
+            }
+
             FileSelectionAction.Duplicate -> {
                 files.singleOrNull()?.let(::duplicate)
             }
@@ -184,13 +202,13 @@ internal class FileSelectionActionDispatcher(
                 mainScreenModel.launchTransientScreen(TransientScreen.Delete(files))
             }
 
-            FileSelectionAction.Export -> {
-                mainScreenModel.shareSelectedFiles(files, fragment.requireContext().cacheDir)
+            FileSelectionAction.Share -> {
+                files.singleOrNull()?.let { mainScreenModel.launchTransientScreen(TransientScreen.Share(it)) }
                 onClearSelection()
             }
 
-            FileSelectionAction.Share -> {
-                files.singleOrNull()?.let { mainScreenModel.launchTransientScreen(TransientScreen.Share(it)) }
+            FileSelectionAction.Export -> {
+                fileOperations.requestExport(files)
                 onClearSelection()
             }
         }

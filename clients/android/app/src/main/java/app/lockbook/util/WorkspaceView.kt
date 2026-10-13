@@ -30,8 +30,6 @@ import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.model.OpenFilePresentation
-import app.lockbook.model.OpenFileRequest
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -54,7 +52,11 @@ class WorkspaceView(
 ) : SurfaceView(context),
     SurfaceHolder.Callback2 {
     private var surface: Surface? = null
+
+    // The fragment may request a file before SurfaceView creates its native workspace.
+    private var deferredOpenDoc: Pair<String, Boolean>? = null
     var wrapperView: View? = null
+    var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
 
     private var redrawTask: Runnable =
@@ -260,13 +262,17 @@ class WorkspaceView(
                 Lb.lb,
                 workspaceTheme,
             )
-
         setWillNotDraw(false)
 
         isFocusable = true
         isFocusableInTouchMode = true
 
         requestFocus()
+
+        deferredOpenDoc?.let { (id, newFile) ->
+            deferredOpenDoc = null
+            openDoc(id, newFile)
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -347,7 +353,35 @@ class WorkspaceView(
 
         Workspace.setContactLinkedSites(wgpuObj, prefs.getBoolean(contactLinkedSitesKey, false))
 
+        model.nextAttachment()?.let { attachment ->
+            when (Workspace.currentTab(wgpuObj).toModelTab().type) {
+                WorkspaceTabType.Loading -> {
+                    // Keep the staged file until the editor is ready.
+                }
+
+                WorkspaceTabType.Markdown -> {
+                    val accepted = Workspace.queueFileForEditorImport(wgpuObj, attachment.tempPath, attachment.name)
+                    model.removeNextAttachment()
+                    File(attachment.tempPath).delete()
+                    if (!accepted) {
+                        Toast.makeText(context, R.string.workspace_attachment_import_failed, Toast.LENGTH_SHORT).show()
+                    }
+                    invalidate()
+                }
+
+                else -> {
+                    model.removeNextAttachment()
+                    File(attachment.tempPath).delete()
+                    Toast.makeText(context, R.string.workspace_attachment_import_failed, Toast.LENGTH_SHORT).show()
+                    invalidate()
+                }
+            }
+        }
+
         val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
+        if (response.failureMessage.isNotEmpty()) {
+            Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
+        }
 
         if (response.urlOpened.isNotEmpty()) {
             try {
@@ -356,16 +390,6 @@ class WorkspaceView(
             } catch (err: Exception) {
                 Toast.makeText(context, err.message, Toast.LENGTH_SHORT).show()
             }
-        }
-
-        if (!response.docCreated.isNullUUID()) {
-            model.postOpenFile(
-                OpenFileRequest(
-                    id = response.docCreated,
-                    newFile = true,
-                    presentation = OpenFilePresentation.ShowDetail,
-                ),
-            )
         }
 
         if (response.copiedText.isNotEmpty()) {
@@ -437,6 +461,10 @@ class WorkspaceView(
             }
         }
 
+        if (response.selectionUpdated || response.textUpdated) {
+            onMarkdownToolbarStateChanged?.invoke()
+        }
+
         if (response.redrawIn < 100) {
             invalidate()
         } else {
@@ -498,13 +526,24 @@ class WorkspaceView(
         newFile: Boolean,
     ) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            deferredOpenDoc = id to newFile
             return
         }
 
+        deferredOpenDoc = null
         Workspace.openDoc(wgpuObj, id, newFile)
         invalidate()
 
         return
+    }
+
+    fun activateDoc(id: String) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        Workspace.activateDoc(wgpuObj, id)
+        invalidate()
     }
 
     fun back(): Boolean {
@@ -567,6 +606,15 @@ class WorkspaceView(
         }
 
         Workspace.closeDoc(wgpuObj, id)
+        invalidate()
+    }
+
+    fun closeSession(id: String) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        Workspace.closeSession(wgpuObj, id)
         invalidate()
     }
 

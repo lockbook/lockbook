@@ -402,7 +402,7 @@ fn share_access_rows(app: &ShellApp, id: Uuid) -> Vec<ShareAccessRow> {
         .workspace
         .core
         .get_account()
-        .map(|a| a.username)
+        .map(|a| a.username.clone())
         .unwrap_or_default();
 
     let mut rows: Vec<ShareAccessRow> = Vec::new();

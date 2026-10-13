@@ -565,7 +565,8 @@ impl InputController {
             }
             egui::TouchPhase::Move => {
                 // update touch info with movement data.
-                if let Some(i) = self.touches.iter().position(|&t| t.id.eq(&curr_touch_id)) {
+                {
+                    let i = self.touches.iter().position(|&t| t.id.eq(&curr_touch_id))?;
                     let last_pos = self.touches[i].last_pos;
 
                     self.touches[i].frame_delta = pos - last_pos;
@@ -575,8 +576,6 @@ impl InputController {
                     if force.is_some() {
                         self.touches[i].has_force = true;
                     }
-                } else {
-                    return None; // maybe this touch isn't found because it failed layout check
                 }
 
                 if let Some(start_touch) = self.tool_start_touch {

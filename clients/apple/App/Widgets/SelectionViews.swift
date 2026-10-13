@@ -50,6 +50,7 @@ struct SelectionIndicator: View {
 struct SelectableRowModifier: ViewModifier {
     @Environment(FilesModel.self) private var filesModel
     @Environment(FileTreeModel.self) private var fileTreeModel
+    @Environment(HomeState.self) private var homeState
     @Environment(WorkspaceInputState.self) private var workspaceInput
     @Environment(\.openWindow) private var openWindow
 
@@ -108,9 +109,15 @@ struct SelectableRowModifier: ViewModifier {
                     }
                 }
             } else {
-                if file?.isFolder == false, supportsMultipleWindows {
-                    contextMenuItem("Open in New Window", systemImage: "macwindow.badge.plus") {
-                        openInNewWindow()
+                if file?.isFolder == false {
+                    contextMenuItem("Open in New Tab", systemImage: "plus.rectangle.on.rectangle") {
+                        openInNewTab()
+                    }
+
+                    if supportsMultipleWindows {
+                        contextMenuItem("Open in New Window", systemImage: "macwindow.badge.plus") {
+                            openInNewWindow()
+                        }
                     }
 
                     Divider()
@@ -198,6 +205,15 @@ struct SelectableRowModifier: ViewModifier {
         #else
             true
         #endif
+    }
+
+    private func openInNewTab() {
+        guard let file, !file.isFolder else {
+            return
+        }
+
+        workspaceInput.openFile(id: file.id, newTab: true)
+        homeState.compactColumn = .detail
     }
 
     private func openInNewWindow() {

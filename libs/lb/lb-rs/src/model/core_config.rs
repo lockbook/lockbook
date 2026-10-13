@@ -24,13 +24,16 @@ impl ClientType {
 pub struct Config {
     /// Where should lockbook store data, including logs?
     pub writeable_path: String,
+
     /// Should lb do background work like keep search indexes up to date?
     pub background_work: bool,
 
     /// Should we log at all?
     pub logs: bool,
+
     /// Should logs be printed to stdout?
     pub stdout_logs: bool,
+
     /// Should logs be colored?
     pub colored_logs: bool,
 

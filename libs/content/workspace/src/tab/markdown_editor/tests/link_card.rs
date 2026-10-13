@@ -161,13 +161,17 @@ fn wrapped_capsule_edge_carets() {
         .insert(
             url.to_string(),
             Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "Example Title".into(),
+                title: "Example Title That Wraps Across Rows".into(),
                 favicon_url: Some("https://example.com/favicon.ico".into()),
                 ..Default::default()
             }))),
         );
-    // narrow viewport: the capsule wraps across two rows
-    ws.enter_frame_at(egui::Vec2::new(160.0, 600.0));
+    // Production fonts are narrower than egui defaults; a short title
+    // can fit on one line at 160px.
+    let size = egui::Vec2::new(160.0, 600.0);
+    for _ in 0..3 {
+        ws.enter_frame_at(size);
+    }
 
     let range = {
         let arena = Arena::new();
@@ -179,7 +183,7 @@ fn wrapped_capsule_edge_carets() {
         ws.editor.edit.renderer.node_range(node)
     };
     ws.push(Event::Select { region: range.end().into_range().into() });
-    ws.enter_frame_at(egui::Vec2::new(160.0, 600.0));
+    ws.enter_frame_at(size);
 
     let anchors = |offset| {
         ws.editor

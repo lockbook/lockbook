@@ -333,7 +333,7 @@ impl SearchExecutor for ContentSearch {
                     if let Some(rect) = selected_group_rect {
                         let theme = ui.ctx().get_lb_theme();
                         let stroke = egui::Stroke::new(
-                            1.0,
+                            1.0_f32,
                             theme.neutral_fg_secondary().linear_multiply(0.3),
                         );
                         let rect = egui::Rect::from_min_max(

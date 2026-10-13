@@ -8,6 +8,8 @@ TARGET=$1
 ssh -q $TARGET exit || { echo "could not SSH into $TARGET"; exit 1; }
 
 scp $2 $TARGET:/usr/bin/lockbook-server
+ssh $TARGET 'mkdir -p /usr/share/lockbook-server'
+scp -r $GIT_ROOT/server/static $TARGET:/usr/share/lockbook-server/
 scp $GIT_ROOT/server/instances/api/lockbook-server.service $TARGET:/etc/systemd/system/
 scp $GIT_ROOT/server/instances/secret/prod-index-db.crt $TARGET:/root/
 scp $GIT_ROOT/server/instances/secret/lockbook-server.prod $TARGET:/etc/default/lockbook-server

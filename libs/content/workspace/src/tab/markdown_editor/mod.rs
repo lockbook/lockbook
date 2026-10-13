@@ -59,12 +59,13 @@ pub fn syntax_theme() -> &'static Theme {
 }
 
 pub mod bounds;
+pub mod commands;
 pub mod fold;
 pub mod input;
 pub mod md_label;
-pub mod output;
 mod scroll_content;
 pub mod show;
+pub mod text_units;
 mod theme;
 pub(crate) mod widget;
 
@@ -73,6 +74,7 @@ mod tests;
 
 pub use input::Event;
 pub use md_label::MdLabel;
+pub use widget::toolbar::MarkdownToolbarAction;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::scroll_content::DocRowId;
@@ -91,10 +93,22 @@ pub struct Response {
 
     /// Screen rect (egui points) where native iOS text interaction should
     /// live — the editor viewport minus the find widget and toolbar. The
-    /// single source of truth for positioning the `MdView` iOS overlay.
+    /// single source of truth for positioning the platform text view.
     pub text_interaction_rect: Option<egui::Rect>,
 
     pub mobile_toolbar_shown: bool,
+}
+
+/// A region painted this frame that a platform deciding touches itself
+/// must not treat as text (see [`commands`]).
+#[derive(Clone, Debug)]
+pub enum TouchTarget {
+    /// A tap applies this event.
+    Tap(input::Event),
+    /// The scrollbar: a drag on its thumb.
+    Scrollbar,
+    /// A popup egui handles itself.
+    Popup,
 }
 
 pub struct MdRender {
@@ -121,7 +135,8 @@ pub struct MdRender {
     /// Strikethroughs and underlines painted on top of text
     pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
     pub render_events: Vec<input::Event>,
-    pub touch_consuming_rects: Vec<Rect>,
+    /// Touch targets painted this frame.
+    pub touch_targets: Vec<(Rect, TouchTarget)>,
     /// Per-frame geometry index of every list item, populated during the
     /// render DFS. Cleared each frame (mirrors `fragments`); read for
     /// pointer hit-testing and drop-gap math by drag-to-reorder.
@@ -147,6 +162,9 @@ pub struct MdRender {
     /// can dim the source and draw the drop indicator.
     pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
     pub find_current_match: Option<(Grapheme, Grapheme)>,
+    /// The platform text system's marked text (dictation in progress, an
+    /// IME composition), painted so provisional text reads as such.
+    pub platform_marked: Option<(Grapheme, Grapheme)>,
     /// Read-only search-preview highlight: the snippet range to reveal,
     /// scroll to, and box-highlight. Independent of the find feature.
     pub preview_match: Option<(Grapheme, Grapheme)>,
@@ -239,6 +257,10 @@ pub struct MdEdit {
     /// the marker handle directly). See [`MdEdit::detect_touch_reorder`].
     pub touch_reorder: widget::block::drag::TouchReorder,
 
+    /// The platform's own recognizer drives the reorder (see [`commands`]),
+    /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
+    pub touch_reorder_driven: bool,
+
     /// A committed reorder `(section_range, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
     /// new layout is then current before the platform refetches selection
@@ -286,6 +308,8 @@ pub struct MdEdit {
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
+
+    cursor_last_interact: Option<f64>,
 }
 
 impl MdEdit {
@@ -307,6 +331,7 @@ impl MdEdit {
             in_progress_handle: None,
             in_progress_block_drag: None,
             touch_reorder: Default::default(),
+            touch_reorder_driven: false,
             pending_block_move: None,
             pending_scroll: None,
             single_line_scroll: 0.0,
@@ -318,6 +343,7 @@ impl MdEdit {
             link_completions: Default::default(),
             context_menu_link: None,
             scroll_area: AffineScrollArea::new(file_id),
+            cursor_last_interact: None,
         }
     }
 }
@@ -331,13 +357,18 @@ pub struct Editor {
 
     // document identity
     pub id_salt: Id,
-    pub hmac: Option<DocumentHmac>,
+    /// Version of the *displayed* buffer. Only written with the matching
+    /// text via [`Self::apply_disk_version`] / [`Self::record_disk_save`].
+    hmac: Option<DocumentHmac>,
     pub initialized: bool,
 
     // change detection
     pub unprocessed_scroll: Option<Instant>,
     prev_dimensions: Option<Vec2>,
     prev_virtual_keyboard_shown: bool,
+    /// The find bar's height while open; opening and closing scroll the
+    /// page by it so the content stays put on screen.
+    find_bar_height: f32,
     embeds_seq: u64,
     link_seq: u64,
 
@@ -484,13 +515,14 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             render_events: Vec::new(),
-            touch_consuming_rects: Default::default(),
+            touch_targets: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
+            platform_marked: None,
             preview_match: None,
             interactive: false,
             readonly: true,
@@ -537,12 +569,19 @@ impl MdRender {
     /// that want to drive layout at a known viewport size without
     /// running a full egui frame.
     pub fn set_viewport_height(&mut self, viewport_height: f32) {
-        self.viewport_height = viewport_height;
+        // Images fit the viewport, so its height is a layout dimension as
+        // the width is: a change invalidates the cached heights.
+        if self.viewport_height.to_bits() != viewport_height.to_bits() {
+            self.viewport_height = viewport_height;
+            self.width_seq = self
+                .ws_seq
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
-        let ctx = Context::default();
+        let ctx = test_egui_ctx();
         let ws_seq = crate::seq::ws_seq(&ctx);
         Self {
             ctx,
@@ -559,7 +598,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             render_events: Vec::new(),
-            touch_consuming_rects: Default::default(),
+            touch_targets: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
@@ -571,6 +610,7 @@ impl MdRender {
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
+            platform_marked: None,
             preview_match: None,
             interactive: false,
             readonly: true,
@@ -629,7 +669,7 @@ impl MdRender {
             self.bounds.inline_paragraphs.clear();
             self.calc_source_lines();
             self.calc_fold_bounds(root);
-            self.calc_image_bounds(root);
+            self.calc_atom_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
             // from compute_bounds_block_pre_spacing) queries
             // hidden_by_fold, which now expects every node already
@@ -717,7 +757,7 @@ impl Editor {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             render_events: Vec::new(),
-            touch_consuming_rects: Default::default(),
+            touch_targets: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
@@ -725,6 +765,7 @@ impl Editor {
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
+            platform_marked: None,
             preview_match: None,
             interactive: true,
             readonly,
@@ -768,6 +809,7 @@ impl Editor {
                 in_progress_handle: None,
                 in_progress_block_drag: None,
                 touch_reorder: Default::default(),
+                touch_reorder_driven: false,
                 pending_block_move: None,
                 pending_scroll: None,
                 single_line_scroll: 0.0,
@@ -779,6 +821,7 @@ impl Editor {
                 link_completions: Default::default(),
                 context_menu_link: None,
                 scroll_area: AffineScrollArea::new(file_id),
+                cursor_last_interact: None,
             },
 
             core,
@@ -801,6 +844,7 @@ impl Editor {
 
             prev_dimensions: None,
             prev_virtual_keyboard_shown: cfg!(target_os = "android"),
+            find_bar_height: 0.0,
 
             next_resp: Default::default(),
         }
@@ -809,7 +853,7 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         let files = Arc::new(RwLock::new(FileCache::empty()));
-        let ctx = Context::default();
+        let ctx = test_egui_ctx();
         let core = Lb::init(lb_rs::model::core_config::Config {
             writeable_path: format!("/tmp/{}", Uuid::new_v4()),
             logs: false,
@@ -841,6 +885,40 @@ impl Editor {
 
     pub fn id(&self) -> Id {
         Id::new(self.edit.file_id).with(self.id_salt)
+    }
+
+    /// Last disk hmac adopted with the displayed buffer.
+    pub fn hmac(&self) -> Option<DocumentHmac> {
+        self.hmac
+    }
+
+    fn apply_pending_buffer(&mut self) {
+        let resp = self.edit.renderer.buffer.update();
+        if resp.text_updated {
+            self.edit.renderer.bump_text_seq();
+        }
+    }
+
+    /// Merge `text` into the live buffer (applies queued OT), then store
+    /// `hmac` as the version of that displayed text. The two are always set
+    /// together so a later save cannot clone a stale body under a new hmac.
+    pub fn apply_disk_version(&mut self, text: String, hmac: Option<DocumentHmac>) {
+        self.edit.renderer.buffer.reload(text);
+        self.apply_pending_buffer();
+        self.hmac = hmac;
+    }
+
+    /// Apply queued buffer ops, then return hmac + text as one snapshot
+    /// for CAS write. Side effect: mutates the buffer if ops were pending.
+    pub fn flush_for_save(&mut self) -> (Option<DocumentHmac>, String) {
+        self.apply_pending_buffer();
+        (self.hmac, self.edit.renderer.buffer.current.text.clone())
+    }
+
+    /// Record a successful CAS: this hmac is the on-disk version of `content`.
+    pub fn record_disk_save(&mut self, hmac: DocumentHmac, seq: usize, content: String) {
+        self.edit.renderer.buffer.saved(seq, content);
+        self.hmac = Some(hmac);
     }
 
     pub fn focus(&self, ctx: &Context) {
@@ -891,6 +969,9 @@ impl Editor {
             Some(prev) => (prev.y != dimensions.y, prev.x != dimensions.x),
             None => (true, true),
         };
+        let height_shrunk = self
+            .prev_dimensions
+            .is_some_and(|prev| prev.y > dimensions.y);
         self.prev_dimensions = Some(dimensions);
 
         let dark_mode = ui.style().visuals.dark_mode;
@@ -999,11 +1080,19 @@ impl Editor {
         let editor_shown = ui
             .vertical(|ui| {
                 if self.edit.phone_mode {
-                    self.show_find_centered(ui);
+                    self.show_find_bar(ui);
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
-                    let toolbar_height = if !self.edit.renderer.readonly
+                    let toolbar_height = if cfg!(target_os = "android") {
+                        ui.ctx()
+                            .memory(|m| {
+                                m.data.get_temp::<f32>(Id::new(
+                                    "android_native_markdown_toolbar_height",
+                                ))
+                            })
+                            .unwrap_or(0.)
+                    } else if !self.edit.renderer.readonly
                         && !self.edit.renderer.plaintext
                         && (self.virtual_keyboard_shown || self.toolbar.menu_open)
                     {
@@ -1031,11 +1120,17 @@ impl Editor {
                                     // repopulated inside MdEdit::show — don't
                                     // clear here or input handling (which
                                     // reads last-frame galleys) sees nothing.
-                                    self.edit.renderer.touch_consuming_rects.clear();
+                                    self.edit.renderer.touch_targets.clear();
                                     self.show_scrollable_editor(ui, root);
                                     true
                                 } else {
-                                    // show toolbar settings
+                                    // the open menu is a popup: its touches
+                                    // stay with egui, not the iOS text page
+                                    self.edit.renderer.touch_targets.clear();
+                                    self.edit
+                                        .renderer
+                                        .touch_targets
+                                        .push((ui.max_rect(), TouchTarget::Popup));
                                     self.show_toolbar_menu(ui);
                                     false
                                 }
@@ -1044,7 +1139,8 @@ impl Editor {
                         .inner;
 
                     // ...then show toolbar at the bottom
-                    if !self.edit.renderer.readonly
+                    if !cfg!(target_os = "android")
+                        && !self.edit.renderer.readonly
                         && !self.edit.renderer.plaintext
                         && (self.virtual_keyboard_shown || self.toolbar.menu_open)
                     {
@@ -1062,17 +1158,20 @@ impl Editor {
                     // open when an iPad left split view (it disables the buttons)
                     self.toolbar.menu_open = false;
 
-                    if !self.edit.renderer.readonly && !self.edit.renderer.plaintext {
+                    if !cfg!(target_os = "android")
+                        && !self.edit.renderer.readonly
+                        && !self.edit.renderer.plaintext
+                    {
                         self.show_toolbar(root, ui);
                     }
-                    self.show_find_centered(ui);
+                    self.show_find_bar(ui);
 
                     self.next_resp.text_interaction_rect = Some(ui.available_rect_before_wrap());
 
                     // galleys / wrap_lines are cleared and repopulated inside
                     // MdEdit::show — don't clear here or input handling (which
                     // reads last-frame galleys) sees nothing.
-                    self.edit.renderer.touch_consuming_rects.clear();
+                    self.edit.renderer.touch_targets.clear();
 
                     self.show_scrollable_editor(ui, root);
                     true
@@ -1203,17 +1302,22 @@ impl Editor {
             ui.ctx().request_repaint();
         }
         // Pull the cursor out from behind the virtual keyboard: scroll on
-        // its rising edge, and keep re-asserting across the show animation
-        // while the keyboard is shown. The `virtual_keyboard_shown` guard
-        // keeps the dismiss animation — which grows the viewport, also
-        // firing `height_updated` — from scrolling.
+        // its rising edge, and keep re-asserting while the viewport shrinks
+        // across the show animation. A growing viewport hides nothing.
         let keyboard_just_shown = self.virtual_keyboard_shown && !self.prev_virtual_keyboard_shown;
         self.prev_virtual_keyboard_shown = self.virtual_keyboard_shown;
+        // A viewport of no height is a transition (rotation); nothing to reveal.
         if self.initialized
             && self.edit.renderer.touch_mode
-            && (keyboard_just_shown || (height_updated && self.virtual_keyboard_shown))
+            && dimensions.y > 0.0
+            && (keyboard_just_shown || (height_shrunk && self.virtual_keyboard_shown))
         {
-            self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+            // Under find, the keyboard is the field's: keep the match in view.
+            self.edit.pending_scroll = Some(if self.find.focused(ui.ctx()) {
+                ScrollTarget::FindMatch
+            } else {
+                ScrollTarget::Cursor
+            });
             ui.ctx().request_repaint();
         }
         if self.next_resp.scroll_updated {
@@ -1317,16 +1421,6 @@ impl Editor {
             || self.toolbar.menu_open
     }
 
-    /// Whether a touch long-press is arming (`Pending`) or running (`Armed`)
-    /// a list-item drag-reorder. iOS reads this at its native long-press's
-    /// `.began` so the loupe yields *before* our threshold fires; only ever
-    /// true keyboard-down on a reorderable item (see
-    /// [`MdEdit::detect_touch_reorder`]).
-    pub fn reorder_in_progress(&self) -> bool {
-        use widget::block::drag::TouchReorder;
-        matches!(self.edit.touch_reorder, TouchReorder::Pending { .. } | TouchReorder::Armed { .. })
-    }
-
     /// Whether a reorder is committed and dragging (`Armed`, not the
     /// still-`Pending` hold). Gates keyboard/cursor suppression — a `Pending`
     /// hold may still resolve to a tap, which must focus normally.
@@ -1341,9 +1435,9 @@ impl Editor {
     pub fn touches_interactive_element(&self, pos: Pos2) -> bool {
         self.edit
             .renderer
-            .touch_consuming_rects
+            .touch_targets
             .iter()
-            .any(|rect| rect.contains(pos))
+            .any(|(rect, _)| rect.contains(pos))
     }
 
     #[tracing::instrument(name = "MarkdownEditor::input", level = "trace", skip_all)]
@@ -1403,8 +1497,11 @@ impl Editor {
                         // Editor background, bounded to the viewport (see the
                         // `fill(TRANSPARENT)` note on the Frame). First shape in
                         // the scope, so it sits behind all content.
-                        ui.painter()
-                            .rect_filled(canvas_rect, 0.0, ui.visuals().extreme_bg_color);
+                        ui.painter().rect_filled(
+                            canvas_rect,
+                            0.0,
+                            self.edit.renderer.ctx.get_lb_theme().neutral_bg(),
+                        );
                         self.edit.scroll_area.touch_scroll = touch_scroll;
                         // An armed touch reorder owns the gesture — don't
                         // scroll the body under the dragged item.
@@ -1439,8 +1536,8 @@ impl Editor {
                         // entries. The immutable `DocScrollContent`
                         // borrow is released here before phase 2's
                         // mutable renderer paint.
-                        let (visible, neighbors, scrollbar_grab) = {
-                            use crate::widgets::affine_scroll::{Rows as _, VisibleRow};
+                        let (visible, neighbors, far, scrollbar_grab) = {
+                            use crate::widgets::affine_scroll::{Offset, Rows as _, VisibleRow};
 
                             let content = scroll_content::DocScrollContent::for_frame(
                                 &self.edit.renderer,
@@ -1478,15 +1575,80 @@ impl Editor {
                                     id = next_id;
                                 }
                             }
-                            (resp.visible, neighbors, resp.scrollbar_grab)
+
+                            // Rows holding the selection's ends beyond
+                            // that band, at the scroll model's estimate
+                            // of their distance, kept outside the band.
+                            // Their layout is exact within the row, so a
+                            // platform text system gets real geometry
+                            // for a far end without the rows between.
+                            let band_top = resp
+                                .visible
+                                .iter()
+                                .chain(neighbors.iter())
+                                .map(|r| r.top)
+                                .fold(f32::INFINITY, f32::min);
+                            let band_bottom = resp
+                                .visible
+                                .iter()
+                                .chain(neighbors.iter())
+                                .map(|r| r.top + r.height)
+                                .fold(f32::NEG_INFINITY, f32::max);
+                            let index = |id: &scroll_content::DocRowId| match id {
+                                scroll_content::DocRowId::Block(i)
+                                | scroll_content::DocRowId::Line(i) => Some(*i),
+                                _ => None,
+                            };
+                            let band_first = resp
+                                .visible
+                                .iter()
+                                .chain(neighbors.iter())
+                                .filter_map(|r| index(&r.id))
+                                .min();
+                            let selection = self
+                                .edit
+                                .in_progress_selection
+                                .unwrap_or(self.edit.renderer.buffer.current.selection);
+                            let mut far: Vec<VisibleRow<scroll_content::DocRowId>> = Vec::new();
+                            for end in [selection.0, selection.1] {
+                                let Some(row) = content.find_text_row(end) else { continue };
+                                let (Some(i), Some(first)) = (index(&row), band_first) else {
+                                    continue;
+                                };
+                                let laid_out = resp
+                                    .visible
+                                    .iter()
+                                    .chain(neighbors.iter())
+                                    .chain(far.iter())
+                                    .any(|r| r.id == row);
+                                if laid_out {
+                                    continue;
+                                }
+                                let height = content.precise(&row);
+                                if height <= 0.0 {
+                                    continue;
+                                }
+                                let estimate = self
+                                    .edit
+                                    .scroll_area
+                                    .state
+                                    .viewport_y_of(&content, &Offset::at_top_of(row));
+                                let top = if i < first {
+                                    estimate.min(band_top - height)
+                                } else {
+                                    estimate.max(band_bottom)
+                                };
+                                far.push(VisibleRow { id: row, top, height });
+                            }
+                            (resp.visible, neighbors, far, resp.scrollbar_grab)
                         };
                         // Register the scrollbar's grab area so iOS taps on it
                         // don't fall through to cursor-placement / keyboard-
                         // summon handlers.
                         self.edit
                             .renderer
-                            .touch_consuming_rects
-                            .extend(scrollbar_grab);
+                            .touch_targets
+                            .extend(scrollbar_grab.map(|rect| (rect, TouchTarget::Scrollbar)));
 
                         // Phase 2: paint each visible row with a mutable
                         // renderer borrow. Block list re-collected
@@ -1496,9 +1658,10 @@ impl Editor {
                         // the canvas — only to register fragments and
                         // wrap-line bounds for navigation.
                         let blocks: Vec<_> = root.children().collect();
-                        for vrow in visible.iter().chain(neighbors.iter()) {
+                        for vrow in visible.iter().chain(neighbors.iter()).chain(far.iter()) {
                             let top_left =
                                 Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
+                            let from = self.edit.renderer.fragments.len();
                             scroll_content::paint_row(
                                 ui,
                                 &mut self.edit.renderer,
@@ -1508,6 +1671,11 @@ impl Editor {
                                 top_left,
                                 content_x,
                             );
+                            if far.contains(vrow) {
+                                for f in &mut self.edit.renderer.fragments[from..] {
+                                    f.far = true;
+                                }
+                            }
                         }
 
                         // paint find match highlights after galleys positioned
@@ -1531,6 +1699,12 @@ impl Editor {
                         if let Some(range) = self.edit.renderer.preview_match {
                             let theme = self.edit.renderer.ctx.get_lb_theme();
                             let color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
+                            self.edit.show_range(ui, range, color);
+                        }
+
+                        if let Some(range) = self.edit.renderer.platform_marked {
+                            let theme = self.edit.renderer.ctx.get_lb_theme();
+                            let color = theme.accent().lerp_to_gamma(theme.neutral_bg(), 0.75);
                             self.edit.show_range(ui, range, color);
                         }
 
@@ -1578,7 +1752,22 @@ impl Editor {
         }
     }
 
-    fn show_find_centered(&mut self, ui: &mut Ui) {
+    /// The find bar above the document, with the page scrolled by its height
+    /// as it opens and closes so the content stays put on screen.
+    fn show_find_bar(&mut self, ui: &mut Ui) {
+        let height = self.show_find_centered(ui);
+        // The bar has no height in the frame it opens, and its height can
+        // change with the keyboard: the page scrolls by each change.
+        let target = if self.find.term.is_some() { height } else { 0.0 };
+        if target != self.find_bar_height {
+            self.edit
+                .scroll_area
+                .gesture_scroll(target - self.find_bar_height);
+            self.find_bar_height = target;
+        }
+    }
+
+    fn show_find_centered(&mut self, ui: &mut Ui) -> f32 {
         let available = ui.available_width();
         let content_width = if self.edit.renderer.touch_mode {
             self.edit.renderer.width
@@ -1619,6 +1808,7 @@ impl Editor {
                 .ws_seq
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
+        rendered_rect.height()
     }
 
     fn scroll_to_find_match(&mut self, canvas_rect: Rect) {
@@ -1758,7 +1948,7 @@ fn endpoint_offset(
     canvas_rect: Rect, side: EndpointSide, pad: f32,
 ) -> Option<Offset<DocRowId>> {
     use crate::widgets::affine_scroll::Rows as _;
-    if let Some(frag) = renderer.fragment_at_offset(target) {
+    if let Some(frag) = renderer.fragment_at_offset(target).filter(|f| !f.far) {
         let y_range = frag.rect.y_range().expand(pad);
         let y = match side {
             EndpointSide::Top => y_range.min - android_top_overlay(content),
@@ -2048,6 +2238,18 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .unwrap()
             .push("phosphor".to_owned());
     }
+}
+
+/// Headless `Context` with the same fonts as production, including Phosphor.
+/// `Context::default()` never binds `FontFamily::Name("phosphor")`, so any
+/// test that shapes a toolbar/icon galley panics in epaint.
+#[cfg(test)]
+pub(crate) fn test_egui_ctx() -> Context {
+    let ctx = Context::default();
+    let mut fonts = FontDefinitions::default();
+    register_fonts(&mut fonts);
+    ctx.set_fonts(fonts);
+    ctx
 }
 
 /// Headless editor harness matching the Android FFI surface so tests read

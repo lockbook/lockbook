@@ -18,7 +18,7 @@ impl<'a> LazyTree<ServerTree<'a>> {
         for change in &changes {
             if let Some(old) = &change.old {
                 if old.id() != change.new.id() {
-                    return Err(LbErrKind::Diff(DiffError::DiffMalformed))?;
+                    Err(LbErrKind::Diff(DiffError::DiffMalformed))?;
                 }
             }
         }
@@ -30,21 +30,21 @@ impl<'a> LazyTree<ServerTree<'a>> {
                     if old.timestamped_value.value.document_hmac()
                         != change.new.timestamped_value.value.document_hmac()
                     {
-                        return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
+                        Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
                     }
 
                     if old.timestamped_value.value.doc_size()
                         != change.new.timestamped_value.value.doc_size()
                     {
-                        return Err(LbErrKind::Diff(DiffError::SizeModificationInvalid))?;
+                        Err(LbErrKind::Diff(DiffError::SizeModificationInvalid))?;
                     }
                 }
                 None => {
                     if change.new.timestamped_value.value.doc_size().is_some() {
-                        return Err(LbErrKind::Diff(DiffError::SizeModificationInvalid))?;
+                        Err(LbErrKind::Diff(DiffError::SizeModificationInvalid))?;
                     }
                     if change.new.timestamped_value.value.document_hmac().is_some() {
-                        return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
+                        Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
                     }
                 }
             }
@@ -60,13 +60,13 @@ impl<'a> LazyTree<ServerTree<'a>> {
                         .file;
 
                     if current != old {
-                        return Err(LbErrKind::Diff(DiffError::OldVersionIncorrect))?;
+                        Err(LbErrKind::Diff(DiffError::OldVersionIncorrect))?;
                     }
                 }
                 None => {
                     // if you're claiming this file is new, it must be globally unique
                     if self.tree.files.maybe_find(change.new.id()).is_some() {
-                        return Err(LbErrKind::Diff(DiffError::OldVersionRequired))?;
+                        Err(LbErrKind::Diff(DiffError::OldVersionRequired))?;
                     }
                 }
             }

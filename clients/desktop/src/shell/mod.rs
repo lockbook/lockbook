@@ -95,8 +95,6 @@ pub struct ShellApp {
     pub recents_cache: RecentsCache,
     /// Derived Shared lists; same epoch rule.
     pub shared_cache: SharedCache,
-    /// Flattened Files-tree walk; same epoch + expanded-set rule.
-    pub tree_walk: tree::TreeWalkCache,
     theme_applied: bool,
     /// Debounced per-file sync dots (Files tree only).
     pub sync_dots: sync_dots::SyncDots,
@@ -164,7 +162,6 @@ impl Default for ShellApp {
             lb_rx: None,
             recents_cache: RecentsCache::default(),
             shared_cache: SharedCache::default(),
-            tree_walk: tree::TreeWalkCache::default(),
             theme_applied: false,
             sync_dots: sync_dots::SyncDots::default(),
             sync_footer: footer::SyncFooterState::default(),
@@ -394,7 +391,9 @@ impl ShellApp {
         // One SidePanel: slide its contents (right edge glued to visible width).
         // Resting width is stored separately so the wipe does not persist 1px.
         let how = sidebar::open_t(ctx, show_side);
-        let side_frame = Frame::new().fill(t.neutral_bg()).inner_margin(0.0);
+        let side_frame = Frame::new()
+            .fill(t.neutral_bg_secondary())
+            .inner_margin(0.0);
         if how >= 1.0 {
             // Only after a slide: wipe uses exact_width down to 1px on this same
             // panel id. Don't restore every resting frame — that undoes drag.

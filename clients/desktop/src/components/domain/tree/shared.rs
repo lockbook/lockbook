@@ -159,7 +159,7 @@ fn paint_shared_row(
         // button (mixed grounds / double wash was the animation color bug).
         let mut row_hit = rect;
         row_hit.max.x = row_hit.max.x.min(rect.right() - trail).max(row_hit.min.x);
-        let ground = t.neutral_bg();
+        let ground = t.neutral_bg_secondary();
         let id = ui.id().with("shared_root").with(row.id);
         let subtitle = row.subtitle.clone().unwrap_or_default();
         let resp =
@@ -188,7 +188,7 @@ fn paint_shared_row(
         );
         if accept {
             queue.push(Action::OpenAcceptShare { id: row.id, name: row.name.clone() });
-        } else if resp.clicked() {
+        } else if resp.clicked() && !resp.double_clicked() {
             if row.is_folder {
                 queue.push(Action::ToggleExpand(row.id));
             } else {
@@ -196,9 +196,6 @@ fn paint_shared_row(
             }
         }
         if resp.middle_clicked() && !row.is_folder {
-            queue.push(Action::OpenFileNewTab(row.id));
-        }
-        if resp.double_clicked() && !row.is_folder {
             queue.push(Action::OpenFileNewTab(row.id));
         }
         if let Some(cmd) = context_menu::show(&resp, t, |e| {
@@ -236,7 +233,7 @@ fn paint_shared_row(
             paint_tree_file_row(ui, t, row.name.clone(), icon, chrome, id, rect, rect, |r| {
                 r.sense(sense_click())
             });
-        if resp.clicked() {
+        if resp.clicked() && !resp.double_clicked() {
             if row.is_folder {
                 queue.push(Action::ToggleExpand(row.id));
             } else {
@@ -244,9 +241,6 @@ fn paint_shared_row(
             }
         }
         if resp.middle_clicked() && !row.is_folder {
-            queue.push(Action::OpenFileNewTab(row.id));
-        }
-        if resp.double_clicked() && !row.is_folder {
             queue.push(Action::OpenFileNewTab(row.id));
         }
         if let Some(cmd) = context_menu::show(&resp, t, |e| {

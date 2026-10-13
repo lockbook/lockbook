@@ -176,8 +176,8 @@ macro_rules! core_req {
                         let username = {
                             let db = state.index_db.lock().await;
                             match db
+                                .schema
                                 .accounts
-                                .get()
                                 .get(&Owner(req_pk))
                                 .map(|account| account.username.clone())
                             {

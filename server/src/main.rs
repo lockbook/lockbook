@@ -1,6 +1,6 @@
 #![recursion_limit = "256"]
 
-use db_rs::Db;
+use db_rs::View;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::document_service::OnDiskDocuments;
@@ -8,9 +8,10 @@ use lockbook_server_lib::router_service::{
     app_store_notification_webhooks, build_info, core_routes, get_metrics,
     google_play_notification_webhooks, stripe_webhooks,
 };
-use lockbook_server_lib::schema::{ServerDb, ServerV5};
+use lockbook_server_lib::schema::{self, ServerDb};
 use lockbook_server_lib::*;
 use static_files::static_routes;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::*;
@@ -28,15 +29,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app_store_client = reqwest::Client::new();
     let discord_client = reqwest::Client::new();
 
-    let index_db = ServerV5::init(db_rs::Config::in_folder(&cfg.index_db.db_location))
+    let index_db = schema::init_with_migration(Path::new(&cfg.index_db.db_location))
         .expect("Failed to load index_db");
-    if index_db.incomplete_write().unwrap() {
-        error!("dbrs indicated that the last write to the log was unsuccessful")
-    }
     let index_db = Arc::new(Mutex::new(index_db));
     spawn_compacter(&cfg, &index_db);
 
     let document_service = OnDiskDocuments::from(&config);
+    let checkout_static_dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/static"));
+    let static_dir = if checkout_static_dir.is_dir() {
+        checkout_static_dir
+    } else {
+        Path::new("/usr/share/lockbook-server/static")
+    };
 
     let server_state = Arc::new(ServerState {
         config,
@@ -54,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(stripe_webhooks(&server_state))
         .or(google_play_notification_webhooks(&server_state))
         .or(app_store_notification_webhooks(&server_state))
-        .or(static_routes());
+        .or(static_routes(&std::env::var("API_URL").expect("API_URL must be set"), static_dir));
 
     let server = warp::serve(routes);
 
@@ -95,7 +99,8 @@ fn spawn_compacter(cfg: &Config, db: &Arc<Mutex<ServerDb>>) {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(cfg.index_db.time_between_compacts).await;
-            if let Err(e) = db.lock().await.compact_log() {
+            info!("compacting database log");
+            if let Err(e) = db.lock().await.snapshot() {
                 error!("failed to compact log: {e:?}");
             }
         }

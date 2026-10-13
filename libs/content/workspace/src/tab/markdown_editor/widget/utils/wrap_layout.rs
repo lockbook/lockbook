@@ -1,10 +1,11 @@
-use egui::{Pos2, Rect, Stroke, Ui, Vec2};
+use egui::{Pos2, Rect, Stroke, Ui, Vec2, vec2};
 
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
 
 pub trait BufferExt {
@@ -51,11 +52,32 @@ impl BufferExt for glyphon::Buffer {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FontFamily {
     Sans,
     Mono,
     Icons,
+    Phosphor,
+}
+
+impl FontFamily {
+    pub(crate) fn glyphon_cache_family(self) -> GlyphonFontFamily {
+        match self {
+            FontFamily::Sans => GlyphonFontFamily::SansSerif,
+            FontFamily::Mono => GlyphonFontFamily::Monospace,
+            FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols".into()),
+            FontFamily::Phosphor => GlyphonFontFamily::Named("Phosphor".into()),
+        }
+    }
+
+    pub(crate) fn glyphon_family(self) -> glyphon::Family<'static> {
+        match self {
+            FontFamily::Sans => glyphon::Family::SansSerif,
+            FontFamily::Mono => glyphon::Family::Monospace,
+            FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
+            FontFamily::Phosphor => glyphon::Family::Name("Phosphor"),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -288,6 +310,9 @@ pub struct Fragment {
     /// Id salt + sense for `interact_fragments`. Innermost open
     /// scope wins; `None` means no per-fragment interact.
     pub interaction: Option<(egui::Id, egui::Sense)>,
+    /// Laid out beyond the band of rows around the viewport, at an
+    /// estimated y: exact within its row, adjacent to no other row.
+    pub far: bool,
 }
 
 /// What a fragment renders.
@@ -576,6 +601,10 @@ impl MdRender {
 /// caret beside the atom renders beside the capsule).
 const CHIP_SIDE_PAD: f32 = 0.3;
 
+fn chip_is_icon(s: &StyleInfo) -> bool {
+    s.chip && s.format.family == FontFamily::Phosphor
+}
+
 /// Tab pixel-stop interval. Walker resolves tab advance from running
 /// x within the wrap unit (`ceil(x/stop) * stop - x`). Matches the
 /// monospace 4-character convention pixel-for-pixel in code blocks
@@ -746,7 +775,19 @@ fn shape_to_items(
         // paint will use; the advance comes from the buffer's
         // measured glyph extent.
         let shape_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            shape_chunk(&fs, &cache, chunk_text, &format, row_height, width, ppi)
+            shape_chunk(
+                &fs,
+                &cache,
+                chunk_text,
+                &format,
+                if format.family == FontFamily::Phosphor {
+                    row_height + 2.0 * inline_pad
+                } else {
+                    row_height
+                },
+                width,
+                ppi,
+            )
         }));
         let (buffer, measured_advance) = match shape_result {
             Ok(v) => v,
@@ -759,6 +800,8 @@ fn shape_to_items(
         // Tabs: walker overrides advance to pixel-stop value. The
         // buffer's painted glyph (a substituted space) sits at the
         // left edge of the fragment; remaining space is empty.
+        // Phosphor fold chips shape at capsule height so the dots fill
+        // the pill; layout width stays the pre-scale (row-height) size.
         let advance = if chunk_text
             .char_indices()
             .any(|(i, _)| tab_set.contains(&(chunk_lo + i)))
@@ -770,6 +813,9 @@ fn shape_to_items(
                 a += stop;
             }
             a.max(measured_advance)
+        } else if format.family == FontFamily::Phosphor {
+            let cap_h = row_height + 2.0 * inline_pad;
+            if cap_h > 0.0 { measured_advance * row_height / cap_h } else { measured_advance }
         } else {
             measured_advance
         };
@@ -923,11 +969,7 @@ fn shape_cache_key(text: &str, format: &Format, metric: f32, width_px: f32) -> G
     let key_metric = if format.superscript || format.subscript { metric * 0.75 } else { metric };
     GlyphonCacheKey::single(
         text,
-        match format.family {
-            FontFamily::Sans => GlyphonFontFamily::SansSerif,
-            FontFamily::Mono => GlyphonFontFamily::Monospace,
-            FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols".into()),
-        },
+        format.family.glyphon_cache_family(),
         format.bold,
         format.italic,
         Some(format.color.to_array()),
@@ -1168,7 +1210,8 @@ fn is_one_to_one_range(layout: &Layout, visible_lo: usize, visible_hi: usize) ->
 /// emoji font carries no format color — so they'd render in the default fg
 /// instead of blue (#4653).
 pub(crate) fn shape_as_emoji(family: &FontFamily, g: &str) -> bool {
-    !matches!(family, FontFamily::Icons) && crate::widgets::glyphon_label::is_emoji_grapheme(g)
+    !matches!(family, FontFamily::Icons | FontFamily::Phosphor)
+        && crate::widgets::glyphon_label::is_emoji_grapheme(g)
 }
 
 fn format_to_attrs(format: &Format, base_row_height: f32) -> glyphon::AttrsOwned {
@@ -1176,11 +1219,7 @@ fn format_to_attrs(format: &Format, base_row_height: f32) -> glyphon::AttrsOwned
         let [r, g, b, a] = format.color.to_array();
         glyphon::Color::rgba(r, g, b, a)
     };
-    let family = match format.family {
-        FontFamily::Sans => glyphon::Family::SansSerif,
-        FontFamily::Mono => glyphon::Family::Monospace,
-        FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
-    };
+    let family = format.family.glyphon_family();
     let mut attrs = glyphon::Attrs::new()
         .color(color)
         .family(family)
@@ -1424,6 +1463,7 @@ pub fn build_rows(
                 content: FragmentContent::Spacer,
                 atomic: false,
                 interaction: interaction_stack.last().copied(),
+                far: false,
             });
             x += inline_pad;
         }
@@ -1477,6 +1517,7 @@ pub fn build_rows(
                         },
                         atomic: *atomic,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += advance;
                     byte_x.push((visible_byte_range.end, x));
@@ -1533,6 +1574,7 @@ pub fn build_rows(
                         content,
                         atomic: false,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += effective_advance;
                     byte_x.push((visible_byte_range.end, x));
@@ -1554,6 +1596,7 @@ pub fn build_rows(
                         content: FragmentContent::Spacer,
                         atomic: false,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += advance;
                 }
@@ -1574,6 +1617,7 @@ pub fn build_rows(
                         content: FragmentContent::Embed { url: spec.url.clone(), kind: spec.kind },
                         atomic: true,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += spec.advance;
                 }
@@ -1598,6 +1642,7 @@ pub fn build_rows(
                         content: FragmentContent::Spacer,
                         atomic: false,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                 }
                 InlineItem::StyleOpen(info) => style_stack.push(info.clone()),
@@ -1646,6 +1691,7 @@ pub fn build_rows(
                 content: FragmentContent::Spacer,
                 atomic: false,
                 interaction: interaction_stack.last().copied(),
+                far: false,
             });
         }
 
@@ -1795,7 +1841,7 @@ impl MdRender {
                         ui.painter().rect_stroke(
                             bg_rect,
                             rounding,
-                            Stroke::new(1.0, border),
+                            Stroke::new(1.0_f32, border),
                             egui::StrokeKind::Inside,
                         );
                     }
@@ -1820,11 +1866,27 @@ impl MdRender {
                 if let FragmentContent::Glyphs { buffer, .. } = &frag.content {
                     let glyph_origin = screen_rect.min
                         + Vec2::new(frag.content_inset.left, frag.content_inset.top);
-                    let shaped_left = buffer.read().unwrap().shaped_left(ppi);
-                    let paint_rect = Rect::from_min_size(
-                        glyph_origin - Vec2::new(shaped_left, 0.0),
-                        screen_rect.size(),
-                    );
+                    let buf = buffer.read().unwrap();
+                    let shaped_left = buf.shaped_left(ppi);
+                    let shaped = buf.shaped_size(ppi);
+                    drop(buf);
+                    // Fold chips: larger glyph, original capsule. Glyphon
+                    // paints at `left` with scale 1, so expanding the rect
+                    // without recentering left-aligns the dots in the pill.
+                    let paint_rect = if frag.style_stack.last().is_some_and(chip_is_icon) {
+                        let cap_h = screen_rect.height() + 2.0 * inline_pad;
+                        let x =
+                            glyph_origin.x + (screen_rect.width() - shaped.x) * 0.5 - shaped_left;
+                        Rect::from_min_size(
+                            Pos2::new(x, glyph_origin.y - inline_pad),
+                            vec2(shaped.x, cap_h),
+                        )
+                    } else {
+                        Rect::from_min_size(
+                            glyph_origin - Vec2::new(shaped_left, 0.0),
+                            screen_rect.size(),
+                        )
+                    };
                     self.text_areas.push(TextBufferArea::new(
                         buffer.clone(),
                         paint_rect,
@@ -1920,6 +1982,7 @@ impl MdRender {
                     content: FragmentContent::Spacer,
                     atomic: true,
                     interaction: None,
+                    far: false,
                 });
             }
 
@@ -2022,13 +2085,14 @@ impl MdRender {
         self.interaction_rects = per_parent_rects;
     }
 
-    /// Mark a scope's fragments touch-consuming (iOS routes taps there to
-    /// egui). Per-fragment rects, not the merged bounding box — a wrapped
-    /// scope's bbox would eat cursor taps in its gaps and trailing space.
-    pub fn touch_consume_interaction(&mut self, parent_id: egui::Id) {
-        if let Some(rects) = self.interaction_rects.get(&parent_id) {
-            self.touch_consuming_rects.extend_from_slice(rects);
-        }
+    /// Register a scope's fragments as `target`. Per-fragment rects, not
+    /// the merged bounding box — a wrapped scope's bbox would eat cursor
+    /// taps in its gaps and trailing space. A text-band rect grows to its
+    /// row, as a finger sees a line.
+    pub fn touch_consume_interaction(&mut self, parent_id: egui::Id, target: TouchTarget) {
+        let Some(rects) = self.interaction_rects.get(&parent_id) else { return };
+        self.touch_targets
+            .extend(rects.iter().map(|&rect| (rect, target.clone())));
     }
 
     /// Find the closest fragment to `pos` by (y_dist, x_dist), with
@@ -2060,6 +2124,10 @@ impl MdRender {
             } else {
                 (pos.y - rtop).abs().min((pos.y - rbottom).abs())
             };
+            // A far row's y is an estimate: only points within it hit it.
+            if f.far && y_dist > 0.0 {
+                continue;
+            }
             let x_dist = if f.rect.x_range().contains(pos.x) {
                 0.0
             } else {

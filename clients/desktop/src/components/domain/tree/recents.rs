@@ -146,7 +146,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                                 rect,
                                 |r| r.subtitle(path),
                             );
-                            if resp.clicked() {
+                            if resp.clicked() && !resp.double_clicked() {
                                 queue.push(Action::OpenFile(*id));
                             }
                             if resp.middle_clicked() {

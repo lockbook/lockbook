@@ -89,11 +89,9 @@ impl<'ast> MdRender {
                 self.ctx.fonts(|f| f.layout_job(job))
             };
 
-        // Warm so the texture (hence real aspect) loads before the first paint.
+        // Layout size only (declared og:image dims, else persisted
+        // texture size). Fetch is `embeds.show` / `warm_images`.
         let thumb = meta.thumbnail_url.as_deref();
-        if let Some(t) = thumb {
-            self.embeds.prefetch(t);
-        }
 
         // Hero (full-width landscape band) vs. horizontal (square/portrait
         // thumbnail beside text) vs. text-only.
@@ -236,7 +234,7 @@ impl<'ast> MdRender {
 
         // Stroke last so the hairline frames the hero image (which is painted
         // edge-to-edge) rather than being covered by it.
-        let border = Stroke::new(1.0, vis.widgets.noninteractive.bg_stroke.color);
+        let border = Stroke::new(1.0_f32, vis.widgets.noninteractive.bg_stroke.color);
         ui.painter()
             .rect_stroke(rect, cr, border, StrokeKind::Inside);
     }

@@ -8,7 +8,7 @@ use crate::model::staged::StagedTree;
 use crate::model::symkey;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::service::keychain::Keychain;
-use db_rs::hasher::UuidIdentityHasherBuilder;
+use db_rs_old::hasher::UuidIdentityHasherBuilder;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -297,7 +297,7 @@ impl<T: TreeLike> LazyTree<T> {
                 .collect::<Vec<Uuid>>();
             // TODO could consider optimizing by not exploring documents
             to_process.extend(new_descendents.iter());
-            result.extend(new_descendents.into_iter());
+            result.extend(new_descendents);
             i += 1;
         }
         Ok(result)
@@ -316,7 +316,7 @@ impl<T: TreeLike> LazyTree<T> {
                 .collect::<Vec<Uuid>>();
             // TODO could consider optimizing by not exploring documents
             to_process.extend(new_descendents.iter());
-            result.extend(new_descendents.into_iter());
+            result.extend(new_descendents);
             i += 1;
         }
         Ok(result)
@@ -413,7 +413,7 @@ impl<T: TreeLike> LazyTree<T> {
     pub fn assert_names_decryptable(&mut self, keychain: &Keychain) -> LbResult<()> {
         for id in self.ids() {
             if self.name(&id, keychain).is_err() {
-                return Err(LbErrKind::Validation(ValidationFailure::NonDecryptableFileName(id)))?;
+                Err(LbErrKind::Validation(ValidationFailure::NonDecryptableFileName(id)))?;
             }
         }
         Ok(())

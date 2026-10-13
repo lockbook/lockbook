@@ -29,10 +29,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.Lb
+import net.lockbook.LbError
 import net.lockbook.LbEvent
 import net.lockbook.LbStatus
+import net.lockbook.SharingContact
 import net.lockbook.Usage
 import org.json.JSONArray
 import org.json.JSONObject
@@ -58,6 +61,9 @@ class FileTreeViewModel(
         get() = _notifyUpdateFilesUI
 
     lateinit var fileModel: FileModel
+
+    private val _sharingContacts = MutableLiveData<List<SharingContact>>(emptyList())
+    val sharingContacts: LiveData<List<SharingContact>> = _sharingContacts
 
     // / the list of files that the file tree displays in the UI
     val _files = MutableLiveData<List<FileViewHolderInfo>>(emptyList())
@@ -105,6 +111,14 @@ class FileTreeViewModel(
 
     init {
         startUpInRoot()
+        viewModelScope.launch {
+            try {
+                val contacts: List<SharingContact> = withContext(Dispatchers.IO) { Lb.getSharingContacts().toList() }
+                _sharingContacts.value = contacts
+            } catch (error: LbError) {
+                Timber.e(error, "Unable to load sharing contacts")
+            }
+        }
         loadPinnedFiles()
         getStatus()
     }
@@ -360,7 +374,6 @@ class FileTreeViewModel(
         if (metaOrContentDirty) {
             fileModel.refreshFiles()
         }
-
         refreshFilesDataSource()
 
         _usage.value = status.spaceUsed

@@ -656,12 +656,12 @@ fn toggle_fold_round_trip() {
 
     ws.push(select_at(1));
     ws.enter_frame();
-    ws.push(Event::ToggleFold);
+    ws.push(Event::ToggleFold { node: None });
     ws.enter_frame();
     ws.enter_frame(); // apply_fold's events apply next frame
     assert_eq!(ws.get_text(), format!("# a{FOLD_TAG}\nbody"));
 
-    ws.push(Event::ToggleFold);
+    ws.push(Event::ToggleFold { node: None });
     ws.enter_frame();
     ws.enter_frame();
     assert_eq!(ws.get_text(), "# a\nbody");
@@ -683,7 +683,7 @@ fn fold_with_selection_into_contents_stays_folded() {
         },
     });
     ws.enter_frame();
-    ws.push(Event::ToggleFold);
+    ws.push(Event::ToggleFold { node: None });
     ws.enter_frame();
     ws.enter_frame();
     ws.enter_frame(); // settle: fold replace + clipped selection

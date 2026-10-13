@@ -4,10 +4,10 @@ use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
-use crate::schema::{Account, ServerDb};
+use crate::guard::ServerTx;
+use crate::schema::{Account, ServerV6};
 use crate::utils::username_is_valid;
 use crate::{RequestContext, ServerError, ServerState};
-use db_rs::Db;
 use lb_rs::model::account::Username;
 use lb_rs::model::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lb_rs::model::api::{
@@ -29,7 +29,6 @@ use lb_rs::model::usage::bytes_to_human;
 use libsecp256k1::PublicKey;
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::ops::DerefMut;
 use tracing::warn;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
@@ -62,24 +61,24 @@ where
         let now = get_time().0 as u64;
         let root = root.add_time(now);
 
-        let mut db = self.index_db.lock().await;
-        let handle = db.begin_transaction()?;
-
+        let mut guard = self.index_db.lock().await;
+        let mut tx = ServerTx::begin(&mut guard)?;
+        let db = &mut *tx;
         if let Some(ip) = context.ip {
             if !self.can_create_account(ip.ip()).await {
                 return Err(ClientError(NewAccountError::RateLimited));
             }
         }
 
-        if db.accounts.get().contains_key(&Owner(request.public_key)) {
+        if db.accounts.contains_key(&Owner(request.public_key)) {
             return Err(ClientError(PublicKeyTaken));
         }
 
-        if db.usernames.get().contains_key(&request.username) {
+        if db.usernames.contains_key(&request.username) {
             return Err(ClientError(UsernameTaken));
         }
 
-        if db.metas.get().contains_key(root.id()) {
+        if db.metas.contains_key(root.id()) {
             return Err(ClientError(FileIdTaken));
         }
 
@@ -104,7 +103,7 @@ where
         db.file_children.create_key(*root.id())?;
         db.metas.insert(*root.id(), root.clone())?;
 
-        handle.drop_safely()?;
+        tx.end()?;
 
         Ok(NewAccountResponse { last_synced: root.version })
     }
@@ -122,8 +121,8 @@ where
         self.index_db
             .lock()
             .await
+            .schema
             .usernames
-            .get()
             .get(username)
             .map(|owner| Ok(GetPublicKeyResponse { key: owner.0 }))
             .unwrap_or(Err(ClientError(GetPublicKeyError::UserNotFound)))
@@ -141,8 +140,8 @@ where
         self.index_db
             .lock()
             .await
+            .schema
             .accounts
-            .get()
             .get(&Owner(key))
             .map(|account| Ok(GetUsernameResponse { username: account.username.clone() }))
             .unwrap_or(Err(ClientError(GetUsernameError::UserNotFound)))
@@ -152,7 +151,8 @@ where
         &self, context: RequestContext<GetUsageRequest>,
     ) -> Result<GetUsageResponse, ServerError<GetUsageError>> {
         let mut lock = self.index_db.lock().await;
-        let db = lock.deref_mut();
+        let mut tx = ServerTx::begin(&mut lock)?;
+        let db = &mut *tx;
 
         let cap = Self::get_cap(db, &context.public_key)?;
         let owner = Owner(context.public_key);
@@ -186,11 +186,10 @@ where
     }
 
     pub fn get_cap(
-        db: &ServerDb, public_key: &PublicKey,
+        db: &ServerV6, public_key: &PublicKey,
     ) -> Result<u64, ServerError<GetUsageHelperError>> {
         Ok(db
             .accounts
-            .get()
             .get(&Owner(*public_key))
             .ok_or(ServerError::ClientError(GetUsageHelperError::UserNotFound))?
             .billing_info
@@ -210,7 +209,7 @@ where
         &self, context: RequestContext<AdminDisappearAccountRequest>,
     ) -> Result<(), ServerError<AdminDisappearAccountError>> {
         let owner = {
-            let db = &self.index_db.lock().await;
+            let db = &self.index_db.lock().await.schema;
 
             if !Self::is_admin::<AdminDisappearAccountError>(
                 db,
@@ -222,7 +221,6 @@ where
 
             let admin_username = db
                 .accounts
-                .get()
                 .get(&Owner(context.public_key))
                 .cloned()
                 .map(|account| account.username)
@@ -231,7 +229,6 @@ where
             warn!("admin {} is disappearing account {}", admin_username, context.request.username);
 
             *db.usernames
-                .get()
                 .get(&context.request.username)
                 .ok_or(ClientError(AdminDisappearAccountError::UserNotFound))?
         };
@@ -244,7 +241,7 @@ where
     pub async fn admin_list_users(
         &self, context: RequestContext<AdminListUsersRequest>,
     ) -> Result<AdminListUsersResponse, ServerError<AdminListUsersError>> {
-        let (db, request) = (&self.index_db.lock().await, &context.request);
+        let (db, request) = (&self.index_db.lock().await.schema, &context.request);
 
         if !Self::is_admin::<AdminListUsersError>(
             db,
@@ -256,7 +253,7 @@ where
 
         let mut users: Vec<String> = vec![];
 
-        for account in db.accounts.get().values() {
+        for account in db.accounts.iter().map(|(_, value)| value) {
             match &request.filter {
                 Some(filter) => match filter {
                     AccountFilter::Premium => {
@@ -297,7 +294,8 @@ where
         &self, context: RequestContext<AdminGetAccountInfoRequest>,
     ) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
         let (mut lock, request) = (self.index_db.lock().await, &context.request);
-        let db = lock.deref_mut();
+        let mut tx = ServerTx::begin(&mut lock)?;
+        let db = &mut *tx;
 
         if !Self::is_admin::<AdminGetAccountInfoError>(
             db,
@@ -311,22 +309,20 @@ where
             AccountIdentifier::PublicKey(public_key) => Owner(*public_key),
             AccountIdentifier::Username(user) => *db
                 .usernames
-                .get()
                 .get(user)
                 .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?,
         };
 
         let account = db
             .accounts
-            .get()
             .get(&owner)
             .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?
             .clone();
 
         let mut maybe_root = None;
-        if let Some(owned_ids) = db.owned_files.get().get(&owner) {
+        if let Some(owned_ids) = db.owned_files.get(&owner) {
             for id in owned_ids {
-                if let Some(meta) = db.metas.get().get(id) {
+                if let Some(meta) = db.metas.get(id) {
                     if meta.is_root() {
                         maybe_root = Some(*meta.id());
                     }
@@ -392,8 +388,8 @@ where
 
         {
             let mut lock = self.index_db.lock().await;
-            let db = lock.deref_mut();
-            let tx = db.begin_transaction()?;
+            let mut tx = ServerTx::begin(&mut lock)?;
+            let db = &mut *tx;
 
             let mut tree = ServerTree::new(
                 Owner(*public_key),
@@ -420,7 +416,7 @@ where
             db.last_seen.remove(&Owner(*public_key))?;
 
             for id in metas_to_delete {
-                if let Some(meta) = db.metas.get().get(&id) {
+                if let Some(meta) = db.metas.get(&id) {
                     if &(meta.owner().0) == public_key {
                         for user_access_key in meta.user_access_keys() {
                             let sharee = Owner(user_access_key.encrypted_for);
@@ -441,7 +437,7 @@ where
                 db.usernames.remove(&username)?;
             }
 
-            tx.drop_safely()?;
+            tx.end()?;
             drop(lock);
         }
 
@@ -452,9 +448,9 @@ where
     }
 
     pub fn is_admin<E: Debug>(
-        db: &ServerDb, public_key: &PublicKey, admins: &HashSet<Username>,
+        db: &ServerV6, public_key: &PublicKey, admins: &HashSet<Username>,
     ) -> Result<bool, ServerError<E>> {
-        let is_admin = match db.accounts.get().get(&Owner(*public_key)) {
+        let is_admin = match db.accounts.get(&Owner(*public_key)) {
             None => false,
             Some(account) => admins.contains(&account.username),
         };

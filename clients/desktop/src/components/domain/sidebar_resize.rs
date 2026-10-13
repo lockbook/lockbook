@@ -134,7 +134,7 @@ fn resize_cursor(width: f32, max: f32) -> egui::CursorIcon {
 }
 
 /// Resize handle straddling the split. SidePanel's built-in grab is off.
-pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
+pub fn resize_over_workspace(ctx: &egui::Context, _t: &Theme, _header_h: f32) {
     let panel_id = panel_id();
     let Some(state) = egui::containers::panel::PanelState::load(ctx, panel_id) else {
         return;
@@ -146,8 +146,6 @@ pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
         egui::pos2(edge_x - grab_w, state.rect.top()),
         egui::pos2(edge_x + grab_w, state.rect.bottom()),
     );
-    let line_top = (state.rect.top() + header_h.max(0.0)).min(state.rect.bottom());
-    let line_y = egui::Rangef::new(line_top, state.rect.bottom());
     let max_w = width_max(ctx);
     let cursor = resize_cursor(state.rect.width(), max_w);
     let drag_id = resize_drag_ids().1;
@@ -167,10 +165,6 @@ pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
             if resp.hovered() || resp.dragged() {
                 ui.ctx().set_cursor_icon(cursor);
             }
-
-            let line_x = edge_x + STROKE_HAIRLINE * 0.5;
-            ui.painter()
-                .vline(line_x, line_y, egui::Stroke::new(STROKE_HAIRLINE, t.neutral()));
 
             if resp.dragged() {
                 if let Some(p) = resp.interact_pointer_pos() {
@@ -204,21 +198,5 @@ pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
     sync_resizing_latch(ctx);
 }
 
-/// Split hairline only (no resize hit). Used while the sidebar is sliding.
-pub fn paint_split_line(ctx: &egui::Context, t: &Theme, header_h: f32) {
-    let Some(state) = egui::containers::panel::PanelState::load(ctx, panel_id()) else {
-        return;
-    };
-    let edge_x = state.rect.right();
-    let line_top = (state.rect.top() + header_h.max(0.0)).min(state.rect.bottom());
-    if line_top >= state.rect.bottom() - 0.5 {
-        return;
-    }
-    let line_x = edge_x + STROKE_HAIRLINE * 0.5;
-    ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, resize_area_id()))
-        .vline(
-            line_x,
-            egui::Rangef::new(line_top, state.rect.bottom()),
-            egui::Stroke::new(STROKE_HAIRLINE, t.neutral()),
-        );
-}
+/// No-op: split is a fill step (sidebar secondary / workspace paper).
+pub fn paint_split_line(_ctx: &egui::Context, _t: &Theme, _header_h: f32) {}

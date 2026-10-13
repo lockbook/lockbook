@@ -36,7 +36,7 @@ use workspace_rs::file_cache::{FileCache, FilesExt};
 use crate::components::domain::pins;
 use crate::components::{
     FileRow, LIST_PAD, ROW_H, Radius, STROKE_HAIRLINE, Space, Spacer, Theme, TypeRole,
-    context_menu, file_row_icon, phosphor, with_overlay_scroll,
+    context_menu, file_row_icon, phosphor, pin_shadow, with_overlay_scroll,
 };
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
@@ -502,15 +502,6 @@ pub(crate) struct FlatRow {
     kids_empty: bool,
 }
 
-/// Flattened Files-tree walk. Rebuilt when [`Ready::files_epoch`] or `expanded` changes.
-#[derive(Default)]
-pub struct TreeWalkCache {
-    epoch: u64,
-    expanded: std::collections::HashSet<Uuid>,
-    root: Option<Uuid>,
-    flat: Vec<FlatRow>,
-}
-
 // ── Shared FileRow chrome (every sticky / virtualized tree) ─────────────────
 
 /// Geometry + interact flags common to Files / Shared / delete / folder pick.
@@ -628,10 +619,18 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
         pins::show(ui, t, &*files, &pins, &ready.workspace.account.username, queue);
     }
 
-    let Some(root) = ensure_tree_walk(app) else {
-        return;
+    let (root, flat) = {
+        let Some(ready) = app.session.ready_mut() else {
+            return;
+        };
+        let files = ready.workspace.files.read().unwrap();
+        let root = files.root().id;
+        ready.expanded.insert(root);
+        let mut flat = Vec::new();
+        flatten(&*files, &ready.expanded, root, 0, &mut flat, true);
+        ready.nav_order = flat.iter().map(|r| r.id).collect();
+        (root, flat)
     };
-    let flat = app.tree_walk.flat.clone();
 
     if flat.is_empty() {
         empty_state(ui, t, "No files");
@@ -917,7 +916,6 @@ pub(crate) fn paint_sticky_viewport(
         paint(ui, t, flat[i], paint_rect, hit_rect, false, None);
     }
 
-    let hairline_id = sticky.iter().rev().find(|s| s.elevated()).map(|s| s.row.id);
     for s in &sticky {
         let top = view_screen.top() + s.vy;
         // Full-bleed sticky plate (no side gutters).
@@ -931,19 +929,23 @@ pub(crate) fn paint_sticky_viewport(
             continue;
         }
         let elevated = s.elevated();
-        // Only elevated pins need a plate fill (secondary). Boundary-pushed
-        // stickies used to paint square `neutral_bg` full-bleed — same color as
-        // the sheet/tree canvas, but sharp corners over a rounded Outside plate
-        // border (delete / folder pick). Skip that paint entirely.
+        // Workspace paper + pin_shadow. Opaque fill so inflow rows can't
+        // show through; same `neutral_bg` as the editor canvas.
         if elevated {
-            // Top of the sticky stack flush with the plate top → match plate NW/NE.
-            // (Not `vy <= 0.5` alone: mid-stack pins have clip_top > 0.)
+            let shadow = pin_shadow();
+            let extra = shadow.offset[1] as f32 + shadow.blur as f32;
+            let shadow_clip = Rect::from_min_max(
+                clip.min,
+                pos2(clip.max.x, (clip.max.y + extra).min(view_clip.max.y)),
+            );
             let at_plate_top = pin_top_radius > 0 && s.clip_top <= 0.5;
             let corners = if at_plate_top {
                 egui::CornerRadius { nw: pin_top_radius, ne: pin_top_radius, sw: 0, se: 0 }
             } else {
                 egui::CornerRadius::ZERO
             };
+            let painter = ui.painter().with_clip_rect(shadow_clip);
+            painter.add(shadow.as_shape(full, corners));
             ui.painter()
                 .with_clip_rect(clip)
                 .rect_filled(full, corners, t.neutral_bg_secondary());
@@ -954,41 +956,9 @@ pub(crate) fn paint_sticky_viewport(
         ui.set_clip_rect(clip.intersect(prev_clip));
         paint(ui, t, s.row, full, hit, elevated, Some(s.vy));
         ui.set_clip_rect(prev_clip);
-        // Hairline after row paint so elevated hover wash (full plate height)
-        // cannot cover the pin / in-flow divider.
-        if elevated && hairline_id == Some(s.row.id) {
-            ui.painter().with_clip_rect(clip).hline(
-                full.x_range(),
-                full.bottom() - 0.5,
-                egui::Stroke::new(crate::components::STROKE_HAIRLINE, t.neutral()),
-            );
-        }
     }
 
     bg_resp
-}
-
-/// Rebuild [`ShellApp::tree_walk`] when the file cache or expand set changed.
-/// Returns the tree root, or `None` when there is no Ready session.
-fn ensure_tree_walk(app: &mut ShellApp) -> Option<Uuid> {
-    let ready = app.session.ready_mut()?;
-    let files = ready.workspace.files.read().unwrap();
-    let root = files.root().id;
-    ready.expanded.insert(root);
-    let epoch = ready.files_epoch;
-    if app.tree_walk.epoch == epoch
-        && app.tree_walk.root == Some(root)
-        && app.tree_walk.expanded == ready.expanded
-    {
-        return Some(root);
-    }
-    let mut flat = Vec::new();
-    flatten(&*files, &ready.expanded, root, 0, &mut flat, true);
-    ready.nav_order = flat.iter().map(|r| r.id).collect();
-    drop(files);
-    app.tree_walk =
-        TreeWalkCache { epoch, expanded: ready.expanded.clone(), root: Some(root), flat };
-    Some(root)
 }
 
 pub(crate) fn flatten(
@@ -1294,7 +1264,7 @@ fn paint_row(
     let _ = over;
 
     let modifiers = ui.input(|i| i.modifiers);
-    if resp.clicked() {
+    if resp.clicked() && !resp.double_clicked() {
         if modifiers.shift {
             queue.push(Action::SelectRange(row.id));
         } else if modifiers.command {
@@ -1307,9 +1277,6 @@ fn paint_row(
         }
     }
     if resp.middle_clicked() && !row.is_folder {
-        queue.push(Action::OpenFileNewTab(row.id));
-    }
-    if resp.double_clicked() && !row.is_folder {
         queue.push(Action::OpenFileNewTab(row.id));
     }
     if resp.secondary_clicked() && !selected {

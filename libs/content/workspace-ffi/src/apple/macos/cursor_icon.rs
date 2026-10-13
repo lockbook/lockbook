@@ -1,10 +1,11 @@
 use egui::CursorIcon;
 
 /// This has been ripped from within egui for the sake of cbindgen
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[repr(C)]
 pub enum CCursorIcon {
     /// Normal cursor icon, whatever that is.
+    #[default]
     Default,
 
     /// Show no cursor
@@ -163,11 +164,5 @@ impl From<CursorIcon> for CCursorIcon {
             CursorIcon::ZoomIn => CCursorIcon::ZoomIn,
             CursorIcon::ZoomOut => CCursorIcon::ZoomOut,
         }
-    }
-}
-
-impl Default for CCursorIcon {
-    fn default() -> Self {
-        Self::Default
     }
 }

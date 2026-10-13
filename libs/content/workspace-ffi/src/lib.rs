@@ -23,7 +23,7 @@ pub fn current_tab_type(ws: &Workspace) -> i32 {
                 TabContent::SpaceInspector(_) => 8,
                 #[cfg(not(target_family = "wasm"))]
                 TabContent::Chat(_) => 9,
-                TabContent::Search(_) => 0,
+                TabContent::Search(_) => 10,
             },
             _ => 1,
         },

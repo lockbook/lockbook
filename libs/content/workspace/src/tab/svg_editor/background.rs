@@ -97,9 +97,7 @@ pub fn show_dot_grid(
     let (distance_between_dots, offset, end) =
         calc_grid_info(&mut dot_radius, container_rect, transform);
 
-    let mut dot = egui::Pos2::ZERO;
     for i in 0..=(end.y.ceil() as i32) {
-        dot.x = 0.0;
         for j in 0..=(end.x.ceil() as i32) {
             let dot = egui::pos2(
                 j as f32 * distance_between_dots + offset.x,

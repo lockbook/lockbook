@@ -11,7 +11,7 @@ use crate::model::clock;
 use crate::model::errors::{LbErrKind, LbResult, Unexpected};
 use crate::service::events::{Event, SyncIncrement};
 use crate::service::usage::UsageMetrics;
-use crate::{LocalLb, tokio_spawn};
+use crate::{Lb, tokio_spawn};
 
 #[derive(Clone, Default)]
 pub struct StatusUpdater {
@@ -122,13 +122,13 @@ impl Status {
     }
 }
 
-impl LocalLb {
+impl Lb {
     pub async fn status(&self) -> Status {
         self.status.current_status.read().await.clone()
     }
 
     pub async fn set_initial_state(&self) -> LbResult<()> {
-        if self.keychain.get_account().is_ok() {
+        if self.get_account().is_ok() {
             self.spawn_compute_usage().await;
             let mut current = self.status.current_status.write().await;
             current.dirty_locally = self.local_changes().await;
@@ -165,7 +165,7 @@ impl LocalLb {
     pub async fn get_last_synced(&self) -> LbResult<i64> {
         let tx = self.ro_tx().await;
         let db = tx.db();
-        Ok(db.last_synced.get().copied().unwrap_or(0))
+        Ok(db.last_synced.as_ref().copied().unwrap_or(0))
     }
 
     pub async fn get_last_synced_human(&self) -> LbResult<String> {

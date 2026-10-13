@@ -124,8 +124,8 @@ struct CreateFileSheet: View {
 
             refreshAutoName()
 
+            nameFocused = true
             #if os(macOS)
-                nameFocused = true
                 selection = TextSelection(range: name.startIndex ..< name.endIndex)
             #endif
         }
@@ -334,7 +334,7 @@ struct CreateFileSheet: View {
             filesModel.loadFiles()
 
             if !file.isFolder {
-                workspaceInput.openFile(id: file.id, newTab: true)
+                workspaceInput.openFile(id: file.id, focus: true)
                 homeState.compactColumn = .detail
             }
 

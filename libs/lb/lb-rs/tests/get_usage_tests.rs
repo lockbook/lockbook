@@ -28,17 +28,16 @@ async fn report_usage() {
     assert_eq!(core.get_usage().await.unwrap().usages[0].size_bytes, METADATA_FEE);
 
     core.sync().await.unwrap();
-    let hmac = local(&core)
+    let hmac = core
         .begin_tx()
         .await
         .db()
         .base_metadata
-        .get()
         .get(&file.id)
         .unwrap()
         .document_hmac()
         .cloned();
-    let docs = AsyncDocs::from(core.config());
+    let docs = AsyncDocs::from(&core.config);
     let local_encrypted = docs.get(file.id, hmac).await.unwrap().value;
 
     assert_eq!(core.get_usage().await.unwrap().usages.len(), 2);
@@ -120,18 +119,17 @@ async fn usage_go_back_down_after_delete_folder() {
     }
     core.sync().await.unwrap();
 
-    let hmac = local(&core)
+    let hmac = core
         .begin_tx()
         .await
         .db()
         .base_metadata
-        .get()
         .get(&file.id)
         .unwrap()
         .document_hmac()
         .cloned();
 
-    let docs = AsyncDocs::from(core.config());
+    let docs = AsyncDocs::from(&core.config);
     docs.get(file.id, hmac).await.unwrap();
 
     let usage = core
@@ -218,18 +216,16 @@ async fn upsert_meta_over_data_cap() {
     core.sync().await.unwrap();
 
     let hmac = {
-        local(&core)
-            .ro_tx()
+        core.ro_tx()
             .await
             .db()
             .base_metadata
-            .get()
             .get(&document.id)
             .unwrap()
             .document_hmac()
             .cloned()
     };
-    let docs = AsyncDocs::from(core.config());
+    let docs = AsyncDocs::from(&core.config);
     let local_encrypted = docs.get(document.id, hmac).await.unwrap().value;
 
     let file_capacity =

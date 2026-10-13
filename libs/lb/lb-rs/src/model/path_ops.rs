@@ -6,7 +6,6 @@ use crate::model::lazy::{LazyStaged1, LazyTree};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::model::{symkey, validate};
 use crate::service::keychain::Keychain;
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -165,7 +164,7 @@ where
 
                 if self.name_using_links(&child, keychain)? == path_components[index] {
                     if index == path_components.len() - 1 {
-                        return Err(LbErrKind::Validation(ValidationFailure::PathConflict(
+                        Err(LbErrKind::Validation(ValidationFailure::PathConflict(
                             HashSet::from([child]),
                         )))?;
                     }
@@ -209,7 +208,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug)]
 pub enum Filter {
     DocumentsOnly,
     FoldersOnly,

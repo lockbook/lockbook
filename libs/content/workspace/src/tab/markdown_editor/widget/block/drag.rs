@@ -392,6 +392,9 @@ impl MdEdit {
             self.touch_reorder = TouchReorder::Idle;
             return;
         }
+        if self.touch_reorder_driven {
+            return;
+        }
 
         const LONG_PRESS: f64 = 0.4;
         const SLOP: f32 = 12.0;

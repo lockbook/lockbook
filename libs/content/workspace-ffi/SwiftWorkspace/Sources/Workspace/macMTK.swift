@@ -98,6 +98,9 @@
             claimedPersistence = true
             wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
+            if let wsHandle {
+                set_desktop_tab_policy(wsHandle, true)
+            }
 
             if let wsHandle {
                 RepaintRelay.register(wsHandle) { [weak self] delayMs in
@@ -446,6 +449,7 @@
             dark_mode(wsHandle, isDarkMode())
             syncAccentColor()
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
+            set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
             set_scale(wsHandle, scale)
 
             set_tab_strip_inset(wsHandle, Float(tabStripInset()))
@@ -467,6 +471,13 @@
             }
 
             let selectedFile = UUID(uuid: output.selected_file._0)
+            let selectedSession = UUID(uuid: output.selected_tab._0)
+            // selected_file / selected_tab are one-frame events (workspace
+            // output is taken each frame). Keep last-known values unless the
+            // live tab type says nothing is open.
+            if !selectedSession.isNil() {
+                workspaceOutput?.currentSession = selectedSession
+            }
             if !selectedFile.isNil() {
                 currentOpenDoc = selectedFile
                 if selectedFile != workspaceOutput?.openDoc {
@@ -475,16 +486,13 @@
                 }
             }
 
-            let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
-            if currentTab == .Welcome, currentOpenDoc != nil {
+            let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle))) ?? .Welcome
+            if currentTab == .Welcome {
+                workspaceOutput?.currentSession = nil
+            }
+            if currentTab == .Welcome || currentTab == .Search, currentOpenDoc != nil {
                 currentOpenDoc = nil
                 workspaceOutput?.openDoc = nil
-            }
-
-//      FIXME: Can we just do this in rust?
-            let newFile = UUID(uuid: output.doc_created._0)
-            if !newFile.isNil() {
-                workspaceInput?.openFile(id: newFile, newTab: true)
             }
 
             if output.urls_opened.size > 0 {

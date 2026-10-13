@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import net.lockbook.Lb
 import net.lockbook.LbError
-import java.io.File
 
 class MainScreenViewModel(
     application: Application,
@@ -51,8 +50,6 @@ class MainScreenViewModel(
     val navigationState: StateFlow<MainNavigationState> = _navigationState.asStateFlow()
     val navigationEffects = _navigationEffects.receiveAsFlow()
 
-    val exportImportModel = ExportImportModel(_mainUiEffect)
-
     fun launchActivityScreen(screen: ActivityScreen) {
         activityScreen = screen
         _launchActivityScreen.postValue(activityScreen)
@@ -73,23 +70,6 @@ class MainScreenViewModel(
         }
         transition.effect?.let { _navigationEffects.trySend(it) }
         return transition.handled
-    }
-
-    fun showProgressOverlay(show: Boolean) {
-        _mainUiEffect.value = MainUiEffect.ShowHideProgressOverlay(show)
-    }
-
-    fun shareSelectedFiles(
-        selectedFiles: List<net.lockbook.File>,
-        appDataDir: File,
-    ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                exportImportModel.exportDocuments(selectedFiles, appDataDir)
-            } catch (err: LbError) {
-                _mainUiEffect.postValue(MainUiEffect.NotifyError(err))
-            }
-        }
     }
 
     fun confirmSubscription(
@@ -187,24 +167,12 @@ sealed class TransientScreen {
         val file: net.lockbook.File,
     ) : TransientScreen()
 
-    data class ShareExport(
-        val files: List<File>,
-    ) : TransientScreen()
-
     data class Delete(
         val files: List<net.lockbook.File>,
     ) : TransientScreen()
 }
 
 sealed class MainUiEffect {
-    data class ShowHideProgressOverlay(
-        val show: Boolean,
-    ) : MainUiEffect()
-
-    data class ShareDocuments(
-        val files: ArrayList<File>,
-    ) : MainUiEffect()
-
     data class NotifyError(
         val error: LbError,
     ) : MainUiEffect()

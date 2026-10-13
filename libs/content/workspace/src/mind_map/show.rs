@@ -526,10 +526,8 @@ impl MindMap {
         for node in &self.graph {
             node_ids.push(node.id);
         }
-        let mut count = 1;
-        for node_id in node_ids {
+        for (count, node_id) in (1..).zip(node_ids) {
             self.clusters(node_id, count);
-            count += 1;
         }
     }
 
@@ -781,7 +779,7 @@ fn draw_arrow(
 
     let points = vec![to, arrow_p1, arrow_p2];
 
-    painter.add(Shape::convex_polygon(points, arrow_color, Stroke::new(0.0, color)));
+    painter.add(Shape::convex_polygon(points, arrow_color, Stroke::new(0.0_f32, color)));
 }
 
 fn circle_contains(p: Vec2, center: Pos2, size: f32) -> bool {

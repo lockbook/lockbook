@@ -2,12 +2,12 @@
 
 package app.lockbook.screen
 
-import android.content.ClipData
 import android.content.Intent
 import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
+import android.view.HapticFeedbackConstants
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
@@ -16,10 +16,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnLayout
 import androidx.core.view.forEach
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
@@ -27,6 +27,7 @@ import androidx.fragment.app.*
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.billing.BillingEvent
@@ -41,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.Lb
+import net.lockbook.LbError
 import net.lockbook.LbStatus
 import java.io.File
 import java.lang.ref.WeakReference
@@ -52,6 +54,7 @@ class MainScreenActivity : AppCompatActivity() {
     private lateinit var fileSelectionBottomBarController: FileSelectionBottomBarController
 
     private var isFileSelectionActive = false
+    private var isBottomNavigationHidden = false
 
     internal val fileSelectionBottomBarView: View
         get() = binding.fileSelectionBottomBar.root
@@ -108,21 +111,32 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
     private val onExport =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            mainScreenModel.showProgressOverlay(false)
-            mainScreenModel.exportImportModel.isLoadingOverlayVisible = false
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val destination = result.data?.data
+            if (result.resultCode != RESULT_OK || destination == null) {
+                finishExport()
+                return@registerForActivityResult
+            }
 
-            currentFilesFragment()?.unselectFiles()
+            fileOperations.export(destination, application.contentResolver, cacheDir)
         }
 
     val mainScreenModel: MainScreenViewModel by viewModels()
     val workspaceModel: WorkspaceViewModel by viewModels()
+    private val fileOperations: FileOperationsViewModel by viewModels()
     private val fileSelectionModel: FileSelectionViewModel by viewModels()
 
     private val fileTreeViewModel: FileTreeViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val launchFileId =
+            if (savedInstanceState == null && intent.action == Intent.ACTION_VIEW) {
+                parseOpenLink(intent, coldStart = true) ?: return
+            } else {
+                null
+            }
 
         enableEdgeToEdge(
             navigationBarStyle =
@@ -134,6 +148,11 @@ class MainScreenActivity : AppCompatActivity() {
 
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.bottomNavigation.doOnLayout { navigation ->
+            val layoutParams = binding.createFileFab.layoutParams as ViewGroup.MarginLayoutParams
+            layoutParams.bottomMargin += navigation.height
+            binding.createFileFab.layoutParams = layoutParams
+        }
         ViewCompat.setOnApplyWindowInsetsListener(fileSelectionBottomBarView) { view, windowInsets ->
             view.updatePadding(
                 bottom = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom,
@@ -185,7 +204,11 @@ class MainScreenActivity : AppCompatActivity() {
             this@MainScreenActivity.lifecycle.addObserver(this)
             billingEvent.observe(this@MainScreenActivity) { billingEvent ->
                 when (billingEvent) {
-                    is BillingEvent.SuccessfulPurchase -> {
+                    BillingEvent.SuccessfulPurchase -> {
+                        handleMainUiEffect(MainUiEffect.ShowSubscriptionConfirmed)
+                    }
+
+                    is BillingEvent.GooglePlayPurchase -> {
                         mainScreenModel.confirmSubscription(billingEvent.purchaseToken, billingEvent.accountId)
                     }
 
@@ -202,10 +225,6 @@ class MainScreenActivity : AppCompatActivity() {
                     }
                 }.exhaustive
             }
-        }
-
-        if (mainScreenModel.exportImportModel.isLoadingOverlayVisible) {
-            handleMainUiEffect(MainUiEffect.ShowHideProgressOverlay(mainScreenModel.exportImportModel.isLoadingOverlayVisible))
         }
 
         mainScreenModel.launchActivityScreen.observe(
@@ -269,10 +288,6 @@ class MainScreenActivity : AppCompatActivity() {
                     )
                 }
 
-                is TransientScreen.ShareExport -> {
-                    finalizeShare(screen.files)
-                }
-
                 is TransientScreen.Delete -> {
                     DeleteFilesDialogFragment.newInstance(screen.files.map { it.id }).show(
                         supportFragmentManager,
@@ -290,6 +305,9 @@ class MainScreenActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    fileOperations.exporting.collect(::renderExport)
+                }
                 launch {
                     mainScreenModel.navigationState.collect(::renderNavigation)
                 }
@@ -341,13 +359,120 @@ class MainScreenActivity : AppCompatActivity() {
                     R.id.pendingSharesFragment -> SidebarRoot.PendingShares
                     else -> return@setOnItemSelectedListener false
                 }
+            setBottomNavigationHidden(hidden = false)
             mainScreenModel.navigate(MainNavigationAction.SelectSidebar(destination))
             true
+        }
+        binding.bottomNavigation.setOnItemReselectedListener { item ->
+            if (!isFileSelectionActive && item.itemId == R.id.filesListFragment) {
+                (maybeGetFilesFragment() as? FilesListFragment)?.let { filesFragment ->
+                    if (filesFragment.navigateToRoot()) {
+                        binding.bottomNavigation.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    }
+                }
+            }
+        }
+
+        launchFileId?.let(::openLinkedFile)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action == Intent.ACTION_VIEW) {
+            parseOpenLink(intent, coldStart = false)?.let(::openLinkedFile)
+        }
+    }
+
+    private fun parseOpenLink(
+        intent: Intent,
+        coldStart: Boolean,
+    ): String? {
+        val fileId = intent.dataString?.let(OpenLinkParser::parse)
+        if (fileId == null) {
+            MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.invalid_lockbook_link)
+                .setPositiveButton(android.R.string.ok) { _, _ -> if (coldStart) finish() }
+                .setOnCancelListener { if (coldStart) finish() }
+                .show()
+            return null
+        }
+
+        try {
+            Lb.getAccount()
+        } catch (_: LbError) {
+            if (coldStart) finish()
+            return null
+        }
+
+        return fileId
+    }
+
+    private fun openLinkedFile(fileId: String) {
+        if (fileTreeViewModel.fileModel.idsAndFiles.containsKey(fileId)) {
+            workspaceModel.openFile(
+                OpenFileRequest(
+                    id = fileId,
+                    newFile = false,
+                    presentation = OpenFilePresentation.ShowDetail,
+                ),
+            )
+            mainScreenModel.navigate(MainNavigationAction.FocusDetail)
+        } else {
+            alertModel.notify(getString(R.string.open_link_not_found))
+        }
+    }
+
+    private fun renderExport(state: ExportState) {
+        renderFileOperationProgress()
+        when (state) {
+            ExportState.Idle -> {
+                Unit
+            }
+
+            ExportState.Preparing, ExportState.Copying -> {
+                Unit
+            }
+
+            is ExportState.ChooseDestination -> {
+                fileOperations.takeExportPickerRequest()?.let(::launchExportChooser)
+            }
+
+            ExportState.AwaitingDestination -> {
+                Unit
+            }
+
+            ExportState.NoDocuments -> {
+                finishExport()
+                alertModel.notify(getString(R.string.export_no_documents))
+            }
+
+            is ExportState.Failed -> {
+                finishExport()
+                if (state.error != null) {
+                    alertModel.notifyError(state.error)
+                } else {
+                    alertModel.notify(getString(R.string.export_failed))
+                }
+            }
+
+            is ExportState.Complete -> {
+                val result = state.result
+                finishExport()
+                val message =
+                    when {
+                        result.succeeded -> resources.getQuantityString(R.plurals.exported_files, result.saved, result.saved)
+                        result.saved > 0 -> getString(R.string.export_partially_failed, result.saved, result.total)
+                        else -> getString(R.string.export_failed)
+                    }
+                alertModel.notify(message)
+            }
         }
     }
 
     internal fun setFileSelectionActive(isActive: Boolean) {
         isFileSelectionActive = isActive
+        if (isActive) setBottomNavigationHidden(hidden = false)
         binding.sidebarSearchBar.isEnabled = !isActive
         binding.bottomNavigation.isEnabled = !isActive
         binding.bottomNavigation.menu.forEach { item ->
@@ -357,6 +482,56 @@ class MainScreenActivity : AppCompatActivity() {
             .menu
             .findItem(R.id.menu_files_list_open_ws)
             ?.isEnabled = !isActive
+    }
+
+    internal fun showBottomNavigation() {
+        setBottomNavigationHidden(hidden = false)
+    }
+
+    internal fun configureBottomNavigationFor(
+        recyclerView: RecyclerView,
+        onNavigationHeight: (Int) -> Unit,
+    ) {
+        recyclerView.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(
+                    recyclerView: RecyclerView,
+                    dx: Int,
+                    dy: Int,
+                ) {
+                    if (!isFileSelectionActive && dy != 0) {
+                        setBottomNavigationHidden(hidden = dy > 0)
+                    }
+                }
+            },
+        )
+        binding.bottomNavigation.doOnLayout { navigation -> onNavigationHeight(navigation.height) }
+    }
+
+    private fun setBottomNavigationHidden(hidden: Boolean) {
+        if (isBottomNavigationHidden == hidden) return
+        isBottomNavigationHidden = hidden
+
+        val navigation = binding.bottomNavigation
+        val targetTranslation = if (hidden) navigation.height.toFloat() else 0f
+        val fabTargetTranslation = targetTranslation * CREATE_FAB_NAVIGATION_TRANSLATION_RATIO
+        navigation.animate().cancel()
+        binding.createFileFab.animate().cancel()
+        if (!navigation.isLaidOut) {
+            navigation.translationY = targetTranslation
+            binding.createFileFab.translationY = fabTargetTranslation
+        } else {
+            navigation
+                .animate()
+                .translationY(targetTranslation)
+                .setDuration(BOTTOM_NAVIGATION_ANIMATION_DURATION)
+                .start()
+            binding.createFileFab
+                .animate()
+                .translationY(fabTargetTranslation)
+                .setDuration(BOTTOM_NAVIGATION_ANIMATION_DURATION)
+                .start()
+        }
     }
 
     private fun dispatchFileSelectionAction(
@@ -470,18 +645,6 @@ class MainScreenActivity : AppCompatActivity() {
         when (effect) {
             is MainUiEffect.NotifyError -> {
                 alertModel.notifyError(effect.error)
-            }
-
-            is MainUiEffect.ShareDocuments -> {
-                finalizeShare(effect.files)
-            }
-
-            is MainUiEffect.ShowHideProgressOverlay -> {
-                if (effect.show) {
-                    Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 100, 500)
-                } else {
-                    Animate.animateVisibility(binding.progressOverlay, View.GONE, 0, 500)
-                }
             }
 
             MainUiEffect.ShowSubscriptionConfirmed -> {
@@ -710,36 +873,44 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun finalizeShare(files: List<File>) {
-        val uris = ArrayList<Uri>()
-
-        for (file in files) {
-            uris.add(
-                FileProvider.getUriForFile(
-                    this,
-                    "app.lockbook.fileprovider",
-                    file,
-                ),
-            )
+    private fun launchExportChooser(request: ExportState.ChooseDestination) {
+        val intent =
+            if (request.singleDocument != null) {
+                Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = exportMimeType(request.singleDocument.name)
+                    putExtra(Intent.EXTRA_TITLE, request.singleDocument.name)
+                }
+            } else {
+                Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            }
+        try {
+            onExport.launch(intent)
+        } catch (_: android.content.ActivityNotFoundException) {
+            fileOperations.exportPickerFailed()
         }
+    }
 
-        val intent = Intent(Intent.ACTION_SEND_MULTIPLE)
-        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+    private fun finishExport() {
+        fileOperations.finishExport()
+        renderFileOperationProgress()
+        currentFilesFragment()?.unselectFiles()
+    }
 
-        val clipData = ClipData.newRawUri(null, Uri.EMPTY)
-        uris.forEach { uri ->
-            clipData.addItem(ClipData.Item(uri))
+    private fun renderFileOperationProgress() {
+        val exporting = fileOperations.exporting.value.let { it == ExportState.Preparing || it == ExportState.Copying }
+        binding.progressOverlayMessage.isVisible = exporting
+        if (exporting) {
+            binding.progressOverlayMessage.setText(R.string.exporting)
+            Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 100, 500)
+        } else {
+            Animate.animateVisibility(binding.progressOverlay, View.GONE, 0, 500)
         }
-
-        intent.clipData = clipData
-        intent.type = "*/*"
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-
-        onExport.launch(Intent.createChooser(intent, "Send multiple files."))
     }
 
     override fun onDestroy() {
+        _binding?.bottomNavigation?.animate()?.cancel()
+        _binding?.createFileFab?.animate()?.cancel()
         super.onDestroy()
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }
@@ -765,3 +936,6 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 }
+
+private const val BOTTOM_NAVIGATION_ANIMATION_DURATION = 160L
+private const val CREATE_FAB_NAVIGATION_TRANSLATION_RATIO = 0.8f

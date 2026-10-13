@@ -31,7 +31,7 @@ fn inline_image_advance_matches_rendered_width() {
     use std::sync::RwLock;
 
     let lb = super::harness::build_lb();
-    let ctx = egui::Context::default();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
     ctx.set_pixels_per_point(2.0);
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
@@ -1184,7 +1184,7 @@ fn indentation_cursor_does_not_reveal_marker() {
 fn image_load_layout_consistent() {
     use std::sync::{Arc, RwLock};
 
-    use egui::{Color32, ColorImage, Context, ImageData, TextureOptions};
+    use egui::{Color32, ColorImage, ImageData, TextureOptions};
     use lb_rs::Uuid;
 
     use crate::file_cache::FileCache;
@@ -1193,7 +1193,7 @@ fn image_load_layout_consistent() {
     use crate::workspace::WsPersistentStore;
 
     let lb = super::harness::build_lb();
-    let ctx = Context::default();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
     let persistence =
@@ -1769,7 +1769,7 @@ fn masked_plaintext_mdedit_renders_glyphs() {
     use crate::tab::markdown_editor::MdEdit;
     use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 
-    let ctx = egui::Context::default();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let mut edit = MdEdit::empty(ctx.clone());
     edit.renderer.plaintext = true;
     edit.renderer.mask = true;
@@ -1835,7 +1835,7 @@ fn bounded_composer_scrolls_cursor_into_view() {
     use crate::tab::markdown_editor::MdEdit;
     use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 
-    let ctx = egui::Context::default();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let mut edit = MdEdit::empty(ctx.clone());
     // Enough lines that a 140px-tall composer must overflow several times over.
     let draft: String = (0..30).map(|i| format!("- line {i}\n")).collect();
@@ -2170,7 +2170,7 @@ fn phone_toolbar_never_pushed_off_screen() {
     use crate::workspace::WsPersistentStore;
 
     let lb = super::harness::build_lb();
-    let ctx = egui::Context::default();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
     ctx.set_os(egui::os::OperatingSystem::IOS);
     ctx.set_pixels_per_point(3.0); // fractional row geometry, like a real phone
 

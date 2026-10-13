@@ -13,7 +13,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import net.lockbook.Lb
 import net.lockbook.LbError
-import net.lockbook.LbStatus
 import net.lockbook.SubscriptionInfo
 import net.lockbook.Usage
 
@@ -49,12 +48,9 @@ class SettingsViewModel(
 
     private fun computeUsage() {
         try {
-            val status: LbStatus = Lb.getStatus()
+            val usage = Lb.getUsage()
             val subscriptionInfo = Lb.getSubscriptionInfo()
-
-            status.spaceUsed?.let {
-                _determineSettingsInfo.postValue(SettingsInfo(it, subscriptionInfo))
-            }
+            _determineSettingsInfo.postValue(SettingsInfo(usage, subscriptionInfo))
         } catch (err: LbError) {
             _notifyError.postValue(err)
         }

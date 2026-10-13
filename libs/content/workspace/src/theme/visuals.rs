@@ -1,9 +1,15 @@
-pub fn init(ctx: &egui::Context) {
-    let mut style = (*ctx.style()).clone();
-
-    style.spacing.button_padding = egui::vec2(7.0, 7.0);
-    style.spacing.menu_margin = egui::Margin::same(10);
-    style.spacing.combo_width = 50.0;
+/// Workspace spacing, type scale, and window chrome.
+///
+/// Mobile hosts install this on the egui context via [`init`]. Desktop keeps
+/// its own context style (zero `item_spacing`, 14pt UI type) and applies the
+/// same setup on the workspace `Ui` so shell chrome is unaffected.
+pub fn apply(style: &mut egui::Style) {
+    style.spacing = egui::style::Spacing {
+        button_padding: egui::vec2(7.0, 7.0),
+        menu_margin: egui::Margin::same(10),
+        combo_width: 50.0,
+        ..egui::style::Spacing::default()
+    };
 
     style.visuals.menu_corner_radius = egui::CornerRadius::same(10);
     style.visuals.window_corner_radius = egui::CornerRadius::same(10);
@@ -22,6 +28,10 @@ pub fn init(ctx: &egui::Context) {
     style
         .text_styles
         .insert(egui::TextStyle::Button, egui::FontId::new(17.0, egui::FontFamily::Proportional));
+}
 
+pub fn init(ctx: &egui::Context) {
+    let mut style = (*ctx.style()).clone();
+    apply(&mut style);
     ctx.set_style(style);
 }

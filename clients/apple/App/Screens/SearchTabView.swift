@@ -31,6 +31,9 @@
                 model.refresh()
                 fieldFocused = true
             }
+            .onReceive(NotificationCenter.default.publisher(for: .focusSearchField)) { _ in
+                fieldFocused = true
+            }
             .onChange(of: model.input) { model.search() }
             .onChange(of: model.mode) { model.search() }
         }

@@ -24,6 +24,7 @@ public class Lb {
     public static native File[] listMetadatas() throws LbError;
     public static native File[] getChildren(String id) throws LbError;
     public static native File getFileById(String id) throws LbError;
+    public static native String getFileLinkUrl(String id) throws LbError;
     public static native String nextName(String parentId, String desired) throws LbError;
     public static native void renameFile(String id, String name) throws LbError;
     public static native File duplicateFile(String id) throws LbError;
@@ -49,9 +50,11 @@ public class Lb {
 
     public static native File[] getPendingShares() throws LbError;
     public static native File[] getPendingShareFiles() throws LbError;
+    public static native SharingContact[] getSharingContacts() throws LbError;
     public static native void deletePendingShare(String id) throws LbError;
 
     public static native void upgradeAccountGooglePlay(String purchaseToken, String accountId) throws LbError;
+    public static native void upgradeAccountStripe(String number, int expirationYear, int expirationMonth, String cvc) throws LbError;
     public static native SubscriptionInfo getSubscriptionInfo() throws LbError;
     public static native void cancelSubscription() throws LbError;
 

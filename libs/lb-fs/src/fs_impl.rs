@@ -53,7 +53,7 @@ impl Drive {
     ) -> impl StdIterator<Item = File> + 'static {
         let mut children = self.lb.get_children(dirid.as_uuid()).await.unwrap();
 
-        children.sort_by(|a, b| a.id.cmp(&b.id));
+        children.sort_by_key(|a| a.id);
 
         let mut start_index = 0;
         if cookie > 0 {
@@ -97,13 +97,13 @@ impl NfsReadFileSystem for Drive {
         }
 
         // if looking for dir/. its the current directory
-        if filename.as_ref() == [b'.'] {
+        if filename.as_ref() == *b"." {
             info!(". == {dirid}");
             return Ok(*dirid);
         }
 
         // if looking for dir/.. its the parent directory
-        if filename.as_ref() == [b'.', b'.'] {
+        if filename.as_ref() == *b".." {
             info!(".. == {}", dir.parent);
             return Ok(dir.parent.into());
         }

@@ -23,6 +23,31 @@ pub struct LbWebApp {
     editor: Option<Editor>,
     canvas: Option<SVGEditor>,
     initial_screen: InitialScreen,
+    /// Last light/dark mode applied, so `update` only reinstalls the theme
+    /// when the page's mode actually changes.
+    mode: Mode,
+}
+
+/// The site resolves its own light/dark state — explicit toggle, else the OS
+/// preference — into `<html data-lb-mode="light|dark">`. Reading one attribute
+/// keeps the demos in step with the page without any wasm-bindgen plumbing.
+/// Defaults to dark so a standalone trunk build still looks right.
+#[cfg(target_arch = "wasm32")]
+fn page_mode() -> Mode {
+    use eframe::web_sys;
+    let attr = web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.document_element())
+        .and_then(|e| e.get_attribute("data-lb-mode"));
+    match attr.as_deref() {
+        Some("light") => Mode::Light,
+        _ => Mode::Dark,
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn page_mode() -> Mode {
+    Mode::Dark
 }
 
 #[derive(PartialEq)]
@@ -52,8 +77,10 @@ impl LbWebApp {
         ctx.set_fonts(fonts);
         ctx.set_zoom_factor(0.9);
 
-        ctx.set_lb_theme(Theme::default(Mode::Dark));
-        ctx.set_visuals(generate_visuals());
+        // set_lb_theme installs mode-correct visuals itself (Theme::base_visuals),
+        // so there is nothing to override afterwards.
+        let mode = page_mode();
+        ctx.set_lb_theme(Theme::default(mode));
 
         let Some(ref wgpu) = cc.wgpu_render_state else {
             panic!("must use wgpu as graphics target")
@@ -70,23 +97,24 @@ impl LbWebApp {
 
         let cfg = WsPersistentStore::new(false, "/tmp/lb-public-site".into(), true);
 
-        Self { core: lb, cfg, images: None, editor: None, canvas: None, initial_screen }
+        Self { core: lb, cfg, images: None, editor: None, canvas: None, initial_screen, mode }
     }
-}
-
-fn generate_visuals() -> egui::Visuals {
-    let mut visuals = egui::Visuals::dark();
-
-    visuals.dark_mode = true;
-    visuals
 }
 
 impl eframe::App for LbWebApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ctx.set_visuals(egui::Visuals::dark());
+        let mode = page_mode();
+        if mode != self.mode {
+            self.mode = mode;
+            ctx.set_lb_theme(Theme::default(mode));
+        }
+
+        // Fill with neutral_bg — the tab/paper surface, matching what the site
+        // paints behind the canvas — so the demo blends into its window frame.
+        let paper = ctx.get_lb_theme().neutral_bg();
         egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
+            .frame(egui::Frame::default().fill(paper))
             .show(ctx, |ui| {
                 if self.editor.is_none() && self.initial_screen == InitialScreen::Editor {
                     let files = Arc::new(std::sync::RwLock::new(

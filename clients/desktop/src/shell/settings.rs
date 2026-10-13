@@ -348,6 +348,27 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     });
 
     ui.add(Spacer::new(Space::Lg));
+    section_label(ui, t, "Tabs");
+    form_group(ui, t, |ui| {
+        let mut open_in_new_tab = app
+            .session
+            .ready()
+            .map(|r| r.workspace.cfg.get_open_in_new_tab())
+            .unwrap_or(true);
+        if form_toggle_detail(
+            ui,
+            t,
+            "Open files in new tabs",
+            "When off, files open in the current tab by default.",
+            &mut open_in_new_tab,
+        )
+        .changed()
+        {
+            queue.push(A::SetPrefOpenInNewTab(open_in_new_tab));
+        }
+    });
+
+    ui.add(Spacer::new(Space::Lg));
     section_label(ui, t, "Window");
     form_group(ui, t, |ui| {
         let mut usage = app.settings.sidebar_usage;

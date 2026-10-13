@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::clock::get_time;
 use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
@@ -15,7 +15,7 @@ use uuid::Uuid;
 use super::activity;
 use super::events::Actor;
 
-impl LocalLb {
+impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn read_document(
         &self, id: Uuid, user_activity: bool,

@@ -1,7 +1,7 @@
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
-use db_rs::{LookupSet, LookupTable};
+use db_rs::views::{hashmap::DbHashMap, hashmap_set::DbHashMapSet};
 use std::collections::HashSet;
 use std::iter::FromIterator;
 use tracing::*;
@@ -12,26 +12,26 @@ use super::server_meta::ServerMeta;
 
 pub struct ServerTree<'a> {
     pub ids: HashSet<Uuid>,
-    pub owned_files: &'a mut LookupSet<Owner, Uuid>,
-    pub shared_files: &'a mut LookupSet<Owner, Uuid>,
-    pub file_children: &'a mut LookupSet<Uuid, Uuid>,
-    pub files: &'a mut LookupTable<Uuid, ServerMeta>,
+    pub owned_files: &'a mut DbHashMapSet<Owner, Uuid>,
+    pub shared_files: &'a mut DbHashMapSet<Owner, Uuid>,
+    pub file_children: &'a mut DbHashMapSet<Uuid, Uuid>,
+    pub files: &'a mut DbHashMap<Uuid, ServerMeta>,
 }
 
 impl<'a> ServerTree<'a> {
     pub fn new(
-        owner: Owner, owned_files: &'a mut LookupSet<Owner, Uuid>,
-        shared_files: &'a mut LookupSet<Owner, Uuid>, file_children: &'a mut LookupSet<Uuid, Uuid>,
-        files: &'a mut LookupTable<Uuid, ServerMeta>,
+        owner: Owner, owned_files: &'a mut DbHashMapSet<Owner, Uuid>,
+        shared_files: &'a mut DbHashMapSet<Owner, Uuid>,
+        file_children: &'a mut DbHashMapSet<Uuid, Uuid>,
+        files: &'a mut DbHashMap<Uuid, ServerMeta>,
     ) -> LbResult<Self> {
-        let (owned_ids, shared_ids) =
-            match (owned_files.get().get(&owner), shared_files.get().get(&owner)) {
-                (Some(owned_ids), Some(shared_ids)) => (owned_ids.clone(), shared_ids.clone()),
-                _ => {
-                    warn!("Tree created for user without owned and shared files {:?}", owner);
-                    (HashSet::new(), HashSet::new())
-                }
-            };
+        let (owned_ids, shared_ids) = match (owned_files.get(&owner), shared_files.get(&owner)) {
+            (Some(owned_ids), Some(shared_ids)) => (owned_ids.clone(), shared_ids.clone()),
+            _ => {
+                warn!("Tree created for user without owned and shared files {:?}", owner);
+                (HashSet::new(), HashSet::new())
+            }
+        };
 
         let mut ids = HashSet::new();
         ids.extend(owned_ids);
@@ -39,7 +39,7 @@ impl<'a> ServerTree<'a> {
 
         let mut to_get_descendants = Vec::from_iter(shared_ids);
         while let Some(id) = to_get_descendants.pop() {
-            let children = file_children.get().get(&id).cloned().unwrap_or_default();
+            let children = file_children.get(&id).cloned().unwrap_or_default();
             ids.extend(children.clone());
             to_get_descendants.extend(children);
         }
@@ -64,7 +64,7 @@ impl TreeLikeMut for ServerTree<'_> {
     fn insert(&mut self, f: Self::F) -> LbResult<Option<Self::F>> {
         let id = *f.id();
         let owner = f.owner();
-        let maybe_prior = LookupTable::insert(self.files, id, f.clone())?;
+        let maybe_prior = DbHashMap::insert(self.files, id, f.clone())?;
 
         // maintain index: owned_files
         if maybe_prior.as_ref().map(|f| f.owner()) != Some(f.owner()) {
@@ -99,10 +99,10 @@ impl TreeLikeMut for ServerTree<'_> {
         }
 
         // maintain index: file_children
-        if self.file_children.get().get(&id).is_none() {
+        if self.file_children.get(&id).is_none() {
             self.file_children.create_key(id)?;
         }
-        if self.file_children.get().get(f.parent()).is_none() {
+        if self.file_children.get(f.parent()).is_none() {
             self.file_children.create_key(*f.parent())?;
         }
         if maybe_prior.as_ref().map(|f| *f.parent()) != Some(*f.parent()) {

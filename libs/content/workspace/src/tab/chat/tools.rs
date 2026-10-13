@@ -837,7 +837,7 @@ async fn did_you_mean(lb: &Lb, path: &str) -> String {
                 (overlap, p)
             })
             .collect();
-        scored.sort_by(|a, b| b.0.cmp(&a.0));
+        scored.sort_by_key(|a| std::cmp::Reverse(a.0));
         suggestions = scored.into_iter().take(3).map(|(_, p)| p).collect();
     }
     if suggestions.is_empty() {

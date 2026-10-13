@@ -211,7 +211,7 @@ fn encode_indent(cols: usize, f: &Features, src: &mut ByteSource) -> String {
     }
     match src.bias(&[3, 1, 1]) {
         0 => " ".repeat(cols),
-        1 if cols % 4 == 0 => "\t".repeat(cols / 4),
+        1 if cols.is_multiple_of(4) => "\t".repeat(cols / 4),
         _ => {
             let tabs = cols / 4;
             "\t".repeat(tabs) + &" ".repeat(cols - tabs * 4)
