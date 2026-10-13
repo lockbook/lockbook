@@ -97,6 +97,12 @@
               </div>
               <div class="window-body fmt-demo">
                 <canvas id="editor-demo" tabindex="0"></canvas>
+                <div class="editor-recording" id="editor-recording" hidden>
+                  <img id="editor-recording-image" width="420" height="520" loading="lazy"
+                       alt="Typing a todo list with work, errands, and home sections, a code block, bold text, and a link, then dragging a task and folding a section." />
+                  <button class="recording-toggle" id="editor-recording-toggle" type="button"
+                          aria-controls="editor-recording-image">Pause demo</button>
+                </div>
                 <div class="demo-overlay" id="editor-loading">
                   <div class="spinner"></div>
                   <span>Loading the live editor&hellip;</span>
@@ -576,6 +582,16 @@ COMMANDS
   @media (min-width:760px){.fmt-demo{height:400px}}
   @media (max-width:759px){.fmt-demo{aspect-ratio:4/3}}
   .fmt-demo canvas{display:block;width:100%;height:100%}
+  .fmt-demo.is-recorded{height:auto;aspect-ratio:21/26}
+  .fmt-demo.is-recorded canvas,.fmt-demo.is-recorded .demo-overlay{display:none}
+  .editor-recording{position:absolute;inset:0}
+  .editor-recording img{display:block;width:100%;height:100%}
+  .recording-toggle{
+    position:absolute;right:12px;bottom:12px;padding:5px 9px;
+    border:1px solid var(--stroke);border-radius:var(--r-control);
+    background:var(--bg-panel);color:var(--fg-2);font:11px var(--mono);cursor:pointer;
+  }
+  .recording-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 
   .fs{position:absolute;inset:0;display:flex;flex-direction:column}
   .fs-bar{
@@ -1060,10 +1076,27 @@ COMMANDS
     ];
 
     if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-      FRAMES.forEach(function (f) {
-        var o = document.getElementById(f.overlay);
-        if (o) o.innerHTML = '<span>Live demo — open on a desktop to try it</span>';
+      var recording = document.getElementById('editor-recording');
+      var image = document.getElementById('editor-recording-image');
+      var toggle = document.getElementById('editor-recording-toggle');
+      var motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      var playing = !motion.matches;
+      function updateRecording() {
+        var theme = document.documentElement.getAttribute('data-lb-mode') === 'dark' ? 'dark' : 'light';
+        image.src = '/demos/editor-' + theme + (playing ? '.gif' : '.png');
+        toggle.textContent = playing ? 'Pause demo' : 'Play demo';
+      }
+      recording.hidden = false;
+      recording.parentElement.classList.add('is-recorded');
+      document.querySelector('#visual-md .window-label').textContent = 'documents/todo.md';
+      toggle.addEventListener('click', function () { playing = !playing; updateRecording(); });
+      motion.addEventListener('change', function () { playing = !motion.matches; updateRecording(); });
+      new MutationObserver(updateRecording).observe(document.documentElement, {
+        attributes: true, attributeFilter: ['data-lb-mode']
       });
+      updateRecording();
+      var canvasOverlay = document.getElementById('canvas-loading');
+      if (canvasOverlay) canvasOverlay.innerHTML = '<span>Live demo — open on a desktop to try it</span>';
       return;
     }
 
