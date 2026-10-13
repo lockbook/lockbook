@@ -24,6 +24,7 @@ import android.view.View
 import android.widget.OverScroller
 import android.widget.Toast
 import androidx.core.content.ContextCompat.startActivity
+import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
@@ -399,6 +400,10 @@ class WorkspaceView(
             ).setPrimaryClip(ClipData.newPlainText("", response.copiedText))
         }
 
+        if (response.copiedImage.isNotEmpty()) {
+            copyImageToClipboard(response.copiedImage)
+        }
+
         val currentTab =
             if (response.tabsChanged || !response.selectedFile.isNullUUID()) {
                 Workspace.currentTab(wgpuObj).toModelTab()
@@ -410,7 +415,21 @@ class WorkspaceView(
             model._currentTab.value = currentTab
         }
 
-        if (model.currentTab.value?.type == WorkspaceTabType.Markdown ||
+        if (
+            response.hasEditMenu &&
+            response.editMenuForImage &&
+            contextMenu == null
+        ) {
+            contextMenu =
+                this@WorkspaceView.startActionMode(
+                    FloatingImageContextMenu(
+                        response.editMenuX,
+                        response.editMenuY,
+                    ),
+                    ActionMode.TYPE_FLOATING,
+                )
+        } else if (
+            model.currentTab.value?.type == WorkspaceTabType.Markdown ||
             model.currentTab.value?.type == WorkspaceTabType.Chat
         ) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
@@ -455,6 +474,16 @@ class WorkspaceView(
 
     fun drawImmediately() {
         drawWorkspace()
+    }
+
+    private fun copyImageToClipboard(png: ByteArray) {
+        val shareDirectory = File(context.cacheDir, "share/clipboard").apply { mkdirs() }
+        val imageFile = File(shareDirectory, "image.png")
+        imageFile.writeBytes(png)
+
+        val uri = FileProvider.getUriForFile(context, "app.lockbook.fileprovider", imageFile)
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newUri(context.contentResolver, "Image", uri))
     }
 
     override fun draw(canvas: Canvas) {
@@ -661,6 +690,60 @@ class WorkspaceView(
                     ),
                 )
             }
+        }
+    }
+
+    inner class FloatingImageContextMenu(
+        private val menuX: Float,
+        private val menuY: Float,
+    ) : ActionMode.Callback2() {
+        override fun onCreateActionMode(
+            mode: ActionMode?,
+            menu: Menu?,
+        ): Boolean {
+            mode?.apply {
+                title = null
+                subtitle = null
+                titleOptionalHint = true
+            }
+            menu
+                ?.add(Menu.NONE, android.R.id.copy, 0, "Copy image")
+                ?.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            return true
+        }
+
+        override fun onPrepareActionMode(
+            mode: ActionMode?,
+            menu: Menu?,
+        ): Boolean = true
+
+        override fun onActionItemClicked(
+            mode: ActionMode?,
+            item: MenuItem?,
+        ): Boolean {
+            if (item?.itemId != android.R.id.copy) {
+                return false
+            }
+
+            Workspace.copyImage(wgpuObj)
+            invalidate()
+            mode?.finish()
+            return true
+        }
+
+        override fun onDestroyActionMode(mode: ActionMode?) {
+            contextMenu = null
+        }
+
+        override fun onGetContentRect(
+            mode: ActionMode?,
+            view: View?,
+            outRect: Rect?,
+        ) {
+            val density = context.resources.displayMetrics.scaledDensity
+            val x = (menuX * density).toInt()
+            val y = (menuY * density).toInt()
+            outRect?.set(x, y, x, y)
         }
     }
 

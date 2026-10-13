@@ -233,7 +233,7 @@ impl ImageViewer {
             egui::Sense::click(),
         );
 
-        if cfg!(target_os = "ios") {
+        if cfg!(any(target_os = "ios", target_os = "android")) {
             if response.clicked() {
                 if let Some(pos) = response.interact_pointer_pos() {
                     ui.ctx().set_context_menu(pos, ContextMenuTarget::Image);
