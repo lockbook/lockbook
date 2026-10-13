@@ -23,9 +23,16 @@
       </p>
     </div>
     <a class="hero-shot" href="#screenshots" aria-label="See Lockbook on every platform">
-      {{ <device_screenshot kind="macbook"
-          src="/shots/mac-editor.png" width={1600} height={1107}
-          alt="Lockbook on macOS: a Markdown note open beside the file tree" hero={true} lazy={false} /> }}
+      <div class="device device--macbook" id="hero-device">
+        <div class="device-display">
+          <span class="device-camera" aria-hidden="true"></span>
+          <div class="device-screen">
+            <img class="shot" id="hero-img" src="/shots/mac-editor.png" width="1600" height="1107"
+                 alt="Lockbook on macOS: a Markdown note open beside the file tree" />
+          </div>
+        </div>
+        <div class="device-base" aria-hidden="true"></div>
+      </div>
     </a>
   </div>
 </section>
@@ -326,21 +333,56 @@ e6Ms2Hf9Ub7Nw0Lq+Yi</pre>
 
       <div class="shots" id="screenshots">
       <div class="shot-stage" id="platform-shot">
-        {{ <device_screenshot kind="macbook" platform="macos" active={true}
-            src="/shots/mac-editor.png" width={1600} height={1107}
-            alt="Lockbook on macOS: a Markdown note open beside the file tree" /> }}
-        {{ <device_screenshot kind="iphone" platform="ios"
-            src="/shots/iphone-editor.png" width={552} height={1200}
-            alt="Lockbook on iPhone: editing a Markdown note" /> }}
-        {{ <device_screenshot kind="android" platform="android"
-            src="/shots/android-editor.png" width={1080} height={2340}
-            alt="Lockbook on Android: the Kyoto planning note with a checklist and travel links" /> }}
-        {{ <device_screenshot kind="linux" platform="linux"
-            src="/shots/linux-editor.png" width={1600} height={1107}
-            alt="Lockbook desktop: the Kyoto planning note open beside the file tree" /> }}
-        {{ <device_screenshot kind="windows" platform="windows"
-            src="/shots/linux-editor.png" width={1600} height={1107}
-            alt="Lockbook desktop: the Kyoto planning note open beside the file tree" /> }}
+        <div class="device device--macbook is-on" data-platform="macos">
+          <div class="device-display">
+            <span class="device-camera" aria-hidden="true"></span>
+            <div class="device-screen">
+              <img class="shot" src="/shots/mac-editor.png" width="1600" height="1107" loading="lazy"
+                   alt="Lockbook on macOS: a Markdown note open beside the file tree" />
+            </div>
+          </div>
+          <div class="device-base" aria-hidden="true"></div>
+        </div>
+        <div class="device device--iphone" data-platform="ios">
+          <div class="device-display">
+            <span class="device-camera" aria-hidden="true"></span>
+            <div class="device-screen">
+              <img class="shot" src="/shots/iphone-editor.png" width="552" height="1200" loading="lazy"
+                   alt="Lockbook on iPhone: editing a Markdown note" />
+            </div>
+          </div>
+          <div class="device-base" aria-hidden="true"></div>
+        </div>
+        <div class="device device--android" data-platform="android">
+          <div class="device-display">
+            <span class="device-camera" aria-hidden="true"></span>
+            <div class="device-screen">
+              <img class="shot" src="/shots/android-editor.png" width="1080" height="2340" loading="lazy"
+                   alt="Lockbook on Android: the Kyoto planning note with a checklist and travel links" />
+            </div>
+          </div>
+          <div class="device-base" aria-hidden="true"></div>
+        </div>
+        <div class="device device--linux" data-platform="linux">
+          <div class="device-display">
+            <span class="device-camera" aria-hidden="true"></span>
+            <div class="device-screen">
+              <img class="shot" src="/shots/linux-editor.png" width="1600" height="1107" loading="lazy"
+                   alt="Lockbook desktop: the Kyoto planning note open beside the file tree" />
+            </div>
+          </div>
+          <div class="device-base" aria-hidden="true"></div>
+        </div>
+        <div class="device device--windows" data-platform="windows">
+          <div class="device-display">
+            <span class="device-camera" aria-hidden="true"></span>
+            <div class="device-screen">
+              <img class="shot" src="/shots/linux-editor.png" width="1600" height="1107" loading="lazy"
+                   alt="Lockbook desktop: the Kyoto planning note open beside the file tree" />
+            </div>
+          </div>
+          <div class="device-base" aria-hidden="true"></div>
+        </div>
         <img class="shot" data-platform="cli" src="/shots/cli-editor.png" width="1599" height="1106" loading="lazy"
              alt="Lockbook CLI on Linux: listing the travel folder and reading the Kyoto planning note" />
       </div>
