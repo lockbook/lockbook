@@ -402,7 +402,8 @@ where
                         }
                     }
                     Diff::UserKeys => {
-                        // change access: either changing your own access, or have write access
+                        // any change to a file's keys takes write access, except that anyone
+                        // may delete their own key
                         let base_keys = {
                             if let Some(ref old) = file_diff.old {
                                 let mut base_keys = HashMap::new();
@@ -419,37 +420,29 @@ where
                                 ))?;
                             }
                         };
+                        let has_write =
+                            base.access_mode(owner, file_diff.id())? >= Some(UserAccessMode::Write);
+                        let mut staged_shares = HashSet::new();
                         for key in file_diff.new.user_access_keys() {
-                            if let Some((base_mode, base_deleted)) =
-                                base_keys.get(&(Owner(key.encrypted_by), Owner(key.encrypted_for)))
-                            {
-                                // editing an existing share
-
-                                let (staged_mode, staged_deleted) = (&key.mode, &key.deleted);
-                                // cannot delete someone else's share without write access
-                                if *staged_deleted
-                                    && !*base_deleted
-                                    && base.access_mode(owner, file_diff.id())?
-                                        < Some(UserAccessMode::Write)
-                                    && owner.0 != key.encrypted_for
-                                {
-                                    Err(LbErrKind::InsufficientPermission)?;
-                                }
-                                // cannot grant yourself write access
-                                if staged_mode != base_mode
-                                    && base.access_mode(owner, file_diff.id())?
-                                        < Some(UserAccessMode::Write)
-                                {
-                                    Err(LbErrKind::InsufficientPermission)?;
-                                }
-                            } else {
-                                // adding a new share
-
-                                // to add a share, need equal access
-                                if base.access_mode(owner, file_diff.id())? < Some(key.mode) {
-                                    Err(LbErrKind::InsufficientPermission)?;
-                                }
+                            let (by, for_) = (Owner(key.encrypted_by), Owner(key.encrypted_for));
+                            staged_shares.insert((by, for_));
+                            let base_key = base_keys.get(&(by, for_));
+                            let unchanged = base_key == Some(&(key.mode, key.deleted));
+                            if unchanged {
+                                continue;
                             }
+                            let deletes_own_key = for_ == owner
+                                && key.deleted
+                                && base_key
+                                    .is_some_and(|&(mode, deleted)| mode == key.mode && !deleted);
+                            if !has_write && !deletes_own_key {
+                                Err(LbErrKind::InsufficientPermission)?;
+                            }
+                        }
+                        let removes_key =
+                            base_keys.keys().any(|share| !staged_shares.contains(share));
+                        if removes_key && !has_write {
+                            Err(LbErrKind::InsufficientPermission)?;
                         }
                     }
                 }
