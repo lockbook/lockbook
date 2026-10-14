@@ -14,7 +14,6 @@ pub fn static_routes(
     assert!(static_dir.is_dir(), "static asset directory does not exist: {}", static_dir.display());
     open_route(server_origin)
         .or(well_known_route(static_dir))
-        .or(logo_route(static_dir))
         .or(warp::fs::dir(static_dir.to_path_buf()).map(cached_file))
 }
 
@@ -45,15 +44,6 @@ fn well_known_route(
         )
         .and(warp::path::end())
         .map(|file| warp::reply::with_header(file, "Content-Type", "application/json"))
-}
-
-fn logo_route(
-    static_dir: &Path,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::path("lockbook-logo.png")
-        .and(warp::path::end())
-        .and(warp::fs::file(static_dir.join("favicon/web-app-manifest-512x512.png")))
-        .map(cached_file)
 }
 
 fn cached_file(file: warp::fs::File) -> impl warp::Reply {
@@ -122,8 +112,8 @@ mod tests {
         assert!(body.contains("<meta name=\"twitter:card\" content=\"summary_large_image\""));
         assert!(body.contains("<meta property=\"og:image:width\" content=\"1200\""));
         assert!(body.contains("<meta property=\"og:image:height\" content=\"630\""));
-        assert!(body.contains("href=\"/favicon/site.webmanifest\""));
-        assert!(body.contains("src=\"/lockbook-mark.svg\""));
+        assert!(body.contains("href=\"https://lockbook.net/favicon/site.webmanifest\""));
+        assert!(body.contains("src=\"https://lockbook.net/favicon/favicon.svg\""));
         assert!(body.contains("href=\"https://lockbook.net/download/\""));
         assert!(body.contains(&format!("href=\"lb://{ID}\"")));
         assert!(!body.contains("window.location"));
@@ -164,28 +154,13 @@ mod tests {
             assert_eq!(response.headers()["content-type"], "application/json");
         }
 
-        for (path, content_type) in [
-            ("/lockbook-logo.png", "image/png"),
-            ("/lockbook-mark.svg", "image/svg+xml"),
-            ("/open-preview.png", "image/png"),
-            ("/favicon/favicon.svg", "image/svg+xml"),
-            ("/favicon/favicon.ico", "image/x-icon"),
-            ("/favicon/favicon-96x96.png", "image/png"),
-            ("/favicon/apple-touch-icon.png", "image/png"),
-            ("/favicon/web-app-manifest-192x192.png", "image/png"),
-            ("/favicon/web-app-manifest-512x512.png", "image/png"),
-            ("/favicon/site.webmanifest", "application/manifest+json"),
-        ] {
-            let response = warp::test::request()
-                .path(path)
-                .reply(&routes("https://example.com"))
-                .await;
-            assert_eq!(response.status(), 200, "{path}");
-            assert_eq!(response.headers()["content-type"], content_type, "{path}");
-            if content_type == "image/png" {
-                assert!(response.body().starts_with(b"\x89PNG\r\n\x1a\n"), "{path}");
-            }
-        }
+        let preview = warp::test::request()
+            .path("/open-preview.png")
+            .reply(&routes("https://example.com"))
+            .await;
+        assert_eq!(preview.status(), 200);
+        assert_eq!(preview.headers()["content-type"], "image/png");
+        assert!(preview.body().starts_with(b"\x89PNG\r\n\x1a\n"));
         let unknown = warp::test::request()
             .path("/favicon/unknown.png")
             .reply(&routes("https://example.com"))
