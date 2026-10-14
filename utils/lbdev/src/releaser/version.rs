@@ -241,11 +241,11 @@ const APPDATA_TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 
   <screenshots>
       <screenshot type="default">
-          <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/master/public-site/static/flatpak-dark-theme-screenshot.png</image>
+          <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/master/utils/dev/flatpak-package/screenshots/flatpak-dark-theme-screenshot.png</image>
           <caption>dark theme</caption>
       </screenshot>
       <screenshot>
-          <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/master/public-site/static/flatpak-light-theme-screenshot.png</image>
+          <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/master/utils/dev/flatpak-package/screenshots/flatpak-light-theme-screenshot.png</image>
           <caption>light theme</caption>
       </screenshot>
   </screenshots>

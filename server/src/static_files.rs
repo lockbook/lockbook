@@ -113,7 +113,7 @@ mod tests {
         assert!(body.contains("<meta property=\"og:image:width\" content=\"1200\""));
         assert!(body.contains("<meta property=\"og:image:height\" content=\"630\""));
         assert!(body.contains("href=\"https://lockbook.net/favicon/site.webmanifest\""));
-        assert!(body.contains("src=\"https://lockbook.net/logo.svg\""));
+        assert!(body.contains("src=\"https://lockbook.net/favicon/favicon.svg\""));
         assert!(body.contains("href=\"https://lockbook.net/download/\""));
         assert!(body.contains(&format!("href=\"lb://{ID}\"")));
         assert!(!body.contains("window.location"));
