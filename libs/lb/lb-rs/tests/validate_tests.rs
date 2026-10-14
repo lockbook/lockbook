@@ -98,3 +98,40 @@ async fn directly_shared_link() {
         LbErrKind::Validation(ValidationFailure::SharedLink { .. })
     );
 }
+
+#[tokio::test]
+async fn read_sharee_cannot_stage_write_key_for_self() {
+    let a = test_core_with_account().await;
+    let b = test_core_with_account().await;
+    let acct_b = b.get_account().unwrap().clone();
+
+    let doc = a.create_at_path("/doc").await.unwrap();
+    a.share_file(doc.id, &acct_b.username, ShareMode::Read)
+        .await
+        .unwrap();
+    a.sync().await.unwrap();
+    b.sync().await.unwrap();
+
+    // b raises its own key to write and re-signs the record
+    let mut tx = b.begin_tx().await;
+    let db = tx.db();
+    let mut meta = db
+        .base_metadata
+        .get(&doc.id)
+        .unwrap()
+        .timestamped_value
+        .value
+        .clone();
+    for key in meta.user_access_keys_mut() {
+        if key.encrypted_for == acct_b.public_key() {
+            key.mode = UserAccessMode::Write;
+        }
+    }
+    db.local_metadata
+        .insert(doc.id, meta.sign(&b.keychain).unwrap())
+        .unwrap();
+
+    let mut tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
+    let result = tree.validate(Owner(acct_b.public_key()));
+    assert_matches!(result.unwrap_err().kind, LbErrKind::InsufficientPermission);
+}
