@@ -143,28 +143,31 @@ impl Buffer {
                 }
             });
 
-        remote_buffer
-            .elements
-            .iter()
-            .filter_map(|(id, el)| if let Element::Path(p) = el { Some((id, p)) } else { None })
-            .enumerate()
-            .for_each(|(i, (id, remote_el))| {
-                if !base_buffer.elements.contains_key(id) {
-                    let mut transformed_path = remote_el.clone();
-                    transformed_path.diff_state.transformed = Some(local_master_transform);
-                    transformed_path
-                        .data
-                        .apply_transform(u_transform_to_bezier(&local_master_transform));
-
-                    transformed_path.diff_state.data_changed = true;
-                    transformed_path.diff_state.transformed = None;
-
-                    local_elements.insert_before(i, *id, Element::Path(transformed_path));
-                    if let Some(base_pressure) = remote_buffer.weak_path_pressures.get(id) {
-                        local_weak_pressures.insert(*id, base_pressure.clone());
-                    }
+        // strokes new in remote go after the nearest preceding stroke that local still has
+        let mut cursor = 0;
+        for (id, el) in remote_buffer.elements.iter() {
+            let Element::Path(remote_el) = el else { continue };
+            if base_buffer.elements.contains_key(id) {
+                if let Some(pos) = local_elements.get_index_of(id) {
+                    cursor = pos + 1;
                 }
-            });
+            } else if !local_elements.contains_key(id) {
+                let mut transformed_path = remote_el.clone();
+                transformed_path.diff_state.transformed = Some(local_master_transform);
+                transformed_path
+                    .data
+                    .apply_transform(u_transform_to_bezier(&local_master_transform));
+
+                transformed_path.diff_state.data_changed = true;
+                transformed_path.diff_state.transformed = None;
+
+                local_elements.insert_before(cursor, *id, Element::Path(transformed_path));
+                cursor += 1;
+                if let Some(base_pressure) = remote_buffer.weak_path_pressures.get(id) {
+                    local_weak_pressures.insert(*id, base_pressure.clone());
+                }
+            }
+        }
     }
 
     pub fn insert(&mut self, id: Uuid, mut el: Element) {
