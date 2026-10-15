@@ -13,8 +13,8 @@ import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
-import app.lockbook.databinding.FileSelectionActionRowBinding
 import app.lockbook.databinding.FileSelectionActionButtonBinding
+import app.lockbook.databinding.FileSelectionActionRowBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.FileOperationsViewModel
 import app.lockbook.model.FileTreeViewModel
@@ -80,15 +80,19 @@ internal class FileActionsSheetContent(
     private val compactActions = root.findViewById<ViewGroup>(R.id.file_selection_actions)
     private val expandedActions = root.findViewById<ViewGroup>(R.id.file_selection_expanded_actions)
     private var files = emptyList<File>()
-    private val buttons = FileSelectionAction.entries.associateWith { action ->
-        listOf(addAction(action, compactActions, false), addAction(action, expandedActions, true))
-    }
+    private val buttons =
+        FileSelectionAction.entries.associateWith { action ->
+            listOf(addAction(action, compactActions, false), addAction(action, expandedActions, true))
+        }
 
     init {
         root.findViewById<View>(R.id.clear_file_selection).setOnClickListener { onDismiss() }
     }
 
-    fun render(files: List<File>, title: String) {
+    fun render(
+        files: List<File>,
+        title: String,
+    ) {
         this.files = files
         this.title.text = title
         buttons.forEach { (action, views) ->
@@ -105,20 +109,29 @@ internal class FileActionsSheetContent(
             root.requestLayout()
         }
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            val peekHeight = header.height + compact.height + content.paddingTop +
-                content.paddingBottom + root.paddingTop + root.paddingBottom
+            val peekHeight =
+                header.height + compact.height + content.paddingTop +
+                    content.paddingBottom + root.paddingTop + root.paddingBottom
             if (peekHeight > 0 && behavior.peekHeight != peekHeight) behavior.peekHeight = peekHeight
         }
-        behavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
-            override fun onStateChanged(bottomSheet: View, newState: Int) {
-                if (newState == BottomSheetBehavior.STATE_COLLAPSED) setExpansion(0f)
-                if (newState == BottomSheetBehavior.STATE_EXPANDED) setExpansion(1f)
-            }
+        behavior.addBottomSheetCallback(
+            object : BottomSheetBehavior.BottomSheetCallback() {
+                override fun onStateChanged(
+                    bottomSheet: View,
+                    newState: Int,
+                ) {
+                    if (newState == BottomSheetBehavior.STATE_COLLAPSED) setExpansion(0f)
+                    if (newState == BottomSheetBehavior.STATE_EXPANDED) setExpansion(1f)
+                }
 
-            override fun onSlide(bottomSheet: View, slideOffset: Float) {
-                setExpansion(slideOffset.coerceIn(0f, 1f))
-            }
-        })
+                override fun onSlide(
+                    bottomSheet: View,
+                    slideOffset: Float,
+                ) {
+                    setExpansion(slideOffset.coerceIn(0f, 1f))
+                }
+            },
+        )
         setExpansion(if (behavior.state == BottomSheetBehavior.STATE_EXPANDED) 1f else 0f)
     }
 
@@ -128,16 +141,32 @@ internal class FileActionsSheetContent(
         // INVISIBLE preserves the expanded sheet's measured height while it is collapsed.
         compact.visibility = if (fraction < 1f) View.VISIBLE else View.INVISIBLE
         expanded.visibility = if (fraction > 0f) View.VISIBLE else View.INVISIBLE
-        compact.importantForAccessibility = if (fraction < 0.5f) View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
-            else View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-        expanded.importantForAccessibility = if (fraction >= 0.5f) View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
-            else View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        compact.importantForAccessibility =
+            if (fraction < 0.5f) {
+                View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+            } else {
+                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            }
+        expanded.importantForAccessibility =
+            if (fraction >= 0.5f) {
+                View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+            } else {
+                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            }
     }
 
-    private fun addAction(action: FileSelectionAction, parent: ViewGroup, vertical: Boolean): MaterialButton {
+    private fun addAction(
+        action: FileSelectionAction,
+        parent: ViewGroup,
+        vertical: Boolean,
+    ): MaterialButton {
         val inflater = LayoutInflater.from(root.context)
-        val button = if (vertical) FileSelectionActionRowBinding.inflate(inflater, parent, false).root
-            else FileSelectionActionButtonBinding.inflate(inflater, parent, false).root
+        val button =
+            if (vertical) {
+                FileSelectionActionRowBinding.inflate(inflater, parent, false).root
+            } else {
+                FileSelectionActionButtonBinding.inflate(inflater, parent, false).root
+            }
         button.apply {
             setText(action.titleRes)
             setIconResource(action.iconRes)

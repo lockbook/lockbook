@@ -331,21 +331,23 @@ class WorkspaceFragment : Fragment() {
         documentActionsDialog?.dismiss()
         val dialog = BottomSheetDialog(requireContext())
         val sheet = FileSelectionBottomBarBinding.inflate(layoutInflater)
-        val dispatcher = FileSelectionActionDispatcher(
-            fragment = this,
-            mainScreenModel = mainScreenModel,
-            fileTreeModel = filesListModel,
-            snackbarAnchor = binding.workspaceToolbar,
-            onClearSelection = {},
-        )
-        val content = FileActionsSheetContent(
-            root = sheet.root,
-            onAction = { action, files ->
-                dialog.dismiss()
-                dispatcher.dispatch(action, files)
-            },
-            onDismiss = dialog::dismiss,
-        )
+        val dispatcher =
+            FileSelectionActionDispatcher(
+                fragment = this,
+                mainScreenModel = mainScreenModel,
+                fileTreeModel = filesListModel,
+                snackbarAnchor = binding.workspaceToolbar,
+                onClearSelection = {},
+            )
+        val content =
+            FileActionsSheetContent(
+                root = sheet.root,
+                onAction = { action, files ->
+                    dialog.dismiss()
+                    dispatcher.dispatch(action, files)
+                },
+                onDismiss = dialog::dismiss,
+            )
         content.render(listOf(file), file.name)
         sheet.root.isVisible = true
         dialog.setContentView(sheet.root)
