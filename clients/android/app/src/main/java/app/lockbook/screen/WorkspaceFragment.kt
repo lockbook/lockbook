@@ -40,6 +40,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
+import app.lockbook.databinding.FileSelectionBottomBarBinding
 import app.lockbook.databinding.FragmentWorkspaceBinding
 import app.lockbook.databinding.WorkspaceTabsDialogBinding
 import app.lockbook.model.FileOperationsViewModel
@@ -65,7 +66,6 @@ import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,7 +86,7 @@ class WorkspaceFragment : Fragment() {
     private var toolbarVisible: Boolean? = null
     private var tabsDialog: BottomSheetDialog? = null
     private var tabsList: RecyclerView? = null
-    private var documentActionsDialog: androidx.appcompat.app.AlertDialog? = null
+    private var documentActionsDialog: BottomSheetDialog? = null
     private var workspaceView: WorkspaceView? = null
     private var cameraFile: JavaFile? = null
 
@@ -328,23 +328,32 @@ class WorkspaceFragment : Fragment() {
 
     private fun showDocumentActions() {
         val file = getCurrentFile() ?: return
-        val files = listOf(file)
-        val actions = FileSelectionAction.entries.filter { it.isAvailableFor(files) }
-        val dispatcher =
-            FileSelectionActionDispatcher(
-                fragment = this,
-                mainScreenModel = mainScreenModel,
-                fileTreeModel = filesListModel,
-                snackbarAnchor = binding.workspaceToolbar,
-                onClearSelection = {},
-            )
         documentActionsDialog?.dismiss()
-        documentActionsDialog =
-            MaterialAlertDialogBuilder(requireContext())
-                .setTitle(file.name)
-                .setItems(actions.map { getString(it.titleRes) }.toTypedArray()) { _, index ->
-                    dispatcher.dispatch(actions[index], files)
-                }.show()
+        val dialog = BottomSheetDialog(requireContext())
+        val sheet = FileSelectionBottomBarBinding.inflate(layoutInflater)
+        val dispatcher = FileSelectionActionDispatcher(
+            fragment = this,
+            mainScreenModel = mainScreenModel,
+            fileTreeModel = filesListModel,
+            snackbarAnchor = binding.workspaceToolbar,
+            onClearSelection = {},
+        )
+        val content = FileActionsSheetContent(
+            root = sheet.root,
+            onAction = { action, files ->
+                dialog.dismiss()
+                dispatcher.dispatch(action, files)
+            },
+            onDismiss = dialog::dismiss,
+        )
+        content.render(listOf(file), file.name)
+        sheet.root.isVisible = true
+        dialog.setContentView(sheet.root)
+        content.attachBehavior(dialog.behavior)
+        dialog.setOnDismissListener { documentActionsDialog = null }
+        documentActionsDialog = dialog
+        dialog.show()
+        dialog.behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
     }
 
     private fun updateDocumentName(name: String?) {
