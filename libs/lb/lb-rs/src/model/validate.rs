@@ -74,9 +74,11 @@ where
     }
 
     // note: deleted access keys permissible
+    // a deleted file whose parent left the tree has nothing left to decrypt
     pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> LbResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(&id)) {
             if self.maybe_find_parent(file).is_none()
+                && !file.explicitly_deleted()
                 && !file
                     .user_access_keys()
                     .iter()
@@ -155,7 +157,9 @@ where
                 current_file = match self.maybe_find_parent(current_file) {
                     Some(file) => file,
                     None => {
-                        if !current_file.user_access_keys().is_empty() {
+                        if !current_file.user_access_keys().is_empty()
+                            || current_file.explicitly_deleted()
+                        {
                             break;
                         } else {
                             return Err(LbErrKind::FileParentNonexistent)?;
