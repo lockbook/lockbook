@@ -1,6 +1,6 @@
 //! The web for a model whose provider does not reach it itself: a search
 //! against the engine the user set up in `/.agent/search/`, and a page read
-//! as text.
+//! as text. A download keeps a file from the web for any provider.
 
 use std::time::Duration;
 
@@ -14,6 +14,7 @@ use crate::wire::ToolSchema;
 
 pub const SEARCH: &str = "web_search";
 pub const FETCH: &str = "fetch";
+pub const DOWNLOAD: &str = "download";
 /// The folder of search engine files, one engine each.
 pub const ENGINES: &str = "/.agent/search";
 
@@ -21,6 +22,8 @@ const RESULTS: usize = 8;
 const TIMEOUT: Duration = Duration::from_secs(20);
 /// Bytes of a page that are downloaded, and of its text given per fetch.
 const DOWNLOAD_MAX: usize = 2 * 1024 * 1024;
+/// The largest file a download keeps.
+const FILE_MAX: usize = 32 * 1024 * 1024;
 const PAGE: usize = 12 * 1024;
 const AGENT: &str = "Lockbook (+https://lockbook.net)";
 
@@ -90,7 +93,8 @@ impl Engine {
                 (format!("{base_url}/search"), vec![("q", query), ("format", "json")], vec![])
             }
         };
-        let (_, body) = get(&url, &params, &headers)?;
+        let (_, _, body) = get(&url, &params, &headers, DOWNLOAD_MAX)?;
+        let body = String::from_utf8_lossy(&body).into_owned();
         let body: Value =
             serde_json::from_str(&body).map_err(|_| "the search engine did not answer in JSON")?;
         let found = self.found(&body);
@@ -156,12 +160,31 @@ pub fn schemas(search: bool) -> Vec<ToolSchema> {
     search.into_iter().chain([fetch]).collect()
 }
 
+/// The schema of the download tool, which every provider gets.
+pub fn download_schema() -> ToolSchema {
+    ToolSchema {
+        name: DOWNLOAD.into(),
+        description: "Save a file from the web, such as a PDF, into the vault and answer with its path. Only an address the user gave, or one a search, a page, or a note contained.".into(),
+        parameters: json!({
+            "type": "object",
+            "properties": {
+                "url": { "type": "string", "description": "the file's address, starting with http" },
+                "to": { "type": "string", "description": "optional full path to save at, name included; the chat's imports folder otherwise" },
+            },
+            "required": ["url"],
+            "additionalProperties": false,
+        }),
+    }
+}
+
 /// The text of the page at `url` from byte `start`, a screenful at a time.
 pub fn fetch(url: &str, start: usize) -> Result<String, String> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err(format!("{url} is not a web address"));
     }
-    let (kind, body) = get(url, &[], &[("Accept", "text/html, text/*;q=0.9, */*;q=0.5")])?;
+    let accept = ("Accept", "text/html, text/*;q=0.9, */*;q=0.5");
+    let (kind, _, body) = get(url, &[], &[accept], DOWNLOAD_MAX)?;
+    let body = String::from_utf8_lossy(&body).into_owned();
     let text = if kind.contains("html") {
         readable(&body, url)
     } else if kind.starts_with("text/") || kind.contains("json") || kind.contains("xml") {
@@ -188,9 +211,84 @@ fn page(text: &str, start: usize) -> String {
     }
 }
 
+/// The file at `url` and a name for it: the one the server gives, else the
+/// address's last part, with an extension for its kind when it has none.
+pub fn download(url: &str) -> Result<(String, Vec<u8>), String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(format!("{url} is not a web address"));
+    }
+    let (kind, served, bytes) = get(url, &[], &[], FILE_MAX)?;
+    if bytes.len() >= FILE_MAX {
+        return Err(format!("{url} is larger than {} MB", FILE_MAX / (1024 * 1024)));
+    }
+    let from_url = Url::parse(url)
+        .ok()
+        .and_then(|u| u.path_segments()?.next_back().map(str::to_string))
+        .map(|last| percent_decode(&last))
+        .filter(|last| !last.is_empty());
+    let mut name = served.or(from_url).unwrap_or_else(|| "download".into());
+    let ext = EXTENSIONS.iter().find(|(mime, _)| kind.starts_with(mime));
+    if let Some((_, ext)) = ext.filter(|_| !name.contains('.')) {
+        name = format!("{name}.{ext}");
+    }
+    Ok((name, bytes))
+}
+
+/// Kinds a download may come as, and the extension a name without one gets.
+const EXTENSIONS: &[(&str, &str)] = &[
+    ("application/pdf", "pdf"),
+    ("image/png", "png"),
+    ("image/jpeg", "jpg"),
+    ("image/gif", "gif"),
+    ("image/webp", "webp"),
+    ("image/svg", "svg"),
+    ("text/csv", "csv"),
+    ("text/markdown", "md"),
+    ("text/html", "html"),
+    ("text/plain", "txt"),
+    ("application/json", "json"),
+];
+
+/// `%20` and its kin read as the characters they stand for.
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = bytes
+            .get(i + 1..i + 3)
+            .and_then(|h| std::str::from_utf8(h).ok());
+        match (bytes[i], hex.and_then(|h| u8::from_str_radix(h, 16).ok())) {
+            (b'%', Some(byte)) => {
+                out.push(byte);
+                i += 3;
+            }
+            (byte, _) => {
+                out.push(byte);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// The name a `Content-Disposition` header gives the file, if any.
+fn served_name(header: Option<&str>) -> Option<String> {
+    let name = header?
+        .split(';')
+        .map(str::trim)
+        .find_map(|part| part.strip_prefix("filename="))?
+        .trim_matches('"')
+        .rsplit('/')
+        .next()?
+        .to_string();
+    Some(name).filter(|n| !n.is_empty())
+}
+
+/// The kind, served name, and up to `max` bytes of what is at `url`.
 fn get(
-    url: &str, params: &[(&str, &str)], headers: &[(&str, &str)],
-) -> Result<(String, String), String> {
+    url: &str, params: &[(&str, &str)], headers: &[(&str, &str)], max: usize,
+) -> Result<(String, Option<String>, Vec<u8>), String> {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -213,14 +311,16 @@ fn get(
             .and_then(|v| v.to_str().ok())
             .unwrap_or("text/html")
             .to_lowercase();
+        let served = resp.headers().get("content-disposition");
+        let served = served_name(served.and_then(|v| v.to_str().ok()));
         let mut bytes = Vec::new();
         while let Some(chunk) = resp.chunk().await.map_err(|e| format!("{url}: {e}"))? {
             bytes.extend_from_slice(&chunk);
-            if bytes.len() >= DOWNLOAD_MAX {
+            if bytes.len() >= max {
                 break;
             }
         }
-        Ok((kind, String::from_utf8_lossy(&bytes).into_owned()))
+        Ok((kind, served, bytes))
     })
 }
 
@@ -435,6 +535,36 @@ mod tests {
             fetch("file:///etc/passwd", 0)
                 .unwrap_err()
                 .contains("not a web address")
+        );
+    }
+
+    /// A download is named by the server, else by its address, with an
+    /// extension for its kind; one too large is refused.
+    #[test]
+    fn a_download_keeps_its_bytes_and_a_name() {
+        const NAMED: &str = "HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\n\
+            Content-Disposition: attachment; filename=\"Form 1040.pdf\"\r\nConnection: close\r\n\r\n%PDF-1.4 x";
+        const BARE: &str =
+            "HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nConnection: close\r\n\r\n%PDF";
+        let (name, bytes) = download(&mock::serve_once(NAMED)).unwrap();
+        assert_eq!((name.as_str(), bytes.as_slice()), ("Form 1040.pdf", b"%PDF-1.4 x".as_slice()));
+        let url = format!("{}/irs/f1040%20sr", mock::serve_once(BARE));
+        assert_eq!(download(&url).unwrap().0, "f1040 sr.pdf");
+        let url = format!("{}/irs/f1040sr.PDF", mock::serve_once(BARE));
+        assert_eq!(download(&url).unwrap().0, "f1040sr.PDF");
+        assert!(
+            download("ftp://x/y")
+                .unwrap_err()
+                .contains("not a web address")
+        );
+        let huge = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Length: {FILE_MAX}\r\nConnection: close\r\n\r\n{}",
+            "x".repeat(FILE_MAX)
+        );
+        assert!(
+            download(&mock::serve_once(huge.leak()))
+                .unwrap_err()
+                .contains("larger than 32 MB")
         );
     }
 }
