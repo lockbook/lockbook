@@ -186,24 +186,10 @@ impl AsyncDocs {
                 continue;
             }
 
-            let (id_str, hmac_str) = file_name.split_at(36); // UUIDs are 36 characters long in string form
-
-            let id = Uuid::parse_str(id_str).map_err(|err| {
-                LbErrKind::Unexpected(format!("could not parse doc name as uuid {err:?}"))
-            })?;
-
-            let hmac_base64 = hmac_str
-                .strip_prefix('-')
-                .ok_or(LbErrKind::Unexpected("doc name missing -".to_string()))?;
-
-            let hmac_bytes =
-                base64::decode_config(hmac_base64, base64::URL_SAFE).map_err(|err| {
-                    LbErrKind::Unexpected(format!("document disk file name malformed: {err:?}"))
-                })?;
-
-            let hmac: DocumentHmac = hmac_bytes.try_into().map_err(|err| {
-                LbErrKind::Unexpected(format!("document disk file name malformed {err:?}"))
-            })?;
+            // files we did not write (e.g. .DS_Store) are left alone
+            let Some((id, hmac)) = parse_key_path(file_name) else {
+                continue;
+            };
 
             if !file_hmacs.contains(&(id, hmac)) {
                 self.delete(id, Some(hmac)).await?;
@@ -211,6 +197,14 @@ impl AsyncDocs {
         }
         Ok(())
     }
+}
+
+/// Inverse of [key_path]'s file name: `<uuid>-<base64 hmac>`.
+fn parse_key_path(file_name: &str) -> Option<(Uuid, DocumentHmac)> {
+    let id = Uuid::parse_str(file_name.get(..36)?).ok()?;
+    let hmac = file_name.get(36..)?.strip_prefix('-')?;
+    let hmac = base64::decode_config(hmac, base64::URL_SAFE).ok()?;
+    Some((id, hmac.try_into().ok()?))
 }
 
 pub fn namespace_path(writeable_path: &Path) -> String {
