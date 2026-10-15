@@ -29,11 +29,12 @@ impl<'ast> MdRender {
             || self.ctx.input(|i| i.modifiers.command)
             || (self.touch_mode && !revealed);
         let salt = Self::link_interaction_id_salt(node_range);
-        if clickable {
-            layout.interaction_open(salt, egui::Sense::click());
+        let sense = self.link_sense(clickable);
+        if let Some(sense) = sense {
+            layout.interaction_open(salt, sense);
         }
         self.layout_circumfix(layout, node, range, fmt);
-        if clickable {
+        if sense.is_some() {
             layout.interaction_close();
         }
     }

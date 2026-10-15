@@ -14,7 +14,7 @@ use lb_rs::model::text::operation_types::Operation;
 use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
-use crate::style::{phosphor, phosphor_font_id};
+use crate::style::{TypeRole, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::{
@@ -32,6 +32,9 @@ enum DestinationTitle {
 }
 
 pub use crate::resolvers::LinkState;
+
+/// Width cap of a link's hover card.
+const LINK_TIP_W: f32 = 300.0;
 
 impl<'ast> MdRender {
     pub fn text_format_link(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
@@ -122,8 +125,8 @@ impl<'ast> MdRender {
     /// they render their raw source like other incomplete syntax.
     /// A `Sense::click` interaction scope routes clicks here when they
     /// act on the link (cmd held, read-only, or unrevealed touch);
-    /// otherwise no scope is opened and clicks fall through to the
-    /// editor for cursor placement.
+    /// otherwise a desktop link gets a hover-only scope for its tip and
+    /// clicks fall through to the editor for cursor placement.
     pub fn layout_link(
         &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
     ) {
@@ -160,12 +163,18 @@ impl<'ast> MdRender {
         // cmd/keyboard-tap opens (`handle_link_capsule_interactions`), interior
         // reveal only.
         if let Some(t) = title {
-            let pill_fmt = self.text_format_link_pill(parent, state.clone());
+            // a file's name reads as an ordinary link; the pill is for web previews
+            let internal = matches!(self.get_link_meta(&url), LinkMetaLookup::Internal(_));
+            let pill_fmt = if internal {
+                link_fmt.clone()
+            } else {
+                self.text_format_link_pill(parent, state.clone())
+            };
             layout.interaction_open(Self::link_capsule_id_salt(node_range), egui::Sense::click());
             layout.style_open(StyleInfo {
                 format: pill_fmt.clone(),
                 source_range: node_range,
-                chip: true,
+                chip: !internal,
             });
             // Leading em-space reserves the favicon slot (painted in
             // `show_capsule_overlays`); it's in the title's source range, so the
@@ -193,13 +202,52 @@ impl<'ast> MdRender {
             || self.ctx.input(|i| i.modifiers.command)
             || (self.touch_mode && !revealed);
         let salt = Self::link_interaction_id_salt(node_range);
-        if clickable {
-            layout.interaction_open(salt, egui::Sense::click());
+        let sense = self.link_sense(clickable);
+        if let Some(sense) = sense {
+            layout.interaction_open(salt, sense);
         }
         self.layout_circumfix(layout, node, range, link_fmt.clone());
-        if clickable {
+        if sense.is_some() {
             layout.interaction_close();
         }
+    }
+
+    /// A link's interaction scope: click when it opens on click, else hover
+    /// on desktop so the pointer can still show its tip. None on touch, where
+    /// taps on an unopenable link place the cursor.
+    pub fn link_sense(&self, clickable: bool) -> Option<egui::Sense> {
+        if clickable {
+            Some(egui::Sense::click())
+        } else if !self.touch_mode {
+            Some(egui::Sense::hover())
+        } else {
+            None
+        }
+    }
+
+    /// The hover card explaining a yellow or red link: what's wrong, then the
+    /// fix in quieter ink. `state` is worked out only under the pointer.
+    pub fn show_link_tip(
+        &self, ctx: &egui::Context, response: &egui::Response, state: impl FnOnce() -> LinkState,
+    ) {
+        if !response.contains_pointer() {
+            // still called, so the tip's dwell timing sees the pointer leave
+            crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |_| {});
+            return;
+        }
+        let (LinkState::Warning { message } | LinkState::Broken { message }) = state() else {
+            return;
+        };
+        let mut lines = message.lines();
+        let Some(what) = lines.next() else { return };
+        let fixes: Vec<&str> = lines.collect();
+        crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |ui| {
+            let t = ui.ctx().get_lb_theme();
+            ui.label(TypeRole::Body.rich(what).color(t.neutral_fg()));
+            for fix in fixes {
+                ui.label(TypeRole::Body.rich(fix).color(t.neutral_fg_secondary()));
+            }
+        });
     }
 
     /// Favicon URL for a capsule preview's external link when previews are on
@@ -418,10 +466,11 @@ impl<'ast> MdRender {
         }
     }
 
-    /// Hover → `PointingHand` + Warning/Broken tooltip; click → navigate
-    /// in place. The producer's interaction scope is the gate: cmd
-    /// held (desktop), read-only, or touch — where the click instead
-    /// selects the link and pops the menu ([`MdEdit::handle_link_menu_taps`]).
+    /// Hover → the Warning/Broken tip, and `PointingHand` when a click
+    /// opens; click → navigate in place. The producer's interaction scope
+    /// is the gate: cmd held (desktop), read-only, or touch — where the
+    /// click instead selects the link and pops the menu
+    /// ([`MdEdit::handle_link_menu_taps`]).
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.id();
         for node in root.descendants() {
@@ -444,28 +493,17 @@ impl<'ast> MdRender {
                 continue;
             };
 
-            if response.hovered() {
+            if response.hovered() && response.sense.senses_click() {
                 ui.ctx()
                     .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-
-                let state = if is_wikilink {
+            }
+            self.show_link_tip(ui.ctx(), response, || {
+                if is_wikilink {
                     self.link_state_for_wikilink(&url)
                 } else {
                     self.link_state_for_url(&url)
-                };
-                if let LinkState::Warning { message } | LinkState::Broken { message } = &state {
-                    if let Some(pos) = ui.ctx().pointer_hover_pos() {
-                        egui::Area::new(id.with("link_warning"))
-                            .order(egui::Order::Tooltip)
-                            .fixed_pos(pos + egui::vec2(8.0, 16.0))
-                            .show(ui.ctx(), |ui| {
-                                egui::Frame::popup(ui.style()).show(ui, |ui| {
-                                    ui.label(message);
-                                });
-                            });
-                    }
                 }
-            }
+            });
 
             if response.clicked() && (self.readonly || !self.touch_mode) {
                 self.render_events.push(open);
