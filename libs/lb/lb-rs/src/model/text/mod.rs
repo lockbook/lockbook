@@ -36,9 +36,9 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
         match diff_op {
             similar::DiffOp::Equal { .. } => {}
             similar::DiffOp::Delete { old_index, old_len, .. } => {
-                let old_len = from_segs.offset_to_char(from_words[old_index + old_len])
-                    - from_segs.offset_to_char(from_words[old_index]);
-                let old_index = from_segs.offset_to_char(from_words[old_index]);
+                let old_len = from_segs.byte_to_char_floor(from_words[old_index + old_len])
+                    - from_segs.byte_to_char_floor(from_words[old_index]);
+                let old_index = from_segs.byte_to_char_floor(from_words[old_index]);
 
                 let mut extended = false;
                 if let Some(op) = result.last_mut() {
@@ -56,10 +56,10 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
                 }
             }
             similar::DiffOp::Insert { old_index, new_index, new_len } => {
-                let old_index = from_segs.offset_to_char(from_words[old_index]);
-                let new_len = to_segs.offset_to_char(to_words[new_index + new_len])
-                    - to_segs.offset_to_char(to_words[new_index]);
-                let new_index = to_segs.offset_to_char(to_words[new_index]);
+                let old_index = from_segs.byte_to_char_floor(from_words[old_index]);
+                let new_len = to_segs.byte_to_char_floor(to_words[new_index + new_len])
+                    - to_segs.byte_to_char_floor(to_words[new_index]);
+                let new_index = to_segs.byte_to_char_floor(to_words[new_index]);
 
                 let new_text_range = to_segs.range_to_byte((new_index, new_index + new_len));
                 let new_text = to[new_text_range.start().0..new_text_range.end().0].to_string();
@@ -79,12 +79,12 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
                 }
             }
             similar::DiffOp::Replace { old_index, old_len, new_index, new_len } => {
-                let old_len = from_segs.offset_to_char(from_words[old_index + old_len])
-                    - from_segs.offset_to_char(from_words[old_index]);
-                let old_index = from_segs.offset_to_char(from_words[old_index]);
-                let new_len = to_segs.offset_to_char(to_words[new_index + new_len])
-                    - to_segs.offset_to_char(to_words[new_index]);
-                let new_index = to_segs.offset_to_char(to_words[new_index]);
+                let old_len = from_segs.byte_to_char_floor(from_words[old_index + old_len])
+                    - from_segs.byte_to_char_floor(from_words[old_index]);
+                let old_index = from_segs.byte_to_char_floor(from_words[old_index]);
+                let new_len = to_segs.byte_to_char_floor(to_words[new_index + new_len])
+                    - to_segs.byte_to_char_floor(to_words[new_index]);
+                let new_index = to_segs.byte_to_char_floor(to_words[new_index]);
 
                 let new_text_range = to_segs.range_to_byte((new_index, new_index + new_len));
                 let new_text = to[new_text_range.start().0..new_text_range.end().0].to_string();
