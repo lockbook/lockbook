@@ -101,6 +101,7 @@ where
 }
 
 pub mod account_service;
+pub mod app_links;
 pub mod billing;
 pub mod config;
 pub mod debug_info;
@@ -114,5 +115,4 @@ pub mod loggers;
 pub mod metrics;
 pub mod router_service;
 pub mod schema;
-pub mod static_files;
 pub mod utils;
