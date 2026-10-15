@@ -1,5 +1,6 @@
 #![recursion_limit = "256"]
 
+use app_links::app_link_routes;
 use db_rs::View;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
@@ -10,7 +11,6 @@ use lockbook_server_lib::router_service::{
 };
 use lockbook_server_lib::schema::{self, ServerDb};
 use lockbook_server_lib::*;
-use app_links::app_link_routes;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
