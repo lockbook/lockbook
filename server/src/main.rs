@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(stripe_webhooks(&server_state))
         .or(google_play_notification_webhooks(&server_state))
         .or(app_store_notification_webhooks(&server_state))
-        .or(app_link_routes(&std::env::var("API_URL").expect("API_URL must be set")));
+        .or(app_link_routes());
 
     let server = warp::serve(routes);
 

@@ -4,10 +4,10 @@ use warp::Filter;
 
 const OPEN_HTML: &str = include_str!("../static/open.html");
 
-pub fn app_link_routes(
-    api_url: &str,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    let api_url = api_url.trim_end_matches('/').to_owned();
+pub fn app_link_routes() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone
+{
+    let api_url = "https://app.lockbook.net";
+
     let open = warp::path!("open" / Uuid).map(move |uuid: Uuid| {
         let span = span!(Level::INFO, "matched_request", method = "GET", route = "/open");
         let _enter = span.enter();
