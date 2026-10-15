@@ -10,7 +10,7 @@ use lockbook_server_lib::router_service::{
 };
 use lockbook_server_lib::schema::{self, ServerDb};
 use lockbook_server_lib::*;
-use static_files::static_routes;
+use app_links::app_link_routes;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -35,12 +35,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     spawn_compacter(&cfg, &index_db);
 
     let document_service = OnDiskDocuments::from(&config);
-    let checkout_static_dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/static"));
-    let static_dir = if checkout_static_dir.is_dir() {
-        checkout_static_dir
-    } else {
-        Path::new("/usr/share/lockbook-server/static")
-    };
 
     let server_state = Arc::new(ServerState {
         config,
@@ -58,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(stripe_webhooks(&server_state))
         .or(google_play_notification_webhooks(&server_state))
         .or(app_store_notification_webhooks(&server_state))
-        .or(static_routes(&std::env::var("API_URL").expect("API_URL must be set"), static_dir));
+        .or(app_link_routes(&std::env::var("API_URL").expect("API_URL must be set")));
 
     let server = warp::serve(routes);
 
