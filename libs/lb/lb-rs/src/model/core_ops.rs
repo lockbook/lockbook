@@ -54,7 +54,9 @@ where
 
         let mut shares = Vec::new();
         for user_access_key in meta.user_access_keys() {
-            if user_access_key.encrypted_by == user_access_key.encrypted_for {
+            if user_access_key.encrypted_by == user_access_key.encrypted_for
+                || user_access_key.deleted
+            {
                 continue;
             }
             let mode = match user_access_key.mode {
