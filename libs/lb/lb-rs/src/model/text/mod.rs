@@ -136,6 +136,20 @@ mod test {
         assert_eq!(result[0].text, "Rust");
     }
 
+    // word segmentation skips the format char and pairs the regional indicators into one word,
+    // putting a word boundary inside the flag grapheme
+    #[test]
+    fn diff_word_boundary_inside_grapheme() {
+        let from = "\u{1f1f8}";
+        let to = "\u{1f1f8}\u{feff}\u{1f1fa}\u{1f1f8}";
+
+        let result = super::diff(from, to);
+        let from_graphemes = super::unicode_segs::calc(from).grapheme_indexes.len() - 1;
+        for op in &result {
+            assert!(op.range.0 <= op.range.1 && op.range.1.0 <= from_graphemes);
+        }
+    }
+
     #[test]
     fn diff_fuzz() {
         let mut count = 0;
