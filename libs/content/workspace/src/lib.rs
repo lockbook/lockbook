@@ -18,6 +18,8 @@ pub mod widgets;
 pub mod workspace;
 
 #[cfg(test)]
+mod file_cache_participant_tests;
+#[cfg(test)]
 mod file_cache_prop_tests;
 #[cfg(test)]
 mod test_utils;

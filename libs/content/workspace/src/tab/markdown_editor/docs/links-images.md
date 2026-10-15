@@ -1,6 +1,13 @@
 # Links and images
 A link goes to another Lockbook file or a web URL. Syntax is a normal markdown link, wiki link, or autolink. On open, a Lockbook file stays in the app, while a web URL resolves through the host system.
 
+## Scope
+A link means the same file, or fails the same way, for everyone who can read the note. A note's scope is the subtree of its innermost shared ancestor (the whole tree for a note under no share), and relative paths and wiki titles resolve inside it: wiki titles match below the top, nearest first, and as in Obsidian only `.md` may be left off (`[[Plan]]` is `Plan.md`, a drawing is `[[Sketch.svg]]`); equally near matches are a tie, which resolves to nothing. Inside the scope, where a recipient places a share changes nothing.
+
+Green links open the same file for everyone who can read the note. Yellow links open different things for different people, so they ask first. Red links open nothing. Only green images show.
+
+Green is anything found inside the scope, and an absolute path in a note no one else reads. Yellow is a relative path or wiki title found only past the scope, anywhere in the reader's files, an id link (`lb://<id>` or `https://app.lockbook.net/open/<id>`) to a file outside the scope, and an absolute path in a shared note, which each reader resolves from their own root. Yellow asks the owner too: with write access, anyone can add links to a note. Red is anything that resolves to nothing, which is never handed to the operating system.
+
 ## Broken, missing, unshared
 Obsidian-shaped wiki: people deliberately leave unresolved wiki links as placeholders; several notes pointing at the same missing title are linked together; click creates the note. For wiki links, "cannot resolve" may be normal.
 

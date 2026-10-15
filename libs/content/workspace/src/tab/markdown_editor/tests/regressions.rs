@@ -17,6 +17,37 @@ use super::render_props::{
 
 // ── renderer ──
 
+/// An image out of the note's scope never starts a load: the cache is
+/// shared by every note and the image viewer, which must still open it.
+#[test]
+fn out_of_scope_embed_leaves_image_cache_alone() {
+    use crate::file_cache::tests::alice;
+    use crate::resolvers::EmbedResolver as _;
+    use crate::resolvers::image_embed::ImageEmbedResolver;
+    use crate::widgets::image_cache::ImageCache;
+    use crate::workspace::WsPersistentStore;
+    use lb_rs::Uuid;
+    use std::sync::{Arc, RwLock};
+
+    let (cache, [note, _, private, ..]) = alice();
+    let files = Arc::new(RwLock::new(cache));
+    let persistence =
+        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let images = ImageCache::new(
+        crate::tab::markdown_editor::test_egui_ctx(),
+        super::super::HttpClient::default(),
+        super::harness::build_lb(),
+        files,
+        persistence,
+    );
+    let embed = ImageEmbedResolver::new(images.clone(), note);
+
+    let url = format!("lb://{private}");
+    embed.prefetch(&url);
+    assert!(!embed.is_loaded(&url));
+    assert!(!images.has_state(&url));
+}
+
 /// Image fragments allocate exactly the image's logical size — no
 /// doubled advance or padding.
 #[test]

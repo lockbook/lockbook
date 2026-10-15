@@ -317,15 +317,16 @@ impl<'ast> MdRender {
         self.link_resolver.resolve_link(url)
     }
 
-    /// Open `url` in-app for internal file links and in the browser otherwise.
-    /// `new_tab` is only for an explicit new-tab request (cmd-click / multi-open).
+    /// Open `url` in-app for internal file links and in the browser for web
+    /// URLs; an unresolved destination opens nothing. `new_tab` is only for
+    /// an explicit new-tab request (cmd-click / multi-open).
     pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context, new_tab: bool) {
         match self.resolve_link(url) {
             Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, new_tab),
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
-            None => ctx.open_url(egui::OpenUrl { url: url.into(), new_tab: true }),
+            None => {}
         }
     }
 
@@ -399,9 +400,7 @@ impl<'ast> MdRender {
                 Some(ResolvedLink::External(url)) => {
                     urls.push(egui::OpenUrl { url, new_tab: false });
                 }
-                None => {
-                    urls.push(egui::OpenUrl { url, new_tab: false });
-                }
+                None => {}
             }
         }
 

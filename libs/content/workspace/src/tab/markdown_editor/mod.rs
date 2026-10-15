@@ -739,6 +739,11 @@ impl Editor {
 
         let client: HttpClient = Default::default();
         let ws_seq = crate::seq::ws_seq(&ctx);
+        // the external URL's origin, as lb-rs writes it for this account
+        let open_origin = core.get_file_link_url(file_id).ok().and_then(|url| {
+            url.strip_suffix(&format!("/open/{file_id}"))
+                .map(str::to_string)
+        });
 
         let renderer = MdRender {
             ctx,
@@ -818,7 +823,7 @@ impl Editor {
                 scroll_area_velocity: Default::default(),
                 file_id,
                 emoji_completions: Default::default(),
-                link_completions: Default::default(),
+                link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
                 scroll_area: AffineScrollArea::new(file_id),
                 cursor_last_interact: None,

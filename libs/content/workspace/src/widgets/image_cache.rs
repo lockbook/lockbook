@@ -23,7 +23,7 @@ use lb_rs::{Uuid, spawn};
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform};
 
-use crate::file_cache::{FileCache, FilesExt as _, ResolvedLink};
+use crate::file_cache::{FileCache, FilesExt as _, Reach, ResolvedLink};
 use crate::seq::ws_seq;
 use crate::tab::markdown_editor::HttpClient;
 use crate::workspace::WsPersistentStore;
@@ -158,6 +158,14 @@ impl ImageCache {
             .map(|[w, h]| Vec2::new(w, h))
     }
 
+    /// Why `url` must not show as an image in `note`: it reaches a file
+    /// outside the note's scope. States here are shared by every note
+    /// embedding `url` (and the image viewer), so embeds check this first.
+    pub fn out_of_scope(&self, url: &str, note: Uuid) -> bool {
+        let files = self.files.read().unwrap();
+        matches!(files.locate_link(url, note), Some((_, reach)) if reach != Reach::Scope)
+    }
+
     pub fn color_image(&self, id: Uuid) -> Result<ColorImage, String> {
         let bytes = self
             .core
@@ -178,6 +186,13 @@ impl ImageCache {
             .or_else(|| inner.previous.get(url))
             .map(|s| matches!(&*s.lock().unwrap(), ImageState::Loaded(_)))
             .unwrap_or(false)
+    }
+
+    /// Test helper: whether any load of `url` has started.
+    #[cfg(test)]
+    pub fn has_state(&self, url: &str) -> bool {
+        let inner = self.inner.lock().unwrap();
+        inner.current.contains_key(url) || inner.previous.contains_key(url)
     }
 
     /// Test helper: directly install a `Loaded`/`Failed` state for `url`,
@@ -218,11 +233,10 @@ impl ImageCache {
 
         let maybe_lb_id = {
             let guard = self.files.read().unwrap();
-            let from_id = guard.get_by_id(from_file_id).map(|f| f.parent);
-            from_id.and_then(|from_id| match guard.resolve_link(&url, from_id)? {
-                ResolvedLink::File(id) => Some(id),
-                ResolvedLink::External(_) => None,
-            })
+            match guard.resolve_link(&url, from_file_id) {
+                Some(ResolvedLink::File(id)) => Some(id),
+                _ => None,
+            }
         };
 
         // viewport width is used to scale SVG rasterization — use the screen

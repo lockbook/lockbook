@@ -20,16 +20,25 @@ impl ImageEmbedResolver {
     }
 }
 
+const OUT_OF_SCOPE: &str = "Not shown: outside what this note is shared in";
+
 impl EmbedResolver for ImageEmbedResolver {
     fn size(&self, url: &str) -> Vec2 {
+        if self.images.out_of_scope(url, self.file_id) {
+            return Vec2::splat(200.);
+        }
         self.images.dims(url).unwrap_or(Vec2::splat(200.))
     }
 
     fn is_loaded(&self, url: &str) -> bool {
-        self.images.is_loaded(url)
+        !self.images.out_of_scope(url, self.file_id) && self.images.is_loaded(url)
     }
 
     fn show(&self, ui: &mut Ui, url: &str, rect: Rect, rounding: CornerRadius) {
+        if self.images.out_of_scope(url, self.file_id) {
+            show_placeholder(ui, rect, Icon::NO_IMAGE, OUT_OF_SCOPE);
+            return;
+        }
         let state = self.images.get_or_load(url, self.file_id, false);
         let image_state = state.lock().unwrap().deref().clone();
         match image_state {
@@ -55,7 +64,9 @@ impl EmbedResolver for ImageEmbedResolver {
     }
 
     fn prefetch(&self, url: &str) {
-        self.images.get_or_load(url, self.file_id, false);
+        if !self.images.out_of_scope(url, self.file_id) {
+            self.images.get_or_load(url, self.file_id, false);
+        }
     }
 
     fn seq(&self) -> u64 {
