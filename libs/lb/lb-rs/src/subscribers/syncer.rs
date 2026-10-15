@@ -444,7 +444,7 @@ impl Lb {
                     // deletions (moves happen first in case a file is moved into a deleted folder)
                     for id in db.local_metadata.ids() {
                         let local_file = local.find(&id)?.clone();
-                        if local_file.explicitly_deleted() {
+                        if local_file.explicitly_deleted() && !lost_access(&local, me, &id)? {
                             // delete
                             deletions.delete_unvalidated(&id, &self.keychain)?;
                         }
@@ -463,6 +463,7 @@ impl Lb {
                             && !deletions.calculate_deleted(&id)?
                             && remote.maybe_find(&id).is_none()
                             && !links_to_delete.contains(&id)
+                            && !lost_access(&local, me, &id)?
                         {
                             creations.insert(id);
                         }
@@ -504,11 +505,14 @@ impl Lb {
                     // moves, renames, edits, and shares
                     // creations happen first in case a file is moved into a new folder
                     for id in db.local_metadata.ids() {
-                        // skip files that are already deleted or will be deleted
+                        // skip files that are already deleted, will be deleted, or are no
+                        // longer reachable from this device
                         if deletions.maybe_find(&id).is_none()
                             || deletions.calculate_deleted(&id)?
                             || (remote.maybe_find(&id).is_some()
                                 && remote.calculate_deleted(&id)?)
+                            || links_to_delete.contains(&id)
+                            || lost_access(&local, me, &id)?
                         {
                             continue;
                         }
@@ -1442,4 +1446,16 @@ impl Lb {
 
         Ok(())
     }
+}
+
+/// A file this device has no access to, e.g. inside a share it declined. A share root carrying
+/// this device's own (possibly tombstoned) key is not lost: that tombstone is what gets pushed.
+fn lost_access<T: TreeLike>(tree: &LazyTree<T>, me: Owner, id: &Uuid) -> LbResult<bool> {
+    let is_my_share_root = tree
+        .find(id)?
+        .user_access_keys()
+        .iter()
+        .any(|k| k.encrypted_for == me.0);
+    let reachable = tree.access_mode(me, id)?.is_some();
+    Ok(!is_my_share_root && !reachable)
 }
