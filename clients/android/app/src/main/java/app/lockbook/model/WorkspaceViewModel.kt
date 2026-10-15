@@ -54,10 +54,6 @@ class WorkspaceViewModel : ViewModel() {
     val showKeyboard: LiveData<Boolean>
         get() = _showKeyboard
 
-    val _tabListExpanded = MutableLiveData(false)
-    val tabListExpanded: LiveData<Boolean>
-        get() = _tabListExpanded
-
     val _bottomInset = MutableLiveData<Int>()
     val bottomInset: LiveData<Int>
         get() = _bottomInset

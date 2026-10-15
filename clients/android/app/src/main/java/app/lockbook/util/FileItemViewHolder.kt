@@ -142,12 +142,6 @@ fun List<File>.intoViewHolderInfo(
         }
     }
 
-class HorizontalTabItemHolder(
-    itemView: View,
-) : ViewHolder(itemView) {
-    val name: MaterialButton = itemView.findViewById(R.id.tab_name)
-}
-
 class VerticalTabItemHolder(
     itemView: View,
 ) : ViewHolder(itemView) {

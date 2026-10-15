@@ -328,8 +328,6 @@
     <string name="home_navbar_item">Home</string>
     <string name="shared_navbar_item">Shared</string>
 
-    <string name="expand_tabs_list">View more info about your tabs</string>
-    <string name="collapse_tabs_list">Show fewer tabs controls</string>
     <string name="workspace_forward">Go forward in workspace</string>
     <string name="close_tab">Close a tab</string>
     <string name="close_all_tabs">Clear tabs</string>
@@ -345,4 +343,6 @@
         <item>@string/share_mode_write</item>
     </array>
 
+    <string name="workspace_switch_tabs">Switch tabs</string>
+    <string name="workspace_document_actions">Actions for %1$s</string>
 </resources>
