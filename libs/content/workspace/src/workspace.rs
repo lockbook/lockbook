@@ -88,6 +88,13 @@ pub struct Workspace {
     pub last_search: SearchState,
 
     pending_open_range: Option<(Uuid, std::ops::Range<usize>)>,
+    /// Sheets explaining links the reader tried to open, the first showing.
+    pub(crate) link_sheets: std::collections::VecDeque<crate::tab::LinkSheet>,
+    /// The tab the sheets belong to; they close when it stops being current.
+    pub(crate) link_sheet_tab: Option<Uuid>,
+    /// The sheet's keys this frame, taken before anything else sees input:
+    /// Open, then Cancel.
+    pub(crate) link_sheet_keys: (bool, bool),
 
     // Files and task status
     pub tasks: TaskManager,
@@ -211,6 +218,9 @@ impl Workspace {
             preview_pending: None,
             last_search: SearchState::default(),
             pending_open_range: None,
+            link_sheets: Default::default(),
+            link_sheet_tab: None,
+            link_sheet_keys: (false, false),
             ws_rx,
         };
 

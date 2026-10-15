@@ -4,7 +4,7 @@ pub(crate) mod meta;
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
-use lb_rs::spawn;
+use lb_rs::{Uuid, spawn};
 use std::collections::hash_map::Entry;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -23,7 +23,7 @@ use crate::tab::markdown_editor::widget::inline::link::meta::{
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
-use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
+use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
@@ -366,15 +366,49 @@ impl<'ast> MdRender {
     }
 
     /// Open `url` in-app for internal file links and in the browser for web
-    /// URLs; an unresolved destination opens nothing. `new_tab` is only for
-    /// an explicit new-tab request (cmd-click / multi-open).
+    /// URLs; an unresolved destination explains itself instead. `new_tab` is
+    /// only for an explicit new-tab request (cmd-click / multi-open).
     pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context, new_tab: bool) {
         match self.resolve_link(url) {
-            Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, new_tab),
+            Some(ResolvedLink::File(file_id)) => self.open_linked_file(url, file_id, ctx, new_tab),
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
-            None => {}
+            None => self.explain_unopenable(url, self.link_state_for_url(url), ctx),
+        }
+    }
+
+    /// Opens the file a wikilink names, behind a confirmation when it means
+    /// different files to different readers.
+    pub fn open_wikilink(&self, title: &str, ctx: &egui::Context, new_tab: bool) {
+        let Some(file_id) = self.resolve_wikilink(title) else {
+            let shown = format!("[[{title}]]");
+            return self.explain_unopenable(&shown, self.link_state_for_wikilink(title), ctx);
+        };
+        match self.link_resolver.wikilink_confirmation(title) {
+            Some(reason) => self.ask_to_open(file_id, new_tab, reason, ctx),
+            None => ctx.open_file(file_id, new_tab),
+        }
+    }
+
+    /// Opens the file `url` resolved to, behind a confirmation when the link
+    /// means different files to different readers.
+    fn open_linked_file(&self, url: &str, file_id: Uuid, ctx: &egui::Context, new_tab: bool) {
+        match self.link_resolver.confirmation(url) {
+            Some(reason) => self.ask_to_open(file_id, new_tab, reason, ctx),
+            None => ctx.open_file(file_id, new_tab),
+        }
+    }
+
+    fn ask_to_open(&self, file_id: Uuid, new_tab: bool, reason: String, ctx: &egui::Context) {
+        let shown = self.files.read().unwrap().path(file_id);
+        ctx.show_link_sheet(LinkSheet { open: Some((file_id, new_tab)), shown, message: reason });
+    }
+
+    /// Says why a link that names nothing the reader can see doesn't open.
+    fn explain_unopenable(&self, shown: &str, state: LinkState, ctx: &egui::Context) {
+        if let LinkState::Broken { message } = state {
+            ctx.show_link_sheet(LinkSheet { open: None, shown: shown.into(), message });
         }
     }
 
@@ -417,8 +451,10 @@ impl<'ast> MdRender {
     pub fn open_links_in_selection(&self, root: &'ast AstNode<'ast>, ctx: &egui::Context) {
         let selection = self.buffer.current.selection;
 
-        let mut file_ids = vec![];
+        let mut wikilinks = vec![];
+        let mut linked = vec![];
         let mut urls = vec![];
+        let mut broken = vec![];
 
         for node in root.descendants() {
             let node_range = self.node_range(node);
@@ -437,24 +473,39 @@ impl<'ast> MdRender {
             };
 
             if is_wikilink {
-                if let Some(id) = self.resolve_wikilink(&url) {
-                    file_ids.push(id);
+                if self.resolve_wikilink(&url).is_some() {
+                    wikilinks.push(url);
+                } else {
+                    broken.push((url, true));
                 }
                 continue;
             }
 
             match self.resolve_link(&url) {
-                Some(ResolvedLink::File(id)) => file_ids.push(id),
+                Some(ResolvedLink::File(id)) => linked.push((url, id)),
                 Some(ResolvedLink::External(url)) => {
                     urls.push(egui::OpenUrl { url, new_tab: false });
                 }
-                None => {}
+                None => broken.push((url, false)),
             }
         }
 
-        let new_tab = file_ids.len() + urls.len() > 1;
-        for id in file_ids {
-            ctx.open_file(id, new_tab);
+        let opening = wikilinks.len() + linked.len() + urls.len();
+        if opening == 0 {
+            // nothing opens: say why the first link doesn't
+            match broken.first() {
+                Some((title, true)) => self.open_wikilink(title, ctx, false),
+                Some((url, false)) => self.open_resolved_link(url, ctx, false),
+                None => {}
+            }
+            return;
+        }
+        let new_tab = opening > 1;
+        for title in wikilinks {
+            self.open_wikilink(&title, ctx, new_tab);
+        }
+        for (url, id) in linked {
+            self.open_linked_file(&url, id, ctx, new_tab);
         }
         if new_tab {
             for url in &mut urls {

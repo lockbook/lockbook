@@ -50,6 +50,7 @@ impl Workspace {
 
         self.set_tooltip_visibility(ui);
 
+        self.take_link_sheet_input();
         self.process_bg_tasks();
         self.process_lb_updates();
         self.process_task_updates();
@@ -174,8 +175,59 @@ impl Workspace {
                         self.navigate_to_range(id, range);
                     }
                 }
+                let sheets = ui.ctx().pop_link_sheets();
+                if !sheets.is_empty() && self.link_sheets.is_empty() {
+                    // the keyboard and the text selection's handles would cover it
+                    ui.ctx().set_virtual_keyboard_shown(false);
+                    self.link_sheet_tab = self.current_tab_id();
+                }
+                self.link_sheets.extend(sheets);
+                self.show_link_sheet(ui.ctx());
             });
         });
+    }
+
+    /// Whether a link sheet covers the workspace; it takes every touch.
+    pub fn link_sheet_open(&self) -> bool {
+        !self.link_sheets.is_empty()
+    }
+
+    /// While a link sheet is up it takes all input: it reads its own keys,
+    /// and nothing else in the workspace or the tab beneath sees any. Sheets
+    /// close when their tab stops being current.
+    fn take_link_sheet_input(&mut self) {
+        if self.link_sheet_tab != self.current_tab_id() {
+            self.link_sheets.clear();
+        }
+        self.link_sheet_keys = (false, false);
+        if self.link_sheets.is_empty() {
+            return;
+        }
+        self.link_sheet_keys = self.ctx.input_mut(|i| {
+            let open = i.consume_key(Modifiers::COMMAND, Key::Enter);
+            let cancel = i.consume_key(Modifiers::NONE, Key::Escape);
+            i.events.clear();
+            (open, cancel)
+        });
+    }
+
+    /// Explains a link the reader tried to open, opening its file if they
+    /// confirm.
+    fn show_link_sheet(&mut self, ctx: &egui::Context) {
+        let Some(sheet) = self.link_sheets.front().cloned() else { return };
+        let (open, close) = link_sheet_modal(ctx, &sheet, self.link_sheet_keys);
+        if let Some((id, new_tab)) = sheet.open.filter(|_| open) {
+            if new_tab {
+                self.open_file(id, true, true);
+            } else {
+                self.navigate_to(crate::tab::Destination::File(id));
+            }
+        }
+        if close {
+            self.link_sheets.pop_front();
+            // sheets still queued from the same request follow it to the new tab
+            self.link_sheet_tab = self.current_tab_id();
+        }
     }
 
     fn show_current_tab_content(&mut self, ui: &mut egui::Ui) {
@@ -1202,4 +1254,96 @@ impl DocType {
             name
         }
     }
+}
+
+/// The sheet explaining a link: whether the reader chose to open it, and
+/// whether the sheet closes. Design-system sheet chrome: dim, canvas plate,
+/// quiet dismiss, primary Open. Centered, clear of native bars and the
+/// keyboard; near-full width on touch or narrow screens, where touch gets
+/// taller buttons and no key badges.
+pub(crate) fn link_sheet_modal(
+    ctx: &egui::Context, sheet: &crate::tab::LinkSheet, (open_key, cancel_key): (bool, bool),
+) -> (bool, bool) {
+    use crate::style::chrome::{
+        Radius, control_height, plate_content, shortcut_esc, shortcut_return,
+    };
+    use crate::style::{Button, Space, Spacer, TypeRole, with_pad_fit};
+
+    let t = ctx.get_lb_theme();
+    let screen = ctx.screen_rect();
+    let touch = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
+    let compact = touch || screen.width() < 520.0;
+    let pad = Space::Md.pts();
+    let width = if compact { (screen.width() - pad * 4.0).min(480.0) } else { 320.0 };
+    let button_h = if touch { control_height() * 1.4 } else { control_height() };
+    let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("link_sheet"));
+
+    let mut dismissed = false;
+    egui::Area::new(egui::Id::new("link_sheet_dim"))
+        .order(egui::Order::Middle)
+        .fixed_pos(screen.min)
+        .fade_in(false)
+        .show(ctx, |ui| {
+            let (rect, resp) = ui.allocate_exact_size(screen.size(), egui::Sense::click());
+            ui.painter()
+                .rect_filled(rect, 0.0, egui::Color32::from_black_alpha(40));
+            let on_sheet = || {
+                ui.ctx()
+                    .pointer_interact_pos()
+                    .is_some_and(|pos| ui.ctx().layer_id_at(pos) == Some(layer))
+            };
+            dismissed = resp.clicked() && !on_sheet();
+        });
+
+    let (mut open, mut cancel) = (open_key && sheet.open.is_some(), cancel_key);
+    let title = if sheet.open.is_some() { "Open this link?" } else { "This link can't open" };
+    let mut lines = sheet.message.lines();
+    let why = lines.next().unwrap_or_default();
+    egui::Area::new(layer.id)
+        .order(egui::Order::Foreground)
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            plate_content(ui, t.neutral_bg(), t.neutral(), Radius::Surface.corner(), |ui| {
+                ui.set_width(width + pad * 2.0);
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                with_pad_fit(ui, Space::Md, |ui| {
+                    ui.label(
+                        TypeRole::Heading
+                            .rich(title)
+                            .color(t.neutral_fg_secondary()),
+                    );
+                    ui.add(Spacer::new(Space::Md));
+                    ui.label(TypeRole::Mono.rich(&sheet.shown).color(t.neutral_fg()));
+                    ui.add(Spacer::new(Space::Sm));
+                    ui.label(TypeRole::Body.rich(why).color(t.neutral_fg()));
+                    for fix in lines {
+                        ui.add(Spacer::new(Space::Xs));
+                        ui.label(TypeRole::Body.rich(fix).color(t.neutral_fg_secondary()));
+                    }
+                    ui.add(Spacer::new(Space::Md));
+                    ui.horizontal(|ui| {
+                        let dismiss = if sheet.open.is_some() { "Cancel" } else { "Close" };
+                        let dismiss = if touch {
+                            Button::secondary(&t, dismiss)
+                        } else {
+                            Button::quiet(&t, dismiss).shortcut(shortcut_esc())
+                        }
+                        .height(button_h);
+                        cancel |= dismiss.show(ui).clicked();
+                        if sheet.open.is_none() {
+                            return;
+                        }
+                        let layout = egui::Layout::right_to_left(egui::Align::Center);
+                        ui.with_layout(layout, |ui| {
+                            let mut primary = Button::primary(&t, "Open").height(button_h);
+                            if !touch {
+                                primary = primary.shortcut(shortcut_return());
+                            }
+                            open |= primary.show(ui).clicked();
+                        });
+                    });
+                });
+            });
+        });
+    (open, open || cancel || dismissed)
 }
