@@ -18,6 +18,28 @@ fn write(lb: &Lb, path: &str, text: &str) {
     lb.write_document(file.id, text.as_bytes()).unwrap();
 }
 
+/// Answers every connection with `response`.
+fn serve(response: &'static str) -> String {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        for sock in listener.incoming().flatten() {
+            let mut sock = sock;
+            let mut buf = Vec::new();
+            let mut tmp = [0u8; 4096];
+            while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                match sock.read(&mut tmp) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                }
+            }
+            let _ = sock.write_all(response.as_bytes());
+        }
+    });
+    format!("http://{addr}")
+}
+
 fn call(tools: &mut VaultTools, name: &str, args: Value) -> ToolOutcome {
     tools.call(&Call { id: "c".into(), name: name.into(), args, echo: None })
 }
@@ -349,4 +371,37 @@ fn a_recording_is_read_as_its_transcript() {
     write(&lb, "/home/memo.m4a.transcript.md", "buy milk");
     let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/memo.m4a"})));
     assert_eq!((text.as_str(), ok), ("buy milk", true));
+}
+
+/// A file from a given address is kept in the chat's imports folder under
+/// its own name, or at the path asked for, and reads back whole.
+#[test]
+fn a_download_is_kept_where_asked() {
+    const PDF: &str = "HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\n\
+        Content-Disposition: attachment; filename=f1040.pdf\r\nConnection: close\r\n\r\n%PDF-1.4 fake";
+    let lb = account();
+    let own = lb.create_at_path("/home/talk.chat").unwrap();
+    let mut tools = VaultTools::new(lb.clone(), own.id);
+    let base = serve(PDF);
+    let url = format!("{base}/forms/f1040.pdf");
+    let mut chat = Chat::default();
+    tools.prepare(&chat, "u", "/home/");
+    let names: Vec<String> = tools.schemas().into_iter().map(|s| s.name).collect();
+    assert!(names.contains(&"download".to_string()));
+    let (text, ok) = done(call(&mut tools, "download", json!({"url": url})));
+    assert!(!ok && text.contains("is not an address the user gave"), "{text}");
+
+    chat.push(Entry::user("u", format!("get {url} for me")));
+    tools.prepare(&chat, "u", "/home/");
+    let (text, ok) = done(call(&mut tools, "download", json!({"url": url})));
+    assert_eq!((text.as_str(), ok), ("saved /home/imports/f1040.pdf (1 KB)", true));
+    let kept = lb.get_by_path("/home/imports/f1040.pdf").unwrap();
+    assert_eq!(lb.read_document(kept.id, false).unwrap(), b"%PDF-1.4 fake");
+
+    let to = json!({"url": url, "to": "/home/taxes/2025/f1040.pdf"});
+    let (text, ok) = done(call(&mut tools, "download", to));
+    assert_eq!((text.as_str(), ok), ("saved /home/taxes/2025/f1040.pdf (1 KB)", true));
+    let out = json!({"url": url, "to": "/elsewhere/f1040.pdf"});
+    let (text, ok) = done(call(&mut tools, "download", out));
+    assert!(!ok && text.contains("outside this chat's folders"), "{text}");
 }

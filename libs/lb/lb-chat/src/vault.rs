@@ -333,21 +333,68 @@ impl VaultTools {
     }
 
     /// An address the model composed could carry what it has read out with
-    /// it, so only one that was given to it is fetched.
-    fn fetch(&mut self, args: &Value) -> ToolOutcome {
+    /// it, so only one that was given to it is reached.
+    fn given_url(&self, args: &Value) -> Result<String, ToolOutcome> {
         if self.offline {
-            return ToolOutcome::err(OFFLINE);
+            return Err(ToolOutcome::err(OFFLINE));
         }
         let url = str_arg(args, "url");
         let bare = url.trim_end_matches('/');
         if bare.is_empty() || !self.given.iter().any(|text| text.contains(bare)) {
-            return ToolOutcome::err(format!(
+            return Err(ToolOutcome::err(format!(
                 "{url} is not an address the user gave or a search, a page, or a note contained"
-            ));
+            )));
         }
+        Ok(url)
+    }
+
+    fn fetch(&mut self, args: &Value) -> ToolOutcome {
+        let url = match self.given_url(args) {
+            Ok(url) => url,
+            Err(refused) => return refused,
+        };
         let start = args.get("start").and_then(Value::as_u64).unwrap_or(0);
         match web::fetch(&url, start as usize) {
             Ok(text) => ToolOutcome::ok(text),
+            Err(e) => ToolOutcome::err(e),
+        }
+    }
+
+    /// Keeps the file at a web address: at `to` when asked, else in the
+    /// chat's imports folder under the name it came with.
+    fn download(&mut self, args: &Value) -> ToolOutcome {
+        let url = match self.given_url(args) {
+            Ok(url) => url,
+            Err(refused) => return refused,
+        };
+        let (name, bytes) = match web::download(&url) {
+            Ok(got) => got,
+            Err(e) => return ToolOutcome::err(e),
+        };
+        let to = str_arg(args, "to");
+        let kept = if to.is_empty() {
+            self.keep(&name, &bytes)
+        } else {
+            let to = normalize(&to);
+            if to.ends_with('/') {
+                return ToolOutcome::err(
+                    "to must be the full destination path, including the name",
+                );
+            }
+            if let Some(blocked) = self.target_blocked(&to) {
+                return blocked;
+            }
+            self.lb
+                .create_at_path(&to)
+                .and_then(|file| self.lb.write_document(file.id, &bytes))
+                .map(|()| to)
+                .map_err(|e| e.to_string())
+        };
+        self.index = None;
+        match kept {
+            Ok(path) => {
+                ToolOutcome::ok(format!("saved {path} ({} KB)", bytes.len().div_ceil(1024)))
+            }
             Err(e) => ToolOutcome::err(e),
         }
     }
@@ -545,7 +592,8 @@ impl VaultTools {
 impl Tools for VaultTools {
     fn schemas(&self) -> Vec<ToolSchema> {
         let web = web::schemas(self.engine.is_some());
-        schemas().into_iter().chain(web).collect()
+        let download = web::download_schema();
+        schemas().into_iter().chain(web).chain([download]).collect()
     }
 
     fn prepare(&mut self, chat: &Chat, user: &str, working_dir: &str) {
@@ -578,6 +626,7 @@ impl Tools for VaultTools {
             "delete" => self.delete(args),
             web::SEARCH => self.web_search(args),
             web::FETCH => self.fetch(args),
+            web::DOWNLOAD => self.download(args),
             other => ToolOutcome::err(format!("no tool named {other}")),
         }
     }
