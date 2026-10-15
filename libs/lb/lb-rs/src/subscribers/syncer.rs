@@ -537,6 +537,15 @@ impl Lb {
                         }
 
                         // share
+                        let mut base_keys = HashMap::new();
+                        if let Some(ref base_file) = maybe_base_file {
+                            for key in base_file.user_access_keys() {
+                                base_keys.insert(
+                                    (Owner(key.encrypted_by), Owner(key.encrypted_for)),
+                                    (key.mode, key.deleted),
+                                );
+                            }
+                        }
                         let mut remote_keys = HashMap::new();
                         if let Some(ref remote_file) = maybe_remote_file {
                             for key in remote_file.user_access_keys() {
@@ -551,8 +560,19 @@ impl Lb {
                             if let Some(&(remote_mode, remote_deleted)) =
                                 remote_keys.get(&(by, for_))
                             {
-                                // upgrade share
-                                if key.mode > remote_mode || !key.deleted && remote_deleted {
+                                // upgrade/downgrade/undelete share: replay what changed on this
+                                // device; a key with no base is a concurrent add and the higher
+                                // mode wins
+                                let base_key = base_keys.get(&(by, for_)).copied();
+                                let upgraded = key.mode > remote_mode
+                                    && base_key.is_none_or(|(base_mode, _)| key.mode > base_mode);
+                                let downgraded = !key.deleted
+                                    && key.mode < remote_mode
+                                    && base_key.is_some_and(|(base_mode, _)| key.mode < base_mode);
+                                let undeleted = !key.deleted
+                                    && remote_deleted
+                                    && base_key.is_some_and(|(_, base_deleted)| base_deleted);
+                                if upgraded || downgraded || undeleted {
                                     let mode = match key.mode {
                                         UserAccessMode::Read => ShareMode::Read,
                                         UserAccessMode::Write => ShareMode::Write,
