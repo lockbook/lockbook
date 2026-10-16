@@ -662,6 +662,7 @@ version = "0.1.0"
 dependencies = [
  "lb-rs",
  "rand",
+ "uuid",
 ]
 
 [[package]]

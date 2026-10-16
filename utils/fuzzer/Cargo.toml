@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 lb-rs = "*"
 rand = "0.8"
+uuid = { version = "1.26.1", features = ["v4"] }
