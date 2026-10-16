@@ -36,19 +36,19 @@ class WorkspaceViewModel : ViewModel() {
     val finishedAction: LiveData<FinishedAction>
         get() = _finishedAction
 
-    val _hideToolbar = SingleMutableLiveData<Float>()
-    val hideToolbar: LiveData<Float>
-        get() = _hideToolbar
-
     var tabs = emptyDataSourceTyped<OpenTab>()
+
+    private val _openTabCount = MutableLiveData(0)
+    val openTabCount: LiveData<Int>
+        get() = _openTabCount
+
+    internal fun updateOpenTabCount(count: Int) {
+        if (_openTabCount.value != count) _openTabCount.value = count
+    }
 
     val _keyboardVisible = MutableLiveData<Boolean>()
     val keyboardVisible: LiveData<Boolean>
         get() = _keyboardVisible
-
-    val _nativeMarkdownToolbarVisible = MutableLiveData(false)
-    val nativeMarkdownToolbarVisible: LiveData<Boolean>
-        get() = _nativeMarkdownToolbarVisible
 
     val _showKeyboard = MutableLiveData<Boolean>()
     val showKeyboard: LiveData<Boolean>

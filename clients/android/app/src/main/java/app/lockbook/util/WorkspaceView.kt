@@ -273,6 +273,7 @@ class WorkspaceView(
             deferredOpenDoc = null
             openDoc(id, newFile)
         }
+        publishOpenTabCount()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -406,6 +407,7 @@ class WorkspaceView(
 
         val currentTab =
             if (response.tabsChanged || !response.selectedFile.isNullUUID()) {
+                publishOpenTabCount()
                 Workspace.currentTab(wgpuObj).toModelTab()
             } else {
                 null
@@ -532,6 +534,7 @@ class WorkspaceView(
 
         deferredOpenDoc = null
         Workspace.openDoc(wgpuObj, id, newFile)
+        publishOpenTabCount()
         invalidate()
 
         return
@@ -543,6 +546,7 @@ class WorkspaceView(
         }
 
         Workspace.activateDoc(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
     }
 
@@ -600,12 +604,17 @@ class WorkspaceView(
         return Workspace.getTabs(wgpuObj)
     }
 
+    private fun publishOpenTabCount() {
+        model.updateOpenTabCount(getTabs().size)
+    }
+
     fun closeDoc(id: String) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return
         }
 
         Workspace.closeDoc(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
     }
 
@@ -615,6 +624,7 @@ class WorkspaceView(
         }
 
         Workspace.closeSession(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
     }
 
@@ -624,6 +634,7 @@ class WorkspaceView(
         }
 
         Workspace.closeAllTabs(wgpuObj)
+        publishOpenTabCount()
     }
 
     fun fileRenamed(

@@ -149,9 +149,9 @@ class MainScreenActivity : AppCompatActivity() {
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
         binding.bottomNavigation.doOnLayout { navigation ->
-            val layoutParams = binding.createFileFab.layoutParams as ViewGroup.MarginLayoutParams
+            val layoutParams = binding.homeFabStack.layoutParams as ViewGroup.MarginLayoutParams
             layoutParams.bottomMargin += navigation.height
-            binding.createFileFab.layoutParams = layoutParams
+            binding.homeFabStack.layoutParams = layoutParams
         }
         ViewCompat.setOnApplyWindowInsetsListener(fileSelectionBottomBarView) { view, windowInsets ->
             view.updatePadding(
@@ -171,6 +171,9 @@ class MainScreenActivity : AppCompatActivity() {
                 TransientScreen.Create(fileTreeViewModel.fileModel.parent.id),
             )
         }
+        binding.toggleDetailsFab.setOnClickListener {
+            if (!isFileSelectionActive) mainScreenModel.navigate(MainNavigationAction.FocusDetail)
+        }
         workspaceShell = binding.workspaceShell
         setUpSearch()
         setUpNavigationDrawer()
@@ -182,7 +185,7 @@ class MainScreenActivity : AppCompatActivity() {
                     WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
                 },
             )
-            updateSearchBarDetailAction()
+            updateDetailFabVisibility()
             (supportFragmentManager.findFragmentByTag(WORKSPACE_FRAGMENT_TAG) as? WorkspaceFragment)
                 ?.let { workspaceFragment ->
                     workspaceFragment.updateRestoreSplitButtonVisibility(mode == WorkspaceShellMode.DetailOnly)
@@ -478,10 +481,7 @@ class MainScreenActivity : AppCompatActivity() {
         binding.bottomNavigation.menu.forEach { item ->
             item.isEnabled = !isActive
         }
-        binding.sidebarSearchBar
-            .menu
-            .findItem(R.id.menu_files_list_open_ws)
-            ?.isEnabled = !isActive
+        binding.toggleDetailsFab.isEnabled = !isActive
     }
 
     internal fun showBottomNavigation() {
@@ -516,17 +516,17 @@ class MainScreenActivity : AppCompatActivity() {
         val targetTranslation = if (hidden) navigation.height.toFloat() else 0f
         val fabTargetTranslation = targetTranslation * CREATE_FAB_NAVIGATION_TRANSLATION_RATIO
         navigation.animate().cancel()
-        binding.createFileFab.animate().cancel()
+        binding.homeFabStack.animate().cancel()
         if (!navigation.isLaidOut) {
             navigation.translationY = targetTranslation
-            binding.createFileFab.translationY = fabTargetTranslation
+            binding.homeFabStack.translationY = fabTargetTranslation
         } else {
             navigation
                 .animate()
                 .translationY(targetTranslation)
                 .setDuration(BOTTOM_NAVIGATION_ANIMATION_DURATION)
                 .start()
-            binding.createFileFab
+            binding.homeFabStack
                 .animate()
                 .translationY(fabTargetTranslation)
                 .setDuration(BOTTOM_NAVIGATION_ANIMATION_DURATION)
@@ -554,18 +554,7 @@ class MainScreenActivity : AppCompatActivity() {
             if (!isFileSelectionActive) openNavigationDrawer()
         }
         configureSidebarSearchLauncher()
-        binding.sidebarSearchBar.setOnMenuItemClickListener { item ->
-            if (item.itemId == R.id.menu_files_list_open_ws && !isFileSelectionActive) {
-                mainScreenModel.navigate(MainNavigationAction.FocusDetail)
-                true
-            } else {
-                false
-            }
-        }
-        binding.sidebarSearchBar.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateSearchBarDetailAction()
-        }
-        updateSearchBarDetailAction()
+        updateDetailFabVisibility()
     }
 
     internal fun configureSidebarSearchLauncher() {
@@ -576,11 +565,8 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateSearchBarDetailAction() {
-        binding.sidebarSearchBar
-            .menu
-            .findItem(R.id.menu_files_list_open_ws)
-            ?.isVisible = !isFocusingDetail()
+    private fun updateDetailFabVisibility() {
+        binding.toggleDetailsFab.isVisible = !isFocusingDetail()
     }
 
     private fun setUpNavigationDrawer() {
@@ -776,7 +762,7 @@ class MainScreenActivity : AppCompatActivity() {
         val showsRootChrome = destination !is SidebarDestination.CreateLink
         binding.sidebarSearchAppBar.isVisible = showsRootChrome
         binding.bottomNavigation.isVisible = showsRootChrome
-        binding.createFileFab.isVisible = showsRootChrome
+        binding.homeFabStack.isVisible = showsRootChrome
         rootDestinationId?.let { itemId ->
             if (binding.bottomNavigation.selectedItemId != itemId) {
                 binding.bottomNavigation.selectedItemId = itemId
@@ -910,7 +896,7 @@ class MainScreenActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         _binding?.bottomNavigation?.animate()?.cancel()
-        _binding?.createFileFab?.animate()?.cancel()
+        _binding?.homeFabStack?.animate()?.cancel()
         super.onDestroy()
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }

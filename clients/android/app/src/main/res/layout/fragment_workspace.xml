@@ -3,6 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:fitsSystemWindows="true">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -17,20 +19,23 @@
     <com.google.android.material.floatingtoolbar.FloatingToolbarLayout
         android:id="@+id/workspace_toolbar"
         style="@style/Widget.Material3.FloatingToolbar"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:elevation="6dp"
+        app:layout_constrainedWidth="true"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintWidth_max="560dp"
-        android:layout_margin="16dp"
         app:marginBottomSystemWindowInsets="false"
         app:marginLeftSystemWindowInsets="false"
         app:marginRightSystemWindowInsets="false">
 
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:baselineAligned="false"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -40,11 +45,16 @@
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
+                android:checkable="false"
                 android:ellipsize="end"
                 android:gravity="start|center_vertical"
                 android:maxLines="1"
-                android:minWidth="48dp"
-                android:textAllCaps="false" />
+                android:minWidth="128dp"
+                android:textAllCaps="false"
+                app:icon="@drawable/ic_baseline_arrow_down_24"
+                app:iconGravity="textStart"
+                app:iconPadding="6dp"
+                app:iconSize="18dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/search_ws"
@@ -68,7 +78,17 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:contentDescription="@string/workspace_switch_tabs"
+                android:visibility="gone"
                 app:icon="@drawable/ic_outline_menu_24" />
         </LinearLayout>
     </com.google.android.material.floatingtoolbar.FloatingToolbarLayout>
+
+    <include
+        android:id="@+id/workspace_document_actions"
+        layout="@layout/file_selection_bottom_bar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>

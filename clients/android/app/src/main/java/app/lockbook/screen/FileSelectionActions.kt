@@ -14,15 +14,12 @@ import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.FileSelectionActionButtonBinding
-import app.lockbook.databinding.FileSelectionActionRowBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.FileOperationsViewModel
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
 import app.lockbook.model.TransientScreen
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
@@ -66,151 +63,36 @@ internal enum class FileSelectionAction(
             (!documentOnly || files.any { it.type == File.FileType.Document })
 }
 
-/** The shared compact/expanded action surface used by home selection and workspace documents. */
-internal class FileActionsSheetContent(
-    private val root: View,
-    private val onAction: (FileSelectionAction, List<File>) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    private val title = root.findViewById<android.widget.TextView>(R.id.file_selection_count)
-    private val header = root.findViewById<View>(R.id.file_selection_header)
-    private val content = root.findViewById<View>(R.id.file_selection_content)
-    private val compact = root.findViewById<View>(R.id.file_selection_compact_actions)
-    private val expanded = root.findViewById<View>(R.id.file_selection_expanded_scroll)
-    private val compactActions = root.findViewById<ViewGroup>(R.id.file_selection_actions)
-    private val expandedActions = root.findViewById<ViewGroup>(R.id.file_selection_expanded_actions)
-    private var files = emptyList<File>()
-    private val buttons =
-        FileSelectionAction.entries.associateWith { action ->
-            listOf(addAction(action, compactActions, false), addAction(action, expandedActions, true))
-        }
-
-    init {
-        root.findViewById<View>(R.id.clear_file_selection).setOnClickListener { onDismiss() }
-    }
-
-    fun render(
-        files: List<File>,
-        title: String,
-    ) {
-        this.files = files
-        this.title.text = title
-        buttons.forEach { (action, views) ->
-            views.forEach { it.isVisible = action.isAvailableFor(files) }
-        }
-    }
-
-    fun attachBehavior(behavior: BottomSheetBehavior<out View>) {
-        behavior.isFitToContents = true
-        behavior.skipCollapsed = false
-        // Keep long action lists scrollable on small screens and in landscape.
-        root.rootView.doOnLayout { window ->
-            behavior.maxHeight = (window.height * 0.9f).toInt()
-            root.requestLayout()
-        }
-        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            val peekHeight =
-                header.height + compact.height + content.paddingTop +
-                    content.paddingBottom + root.paddingTop + root.paddingBottom
-            if (peekHeight > 0 && behavior.peekHeight != peekHeight) behavior.peekHeight = peekHeight
-        }
-        behavior.addBottomSheetCallback(
-            object : BottomSheetBehavior.BottomSheetCallback() {
-                override fun onStateChanged(
-                    bottomSheet: View,
-                    newState: Int,
-                ) {
-                    if (newState == BottomSheetBehavior.STATE_COLLAPSED) setExpansion(0f)
-                    if (newState == BottomSheetBehavior.STATE_EXPANDED) setExpansion(1f)
-                }
-
-                override fun onSlide(
-                    bottomSheet: View,
-                    slideOffset: Float,
-                ) {
-                    setExpansion(slideOffset.coerceIn(0f, 1f))
-                }
-            },
-        )
-        setExpansion(if (behavior.state == BottomSheetBehavior.STATE_EXPANDED) 1f else 0f)
-    }
-
-    private fun setExpansion(fraction: Float) {
-        compact.alpha = 1f - fraction
-        expanded.alpha = fraction
-        // INVISIBLE preserves the expanded sheet's measured height while it is collapsed.
-        compact.visibility = if (fraction < 1f) View.VISIBLE else View.INVISIBLE
-        expanded.visibility = if (fraction > 0f) View.VISIBLE else View.INVISIBLE
-        compact.importantForAccessibility =
-            if (fraction < 0.5f) {
-                View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
-            } else {
-                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-            }
-        expanded.importantForAccessibility =
-            if (fraction >= 0.5f) {
-                View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
-            } else {
-                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-            }
-    }
-
-    private fun addAction(
-        action: FileSelectionAction,
-        parent: ViewGroup,
-        vertical: Boolean,
-    ): MaterialButton {
-        val inflater = LayoutInflater.from(root.context)
-        val button =
-            if (vertical) {
-                FileSelectionActionRowBinding.inflate(inflater, parent, false).root
-            } else {
-                FileSelectionActionButtonBinding.inflate(inflater, parent, false).root
-            }
-        button.apply {
-            setText(action.titleRes)
-            setIconResource(action.iconRes)
-            if (action.destructive) {
-                val error = MaterialColors.getColor(this, androidx.appcompat.R.attr.colorError)
-                setTextColor(error)
-                iconTint = ColorStateList.valueOf(error)
-            }
-            setOnClickListener { onAction(action, files) }
-        }
-        parent.addView(button)
-        return button
-    }
-}
-
 internal class FileSelectionBottomBarController(
     private val root: View,
-    onAction: (FileSelectionAction, List<File>) -> Unit,
-    onClearSelection: () -> Unit,
+    private val onAction: (FileSelectionAction, List<File>) -> Unit,
+    private val onClearSelection: () -> Unit,
     private val onVisibilityChanged: (Boolean) -> Unit = {},
 ) {
-    private val behavior = BottomSheetBehavior.from(root)
-    private val content = FileActionsSheetContent(root, onAction, onClearSelection)
+    private val count = root.findViewById<android.widget.TextView>(R.id.file_selection_count)
+    private val actions = root.findViewById<ViewGroup>(R.id.file_selection_actions)
+    private val actionButtons = FileSelectionAction.entries.associateWith(::addAction)
     private var renderedState = FileSelectionUiState()
 
     init {
         root.isVisible = false
-        behavior.isHideable = false
-        content.attachBehavior(behavior)
+        root.findViewById<View>(R.id.clear_file_selection).setOnClickListener { onClearSelection() }
     }
 
-    fun render(state: FileSelectionUiState) {
+    fun render(
+        state: FileSelectionUiState,
+        title: String? = null,
+    ) {
         if (state.isActive) {
-            content.render(state.selectedFiles, root.context.getString(R.string.files_list_items_selected, state.selectedCount))
+            count.text = title ?: root.context.getString(R.string.files_list_items_selected, state.selectedCount)
+            actionButtons.forEach { (action, button) ->
+                button.isVisible = action in state.visibleActions
+            }
         }
+
         val visibilityChanged = state.isActive != renderedState.isActive
         renderedState = state
         if (visibilityChanged) setSheetVisible(state.isActive)
-    }
-
-    fun collapseIfExpanded(): Boolean {
-        if (!renderedState.isActive || behavior.state == BottomSheetBehavior.STATE_COLLAPSED) return false
-        behavior.state = BottomSheetBehavior.STATE_COLLAPSED
-        return true
     }
 
     private fun setSheetVisible(isVisible: Boolean) {
@@ -222,7 +104,6 @@ internal class FileSelectionBottomBarController(
     private fun showSheet() {
         val startOffscreen = !root.isVisible
         root.isVisible = true
-        behavior.state = BottomSheetBehavior.STATE_COLLAPSED
         root.doOnLayout {
             if (!renderedState.isActive) return@doOnLayout
             if (startOffscreen) root.translationY = root.height.toFloat()
@@ -245,9 +126,29 @@ internal class FileSelectionBottomBarController(
                 if (!renderedState.isActive) {
                     root.isVisible = false
                     root.translationY = 0f
-                    behavior.state = BottomSheetBehavior.STATE_COLLAPSED
                 }
             }.start()
+    }
+
+    private fun addAction(action: FileSelectionAction): View {
+        val binding =
+            FileSelectionActionButtonBinding.inflate(
+                LayoutInflater.from(root.context),
+                actions,
+                false,
+            )
+        binding.root.apply {
+            setText(action.titleRes)
+            setIconResource(action.iconRes)
+            if (action.destructive) {
+                val error = MaterialColors.getColor(this, androidx.appcompat.R.attr.colorError)
+                setTextColor(error)
+                iconTint = ColorStateList.valueOf(error)
+            }
+            setOnClickListener { onAction(action, renderedState.selectedFiles) }
+        }
+        actions.addView(binding.root)
+        return binding.root
     }
 }
 

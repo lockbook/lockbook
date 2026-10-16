@@ -21,6 +21,7 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -40,7 +41,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
-import app.lockbook.databinding.FileSelectionBottomBarBinding
 import app.lockbook.databinding.FragmentWorkspaceBinding
 import app.lockbook.databinding.WorkspaceTabsDialogBinding
 import app.lockbook.model.FileOperationsViewModel
@@ -84,9 +84,12 @@ class WorkspaceFragment : Fragment() {
     private val model: WorkspaceViewModel by activityViewModels()
 
     private var toolbarVisible: Boolean? = null
+    private var toolbarHiddenByScroll = false
     private var tabsDialog: BottomSheetDialog? = null
     private var tabsList: RecyclerView? = null
-    private var documentActionsDialog: BottomSheetDialog? = null
+    private var documentActionsController: FileSelectionBottomBarController? = null
+    private var documentActionsBackCallback: OnBackPressedCallback? = null
+    private var documentActionFile: File? = null
     private var workspaceView: WorkspaceView? = null
     private var cameraFile: JavaFile? = null
 
@@ -151,6 +154,7 @@ class WorkspaceFragment : Fragment() {
         binding.workspaceRoot.addView(workspaceWrapper, layoutParams)
 
         onCreateToolbar(workspaceWrapper)
+        onCreateDocumentActions()
 
         model.openFile.observe(viewLifecycleOwner) { request ->
             model.isFileTreeSyncedToCurrentTab = true
@@ -187,10 +191,6 @@ class WorkspaceFragment : Fragment() {
         // can pick drag-reorder (keyboard down) vs text selection (up).
         model.keyboardVisible.observe(viewLifecycleOwner) { visible ->
             workspaceWrapper.workspaceView.setKeyboardShown(visible)
-            model._nativeMarkdownToolbarVisible.value = visible
-        }
-
-        model.nativeMarkdownToolbarVisible.observe(viewLifecycleOwner) {
             workspaceWrapper.updateNativeToolbar()
         }
 
@@ -199,6 +199,7 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.currentTab.observe(viewLifecycleOwner) { tab ->
+            if (documentActionFile?.id != tab.id) hideDocumentActions()
             updateCurrentTab(workspaceWrapper, tab)
             workspaceWrapper.updateNativeToolbar()
         }
@@ -209,7 +210,11 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
-            setToolbarVisible(!keyboardVisible)
+            if (keyboardVisible) {
+                toolbarHiddenByScroll = false
+                hideDocumentActions()
+            }
+            updateToolbarVisibility()
         }
 
         model.workspaceBackRequested.observe(viewLifecycleOwner) {
@@ -302,7 +307,9 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun onCreateToolbar(workspaceWrapper: WorkspaceWrapperView) {
-        binding.documentName.setOnClickListener { showDocumentActions() }
+        binding.documentName.setOnClickListener {
+            if (documentActionFile == null) showDocumentActions() else hideDocumentActions()
+        }
         binding.restoreSplit.setOnClickListener {
             hideEditorKeyboard()
             mainScreenModel.navigate(MainNavigationAction.ShowSplitOrSidebar)
@@ -311,26 +318,41 @@ class WorkspaceFragment : Fragment() {
             mainScreenModel.navigate(MainNavigationAction.OpenSearch(SearchPresentation.FullScreen))
         }
         binding.switchTabs.setOnClickListener { showTabPicker(workspaceWrapper) }
+        model.openTabCount.observe(viewLifecycleOwner) { count -> updateTabControls(count) }
         updateRestoreSplitButtonVisibility((activity as? MainScreenActivity)?.isFocusingDetail() == true)
         updateWorkspaceSearchButtonVisibility((activity as? MainScreenActivity)?.isShowingSplit() != true)
         updateDocumentName(getCurrentFile()?.name)
-
-        model.hideToolbar.observe(viewLifecycleOwner) { distanceY ->
-            val keyboardVisible = model.keyboardVisible.value == true
-            when {
-                keyboardVisible -> model._nativeMarkdownToolbarVisible.value = true
-                distanceY > 0 -> model._nativeMarkdownToolbarVisible.value = true
-                distanceY < 0 -> model._nativeMarkdownToolbarVisible.value = false
+        workspaceWrapper.onVerticalScroll = { distanceY ->
+            if (model.keyboardVisible.value != true && documentActionFile == null) {
+                toolbarHiddenByScroll = distanceY > 0
+                updateToolbarVisibility()
             }
-            if (distanceY != 0f) setToolbarVisible(distanceY < 0 && !keyboardVisible)
         }
     }
 
-    private fun showDocumentActions() {
-        val file = getCurrentFile() ?: return
-        documentActionsDialog?.dismiss()
-        val dialog = BottomSheetDialog(requireContext())
-        val sheet = FileSelectionBottomBarBinding.inflate(layoutInflater)
+    private fun updateTabControls(tabCount: Int) {
+        binding.switchTabs.isVisible = tabCount > 2
+        if (tabCount > 0) {
+            binding.documentName.setIconResource(R.drawable.ic_baseline_arrow_down_24)
+        } else {
+            binding.documentName.icon = null
+        }
+    }
+
+    private fun showCreateScreen() {
+        hideDocumentActions()
+        val parentId = getCurrentFile()?.parent ?: filesListModel.fileModel.parent.id
+        mainScreenModel.launchTransientScreen(TransientScreen.Create(parentId))
+    }
+
+    private fun onCreateDocumentActions() {
+        val backCallback =
+            object : OnBackPressedCallback(false) {
+                override fun handleOnBackPressed() = hideDocumentActions()
+            }
+        documentActionsBackCallback = backCallback
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backCallback)
+        binding.workspaceDocumentActions.root.isClickable = true
         val dispatcher =
             FileSelectionActionDispatcher(
                 fragment = this,
@@ -339,26 +361,42 @@ class WorkspaceFragment : Fragment() {
                 snackbarAnchor = binding.workspaceToolbar,
                 onClearSelection = {},
             )
-        val content =
-            FileActionsSheetContent(
-                root = sheet.root,
+        documentActionsController =
+            FileSelectionBottomBarController(
+                root = binding.workspaceDocumentActions.root,
                 onAction = { action, files ->
-                    dialog.dismiss()
+                    hideDocumentActions()
                     dispatcher.dispatch(action, files)
                 },
-                onDismiss = dialog::dismiss,
+                onClearSelection = ::hideDocumentActions,
+                onVisibilityChanged = { visible ->
+                    backCallback.isEnabled = visible
+                    binding.workspaceToolbar.importantForAccessibility =
+                        if (visible) {
+                            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                        } else {
+                            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                        }
+                },
             )
-        content.render(listOf(file), file.name)
-        sheet.root.isVisible = true
-        dialog.setContentView(sheet.root)
-        content.attachBehavior(dialog.behavior)
-        dialog.setOnDismissListener { documentActionsDialog = null }
-        documentActionsDialog = dialog
-        dialog.show()
-        dialog.behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
+    }
+
+    private fun showDocumentActions() {
+        val file = getCurrentFile() ?: return
+        documentActionFile = file
+        documentActionsController?.render(FileSelectionUiState(selectedFiles = listOf(file)), file.name)
+    }
+
+    private fun hideDocumentActions() {
+        if (documentActionFile == null) return
+        documentActionFile = null
+        documentActionsController?.render(FileSelectionUiState())
     }
 
     private fun updateDocumentName(name: String?) {
+        documentActionFile?.let { file ->
+            documentActionsController?.render(FileSelectionUiState(selectedFiles = listOf(file)), name ?: file.name)
+        }
         binding.documentName.text = name ?: getString(R.string.app_name)
         binding.documentName.isEnabled = name != null
         binding.documentName.contentDescription = name?.let { getString(R.string.workspace_document_actions, it) }
@@ -372,8 +410,8 @@ class WorkspaceFragment : Fragment() {
         _binding?.searchWs?.isVisible = isSearchAvailable
     }
 
-    private fun setToolbarVisible(visible: Boolean) {
-        val shouldShow = visible && model.keyboardVisible.value != true
+    private fun updateToolbarVisibility() {
+        val shouldShow = model.keyboardVisible.value != true && !toolbarHiddenByScroll
         if (toolbarVisible == shouldShow) return
         toolbarVisible = shouldShow
         val toolbar = binding.workspaceToolbar
@@ -401,10 +439,15 @@ class WorkspaceFragment : Fragment() {
         tabsDialog?.dismiss()
         tabsDialog = null
         tabsList = null
-        documentActionsDialog?.dismiss()
-        documentActionsDialog = null
+        binding.workspaceDocumentActions.root
+            .animate()
+            .cancel()
+        documentActionsController = null
+        documentActionsBackCallback = null
+        documentActionFile = null
         binding.workspaceToolbar.animate().cancel()
         toolbarVisible = null
+        toolbarHiddenByScroll = false
         workspaceView = null
         _binding = null
         super.onDestroyView()
@@ -426,6 +469,9 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
+        val actionSheet = binding.workspaceDocumentActions.root
+        val sheetBottomPadding = actionSheet.contentPaddingBottom
+        val sheetMinHeight = actionSheet.minimumHeight
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
@@ -449,6 +495,26 @@ class WorkspaceFragment : Fragment() {
 
             ViewCompat.onApplyWindowInsets(v, filteredInsets)
 
+            // Extend the sheet's surface through the space reserved for system navigation,
+            // keeping its controls and the editor inside the existing safe area.
+            val navigationInset = v.paddingBottom
+            val sheetParams = actionSheet.layoutParams as ConstraintLayout.LayoutParams
+            if (sheetParams.bottomMargin != -navigationInset) {
+                sheetParams.bottomMargin = -navigationInset
+                actionSheet.layoutParams = sheetParams
+            }
+            if (actionSheet.contentPaddingBottom != sheetBottomPadding + navigationInset) {
+                actionSheet.setContentPadding(
+                    actionSheet.contentPaddingLeft,
+                    actionSheet.contentPaddingTop,
+                    actionSheet.contentPaddingRight,
+                    sheetBottomPadding + navigationInset,
+                )
+            }
+            if (actionSheet.minimumHeight != sheetMinHeight + navigationInset) {
+                actionSheet.minimumHeight = sheetMinHeight + navigationInset
+            }
+
             insets
         }
     }
@@ -458,36 +524,31 @@ class WorkspaceFragment : Fragment() {
         workspaceWrapper: WorkspaceWrapperView,
         newTab: WorkspaceTab,
     ) {
-        var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+        val nativeTabs = workspaceWrapper.workspaceView.getTabs()
 
+        var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
         if (isMissingTab(tabTitle, newTab)) {
             filesListModel.fileModel.refreshFiles()
             tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
         }
 
-        if (isMissingTab(tabTitle, newTab)) {
-            return
-        }
-
-        updateDocumentName(tabTitle)
-
         val openTabs =
-            workspaceWrapper.workspaceView
-                .getTabs()
-                .mapNotNull { raw ->
-                    val parts = raw.split(' ', limit = 2)
-                    val sessionId = parts[0]
-                    val destId = parts.getOrElse(1) { sessionId }
-                    filesListModel.fileModel.idsAndFiles[destId]?.let { file ->
-                        OpenTab(sessionId, file)
-                    }
-                }.toList()
-
+            nativeTabs.mapNotNull { raw ->
+                val parts = raw.split(' ', limit = 2)
+                val sessionId = parts[0]
+                val destId = parts.getOrElse(1) { sessionId }
+                filesListModel.fileModel.idsAndFiles[destId]?.let { file ->
+                    OpenTab(sessionId, file)
+                }
+            }
         model.tabs.set(openTabs)
         notifyTabListsChanged()
 
+        if (isMissingTab(tabTitle, newTab)) return
+        updateDocumentName(tabTitle)
         workspaceWrapper.updateWrapperBasedOnTab(newTab.type)
-        setToolbarVisible(model.keyboardVisible.value != true)
+        toolbarHiddenByScroll = false
+        updateToolbarVisibility()
     }
 
     private fun isMissingTab(
@@ -535,8 +596,7 @@ class WorkspaceFragment : Fragment() {
         }
         content.createWs.setOnClickListener {
             dialog.dismiss()
-            val parentId = getCurrentFile()?.parent ?: filesListModel.fileModel.parent.id
-            mainScreenModel.launchTransientScreen(TransientScreen.Create(parentId))
+            showCreateScreen()
         }
         content.closeAllTabs.isEnabled = !model.tabs.isEmpty()
         content.closeAllTabs.setOnClickListener {
@@ -568,6 +628,33 @@ class WorkspaceWrapperView(
 ) : FrameLayout(context) {
     val workspaceView: WorkspaceView
     private val markdownToolbar: MarkdownToolbarView
+    var onVerticalScroll: ((Float) -> Unit)? = null
+
+    private val toolbarScrollDetector =
+        GestureDetector(
+            context,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(event: MotionEvent): Boolean = true
+
+                override fun onScroll(
+                    first: MotionEvent?,
+                    current: MotionEvent,
+                    distanceX: Float,
+                    distanceY: Float,
+                ): Boolean {
+                    if (current.pointerCount == 1 && abs(distanceY) > abs(distanceX)) {
+                        onVerticalScroll?.invoke(distanceY)
+                    }
+                    return false
+                }
+            },
+        ).apply { setIsLongpressEnabled(false) }
+
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        toolbarScrollDetector.onTouchEvent(event)
+        return super.onInterceptTouchEvent(event)
+    }
+
     var currentTab = WorkspaceTabType.Welcome
 
     var currentWrapper: View? = null
@@ -636,7 +723,7 @@ class WorkspaceWrapperView(
     }
 
     private fun shouldShowNativeToolbar(): Boolean =
-        model.nativeMarkdownToolbarVisible.value == true &&
+        model.keyboardVisible.value == true &&
             workspaceView.canForwardTouches() &&
             model.currentTab.value?.type == WorkspaceTabType.Markdown &&
             Workspace.canEditMarkdown(WorkspaceView.wgpuObj)
@@ -704,22 +791,6 @@ class WorkspaceTextInputWrapper(
         isFocusableInTouchMode = true
     }
 
-    private val toolbarScrollListener =
-        object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: MotionEvent): Boolean = true
-
-            override fun onScroll(
-                e1: MotionEvent?,
-                e2: MotionEvent,
-                distanceX: Float,
-                distanceY: Float,
-            ): Boolean {
-                workspaceView.model._hideToolbar.value = distanceY
-                return super.onScroll(e1, e2, distanceX, distanceY)
-            }
-        }
-    private val toolbarScrollDetector: GestureDetector = GestureDetector(context, toolbarScrollListener)
-
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         requestFocus()
@@ -751,7 +822,6 @@ class WorkspaceTextInputWrapper(
 
         if (event != null) {
             workspaceView.touchForwarder.forward(event, touchYOffset)
-            toolbarScrollDetector.onTouchEvent(event)
         }
 
         return true
