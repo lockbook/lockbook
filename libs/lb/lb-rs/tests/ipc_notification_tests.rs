@@ -119,3 +119,33 @@ fn ipc_writer_process() {
             process::exit(0);
         });
 }
+
+#[tokio::test]
+async fn only_local_commits_send_notifications() {
+    use std::os::unix::net::UnixDatagram;
+    use std::path::Path;
+
+    let core = test_core().await;
+    let peer =
+        UnixDatagram::bind(Path::new(&core.config.writeable_path).join("CoreV5/ipc/peer.sock"))
+            .unwrap();
+    peer.set_nonblocking(true).unwrap();
+
+    core.begin_tx().await.end();
+    assert_eq!(peer.recv(&mut [0]).unwrap_err().kind(), io::ErrorKind::WouldBlock);
+
+    let mut tx = core.begin_tx().await;
+    tx.db().last_synced.replace(123).unwrap();
+    tx.end();
+    assert_eq!(peer.recv(&mut [0]).unwrap(), 1);
+
+    let other = Lb::init(core.config.clone()).await.unwrap();
+    let mut tx = other.begin_tx().await;
+    tx.db().last_synced.replace(456).unwrap();
+    tx.end();
+    assert_eq!(peer.recv(&mut [0]).unwrap(), 1);
+
+    core.begin_tx().await.end();
+    assert_eq!(core.ro_tx().await.db().last_synced.as_ref(), Some(&456));
+    assert_eq!(peer.recv(&mut [0]).unwrap_err().kind(), io::ErrorKind::WouldBlock);
+}

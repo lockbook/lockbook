@@ -3,11 +3,8 @@ use std::io::{self, ErrorKind};
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt};
 use std::os::unix::net::UnixDatagram;
 use std::path::PathBuf;
-use std::sync::Mutex;
-use std::sync::mpsc::Receiver;
 
 use db_rs::View;
-use db_rs::log::Notification;
 use tokio::net::UnixDatagram as AsyncUnixDatagram;
 use tokio::runtime::Handle;
 use tokio::task;
@@ -21,11 +18,10 @@ pub(crate) struct Ipc {
     directory: PathBuf,
     path: Option<PathBuf>,
     socket: UnixDatagram,
-    notifications: Mutex<Receiver<Notification>>,
 }
 
 impl Ipc {
-    pub(crate) fn new(db: &mut CoreDb, listen: bool) -> io::Result<Self> {
+    pub(crate) fn new(db: &CoreDb, listen: bool) -> io::Result<Self> {
         let directory = db.log().directory.canonicalize()?.join("ipc");
         DirBuilder::new()
             .mode(0o700)
@@ -36,25 +32,12 @@ impl Ipc {
             Some(path) => UnixDatagram::bind(path)?,
             None => UnixDatagram::unbound()?,
         };
-        let ipc = Self {
-            directory,
-            path,
-            socket,
-            notifications: Mutex::new(db.log_mut().notifications()),
-        };
+        let ipc = Self { directory, path, socket };
         ipc.socket.set_nonblocking(true)?;
         Ok(ipc)
     }
 
     pub(crate) fn notify_peers(&self) {
-        // Consume catch-up notifications too, but only broadcast our own commits.
-        let mut changed = false;
-        for notification in self.notifications.lock().unwrap().try_iter() {
-            changed |= notification.local;
-        }
-        if !changed {
-            return;
-        }
         if let Err(error) = self.send() {
             warn!(?error, "could not notify other database instances");
         }
@@ -141,8 +124,8 @@ mod tests {
     #[test]
     fn sends_to_peers_skips_self_and_cleans_up_dead_sockets() {
         let directory = tempdir_in("/tmp").unwrap();
-        let mut db = CoreDb::init(&Config::default().log_location(directory.path())).unwrap();
-        let ipc = Ipc::new(&mut db, true).unwrap();
+        let db = CoreDb::init(&Config::default().log_location(directory.path())).unwrap();
+        let ipc = Ipc::new(&db, true).unwrap();
         let peer = UnixDatagram::bind(ipc.directory.join("peer.sock")).unwrap();
         peer.set_nonblocking(true).unwrap();
         let stale = ipc.directory.join("stale.sock");
@@ -159,39 +142,10 @@ mod tests {
     }
 
     #[test]
-    fn only_local_commits_send_notifications() {
-        let directory = tempdir_in("/tmp").unwrap();
-        let config = Config::default().log_location(directory.path());
-        let mut db = CoreDb::init(&config).unwrap();
-        let ipc = Ipc::new(&mut db, false).unwrap();
-        let peer = UnixDatagram::bind(ipc.directory.join("peer.sock")).unwrap();
-        peer.set_nonblocking(true).unwrap();
-
-        db.write_tx().unwrap().end_tx(&mut db).unwrap();
-        ipc.notify_peers();
-        assert_eq!(peer.recv(&mut [0]).unwrap_err().kind(), ErrorKind::WouldBlock);
-
-        let tx = db.write_tx().unwrap();
-        db.schema.last_synced.replace(123).unwrap();
-        tx.end_tx(&mut db).unwrap();
-        ipc.notify_peers();
-        assert_eq!(peer.recv(&mut [0]).unwrap(), 1);
-
-        let mut other = CoreDb::init(&config).unwrap();
-        let tx = other.write_tx().unwrap();
-        other.schema.last_synced.replace(456).unwrap();
-        tx.end_tx(&mut other).unwrap();
-        db.write_tx().unwrap().end_tx(&mut db).unwrap();
-        ipc.notify_peers();
-        assert_eq!(db.schema.last_synced.as_ref(), Some(&456));
-        assert_eq!(peer.recv(&mut [0]).unwrap_err().kind(), ErrorKind::WouldBlock);
-    }
-
-    #[test]
     fn a_slow_peer_does_not_block_notifications_to_other_peers() {
         let directory = tempdir_in("/tmp").unwrap();
-        let mut db = CoreDb::init(&Config::default().log_location(directory.path())).unwrap();
-        let ipc = Ipc::new(&mut db, false).unwrap();
+        let db = CoreDb::init(&Config::default().log_location(directory.path())).unwrap();
+        let ipc = Ipc::new(&db, false).unwrap();
         let slow_path = ipc.directory.join("slow.sock");
         let _slow = UnixDatagram::bind(&slow_path).unwrap();
         loop {

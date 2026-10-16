@@ -56,7 +56,7 @@ impl Lb {
         let keychain = Keychain::from(db.schema.account.as_ref());
         let db = Arc::new(RwLock::new(db));
         #[cfg(all(unix, not(target_os = "ios")))]
-        let ipc = Arc::new(Ipc::new(&mut *db.write().await, config.background_work)?);
+        let ipc = Arc::new(Ipc::new(&*db.read().await, config.background_work)?);
         let client = Network { client_type: config.client_type, ..Network::default() };
 
         let status = StatusUpdater::default();

@@ -163,9 +163,14 @@ impl LbTx<'_> {
     }
 
     fn flush(&mut self) -> DbResult<()> {
-        self.tx.take().unwrap().end_tx(&mut *self.guard)?;
-        #[cfg(all(unix, not(target_os = "ios")))]
-        self.ipc.notify_peers();
+        let tx = self.tx.take().unwrap();
+        let seq_no = tx.seq_no;
+        let committed_seq = tx.end_tx(&mut *self.guard)?;
+        // Empty transactions retain the previous sequence, including after catch-up.
+        if committed_seq == seq_no {
+            #[cfg(all(unix, not(target_os = "ios")))]
+            self.ipc.notify_peers();
+        }
         Ok(())
     }
 }
