@@ -51,19 +51,34 @@ struct PinnedDocumentsProvider: TimelineProvider {
                 return
             }
 
-            let result = lb_widget_pinned_documents(directory.path)
-            defer { lb_free_file_list_res(result) }
+            let core = lb_init_with_background_work(directory.path, false, false)
+            defer { lb_free_init(core) }
 
-            guard result.err == nil else {
+            guard core.err == nil else {
                 completion(PinnedDocumentsEntry(
                     date: .now, documents: [], message: "Open Lockbook to load your pinned documents."
                 ))
                 return
             }
 
-            let documents = UnsafeBufferPointer(start: result.list.list, count: Int(result.list.count))
-                .map { file in
-                    PinnedDocument(id: UUID(uuid: file.id.bytes), name: String(cString: file.name))
+            let pins = lb_list_pinned(core.lb)
+            defer { lb_free_id_list_res(pins) }
+
+            guard pins.err == nil else {
+                completion(PinnedDocumentsEntry(
+                    date: .now, documents: [], message: "Open Lockbook to load your pinned documents."
+                ))
+                return
+            }
+
+            let documents = UnsafeBufferPointer(start: pins.ids, count: Int(pins.len))
+                .compactMap { id -> PinnedDocument? in
+                    let result = lb_get_file(core.lb, id)
+                    defer { lb_free_file_res(result) }
+                    guard result.err == nil else { return nil }
+                    return PinnedDocument(
+                        id: UUID(uuid: result.file.id.bytes), name: String(cString: result.file.name)
+                    )
                 }
                 .sorted {
                     let comparison = $0.name.localizedStandardCompare($1.name)

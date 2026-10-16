@@ -35,9 +35,18 @@ pub struct LbInitRes {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRes {
+    lb_init_with_background_work(writeable_path, logs, true)
+}
+
+/// Initializes a regular core instance with configurable background work.
+/// Release the result with `lb_free_init`.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_init_with_background_work(
+    writeable_path: *const c_char, logs: bool, background_work: bool,
+) -> LbInitRes {
     let config = Config {
         writeable_path: rstring(writeable_path),
-        background_work: true,
+        background_work,
         logs,
         stdout_logs: true,
         colored_logs: false,
@@ -1211,4 +1220,3 @@ mod ffi_utils;
 mod lb_c_err;
 mod lb_file;
 mod mem_cleanup;
-mod widget;
