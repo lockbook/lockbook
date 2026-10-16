@@ -186,6 +186,17 @@ impl Lb {
     async fn process_event(&self, e: Event) -> LbResult<()> {
         let current = self.status.current_status.read().await.clone();
         match e {
+            Event::IpcChangesApplied => {
+                let mut current = current;
+                current.dirty_locally = self.local_changes().await;
+                current.pending_shares = !self.get_pending_shares().await?.is_empty();
+                current.sync_status = if current.dirty_locally.is_empty() {
+                    self.get_last_synced_human().await.ok()
+                } else {
+                    None
+                };
+                self.set_status(current).await?;
+            }
             Event::MetadataChanged(_) | Event::DocumentWritten(_, _) => {
                 self.compute_dirty_locally(current).await?;
             }

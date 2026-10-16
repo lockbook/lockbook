@@ -6,6 +6,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+use std::{
+    fs::{File, TryLockError},
+    path::Path,
+};
+
 use futures::{StreamExt, stream};
 use tokio::sync::{Mutex, broadcast::error::TryRecvError};
 use tokio::time;
@@ -68,9 +74,12 @@ pub struct SyncState {
 //     is md or svg that descends from
 
 impl Lb {
+    /// Outside iOS and WASM, returns `AlreadySyncing` if another instance is syncing this data directory.
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn sync(&self) -> LbResult<()> {
         let mut sync_state = self.syncer.lock().await;
+        #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+        let _sync_lock = self.lock_sync()?;
         self.events.sync_update(SyncIncrement::SyncStarted);
 
         let pipeline: LbResult<()> = async {
@@ -98,6 +107,21 @@ impl Lb {
         Ok(())
     }
 
+    #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+    fn lock_sync(&self) -> LbResult<File> {
+        let file = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(Path::new(&self.config.writeable_path).join("sync.lock"))?;
+        match file.try_lock() {
+            Ok(()) => Ok(file),
+            Err(TryLockError::WouldBlock) => Err(LbErrKind::AlreadySyncing.into()),
+            Err(TryLockError::Error(err)) => Err(err.into()),
+        }
+    }
+
     pub(crate) async fn pull_updates(&self, sync_state: &mut SyncState) -> LbResult<()> {
         self.inital_sync_state(sync_state).await?;
         self.process_deletions().await?;
@@ -123,11 +147,13 @@ impl Lb {
     }
 
     async fn inital_sync_state(&self, state: &mut SyncState) -> LbResult<()> {
-        let tx = self.ro_tx().await;
+        // Catch up after acquiring the sync lock, before using the previous sync's cursor.
+        let mut tx = self.begin_tx().await;
         let db = tx.db();
 
         *state = Default::default();
         state.last_synced = db.last_synced.as_ref().copied().unwrap_or_default() as u64;
+        tx.end();
 
         Ok(())
     }
@@ -1283,6 +1309,8 @@ impl Lb {
     #[doc(hidden)]
     pub async fn server_dirty_ids(&self) -> LbResult<Vec<Uuid>> {
         let mut state = self.syncer.lock().await;
+        #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+        let _sync_lock = self.lock_sync()?;
         self.inital_sync_state(&mut state).await?;
         self.process_deletions().await?;
         self.fetch_meta(&mut state).await?;

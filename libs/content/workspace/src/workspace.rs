@@ -1088,6 +1088,21 @@ impl Workspace {
                         // matched — refresh every chat's config unconditionally.
                         #[cfg(not(target_family = "wasm"))]
                         Event::MetadataChanged(_) => self.reload_chat_configs(),
+                        Event::IpcChangesApplied => {
+                            for session in &self.tab_strip {
+                                if let Some(id) = session.dest.backing_file() {
+                                    self.tasks.queue_load(LoadRequest {
+                                        id,
+                                        tab_created: false,
+                                        make_current: false,
+                                        is_preview: false,
+                                        target: Some(session.id),
+                                    });
+                                }
+                            }
+                            #[cfg(not(target_family = "wasm"))]
+                            self.reload_chat_configs();
+                        }
                         _ => {}
                     }
                 }
@@ -1974,7 +1989,7 @@ pub fn lb_bg_worker(ctx: Context, lb: Lb, ws_tx: Sender<WsUpdates>) {
     loop {
         match events.blocking_recv() {
             Ok(evt) => match evt {
-                Event::MetadataChanged(_) => {
+                Event::MetadataChanged(_) | Event::IpcChangesApplied => {
                     if ws_tx
                         .send(WsUpdates::FileCacheComputed(FileCache::new(&lb)))
                         .is_err()
