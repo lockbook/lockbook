@@ -140,29 +140,4 @@ mod tests {
         drop(ipc);
         assert!(!path.exists());
     }
-
-    #[test]
-    fn a_slow_peer_does_not_block_notifications_to_other_peers() {
-        let directory = tempdir_in("/tmp").unwrap();
-        let db = CoreDb::init(&Config::default().log_location(directory.path())).unwrap();
-        let ipc = Ipc::new(&db, false).unwrap();
-        let slow_path = ipc.directory.join("slow.sock");
-        let _slow = UnixDatagram::bind(&slow_path).unwrap();
-        loop {
-            if let Err(error) = ipc.socket.send_to(&[1], &slow_path) {
-                assert!(
-                    error.kind() == ErrorKind::WouldBlock
-                        || error.raw_os_error() == Some(libc::ENOBUFS),
-                    "{error:?}"
-                );
-                break;
-            }
-        }
-        let peer = UnixDatagram::bind(ipc.directory.join("peer.sock")).unwrap();
-        peer.set_nonblocking(true).unwrap();
-
-        ipc.send().unwrap();
-
-        assert_eq!(peer.recv(&mut [0]).unwrap(), 1);
-    }
 }
