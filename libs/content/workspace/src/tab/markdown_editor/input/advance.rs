@@ -1,7 +1,7 @@
 use std::mem;
 
 use crate::tab::markdown_editor::MdEdit;
-use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
+use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::markdown_editor::input::{Advance, Increment};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
@@ -49,7 +49,9 @@ impl MdEdit {
     /// text system keeps the column by always moving from the same start.
     pub fn lines_from(&self, offset: Grapheme, n: usize, backwards: bool) -> Grapheme {
         let Some(x_target) = self.x(offset) else { return offset };
-        (0..n).fold(offset, |result, _| self.advance_by_line(result, x_target, backwards))
+        let result =
+            (0..n).fold(offset, |result, _| self.advance_by_line(result, x_target, backwards));
+        self.renderer.snap_offset_out_of_folds(result, backwards)
     }
 
     fn advance_by_line(&self, offset: Grapheme, x_target: f32, backwards: bool) -> Grapheme {
@@ -93,17 +95,8 @@ impl MdEdit {
             }
         }
 
-        // No reachable row remains. If we're not on the document's edge
-        // source line, the adjacent line is hidden (e.g. by a fold), so
-        // snap to that document edge; otherwise stay put.
-        let source_lines = &self.renderer.bounds.source_lines;
-        let edge_line = if backwards { 0 } else { source_lines.len() - 1 };
-        if source_lines
-            .find_containing(offset, true, true)
-            .contains(edge_line, true, false)
-        {
-            offset
-        } else if backwards {
+        // No reachable row remains: snap to the document edge.
+        if backwards {
             Grapheme(0)
         } else {
             self.renderer.buffer.current.segs.last_cursor_position()
