@@ -8,14 +8,14 @@ struct WidgetFolder: AppEntity {
     let name: String
     let path: String
 
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Folder"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Location"
     static var defaultQuery = WidgetFolderQuery()
 
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(name)", subtitle: "\(path)", image: .init(systemName: "folder"))
     }
 
-    static let preview = WidgetFolder(id: UUID(), name: "Inbox", path: "/Inbox/")
+    static let preview = WidgetFolder(id: UUID(), name: "Notes", path: "/Notes/")
 }
 
 struct WidgetFolderQuery: EntityStringQuery {
@@ -23,7 +23,7 @@ struct WidgetFolderQuery: EntityStringQuery {
         let folders = loadFolders()
         return identifiers.map { id in
             // Preserve a deleted folder's identity so it never silently becomes Home.
-            folders.first { $0.id == id } ?? WidgetFolder(id: id, name: "Folder unavailable", path: "")
+            folders.first { $0.id == id } ?? WidgetFolder(id: id, name: "Location unavailable", path: "")
         }
     }
 
@@ -66,10 +66,10 @@ struct WidgetFolderQuery: EntityStringQuery {
 }
 
 struct FolderActionsConfiguration: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Choose Folder"
+    static var title: LocalizedStringResource = "Choose Location"
     static var description = IntentDescription("Choose where to create notes and drawings.")
 
-    @Parameter(title: "Folder") var folder: WidgetFolder?
+    @Parameter(title: "Location") var folder: WidgetFolder?
 }
 
 struct FolderActionsEntry: TimelineEntry {
@@ -158,7 +158,7 @@ struct FolderActionsWidgetView: View {
                     }
                 }
             } else {
-                Text("Open Lockbook to set up your account, then choose a folder in the widget's settings.")
+                Text("Open Lockbook to set up your account, then choose a location in the widget's settings.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .widgetURL(URL(string: "lb://search")!)

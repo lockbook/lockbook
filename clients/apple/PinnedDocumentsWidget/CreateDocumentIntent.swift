@@ -26,7 +26,7 @@ struct CreateDocumentIntent: AppIntent {
     static var title: LocalizedStringResource = "Create Document"
     static var isDiscoverable = false
 
-    @Parameter(title: "Folder") var folder: WidgetFolder
+    @Parameter(title: "Location") var folder: WidgetFolder
     @Parameter(title: "Drawing") var drawing: Bool
 
     init() {}
@@ -42,7 +42,7 @@ struct CreateDocumentIntent: AppIntent {
             let file = lb_get_file(core, parent)
             defer { lb_free_file_res(file) }
             guard file.err == nil, file.file.typ.tag == LbFolder else {
-                throw WidgetOperationError(message: "This folder is unavailable. Choose another folder in the widget's settings.")
+                throw WidgetOperationError(message: "This location is unavailable. Choose another location in the widget's settings.")
             }
 
             let date = DateFormatter()
