@@ -9,6 +9,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format
 
 use super::MdRender;
 use super::bounds::RangesExt as _;
+use utils::NodeValueExt as _;
 
 pub(crate) mod block;
 pub(crate) mod debug;
@@ -101,6 +102,23 @@ impl<'ast> MdRender {
                 let last_line_idx = node_data.sourcepos.end.line.saturating_sub(1);
                 if let Some(line) = self.bounds.source_lines.get(last_line_idx) {
                     range.1 = range.1.min(line.end());
+                }
+            }
+
+            // hack: a cell comrak adds to pad a short row has no source, yet
+            // is positioned on the row's last pipe or the line break after
+            // it; it gets the empty range at the row's end.
+            NodeValue::TableCell if self.table_cell_autocompleted(node) => {
+                let row_end = self.node_range(node.parent().unwrap()).end();
+                range = (row_end, row_end);
+            }
+
+            // hack: inline positions after an escaped pipe in a table cell
+            // are short by the backslash.
+            value if value.is_inline() => {
+                if let Some(inline_range) = self.table_cell_inline_range(node, node_data.sourcepos)
+                {
+                    range = inline_range;
                 }
             }
 
