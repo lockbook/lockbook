@@ -172,6 +172,10 @@ fn layout_cache_consistent() {
 fn table_ranges_survive_edits() {
     run(table_ranges_survive_edits_check, Features::all(), 1000);
 }
+#[test]
+fn table_caret_in_cells() {
+    run(table_caret_in_cells_check, Features::all(), 1000);
+}
 
 // indent / structure
 #[test]
@@ -937,6 +941,38 @@ fn table_ranges_survive_edits_check(buf: &[u8], features: &Features) -> Result<(
             violation = super::tables::table_ranges_check_md(ws.get_text())
                 .err()
                 .map(|reason| format!("{reason}\nbuffer:\n{:?}", ws.get_text()));
+        }
+    })
+    .map_err(|_| "editor panicked during an edit".to_string())?;
+    violation.map(Err).unwrap_or(Ok(()))
+}
+
+/// Property: a caret on one of a table's lines is in a cell, or on the
+/// delimiter row. Checked after every event of a sequence, undo and redo
+/// aside: they restore the selection of an earlier text.
+fn table_caret_in_cells_check(buf: &[u8], features: &Features) -> Result<(), String> {
+    let mut violation: Option<String> = None;
+    drive_features(buf, features, |ws, src| {
+        let (cursor, len) = cursor_and_len(ws);
+        let event = event_with(src, cursor, len, features);
+        let undo_redo = matches!(event, Event::Undo | Event::Redo);
+        ws.push(event);
+        ws.enter_frame();
+
+        let r = &ws.editor.edit.renderer;
+        let selection = r.buffer.current.selection;
+        if violation.is_some() || undo_redo || selection.0 != selection.1 {
+            return;
+        }
+        let Some(table) = r.bounds.table_at(selection.1) else { return };
+        let delimiter_line = r.bounds.source_lines[table.first_line + 1];
+        let on_delimiter_row = delimiter_line.0 <= selection.1 && selection.1 <= delimiter_line.1;
+        if table.cell_at(selection.1).is_none() && !on_delimiter_row {
+            violation = Some(format!(
+                "caret at {:?} is on a table line, outside every cell\nbuffer:\n{:?}",
+                selection.1,
+                ws.get_text()
+            ));
         }
     })
     .map_err(|_| "editor panicked during an edit".to_string())?;

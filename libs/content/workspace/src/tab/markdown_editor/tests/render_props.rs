@@ -206,6 +206,7 @@ pub(super) fn render_frame<T>(
             let height = r.height(root);
             let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
             r.fragments.clear();
+            r.table_cell_boxes.clear();
             r.bounds.wrap_lines.clear();
             r.text_areas.clear();
             ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {

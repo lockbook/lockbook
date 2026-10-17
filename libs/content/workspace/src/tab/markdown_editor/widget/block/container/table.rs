@@ -10,7 +10,7 @@ impl<'ast> MdRender {
     pub fn height_table(&self, node: &'ast AstNode<'ast>) -> f32 {
         let width = self.width(node);
         let row_height = self.layout.row_height;
-        if self.reveal_table(node) {
+        if self.table_revealed(node) {
             let mut height = 0.;
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
@@ -37,7 +37,7 @@ impl<'ast> MdRender {
         let width = self.width(node);
         let row_height = self.layout.row_height;
 
-        if self.reveal_table(node) {
+        if self.table_revealed(node) {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 let node_line = self.node_line(node, line);
@@ -65,18 +65,5 @@ impl<'ast> MdRender {
                 egui::epaint::StrokeKind::Inside,
             );
         }
-    }
-
-    /// Reveal the whole table as source only when the cursor is on the
-    /// delimiter row — it has no AST node, so per-row reveal can't
-    /// surface it. Cursor inside a cell (boundaries included) and
-    /// cursor in pipe gutters are handled by `reveal_table_row`.
-    fn reveal_table(&self, node: &'ast AstNode<'ast>) -> bool {
-        let delimiter_row_line_idx = self.node_first_line_idx(node) + 1;
-        let Some(&delimiter_line) = self.bounds.source_lines.get(delimiter_row_line_idx) else {
-            return false;
-        };
-        let node_line = self.node_line(node, delimiter_line);
-        self.range_revealed(node_line, true)
     }
 }
