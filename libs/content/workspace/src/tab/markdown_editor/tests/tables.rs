@@ -740,3 +740,435 @@ fn bold_in_a_row_with_an_empty_cell() {
     editor.enter_frame();
     assert_eq!(editor.get_text(), EMPTY_CELL_ROW);
 }
+
+// ─── selection ───────────────────────────────────────────────────────
+
+const SHIFT_RIGHT: Region = shift_arrow(Advance::By(Increment::Char), false);
+const SHIFT_LEFT: Region = shift_arrow(Advance::By(Increment::Char), true);
+const SHIFT_DOWN: Region = shift_arrow(Advance::By(Increment::Lines(1)), false);
+const SHIFT_UP: Region = shift_arrow(Advance::By(Increment::Lines(1)), true);
+
+const fn shift_arrow(advance: Advance, backwards: bool) -> Region {
+    Region::ToAdvance { advance, backwards, extend_selection: true }
+}
+
+fn select(editor: &mut TestEditor, from: usize, to: usize) -> (usize, usize) {
+    editor.editor.edit.cursor.x_target = None;
+    editor.push(Event::Select { region: (Grapheme(from), Grapheme(to)).into() });
+    editor.enter_frame();
+    selection(editor)
+}
+
+fn selection(editor: &TestEditor) -> (usize, usize) {
+    let selection = editor.editor.edit.renderer.buffer.current.selection;
+    (selection.0.0, selection.1.0)
+}
+
+fn extend(editor: &mut TestEditor, region: Region) -> (usize, usize) {
+    editor.push(Event::Select { region });
+    editor.enter_frame();
+    selection(editor)
+}
+
+/// The selected text.
+fn selected(editor: &TestEditor) -> &str {
+    let (a, b) = selection(editor);
+    &editor.get_text()[a.min(b)..a.max(b)]
+}
+
+const SHEET: &str =
+    "above\n\n| aa | bb | cc |\n| - | - | - |\n| dd | ee | ff |\n| gg | hh | ii |\n\nbelow";
+
+#[test]
+fn a_selection_snaps_to_cells_and_rows() {
+    let mut editor = TestEditor::new(SHEET);
+    let at = |text: &str| SHEET.find(text).unwrap();
+    for (from, to, takes) in [
+        // within a cell: ordinary, less any padding
+        (at("dd"), at("dd") + 1, "d"),
+        (at("dd") - 1, at("dd") + 3, "dd"),
+        // across cells of a row: whole cells
+        (at("dd") + 1, at("ee") + 1, "dd | ee"),
+        (at("dd") + 2, at("ff"), "dd | ee | ff"),
+        (at("| ee"), at("ee") + 1, "dd | ee"),
+        // across rows: whole rows
+        (at("dd") + 1, at("gg") + 1, "| dd | ee | ff |\n| gg | hh | ii |"),
+        (at("bb"), at("ee"), "| aa | bb | cc |\n| - | - | - |\n| dd | ee | ff |"),
+        // an end on the delimiter row counts as the header
+        (at("| - |") + 2, at("ee"), "| aa | bb | cc |\n| - | - | - |\n| dd | ee | ff |"),
+        // across the table's edge: whole rows from the edge
+        (at("ove"), at("bb"), "ove\n\n| aa | bb | cc |"),
+        (at("hh"), at("low"), "| gg | hh | ii |\n\nbe"),
+        // around the table: untouched
+        (at("ove"), at("low"), &SHEET[at("ove")..at("low")]),
+    ] {
+        select(&mut editor, from, to);
+        assert_eq!(selected(&editor), takes, "selecting {from}..{to}");
+        // and the same backwards, keeping its direction
+        let (anchor, end) = select(&mut editor, to, from);
+        assert_eq!(selected(&editor), takes, "selecting {to}..{from}");
+        assert!(anchor > end, "selecting {to}..{from} flipped");
+    }
+}
+
+#[test]
+fn shift_arrows_extend_by_cell_and_by_row() {
+    let mut editor = TestEditor::new(SHEET);
+    let at = |text: &str| SHEET.find(text).unwrap();
+
+    // right: through the cell, then cell by cell, then onto the next row
+    caret_at(&mut editor, at("dd") + 1);
+    extend(&mut editor, SHIFT_RIGHT);
+    assert_eq!(selected(&editor), "d");
+    extend(&mut editor, SHIFT_RIGHT);
+    assert_eq!(selected(&editor), "dd | ee");
+    extend(&mut editor, SHIFT_RIGHT);
+    assert_eq!(selected(&editor), "dd | ee | ff");
+    extend(&mut editor, SHIFT_RIGHT);
+    assert_eq!(selected(&editor), "| dd | ee | ff |\n| gg | hh | ii |");
+    // and back: a row, then cell by cell
+    extend(&mut editor, SHIFT_UP);
+    assert_eq!(selected(&editor), "| dd | ee | ff |");
+
+    caret_at(&mut editor, at("dd") + 1);
+    for (region, takes) in [
+        (SHIFT_RIGHT, "d"),
+        (SHIFT_RIGHT, "dd | ee"),
+        (SHIFT_RIGHT, "dd | ee | ff"),
+        (SHIFT_LEFT, "dd | ee"),
+        (SHIFT_LEFT, "dd"),
+        (SHIFT_LEFT, "d"),
+        (SHIFT_LEFT, ""),
+    ] {
+        extend(&mut editor, region);
+        assert_eq!(selected(&editor), takes);
+    }
+
+    // left from the last cell, then back right
+    caret_at(&mut editor, at("ff") + 1);
+    for (region, takes) in [
+        (SHIFT_LEFT, "f"),
+        (SHIFT_LEFT, "ee | ff"),
+        (SHIFT_LEFT, "dd | ee | ff"),
+        (SHIFT_RIGHT, "ee | ff"),
+        (SHIFT_RIGHT, "ff"),
+    ] {
+        extend(&mut editor, region);
+        assert_eq!(selected(&editor), takes);
+    }
+
+    // down and up by row, through the anchor's row and out of the table
+    caret_at(&mut editor, at("ee") + 1);
+    for (region, takes) in [
+        (SHIFT_DOWN, "| dd | ee | ff |\n| gg | hh | ii |"),
+        (SHIFT_UP, "| dd | ee | ff |"),
+        (SHIFT_UP, "| aa | bb | cc |\n| - | - | - |\n| dd | ee | ff |"),
+        (SHIFT_UP, "\n| aa | bb | cc |\n| - | - | - |\n| dd | ee | ff |"),
+        (SHIFT_DOWN, "| aa | bb | cc |\n| - | - | - |\n| dd | ee | ff |"),
+        (SHIFT_DOWN, "| dd | ee | ff |"),
+        (SHIFT_DOWN, "| dd | ee | ff |\n| gg | hh | ii |"),
+        (SHIFT_DOWN, "| dd | ee | ff |\n| gg | hh | ii |\n"),
+    ] {
+        extend(&mut editor, region);
+        assert_eq!(selected(&editor), takes);
+    }
+}
+
+// ─── editing ─────────────────────────────────────────────────────────
+
+const BACKSPACE: Region =
+    Region::SelectionOrAdvance { advance: Advance::By(Increment::Char), backwards: true };
+const DELETE: Region =
+    Region::SelectionOrAdvance { advance: Advance::By(Increment::Char), backwards: false };
+
+fn delete(editor: &mut TestEditor, region: Region) {
+    editor.push(Event::Delete { region });
+    editor.enter_frame();
+}
+
+/// The content of each cell of the document's first table, row by row.
+fn cells(editor: &TestEditor) -> Vec<Vec<String>> {
+    let r = &editor.editor.edit.renderer;
+    let Some(table) = r.bounds.tables.first() else { return Vec::new() };
+    table
+        .rows
+        .iter()
+        .map(|row| {
+            row.cells
+                .iter()
+                .map(|cell| r.buffer[cell.content].to_string())
+                .collect()
+        })
+        .collect()
+}
+
+/// Tables in the styles a hand-written one has, each with cells `a`..`f`.
+const STYLES: &[&str] = &[
+    "| a | b | c |\n| - | - | - |\n| d | e | f |",
+    "|a|b|c|\n|-|-|-|\n|d|e|f|",
+    "a | b | c\n--|--|--\nd | e | f",
+    "> | a | b | c |\n> | - | - | - |\n> | d | e | f |",
+    "- | a | b | c |\n  | - | - | - |\n  | d | e | f |",
+];
+
+#[test]
+fn typing_in_a_cell_stays_in_the_cell() {
+    let typed = [
+        "x",
+        " ",
+        "|",
+        "||",
+        "|||",
+        "'",
+        "''",
+        "\\",
+        "\\\\",
+        "'|",
+        "|'",
+        "\\|",
+        "x|y",
+        "a\nb",
+        "a\r\nb",
+        "- ",
+        "# ",
+        "1. ",
+        "> ",
+        "|x|",
+        "'x'",
+        "\\'",
+        "नमस्ते",
+        "👨\u{200D}👩\u{200D}👧",
+    ];
+    for md in STYLES {
+        for cell in ["a", "b", "c", "d", "e", "f"] {
+            for into in 0..=1 {
+                for text in typed {
+                    let mut editor = TestEditor::new(md);
+                    let before = cells(&editor);
+                    caret_at(&mut editor, md.find(cell).unwrap() + into);
+                    type_text(&mut editor, text);
+
+                    let context = format!(
+                        "typing {text:?} at {into} in {cell:?} of\n{md}\ngave\n{}",
+                        editor.get_text()
+                    );
+                    table_ranges_check_md(editor.get_text())
+                        .unwrap_or_else(|reason| panic!("{reason}\n{context}"));
+                    let after = cells(&editor);
+                    assert_eq!(after.len(), before.len(), "rows changed: {context}");
+                    for (row, (after, before)) in after.iter().zip(&before).enumerate() {
+                        assert_eq!(after.len(), before.len(), "row {row} resized: {context}");
+                        for (after, before) in after.iter().zip(before) {
+                            assert!(
+                                after == before || before == cell,
+                                "another cell changed: {context}"
+                            );
+                        }
+                    }
+                    // the caret is still in the cell it typed in
+                    let table = &editor.editor.edit.renderer.bounds.tables[0];
+                    let in_cell = table.cell_at(Grapheme(caret(&editor)));
+                    let typed_cell = before.iter().flatten().position(|text| text == cell);
+                    assert_eq!(
+                        in_cell.map(|(row, column)| row * 3 + column),
+                        typed_cell,
+                        "{context}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn typed_text_reads_as_typed() {
+    for (md, at, text, gives) in [
+        // a pipe is escaped
+        ("| a | b |\n|-|-|", 3, "|", "| a\\| | b |\n|-|-|"),
+        ("| a | b |\n|-|-|", 2, "x|y", "| x\\|ya | b |\n|-|-|"),
+        // a newline becomes a space
+        ("| a | b |\n|-|-|", 3, "b\nc", "| ab c | b |\n|-|-|"),
+        // a spoiler's pipes pair, and stay
+        ("| a | b |\n|-|-|", 3, " ||s||", "| a ||s|| | b |\n|-|-|"),
+        // in an unpadded cell, what would take the cell's own pipes is padded off them
+        ("|a|b|\n|-|-|", 2, "'", "|a' |b|\n|-|-|"),
+        ("|a|b|\n|-|-|", 2, "\\", "|a\\ |b|\n|-|-|"),
+        ("|a|b|\n|-|-|", 1, "'", "| 'a|b|\n|-|-|"),
+        ("|a|b|\n|-|-|", 2, "|", "|a\\| |b|\n|-|-|"),
+        // a first cell with no pipe before it gets one rather than start a list
+        ("a | b\n--|--\nc | d", 12, "- ", "a | b\n--|--\n|- c | d"),
+    ] {
+        let mut editor = TestEditor::new(md);
+        caret_at(&mut editor, at);
+        type_text(&mut editor, text);
+        assert_eq!(editor.get_text(), gives, "typing {text:?} at {at} in\n{md}");
+    }
+}
+
+#[test]
+fn backspace_and_delete_never_join_cells() {
+    let md = "| ab | c |  |\n|-|-|-|\n|d|e|f|";
+    let at = |text: &str| md.find(text).unwrap();
+    for (caret, region, gives) in [
+        // at a cell's edge: nothing
+        (at("ab"), BACKSPACE, md),
+        (at("ab") + 2, DELETE, md),
+        (at("c"), BACKSPACE, md),
+        (at("  |") + 1, BACKSPACE, md),
+        (at("  |") + 1, DELETE, md),
+        (at("d"), BACKSPACE, md),
+        (at("f") + 1, DELETE, md),
+        // inside: a character
+        (at("ab") + 1, BACKSPACE, "| b | c |  |\n|-|-|-|\n|d|e|f|"),
+        (at("ab") + 1, DELETE, "| a | c |  |\n|-|-|-|\n|d|e|f|"),
+        // the last character of an unpadded cell leaves the cell its place
+        (at("e") + 1, BACKSPACE, "| ab | c |  |\n|-|-|-|\n|d|  |f|"),
+    ] {
+        let mut editor = TestEditor::new(md);
+        caret_at(&mut editor, caret);
+        delete(&mut editor, region);
+        assert_eq!(editor.get_text(), gives, "deleting from {caret}");
+    }
+
+    // against a table from outside, the caret steps in
+    let md = "above\n| a |\n|-|\n| b |\n\nbelow";
+    let mut editor = TestEditor::new(md);
+    let last_cell = md.find("b |").unwrap() + 1;
+    caret_at(&mut editor, 5);
+    delete(&mut editor, DELETE);
+    assert_eq!((editor.get_text(), caret(&editor)), (md, md.find("a |").unwrap()));
+    caret_at(&mut editor, md.find("\nbelow").unwrap());
+    delete(&mut editor, BACKSPACE);
+    assert_eq!((editor.get_text(), caret(&editor)), (md, last_cell));
+    // and the blank line that keeps text below from being a row stays
+    for (at, region) in
+        [(md.find("below").unwrap(), BACKSPACE), (md.find("\nbelow").unwrap(), DELETE)]
+    {
+        caret_at(&mut editor, at);
+        delete(&mut editor, region);
+        assert_eq!((editor.get_text(), caret(&editor)), (md, last_cell), "from {at}");
+    }
+}
+
+#[test]
+fn a_typed_space_can_be_deleted() {
+    let md = "| a | b |\n|-|-|";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, 3);
+    type_text(&mut editor, " ");
+    type_text(&mut editor, " ");
+    assert_eq!(editor.get_text(), "| a   | b |\n|-|-|");
+    delete(&mut editor, BACKSPACE);
+    assert_eq!((editor.get_text(), caret(&editor)), ("| a  | b |\n|-|-|", 4));
+    // as a platform that names the range words it
+    editor.push(Event::Replace {
+        region: (Grapheme(3), Grapheme(4)).into(),
+        text: "".into(),
+        advance_cursor: true,
+    });
+    editor.enter_frame();
+    assert_eq!((editor.get_text(), caret(&editor)), (md, 3));
+    // and then the cell's edge holds
+    editor.push(Event::Replace {
+        region: (Grapheme(2), Grapheme(3)).into(),
+        text: "".into(),
+        advance_cursor: true,
+    });
+    editor.enter_frame();
+    assert_eq!(editor.get_text(), "|  | b |\n|-|-|");
+    editor.push(Event::Replace {
+        region: (Grapheme(1), Grapheme(2)).into(),
+        text: "".into(),
+        advance_cursor: true,
+    });
+    editor.enter_frame();
+    assert_eq!(editor.get_text(), "|  | b |\n|-|-|");
+}
+
+#[test]
+fn deleting_whole_cells_empties_them() {
+    let mut editor = TestEditor::new(SHEET);
+    let at = |text: &str| SHEET.find(text).unwrap();
+    select(&mut editor, at("dd") + 1, at("ee") + 1);
+    delete(&mut editor, BACKSPACE);
+    assert_eq!(
+        editor.get_text(),
+        "above\n\n| aa | bb | cc |\n| - | - | - |\n|  |  | ff |\n| gg | hh | ii |\n\nbelow"
+    );
+    assert_eq!(caret(&editor), at("dd"));
+    editor.push(Event::Undo);
+    editor.enter_frame();
+    assert_eq!(editor.get_text(), SHEET);
+
+    // typing over them empties them too, and goes in the first
+    select(&mut editor, at("ee"), at("ff") + 1);
+    type_text(&mut editor, "x");
+    assert_eq!(
+        editor.get_text(),
+        "above\n\n| aa | bb | cc |\n| - | - | - |\n| dd | x |  |\n| gg | hh | ii |\n\nbelow"
+    );
+    assert_eq!(caret(&editor), at("ee") + 1);
+}
+
+#[test]
+fn deleting_whole_rows_removes_them() {
+    let at = |text: &str| SHEET.find(text).unwrap();
+    for (from, to, gives) in [
+        // body rows go
+        (at("dd"), at("hh"), "above\n\n| aa | bb | cc |\n| - | - | - |\n\nbelow"),
+        (
+            at("| dd"),
+            at("ff |") + 4,
+            "above\n\n| aa | bb | cc |\n| - | - | - |\n| gg | hh | ii |\n\nbelow",
+        ),
+        // the header is emptied instead while rows remain under it
+        (at("aa"), at("ee"), "above\n\n|  |  |  |\n| - | - | - |\n| gg | hh | ii |\n\nbelow"),
+        // every row: the table goes
+        (at("aa"), at("ii"), "above\n\n\n\nbelow"),
+        // from above the table, the same; it keeps the line it starts on
+        (at("ove"), at("ee"), "ab\n|  |  |  |\n| - | - | - |\n| gg | hh | ii |\n\nbelow"),
+        (at("ove"), at("ii"), "ab\n\nbelow"),
+        // and from a row to below it
+        (at("hh"), at("low"), "above\n\n| aa | bb | cc |\n| - | - | - |\n| dd | ee | ff |\nlow"),
+        (at("bb"), at("low"), "above\n\nlow"),
+    ] {
+        let mut editor = TestEditor::new(SHEET);
+        select(&mut editor, from, to);
+        delete(&mut editor, BACKSPACE);
+        assert_eq!(editor.get_text(), gives, "deleting {from}..{to}");
+        table_ranges_check_md(editor.get_text()).unwrap();
+        editor.push(Event::Undo);
+        editor.enter_frame();
+        assert_eq!(editor.get_text(), SHEET, "undoing the deletion of {from}..{to}");
+    }
+}
+
+#[test]
+fn typing_over_whole_rows_empties_them() {
+    let at = |text: &str| SHEET.find(text).unwrap();
+    for (from, to, gives) in [
+        (
+            at("dd"),
+            at("hh"),
+            "above\n\n| aa | bb | cc |\n| - | - | - |\n| x |  |  |\n|  |  |  |\n\nbelow",
+        ),
+        (
+            at("ove"),
+            at("ee"),
+            "abx\n|  |  |  |\n| - | - | - |\n|  |  |  |\n| gg | hh | ii |\n\nbelow",
+        ),
+        (
+            at("hh"),
+            at("low"),
+            "above\n\n| aa | bb | cc |\n| - | - | - |\n| dd | ee | ff |\n| x |  |  |\nlow",
+        ),
+        // a table taken whole is text
+        (at("aa"), at("ii"), "above\n\nx\n\nbelow"),
+    ] {
+        let mut editor = TestEditor::new(SHEET);
+        select(&mut editor, from, to);
+        type_text(&mut editor, "x");
+        assert_eq!(editor.get_text(), gives, "typing over {from}..{to}");
+        table_ranges_check_md(editor.get_text()).unwrap();
+    }
+}
