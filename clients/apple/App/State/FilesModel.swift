@@ -1,6 +1,9 @@
 import Foundation
 import Observation
 import SwiftWorkspace
+#if os(iOS)
+    import WidgetKit
+#endif
 
 @Observable class FilesModel {
     var root: File? = nil
@@ -98,6 +101,9 @@ import SwiftWorkspace
                 }
 
                 self.recomputeStatusDots(status: AppState.lb.events.status)
+                #if os(iOS)
+                    WidgetCenter.shared.reloadTimelines(ofKind: "PinnedDocuments")
+                #endif
             }
         }
     }

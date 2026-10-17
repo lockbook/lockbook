@@ -33,11 +33,15 @@ pub struct LbInitRes {
     lb: *mut Lb,
 }
 
+/// Initializes a regular core instance with configurable background work.
+/// Release the result with `lb_free_init`.
 #[unsafe(no_mangle)]
-pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRes {
+pub extern "C" fn lb_init(
+    writeable_path: *const c_char, logs: bool, background_work: bool,
+) -> LbInitRes {
     let config = Config {
         writeable_path: rstring(writeable_path),
-        background_work: true,
+        background_work,
         logs,
         stdout_logs: true,
         colored_logs: false,
