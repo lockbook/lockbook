@@ -44,12 +44,21 @@ struct OpenLbLinkModifier: ViewModifier {
                 return
             }
 
+            if url.host() == "search" {
+                #if os(iOS)
+                    workspaceOutput.openSearch = true
+                #else
+                    workspaceInput.showSearch()
+                #endif
+                return
+            }
+
             guard let host = url.host(), let id = UUID(uuidString: host) else {
                 AppState.shared.error = .custom(title: "Could not open link", msg: "Invalid link")
                 return
             }
 
-            syncAndOpen(id: id)
+            syncAndOpen(id: id, focus: requestsEditing(url))
             return
         }
 
@@ -58,11 +67,16 @@ struct OpenLbLinkModifier: ViewModifier {
            url.pathComponents[1] == Self.openRoute,
            let id = UUID(uuidString: url.pathComponents[2])
         {
-            syncAndOpen(id: id)
+            syncAndOpen(id: id, focus: requestsEditing(url))
             return
         }
 
         openURL(url)
+    }
+
+    private func requestsEditing(_ url: URL) -> Bool {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+            .contains { $0.name == "edit" && $0.value == "true" } == true
     }
 
     private func importSharedFiles(_ url: URL) {
@@ -98,7 +112,7 @@ struct OpenLbLinkModifier: ViewModifier {
         }
     }
 
-    private func syncAndOpen(id: UUID) {
+    private func syncAndOpen(id: UUID, focus: Bool) {
         homeState.openingLink = true
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -111,7 +125,7 @@ struct OpenLbLinkModifier: ViewModifier {
 
                 switch file {
                 case let .success(file):
-                    workspaceInput.openFile(id: file.id)
+                    workspaceInput.openFile(id: file.id, focus: focus)
                     homeState.compactColumn = .detail
                 case .failure:
                     if case let .failure(err) = syncResult {
