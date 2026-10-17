@@ -185,7 +185,7 @@ pub fn paint_sticky_viewport(
         // Workspace paper + pin_shadow. Opaque fill so inflow rows can't
         // show through; same `neutral_bg` as the editor canvas.
         if elevated {
-            let shadow = pin_shadow();
+            let shadow = pin_shadow(t);
             let extra = shadow.offset[1] as f32 + shadow.blur as f32;
             let shadow_clip = Rect::from_min_max(
                 clip.min,

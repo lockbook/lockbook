@@ -20,6 +20,7 @@ use super::color::{Theme, ThemeExt};
 use super::space::Space;
 use super::space::control as control_space;
 use super::typography::TypeRole;
+use crate::theme::palette_v2::Mode;
 
 /// Control transition duration (also `Style::animation_time`).
 pub const HOVER_ANIM_SECS: f32 = 0.20;
@@ -130,19 +131,24 @@ pub fn row_wash_inset() -> f32 {
     1.0
 }
 
-/// Ink for surface shadows: black at alpha 36/255 (~14%).
-/// Same mix for overlay and pin so they scale as one family.
-const SHADOW_INK: Color32 = Color32::from_black_alpha(36);
+/// Ink for surface shadows; one mix for overlay and pin so they scale as a
+/// family. Dark alpha lands a little under light's L* drop at the plate edge.
+fn shadow_ink(t: &Theme) -> Color32 {
+    match t.current {
+        Mode::Light => Color32::from_black_alpha(36),
+        Mode::Dark => Color32::from_black_alpha(160),
+    }
+}
 
 /// Soft float under menus, pickers, floating plates (islands).
-pub fn overlay_shadow() -> Shadow {
-    Shadow { offset: [0, 4], blur: 12, spread: 0, color: SHADOW_INK }
+pub fn overlay_shadow(t: &Theme) -> Shadow {
+    Shadow { offset: [0, 4], blur: 12, spread: 0, color: shadow_ink(t) }
 }
 
 /// Contact shadow for held-in-place chrome (sticky pins).
 /// [`overlay_shadow`]'s blur and ink at half the lift: offset 2, blur 12.
-pub fn pin_shadow() -> Shadow {
-    Shadow { offset: [0, 2], blur: 12, spread: 0, color: SHADOW_INK }
+pub fn pin_shadow(t: &Theme) -> Shadow {
+    Shadow { offset: [0, 2], blur: 12, spread: 0, color: shadow_ink(t) }
 }
 
 /// Canvas plate frame for floating menus / pickers (fill + hairline + shadow).
@@ -157,7 +163,7 @@ pub fn canvas_overlay_frame(t: &Theme, inner_pad: Space) -> Frame {
         .stroke(Stroke::new(STROKE_HAIRLINE, t.neutral()))
         .corner_radius(Radius::Control.corner())
         .inner_margin(Margin::same(p))
-        .shadow(overlay_shadow())
+        .shadow(overlay_shadow(t))
 }
 
 /// Fill + hairline on a known rect. **`StrokeKind::Outside`** so later child
