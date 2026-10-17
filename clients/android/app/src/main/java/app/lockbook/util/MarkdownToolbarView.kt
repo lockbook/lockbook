@@ -41,7 +41,7 @@ class MarkdownToolbarView(
     ) {
         History("History"),
         TextStyle("Text style"),
-        Lists("Lists"),
+        Lists("Lists and quotes"),
         Attachments("Attachments"),
         Indentation("Indentation"),
     }
@@ -95,6 +95,7 @@ class MarkdownToolbarView(
                 ToolbarCategory.Lists,
             ),
             ToolbarAction(MarkdownToolbarAction.TaskList, "Task list", R.drawable.ic_md_checklist_24, ToolbarCategory.Lists),
+            ToolbarAction(MarkdownToolbarAction.Quote, "Quote", R.drawable.ic_md_format_quote_24, ToolbarCategory.Lists),
             ToolbarAction(MarkdownToolbarAction.Link, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments),
             ToolbarAction(null, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments, false),
             ToolbarAction(
