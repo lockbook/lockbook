@@ -311,6 +311,7 @@ impl NodeValueExt for NodeValue {
 
             // container_block
             NodeValue::Alert(_)
+            | NodeValue::BlockDirective(_)
             | NodeValue::BlockQuote
             | NodeValue::DescriptionItem(_)
             | NodeValue::DescriptionList
@@ -332,6 +333,7 @@ impl NodeValueExt for NodeValue {
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
             | NodeValue::Image(_)
+            | NodeValue::Insert
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -365,6 +367,7 @@ impl NodeValueExt for NodeValue {
 
             // container_block
             NodeValue::Alert(_)
+            | NodeValue::BlockDirective(_)
             | NodeValue::BlockQuote
             | NodeValue::DescriptionItem(_)
             | NodeValue::DescriptionList
@@ -386,6 +389,7 @@ impl NodeValueExt for NodeValue {
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
             | NodeValue::Image(_)
+            | NodeValue::Insert
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -419,6 +423,7 @@ impl NodeValueExt for NodeValue {
 
             // container_block
             NodeValue::Alert(_)
+            | NodeValue::BlockDirective(_)
             | NodeValue::BlockQuote
             | NodeValue::DescriptionItem(_)
             | NodeValue::DescriptionList
@@ -440,6 +445,7 @@ impl NodeValueExt for NodeValue {
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
             | NodeValue::Image(_)
+            | NodeValue::Insert
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)

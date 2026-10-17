@@ -1492,6 +1492,7 @@ impl NodeType for NodeValue {
             }
             NodeValue::Math(_) => NodeValue::Math(Default::default()),
             NodeValue::MultilineBlockQuote(_) => NodeValue::MultilineBlockQuote(Default::default()),
+            NodeValue::BlockDirective(_) => NodeValue::BlockDirective(Default::default()),
             NodeValue::Escaped => NodeValue::Escaped,
             NodeValue::WikiLink(_) => NodeValue::WikiLink(Default::default()),
             NodeValue::Underline => NodeValue::Underline,
@@ -1509,6 +1510,7 @@ impl NodeType for NodeValue {
                 }
                 .into(),
             ),
+            NodeValue::Insert => NodeValue::Insert,
             NodeValue::Subtext => NodeValue::Subtext,
         }
     }
