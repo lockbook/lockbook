@@ -14,6 +14,7 @@ import Observation
     public var tabCount: Int = 0
 
     public var openCamera: Bool = false
+    public var openSearch: Bool = false
 
     public var mobileToolbarShown: Bool = false
 

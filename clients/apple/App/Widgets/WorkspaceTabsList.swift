@@ -33,7 +33,7 @@ struct WorkspaceTabsList: View {
     @State private var canNavForward = false
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             if tabs.isEmpty, recentlyClosed.isEmpty {
                 emptyTabs
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

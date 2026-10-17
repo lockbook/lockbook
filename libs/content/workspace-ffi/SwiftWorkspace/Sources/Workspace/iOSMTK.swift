@@ -424,6 +424,10 @@
                 mtkView.workspaceOutput?.openCamera = true
             }
 
+            if output.open_search {
+                mtkView.workspaceOutput?.openSearch = true
+            }
+
             if output.mobile_toolbar_shown != mtkView.workspaceOutput?.mobileToolbarShown {
                 mtkView.workspaceOutput?.mobileToolbarShown = output.mobile_toolbar_shown
             }

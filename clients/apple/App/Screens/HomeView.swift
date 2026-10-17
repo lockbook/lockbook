@@ -26,6 +26,7 @@ struct HomeView: View {
         @State private var showSettings = false
         @State private var keyboardVisible = false
         @State private var showCreateAlongside = false
+        @State private var showSearchOptions = false
     #else
         @State private var showImporter = false
     #endif
@@ -71,9 +72,6 @@ struct HomeView: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .sidebarToggle)
-                    .navigationBarBackButtonHidden(
-                        horizontalSizeClass == .compact && workspaceOutput.currentSession != nil
-                    )
                 #else
                     .background {
                         DetailWidthReader { detailWidth = $0 }
@@ -87,19 +85,7 @@ struct HomeView: View {
                     }
 
                     #if os(iOS)
-                        if horizontalSizeClass == .compact, workspaceOutput.currentSession != nil {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button {
-                                    if workspaceInput.canNavBack() {
-                                        workspaceInput.navBack()
-                                    } else {
-                                        homeState.compactColumn = .sidebar
-                                    }
-                                } label: {
-                                    Image(systemName: "chevron.left")
-                                }
-                            }
-                        } else if horizontalSizeClass == .regular,
+                        if horizontalSizeClass == .regular,
                            homeState.splitViewVisibility != .all,
                            !keyboardVisible
                         {
@@ -236,6 +222,11 @@ struct HomeView: View {
         #if os(iOS)
             .onChange(of: horizontalSizeClass) {
                 applyDesktopTabPolicy()
+            }
+            .onChange(of: workspaceOutput.openSearch) { _, openSearch in
+                guard openSearch else { return }
+                workspaceOutput.openSearch = false
+                searchEverywhere()
             }
         #endif
         .onChange(of: AppState.lb.events.status, initial: true) { _, status in
@@ -406,7 +397,13 @@ struct HomeView: View {
         private var detailSearchButton: some View {
             Group {
                 if workspaceOutput.openDoc != nil {
-                    Menu {
+                    Button {
+                        showSearchOptions = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .frame(width: 26, height: 26)
+                    }
+                    .confirmationDialog("Search", isPresented: $showSearchOptions) {
                         Button {
                             workspaceInput.showFindInDoc()
                         } label: {
@@ -418,9 +415,6 @@ struct HomeView: View {
                         } label: {
                             Label("Search everywhere", systemImage: "magnifyingglass")
                         }
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .frame(width: 26, height: 26)
                     }
                 } else {
                     Button {
@@ -506,6 +500,7 @@ struct HomeView: View {
                         .scrollContentBackground(.hidden)
                         .frame(width: 310)
                         .background(.regularMaterial, ignoresSafeAreaEdges: .all)
+                        .geometryGroup()
                         .transition(.move(edge: .trailing))
                         .gesture(
                             DragGesture().onEnded { value in
@@ -609,7 +604,7 @@ struct HomeView: View {
     }
 
     private var sidebarContent: some View {
-        Group {
+        VStack(spacing: 0) {
             switch selectedTab {
             case .files:
                 FileTreeView(fileTreeModel: fileTreeModel)
