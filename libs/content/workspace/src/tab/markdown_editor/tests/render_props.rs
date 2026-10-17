@@ -119,6 +119,10 @@ fn list_marker_fully_captured() {
 fn table_ranges() {
     run(table_ranges_check, Features::all(), 1000);
 }
+#[test]
+fn table_cells_hold_their_content() {
+    run(table_cells_hold_their_content_check, Features::all(), 1000);
+}
 
 // glyph painting — runs on tier_b (no tables / scripts / long tokens /
 // nesting, see those defs); a failure there is a real walker bug.
@@ -361,6 +365,50 @@ fn table_ranges_check(buf: &[u8], f: &Features) -> Result<(), String> {
     let mut src = ByteSource::new(buf);
     let md = gen_doc(&mut src, f);
     super::tables::table_ranges_check_md(&md).map(|_| ())
+}
+
+/// Property: nothing overflows a table cell — every fragment of a cell's
+/// text is painted inside the cell — and given room for every column's
+/// widest cell, no cell wraps.
+fn table_cells_hold_their_content_check(buf: &[u8], f: &Features) -> Result<(), String> {
+    let mut src = ByteSource::new(buf);
+    let md = gen_doc(&mut src, f);
+    let roomy = src.draw(4) == 0;
+    let width = if roomy { 20_000.0 } else { 250.0 + (src.draw(8) as f32) * 100.0 };
+
+    let mut r = test_renderer(&md);
+    render_frame(&mut r, width, None, |_| {});
+    for cell_box in &r.table_cell_boxes {
+        let Some((_, row)) = r.table_row_of(*cell_box) else {
+            return Err(format!("no row for the cell painted at {:?}", cell_box.rect));
+        };
+        let Some(cell) = row.cells.get(cell_box.column) else { continue };
+        let fragments: Vec<_> = r
+            .fragments
+            .iter()
+            .filter(|fragment| cell.span.contains_range(&fragment.source_range, true, true))
+            .collect();
+        for fragment in &fragments {
+            if !cell_box.rect.expand(0.5).contains_rect(fragment.rect) {
+                return Err(format!(
+                    "{:?} painted at {:?}, outside its cell {:?} (width {width})",
+                    &r.buffer[fragment.source_range], fragment.rect, cell_box.rect
+                ));
+            }
+        }
+        let first_row_bottom = fragments
+            .iter()
+            .map(|fragment| fragment.rect.bottom())
+            .fold(f32::INFINITY, f32::min);
+        if roomy
+            && fragments
+                .iter()
+                .any(|fragment| fragment.rect.top() >= first_row_bottom)
+        {
+            return Err(format!("{:?} wrapped with room to spare", &r.buffer[cell.span]));
+        }
+    }
+    Ok(())
 }
 
 /// Property: widening the viewport cannot increase rendered height.

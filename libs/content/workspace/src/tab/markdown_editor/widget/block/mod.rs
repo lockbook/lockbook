@@ -678,6 +678,7 @@ fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
 }
 
 type LinePrefixKey = (u64, (Grapheme, Grapheme));
+type TableColumns = (std::rc::Rc<[f32]>, HeightDeps);
 type LinePrefixValue = (Graphemes, bool);
 
 /// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq]`. Text-
@@ -685,12 +686,26 @@ type LinePrefixValue = (Graphemes, bool);
 /// before any read, so text_seq isn't part of the per-entry stamp.
 pub type HeightDeps = [u64; 4];
 
+/// A table cell's stamp, a width as bits, and whether the cell is being
+/// measured for its column's width or laid out in it.
+pub type TableCellKey = (u64, u32, bool);
+
 #[derive(Default)]
 pub struct LayoutCache {
     pub height: RefCell<HashMap<u64, (f32, HeightDeps)>>,
     pub height_approx: RefCell<HashMap<u64, (f32, HeightDeps)>>,
     pub line_prefix_len: RefCell<HashMap<LinePrefixKey, LinePrefixValue>>,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
+    /// Each table's column widths, with the inputs heights have.
+    pub table_columns: RefCell<HashMap<u64, TableColumns>>,
+    /// The width every table cell has while a table's columns are being
+    /// measured: content sized to its cell cannot size the cell.
+    pub table_cell_measure: std::cell::Cell<Option<f32>>,
+    /// What a table cell measures, and how tall it is at a width, by what
+    /// its layout is made from (see `MdRender::table_cell_stamp`) and not
+    /// by where it is: an edit or a caret move elsewhere leaves it good,
+    /// so it outlives [`Self::clear`].
+    pub table_cells: RefCell<HashMap<TableCellKey, (f32, f32)>>,
 
     // deps: `reveal_seq` last populated, or `None` if never.
     pub hidden_by_fold: RefCell<HashMap<u64, bool>>,
@@ -715,6 +730,7 @@ impl LayoutCache {
         self.height_approx.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
+        self.table_columns.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
         self.hidden_by_fold_deps.set(None);
         // link_meta intentionally not cleared: fetched metadata persists across layout invalidations
@@ -916,6 +932,27 @@ impl<'ast> MdRender {
             .height_approx
             .borrow_mut()
             .insert(key, (height, deps));
+    }
+
+    pub fn get_cached_table_columns(
+        &self, table: &'ast AstNode<'ast>,
+    ) -> Option<std::rc::Rc<[f32]>> {
+        let key = Self::pack_node_key(table);
+        let deps = self.height_deps();
+        let cache = self.layout_cache.table_columns.borrow();
+        let (columns, stamps) = cache.get(&key)?;
+        (*stamps == deps).then(|| columns.clone())
+    }
+
+    pub fn set_cached_table_columns(
+        &self, table: &'ast AstNode<'ast>, columns: std::rc::Rc<[f32]>,
+    ) {
+        let key = Self::pack_node_key(table);
+        let deps = self.height_deps();
+        self.layout_cache
+            .table_columns
+            .borrow_mut()
+            .insert(key, (columns, deps));
     }
 
     pub fn get_cached_line_prefix_len(
