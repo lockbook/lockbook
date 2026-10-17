@@ -48,6 +48,35 @@ async fn shares_finalized_unsynced_share() {
 }
 
 #[tokio::test]
+async fn rejected_shares_not_finalized() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0].create_at_path("/document").await.unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .await
+        .unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[1].reject_share(&document.id).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
+
+    assert!(
+        cores[0]
+            .get_file_by_id(document.id)
+            .await
+            .unwrap()
+            .shares
+            .is_empty()
+    );
+}
+
+#[tokio::test]
 async fn write_document_read_share() {
     let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores

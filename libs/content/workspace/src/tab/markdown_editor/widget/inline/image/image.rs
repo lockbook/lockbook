@@ -226,6 +226,10 @@ impl<'ast> MdEdit {
             ui.ctx()
                 .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
+        if let NodeValue::Link(_) = node.data.borrow().value {
+            let state = || self.renderer.link_state_for_url(url);
+            self.renderer.show_link_tip(ui.ctx(), &response, state);
+        }
         if response.clicked() {
             if open {
                 self.renderer.open_resolved_link(url, ui.ctx(), false);

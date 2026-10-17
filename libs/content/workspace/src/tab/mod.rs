@@ -728,6 +728,23 @@ pub trait ExtendedOutput {
     /// to type over).
     fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool);
     fn pop_open_ranges(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)>;
+    /// Explain a link in a sheet, opening its file if the reader confirms.
+    /// Sheets requested together show one after another.
+    fn show_link_sheet(&self, sheet: LinkSheet);
+    fn pop_link_sheets(&self) -> Vec<LinkSheet>;
+}
+
+/// A sheet about a link the reader tried to open: why it may open differently
+/// for others, with an Open action, or why it can't open at all.
+#[derive(Clone, Debug)]
+pub struct LinkSheet {
+    /// The file to open on confirmation, and whether in a new tab; None when
+    /// the link can't open.
+    pub open: Option<(Uuid, bool)>,
+    /// What the link reaches or names: a path, or the destination as written.
+    pub shown: String,
+    /// Why, then the fix on the next line when the reader can act on it.
+    pub message: String,
 }
 
 impl ExtendedOutput for egui::Context {
@@ -782,6 +799,23 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| {
             m.data
                 .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::new("open_ranges"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn show_link_sheet(&self, sheet: LinkSheet) {
+        self.memory_mut(|m| {
+            let mut sheets: Vec<LinkSheet> =
+                m.data.get_temp(Id::new("link_sheets")).unwrap_or_default();
+            sheets.push(sheet);
+            m.data.insert_temp(Id::new("link_sheets"), sheets);
+        })
+    }
+
+    fn pop_link_sheets(&self) -> Vec<LinkSheet> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<LinkSheet>>(Id::new("link_sheets"))
                 .unwrap_or_default()
         })
     }

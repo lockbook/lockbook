@@ -8,7 +8,9 @@ use unicode_segmentation::UnicodeSegmentation as _;
 use std::sync::{Arc, RwLock};
 
 use crate::TextBufferArea;
-use crate::file_cache::{FileCache, FilesExt as _, relative_path, strip_ext};
+use crate::file_cache::{
+    FileCache, FilesExt as _, relative_path, strip_ext, title_matches, wiki_title,
+};
 use crate::style::{Space, ThemeExt as _, TypeRole, crumb_label, ellipsize_path, parent_crumbs};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
@@ -58,13 +60,16 @@ pub struct LinkCompletions {
     suppressed: Option<String>,
     /// Nucleo path index (same matcher as filename search). Rebuilt when the
     /// file cache's `last_modified` advances, or when mode/file changes the
-    /// eligible set (wiki = same-tree docs, image = image docs).
+    /// eligible set (wiki = notes in scope, image = images in scope).
     searcher: Option<lb_rs::search::PathSearcher>,
     index_mod: u64,
     index_mode: Option<CompletionMode>,
     index_file: Option<Uuid>,
     /// Last `search` result this frame / keystroke.
     cached: Option<(u64, Uuid, CompletionMode, String, Vec<FileResult>)>,
+    /// Where this account's external file links point, for links to files
+    /// outside the note's scope; `app.lockbook.net` when unknown.
+    open_origin: Option<String>,
 }
 
 impl LinkCompletions {
@@ -588,13 +593,17 @@ struct FileResult {
     rel_path: String,
     /// What to insert: bare title if unique, minimal partial path if colliding.
     insert: String,
-    /// True if this file is in a different tree than the current file.
-    cross_tree: bool,
+    /// True if this file is outside the current file's scope.
+    out_of_scope: bool,
     /// Parent path for crumbs (`parent_crumbs` / `ellipsize_path`).
     parent_path: String,
 }
 
 impl LinkCompletions {
+    pub fn new(open_origin: Option<String>) -> Self {
+        Self { open_origin, ..Default::default() }
+    }
+
     fn ensure_index(&mut self, cache: &FileCache, file_id: Uuid, mode: CompletionMode) {
         if self.searcher.is_some()
             && self.index_mod == cache.last_modified
@@ -605,11 +614,13 @@ impl LinkCompletions {
         }
         let wiki = mode == CompletionMode::WikiLink;
         let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
+        let scope = cache.scope_top(file_id);
         let entries = cache.path_index().into_iter().filter(|(f, _)| {
             if !f.is_document() || f.id == file_id {
                 return false;
             }
-            if wiki && !cache.same_tree(file_id, f.id) {
+            // wiki titles and images resolve only in the scope
+            if (wiki || image) && !cache.in_scope(scope, f.id) {
                 return false;
             }
             if image {
@@ -629,7 +640,7 @@ impl LinkCompletions {
     }
 
     /// Same nucleo path search as ⌘O. Empty query → recents (mtime) among
-    /// the files this mode can insert (same-tree notes, images, or all docs).
+    /// the files this mode can insert (notes in scope, images, or all docs).
     fn search(
         &mut self, cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode,
     ) -> Vec<FileResult> {
@@ -656,13 +667,14 @@ impl LinkCompletions {
             .map(|f| f.parent)
             .unwrap_or(file_id);
         let from_path = cache.path(from_id);
+        let scope = cache.scope_top(file_id);
 
         let mut results: Vec<FileResult> = hits
             .into_iter()
             .filter_map(|id| {
                 let f = cache.get_by_id(id)?;
-                let cross_tree = !cache.same_tree(file_id, f.id);
-                let rel_path = if cross_tree {
+                let out_of_scope = !cache.in_scope(scope, f.id);
+                let rel_path = if out_of_scope {
                     cache.path(f.id)
                 } else {
                     let rp = relative_path(&from_path, &cache.path(f.id));
@@ -678,13 +690,17 @@ impl LinkCompletions {
                     name,
                     rel_path,
                     insert: String::new(),
-                    cross_tree,
+                    out_of_scope,
                     parent_path,
                 })
             })
             .collect();
 
-        populate_insert(cache, &mut results, mode);
+        let origin = self
+            .open_origin
+            .as_deref()
+            .unwrap_or("https://app.lockbook.net");
+        populate_insert(cache, &mut results, mode, origin);
         self.cached =
             Some((cache.last_modified, file_id, mode, query.to_string(), results.clone()));
         results
@@ -692,16 +708,19 @@ impl LinkCompletions {
 }
 
 /// Fills `result.insert` for each entry.
-/// - Link/ImageLink: cross-tree uses `lb://uuid` (relative paths don't work
-///   across trees); same-tree uses the encoded relative path.
+/// - Link/ImageLink: in scope uses the encoded relative path; out of scope
+///   (links only) uses the external URL `…/open/<id>`, the one form that
+///   leaves the scope.
 /// - WikiLink: the shortest reference that resolves unambiguously — bare stem,
-///   else full name (extension disambiguates), else a relative path. Cross-tree
-///   results are filtered upstream (wikilinks are same-tree only).
-fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: CompletionMode) {
+///   else full name (extension disambiguates), else a relative path. Out-of-scope
+///   results are filtered upstream (wikilinks resolve in scope only).
+fn populate_insert(
+    cache: &FileCache, results: &mut [FileResult], mode: CompletionMode, open_origin: &str,
+) {
     if mode != CompletionMode::WikiLink {
         for result in results.iter_mut() {
-            if result.cross_tree {
-                result.insert = format!("lb://{}", result.id);
+            if result.out_of_scope {
+                result.insert = format!("{open_origin}/open/{}", result.id);
             } else {
                 result.insert = encode_link_path(&result.rel_path);
             }
@@ -715,27 +734,27 @@ fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: Completi
     for result in results.iter_mut() {
         let Some(f) = cache.get_by_id(result.id) else { continue };
         let full = f.name.clone();
-        let stem = strip_ext(&full).to_string();
+        let title = wiki_title(&full).to_string();
 
-        if unique(&|n| strip_ext(n).eq_ignore_ascii_case(&stem)) {
-            result.insert = stem;
+        if unique(&|n| title_matches(n, &title)) {
+            result.insert = title;
             continue;
         }
-        if unique(&|n| n.eq_ignore_ascii_case(&full)) {
+        if unique(&|n| title_matches(n, &full)) {
             result.insert = full;
             continue;
         }
 
-        // The relative dir locates the folder; within it, the bare stem when
+        // The relative dir locates the folder; within it, the bare title when
         // unique among siblings, else the full name.
-        let sibling_stem_unique = cache
+        let sibling_title_unique = cache
             .children(f.parent)
             .into_iter()
             .filter(|d| d.is_document())
-            .filter(|d| strip_ext(&d.name).eq_ignore_ascii_case(&stem))
+            .filter(|d| title_matches(&d.name, &title))
             .count()
             <= 1;
-        let last = if sibling_stem_unique { stem } else { full };
+        let last = if sibling_title_unique { title } else { full };
         result.insert = match result.rel_path.rsplit_once('/') {
             Some((dir, _)) => format!("{dir}/{last}"),
             None => last,
@@ -1152,15 +1171,13 @@ mod tests {
                 doc(b, "Spec.md"),
             ],
         );
-        let from_id = cache.get_by_id(editing).unwrap().parent;
-
         let mut lc = LinkCompletions::default();
         for query in ["pan", "todo", "spec"] {
             let results = lc.search(&cache, editing, query, CompletionMode::WikiLink);
             assert!(!results.is_empty(), "query {query:?} produced no completions");
             for r in results {
                 assert_eq!(
-                    cache.resolve_wikilink(&r.insert, from_id),
+                    cache.resolve_wikilink(&r.insert, editing),
                     Some(r.id),
                     "query {query:?}: insert {:?} did not resolve to {:?}",
                     r.insert,
@@ -1168,6 +1185,25 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A link to a file outside the note's scope inserts the external URL,
+    /// which resolves back to that file, marked as differing by reader.
+    #[test]
+    fn out_of_scope_links_insert_the_external_url() {
+        use crate::file_cache::Reach;
+        let (cache, [note, _, own_budget, ..]) = crate::file_cache::tests::alice();
+        let mut lc = LinkCompletions::new(Some("http://localhost:8100".into()));
+        let results = lc.search(&cache, note, "budget", CompletionMode::Link);
+        let own = results
+            .iter()
+            .find(|r| r.id == own_budget)
+            .expect("offered");
+        assert_eq!(own.insert, format!("http://localhost:8100/open/{own_budget}"));
+        assert_eq!(cache.locate_link(&own.insert, note), Some((own_budget, Reach::Reader)));
+
+        let wiki = lc.search(&cache, note, "budget", CompletionMode::WikiLink);
+        assert!(wiki.iter().all(|r| r.id != own_budget), "wiki titles stay in scope");
     }
 
     /// Filename search matches the full path; completions should too

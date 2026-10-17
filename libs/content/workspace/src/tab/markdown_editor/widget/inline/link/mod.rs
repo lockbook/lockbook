@@ -4,7 +4,7 @@ pub(crate) mod meta;
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
-use lb_rs::spawn;
+use lb_rs::{Uuid, spawn};
 use std::collections::hash_map::Entry;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -14,7 +14,7 @@ use lb_rs::model::text::operation_types::Operation;
 use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
-use crate::style::{phosphor, phosphor_font_id};
+use crate::style::{TypeRole, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::{
@@ -23,7 +23,7 @@ use crate::tab::markdown_editor::widget::inline::link::meta::{
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
-use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
+use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
@@ -32,6 +32,11 @@ enum DestinationTitle {
 }
 
 pub use crate::resolvers::LinkState;
+use crate::resolvers::rich_spans;
+use crate::widgets::GlyphonLabel;
+
+/// Width cap of a link's hover card.
+const LINK_TIP_W: f32 = 300.0;
 
 impl<'ast> MdRender {
     pub fn text_format_link(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
@@ -122,8 +127,8 @@ impl<'ast> MdRender {
     /// they render their raw source like other incomplete syntax.
     /// A `Sense::click` interaction scope routes clicks here when they
     /// act on the link (cmd held, read-only, or unrevealed touch);
-    /// otherwise no scope is opened and clicks fall through to the
-    /// editor for cursor placement.
+    /// otherwise a desktop link gets a hover-only scope for its tip and
+    /// clicks fall through to the editor for cursor placement.
     pub fn layout_link(
         &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
     ) {
@@ -160,12 +165,18 @@ impl<'ast> MdRender {
         // cmd/keyboard-tap opens (`handle_link_capsule_interactions`), interior
         // reveal only.
         if let Some(t) = title {
-            let pill_fmt = self.text_format_link_pill(parent, state.clone());
+            // a file's name reads as an ordinary link; the pill is for web previews
+            let internal = matches!(self.get_link_meta(&url), LinkMetaLookup::Internal(_));
+            let pill_fmt = if internal {
+                link_fmt.clone()
+            } else {
+                self.text_format_link_pill(parent, state.clone())
+            };
             layout.interaction_open(Self::link_capsule_id_salt(node_range), egui::Sense::click());
             layout.style_open(StyleInfo {
                 format: pill_fmt.clone(),
                 source_range: node_range,
-                chip: true,
+                chip: !internal,
             });
             // Leading em-space reserves the favicon slot (painted in
             // `show_capsule_overlays`); it's in the title's source range, so the
@@ -193,13 +204,60 @@ impl<'ast> MdRender {
             || self.ctx.input(|i| i.modifiers.command)
             || (self.touch_mode && !revealed);
         let salt = Self::link_interaction_id_salt(node_range);
-        if clickable {
-            layout.interaction_open(salt, egui::Sense::click());
+        let sense = self.link_sense(clickable);
+        if let Some(sense) = sense {
+            layout.interaction_open(salt, sense);
         }
         self.layout_circumfix(layout, node, range, link_fmt.clone());
-        if clickable {
+        if sense.is_some() {
             layout.interaction_close();
         }
+    }
+
+    /// A link's interaction scope: click when it opens on click, else hover
+    /// on desktop so the pointer can still show its tip. None on touch, where
+    /// taps on an unopenable link place the cursor.
+    pub fn link_sense(&self, clickable: bool) -> Option<egui::Sense> {
+        if clickable {
+            Some(egui::Sense::click())
+        } else if !self.touch_mode {
+            Some(egui::Sense::hover())
+        } else {
+            None
+        }
+    }
+
+    /// The hover card explaining a yellow or red link: what's wrong, then the
+    /// fix in quieter ink. `state` is worked out only under the pointer.
+    pub fn show_link_tip(
+        &self, ctx: &egui::Context, response: &egui::Response, state: impl FnOnce() -> LinkState,
+    ) {
+        if !response.contains_pointer() {
+            // still called, so the tip's dwell timing sees the pointer leave
+            crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |_| {});
+            return;
+        }
+        let (LinkState::Warning { message } | LinkState::Broken { message }) = state() else {
+            return;
+        };
+        let mut lines = message.lines();
+        let Some(what) = lines.next() else { return };
+        let fixes: Vec<&str> = lines.collect();
+        crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |ui| {
+            let t = ui.ctx().get_lb_theme();
+            let line = |ui: &mut egui::Ui, text: &str, ink| {
+                ui.add(
+                    GlyphonLabel::new_rich(rich_spans(text), ink)
+                        .font_size(TypeRole::Body.size())
+                        .line_height(TypeRole::Body.line_height())
+                        .max_width(LINK_TIP_W),
+                );
+            };
+            line(ui, what, t.neutral_fg());
+            for fix in fixes {
+                line(ui, fix, t.neutral_fg_secondary());
+            }
+        });
     }
 
     /// Favicon URL for a capsule preview's external link when previews are on
@@ -317,15 +375,50 @@ impl<'ast> MdRender {
         self.link_resolver.resolve_link(url)
     }
 
-    /// Open `url` in-app for internal file links and in the browser otherwise.
-    /// `new_tab` is only for an explicit new-tab request (cmd-click / multi-open).
+    /// Open `url` in-app for internal file links and in the browser for web
+    /// URLs; an unresolved destination explains itself instead. `new_tab` is
+    /// only for an explicit new-tab request (cmd-click / multi-open).
     pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context, new_tab: bool) {
         match self.resolve_link(url) {
-            Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, new_tab),
+            Some(ResolvedLink::File(file_id)) => self.open_linked_file(url, file_id, ctx, new_tab),
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
-            None => ctx.open_url(egui::OpenUrl { url: url.into(), new_tab: true }),
+            None => self.explain_unopenable(url, self.link_state_for_url(url), ctx),
+        }
+    }
+
+    /// Opens the file a wikilink names, behind a confirmation when it means
+    /// different files to different readers.
+    pub fn open_wikilink(&self, title: &str, ctx: &egui::Context, new_tab: bool) {
+        let Some(file_id) = self.resolve_wikilink(title) else {
+            let shown = format!("[[{title}]]");
+            return self.explain_unopenable(&shown, self.link_state_for_wikilink(title), ctx);
+        };
+        match self.link_resolver.wikilink_confirmation(title) {
+            Some(reason) => self.ask_to_open(file_id, new_tab, reason, ctx),
+            None => ctx.open_file(file_id, new_tab),
+        }
+    }
+
+    /// Opens the file `url` resolved to, behind a confirmation when the link
+    /// means different files to different readers.
+    fn open_linked_file(&self, url: &str, file_id: Uuid, ctx: &egui::Context, new_tab: bool) {
+        match self.link_resolver.confirmation(url) {
+            Some(reason) => self.ask_to_open(file_id, new_tab, reason, ctx),
+            None => ctx.open_file(file_id, new_tab),
+        }
+    }
+
+    fn ask_to_open(&self, file_id: Uuid, new_tab: bool, reason: String, ctx: &egui::Context) {
+        let shown = self.files.read().unwrap().path(file_id);
+        ctx.show_link_sheet(LinkSheet { open: Some((file_id, new_tab)), shown, message: reason });
+    }
+
+    /// Says why a link that names nothing the reader can see doesn't open.
+    fn explain_unopenable(&self, shown: &str, state: LinkState, ctx: &egui::Context) {
+        if let LinkState::Broken { message } = state {
+            ctx.show_link_sheet(LinkSheet { open: None, shown: shown.into(), message });
         }
     }
 
@@ -368,8 +461,10 @@ impl<'ast> MdRender {
     pub fn open_links_in_selection(&self, root: &'ast AstNode<'ast>, ctx: &egui::Context) {
         let selection = self.buffer.current.selection;
 
-        let mut file_ids = vec![];
+        let mut wikilinks = vec![];
+        let mut linked = vec![];
         let mut urls = vec![];
+        let mut broken = vec![];
 
         for node in root.descendants() {
             let node_range = self.node_range(node);
@@ -388,26 +483,39 @@ impl<'ast> MdRender {
             };
 
             if is_wikilink {
-                if let Some(id) = self.resolve_wikilink(&url) {
-                    file_ids.push(id);
+                if self.resolve_wikilink(&url).is_some() {
+                    wikilinks.push(url);
+                } else {
+                    broken.push((url, true));
                 }
                 continue;
             }
 
             match self.resolve_link(&url) {
-                Some(ResolvedLink::File(id)) => file_ids.push(id),
+                Some(ResolvedLink::File(id)) => linked.push((url, id)),
                 Some(ResolvedLink::External(url)) => {
                     urls.push(egui::OpenUrl { url, new_tab: false });
                 }
-                None => {
-                    urls.push(egui::OpenUrl { url, new_tab: false });
-                }
+                None => broken.push((url, false)),
             }
         }
 
-        let new_tab = file_ids.len() + urls.len() > 1;
-        for id in file_ids {
-            ctx.open_file(id, new_tab);
+        let opening = wikilinks.len() + linked.len() + urls.len();
+        if opening == 0 {
+            // nothing opens: say why the first link doesn't
+            match broken.first() {
+                Some((title, true)) => self.open_wikilink(title, ctx, false),
+                Some((url, false)) => self.open_resolved_link(url, ctx, false),
+                None => {}
+            }
+            return;
+        }
+        let new_tab = opening > 1;
+        for title in wikilinks {
+            self.open_wikilink(&title, ctx, new_tab);
+        }
+        for (url, id) in linked {
+            self.open_linked_file(&url, id, ctx, new_tab);
         }
         if new_tab {
             for url in &mut urls {
@@ -419,10 +527,11 @@ impl<'ast> MdRender {
         }
     }
 
-    /// Hover → `PointingHand` + Warning/Broken tooltip; click → navigate
-    /// in place. The producer's interaction scope is the gate: cmd
-    /// held (desktop), read-only, or touch — where the click instead
-    /// selects the link and pops the menu ([`MdEdit::handle_link_menu_taps`]).
+    /// Hover → the Warning/Broken tip, and `PointingHand` when a click
+    /// opens; click → navigate in place. The producer's interaction scope
+    /// is the gate: cmd held (desktop), read-only, or touch — where the
+    /// click instead selects the link and pops the menu
+    /// ([`MdEdit::handle_link_menu_taps`]).
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.id();
         for node in root.descendants() {
@@ -445,28 +554,17 @@ impl<'ast> MdRender {
                 continue;
             };
 
-            if response.hovered() {
+            if response.hovered() && response.sense.senses_click() {
                 ui.ctx()
                     .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-
-                let state = if is_wikilink {
+            }
+            self.show_link_tip(ui.ctx(), response, || {
+                if is_wikilink {
                     self.link_state_for_wikilink(&url)
                 } else {
                     self.link_state_for_url(&url)
-                };
-                if let LinkState::Warning { message } | LinkState::Broken { message } = &state {
-                    if let Some(pos) = ui.ctx().pointer_hover_pos() {
-                        egui::Area::new(id.with("link_warning"))
-                            .order(egui::Order::Tooltip)
-                            .fixed_pos(pos + egui::vec2(8.0, 16.0))
-                            .show(ui.ctx(), |ui| {
-                                egui::Frame::popup(ui.style()).show(ui, |ui| {
-                                    ui.label(message);
-                                });
-                            });
-                    }
                 }
-            }
+            });
 
             if response.clicked() && (self.readonly || !self.touch_mode) {
                 self.render_events.push(open);

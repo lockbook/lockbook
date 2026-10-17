@@ -11,7 +11,7 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 use web_time::{Duration, Instant};
 
-use crate::file_cache::{FilesExt as _, ResolvedLink};
+use crate::file_cache::{FilesExt as _, link_id};
 use crate::output::Response;
 use crate::search::SearchType;
 use crate::tab::{ExtendedOutput as _, TabStatus, image_viewer};
@@ -50,6 +50,7 @@ impl Workspace {
 
         self.set_tooltip_visibility(ui);
 
+        self.take_link_sheet_input();
         self.process_bg_tasks();
         self.process_lb_updates();
         self.process_task_updates();
@@ -134,37 +135,25 @@ impl Workspace {
             ui.centered_and_justified(|ui| {
                 self.show_current_tab_content(ui);
 
+                // Links in notes open through their resolver; this catches the
+                // rest. An id link to a file here opens in the app, and `lb:`
+                // never reaches the OS.
                 let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
-                if let Some(id) = self.current_tab_id() {
-                    ui.ctx().output_mut(|w| {
-                        w.commands.retain(|c| {
-                            let egui::OutputCommand::OpenUrl(url) = c else { return true };
-
-                            // lb://uuid — direct internal link
-                            if let Some(id_str) = url.url.strip_prefix("lb://") {
-                                if let Ok(id) = Uuid::parse_str(id_str) {
-                                    open_ids.push((id, url.new_tab));
-                                }
-                                return false;
+                let files = Arc::clone(&self.files);
+                let files = files.read().unwrap();
+                ui.ctx().output_mut(|w| {
+                    w.commands.retain(|c| {
+                        let egui::OutputCommand::OpenUrl(url) = c else { return true };
+                        match link_id(&url.url) {
+                            Some(id) if files.get_by_id(id).is_some_and(|f| f.is_document()) => {
+                                open_ids.push((id, url.new_tab));
+                                false
                             }
-
-                            let files_arc = std::sync::Arc::clone(&self.files);
-                            let files_guard = files_arc.read().unwrap();
-                            let Some(from_id) = files_guard.get_by_id(id).map(|f| f.parent) else {
-                                return true;
-                            };
-
-                            let Some(ResolvedLink::File(file_id)) =
-                                files_guard.resolve_link(&url.url, from_id)
-                            else {
-                                return true;
-                            };
-
-                            open_ids.push((file_id, url.new_tab));
-                            false
-                        });
+                            _ => !url.url.to_ascii_lowercase().starts_with("lb:"),
+                        }
                     });
-                }
+                });
+                drop(files);
                 for (id, new_tab) in open_ids {
                     if new_tab {
                         self.open_file(id, true, true);
@@ -186,8 +175,59 @@ impl Workspace {
                         self.navigate_to_range(id, range);
                     }
                 }
+                let sheets = ui.ctx().pop_link_sheets();
+                if !sheets.is_empty() && self.link_sheets.is_empty() {
+                    // the keyboard and the text selection's handles would cover it
+                    ui.ctx().set_virtual_keyboard_shown(false);
+                    self.link_sheet_tab = self.current_tab_id();
+                }
+                self.link_sheets.extend(sheets);
+                self.show_link_sheet(ui.ctx());
             });
         });
+    }
+
+    /// Whether a link sheet covers the workspace; it takes every touch.
+    pub fn link_sheet_open(&self) -> bool {
+        !self.link_sheets.is_empty()
+    }
+
+    /// While a link sheet is up it takes all input: it reads its own keys,
+    /// and nothing else in the workspace or the tab beneath sees any. Sheets
+    /// close when their tab stops being current.
+    fn take_link_sheet_input(&mut self) {
+        if self.link_sheet_tab != self.current_tab_id() {
+            self.link_sheets.clear();
+        }
+        self.link_sheet_keys = (false, false);
+        if self.link_sheets.is_empty() {
+            return;
+        }
+        self.link_sheet_keys = self.ctx.input_mut(|i| {
+            let open = i.consume_key(Modifiers::COMMAND, Key::Enter);
+            let cancel = i.consume_key(Modifiers::NONE, Key::Escape);
+            i.events.clear();
+            (open, cancel)
+        });
+    }
+
+    /// Explains a link the reader tried to open, opening its file if they
+    /// confirm.
+    fn show_link_sheet(&mut self, ctx: &egui::Context) {
+        let Some(sheet) = self.link_sheets.front().cloned() else { return };
+        let (open, close) = link_sheet_modal(ctx, &sheet, self.link_sheet_keys);
+        if let Some((id, new_tab)) = sheet.open.filter(|_| open) {
+            if new_tab {
+                self.open_file(id, true, true);
+            } else {
+                self.navigate_to(crate::tab::Destination::File(id));
+            }
+        }
+        if close {
+            self.link_sheets.pop_front();
+            // sheets still queued from the same request follow it to the new tab
+            self.link_sheet_tab = self.current_tab_id();
+        }
     }
 
     fn show_current_tab_content(&mut self, ui: &mut egui::Ui) {
@@ -1214,4 +1254,121 @@ impl DocType {
             name
         }
     }
+}
+
+/// The sheet explaining a link: whether the reader chose to open it, and
+/// whether the sheet closes. Design-system sheet chrome: dim, canvas plate,
+/// quiet dismiss, primary Open. Centered, clear of native bars and the
+/// keyboard; near-full width on touch or narrow screens, where touch gets
+/// taller buttons and no key badges.
+pub(crate) fn link_sheet_modal(
+    ctx: &egui::Context, sheet: &crate::tab::LinkSheet, (open_key, cancel_key): (bool, bool),
+) -> (bool, bool) {
+    use crate::style::chrome::{
+        Radius, control_height, file_row_icon, plate_content, shortcut_esc, shortcut_return,
+    };
+    use crate::style::tree_metrics::INDENT_BASE;
+    use crate::style::{Button, FileRow, Space, Spacer, TypeRole, parent_crumbs, with_pad_fit};
+
+    let t = ctx.get_lb_theme();
+    let screen = ctx.screen_rect();
+    let touch = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
+    let compact = touch || screen.width() < 520.0;
+    let pad = Space::Md.pts();
+    let width = if compact { (screen.width() - pad * 4.0).min(480.0) } else { 320.0 };
+    let button_h = if touch { control_height() * 1.4 } else { control_height() };
+    let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("link_sheet"));
+
+    let mut dismissed = false;
+    egui::Area::new(egui::Id::new("link_sheet_dim"))
+        .order(egui::Order::Middle)
+        .fixed_pos(screen.min)
+        .fade_in(false)
+        .show(ctx, |ui| {
+            let (rect, resp) = ui.allocate_exact_size(screen.size(), egui::Sense::click());
+            ui.painter()
+                .rect_filled(rect, 0.0, egui::Color32::from_black_alpha(40));
+            let on_sheet = || {
+                ui.ctx()
+                    .pointer_interact_pos()
+                    .is_some_and(|pos| ui.ctx().layer_id_at(pos) == Some(layer))
+            };
+            dismissed = resp.clicked() && !on_sheet();
+        });
+
+    let (mut open, mut cancel) = (open_key && sheet.open.is_some(), cancel_key);
+    let title = if sheet.open.is_some() { "Open this link?" } else { "This link can't open" };
+    let mut lines = sheet.message.lines();
+    let why = lines.next().unwrap_or_default();
+    egui::Area::new(layer.id)
+        .order(egui::Order::Foreground)
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            plate_content(ui, t.neutral_bg(), t.neutral(), Radius::Surface.corner(), |ui| {
+                ui.set_width(width + pad * 2.0);
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                with_pad_fit(ui, Space::Md, |ui| {
+                    ui.label(
+                        TypeRole::Heading
+                            .rich(title)
+                            .color(t.neutral_fg_secondary()),
+                    );
+                    ui.add(Spacer::new(Space::Md));
+                    let line = |ui: &mut egui::Ui, text: &str, ink| {
+                        ui.add(
+                            GlyphonLabel::new_rich(crate::resolvers::rich_spans(text), ink)
+                                .font_size(TypeRole::Body.size())
+                                .line_height(TypeRole::Body.line_height())
+                                .max_width(width),
+                        );
+                    };
+                    if sheet.open.is_some() {
+                        // the file it would open, as the file tree shows one
+                        let path = &sheet.shown;
+                        let name = path.rsplit('/').find(|s| !s.is_empty()).unwrap_or(path);
+                        let size = egui::vec2(width, FileRow::height_for(true));
+                        let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                        // the row's indent makes room for a hover fill this row never shows
+                        let rect = rect.with_min_x(rect.min.x - INDENT_BASE);
+                        FileRow::new(&t, name)
+                            .icon(file_row_icon(name, false))
+                            .subtitle(parent_crumbs(path))
+                            .interactive(false)
+                            .paint_at_hit(ui, rect, rect, layer.id.with("file"));
+                    } else {
+                        // nothing resolved: the link as written
+                        line(ui, &format!("**{}**", sheet.shown), t.neutral_fg());
+                    }
+                    ui.add(Spacer::new(Space::Sm));
+                    line(ui, why, t.neutral_fg());
+                    for fix in lines {
+                        ui.add(Spacer::new(Space::Xs));
+                        line(ui, fix, t.neutral_fg_secondary());
+                    }
+                    ui.add(Spacer::new(Space::Md));
+                    ui.horizontal(|ui| {
+                        let dismiss = if sheet.open.is_some() { "Cancel" } else { "Close" };
+                        let dismiss = if touch {
+                            Button::secondary(&t, dismiss)
+                        } else {
+                            Button::quiet(&t, dismiss).shortcut(shortcut_esc())
+                        }
+                        .height(button_h);
+                        cancel |= dismiss.show(ui).clicked();
+                        if sheet.open.is_none() {
+                            return;
+                        }
+                        let layout = egui::Layout::right_to_left(egui::Align::Center);
+                        ui.with_layout(layout, |ui| {
+                            let mut primary = Button::primary(&t, "Open").height(button_h);
+                            if !touch {
+                                primary = primary.shortcut(shortcut_return());
+                            }
+                            open |= primary.show(ui).clicked();
+                        });
+                    });
+                });
+            });
+        });
+    (open, open || cancel || dismissed)
 }

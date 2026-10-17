@@ -355,7 +355,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_willConsumeTouches(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let pos = obj.renderer.pos_from_pixels(x, y);
-    (if let Some(tab) = obj.workspace.current_tab() {
+    (if obj.workspace.link_sheet_open() {
+        true
+    } else if let Some(tab) = obj.workspace.current_tab() {
         match &tab.content {
             ContentState::Open(TabContent::Svg(svg)) => svg.detect_islands_interaction(pos),
             ContentState::Open(TabContent::Image(image)) => image.detect_islands_interaction(pos),

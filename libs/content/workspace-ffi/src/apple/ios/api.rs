@@ -444,7 +444,9 @@ pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) ->
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let pos = obj.renderer.pos_from_points(x, y);
-    if let Some(tab) = obj.workspace.current_tab() {
+    if obj.workspace.link_sheet_open() {
+        true
+    } else if let Some(tab) = obj.workspace.current_tab() {
         if let ContentState::Open(TabContent::Svg(svg)) = &tab.content {
             svg.detect_islands_interaction(pos)
         } else if let ContentState::Open(TabContent::Image(image)) = &tab.content {
@@ -957,6 +959,9 @@ pub unsafe extern "C" fn unit_enclosing(
 pub unsafe extern "C" fn ios_touch_target_at(obj: *mut c_void, x: f32, y: f32) -> u8 {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let pos = obj.renderer.pos_from_points(x, y);
+    if obj.workspace.link_sheet_open() {
+        return 3; // a popup egui handles itself
+    }
     obj.workspace
         .focused_mdedit_mut()
         .and_then(|md| {

@@ -1385,6 +1385,18 @@ fn item_metrics(item: &InlineItem) -> Option<(f32, f32)> {
 
 // ─── row construction (items + breaks → Vec<Row>) ────────────────────
 
+/// The scope a fragment answers to: the innermost one that takes clicks, so a
+/// hover-only scope (a link's tip) never hides an enclosing click (a
+/// spoiler); else the innermost.
+fn active_interaction(stack: &[(egui::Id, egui::Sense)]) -> Option<(egui::Id, egui::Sense)> {
+    stack
+        .iter()
+        .rev()
+        .find(|(_, sense)| sense.senses_click())
+        .or(stack.last())
+        .copied()
+}
+
 /// Walk the broken stream, emitting one `Row` per break window with
 /// one fragment per Box/Glue/Pad (no coalescing). Style scope events
 /// update the running stack between fragments. The wrap-break-glue
@@ -1462,7 +1474,7 @@ pub fn build_rows(
                 style_stack: style_stack.clone(),
                 content: FragmentContent::Spacer,
                 atomic: false,
-                interaction: interaction_stack.last().copied(),
+                interaction: active_interaction(&interaction_stack),
                 far: false,
             });
             x += inline_pad;
@@ -1516,7 +1528,7 @@ pub fn build_rows(
                             cluster_advances: cluster_advances.clone(),
                         },
                         atomic: *atomic,
-                        interaction: interaction_stack.last().copied(),
+                        interaction: active_interaction(&interaction_stack),
                         far: false,
                     });
                     x += advance;
@@ -1573,7 +1585,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content,
                         atomic: false,
-                        interaction: interaction_stack.last().copied(),
+                        interaction: active_interaction(&interaction_stack),
                         far: false,
                     });
                     x += effective_advance;
@@ -1595,7 +1607,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Spacer,
                         atomic: false,
-                        interaction: interaction_stack.last().copied(),
+                        interaction: active_interaction(&interaction_stack),
                         far: false,
                     });
                     x += advance;
@@ -1616,7 +1628,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Embed { url: spec.url.clone(), kind: spec.kind },
                         atomic: true,
-                        interaction: interaction_stack.last().copied(),
+                        interaction: active_interaction(&interaction_stack),
                         far: false,
                     });
                     x += spec.advance;
@@ -1641,7 +1653,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Spacer,
                         atomic: false,
-                        interaction: interaction_stack.last().copied(),
+                        interaction: active_interaction(&interaction_stack),
                         far: false,
                     });
                 }
@@ -1690,7 +1702,7 @@ pub fn build_rows(
                 style_stack: style_stack.clone(),
                 content: FragmentContent::Spacer,
                 atomic: false,
-                interaction: interaction_stack.last().copied(),
+                interaction: active_interaction(&interaction_stack),
                 far: false,
             });
         }
@@ -2323,5 +2335,16 @@ mod tests {
         let items = vec![embed(500.0)];
         let breaks = greedy_break(&items, width, 0.0);
         assert_eq!(breaks, vec![0, 1]);
+    }
+
+    #[test]
+    fn hover_scope_never_hides_enclosing_click() {
+        let spoiler = (egui::Id::new("spoiler"), egui::Sense::click());
+        let link_tip = (egui::Id::new("link"), egui::Sense::hover());
+        let link_click = (egui::Id::new("link"), egui::Sense::click());
+        assert_eq!(super::active_interaction(&[spoiler, link_tip]), Some(spoiler));
+        assert_eq!(super::active_interaction(&[spoiler, link_click]), Some(link_click));
+        assert_eq!(super::active_interaction(&[link_tip]), Some(link_tip));
+        assert_eq!(super::active_interaction(&[]), None);
     }
 }
