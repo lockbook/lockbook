@@ -160,3 +160,18 @@ async fn insert_delete() {
 
     assert_eq!(result, None);
 }
+
+#[tokio::test]
+async fn sync_ignores_foreign_files_in_documents_dir() {
+    let core = test_utils::test_core_with_account().await;
+    let doc = core.create_at_path("/a.md").await.unwrap();
+    core.write_document(doc.id, b"hello").await.unwrap();
+    core.sync().await.unwrap();
+
+    let docs_dir = std::path::PathBuf::from(&core.config.writeable_path).join("documents");
+    std::fs::write(docs_dir.join(".DS_Store"), b"finder").unwrap();
+    std::fs::write(docs_dir.join("not-a-document-body-but-a-very-long-name"), b"x").unwrap();
+
+    core.sync().await.unwrap();
+    assert_eq!(core.read_document(doc.id, false).await.unwrap(), b"hello");
+}
