@@ -2460,3 +2460,71 @@ fn phone_toolbar_never_pushed_off_screen() {
         }
     }
 }
+
+/// Regression for #5191: down on the last line lands at the end of the
+/// document, and up on the first line lands at its start.
+#[test]
+fn vertical_arrow_at_doc_edge_snaps_to_edge() {
+    use super::super::input::Increment;
+    let arrow = |backwards: bool| Event::Select {
+        region: Region::ToAdvance {
+            advance: Advance::By(Increment::Lines(1)),
+            backwards,
+            extend_selection: false,
+        },
+    };
+    let place = |g: usize| Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(g)),
+            end: Location::Grapheme(Grapheme(g)),
+        },
+    };
+
+    let doc = "first line\nsecond line\nlast line";
+    let mut ws = TestEditor::new(doc);
+    ws.enter_frame();
+
+    ws.push(place(doc.len() - 4));
+    ws.enter_frame();
+    ws.push(arrow(false));
+    ws.enter_frame();
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection.1.0, doc.len());
+
+    ws.push(place(4));
+    ws.enter_frame();
+    ws.push(arrow(true));
+    ws.enter_frame();
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection.1.0, 0);
+}
+
+/// Down with the rest of the document folded away lands at the visible
+/// end (the fold's near edge), not inside the hidden contents.
+#[test]
+fn down_arrow_into_folded_tail_stops_at_visible_end() {
+    use super::super::input::Increment;
+    let down = Event::Select {
+        region: Region::ToAdvance {
+            advance: Advance::By(Increment::Lines(1)),
+            backwards: false,
+            extend_selection: false,
+        },
+    };
+    let doc = "above\n# H1 <!-- {\"fold\":true} -->\nhidden one\nhidden two";
+    let mut ws = TestEditor::new(doc);
+    ws.enter_frame();
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(2)),
+            end: Location::Grapheme(Grapheme(2)),
+        },
+    });
+    ws.enter_frame();
+    ws.push(down.clone());
+    ws.enter_frame();
+    ws.push(down);
+    ws.enter_frame();
+    let landed = ws.editor.edit.renderer.buffer.current.selection.1;
+    let fold = &ws.editor.edit.renderer.bounds.folds[0];
+    assert!(!fold.conceals(landed), "landed inside folded contents at {}", landed.0);
+    assert_eq!(landed, fold.contents.start(), "doc: {doc:?}");
+}
