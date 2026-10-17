@@ -187,6 +187,13 @@ struct PinnedDocumentsWidgetView: View {
 }
 
 @main
+struct LockbookWidgets: WidgetBundle {
+    var body: some Widget {
+        PinnedDocumentsWidget()
+        FolderActionsWidget()
+    }
+}
+
 struct PinnedDocumentsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "PinnedDocuments", provider: PinnedDocumentsProvider()) { entry in
