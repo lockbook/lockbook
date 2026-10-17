@@ -9,7 +9,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::TextBufferArea;
 use crate::file_cache::{FileCache, FilesExt as _, relative_path, strip_ext};
-use crate::style::{Space, ThemeExt as _, TypeRole, ellipsize_path, parent_crumbs};
+use crate::style::{Space, ThemeExt as _, TypeRole, crumb_label, ellipsize_path, parent_crumbs};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
@@ -966,7 +966,7 @@ impl MdEdit {
             let shortcut_width = shaped.hint_size().map_or(0.0, |s| s.x);
             text_areas.extend(shaped.text_areas(content_rect, ui.ctx(), clip_rect));
 
-            let shaped = GlyphonLabel::new(path, hint_color)
+            let shaped = crumb_label(path, hint_color, theme.accent())
                 .font_size(completion_path_font())
                 .line_height(TypeRole::Mono.line_height())
                 .build(ui.ctx());

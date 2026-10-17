@@ -45,11 +45,21 @@ pub fn measure_sized(ui: &Ui, name: &str, font_size: f32, line_height: f32, max_
 pub fn paint(
     ui: &mut Ui, name: &str, color: Color32, slot: Rect, font_size: f32, line_height: f32,
 ) -> f32 {
-    let max_w = slot.width().max(0.0);
-    if max_w < 0.5 || name.is_empty() {
+    if name.is_empty() {
         return 0.0;
     }
-    let shaped = GlyphonLabel::new(name, color)
+    paint_label(ui, GlyphonLabel::new(name, color), slot, font_size, line_height)
+}
+
+/// [`paint`] for a pre-built label (colored spans).
+pub fn paint_label(
+    ui: &mut Ui, label: GlyphonLabel<'_>, slot: Rect, font_size: f32, line_height: f32,
+) -> f32 {
+    let max_w = slot.width().max(0.0);
+    if max_w < 0.5 {
+        return 0.0;
+    }
+    let shaped = label
         .font_size(font_size)
         .line_height(line_height)
         .max_width(max_w)

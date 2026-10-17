@@ -289,8 +289,9 @@ impl<'a> FileRow<'a> {
 
         let hanging = self.continuation;
         let ink = if self.muted { t.neutral_fg_secondary() } else { t.neutral_fg() };
-        let is_folder = self.icon == phosphor::FOLDER || self.icon == phosphor::FOLDER_OPEN;
-        let icon_ink = if is_folder { t.accent() } else { ink };
+        let accent_icon =
+            matches!(self.icon, phosphor::FOLDER | phosphor::FOLDER_OPEN | phosphor::HOUSE);
+        let icon_ink = if accent_icon { t.accent() } else { ink };
         let painter = ui
             .painter()
             .with_clip_rect(ui.clip_rect().intersect(paint_rect));
@@ -408,7 +409,8 @@ impl<'a> FileRow<'a> {
             let shown = middle_ellipsize_path_glyphon(ui, sub, max_w, sub_font_size, sub_lh);
             let sub_slot =
                 Rect::from_min_size(pos2(text_x, sub_cy - sub_lh / 2.0), vec2(max_w, sub_lh));
-            file_name::paint(ui, &shown, t.neutral_fg_secondary(), sub_slot, sub_font_size, sub_lh);
+            let label = crumb_label(&shown, t.neutral_fg_secondary(), t.accent());
+            file_name::paint_label(ui, label, sub_slot, sub_font_size, sub_lh);
         }
 
         // Trailing chrome (right → left) inside the content band.
@@ -532,6 +534,19 @@ fn path_parts(path: &str) -> Vec<&str> {
 /// Account root as a location: house glyph + “Home” (glyphon shapes phosphor PUA).
 pub fn home_crumb() -> String {
     format!("{} Home", phosphor::HOUSE)
+}
+
+/// Crumb text as a label; a leading house glyph takes folder accent.
+pub fn crumb_label<'a>(
+    text: &'a str, ink: Color32, accent: Color32,
+) -> crate::widgets::GlyphonLabel<'a> {
+    match text.strip_prefix(phosphor::HOUSE) {
+        Some(rest) => crate::widgets::GlyphonLabel::new_colored(
+            vec![(phosphor::HOUSE, Some(accent)), (rest, None)],
+            ink,
+        ),
+        None => crate::widgets::GlyphonLabel::new(text, ink),
+    }
 }
 
 /// Display crumbs for a stored path (`/a/b/c` or `a / b / c`) → `a / b / c`.
