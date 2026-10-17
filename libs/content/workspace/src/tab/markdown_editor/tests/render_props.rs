@@ -114,6 +114,12 @@ fn list_marker_fully_captured() {
     run(list_marker_fully_captured_check, f, 1000);
 }
 
+// tables
+#[test]
+fn table_ranges() {
+    run(table_ranges_check, Features::all(), 1000);
+}
+
 // glyph painting — runs on tier_b (no tables / scripts / long tokens /
 // nesting, see those defs); a failure there is a real walker bug.
 #[test]
@@ -345,6 +351,14 @@ fn list_marker_fully_captured_check(buf: &[u8], f: &Features) -> Result<(), Stri
         }
     }
     Ok(())
+}
+
+/// Property: every table's cell ranges satisfy the range invariant, stated
+/// at [`super::tables::table_ranges_check_md`].
+fn table_ranges_check(buf: &[u8], f: &Features) -> Result<(), String> {
+    let mut src = ByteSource::new(buf);
+    let md = gen_doc(&mut src, f);
+    super::tables::table_ranges_check_md(&md).map(|_| ())
 }
 
 /// Property: widening the viewport cannot increase rendered height.

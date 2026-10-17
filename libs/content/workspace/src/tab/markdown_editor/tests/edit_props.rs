@@ -167,6 +167,12 @@ fn layout_cache_consistent() {
     run_all(layout_cache_consistent_check, 1000);
 } // + embed resolver
 
+// tables
+#[test]
+fn table_ranges_survive_edits() {
+    run(table_ranges_survive_edits_check, Features::all(), 1000);
+}
+
 // indent / structure
 #[test]
 fn indent_only_moves_selected_line() {
@@ -914,6 +920,26 @@ fn render_stable_after_event_check(buf: &[u8]) -> Result<(), &'static str> {
         }
     })
     .map_err(|_| "editor panicked while checking stability")?;
+    violation.map(Err).unwrap_or(Ok(()))
+}
+
+/// Property: after every edit of a sequence, each table the buffer then
+/// holds satisfies the range invariant, stated at
+/// [`super::tables::table_ranges_check_md`]. Edits reach table shapes the
+/// generator does not write.
+fn table_ranges_survive_edits_check(buf: &[u8], features: &Features) -> Result<(), String> {
+    let mut violation: Option<String> = None;
+    drive_features(buf, features, |ws, src| {
+        let (cursor, len) = cursor_and_len(ws);
+        ws.push(event_with(src, cursor, len, features));
+        ws.enter_frame();
+        if violation.is_none() {
+            violation = super::tables::table_ranges_check_md(ws.get_text())
+                .err()
+                .map(|reason| format!("{reason}\nbuffer:\n{:?}", ws.get_text()));
+        }
+    })
+    .map_err(|_| "editor panicked during an edit".to_string())?;
     violation.map(Err).unwrap_or(Ok(()))
 }
 
