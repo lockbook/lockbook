@@ -1134,9 +1134,22 @@ fn table_structure_edit_conserves_check(md: &str, choices: &[usize]) -> Result<(
     let Some((mut ws, table, row, column)) = in_table_cell(md, choices) else { return Ok(()) };
     let tool = tools[choices[3] % tools.len()];
     let offered = ws.editor.table_tools().into_iter().flatten().flatten();
-    let enabled = offered
-        .clone()
-        .any(|offered| offered.action == tool && offered.enabled);
+    let offered = offered.clone().find(|offered| offered.action == tool);
+    let (rows, columns) = {
+        let table = &ws.editor.edit.renderer.bounds.tables[table];
+        (table.rows.len(), table.columns())
+    };
+    // moving is a drag, not a tool: available where there is somewhere to go
+    let enabled = offered.map_or(
+        match tool {
+            MoveRowUp => row > 0,
+            MoveRowDown => row > 0 && row + 1 < rows,
+            MoveColumnLeft => column > 0,
+            MoveColumnRight => column + 1 < columns,
+            _ => true,
+        },
+        |offered| offered.enabled,
+    );
 
     let r = &ws.editor.edit.renderer;
     let (first, end) = r.bounds.tables[table].lines();

@@ -120,6 +120,18 @@ pub(super) fn one_line(text: &str) -> String {
     text.replace("\r\n", " ").replace(['\n', '\r'], " ")
 }
 
+/// What an edit does to whole rows it takes.
+#[derive(Clone, Copy, PartialEq)]
+enum Rows {
+    /// Their cells are emptied, as typing over them does.
+    Emptied,
+    /// Their lines are removed, as cutting them does.
+    Removed,
+    /// Emptied, and left selected, unless they are empty already; then
+    /// removed. Delete, so that one press is never more than meant.
+    EmptiedFirst,
+}
+
 /// A part of the document an edit takes, where the edit ends in a table.
 enum Cut {
     /// Text taken as text is: outside the table, or all of it.
@@ -130,6 +142,8 @@ enum Cut {
     Cell { row: RowBounds, column: usize },
     /// Source lines `.0..=.1`, by index, removed whole.
     Lines(usize, usize),
+    /// Nothing; the selection is left over this range.
+    Keep((Grapheme, Grapheme)),
 }
 
 impl MdRender {
@@ -284,10 +298,10 @@ impl MdRender {
     }
 
     /// The parts of the document that an edit of `range` takes, or `None`
-    /// if neither of its ends is in a table and it is ordinary. Whole rows
-    /// are removed if `remove_rows`, else their cells are emptied; either
-    /// way a table that is taken whole is just text.
-    fn table_cuts(&self, range: (Grapheme, Grapheme), remove_rows: bool) -> Option<Vec<Cut>> {
+    /// if neither of its ends is in a table and it is ordinary. `taken` says
+    /// what becomes of whole rows; a table taken whole is just text.
+    fn table_cuts(&self, range: (Grapheme, Grapheme), taken: Rows) -> Option<Vec<Cut>> {
+        let remove_rows = taken != Rows::Emptied;
         let (start, end) = (range.start(), range.end());
         let lines = &self.bounds.source_lines;
         let line_of = |offset| lines.find_containing(offset, true, true).0;
@@ -327,11 +341,22 @@ impl MdRender {
                 }
                 TableSelection::Rows { table, rows } => {
                     let last = table.rows.len() - 1;
-                    if rows == (0, last) {
+                    // rows with something in them are emptied first, and
+                    // stay selected: a second delete removes them
+                    let empty = table.rows[rows.0..=rows.1]
+                        .iter()
+                        .all(|row| row.cells.iter().all(|cell| cell.content.is_empty()));
+                    let emptied = taken == Rows::EmptiedFirst && !empty;
+                    if rows == (0, last) && !emptied {
                         let end = lines[table.lines().1 - 1].end();
                         cuts.push(Cut::Text((table.rows[0].line.start(), end)));
-                    } else if !remove_rows {
+                    } else if !remove_rows || emptied {
                         cells(table, rows, &mut cuts);
+                        if emptied {
+                            let kept =
+                                (table.rows[rows.0].line.start(), table.rows[rows.1].line.end());
+                            cuts.push(Cut::Keep(kept));
+                        }
                     } else if rows.0 == 0 {
                         // without its header the rest would not be a table
                         cells(table, (0, 0), &mut cuts);
@@ -374,6 +399,9 @@ impl MdRender {
     fn apply_table_cuts(
         &self, cuts: Vec<Cut>, text: &str, select: bool, operations: &mut Vec<Operation>,
     ) {
+        // rows kept selected take the caret's place
+        let kept = cuts.iter().any(|cut| matches!(cut, Cut::Keep(_)));
+        let select = select && !kept;
         for (i, cut) in cuts.into_iter().enumerate() {
             let text = if i == 0 { text } else { "" };
             let mut ops = Vec::new();
@@ -399,6 +427,10 @@ impl MdRender {
                     let caret = before.len() + typed.len();
                     let text = format!("{before}{typed}{after}");
                     self.rewrite_cell(&row, column, &text, caret, cell.content, &mut ops);
+                }
+                Cut::Keep(range) => {
+                    operations.push(Operation::Select(range));
+                    continue;
                 }
                 Cut::Lines(first, last) => {
                     let range = self.whole_lines(first, last);
@@ -444,19 +476,23 @@ impl MdEdit {
     ) -> bool {
         let r = &self.renderer;
         let range = r.table_edit_range(range);
-        let Some(cuts) = r.table_cuts(range, false) else { return false };
+        let Some(cuts) = r.table_cuts(range, Rows::Emptied) else { return false };
         r.apply_table_cuts(cuts, text, select, operations);
         true
     }
 
-    /// Deletes `range` where that reaches a table: cells are emptied and
-    /// whole rows removed, the header emptied instead if rows would remain
-    /// without it. False if the edit is ordinary.
+    /// Deletes `range` where that reaches a table: cells are emptied, and
+    /// whole rows emptied and kept selected, or removed once they are
+    /// empty — the header emptied instead if rows would remain without it.
+    /// False if the edit is ordinary.
     pub fn delete_range_in_table(
         &self, range: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
     ) -> bool {
-        let range = self.renderer.table_edit_range(range);
-        self.cut_range_in_table(range, operations)
+        let r = &self.renderer;
+        let range = r.table_edit_range(range);
+        let Some(cuts) = r.table_cuts(range, Rows::EmptiedFirst) else { return false };
+        r.apply_table_cuts(cuts, "", true, operations);
+        true
     }
 
     /// [`Self::delete_range_in_table`] of a range that is the selection, or
@@ -465,7 +501,7 @@ impl MdEdit {
         &self, range: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
     ) -> bool {
         let r = &self.renderer;
-        let Some(cuts) = r.table_cuts(range, true) else { return false };
+        let Some(cuts) = r.table_cuts(range, Rows::Removed) else { return false };
         r.apply_table_cuts(cuts, "", true, operations);
         true
     }

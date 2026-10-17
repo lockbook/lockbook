@@ -13,7 +13,7 @@ There is at most one selection; we aim to support **zero** as well. Zero matters
 
 Multiple selections are a nice-to-have as we are not an IDE.
 
-In a table the range is still one range, but it takes cells whole: a selection inside one cell is ordinary, one that crosses cells of a row takes each of them whole, and one that crosses rows takes whole rows ([blocks](blocks.md)).
+In a table the range is still one range, but it takes cells whole: a selection inside one cell is ordinary, one that crosses cells of a row takes each of them whole, and one that crosses rows takes whole rows ([blocks](blocks.md)). Delete on whole rows empties them and keeps them selected; on rows already empty it removes them, so two presses remove a row and one press is not a surprise.
 
 ## Rich content
 We generally **pretend we are a rich-text editor** around rich inlines like inline images and link previews.  Placing the caret beside an image and backspacing should delete the **image as a whole**, not one character of its markdown. Same family as [layout](layout.md): an image is a glyph. List markers, fold chips, and the rest of “pretty instead of source” follow that same rich-text instinct, tuned iteratively - the exact feel of images, cards, and other non-text can still move.

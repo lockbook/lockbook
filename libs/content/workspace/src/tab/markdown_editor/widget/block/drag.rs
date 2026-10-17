@@ -183,6 +183,7 @@ impl<'ast> MdRender {
             let origin = origin.or(pointer).unwrap_or(resp.rect.center());
             if let Some(drag) = start(self, origin) {
                 self.block_drag_action = Some(BlockDragAction::Started(drag));
+                crate::style::context_menu::close(ui.ctx());
             }
         } else if resp.drag_stopped() {
             if let Some(p) = pointer {

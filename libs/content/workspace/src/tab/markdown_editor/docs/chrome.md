@@ -6,7 +6,7 @@ Users want an option to hide it. Customize which buttons is a mobile-only experi
 
 The heading button cycles levels. Quotes still need an entry. Which buttons exist is allowed to grow.
 
-In a table the block styles give way to the table set: insert, delete, and move for rows and columns, the column's alignment, and on touch the cell-to-cell keys a touch keyboard lacks ([blocks](blocks.md)). On desktop the row and the column under the pointer also each show a handle on the table's border: drag it to reorder ([reorder](reorder.md)), click it for the same actions as a menu.
+In a table the block styles give way to the table set: insert and delete for rows and columns, the column's alignment, and on touch the cell-to-cell keys a touch keyboard lacks ([blocks](blocks.md)). Moving a row or column is a drag, as it is for list items ([reorder](reorder.md)). On desktop the row and the column under the pointer also each show a handle on the table's border: drag it to reorder, click it for the same actions as a menu, with move among them; a second click or a key puts the menu away.
 
 ## Find
 Enter a search term, regex optional, count & navigate matches, replace one, replace all. On iOS a native search button opens this.

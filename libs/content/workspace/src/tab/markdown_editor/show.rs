@@ -139,6 +139,16 @@ impl MdEdit {
             }
         }
 
+        // a key puts a handle's menu away; a click does so on its own
+        let typed = ctx.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Text(_)))
+        });
+        if typed {
+            crate::style::context_menu::close(ctx);
+        }
+
         self.renderer.buffer.queue(ops);
         let mut buf_resp = direct_resp;
         buf_resp |= self.renderer.buffer.update();

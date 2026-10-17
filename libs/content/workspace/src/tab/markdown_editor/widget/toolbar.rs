@@ -171,12 +171,6 @@ const TABLE_TOOLS: &[&[(MarkdownToolbarAction, Mark, &str)]] = {
             (DeleteColumn, Mark::RemoveColumn, "Delete column"),
         ],
         &[
-            (MoveRowUp, Glyph(phosphor::ARROW_UP), "Move row up"),
-            (MoveRowDown, Glyph(phosphor::ARROW_DOWN), "Move row down"),
-            (MoveColumnLeft, Glyph(phosphor::ARROW_LEFT), "Move column left"),
-            (MoveColumnRight, Glyph(phosphor::ARROW_RIGHT), "Move column right"),
-        ],
-        &[
             (AlignLeft, Glyph(phosphor::TEXT_ALIGN_LEFT), "Align left"),
             (AlignCenter, Glyph(phosphor::TEXT_ALIGN_CENTER), "Align center"),
             (AlignRight, Glyph(phosphor::TEXT_ALIGN_RIGHT), "Align right"),
@@ -496,7 +490,6 @@ impl<'ast> Editor {
 
         let r = &self.edit.renderer;
         let (table, row, column) = r.table_position()?;
-        let (last_row, last_column) = (table.rows.len() - 1, table.columns() - 1);
         let alignment = table.delimiter.alignments[column];
         let tool = |action| TableTool {
             action,
@@ -506,14 +499,8 @@ impl<'ast> Editor {
                 AlignRight => alignment == TableAlignment::Right,
                 _ => false,
             },
-            // the header stays the header; a row or column at an edge stays in
-            enabled: match action {
-                DeleteRow | MoveRowUp => row > 0,
-                MoveRowDown => row > 0 && row < last_row,
-                MoveColumnLeft => column > 0,
-                MoveColumnRight => column < last_column,
-                _ => true,
-            },
+            // the header stays the header
+            enabled: action != DeleteRow || row > 0,
         };
         let groups = TABLE_TOOLS.iter().skip(if r.touch_mode { 0 } else { 1 });
         Some(

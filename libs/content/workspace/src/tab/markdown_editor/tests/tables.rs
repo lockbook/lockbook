@@ -1132,35 +1132,86 @@ fn deleting_whole_cells_empties_them() {
 }
 
 #[test]
-fn deleting_whole_rows_removes_them() {
+fn deleting_whole_rows_empties_them_then_removes_them() {
     let at = |text: &str| SHEET.find(text).unwrap();
+    // a first delete empties the rows and keeps them selected
     for (from, to, gives) in [
-        // body rows go
-        (at("dd"), at("hh"), "above\n\n| aa | bb | cc |\n| - | - | - |\n\nbelow"),
         (
-            at("| dd"),
-            at("ff |") + 4,
-            "above\n\n| aa | bb | cc |\n| - | - | - |\n| gg | hh | ii |\n\nbelow",
+            at("dd"),
+            at("hh"),
+            "above\n\n| aa | bb | cc |\n| - | - | - |\n|  |  |  |\n|  |  |  |\n\nbelow",
         ),
-        // the header is emptied instead while rows remain under it
-        (at("aa"), at("ee"), "above\n\n|  |  |  |\n| - | - | - |\n| gg | hh | ii |\n\nbelow"),
-        // every row: the table goes
-        (at("aa"), at("ii"), "above\n\n\n\nbelow"),
-        // from above the table, the same; it keeps the line it starts on
-        (at("ove"), at("ee"), "ab\n|  |  |  |\n| - | - | - |\n| gg | hh | ii |\n\nbelow"),
-        (at("ove"), at("ii"), "ab\n\nbelow"),
-        // and from a row to below it
-        (at("hh"), at("low"), "above\n\n| aa | bb | cc |\n| - | - | - |\n| dd | ee | ff |\nlow"),
-        (at("bb"), at("low"), "above\n\nlow"),
+        (
+            at("aa"),
+            at("ee"),
+            "above\n\n|  |  |  |\n| - | - | - |\n|  |  |  |\n| gg | hh | ii |\n\nbelow",
+        ),
     ] {
         let mut editor = TestEditor::new(SHEET);
+        select(&mut editor, from, to);
+        delete(&mut editor, BACKSPACE);
+        assert_eq!(editor.get_text(), gives, "deleting {from}..{to}");
+        let text = editor.get_text().to_string();
+        let (start, end) = selection(&editor);
+        assert!(text[..start].ends_with("\n") && text[end..].starts_with("\n"), "{start}..{end}");
+        table_ranges_check_md(&text).unwrap();
+    }
+    // and a second removes them; every row, the table
+    let mut editor = TestEditor::new(SHEET);
+    select(&mut editor, at("dd"), at("hh"));
+    delete(&mut editor, BACKSPACE);
+    delete(&mut editor, BACKSPACE);
+    assert_eq!(editor.get_text(), "above\n\n| aa | bb | cc |\n| - | - | - |\n\nbelow");
+    let mut editor = TestEditor::new(SHEET);
+    select(&mut editor, at("aa"), at("ii"));
+    delete(&mut editor, BACKSPACE);
+    delete(&mut editor, BACKSPACE);
+    assert_eq!(editor.get_text(), "above\n\n\n\nbelow");
+
+    let empty = "above\n\n| aa | bb | cc |\n| - | - | - |\n|  |  |  |\n|  |  |  |\n| gg | hh | ii |\n\nbelow";
+    let at = |text: &str| empty.find(text).unwrap();
+    for (from, to, gives) in [
+        // empty body rows go
+        (
+            at("|  |"),
+            at("gg") - 3,
+            "above\n\n| aa | bb | cc |\n| - | - | - |\n| gg | hh | ii |\n\nbelow",
+        ),
+        // a filled header among empty rows: everything is emptied first
+        (
+            at("aa"),
+            at("gg") - 3,
+            "above\n\n|  |  |  |\n| - | - | - |\n|  |  |  |\n|  |  |  |\n| gg | hh | ii |\n\nbelow",
+        ),
+        // every row, one of them filled: all emptied
+        (
+            at("aa"),
+            at("ii"),
+            "above\n\n|  |  |  |\n| - | - | - |\n|  |  |  |\n|  |  |  |\n|  |  |  |\n\nbelow",
+        ),
+        // from above the table, the same; it keeps the line it starts on
+        (
+            at("ove"),
+            at("|  |") + 2,
+            "ab\n|  |  |  |\n| - | - | - |\n|  |  |  |\n| gg | hh | ii |\n\nbelow",
+        ),
+        (at("ove"), at("ii"), "ab\n\nbelow"),
+        // and from a row to below it
+        (
+            at("hh"),
+            at("low"),
+            "above\n\n| aa | bb | cc |\n| - | - | - |\n|  |  |  |\n|  |  |  |\nlow",
+        ),
+        (at("bb"), at("low"), "above\n\nlow"),
+    ] {
+        let mut editor = TestEditor::new(empty);
         select(&mut editor, from, to);
         delete(&mut editor, BACKSPACE);
         assert_eq!(editor.get_text(), gives, "deleting {from}..{to}");
         table_ranges_check_md(editor.get_text()).unwrap();
         editor.push(Event::Undo);
         editor.enter_frame();
-        assert_eq!(editor.get_text(), SHEET, "undoing the deletion of {from}..{to}");
+        assert_eq!(editor.get_text(), empty, "undoing the deletion of {from}..{to}");
     }
 }
 
@@ -2053,14 +2104,17 @@ fn the_toolbar_offers_the_table_set_in_a_table() {
 
     // the header stays the header, and its first cell is at an edge
     caret_at(&mut editor, md.find('a').unwrap());
-    assert_eq!(
-        tools_where(&editor, |tool| !tool.enabled),
-        [DeleteRow, MoveRowUp, MoveRowDown, MoveColumnLeft]
-    );
+    assert_eq!(tools_where(&editor, |tool| !tool.enabled), [DeleteRow]);
     assert_eq!(tools_where(&editor, |tool| tool.applied), [AlignCenter]);
+    // moving is a drag, not a tool
+    assert!(
+        !tools(&editor)
+            .iter()
+            .any(|tool| matches!(tool.action, MoveRowUp | MoveColumnLeft))
+    );
 
     caret_at(&mut editor, md.find('f').unwrap());
-    assert_eq!(tools_where(&editor, |tool| !tool.enabled), [MoveRowDown, MoveColumnRight]);
+    assert_eq!(tools_where(&editor, |tool| !tool.enabled), []);
     assert_eq!(tools_where(&editor, |tool| tool.applied), []);
 
     // a touch keyboard has no Tab
@@ -2070,7 +2124,7 @@ fn the_toolbar_offers_the_table_set_in_a_table() {
 
     let state = editor.editor.android_toolbar_state();
     assert!(state.in_table);
-    assert_eq!(state.disabled, [MoveRowDown, MoveColumnRight]);
+    assert_eq!(state.disabled, []);
 }
 
 /// A tool is enabled exactly where using it changes something.
@@ -2237,6 +2291,45 @@ fn dragging_a_column_handle_reorders_the_columns() {
     let header = cell_rects(&editor).swap_remove(0);
     drag(&mut editor, header[1].center_top(), header[1].center_top() + 4.0 * along);
     assert_eq!(editor.get_text(), back);
+}
+
+fn menu_open(editor: &TestEditor) -> bool {
+    crate::style::context_menu::open_host(&editor.editor.edit.renderer.ctx).is_some()
+}
+
+#[test]
+fn a_handles_menu_toggles_on_click_and_goes_on_a_drag_or_a_key() {
+    let mut editor = TestEditor::new(DRAGGED);
+    let rows = row_rects(&editor);
+    let pill = rows[3].left_center();
+
+    click(&mut editor, pill);
+    assert!(menu_open(&editor));
+    click(&mut editor, pill);
+    assert!(!menu_open(&editor));
+
+    // a right click opens it too
+    let secondary = |pos, pressed| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Secondary,
+        pressed,
+        modifiers: Default::default(),
+    };
+    editor.enter_frame_with_input(vec![secondary(pill, true)]);
+    editor.enter_frame_with_input(vec![secondary(pill, false)]);
+    editor.enter_frame();
+    assert!(menu_open(&editor));
+
+    // a drag puts it away
+    drag(&mut editor, pill, rows[1].center_top());
+    assert!(!menu_open(&editor));
+
+    // so does typing
+    let pill = row_rects(&editor)[2].left_center();
+    click(&mut editor, pill);
+    assert!(menu_open(&editor));
+    editor.enter_frame_with_input(vec![egui::Event::Text("x".into())]);
+    assert!(!menu_open(&editor));
 }
 
 #[test]
@@ -2624,6 +2717,26 @@ fn a_line_in_a_cell_ends_where_its_content_does() {
     // and a selection made to a line's end stays in the cell
     caret_at(&mut editor, 3);
     assert_eq!(extend(&mut editor, shift_arrow(Advance::To(Bound::Line), false)), (3, 4));
+}
+
+#[test]
+fn home_and_end_at_a_cells_edge_go_to_the_next_cells_edge() {
+    let md = "| aa | bb | cc |\n| - | - | - |\n| dd | ee | ff |";
+    let mut editor = TestEditor::new(md);
+    let (home, end) =
+        (arrow(Advance::To(Bound::Line), true), arrow(Advance::To(Bound::Line), false));
+    let (bb, cc) = (md.find("bb").unwrap(), md.find("cc").unwrap());
+    // from the start of a cell, to the start of the one before
+    caret_at(&mut editor, bb);
+    assert_eq!(press(&mut editor, home), 2);
+    assert_eq!(press(&mut editor, home), 2);
+    // from the end of a cell, to the end of the one after
+    caret_at(&mut editor, bb + 2);
+    assert_eq!(press(&mut editor, end), cc + 2);
+    assert_eq!(press(&mut editor, end), cc + 2);
+    // never off the row
+    caret_at(&mut editor, md.find("dd").unwrap());
+    assert_eq!(press(&mut editor, home), md.find("dd").unwrap());
 }
 
 #[test]

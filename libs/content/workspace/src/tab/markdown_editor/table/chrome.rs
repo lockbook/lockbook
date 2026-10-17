@@ -270,7 +270,9 @@ impl MdRender {
             drag.unit == DragUnit::Row && row.line.contains_inclusive(drag.section_range.0)
         });
         let id = row_handle_id(row.line.start());
-        let resp = self.table_handle(ui, id, pill, phosphor::DOTS_SIX_VERTICAL, dragging);
+        // the header does not drag: its pill is plain
+        let glyph = if row.index > 0 { phosphor::DOTS_SIX_VERTICAL } else { "" };
+        let resp = self.table_handle(ui, id, pill, glyph, dragging);
 
         // body rows reorder among themselves
         if row.index > 0 && row.of > 2 {
@@ -288,7 +290,7 @@ impl MdRender {
             self.render_events
                 .push(Event::Select { region: row.line.into() });
         }
-        let chosen = context_menu::show_click(&resp, &self.ctx.get_lb_theme(), |e| {
+        let chosen = context_menu::show_toggle(&resp, &self.ctx.get_lb_theme(), |e| {
             e.item(phosphor::ROWS_PLUS_TOP, "Insert row above", InsertRow { below: false });
             e.item(phosphor::ROWS_PLUS_BOTTOM, "Insert row below", InsertRow { below: true });
             // the header stays the header
@@ -332,7 +334,7 @@ impl MdRender {
             self.render_events
                 .push(Event::Select { region: column.header.content.into() });
         }
-        let chosen = context_menu::show_click(&resp, &theme, |e| {
+        let chosen = context_menu::show_toggle(&resp, &theme, |e| {
             e.item(
                 phosphor::COLUMNS_PLUS_LEFT,
                 "Insert column left",

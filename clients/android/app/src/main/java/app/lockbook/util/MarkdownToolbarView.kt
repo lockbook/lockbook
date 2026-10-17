@@ -137,12 +137,6 @@ class MarkdownToolbarView(
                 tableAction(MarkdownToolbarAction.DeleteColumn, "Delete column", R.drawable.ic_md_column_remove_24),
             ),
             listOf(
-                tableAction(MarkdownToolbarAction.MoveRowUp, "Move row up", R.drawable.ic_md_arrow_upward_24),
-                tableAction(MarkdownToolbarAction.MoveRowDown, "Move row down", R.drawable.ic_md_arrow_downward_24),
-                tableAction(MarkdownToolbarAction.MoveColumnLeft, "Move column left", R.drawable.ic_md_arrow_left_24),
-                tableAction(MarkdownToolbarAction.MoveColumnRight, "Move column right", R.drawable.ic_md_arrow_right_24),
-            ),
-            listOf(
                 tableAction(MarkdownToolbarAction.AlignLeft, "Align left", R.drawable.ic_md_format_align_left_24, true),
                 tableAction(MarkdownToolbarAction.AlignCenter, "Align center", R.drawable.ic_md_format_align_center_24, true),
                 tableAction(MarkdownToolbarAction.AlignRight, "Align right", R.drawable.ic_md_format_align_right_24, true),

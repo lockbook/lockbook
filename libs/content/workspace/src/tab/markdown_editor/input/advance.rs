@@ -49,12 +49,22 @@ impl MdEdit {
             }
         };
         let result = self.renderer.snap_offset_out_of_folds(result, backwards);
-        // in a cell a line is the cell's own: its ends are the content's
+        // in a cell a line is the cell's own: its ends are the content's,
+        // and from an end the next cell's is the line
         let cell = self.renderer.bounds.table_at(offset).and_then(|table| {
             let (row, column) = table.cell_at(offset)?;
-            Some(table.rows[row].cells[column].content)
+            Some((&table.rows[row], column))
         });
-        if let Some(content) = cell.filter(|_| advance == Advance::To(Bound::Line)) {
+        if let Some((row, column)) = cell.filter(|_| advance == Advance::To(Bound::Line)) {
+            let content = row.cells[column].content;
+            let next = match backwards {
+                true if offset == content.start() => column.checked_sub(1),
+                false if offset == content.end() => Some(column + 1),
+                _ => None,
+            };
+            if let Some(next) = next.and_then(|next| row.cells.get(next)) {
+                return if backwards { next.content.start() } else { next.content.end() };
+            }
             return result.max(content.start()).min(content.end());
         }
         self.renderer
