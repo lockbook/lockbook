@@ -115,7 +115,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                         queue.push(A::Import);
                     }
                     if search {
-                        queue.push(A::OpenSearch);
+                        queue.push(A::OpenSearch(None));
                     }
                     head.chip_mid = ui.min_rect();
                     let [a, b, c] = chip_rects;

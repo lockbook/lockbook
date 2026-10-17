@@ -215,7 +215,7 @@ fn tab_label(ready: &crate::shell::session::Ready, dest: &Destination) -> String
             .get_by_id(*id)
             .map(|f| f.name.clone())
             .unwrap_or_else(|| "Unknown".into()),
-        Destination::Search => "Search".into(),
+        Destination::Search(_) => "Search".into(),
     }
 }
 

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use egui::{Context, Event, EventFilter, Id, ImeEvent, Key, Rect, Response, Sense, Ui};
+use egui::{Context, Event, EventFilter, Id, ImeEvent, Key, Modifiers, Rect, Response, Sense, Ui};
 use glyphon::{Attrs, Family, FontSystem, Metrics, Shaping};
 
 use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
@@ -25,14 +25,38 @@ fn drain_filter(claim_tab: bool) -> EventFilter {
 ///
 /// egui's [`EventFilter`] matches *all* non-arrow keys, which would swallow
 /// workspace chords (⌘1–9 open a search hit, ⌘O, …). Only drain unmodified
-/// typing plus the chords the field itself handles (⌘A / ⌘Backspace).
+/// typing plus the chords the field itself handles (⌘A and modified
+/// horizontal navigation / deletion).
 fn field_should_drain(event: &Event, drain: &EventFilter) -> bool {
     if let Event::Key { modifiers, key, .. } = event {
         if modifiers.command || modifiers.ctrl || modifiers.alt || modifiers.mac_cmd {
-            return modifiers.command && matches!(key, Key::A | Key::Backspace);
+            return (modifiers.command && *key == Key::A)
+                || matches!(key, Key::ArrowLeft | Key::ArrowRight | Key::Backspace | Key::Delete);
         }
     }
     drain.matches(event)
+}
+
+/// Where a leftward step from `from` lands: ⌘ to the line start, ⌥ (Ctrl
+/// off mac) to the previous word start, else the previous grapheme.
+fn step_left(text: &str, from: usize, m: &Modifiers) -> usize {
+    if m.mac_cmd {
+        0
+    } else if m.alt || m.ctrl {
+        prev_word_boundary(text, from)
+    } else {
+        prev_grapheme_boundary(text, from)
+    }
+}
+
+fn step_right(text: &str, from: usize, m: &Modifiers) -> usize {
+    if m.mac_cmd {
+        text.len()
+    } else if m.alt || m.ctrl {
+        next_word_boundary(text, from)
+    } else {
+        next_grapheme_boundary(text, from)
+    }
 }
 
 /// Apply one editor event to `state` and `text`.
@@ -67,43 +91,37 @@ fn apply_event(event: Event, state: &mut State, text: &mut String, ctx: &Context
             if state.has_selection() {
                 state.delete_selection(text);
             } else if state.cursor > 0 {
-                if modifiers.command {
-                    text.drain(0..state.cursor);
-                    state.cursor = 0;
-                    state.anchor = 0;
-                } else {
-                    let prev = prev_grapheme_boundary(text, state.cursor);
-                    text.drain(prev..state.cursor);
-                    state.cursor = prev;
-                    state.anchor = prev;
-                }
+                let prev = step_left(text, state.cursor, &modifiers);
+                text.drain(prev..state.cursor);
+                state.cursor = prev;
+                state.anchor = prev;
             }
             changed = true;
         }
-        Event::Key { key: Key::Delete, pressed: true, .. } => {
+        Event::Key { key: Key::Delete, pressed: true, modifiers, .. } => {
             if state.has_selection() {
                 state.delete_selection(text);
             } else if state.cursor < text.len() {
-                let next = next_grapheme_boundary(text, state.cursor);
+                let next = step_right(text, state.cursor, &modifiers);
                 text.drain(state.cursor..next);
             }
             changed = true;
         }
         Event::Key { key: Key::ArrowLeft, pressed: true, modifiers, .. } => {
-            if !modifiers.shift && state.has_selection() {
+            if modifiers.is_none() && state.has_selection() {
                 let lo = state.selection().0;
                 state.move_cursor(lo, false);
             } else if state.cursor > 0 {
-                let prev = prev_grapheme_boundary(text, state.cursor);
+                let prev = step_left(text, state.cursor, &modifiers);
                 state.move_cursor(prev, modifiers.shift);
             }
         }
         Event::Key { key: Key::ArrowRight, pressed: true, modifiers, .. } => {
-            if !modifiers.shift && state.has_selection() {
+            if modifiers.is_none() && state.has_selection() {
                 let hi = state.selection().1;
                 state.move_cursor(hi, false);
             } else if state.cursor < text.len() {
-                let next = next_grapheme_boundary(text, state.cursor);
+                let next = step_right(text, state.cursor, &modifiers);
                 state.move_cursor(next, modifiers.shift);
             }
         }
@@ -784,6 +802,32 @@ fn next_grapheme_boundary(s: &str, from: usize) -> usize {
         .unwrap_or(s.len())
 }
 
+/// Whitespace and punctuation runs are not words: ⌥← / ⌥⌫ skip over them.
+fn is_word(segment: &str) -> bool {
+    segment.chars().any(char::is_alphanumeric)
+}
+
+/// Start of the last word ending before `from`.
+fn prev_word_boundary(s: &str, from: usize) -> usize {
+    use unicode_segmentation::UnicodeSegmentation as _;
+    s[..from]
+        .split_word_bound_indices()
+        .filter(|(_, w)| is_word(w))
+        .map(|(i, _)| i)
+        .next_back()
+        .unwrap_or(0)
+}
+
+/// End of the first word starting at or after `from`.
+fn next_word_boundary(s: &str, from: usize) -> usize {
+    use unicode_segmentation::UnicodeSegmentation as _;
+    s[from..]
+        .split_word_bound_indices()
+        .find(|(_, w)| is_word(w))
+        .map(|(i, w)| from + i + w.len())
+        .unwrap_or(s.len())
+}
+
 /// Returns the x position (logical pixels, relative to the buffer's left edge)
 /// of the cursor at `byte_offset`.
 fn cursor_x_from_buffer(buffer: &glyphon::Buffer, byte_offset: usize, ppi: f32) -> f32 {
@@ -824,4 +868,83 @@ fn hit_test_buffer(buffer: &glyphon::Buffer, x: f32, _y: f32) -> usize {
         }
     }
     0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(key: Key, modifiers: Modifiers) -> Event {
+        Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }
+    }
+
+    fn run(text: &str, cursor: usize, events: &[Event]) -> (String, usize, usize) {
+        let ctx = Context::default();
+        let mut text = text.to_owned();
+        let mut state = State { cursor, anchor: cursor, ..Default::default() };
+        for e in events {
+            apply_event(e.clone(), &mut state, &mut text, &ctx);
+        }
+        (text, state.cursor, state.anchor)
+    }
+
+    #[test]
+    fn word_boundaries_skip_whitespace_and_punctuation_runs() {
+        let s = "foo  bar, baz";
+        assert_eq!(prev_word_boundary(s, s.len()), 10);
+        assert_eq!(prev_word_boundary(s, 10), 5);
+        assert_eq!(prev_word_boundary(s, 5), 0);
+        assert_eq!(next_word_boundary(s, 0), 3);
+        assert_eq!(next_word_boundary(s, 3), 8);
+        assert_eq!(next_word_boundary(s, 8), 13);
+    }
+
+    #[test]
+    fn alt_arrows_jump_words_and_shift_extends() {
+        assert_eq!(
+            run("foo bar", 7, &[key(Key::ArrowLeft, Modifiers::ALT)]),
+            ("foo bar".into(), 4, 4)
+        );
+        assert_eq!(
+            run("foo bar", 0, &[key(Key::ArrowRight, Modifiers::ALT)]),
+            ("foo bar".into(), 3, 3)
+        );
+        assert_eq!(
+            run("foo bar", 7, &[key(Key::ArrowLeft, Modifiers::ALT | Modifiers::SHIFT)]),
+            ("foo bar".into(), 4, 7)
+        );
+    }
+
+    #[test]
+    fn cmd_arrows_jump_to_line_ends() {
+        assert_eq!(
+            run("foo bar", 5, &[key(Key::ArrowLeft, Modifiers::MAC_CMD)]),
+            ("foo bar".into(), 0, 0)
+        );
+        assert_eq!(
+            run("foo bar", 5, &[key(Key::ArrowRight, Modifiers::MAC_CMD)]),
+            ("foo bar".into(), 7, 7)
+        );
+    }
+
+    #[test]
+    fn alt_backspace_and_delete_remove_a_word() {
+        assert_eq!(
+            run("foo bar", 7, &[key(Key::Backspace, Modifiers::ALT)]),
+            ("foo ".into(), 4, 4)
+        );
+        assert_eq!(run("foo bar", 0, &[key(Key::Delete, Modifiers::ALT)]), (" bar".into(), 0, 0));
+        assert_eq!(
+            run("foo bar", 4, &[key(Key::Backspace, Modifiers::MAC_CMD)]),
+            ("bar".into(), 0, 0)
+        );
+    }
+
+    #[test]
+    fn selection_wins_over_word_delete() {
+        let select = key(Key::ArrowLeft, Modifiers::SHIFT);
+        let (text, c, a) =
+            run("foo bar", 7, &[select.clone(), select, key(Key::Backspace, Modifiers::ALT)]);
+        assert_eq!((text.as_str(), c, a), ("foo b", 5, 5));
+    }
 }

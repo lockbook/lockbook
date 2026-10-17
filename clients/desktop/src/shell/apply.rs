@@ -552,9 +552,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 import_paths(app, ctx, paths, parent);
             }
         }
-        A::OpenSearch => {
+        A::OpenSearch(search_type) => {
             if let Some(r) = app.session.ready_mut() {
-                r.workspace.upsert_search(None);
+                r.workspace.upsert_search(search_type);
             }
         }
         A::CancelSubscription => {

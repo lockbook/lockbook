@@ -233,7 +233,7 @@ enum RecentCmd {
 }
 
 impl Workspace {
-    fn toggle_pin(&mut self, id: Uuid) {
+    pub(crate) fn toggle_pin(&mut self, id: Uuid) {
         let pinned = self.core.list_pinned().unwrap_or_default();
         let res =
             if pinned.contains(&id) { self.core.unpin_file(id) } else { self.core.pin_file(id) };
