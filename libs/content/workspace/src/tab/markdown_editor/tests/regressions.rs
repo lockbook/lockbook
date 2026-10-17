@@ -1655,6 +1655,35 @@ fn tab_indents_parent_to_child_keeps_child_level() {
     assert_eq!(ws.get_text(), "- bullet parent\n    - child four\n    - asdf\n");
 }
 
+/// Regression: Enter on an empty `> ` line of a quote inside a list item
+/// used to insert a bare newline, leaving a stray `>` (comrak ends the
+/// item before the content-less quote line, so the line looked like it
+/// was outside every container). It closes the quote like it does at the
+/// top level, keeping the item's indentation.
+#[test]
+fn newline_closes_empty_quote_inside_item() {
+    let cases: &[(&str, &str)] = &[
+        ("- item\n  > quoted\n  > \n", "- item\n  > quoted\n  \n"),
+        ("- [x] b\n\n  para\n\n  > quoted\n  > \n", "- [x] b\n\n  para\n\n  > quoted\n  \n"),
+        ("- a\n  - b\n    > q\n    > \n", "- a\n  - b\n    > q\n    \n"),
+    ];
+    for (input, expected) in cases {
+        let mut ws = TestEditor::new(input);
+        ws.enter_frame();
+        let cursor = Grapheme(input.chars().count() - 1); // end of the empty quote line
+        ws.push(Event::Select {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(cursor),
+                end: Location::Grapheme(cursor),
+            },
+        });
+        ws.enter_frame();
+        ws.push(Event::Newline { shift: false });
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), *expected, "input {input:?}");
+    }
+}
+
 /// Newline at the end of a nested list item must start the sibling at
 /// the prior item's actual source indentation, not a shallower depth
 /// reconstructed from ancestor marker widths.
