@@ -71,9 +71,6 @@ struct HomeView: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .sidebarToggle)
-                    .navigationBarBackButtonHidden(
-                        horizontalSizeClass == .compact && workspaceOutput.currentSession != nil
-                    )
                 #else
                     .background {
                         DetailWidthReader { detailWidth = $0 }
@@ -87,19 +84,7 @@ struct HomeView: View {
                     }
 
                     #if os(iOS)
-                        if horizontalSizeClass == .compact, workspaceOutput.currentSession != nil {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button {
-                                    if workspaceInput.canNavBack() {
-                                        workspaceInput.navBack()
-                                    } else {
-                                        homeState.compactColumn = .sidebar
-                                    }
-                                } label: {
-                                    Image(systemName: "chevron.left")
-                                }
-                            }
-                        } else if horizontalSizeClass == .regular,
+                        if horizontalSizeClass == .regular,
                            homeState.splitViewVisibility != .all,
                            !keyboardVisible
                         {

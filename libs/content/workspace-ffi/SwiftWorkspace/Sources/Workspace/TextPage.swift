@@ -243,6 +243,10 @@
         }
 
         override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            if gestureRecognizer === scrollPan {
+                let velocity = scrollPan.velocity(in: self)
+                return abs(velocity.y) > abs(velocity.x)
+            }
             if isInteractiveContentPop(gestureRecognizer) {
                 return false
             }
