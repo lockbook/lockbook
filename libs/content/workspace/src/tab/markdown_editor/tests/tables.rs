@@ -1172,3 +1172,167 @@ fn typing_over_whole_rows_empties_them() {
         table_ranges_check_md(editor.get_text()).unwrap();
     }
 }
+
+// ─── keys ────────────────────────────────────────────────────────────
+
+fn tab(editor: &mut TestEditor, shift: bool) {
+    editor.push(Event::Indent { deindent: shift });
+    editor.enter_frame();
+}
+
+fn enter(editor: &mut TestEditor, shift: bool) {
+    editor.push(Event::Newline { shift });
+    editor.enter_frame();
+}
+
+#[test]
+fn tab_moves_through_cells_and_selects_them() {
+    let md = "| aa | bb |\n| - | - |\n| cc |  |\n| dd |";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, md.find("aa").unwrap() + 1);
+    for takes in ["bb", "cc", ""] {
+        tab(&mut editor, false);
+        assert_eq!(selected(&editor), takes);
+    }
+    assert_eq!(caret_cell(&editor), Some((1, 1, 0)));
+    tab(&mut editor, false);
+    assert_eq!(selected(&editor), "dd");
+    // into a cell the row lacks: it is written
+    tab(&mut editor, false);
+    assert_eq!(editor.get_text(), "| aa | bb |\n| - | - |\n| cc |  |\n| dd |  |");
+    assert_eq!(caret_cell(&editor), Some((2, 1, 0)));
+    // from the last cell: a new row
+    tab(&mut editor, false);
+    assert_eq!(editor.get_text(), "| aa | bb |\n| - | - |\n| cc |  |\n| dd |  |\n|  |  |");
+    assert_eq!(caret_cell(&editor), Some((3, 0, 0)));
+
+    // and back
+    for (cell, takes) in [
+        ((2, 1), ""),
+        ((2, 0), "dd"),
+        ((1, 1), ""),
+        ((1, 0), "cc"),
+        ((0, 1), "bb"),
+        ((0, 0), "aa"),
+        ((0, 0), "aa"),
+    ] {
+        tab(&mut editor, true);
+        assert_eq!(selected(&editor), takes);
+        let (_, end) = selection(&editor);
+        let table = &editor.editor.edit.renderer.bounds.tables[0];
+        assert_eq!(table.cell_at(Grapheme(end)), Some(cell));
+    }
+}
+
+#[test]
+fn tab_there_and_back_returns_the_caret() {
+    let md = "| a | b | c |\n| - | - | - |\n| d | e | f |\n| g | h | i |";
+    for start in ["a", "b", "e", "g"] {
+        for n in 1..=8 {
+            let mut editor = TestEditor::new(md);
+            caret_at(&mut editor, md.find(start).unwrap());
+            tab(&mut editor, false);
+            tab(&mut editor, true);
+            let home = selection(&editor);
+            for _ in 0..n {
+                tab(&mut editor, false);
+            }
+            if editor.get_text() != md {
+                continue; // tabbed off the end: a row was added
+            }
+            for _ in 0..n {
+                tab(&mut editor, true);
+            }
+            assert_eq!(selection(&editor), home, "{n} tabs from {start:?}");
+        }
+    }
+}
+
+#[test]
+fn return_moves_down_and_extends_or_leaves() {
+    let md = "| aa | bb |\n| - | - |\n| cc | dd |";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, md.find("bb").unwrap());
+    enter(&mut editor, false);
+    assert_eq!(selected(&editor), "dd");
+    // from the last row: a new row, same column
+    enter(&mut editor, false);
+    assert_eq!(editor.get_text(), "| aa | bb |\n| - | - |\n| cc | dd |\n|  |  |");
+    assert_eq!(caret_cell(&editor), Some((2, 1, 0)));
+    // shift goes up
+    enter(&mut editor, true);
+    assert_eq!(selected(&editor), "dd");
+    enter(&mut editor, true);
+    enter(&mut editor, true);
+    assert_eq!(selected(&editor), "bb");
+    // from a blank last row: the row goes and the caret leaves the table
+    let blank_row = editor.get_text().len() - 2;
+    caret_at(&mut editor, blank_row);
+    enter(&mut editor, false);
+    assert_eq!(editor.get_text(), "| aa | bb |\n| - | - |\n| cc | dd |\n\n");
+    assert_eq!(caret(&editor), editor.get_text().len());
+    type_text(&mut editor, "after");
+    assert_eq!(editor.editor.edit.renderer.bounds.tables[0].rows.len(), 2);
+
+    // with a blank line already below, the caret takes it
+    let md = "> | aa |\n> | - |\n> |  |\n>\n> after";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, md.find("  |").unwrap() + 1);
+    enter(&mut editor, false);
+    assert_eq!(editor.get_text(), "> | aa |\n> | - |\n> \n>\n> after");
+    assert_eq!(caret(&editor), editor.get_text().find(">\n> after").unwrap() + 1);
+}
+
+#[test]
+fn return_on_a_hand_typed_delimiter_row_starts_the_first_row() {
+    let md = "| a | b |\n|-|";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, md.len());
+    type_text(&mut editor, "-");
+    enter(&mut editor, false);
+    assert_eq!(editor.get_text(), "| a | b |\n|-|-\n|  |  |");
+    assert_eq!(caret_cell(&editor), Some((1, 0, 0)));
+}
+
+#[test]
+fn new_rows_keep_their_container() {
+    for (md, gives) in [
+        ("> | a |\n> | - |", "> | a |\n> | - |\n> |  |"),
+        ("- | a |\n  | - |", "- | a |\n  | - |\n  |  |"),
+        ("1. x\n\n   | a |\n   | - |", "1. x\n\n   | a |\n   | - |\n   |  |"),
+        ("> - | a |\n>   | - |", "> - | a |\n>   | - |\n>   |  |"),
+    ] {
+        let mut editor = TestEditor::new(md);
+        caret_at(&mut editor, md.find('a').unwrap());
+        enter(&mut editor, false);
+        assert_eq!(editor.get_text(), gives);
+        table_ranges_check_md(editor.get_text()).unwrap();
+        assert_eq!(caret_cell(&editor), Some((1, 0, 0)));
+    }
+}
+
+#[test]
+fn cut_and_copy_take_rows_without_their_container() {
+    let md = "> | aa | bb |\n> | - | - |\n> | cc | dd |\n> | ee | ff |";
+    // rows with their header copy as a table
+    let mut editor = TestEditor::new(md);
+    select(&mut editor, md.find("aa").unwrap(), md.find("cc").unwrap());
+    editor.push(Event::Copy);
+    editor.enter_frame();
+    assert_eq!(editor.copied.as_deref(), Some("| aa | bb |\n| - | - |\n| cc | dd |"));
+    assert_eq!(editor.get_text(), md);
+
+    // with no selection, cut takes the caret's row
+    caret_at(&mut editor, md.find("dd").unwrap());
+    editor.push(Event::Cut);
+    editor.enter_frame();
+    assert_eq!(editor.copied.as_deref(), Some("| cc | dd |"));
+    assert_eq!(editor.get_text(), "> | aa | bb |\n> | - | - |\n> | ee | ff |");
+
+    // cutting the header empties it: the rows under it stay a table
+    caret_at(&mut editor, md.find("aa").unwrap());
+    editor.push(Event::Cut);
+    editor.enter_frame();
+    assert_eq!(editor.copied.as_deref(), Some("| aa | bb |"));
+    assert_eq!(editor.get_text(), "> |  |  |\n> | - | - |\n> | ee | ff |");
+}
