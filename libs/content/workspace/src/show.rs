@@ -1265,9 +1265,10 @@ pub(crate) fn link_sheet_modal(
     ctx: &egui::Context, sheet: &crate::tab::LinkSheet, (open_key, cancel_key): (bool, bool),
 ) -> (bool, bool) {
     use crate::style::chrome::{
-        Radius, control_height, plate_content, shortcut_esc, shortcut_return,
+        Radius, control_height, file_row_icon, plate_content, shortcut_esc, shortcut_return,
     };
-    use crate::style::{Button, Space, Spacer, TypeRole, with_pad_fit};
+    use crate::style::tree_metrics::INDENT_BASE;
+    use crate::style::{Button, FileRow, Space, Spacer, TypeRole, parent_crumbs, with_pad_fit};
 
     let t = ctx.get_lb_theme();
     let screen = ctx.screen_rect();
@@ -1313,12 +1314,36 @@ pub(crate) fn link_sheet_modal(
                             .color(t.neutral_fg_secondary()),
                     );
                     ui.add(Spacer::new(Space::Md));
-                    ui.label(TypeRole::Mono.rich(&sheet.shown).color(t.neutral_fg()));
+                    let line = |ui: &mut egui::Ui, text: &str, ink| {
+                        ui.add(
+                            GlyphonLabel::new_rich(crate::resolvers::rich_spans(text), ink)
+                                .font_size(TypeRole::Body.size())
+                                .line_height(TypeRole::Body.line_height())
+                                .max_width(width),
+                        );
+                    };
+                    if sheet.open.is_some() {
+                        // the file it would open, as the file tree shows one
+                        let path = &sheet.shown;
+                        let name = path.rsplit('/').find(|s| !s.is_empty()).unwrap_or(path);
+                        let size = egui::vec2(width, FileRow::height_for(true));
+                        let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                        // the row's indent makes room for a hover fill this row never shows
+                        let rect = rect.with_min_x(rect.min.x - INDENT_BASE);
+                        FileRow::new(&t, name)
+                            .icon(file_row_icon(name, false))
+                            .subtitle(parent_crumbs(path))
+                            .interactive(false)
+                            .paint_at_hit(ui, rect, rect, layer.id.with("file"));
+                    } else {
+                        // nothing resolved: the link as written
+                        line(ui, &format!("**{}**", sheet.shown), t.neutral_fg());
+                    }
                     ui.add(Spacer::new(Space::Sm));
-                    ui.label(TypeRole::Body.rich(why).color(t.neutral_fg()));
+                    line(ui, why, t.neutral_fg());
                     for fix in lines {
                         ui.add(Spacer::new(Space::Xs));
-                        ui.label(TypeRole::Body.rich(fix).color(t.neutral_fg_secondary()));
+                        line(ui, fix, t.neutral_fg_secondary());
                     }
                     ui.add(Spacer::new(Space::Md));
                     ui.horizontal(|ui| {

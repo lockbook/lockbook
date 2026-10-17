@@ -3,4 +3,4 @@ pub mod image_embed;
 pub mod link;
 
 pub use embed::EmbedResolver;
-pub use link::{FileCacheLinkResolver, LinkResolver, LinkState, ResolvedLink};
+pub use link::{FileCacheLinkResolver, LinkResolver, LinkState, ResolvedLink, rich_spans};

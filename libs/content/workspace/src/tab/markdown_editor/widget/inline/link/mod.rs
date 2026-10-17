@@ -32,6 +32,8 @@ enum DestinationTitle {
 }
 
 pub use crate::resolvers::LinkState;
+use crate::resolvers::rich_spans;
+use crate::widgets::GlyphonLabel;
 
 /// Width cap of a link's hover card.
 const LINK_TIP_W: f32 = 300.0;
@@ -243,9 +245,17 @@ impl<'ast> MdRender {
         let fixes: Vec<&str> = lines.collect();
         crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |ui| {
             let t = ui.ctx().get_lb_theme();
-            ui.label(TypeRole::Body.rich(what).color(t.neutral_fg()));
+            let line = |ui: &mut egui::Ui, text: &str, ink| {
+                ui.add(
+                    GlyphonLabel::new_rich(rich_spans(text), ink)
+                        .font_size(TypeRole::Body.size())
+                        .line_height(TypeRole::Body.line_height())
+                        .max_width(LINK_TIP_W),
+                );
+            };
+            line(ui, what, t.neutral_fg());
             for fix in fixes {
-                ui.label(TypeRole::Body.rich(fix).color(t.neutral_fg_secondary()));
+                line(ui, fix, t.neutral_fg_secondary());
             }
         });
     }

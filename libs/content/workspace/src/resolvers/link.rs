@@ -124,7 +124,7 @@ impl LinkResolver for FileCacheLinkResolver {
                     let last = title.rsplit('/').next().unwrap_or(title);
                     Why::new(
                         "More than one file has this name.",
-                        format!("Add its folder to the link: [[folder/{last}]]."),
+                        format!("Add its folder to the link: [[folder/**{last}**]]."),
                     )
                 } else {
                     not_found(&*files, note, "No file you can see has this name.")
@@ -147,6 +147,16 @@ impl LinkResolver for FileCacheLinkResolver {
         let (_, reach) = files.locate_wikilink(title, note)?;
         (reach != Reach::Scope).then(|| yellow(&*files, note, Form::Path).line)
     }
+}
+
+/// A message line as (text, bold) spans: the parts filled in from the note
+/// (a folder, a title) are written `**like this**`.
+pub fn rich_spans(line: &str) -> Vec<(&str, bool)> {
+    line.split("**")
+        .enumerate()
+        .filter(|(_, part)| !part.is_empty())
+        .map(|(i, part)| (part, i % 2 == 1))
+        .collect()
 }
 
 /// How a destination is written, which decides what its warning says.
@@ -197,12 +207,12 @@ fn yellow(files: &impl FilesExt, note: Uuid, form: Form) -> Why {
     }
     let (line, fix) = match (shared_folder(files, note), form) {
         (Some(folder), Form::Path) => (
-            format!("Readers who only have {folder} may not be able to open this."),
-            format!("Move the file into {folder} and update the link."),
+            format!("Readers who only have **{folder}** may not be able to open this."),
+            format!("Move the file into **{folder}** and update the link."),
         ),
         (Some(folder), _) => (
-            format!("Readers who only have {folder} may not be able to open this."),
-            format!("Move the file into {folder} or share it with everyone there."),
+            format!("Readers who only have **{folder}** may not be able to open this."),
+            format!("Move the file into **{folder}** or share it with everyone there."),
         ),
         (None, Form::Path) => (
             "Readers who only have this note may not be able to open this.".into(),
@@ -279,8 +289,8 @@ mod tests {
                 format!(
                     "warning: {}",
                     line2(
-                        "Readers who only have project may not be able to open this.",
-                        "Move the file into project or share it with everyone there."
+                        "Readers who only have **project** may not be able to open this.",
+                        "Move the file into **project** or share it with everyone there."
                     )
                 ),
                 true,
@@ -291,8 +301,8 @@ mod tests {
                 format!(
                     "warning: {}",
                     line2(
-                        "Readers who only have project may not be able to open this.",
-                        "Move the file into project and update the link."
+                        "Readers who only have **project** may not be able to open this.",
+                        "Move the file into **project** and update the link."
                     )
                 ),
                 true,
@@ -336,13 +346,13 @@ mod tests {
         }
         assert_eq!(
             links.confirmation(&own).as_deref(),
-            Some("Readers who only have project may not be able to open this.")
+            Some("Readers who only have **project** may not be able to open this.")
         );
         assert_eq!(message(links.wikilink_state("Budget")), "normal");
         assert_eq!(links.wikilink_confirmation("Budget"), None);
         assert!(
             message(links.wikilink_state("../../personal/Budget"))
-                .starts_with("warning: Readers who only have project")
+                .starts_with("warning: Readers who only have **project**")
         );
         assert!(
             links
@@ -401,7 +411,7 @@ mod tests {
                 "broken: This file was deleted or isn't shared with you."
             );
             let secret = format!("lb://{private}");
-            let reason = "Readers who only have project may not be able to open this.";
+            let reason = "Readers who only have **project** may not be able to open this.";
             assert_eq!(message(links.link_state(&secret)), format!("warning: {reason}"));
             assert_eq!(
                 message(links.link_state("missing.md")),
@@ -409,6 +419,22 @@ mod tests {
             );
             assert_eq!(links.confirmation(&secret).as_deref(), Some(reason));
         }
+    }
+
+    #[test]
+    fn filled_in_parts_are_bold() {
+        assert_eq!(
+            rich_spans("Readers who only have **design** may not be able to open this."),
+            [
+                ("Readers who only have ", false),
+                ("design", true),
+                (" may not be able to open this.", false)
+            ]
+        );
+        assert_eq!(
+            rich_spans("No file you can see is at this location."),
+            [("No file you can see is at this location.", false)]
+        );
     }
 
     #[test]
@@ -439,7 +465,7 @@ mod tests {
         let links = FileCacheLinkResolver::new(Arc::new(RwLock::new(view)), note);
         assert_eq!(
             message(links.wikilink_state("Spec")),
-            "broken: More than one file has this name.\nAdd its folder to the link: [[folder/Spec]]."
+            "broken: More than one file has this name.\nAdd its folder to the link: [[folder/**Spec**]]."
         );
         assert_eq!(message(links.wikilink_state("a/Spec")), "normal");
     }
