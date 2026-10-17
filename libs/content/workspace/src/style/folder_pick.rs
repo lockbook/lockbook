@@ -6,7 +6,7 @@ use egui::{Id, Rect, ScrollArea, Ui};
 use lb_rs::Uuid;
 
 use crate::file_cache::FilesExt;
-use crate::style::chrome::{Radius, display_file_name};
+use crate::style::chrome::{Radius, display_file_name, phosphor};
 use crate::style::color::Theme;
 use crate::style::interact::sense_click;
 use crate::style::overlay_scroll::with_overlay_scroll;
@@ -284,17 +284,22 @@ fn paint_folder_pick_row(
     elevated: bool, pin_vy: Option<f32>, pin_top_r: u8, expanded: &mut HashSet<Uuid>,
     selected: Option<Uuid>, moving: &[Uuid], id_salt: &str,
 ) -> Option<Uuid> {
-    let name = files
-        .get_by_id(row.id)
-        .map(|f| display_file_name(&f.name).to_owned())
-        .unwrap_or_else(|| "folder".into());
+    let is_root = row.id == files.root().id;
+    let name = if is_root {
+        "Home".to_owned()
+    } else {
+        files
+            .get_by_id(row.id)
+            .map(|f| display_file_name(&f.name).to_owned())
+            .unwrap_or_else(|| "folder".into())
+    };
     let has_kids = files
         .children(row.id)
         .iter()
         .any(|k| k.is_folder() && k.id != row.id);
     let forbidden = is_forbidden_move_dest(files, moving, row.id);
     let open = expanded.contains(&row.id);
-    let icon = row_type_icon(&name, true, open);
+    let icon = if is_root { phosphor::HOUSE } else { row_type_icon(&name, true, open) };
     let is_sel = selected == Some(row.id) && !forbidden;
     let id = ui
         .id()

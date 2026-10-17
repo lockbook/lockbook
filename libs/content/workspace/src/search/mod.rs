@@ -338,7 +338,7 @@ impl Search {
 
         let chip_r = Rect::from_min_size(pos2(x, row.top()), vec2(chip_w, h));
         let (chip, cleared) =
-            paint_scope_chip(ui, t, chip_r, &folder_name, self.scope_open, !at_home);
+            paint_scope_chip(ui, t, chip_r, &folder_name, at_home, self.scope_open, !at_home);
         crate::style::tip_text(
             ui.ctx(),
             &chip,
@@ -491,7 +491,7 @@ fn scope_chip_width(ui: &Ui, name: &str, show_clear: bool) -> f32 {
 }
 
 fn paint_scope_chip(
-    ui: &mut Ui, t: &Theme, rect: Rect, name: &str, open: bool, show_clear: bool,
+    ui: &mut Ui, t: &Theme, rect: Rect, name: &str, at_home: bool, open: bool, show_clear: bool,
 ) -> (egui::Response, bool) {
     let pad = crate::style::space::control::PAD_X.pts();
     let clear_sz = scope_clear_sz();
@@ -515,11 +515,10 @@ fn paint_scope_chip(
         .rect_filled(rect, crate::style::Radius::Control.corner(), fill);
 
     let icon_ink = t.accent();
-    let ig = ui.painter().layout_no_wrap(
-        phosphor::FOLDER.into(),
-        crate::style::phosphor_ui_font_id(),
-        icon_ink,
-    );
+    let glyph = if at_home { phosphor::HOUSE } else { phosphor::FOLDER };
+    let ig =
+        ui.painter()
+            .layout_no_wrap(glyph.into(), crate::style::phosphor_ui_font_id(), icon_ink);
     ui.painter()
         .galley(pos2(rect.left() + pad, rect.center().y - ig.size().y / 2.0), ig, icon_ink);
     let name_slot = Rect::from_min_max(
@@ -890,10 +889,12 @@ fn paint_search_empty(
     clear
 }
 
-/// Chip / empty-state folder: glyphon display name (emoji-safe).
+/// Chip / empty-state folder (emoji-safe); root is “Home”, never the username.
 fn scope_folder_name(files: &crate::file_cache::FileCache, scope_path: &str) -> String {
-    let f = files.by_path(scope_path).unwrap_or_else(|| files.root());
-    crate::style::display_file_name(&f.name).to_owned()
+    match files.by_path(scope_path).filter(|f| !f.is_root()) {
+        Some(f) => crate::style::display_file_name(&f.name).to_owned(),
+        None => "Home".to_owned(),
+    }
 }
 
 /// Heading; when scoped, “{title} in **folder**” via glyphon so emoji names shape.

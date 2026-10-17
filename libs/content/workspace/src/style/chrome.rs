@@ -230,6 +230,8 @@ pub mod phosphor {
     /// Create-sheet “Alongside …” (`ph-arrow-bend-down-right`).
     pub const ARROW_BEND_DOWN_RIGHT: &str = "\u{e01a}";
     pub const FOLDER: &str = "\u{e24a}";
+    /// Account root (“Home”) wherever folders are named.
+    pub const HOUSE: &str = "\u{e2c2}";
     /// Open folder.
     pub const FOLDER_OPEN: &str = "\u{e256}";
     pub const FILE: &str = "\u{e230}";

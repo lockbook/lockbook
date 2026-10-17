@@ -529,18 +529,23 @@ fn path_parts(path: &str) -> Vec<&str> {
     }
 }
 
+/// Account root as a location: house glyph + “Home” (glyphon shapes phosphor PUA).
+pub fn home_crumb() -> String {
+    format!("{} Home", phosphor::HOUSE)
+}
+
 /// Display crumbs for a stored path (`/a/b/c` or `a / b / c`) → `a / b / c`.
 pub fn path_crumbs(path: &str) -> String {
     let parts = path_parts(path);
-    if parts.is_empty() { "Home".into() } else { parts.join(" / ") }
+    if parts.is_empty() { home_crumb() } else { parts.join(" / ") }
 }
 
-/// Parent crumbs of a stored path (`/a/b/c` → `a / b`). Root → `Home`.
+/// Parent crumbs of a stored path (`/a/b/c` → `a / b`). Root → [`home_crumb`].
 pub fn parent_crumbs(path: &str) -> String {
     let parts = path_parts(path);
     match parts.split_last() {
         Some((_, parent)) if !parent.is_empty() => parent.join(" / "),
-        _ => "Home".into(),
+        _ => home_crumb(),
     }
 }
 
