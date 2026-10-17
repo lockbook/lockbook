@@ -14,6 +14,7 @@ pub struct IOSResponse {
     pub copied_image: CBytes,
     pub urls_opened: CUrls,
     pub open_camera: bool,
+    pub open_search: bool,
     pub has_virtual_keyboard_shown: bool,
     pub virtual_keyboard_shown: bool,
 
@@ -69,6 +70,7 @@ impl From<crate::Response> for IOSResponse {
                     failure_messages: _,
                     selected_folder_changed,
                     open_camera,
+                    open_search,
                     file_cache_updated: _,
                 },
             redraw_in,
@@ -107,6 +109,7 @@ impl From<crate::Response> for IOSResponse {
             copied_image: copied_image.into(),
             urls_opened,
             open_camera,
+            open_search,
             text_updated: markdown_editor_text_updated,
             selection_updated: markdown_editor_selection_updated,
             tab_title_clicked,

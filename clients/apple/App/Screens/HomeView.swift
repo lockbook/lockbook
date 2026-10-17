@@ -223,6 +223,11 @@ struct HomeView: View {
             .onChange(of: horizontalSizeClass) {
                 applyDesktopTabPolicy()
             }
+            .onChange(of: workspaceOutput.openSearch) { _, openSearch in
+                guard openSearch else { return }
+                workspaceOutput.openSearch = false
+                searchEverywhere()
+            }
         #endif
         .onChange(of: AppState.lb.events.status, initial: true) { _, status in
             filesModel.recomputeStatusDots(status: status)

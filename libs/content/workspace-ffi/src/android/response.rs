@@ -56,6 +56,7 @@ impl From<crate::Response> for AndroidResponse {
                     selected_folder_changed: _,
                     open_camera: _,
                     file_cache_updated: _,
+                    open_search: _,
                 },
             redraw_in,
             copied_text,

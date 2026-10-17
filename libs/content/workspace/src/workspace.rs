@@ -1608,6 +1608,7 @@ impl Workspace {
 
     pub fn upsert_search(&mut self, search_type: Option<SearchType>) {
         if cfg!(target_os = "ios") {
+            self.out.open_search = true;
             return;
         }
         if let Some(i) = self
