@@ -7,7 +7,7 @@ use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as 
 use lb_rs::model::text::operation_types::{Operation, Replace};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use super::{CellBounds, RowBounds, TableBounds, TableSelection, is_cell_space};
+use super::{CellBounds, RowBounds, TableBounds, TableSelection, is_pipe_space};
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::input::{Advance, Region};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
@@ -21,6 +21,18 @@ pub(super) struct CellText {
     pub opening_pipe: bool,
     /// The row lacks this cell's closing pipe, and the cell needs it.
     pub closing_pipe: bool,
+}
+
+/// Whether a line that starts with `text` is a row whatever follows on it:
+/// a letter starts no other block, nor does a number that is not a list
+/// item's.
+fn starts_a_row(text: &str) -> bool {
+    let rest = text.trim_start_matches(|c: char| c.is_ascii_digit());
+    let mut after = rest.chars();
+    let numbered = rest.len() < text.len()
+        && matches!(after.next(), Some('.' | ')'))
+        && after.next().is_none_or(char::is_whitespace);
+    text.starts_with(char::is_alphanumeric) && !numbered
 }
 
 /// Makes `text` safe as a cell's whole span, keeping `caret` (a byte index
@@ -84,14 +96,14 @@ pub(super) fn cell_text(text: &str, caret: usize, opened: bool, closed: bool) ->
     }
     let mut caret = new_caret.unwrap_or(out.len());
 
-    let blank = out.chars().all(is_cell_space);
+    let blank = out.chars().all(is_pipe_space);
     if out.is_empty() {
         out.push_str("  ");
         caret = 1;
     }
     let first = out.chars().next();
     let last = out.chars().next_back();
-    let opening_pipe = !opened && (blank || !first.is_some_and(char::is_alphabetic));
+    let opening_pipe = !opened && (blank || !starts_a_row(&out));
     let closing_pipe = !closed && blank;
     if (opened || opening_pipe) && matches!(first, Some('|' | '\'')) {
         out.insert(0, ' ');
@@ -123,10 +135,11 @@ enum Cut {
 impl MdRender {
     /// The replacement that makes `cell` read `text` between its pipes — the
     /// smallest that does, so that a keystroke stays a keystroke in the
-    /// diff — with the caret left at byte `caret` of `text`.
+    /// diff — with the caret left at byte `caret` of `text`. `edited` is
+    /// the part of the cell the new text is in place of.
     fn rewrite_cell(
         &self, row: &RowBounds, column: usize, text: &str, caret: usize,
-        operations: &mut Vec<Operation>,
+        edited: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
     ) {
         let cell = row.cells[column];
         let opened = column > 0 || row.leading_pipe;
@@ -141,7 +154,7 @@ impl MdRender {
             text.push('|');
         }
 
-        self.rewrite(cell.span, &text, Some(caret), operations);
+        self.rewrite_around(cell.span, &text, Some(caret), Some(edited), operations);
     }
 
     /// The replacement that makes `range` read `text` — the smallest that
@@ -150,13 +163,33 @@ impl MdRender {
         &self, range: (Grapheme, Grapheme), text: &str, caret: Option<usize>,
         operations: &mut Vec<Operation>,
     ) {
+        self.rewrite_around(range, text, caret, None, operations);
+    }
+
+    /// [`Self::rewrite`], where the new text is known to be in place of
+    /// `edited`: among same-sized replacements — a space typed beside a
+    /// space — the one there is made, so that two keystrokes of one frame
+    /// land in the order they were typed.
+    fn rewrite_around(
+        &self, range: (Grapheme, Grapheme), text: &str, caret: Option<usize>,
+        edited: Option<(Grapheme, Grapheme)>, operations: &mut Vec<Operation>,
+    ) {
         // trim what the old and new text share, a grapheme at a time
         let old: Vec<&str> = self.buffer[range].graphemes(true).collect();
         let new: Vec<(usize, &str)> = text.grapheme_indices(true).collect();
         let shared = |pairs: &mut dyn Iterator<Item = (&str, &str)>| {
             pairs.take_while(|(old, new)| old == new).count()
         };
+        // how much of the old text lies either side of what was edited
+        let (before, after) = match edited {
+            Some(edited) => (
+                edited.start().0.saturating_sub(range.start().0),
+                range.end().0.saturating_sub(edited.end().0),
+            ),
+            None => (old.len(), old.len()),
+        };
         let prefix = shared(&mut old.iter().copied().zip(new.iter().map(|g| g.1)));
+        let prefix = prefix.min(before.min(old.len()));
         let suffix = shared(
             &mut old[prefix..]
                 .iter()
@@ -164,6 +197,7 @@ impl MdRender {
                 .copied()
                 .zip(new[prefix..].iter().rev().map(|g| g.1)),
         );
+        let suffix = suffix.min(after.min(old.len() - prefix));
         let byte_at = |grapheme: usize| new.get(grapheme).map_or(text.len(), |g| g.0);
         let (changed_start, changed_end) = (byte_at(prefix), byte_at(new.len() - suffix));
         let changed = (range.start() + prefix, range.end() - suffix);
@@ -182,6 +216,11 @@ impl MdRender {
             let after = text[caret..].graphemes(true).count();
             operations.push(replace(changed, &text[changed_start..changed_end]));
             operations.push(Operation::Select((range.end() - after).into_range()));
+        } else if caret == changed_end {
+            // typed text with the caret after it: one replacement, as a
+            // keystroke is anywhere, which undo takes a run of together
+            operations.push(replace(changed, &text[changed_start..changed_end]));
+            operations.push(Operation::Select(changed.start().into_range()));
         } else {
             // the caret sits inside the replacement: write up to it, place
             // it, then write the rest behind it
@@ -253,6 +292,13 @@ impl MdRender {
         let lines = &self.bounds.source_lines;
         let line_of = |offset| lines.find_containing(offset, true, true).0;
         let (start_table, end_table) = (self.bounds.table_at(start), self.bounds.table_at(end));
+        // the delimiter row holds an end only while the table shows as source
+        let on_delimiter_row = |table: Option<&TableBounds>, offset| {
+            table.is_some_and(|table| line_of(offset) == table.first_line + 1)
+        };
+        if on_delimiter_row(start_table, start) || on_delimiter_row(end_table, end) {
+            return None;
+        }
         let cells = |table: &TableBounds, rows: (usize, usize), cuts: &mut Vec<Cut>| {
             for row in &table.rows[rows.0..=rows.1] {
                 cuts.extend(
@@ -282,10 +328,8 @@ impl MdRender {
                 TableSelection::Rows { table, rows } => {
                     let last = table.rows.len() - 1;
                     if rows == (0, last) {
-                        cuts.push(Cut::Text((
-                            table.rows[0].line.start(),
-                            table.rows[last].line.end(),
-                        )));
+                        let end = lines[table.lines().1 - 1].end();
+                        cuts.push(Cut::Text((table.rows[0].line.start(), end)));
                     } else if !remove_rows {
                         cells(table, rows, &mut cuts);
                     } else if rows.0 == 0 {
@@ -345,7 +389,7 @@ impl MdRender {
                     let typed = one_line(text);
                     let caret = before.len() + typed.len();
                     let text = format!("{before}{typed}{after}");
-                    self.rewrite_cell(&row, column, &text, caret, &mut ops);
+                    self.rewrite_cell(&row, column, &text, caret, range, &mut ops);
                 }
                 Cut::Cell { row, column } => {
                     let cell = row.cells[column];
@@ -354,12 +398,26 @@ impl MdRender {
                     let typed = one_line(text);
                     let caret = before.len() + typed.len();
                     let text = format!("{before}{typed}{after}");
-                    self.rewrite_cell(&row, column, &text, caret, &mut ops);
+                    self.rewrite_cell(&row, column, &text, caret, cell.content, &mut ops);
                 }
                 Cut::Lines(first, last) => {
                     let range = self.whole_lines(first, last);
                     ops.push(replace(range, ""));
-                    ops.push(Operation::Select(range.start().into_range()));
+                    // the caret goes to the row that takes their place, or
+                    // to the one before
+                    let lines = &self.bounds.source_lines;
+                    let column = self.table_position().map_or(0, |(.., column)| column);
+                    let cell = self
+                        .bounds
+                        .table_at(lines[first].start())
+                        .and_then(|table| {
+                            let before = table.row_on_line(first).checked_sub(1);
+                            let row = table.rows.get(table.row_on_line(last) + 1);
+                            let row = row.or(before.map(|before| &table.rows[before]))?;
+                            row.cells.get(column).or(row.cells.last())
+                        });
+                    let caret = cell.map_or(range.start(), |cell| cell.content.start());
+                    ops.push(Operation::Select(caret.into_range()));
                 }
             }
             let caret = select && i == 0;
@@ -577,7 +635,9 @@ impl MdRender {
         let mut lines = Vec::new();
         for (i, row) in table.rows.iter().enumerate().take(rows.1 + 1).skip(rows.0) {
             lines.push(&self.buffer[row.line]);
-            if i == 0 && rows.1 > 0 {
+            // the header takes the delimiter row with it when it goes
+            // with the rows under it, or is all the table has
+            if i == 0 && (rows.1 > 0 || table.rows.len() == 1) {
                 lines.push(&self.buffer[table.delimiter.line]);
             }
         }

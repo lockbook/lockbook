@@ -2,8 +2,8 @@ use std::mem;
 
 use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
-use crate::tab::markdown_editor::input::{Advance, Increment};
-use crate::tab::markdown_editor::table::CellBounds;
+use crate::tab::markdown_editor::input::{Advance, Bound, Increment};
+use crate::tab::markdown_editor::table::{CellBounds, TableCellBox};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Fragment;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
@@ -31,7 +31,11 @@ impl MdEdit {
                 let mut result = offset;
                 for _ in 0..n {
                     let Some(result_x) = self.x(result) else {
-                        break;
+                        match self.table_advance_from_hidden_cell(result, backwards) {
+                            Some(next) => result = next,
+                            None => break,
+                        }
+                        continue;
                     };
                     let x_target = maybe_x_target_value.unwrap_or(result_x);
                     result = self.advance_by_line(result, x_target, backwards);
@@ -45,6 +49,14 @@ impl MdEdit {
             }
         };
         let result = self.renderer.snap_offset_out_of_folds(result, backwards);
+        // in a cell a line is the cell's own: its ends are the content's
+        let cell = self.renderer.bounds.table_at(offset).and_then(|table| {
+            let (row, column) = table.cell_at(offset)?;
+            Some(table.rows[row].cells[column].content)
+        });
+        if let Some(content) = cell.filter(|_| advance == Advance::To(Bound::Line)) {
+            return result.max(content.start()).min(content.end());
+        }
         self.renderer
             .snap_offset_into_table_cell(offset, result, backwards)
     }
@@ -103,6 +115,34 @@ impl MdEdit {
             self.advance_by_row(offset, x_target, backwards, &outside)
                 .unwrap_or_else(|| self.document_edge_past(offset, backwards)),
         )
+    }
+
+    /// One row up or down from a cell that has no place on screen because
+    /// its table, too wide for the note, is scrolled past it: the same
+    /// column of the next row, or the line past the table. `None` from
+    /// anywhere else.
+    fn table_advance_from_hidden_cell(
+        &self, offset: Grapheme, backwards: bool,
+    ) -> Option<Grapheme> {
+        let r = &self.renderer;
+        let table = r.bounds.table_at(offset)?;
+        let (_, column) = table.cell_at(offset)?;
+        let key = Some(table.rows[0].line.start());
+        let painted = |cell_box: &TableCellBox| r.table_key(cell_box.row) == key;
+        if self.x(offset).is_some() || !r.table_cell_boxes.iter().any(painted) {
+            return None;
+        }
+        let (lines, (first, end)) = (&r.bounds.source_lines, table.lines());
+        Some(match self.table_row_past(offset, backwards) {
+            Some(neighbor) => {
+                let row = &table.rows[neighbor];
+                row.cells.get(column).or(row.cells.last())?.content.start()
+            }
+            None if backwards => first
+                .checked_sub(1)
+                .map_or(offset, |line| lines[line].end()),
+            None => lines.get(end).map_or(offset, |line| line.start()),
+        })
     }
 
     /// The row above or below the one holding `offset`, in the same table.

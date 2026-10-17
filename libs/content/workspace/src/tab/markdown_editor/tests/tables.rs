@@ -50,6 +50,11 @@ const CORPUS: &[&str] = &[
     "| a | b |\n-|-\n| 1 | 2 |",
     // space after rows, tabs as padding
     "| a | b |  \n| - | - | \n| c | d |   \n|\tc\t|\td\t|\n| c | d | \t",
+    // a vertical tab or form feed is padding only after a pipe
+    "| \u{b} a \u{b} | \u{c}b\u{c} |\n| - | - |\n|\u{b}|\u{c} c",
+    "\u{b} a | b\n-|-\n\u{c} c \u{c} | d \u{b}",
+    "| a | b |\n|\u{b}-\u{c}|\u{c}-\u{b}|\u{b}\n| c | d |\u{c}",
+    "| a | b |\n|:-:\u{b}|\u{c}:-:|\n| c | d |",
     // inline content
     "| **a** b | [l](u) |\n| - | - |\n| `c` | ~~d~~ e |\n| ![i](u) | <b>x</b> :smile: |",
     // complex scripts
@@ -114,7 +119,13 @@ fn corpus_ranges_crlf() {
     }
 }
 
+/// What the parser trims from either side of a cell.
 fn is_cell_space(c: char) -> bool {
+    matches!(c, ' ' | '\t')
+}
+
+/// What its row scanner skips after a pipe, and pads the delimiter row with.
+fn is_pipe_space(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\x0b' | '\x0c')
 }
 
@@ -186,6 +197,10 @@ fn row_check(r: &MdRender, row: &RowBounds, columns: usize) -> Result<(), String
     for (i, cell) in row.cells.iter().enumerate() {
         if i > 0 {
             ensure!(char_at(r, at) == "|", "no pipe before cell {i} at {at:?}");
+            let before = &r.buffer[(row.cells[i - 1].span.0, at)];
+            let backslashes = before.len() - before.trim_end_matches('\\').len();
+            let escaped = !backslashes.is_multiple_of(2);
+            ensure!(!escaped, "the pipe before cell {i} at {at:?} is escaped");
             at += 1;
         }
         let (span, content) = (cell.span, cell.content);
@@ -196,7 +211,9 @@ fn row_check(r: &MdRender, row: &RowBounds, columns: usize) -> Result<(), String
 
         let text = &r.buffer[span];
         ensure!(!text.contains(['\n', '\r']), "cell {i} spans a line break");
-        let trimmed = text.trim_matches(is_cell_space);
+        let opened = i > 0 || row.leading_pipe;
+        let trimmed = text.trim_start_matches(if opened { is_pipe_space } else { is_cell_space });
+        let trimmed = trimmed.trim_end_matches(is_cell_space);
         ensure!(
             span.0 <= content.0 && content.0 <= content.1 && content.1 <= span.1,
             "cell {i} content {content:?} outside its span {span:?}"
@@ -216,7 +233,7 @@ fn row_check(r: &MdRender, row: &RowBounds, columns: usize) -> Result<(), String
     }
     if row.cells.len() < columns {
         let rest = &r.buffer[(at, line.end())];
-        ensure!(rest.chars().all(is_cell_space), "short row has more to parse: {rest:?}");
+        ensure!(rest.chars().all(is_pipe_space), "short row has more to parse: {rest:?}");
     }
     Ok(())
 }
@@ -262,9 +279,8 @@ fn delimiter_check(r: &MdRender, delimiter: &DelimiterBounds) -> Result<(), Stri
         .take_while(|&c| is_cell_space(c))
         .count();
     let mut at = line.start() + indentation;
-    if char_at(r, at) == "|" {
-        at += 1;
-    }
+    let leading_pipe = char_at(r, at) == "|";
+    at += leading_pipe as usize;
     for (i, (cell, alignment)) in delimiter
         .cells
         .iter()
@@ -281,13 +297,17 @@ fn delimiter_check(r: &MdRender, delimiter: &DelimiterBounds) -> Result<(), Stri
         );
         at = cell.1;
 
-        let text = r.buffer[*cell].trim_matches(is_cell_space);
+        let text = r.buffer[*cell].trim_matches(is_pipe_space);
         let dashes = text.trim_start_matches(':').trim_end_matches(':');
         ensure!(
             !dashes.is_empty() && dashes.chars().all(|c| c == '-'),
             "delimiter cell {i} is {text:?}"
         );
-        let written = match (text.starts_with(':'), text.ends_with(':')) {
+        // the parser reads the colons of a cell trimmed as any cell is
+        let opened = i > 0 || leading_pipe;
+        let read = r.buffer[*cell].trim_end_matches(is_cell_space);
+        let read = read.trim_start_matches(if opened { is_pipe_space } else { is_cell_space });
+        let written = match (read.starts_with(':'), read.ends_with(':')) {
             (true, true) => TableAlignment::Center,
             (true, false) => TableAlignment::Left,
             (false, true) => TableAlignment::Right,
@@ -299,7 +319,7 @@ fn delimiter_check(r: &MdRender, delimiter: &DelimiterBounds) -> Result<(), Stri
         at += 1;
     }
     let rest = &r.buffer[(at, line.end())];
-    ensure!(rest.chars().all(is_cell_space), "delimiter row has more to lex: {rest:?}");
+    ensure!(rest.chars().all(is_pipe_space), "delimiter row has more to lex: {rest:?}");
     Ok(())
 }
 
@@ -1694,23 +1714,243 @@ fn cells_wrap_before_the_table_outgrows_the_note() {
     assert_eq!(rects_of(&editor, "b |").len(), 1);
 }
 
-#[test]
-fn nothing_overflows_a_cell_too_narrow_for_its_words() {
-    let wide = "unbreakable".repeat(8);
-    let md = format!("| {wide} | {wide} | {wide} |\n| - | - | - |\n| a | b | c |");
-    let editor = TestEditor::new(&md);
+/// A table of more columns than a note has room for.
+fn wide() -> String {
+    let row = |cell: &dyn Fn(usize) -> String| {
+        let cells: Vec<String> = (0..24).map(cell).collect();
+        format!("| {} |", cells.join(" | "))
+    };
+    let header = row(&|column| format!("column{column:02}"));
+    let delimiter = row(&|_| "-".into());
+    let body = row(&|column| format!("{column},204,000"));
+    format!("{header}\n{delimiter}\n{body}\n{body}")
+}
+
+/// The columns of the first table that show, and the span they show in.
+fn showing(editor: &TestEditor) -> (Vec<usize>, egui::Rangef) {
     let r = &editor.editor.edit.renderer;
-    let rects = cell_rects(&editor);
-    assert!(rects[0][2].right() <= r.width + rects[0][0].left() + 0.5);
-    let header = &r.bounds.tables[0].rows[0];
-    for (cell, rect) in header.cells.iter().zip(&rects[0]) {
-        for painted in r.range_rects(cell.content) {
-            assert!(
-                rect.expand(0.5).contains_rect(painted),
-                "{painted:?} outside its cell {rect:?}"
-            );
-        }
+    let header = r.bounds.tables[0].rows[0].line.0;
+    let boxes = r.table_cell_boxes.iter();
+    let boxes: Vec<_> = boxes.filter(|cell_box| cell_box.row == header).collect();
+    let span = boxes
+        .iter()
+        .map(|cell_box| cell_box.rect)
+        .reduce(egui::Rect::union);
+    (boxes.iter().map(|cell_box| cell_box.column).collect(), span.unwrap().x_range())
+}
+
+#[test]
+fn a_table_too_wide_for_the_note_scrolls() {
+    let md = wide();
+    let mut editor = TestEditor::new(&md);
+    caret_at(&mut editor, md.find("column00").unwrap());
+    let note = editor.editor.edit.renderer.width;
+
+    // no word is broken to fit: the table shows as much as the note has room for
+    let (columns, span) = showing(&editor);
+    assert!(columns.len() < 24 && columns[0] == 0, "{columns:?} show");
+    assert!((span.span() - note).abs() < 0.5, "{span:?} of a note {note} wide");
+    for word in ["column00", "column01", "0,204,000"] {
+        assert_eq!(rects_of(&editor, word).len(), 1, "{word} is broken");
     }
+
+    // the caret's column comes into view, and what is hidden has no place
+    caret_at(&mut editor, md.find("column23").unwrap());
+    editor.enter_frame();
+    let (columns, scrolled) = showing(&editor);
+    assert!(columns[0] > 0 && columns.contains(&23), "{columns:?} show");
+    assert_eq!((scrolled.min, scrolled.max), (span.min, span.max));
+    assert!(
+        editor
+            .editor
+            .edit
+            .cursor_line(Grapheme(caret(&editor)))
+            .is_some()
+    );
+    assert!(rects_of(&editor, "column00").is_empty());
+
+    // a selection is painted only where the table shows
+    select(&mut editor, md.find("0,204,000").unwrap(), md.find("23,204,000").unwrap());
+    let r = &editor.editor.edit.renderer;
+    let painted = r.range_rects(r.buffer.current.selection);
+    assert!(!painted.is_empty());
+    for rect in painted {
+        assert!(span.expand(0.5).contains(rect.left()) && span.expand(0.5).contains(rect.right()));
+    }
+
+    // a wheel over the table scrolls it back
+    wheel(&mut editor, 10_000.0);
+    assert_eq!(showing(&editor).0[0], 0);
+}
+
+#[test]
+fn a_touch_drag_pans_a_wide_table_or_scrolls_the_page() {
+    let md = format!("{}\n\n{}", wide(), "line\n\n".repeat(60));
+    let mut editor = TestEditor::new(&md);
+    editor.editor.edit.renderer.touch_mode = true;
+    editor.enter_frame();
+    let top = |editor: &TestEditor| cell_rects(editor)[0][0].top();
+    let page = top(&editor);
+    let from = egui::Pos2::new(showing(&editor).1.center(), cell_rects(&editor)[0][0].center().y);
+
+    // along the rows the table pans, and the page stays
+    drag(&mut editor, from, from - egui::Vec2::new(200.0, 40.0));
+    assert!(showing(&editor).0[0] > 0, "{:?} show", showing(&editor).0);
+    assert_eq!(top(&editor), page);
+
+    // down them the page scrolls, and the table stays
+    let columns = showing(&editor).0;
+    drag(&mut editor, from, from - egui::Vec2::new(10.0, 60.0));
+    assert_eq!(showing(&editor).0, columns);
+    assert!(top(&editor) < page);
+}
+
+#[test]
+fn a_cancelled_touch_leaves_the_next_one_to_the_page() {
+    let md = format!("{}\n\n{}", wide(), "line\n\n".repeat(60));
+    let mut editor = TestEditor::new(&md);
+    editor.editor.edit.renderer.touch_mode = true;
+    editor.enter_frame();
+    let top = |editor: &TestEditor| cell_rects(editor)[0][0].top();
+    let from = egui::Pos2::new(showing(&editor).1.center(), cell_rects(&editor)[0][0].center().y);
+
+    // a pan the platform takes away ends with no release, the pointer gone
+    let panned = from - egui::Vec2::new(150.0, 0.0);
+    editor.enter_frame_with_input(vec![egui::Event::PointerMoved(from)]);
+    editor.enter_frame_with_input(vec![button(from, true)]);
+    editor.enter_frame_with_input(vec![egui::Event::PointerMoved(panned)]);
+    editor.enter_frame_with_input(vec![egui::Event::PointerGone]);
+    let (columns, page) = (showing(&editor).0, top(&editor));
+    assert!(columns[0] > 0, "{columns:?} show");
+
+    // the next touch is off the table and down the page: the page's
+    let below = from + egui::Vec2::new(0.0, 250.0);
+    drag(&mut editor, below, below - egui::Vec2::new(10.0, 60.0));
+    assert_eq!(showing(&editor).0, columns);
+    assert!(top(&editor) < page);
+}
+
+#[test]
+fn a_reorder_by_touch_leaves_a_scrolled_table_where_it_is() {
+    let md = wide();
+    let mut editor = TestEditor::new(&md);
+    editor.editor.edit.renderer.touch_mode = true;
+    caret_at(&mut editor, md.find("column00").unwrap());
+    wheel(&mut editor, -400.0);
+    let columns = showing(&editor).0;
+    assert!(columns[0] > 0, "{columns:?} show");
+
+    // the caret's column is out of view, and the table does not go back to it
+    let header = cell_rects(&editor)[0].clone();
+    let (from, to) = (header[2].center(), header[1].center() - egui::Vec2::new(2.0, 0.0));
+    assert!(editor.editor.edit.reorder_start(from));
+    editor.enter_frame();
+    editor.editor.edit.reorder_move(to);
+    editor.enter_frame();
+    editor.editor.edit.reorder_end(to, false);
+    editor.enter_frame();
+    editor.enter_frame();
+    assert_ne!(editor.get_text(), md);
+    assert_eq!(showing(&editor).0, columns);
+}
+
+/// Turns a wheel over the first table, `x` along its rows.
+fn wheel(editor: &mut TestEditor, x: f32) {
+    let over = egui::Pos2::new(showing(editor).1.center(), cell_rects(editor)[0][0].center().y);
+    let (unit, delta) = (egui::MouseWheelUnit::Point, egui::Vec2::new(x, 0.0));
+    let wheel = egui::Event::MouseWheel { unit, delta, modifiers: Default::default() };
+    editor.enter_frame_with_input(vec![egui::Event::PointerMoved(over)]);
+    editor.enter_frame_with_input(vec![wheel]);
+    for _ in 0..30 {
+        editor.enter_frame_with_input(vec![]);
+    }
+}
+
+#[test]
+fn a_cell_scrolled_out_of_view_is_still_reached() {
+    let md = wide();
+    let mut editor = TestEditor::new(&md);
+    caret_at(&mut editor, md.find("column00").unwrap());
+    wheel(&mut editor, -10_000.0);
+    assert!(showing(&editor).0[0] > 0);
+
+    // down from the caret's cell, which does not show: the cell below does
+    press(&mut editor, DOWN);
+    editor.enter_frame();
+    assert_eq!(caret_cell(&editor).map(|(row, column, _)| (row, column)), Some((1, 0)));
+    assert_eq!(showing(&editor).0[0], 0);
+
+    // a click on a cell that shows too little to show its text is in the cell
+    wheel(&mut editor, -10_000.0);
+    let r = &editor.editor.edit.renderer;
+    let header = r.bounds.tables[0].rows[0].line.0;
+    let first = r
+        .table_cell_boxes
+        .iter()
+        .find(|cell_box| cell_box.row == header)
+        .copied()
+        .unwrap();
+    let sliver = first.rect.left_center() + egui::Vec2::new(1.0, 0.0);
+    if rects_of(&editor, &format!("column{:02}", first.column)).is_empty() {
+        editor.push(Event::Select { region: Region::Location(Location::Pos(sliver)) });
+        editor.enter_frame();
+        assert_eq!(
+            caret_cell(&editor).map(|(row, column, _)| (row, column)),
+            Some((0, first.column))
+        );
+    }
+}
+
+#[test]
+fn a_scrolled_table_follows_what_moves() {
+    let md = wide();
+    let mut editor = TestEditor::new(&md);
+    caret_at(&mut editor, md.find("column00").unwrap());
+
+    // a selection of whole rows leaves it where it is
+    let row = editor.editor.edit.renderer.bounds.tables[0].rows[2].line;
+    select(&mut editor, row.0.0, row.1.0);
+    editor.enter_frame();
+    assert_eq!(selection(&editor), (row.0.0, row.1.0));
+    assert_eq!(showing(&editor).0[0], 0);
+
+    // a find match in a column out of view brings the column in
+    editor.editor.find.open_requested = true;
+    editor.enter_frame();
+    editor.editor.find.term = Some("column23".into());
+    editor.enter_frame_with_input(vec![]);
+    editor.editor.find.current_match = Some(0);
+    for _ in 0..3 {
+        editor.enter_frame_with_input(vec![]);
+    }
+    let found = md.find("column23").unwrap();
+    let r = &editor.editor.edit.renderer;
+    assert!(showing(&editor).0.contains(&23));
+    assert!(
+        !r.range_rects((Grapheme(found), Grapheme(found + 8)))
+            .is_empty()
+    );
+}
+
+#[test]
+fn placing_the_caret_leaves_the_columns_where_they_are() {
+    let md = "| [docs](https://example.com/a/long/path) | **x** |\n| - | - |\n| y | z |";
+    let mut editor = TestEditor::new(md);
+    let columns = |editor: &TestEditor| {
+        let header = cell_rects(editor).swap_remove(0);
+        header
+            .iter()
+            .map(|cell| (cell.left(), cell.right()))
+            .collect::<Vec<_>>()
+    };
+    caret_at(&mut editor, md.find('z').unwrap());
+    let before = columns(&editor);
+    // syntax shows where the caret is, and wraps in the column it has
+    for cell in ["docs", "x"] {
+        caret_at(&mut editor, md.find(cell).unwrap() + 1);
+        assert_eq!(columns(&editor), before, "caret in {cell}");
+    }
+    assert!(!rects_of(&editor, "https").is_empty());
 }
 
 #[test]
@@ -2145,7 +2385,8 @@ fn a_grid_pasted_into_a_table_fills_its_cells() {
         // rightward and downward from the caret's cell, each cell's padding kept
         ("c", "1\t2\n3\t4", "| a | b |\n| - | - |\n|  1  | 2|\n| 3 | 4 |", "4"),
         ("a", "x\ty", "| x | y |\n| - | - |\n|  c  | d|\n| e | f |", "y"),
-        ("d", "1\n", "| a | b |\n| - | - |\n|  c  | d|\n| e | f |", ""),
+        // without a tab it is text for the caret's cell, which is one line
+        ("d", "1\n", "| a | b |\n| - | - |\n|  c  | 1 d|\n| e | f |", ""),
         // the table grows to hold it: columns at its right, rows at its end
         (
             "f",
@@ -2153,7 +2394,7 @@ fn a_grid_pasted_into_a_table_fills_its_cells() {
             "| a | b |  |\n| - | - | --- |\n|  c  | d|  |\n| e | 1 | 2 |\n|  | 3 | 4 |",
             "4",
         ),
-        ("e", "1\n2\n3", "| a | b |\n| - | - |\n|  c  | d|\n| e | f |", ""),
+        ("e", "1\n2\n3", "| a | b |\n| - | - |\n|  c  | d|\n| 1 2 3e | f |", ""),
         // a pipe is escaped, and a cell is one line
         ("e", "x|y\t\"two\nlines\"", "| a | b |\n| - | - |\n|  c  | d|\n| x\\|y | two lines |", ""),
         // a short row of the grid fills what it has
@@ -2162,11 +2403,6 @@ fn a_grid_pasted_into_a_table_fills_its_cells() {
         let mut editor = TestEditor::new(md);
         caret_at(&mut editor, md.find(cell).unwrap());
         paste(&mut editor, grid);
-        // without a tab it is text for the caret's cell
-        if !grid.contains('\t') {
-            assert_eq!(editor.editor.edit.renderer.bounds.tables[0].rows.len(), 3, "{grid:?}");
-            continue;
-        }
         assert_eq!(editor.get_text(), format!("^^\n\n{gives}\n\n$$"), "{grid:?} at {cell}");
         table_ranges_check_md(editor.get_text()).unwrap();
         if !caret.is_empty() {
@@ -2187,4 +2423,295 @@ fn a_grid_pasted_into_a_table_fills_its_cells() {
     caret_at(&mut editor, md.find('d').unwrap());
     paste_as_table(&mut editor, "1,2\n3");
     assert_eq!(editor.get_text(), "| a | b |  |\n| - | - | --- |\n| c | 1 | 2 |\n|  | 3 |  |");
+}
+
+// ─── review regressions ──────────────────────────────────────────────
+
+#[test]
+fn typing_in_a_cell_is_undone_a_run_at_a_time() {
+    let md = "| a | b |\n|-|-|";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, 3);
+    type_text(&mut editor, "x");
+    type_text(&mut editor, "y");
+    assert_eq!(editor.get_text(), "| axy | b |\n|-|-|");
+    editor.push(Event::Undo);
+    editor.enter_frame();
+    assert_eq!(editor.get_text(), md);
+}
+
+#[test]
+fn keystrokes_of_one_frame_land_in_the_order_typed() {
+    let mut editor = TestEditor::new("| a | x |\n|-|-|");
+    caret_at(&mut editor, 3);
+    for text in [" ", "b"] {
+        let (region, text) = (Region::Selection, text.to_string());
+        editor.push(Event::Replace { region, text, advance_cursor: true });
+    }
+    editor.enter_frame();
+    assert_eq!(editor.get_text(), "| a b | x |\n|-|-|");
+}
+
+#[test]
+fn structure_edits_keep_the_caret_through_rewritten_cells() {
+    use TableAction::*;
+    // an empty first cell is written out blank, and a cell from the row's
+    // edge is padded: the caret's cell is found again past either
+    for (md, cell, action) in [
+        ("|a|b|\n|-|-|\n||你|", "你", MoveRow { down: false }),
+        ("||你|\n|-|-|\n|c|d|", "你", InsertRow { below: false }),
+        ("|'é|b|\n|-|-|\n|c|d|", "'é", MoveColumn { right: true }),
+        ("|a|b|c|\n|-|-|-|\n||e|\n|g|h|i|", "e", MoveRow { down: false }),
+    ] {
+        let mut editor = TestEditor::new(md);
+        let end = md.find(cell).unwrap() + cell.len();
+        caret_at(&mut editor, md[..end].chars().count());
+        act(&mut editor, action);
+        table_ranges_check_md(editor.get_text()).unwrap();
+        let caret = caret_in(&editor).unwrap_or_else(|| panic!("{action:?} of {md:?}"));
+        assert_eq!(caret.0, cell, "{action:?} of {md:?} gave {:?}", editor.get_text());
+    }
+}
+
+#[test]
+fn a_cell_from_a_rows_edge_is_made_safe_beside_a_pipe() {
+    use TableAction::*;
+    for (md, cell, action, header) in [
+        ("|'a|b|\n|-|-|\n|c|d|", "'a", InsertColumn { right: false }, vec!["", "'a", "b"]),
+        ("|'a|b|\n|-|-|", "b", MoveColumn { right: false }, vec!["b", "'a"]),
+        ("c | d'\n-|-\ne | f", "d'", InsertColumn { right: true }, vec!["c", "d'", ""]),
+        ("c | d\\\\\n-|-\ne | f", "c", MoveColumn { right: true }, vec!["d\\\\", "c"]),
+    ] {
+        let mut editor = TestEditor::new(md);
+        caret_at(&mut editor, md.find(cell).unwrap());
+        act(&mut editor, action);
+        let text = editor.get_text().to_string();
+        assert_eq!(
+            cells(&editor).first(),
+            Some(&header.iter().map(|c| c.to_string()).collect()),
+            "{text:?}"
+        );
+        table_ranges_check_md(&text).unwrap();
+    }
+}
+
+#[test]
+fn a_table_of_one_column_keeps_its_delimiter_row() {
+    use TableAction::*;
+    use comrak::nodes::TableAlignment::None as Unaligned;
+    // dashes alone under a line of text would make a heading of it
+    for (md, cell, action, gives) in [
+        ("a | b\n--|--\nc | d", "b", DeleteColumn, "a \n|--\nc "),
+        ("a\n:-:\nb", "a", Align(Unaligned), "a\n|---\nb"),
+    ] {
+        let mut editor = TestEditor::new(md);
+        caret_at(&mut editor, md.find(cell).unwrap());
+        act(&mut editor, action);
+        assert_eq!(editor.get_text(), gives);
+        assert_eq!(table_ranges_check_md(gives), Ok(1));
+    }
+}
+
+#[test]
+fn a_row_keeps_going_without_a_leading_pipe_where_it_safely_can() {
+    use TableAction::*;
+    // a letter or a number starts a row whatever follows; markup might not
+    let md = "1 | 2\n--|--\n2026-10-06 | 4\n*5* | 6";
+    for (action, gives) in [
+        (InsertColumn { right: false }, "1 |  | 2\n--| --- |--\n2026-10-06 |  | 4\n|*5* |  | 6"),
+        (InsertRow { below: true }, "1 | 2\n--|--\n|  |  |\n2026-10-06 | 4\n*5* | 6"),
+        (Align(comrak::nodes::TableAlignment::Right), "1 | 2\n--|-:\n2026-10-06 | 4\n*5* | 6"),
+    ] {
+        let mut editor = TestEditor::new(md);
+        caret_at(&mut editor, md.find('2').unwrap());
+        act(&mut editor, action);
+        assert_eq!(editor.get_text(), gives);
+        assert_eq!(table_ranges_check_md(gives), Ok(1));
+    }
+}
+
+#[test]
+fn a_structure_edit_leaves_no_row_to_start_another_block() {
+    use TableAction::*;
+    let grid = |cells: &[&str]| vec![cells.iter().map(|cell| cell.to_string()).collect()];
+    for (md, cell, event, columns) in [
+        // a fence, once its line has no other backtick
+        ("x | y | z\n-|-|-\n``` | `a` | b\n\nafter", "`a`", Event::Table(DeleteColumn), 2),
+        ("x | y | z\n-|-|-\n``` | `a` | b", "`a`", Event::PasteGrid(grid(&["q"])), 3),
+        // markup, once nothing follows its tag
+        ("x | y | z\n-|-|-\n<a b=\" | \"> | c", "c", Event::Table(DeleteColumn), 2),
+        // a list item, once it has something in it
+        ("p\n1. \n|-|\nb", "1.", Event::Table(InsertColumn { right: true }), 2),
+        ("p\n* \n|-|\nb", "*", Event::Table(InsertColumn { right: true }), 2),
+        ("a\n- \nb", "a", Event::Table(InsertColumn { right: true }), 2),
+        ("a\n- \nb", "a", Event::PasteGrid(grid(&["1", "2"])), 2),
+    ] {
+        let mut editor = TestEditor::new(md);
+        assert_eq!(table_ranges_check_md(md), Ok(1), "{md:?}");
+        caret_at(&mut editor, md.find(cell).unwrap());
+        editor.push(event.clone());
+        editor.enter_frame();
+        let text = editor.get_text().to_string();
+        assert_eq!(table_ranges_check_md(&text), Ok(1), "{event:?} on {md:?} gave {text:?}");
+        let table = &editor.editor.edit.renderer.bounds.tables[0];
+        assert_eq!(table.columns(), columns, "{event:?} on {md:?} gave {text:?}");
+        assert!(!md.ends_with("after") || text.ends_with("\n\nafter"), "{text:?}");
+    }
+}
+
+#[test]
+fn a_table_the_parser_places_oddly_shows_as_its_source() {
+    // a header on a lazily continued line: its cells are not where it says
+    for md in ["- text\n a | b\n  -|-\n  c | d", ">\t- x\n>\ta | b\n>\t  -|-\n>\t  c | d"] {
+        let mut editor = TestEditor::new(md);
+        assert!(editor.editor.edit.renderer.bounds.tables.is_empty(), "{md:?}");
+        assert_eq!(rects_of(&editor, "a | b").len(), 1, "{md:?}");
+
+        // and is text to every edit
+        caret_at(&mut editor, md.find('a').unwrap());
+        act(&mut editor, TableAction::InsertColumn { right: true });
+        assert_eq!(editor.get_text(), md);
+        type_text(&mut editor, "x");
+        assert_eq!(editor.get_text(), md.replacen('a', "xa", 1));
+    }
+}
+
+#[test]
+fn an_alignment_is_read_as_the_parser_reads_it() {
+    // a vertical tab after the colon is not padding, so the colon is not last
+    let md = "| a |\n|:-:\u{b}|\n| b |";
+    let mut editor = TestEditor::new(md);
+    assert_eq!(table_ranges_check_md(md), Ok(1));
+    caret_at(&mut editor, md.find('a').unwrap());
+    act(&mut editor, TableAction::Align(comrak::nodes::TableAlignment::Right));
+    let table = &editor.editor.edit.renderer.bounds.tables[0];
+    assert_eq!(table.delimiter.alignments, [comrak::nodes::TableAlignment::Right]);
+    assert_eq!(table_ranges_check_md(editor.get_text()), Ok(1));
+}
+
+#[test]
+fn a_click_on_a_cell_a_row_lacks_writes_it_before_the_next_edit() {
+    let md = "| a | b | c |\n| - | - | - |\n| d |\n| e | f";
+    let mut editor = TestEditor::new(md);
+    let lacking = cell_rects(&editor)[1][1];
+    click(&mut editor, lacking.center());
+    editor.enter_frame();
+    type_text(&mut editor, "x");
+    assert_eq!(editor.get_text(), "| a | b | c |\n| - | - | - |\n| d | x |\n| e | f");
+
+    // and the keys find the row as it now is
+    let mut editor = TestEditor::new("| a | b |\n| - | - |\n| d |");
+    let lacking = cell_rects(&editor)[1][1];
+    click(&mut editor, lacking.center());
+    editor.enter_frame();
+    tab(&mut editor, false);
+    table_ranges_check_md(editor.get_text()).unwrap();
+    assert_eq!(editor.editor.edit.renderer.bounds.tables[0].rows.len(), 3);
+}
+
+#[test]
+fn a_line_in_a_cell_ends_where_its_content_does() {
+    let md = "| aa | bb |\n| - | - |\n| cc | dd |";
+    let mut editor = TestEditor::new(md);
+    let (home, end) =
+        (arrow(Advance::To(Bound::Line), true), arrow(Advance::To(Bound::Line), false));
+    for (from, to_start, to_end) in [(8, 7, 9), (3, 2, 4), (2, 2, 4), (9, 7, 9)] {
+        caret_at(&mut editor, from);
+        assert_eq!(press(&mut editor, home), to_start, "home from {from}");
+        caret_at(&mut editor, from);
+        assert_eq!(press(&mut editor, end), to_end, "end from {from}");
+    }
+    // and a selection made to a line's end stays in the cell
+    caret_at(&mut editor, 3);
+    assert_eq!(extend(&mut editor, shift_arrow(Advance::To(Bound::Line), false)), (3, 4));
+}
+
+#[test]
+fn rows_cut_from_the_end_of_a_note_leave_the_caret_in_a_cell() {
+    let md = "| a | b |\n| - | - |\n| c | d |";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, md.find('d').unwrap());
+    editor.push(Event::Cut);
+    editor.enter_frame();
+    assert_eq!(editor.get_text(), "| a | b |\n| - | - |");
+    assert_eq!(caret_cell(&editor).map(|(row, column, _)| (row, column)), Some((0, 1)));
+
+    // the header of a table with no rows is the table: it goes whole
+    editor.push(Event::Cut);
+    editor.enter_frame();
+    assert_eq!(editor.get_text(), "");
+    assert_eq!(editor.copied.as_deref(), Some("| a | b |\n| - | - |"));
+}
+
+#[test]
+fn a_cut_from_a_hand_typed_delimiter_row_takes_the_line() {
+    let mut editor = TestEditor::new("| a | b |\n");
+    caret_at(&mut editor, 10);
+    for c in ["|", "-", "|", "-", "|"] {
+        type_text(&mut editor, c);
+    }
+    assert_eq!(editor.editor.edit.renderer.bounds.tables.len(), 1);
+    editor.push(Event::Cut);
+    editor.enter_frame();
+    assert_eq!(editor.get_text(), "| a | b |");
+}
+
+#[test]
+fn a_row_without_outer_pipes_is_taken_as_its_cells() {
+    let md = "a | b\n--|--\nc | d";
+    let mut editor = TestEditor::new(md);
+    select(&mut editor, 12, 17);
+    delete(&mut editor, BACKSPACE);
+    let rows = cells(&editor);
+    assert_eq!(rows.len(), 2, "{:?}", editor.get_text());
+    assert!(rows[1].iter().all(String::is_empty), "{:?}", editor.get_text());
+
+    // the one cell of a one-column row, selected as Tab selects it
+    let mut editor = TestEditor::new("a\n-\nb");
+    caret_at(&mut editor, 0);
+    tab(&mut editor, false);
+    assert_eq!(selected(&editor), "b");
+    delete(&mut editor, BACKSPACE);
+    assert_eq!(editor.editor.edit.renderer.bounds.tables[0].rows.len(), 2);
+}
+
+#[test]
+fn text_indented_with_tabs_is_not_a_table() {
+    let tables = |editor: &TestEditor| editor.editor.edit.renderer.bounds.tables.len();
+    for text in ["\tfoo()\n\tbar()", "\ta\tb\n\tc\td"] {
+        let mut editor = TestEditor::new("");
+        paste(&mut editor, text);
+        assert_eq!(tables(&editor), 0, "{text:?}");
+    }
+
+    // nor is anything pasted where text is kept as it is
+    let mut editor = TestEditor::new("```\n\n```");
+    caret_at(&mut editor, 4);
+    paste(&mut editor, "a\tb\nc\td");
+    assert_eq!(tables(&editor), 0);
+    assert!(editor.get_text().starts_with("```\n") && editor.get_text().ends_with("```"));
+
+    // a cell with a leading empty cell is still a grid when some row has a first
+    let mut editor = TestEditor::new("");
+    paste(&mut editor, "\tb\nc\td");
+    assert_eq!(tables(&editor), 1);
+}
+
+#[test]
+fn a_pipe_written_in_a_cell_shows_as_a_pipe() {
+    // two that flank text, which the parser pairs up; and one in a code span
+    let md = "| fast\\|slow\\|auto | x |\n| - | - |\n| `p\\|q` | y |\n\na |b| c";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, md.find('y').unwrap());
+    let r = &editor.editor.edit.renderer;
+    let painted = |at: usize| !r.range_rects((Grapheme(at), Grapheme(at + 1))).is_empty();
+    let escapes: Vec<usize> = md.match_indices("\\|").map(|(at, _)| at).collect();
+    assert_eq!(escapes.len(), 3);
+    for escape in escapes {
+        assert!(!painted(escape), "the backslash at {escape} shows");
+        assert!(painted(escape + 1), "the pipe at {} is hidden", escape + 1);
+    }
+    // a pair of pipes in a paragraph is text too
+    let pair = md.find("|b|").unwrap();
+    assert!(painted(pair) && painted(pair + 2));
 }

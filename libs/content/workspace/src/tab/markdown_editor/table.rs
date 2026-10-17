@@ -128,6 +128,14 @@ impl TableBounds {
     }
 }
 
+/// Where a table wider than the note is scrolled to along its rows.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct TableScroll {
+    pub offset: f32,
+    /// The find and preview matches it last scrolled to show.
+    pub shown: [Option<(Grapheme, Grapheme)>; 2],
+}
+
 /// What a selection takes of a table that both its ends are in.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TableSelection<'t> {
@@ -168,9 +176,34 @@ impl Bounds {
     }
 }
 
-/// The space characters the parser's row scanner pads cells with.
+/// What the parser trims from either side of a cell.
 fn is_cell_space(c: char) -> bool {
-    matches!(c, ' ' | '\t' | '\x0b' | '\x0c')
+    matches!(c, ' ' | '\t')
+}
+
+/// What the parser's row scanner skips after a pipe, and what pads the
+/// delimiter row.
+fn is_pipe_space(c: char) -> bool {
+    is_cell_space(c) || matches!(c, '\x0b' | '\x0c')
+}
+
+/// The content of `cell`, the text between a cell's pipes, as a byte range
+/// of it: all but its padding, which the scanner takes more for after a
+/// pipe (`opened`). A blank cell's content is the empty range after its
+/// first space, so that text typed there keeps a space on either side when
+/// the cell has two.
+fn cell_content(cell: &str, opened: bool) -> (usize, usize) {
+    let unpadded = match opened {
+        true => cell.trim_start_matches(is_pipe_space),
+        false => cell.trim_start_matches(is_cell_space),
+    };
+    let content = unpadded.trim_end_matches(is_cell_space);
+    if content.is_empty() {
+        let start = cell.len().min(1);
+        return (start, start);
+    }
+    let start = cell.len() - unpadded.len();
+    (start, start + content.len())
 }
 
 // ─── bounds ──────────────────────────────────────────────────────────
@@ -184,6 +217,10 @@ impl<'ast> MdRender {
                 tables.extend(self.table_bounds(node, table.alignments.clone()));
             }
         }
+        // scroll offsets go by a table's place among the tables
+        if tables.len() != self.bounds.tables.len() {
+            self.table_scrolls.clear();
+        }
         self.bounds.tables = tables;
     }
 
@@ -194,11 +231,38 @@ impl<'ast> MdRender {
         let first_line = self.node_first_line_idx(table);
         let delimiter_line = self.bounds.source_lines.get(first_line + 1)?;
         let line = self.node_line(table, *delimiter_line);
-        Some(TableBounds {
-            first_line,
-            rows: table.children().map(|row| self.row_bounds(row)).collect(),
-            delimiter: DelimiterBounds { line, cells: self.delimiter_cells(line), alignments },
-        })
+        let rows: Vec<RowBounds> = table.children().map(|row| self.row_bounds(row)).collect();
+        rows.iter()
+            .all(|row| self.row_sound(row))
+            .then(|| TableBounds {
+                first_line,
+                rows,
+                delimiter: DelimiterBounds { line, cells: self.delimiter_cells(line), alignments },
+            })
+    }
+
+    /// Whether the row's cells tile its line the way every edit assumes:
+    /// each from the pipe before it to the pipe after, the first after the
+    /// line's indentation. The parser's positions are not always so — for
+    /// a header on a lazily continued line, say — and a table with such a
+    /// row has no bounds and shows as its source.
+    fn row_sound(&self, row: &RowBounds) -> bool {
+        let text = &self.buffer[row.line];
+        let indentation = text.len() - text.trim_start_matches(is_cell_space).len();
+        let mut at = row.line.start() + indentation + row.leading_pipe as usize;
+        for (index, cell) in row.cells.iter().enumerate() {
+            if index > 0 {
+                if at >= row.line.end() || &self.buffer[(at, at + 1)] != "|" {
+                    return false;
+                }
+                at += 1;
+            }
+            if cell.span.start() != at || !(at..=row.line.end()).contains(&cell.span.end()) {
+                return false;
+            }
+            at = cell.span.end();
+        }
+        !row.cells.is_empty() && (row.trailing_pipe || at == row.line.end())
     }
 
     fn row_bounds(&self, row: &'ast AstNode<'ast>) -> RowBounds {
@@ -221,19 +285,17 @@ impl<'ast> MdRender {
         RowBounds { line, cells, leading_pipe, trailing_pipe }
     }
 
-    /// `span` less the padding on either side. A blank cell's content is the
-    /// empty range after its first space, so that text typed there keeps a
-    /// space on either side when the cell has two.
+    /// `span` less the padding on either side: its [`cell_content`].
     pub fn table_cell_content(&self, span: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
-        let text = &self.buffer[span];
-        let trimmed = text.trim_matches(is_cell_space);
-        if trimmed.is_empty() {
-            let content = span.start() + text.chars().count().min(1);
-            return (content, content);
-        }
-        let padding = text.len() - text.trim_start_matches(is_cell_space).len();
-        let start = self.offset_to_byte(span.start()) + padding;
-        self.range_to_char_ceil((start, start + trimmed.len()))
+        let start = self.offset_to_byte(span.start());
+        let (from, to) = cell_content(&self.buffer[span], self.table_cell_opened(start));
+        self.range_to_char_ceil((start + from, start + to))
+    }
+
+    /// Whether a pipe precedes the cell whose span starts at `start`. Only
+    /// a row's first cell may lack one.
+    fn table_cell_opened(&self, start: Byte) -> bool {
+        start.0 > 0 && self.buffer.current.text.as_bytes()[start.0 - 1] == b'|'
     }
 
     /// Lexes the delimiter row, which the parser reports no positions for.
@@ -243,7 +305,7 @@ impl<'ast> MdRender {
         let text = &self.buffer[line];
         let bytes = text.as_bytes();
         let mut start = text.len() - text.trim_start_matches(is_cell_space).len();
-        let mut end = text.trim_end_matches(is_cell_space).len();
+        let mut end = text.trim_end_matches(is_pipe_space).len();
         if bytes.get(start) == Some(&b'|') {
             start += 1;
         }
@@ -293,8 +355,8 @@ impl<'ast> MdRender {
             return None;
         }
 
-        // comrak counts a cell's inline columns from its first non-space
-        let padding = text.len() - text.trim_start_matches(is_cell_space).len();
+        // comrak counts a cell's inline columns from its content's start
+        let padding = cell_content(text, self.table_cell_opened(span.start())).0;
         let content = &text.as_bytes()[padding..];
         let content_start = span.start().0 + padding;
         let line = self.bounds.source_lines[sourcepos.start.line - 1];
@@ -485,7 +547,9 @@ impl MdRender {
         }
         let rows = (table.row_on_line(line_of(start)), table.row_on_line(line_of(end)));
         let row = &table.rows[rows.0];
-        if rows.0 != rows.1 || (start, end) == row.line {
+        // a row with no outer pipe cannot be told from its cells: it is them
+        let whole = (start, end) == row.line && (row.leading_pipe || row.trailing_pipe);
+        if rows.0 != rows.1 || whole {
             return Some(TableSelection::Rows { table, rows });
         }
         let columns = (row.cell_near(start), row.cell_near(end));
@@ -599,13 +663,18 @@ impl<'ast> MdRender {
 
     /// Whether the table shows as its source lines instead of a grid: while
     /// the selection has an end on the delimiter row, which has no place
-    /// in the grid, or a find match covers some of the table's syntax.
+    /// in the grid, or a find match covers some of the table's syntax; and
+    /// always, if the table has no bounds to be a grid by.
     pub fn table_revealed(&self, table: &'ast AstNode<'ast>) -> bool {
-        let Some(&delimiter_line) = self
-            .bounds
-            .source_lines
-            .get(self.node_first_line_idx(table) + 1)
-        else {
+        let first_line = self.node_first_line_idx(table);
+        let bounds = &self.bounds.tables;
+        if bounds
+            .binary_search_by_key(&first_line, |table| table.first_line)
+            .is_err()
+        {
+            return true;
+        }
+        let Some(&delimiter_line) = self.bounds.source_lines.get(first_line + 1) else {
             return false;
         };
         let on_delimiter_row = self.reveal_selection.is_some_and(|selection| {
