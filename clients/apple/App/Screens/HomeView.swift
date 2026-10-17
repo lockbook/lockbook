@@ -594,7 +594,7 @@ struct HomeView: View {
     }
 
     private var sidebarContent: some View {
-        Group {
+        VStack(spacing: 0) {
             switch selectedTab {
             case .files:
                 FileTreeView(fileTreeModel: fileTreeModel)
