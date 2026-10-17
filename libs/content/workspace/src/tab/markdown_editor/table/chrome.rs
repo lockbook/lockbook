@@ -5,7 +5,10 @@
 //! long press on a body row or a header cell starts the same drags.
 
 use comrak::nodes::{AstNode, NodeValue, TableAlignment};
-use egui::{Align2, CornerRadius, CursorIcon, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
+use egui::{
+    Align2, CornerRadius, CursorIcon, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder,
+    Vec2,
+};
 use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
@@ -68,8 +71,9 @@ impl MdRender {
         boxes.filter(move |cell_box| self.table_key(cell_box.row) == Some(key))
     }
 
-    /// Each column's extent over the table's painted rows.
-    fn table_column_rects(&self, key: Grapheme) -> Vec<Rect> {
+    /// The extent of each column that shows, by index, over the table's
+    /// painted rows.
+    fn table_column_rects(&self, key: Grapheme) -> Vec<(usize, Rect)> {
         let boxes: Vec<TableCellBox> = self.table_boxes(key).collect();
         let Some(rows) = boxes
             .iter()
@@ -79,9 +83,53 @@ impl MdRender {
             return Vec::new();
         };
         let first_row = boxes.iter().filter(|cell_box| cell_box.row == boxes[0].row);
-        first_row
-            .map(|cell_box| Rect::from_x_y_ranges(cell_box.rect.x_range(), rows.y_range()))
-            .collect()
+        let column = |cell_box: &TableCellBox| {
+            let rect = Rect::from_x_y_ranges(cell_box.rect.x_range(), rows.y_range());
+            (cell_box.column, rect)
+        };
+        first_row.map(column).collect()
+    }
+
+    /// What shows of `rect`, which is painted on a table's row: a table
+    /// too wide for the note hides the rest. `None` if nothing does. A
+    /// rect off every table is as it was.
+    pub fn table_showing(&self, rect: Rect) -> Option<Rect> {
+        let on_row = |cell_box: &&TableCellBox| cell_box.rect.y_range().contains(rect.center().y);
+        let Some(row) = self
+            .table_cell_boxes
+            .iter()
+            .find(on_row)
+            .map(|found| found.row)
+        else {
+            return Some(rect);
+        };
+        let cells = self.table_cell_boxes.iter();
+        let cells = cells.filter(|cell_box| cell_box.row == row && on_row(cell_box));
+        let shows = cells.map(|cell_box| cell_box.rect).reduce(Rect::union)?;
+        let x = rect.x_range().intersection(shows.x_range());
+        (x.min <= x.max).then(|| Rect::from_x_y_ranges(x, rect.y_range()))
+    }
+
+    /// The table whose header's line starts at `key`, by its place among
+    /// the tables, which its scroll goes by.
+    pub fn table_ordinal(&self, key: Grapheme) -> Option<usize> {
+        let mut tables = self.bounds.tables.iter();
+        tables.position(|table| table.rows[0].line.start() == key)
+    }
+
+    /// How far that table is scrolled along its rows.
+    pub fn table_scrolled(&self, key: Grapheme) -> f32 {
+        let table = self.table_ordinal(key);
+        let scroll = table.and_then(|table| self.table_scrolls.get(&table));
+        scroll.map_or(0.0, |scroll| scroll.offset)
+    }
+
+    /// The table wider than the note that shows at `pos`, by its place
+    /// among the tables.
+    pub fn scrolling_table_at(&self, pos: Pos2) -> Option<usize> {
+        let key = self.table_key(self.table_cell_box_at(pos)?.row)?;
+        let table = self.table_ordinal(key)?;
+        self.table_scrolls.contains_key(&table).then_some(table)
     }
 
     /// The header cell painted under `pos`, as its table and column.
@@ -98,7 +146,8 @@ impl MdRender {
     ) -> Option<BlockDrag> {
         let table = self.bounds.table_at(key)?;
         let header = table.rows[0].cells.get(column)?.span;
-        let rect = *self.table_column_rects(key).get(column)?;
+        let columns = self.table_column_rects(key);
+        let (_, rect) = columns.iter().find(|(index, _)| *index == column)?;
         (table.columns() > 1).then(|| BlockDrag {
             section_range: header,
             grabbed: header,
@@ -115,25 +164,19 @@ impl MdRender {
     ) -> Option<DropGap> {
         let table = self.bounds.table_at(drag.parent_start)?;
         let columns = self.table_column_rects(drag.parent_start);
-        let middle = pointer.x - drag.grab_offset.x + columns.get(column)?.width() / 2.0;
-        let others = || {
-            columns
-                .iter()
-                .enumerate()
-                .filter(|(other, _)| *other != column)
+        let (_, dragged) = columns.iter().find(|(index, _)| *index == column)?;
+        let middle = pointer.x - drag.grab_offset.x + dragged.width() / 2.0;
+        let mut others = columns.iter().filter(|(index, _)| *index != column);
+        // the gap is before a column, or after the last that shows
+        let (gap_index, x) = match others.clone().find(|(_, other)| other.center().x >= middle) {
+            Some((next, other)) => (*next, other.left()),
+            None => others
+                .next_back()
+                .map(|(last, other)| (last + 1, other.right()))?,
         };
-        let to = others()
-            .filter(|(_, other)| other.center().x < middle)
-            .count();
-        if to == column {
+        if gap_index == column || gap_index == column + 1 {
             return None;
         }
-        let x = match others().nth(to) {
-            Some((_, next)) => next.left(),
-            None => others().next_back()?.1.right(),
-        };
-        // the column the gap is before, the dragged one counted
-        let gap_index = to + (to > column) as usize;
         let insert_offset = match table.rows[0].cells.get(gap_index) {
             Some(cell) => cell.span.start(),
             None => self.buffer.current.segs.last_cursor_position(),
@@ -196,7 +239,8 @@ impl MdRender {
 
         let mut columns = Vec::new();
         let first_row = boxes.iter().filter(|cell_box| cell_box.row == boxes[0].row);
-        for (index, cell_box) in first_row.enumerate() {
+        for cell_box in first_row {
+            let index = cell_box.column;
             let rect = Rect::from_x_y_ranges(cell_box.rect.x_range(), painted.y_range());
             let id = Some(column_handle_id(key, index));
             let shown = pointer.is_some_and(|p| rect.x_range().contains(p.x))
@@ -226,7 +270,9 @@ impl MdRender {
             drag.unit == DragUnit::Row && row.line.contains_inclusive(drag.section_range.0)
         });
         let id = row_handle_id(row.line.start());
-        let resp = self.table_handle(ui, id, pill, phosphor::DOTS_SIX_VERTICAL, dragging);
+        // the header does not drag: its pill is plain
+        let glyph = if row.index > 0 { phosphor::DOTS_SIX_VERTICAL } else { "" };
+        let resp = self.table_handle(ui, id, pill, glyph, dragging);
 
         // body rows reorder among themselves
         if row.index > 0 && row.of > 2 {
@@ -244,7 +290,7 @@ impl MdRender {
             self.render_events
                 .push(Event::Select { region: row.line.into() });
         }
-        let chosen = context_menu::show_click(&resp, &self.ctx.get_lb_theme(), |e| {
+        let chosen = context_menu::show_toggle(&resp, &self.ctx.get_lb_theme(), |e| {
             e.item(phosphor::ROWS_PLUS_TOP, "Insert row above", InsertRow { below: false });
             e.item(phosphor::ROWS_PLUS_BOTTOM, "Insert row below", InsertRow { below: true });
             // the header stays the header
@@ -288,7 +334,7 @@ impl MdRender {
             self.render_events
                 .push(Event::Select { region: column.header.content.into() });
         }
-        let chosen = context_menu::show_click(&resp, &theme, |e| {
+        let chosen = context_menu::show_toggle(&resp, &theme, |e| {
             e.item(
                 phosphor::COLUMNS_PLUS_LEFT,
                 "Insert column left",
@@ -359,6 +405,40 @@ impl MdRender {
 }
 
 impl MdEdit {
+    /// Gives a touch drag on the note's body to the table wider than the
+    /// note it began on, if it sets out along the rows: the table pans and
+    /// the page stays where it is. One that sets out down the rows is the
+    /// page's, as anywhere. True while the drag is not the page's.
+    pub fn pan_table(&mut self, ui: &Ui, body: &egui::Response) -> bool {
+        const SLOP: f32 = 6.0;
+        let (origin, pos, delta) =
+            ui.input(|i| (i.pointer.press_origin(), i.pointer.interact_pos(), i.pointer.delta()));
+        // a touch the platform cancels ends with no release: the pointer is
+        // gone and the body is dragged still, through the next press
+        let (pressed, gone) = ui.input(|i| (i.pointer.any_pressed(), !i.pointer.has_pointer()));
+        if body.drag_started() || (pressed && body.dragged()) {
+            let table = origin.and_then(|origin| self.renderer.scrolling_table_at(origin));
+            self.table_pan = table.map(|table| (table, None));
+        } else if gone || !body.dragged() || self.in_progress_block_drag.is_some() {
+            self.table_pan = None;
+        }
+        let Some((table, along)) = &mut self.table_pan else { return false };
+        if along.is_none() {
+            let moved = origin
+                .zip(pos)
+                .map_or(Vec2::ZERO, |(origin, pos)| pos - origin);
+            if moved.length() < SLOP {
+                return true;
+            }
+            *along = Some(moved.x.abs() > moved.y.abs());
+        }
+        let scroll = self.renderer.table_scrolls.get_mut(table);
+        if let (Some(true), Some(scroll)) = (*along, scroll) {
+            scroll.offset -= delta.x;
+        }
+        *along == Some(true)
+    }
+
     /// Carries out a dropped table drag: moves the row or column `drag`
     /// holds to the gap at `insert_offset`. The selection is left where
     /// the edit puts it.
@@ -452,6 +532,10 @@ impl MdEdit {
         painter.rect_filled(src_rect, card_corner, fill);
         painter.rect_stroke(src_rect, card_corner, stroke, StrokeKind::Inside);
 
+        // where the column starts, which may be left of what shows of it
+        let table_left = r.table_boxes(key).map(|cell_box| cell_box.rect.left());
+        let unscrolled = table_left.fold(src_rect.left(), f32::min) - r.table_scrolled(key);
+
         // Floating card; the header's fill and the rows' rules go with it.
         let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = src_rect.translate(offset);
@@ -476,11 +560,17 @@ impl MdEdit {
                 header.is_some_and(|header| r.table_row_key(header) == key)
             };
             let Some(table) = root.descendants().find(is_table) else { return };
+            let before: f32 = r.table_column_widths(table)[..column].iter().sum();
+            let left = unscrolled + before + offset.x;
+            // the card shows what the table showed of the column
+            let mut ui = ui.new_child(UiBuilder::new().max_rect(card));
+            ui.set_clip_rect(card.intersect(ui.clip_rect()));
             for row in table.children() {
                 let row_key = r.table_row_key(row);
                 let cell_box = cells.iter().find(|cell_box| cell_box.row == row_key);
                 if let (Some(cell_box), Some(cell)) = (cell_box, row.children().nth(column)) {
-                    r.show_table_cell(ui, cell, cell_box.rect.min + offset);
+                    let top = cell_box.rect.top() + offset.y;
+                    r.show_table_cell(&mut ui, cell, Pos2::new(left, top));
                 }
             }
         });

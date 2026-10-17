@@ -3,13 +3,13 @@
 //! Pasted into a table, a grid fills cells rightward and downward from the
 //! cell the selection starts in, and the table grows to hold it.
 
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::RangeExt as _;
 use lb_rs::model::text::operation_types::Operation;
 
+use super::cell_content;
 use super::edit::{cell_text, one_line};
-use super::is_cell_space;
-use super::structure::{BLANK, blank, row_text};
+use super::structure::{BLANK, RowText, delimiter_wants_pipe, row_text};
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 
@@ -61,21 +61,15 @@ fn delimited(text: &str, delimiter: char) -> Grid {
 /// the padding it had around it, or a space either side if it was blank.
 fn filled_cell(old: &str, value: &str) -> String {
     let value = one_line(value);
-    let content = old.trim_matches(is_cell_space);
-    let (before, after) = match old.find(content).filter(|_| !content.is_empty()) {
-        Some(start) => (&old[..start], &old[start + content.len()..]),
-        None => (" ", " "),
-    };
+    let (start, end) = cell_content(old, true);
+    let (before, after) = if start < end { (&old[..start], &old[end..]) } else { (" ", " ") };
     cell_text(&format!("{before}{}{after}", value.trim()), 0, true, true).text
 }
 
 /// Where a cell's content ends, as a byte index into the text between its
 /// pipes: for a blank cell, one space in.
 fn content_end(cell: &str) -> usize {
-    cell.trim_end_matches(is_cell_space)
-        .len()
-        .max(1)
-        .min(cell.len())
+    cell_content(cell, true).1
 }
 
 impl MdRender {
@@ -84,20 +78,34 @@ impl MdRender {
     /// commas do where there are no tabs. A plain paste outside a table is a
     /// table only if it could hardly be anything else: two or more lines
     /// of as many cells each.
-    pub fn pasted_grid(&self, text: &str, as_table: bool) -> Option<Grid> {
+    pub fn pasted_grid<'ast>(
+        &self, root: &'ast AstNode<'ast>, text: &str, as_table: bool,
+    ) -> Option<Grid> {
         let selection = self.buffer.current.selection;
         let in_table = self.table_position_at(selection.start()).is_some();
         // a selection that only reaches into a table is replaced as text
         let at_table = [selection.0, selection.1]
             .iter()
             .any(|end| self.bounds.table_at(*end).is_some());
-        if self.plaintext || self.readonly || (at_table && !in_table) {
+        // code and markup hold their text as it is
+        let literal = matches!(
+            self.leaf_block_at_offset(root, selection.start())
+                .data
+                .borrow()
+                .value,
+            NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) | NodeValue::FrontMatter(_)
+        );
+        if self.plaintext || self.readonly || literal || (at_table && !in_table) {
             return None;
         }
 
         let tabs = text.contains('\t');
         let grid = delimited(text, if tabs { '\t' } else { ',' });
         let width = grid.iter().map(Vec::len).max()?;
+        // lines that each begin with a tab are indented, not cells
+        if tabs && !as_table && grid.iter().all(|row| row[0].is_empty()) {
+            return None;
+        }
         let pastes = if as_table {
             // one cell pasted into a table is text
             !in_table || grid.len() > 1 || width > 1
@@ -121,21 +129,22 @@ impl MdRender {
 
         // the table's text from its header on, rebuilt a line at a time
         let (mut text, mut caret) = (String::new(), 0);
-        // a row's cells, with those `grid` fills
-        let mut fill = |text: &mut String, row: usize, mut cells: Vec<String>, leading: bool| {
-            let Some(values) = row.checked_sub(top).and_then(|row| grid.get(row)) else {
-                return (cells, leading);
-            };
-            for (cell, value) in cells[left..].iter_mut().zip(values) {
-                *cell = filled_cell(cell, value);
+        // a row with the cells `grid` fills, as source
+        let mut fill = |text: &mut String, index: usize, mut row: RowText| {
+            row.caret = None;
+            if let Some(values) = index.checked_sub(top).and_then(|index| grid.get(index)) {
+                for (cell, value) in row.cells[left..].iter_mut().zip(values) {
+                    *cell = filled_cell(cell, value);
+                }
+                row.leading |= left == 0;
+                if index + 1 == top + grid.len() {
+                    let last = left + values.len().saturating_sub(1);
+                    row.caret = Some((last, content_end(&row.cells[last])));
+                }
             }
-            let leading = leading || (left == 0 && !values.is_empty());
-            if row + 1 == top + grid.len() {
-                let last = left + values.len().saturating_sub(1);
-                let before: usize = cells[..last].iter().map(|cell| cell.len() + 1).sum();
-                caret = text.len() + leading as usize + before + content_end(&cells[last]);
-            }
-            (cells, leading)
+            let (row, last_cell) = row.write();
+            caret = last_cell.map_or(caret, |last_cell| text.len() + last_cell);
+            *text += &row;
         };
 
         for (index, row) in table.rows.iter().enumerate() {
@@ -150,11 +159,7 @@ impl MdRender {
             } else {
                 let structure = self.table_row_structure(row);
                 text += &self.buffer[(row.line.start(), structure.start())];
-                let cells = self.table_row_cells(row, columns);
-                let leading = row.leading_pipe || blank(&cells[0]);
-                let (cells, leading) = fill(&mut text, index, cells, leading);
-                let trailing = row.trailing_pipe || blank(&cells[columns - 1]);
-                text += &row_text(&cells, leading, trailing);
+                fill(&mut text, index, self.table_row_text(row, columns));
                 text += &self.buffer[(structure.end(), row.line.end())];
             }
 
@@ -168,6 +173,7 @@ impl MdRender {
                     let mut cells: Vec<String> =
                         cells.map(|cell| self.buffer[*cell].to_string()).collect();
                     cells.resize(columns, " --- ".into());
+                    let leading = leading || delimiter_wants_pipe(&cells, trailing);
                     text += &self.buffer[(delimiter.start(), structure.start())];
                     text += &row_text(&cells, leading, trailing);
                     text += &self.buffer[(structure.end(), delimiter.end())];
@@ -179,8 +185,8 @@ impl MdRender {
         for index in table.rows.len()..top + grid.len() {
             text += "\n";
             text += self.table_line_prefix(table);
-            let (cells, _) = fill(&mut text, index, vec![BLANK.to_string(); columns], true);
-            text += &row_text(&cells, true, true);
+            let cells = vec![BLANK.to_string(); columns];
+            fill(&mut text, index, RowText { cells, leading: true, trailing: true, caret: None });
         }
 
         let range = (table.rows[0].line.start(), lines[table.lines().1 - 1].end());

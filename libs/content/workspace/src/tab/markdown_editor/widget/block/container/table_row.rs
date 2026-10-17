@@ -52,24 +52,29 @@ impl<'ast> MdRender {
                 .vline(x, Rangef::new(top_left.y, top_left.y + height), stroke);
         }
 
-        // draw cell contents
+        // draw cell contents; what a scrolled table hides has no box
+        let clip = ui.clip_rect().x_range();
+        let showing = |rect: Rect| {
+            let x = rect.x_range().intersection(clip);
+            (x.span() > 0.0).then(|| Rect::from_x_y_ranges(x, rect.y_range()))
+        };
         let row = self.table_row_key(node);
         let mut child_top_left = top_left;
         for (column, table_cell) in node.children().enumerate() {
             let column_width = columns.get(column).copied().unwrap_or_default();
-            self.show_table_cell(ui, table_cell, child_top_left);
-            self.table_cell_boxes.push(TableCellBox {
-                rect: Rect::from_min_size(child_top_left, Vec2::new(column_width, height)),
-                row,
-                column,
-            });
+            let cell = Rect::from_min_size(child_top_left, Vec2::new(column_width, height));
+            if let Some(rect) = showing(cell) {
+                self.show_table_cell(ui, table_cell, child_top_left);
+                self.table_cell_boxes
+                    .push(TableCellBox { rect, row, column });
+            }
             child_top_left.x += column_width;
         }
 
         // body rows reorder among themselves; the header stays the header
         if !is_header_row {
-            if let Some(table) = self.table_key(row) {
-                self.push_block_box(node, row_rect, table, DragUnit::Row);
+            if let (Some(table), Some(rect)) = (self.table_key(row), showing(row_rect)) {
+                self.push_block_box(node, rect, table, DragUnit::Row);
             }
         }
     }

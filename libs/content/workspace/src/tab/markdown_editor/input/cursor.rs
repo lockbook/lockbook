@@ -223,6 +223,11 @@ impl MdEdit {
         use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
         let frag = self.renderer.fragment_at_offset(offset)?;
         let x = self.renderer.fragment_x(frag, offset);
+        // at the edge of what a scrolled table shows, if it is beyond it
+        let x = match self.renderer.table_showing(frag.rect) {
+            Some(showing) => showing.x_range().clamp(x),
+            None => x,
+        };
         let row_h = self.renderer.layout.row_height;
         // A caret bordering a collapsed embed (image or link card) spans the
         // embed's height — it reads as one big glyph.
@@ -319,6 +324,10 @@ impl MdRender {
             if rect.area() <= 0.001 {
                 continue;
             }
+            // a scrolled table hides some of what is painted on its rows
+            let Some(rect) = self.table_showing(rect).filter(|rect| rect.area() > 0.001) else {
+                continue;
+            };
             result.push(rect);
         }
 

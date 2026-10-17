@@ -122,6 +122,9 @@ pub struct MdRender {
     /// Set only while painting the floating drag-reorder card, so chrome
     /// that shouldn't travel with it (the fold button) can opt out.
     pub painting_drag_float: bool,
+    /// The user moved the selection since the last frame was painted: a
+    /// table wider than the note scrolls to show its end.
+    pub caret_moved: bool,
 
     // document
     pub buffer: Buffer,
@@ -148,6 +151,9 @@ pub struct MdRender {
     /// A painter slot above each header row's background, with the row's
     /// rect: the selection's highlight there would paint under it.
     pub table_header_slots: Vec<(egui::layers::ShapeIdx, Rect)>,
+    /// How far each table too wide for the note is scrolled, by its index
+    /// in [`bounds::Bounds::tables`].
+    pub table_scrolls: HashMap<usize, table::TableScroll>,
     /// Drag action emitted by a list marker this frame, drained by
     /// `MdEdit::show` to update / commit the in-progress block drag
     /// (mirrors how `render_events` carries buffer edits out of render).
@@ -316,6 +322,11 @@ pub struct MdEdit {
     /// the platform, which arrives as any other does, is to be a table.
     pub paste_as_table: std::cell::Cell<Option<f64>>,
 
+    /// A touch drag that began on a table wider than the note: the table,
+    /// by its place among the tables, and once the drag has set out,
+    /// whether along the rows. See [`MdEdit::pan_table`].
+    pub table_pan: Option<(usize, Option<bool>)>,
+
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
@@ -354,6 +365,7 @@ impl MdEdit {
             link_completions: Default::default(),
             context_menu_link: None,
             paste_as_table: Default::default(),
+            table_pan: None,
             scroll_area: AffineScrollArea::new(file_id),
             cursor_last_interact: None,
         }
@@ -518,6 +530,7 @@ impl MdRender {
             ext: "md".into(),
             touch_mode,
             painting_drag_float: false,
+            caret_moved: false,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
@@ -525,6 +538,7 @@ impl MdRender {
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
             table_header_slots: Vec::new(),
+            table_scrolls: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -604,12 +618,14 @@ impl MdRender {
             ext: "md".into(),
             touch_mode: false,
             painting_drag_float: false,
+            caret_moved: false,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
             table_header_slots: Vec::new(),
+            table_scrolls: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -768,6 +784,7 @@ impl Editor {
             ext,
             touch_mode,
             painting_drag_float: false,
+            caret_moved: false,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -776,6 +793,7 @@ impl Editor {
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
             table_header_slots: Vec::new(),
+            table_scrolls: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -844,6 +862,7 @@ impl Editor {
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
                 paste_as_table: Default::default(),
+                table_pan: None,
                 scroll_area: AffineScrollArea::new(file_id),
                 cursor_last_interact: None,
             },
@@ -1539,6 +1558,9 @@ impl Editor {
                         // the body's drag (so taps reach it) but below
                         // the scrollbar (so taps on the bar don't).
                         let begun = self.edit.scroll_area.begin(ui);
+                        if self.edit.pan_table(ui, begun.body_response()) {
+                            self.edit.scroll_area.suppress_body_drag = true;
+                        }
 
                         let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
