@@ -1410,6 +1410,55 @@ fn toggle_list_style_on_empty_item_switches() {
     }
 }
 
+/// Regression: toggling a block style inside a container of another kind
+/// used to strip that container's marker and put the new one in its place
+/// (`> quoted` + bullet → `* quoted`). Only a container of the toggled
+/// style's kind gives up its prefix; otherwise the new marker nests.
+#[test]
+fn toggle_block_style_nests_inside_other_containers() {
+    use comrak::nodes::{ListType, NodeList, NodeValue};
+
+    let bullet = || Event::ToggleStyle {
+        region: Region::Selection,
+        style: NodeValue::List(NodeList { list_type: ListType::Bullet, ..Default::default() }),
+    };
+    let task = || Event::ToggleStyle {
+        region: Region::Selection,
+        style: NodeValue::List(NodeList {
+            list_type: ListType::Bullet,
+            is_task_list: true,
+            ..Default::default()
+        }),
+    };
+    let quote = || Event::ToggleStyle { region: Region::Selection, style: NodeValue::BlockQuote };
+
+    // (description, input, cursor, event, expected_text)
+    let cases: &[(&str, &str, usize, Event, &str)] = &[
+        ("bullet inside quote", "> quoted\n", 4, bullet(), "> * quoted\n"),
+        ("bullet inside two-line quote", "> one\n> two\n", 3, bullet(), "> * one\n> two\n"),
+        ("quote inside bullet", "- item\n", 3, quote(), "- > item\n"),
+        ("quote inside empty bullet", "- \n", 2, quote(), "- > \n"),
+        ("bullet inside empty quote", "> \n", 2, bullet(), "> * \n"),
+        ("unapply quote around a bullet", "> - item\n", 5, quote(), "- item\n"),
+        ("unapply bullet inside quote", "> - item\n", 5, bullet(), "> item\n"),
+        ("type change across a quote", "- > quoted\n", 5, task(), "* [ ] > quoted\n"),
+    ];
+    for (desc, input, cursor, ev, expected) in cases {
+        let mut ws = TestEditor::new(input);
+        ws.enter_frame();
+        ws.push(Event::Select {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(Grapheme(*cursor)),
+                end: Location::Grapheme(Grapheme(*cursor)),
+            },
+        });
+        ws.enter_frame();
+        ws.push(ev.clone());
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), *expected, "case {desc:?}");
+    }
+}
+
 /// Regression: changing the list type of a *nested* item used to read
 /// the wrong list. `unapply_block` walked the whole ancestor chain, so a
 /// nested task item under a bullet list matched the outer bullet list and
@@ -1604,6 +1653,35 @@ fn tab_indents_parent_to_child_keeps_child_level() {
     ws.push(Event::Indent { deindent: false });
     ws.enter_frame();
     assert_eq!(ws.get_text(), "- bullet parent\n    - child four\n    - asdf\n");
+}
+
+/// Regression: Enter on an empty `> ` line of a quote inside a list item
+/// used to insert a bare newline, leaving a stray `>` (comrak ends the
+/// item before the content-less quote line, so the line looked like it
+/// was outside every container). It closes the quote like it does at the
+/// top level, keeping the item's indentation.
+#[test]
+fn newline_closes_empty_quote_inside_item() {
+    let cases: &[(&str, &str)] = &[
+        ("- item\n  > quoted\n  > \n", "- item\n  > quoted\n  \n"),
+        ("- [x] b\n\n  para\n\n  > quoted\n  > \n", "- [x] b\n\n  para\n\n  > quoted\n  \n"),
+        ("- a\n  - b\n    > q\n    > \n", "- a\n  - b\n    > q\n    \n"),
+    ];
+    for (input, expected) in cases {
+        let mut ws = TestEditor::new(input);
+        ws.enter_frame();
+        let cursor = Grapheme(input.chars().count() - 1); // end of the empty quote line
+        ws.push(Event::Select {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(cursor),
+                end: Location::Grapheme(cursor),
+            },
+        });
+        ws.enter_frame();
+        ws.push(Event::Newline { shift: false });
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), *expected, "input {input:?}");
+    }
 }
 
 /// Newline at the end of a nested list item must start the sibling at

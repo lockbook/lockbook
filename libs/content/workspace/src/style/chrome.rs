@@ -346,6 +346,7 @@ pub mod phosphor {
     pub const TEXT_SUPERSCRIPT: &str = "\u{ec9a}";
     pub const TEXT_INDENT: &str = "\u{ea1e}";
     pub const TEXT_OUTDENT: &str = "\u{ea1c}";
+    pub const QUOTES: &str = "\u{e660}";
     /// Nested lines — document outline (`ph-list`).
     pub const LIST: &str = "\u{e2f0}";
     pub const LIST_BULLETS: &str = "\u{e2f2}";

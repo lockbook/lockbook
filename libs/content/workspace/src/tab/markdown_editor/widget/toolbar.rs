@@ -46,6 +46,7 @@ pub enum MarkdownToolbarAction {
     NumberedList,
     BulletedList,
     TaskList,
+    Quote,
     Link,
     Indent,
     Outdent,
@@ -103,6 +104,8 @@ pub struct ToolbarPersistence {
     ordered_list: bool,
     unordered_list: bool,
     task_list: bool,
+    #[serde(default)]
+    quote: bool,
     link: bool,
     image: bool,
     indent: bool,
@@ -150,6 +153,7 @@ impl<'ast> Editor {
                     ..Default::default()
                 }),
             ),
+            (MarkdownToolbarAction::Quote, NodeValue::BlockQuote),
         ] {
             if self.edit.unapply_block(root, &style) {
                 state.active.push(action);
@@ -223,6 +227,7 @@ impl<'ast> Editor {
                 is_task_list: true,
                 ..Default::default()
             }),
+            MarkdownToolbarAction::Quote => NodeValue::BlockQuote,
             MarkdownToolbarAction::Link => NodeValue::Link(Default::default()),
             MarkdownToolbarAction::Indent => return Event::Indent { deindent: false },
             MarkdownToolbarAction::Outdent => return Event::Indent { deindent: true },
@@ -283,6 +288,7 @@ impl<'ast> Editor {
             persistence.ordered_list,
             persistence.unordered_list,
             persistence.task_list,
+            persistence.quote,
         ]));
 
         let mut media = count(&[persistence.link]);
@@ -500,6 +506,14 @@ impl<'ast> Editor {
                             ui,
                         )
                         .map(|e| events.push(e));
+                        any_list = true;
+                    }
+                    if persistence.quote || toolbar_is_default {
+                        if any_list {
+                            ui.add_space(5.);
+                        }
+                        self.style(phosphor::QUOTES, NodeValue::BlockQuote, root, ui)
+                            .map(|e| events.push(e));
                         any_list = true;
                     }
                     if any_list {
@@ -1031,6 +1045,24 @@ impl<'ast> Editor {
                                 self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("- [ ] Task List");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
+                                    "> Quote",
+                                    phosphor::QUOTES,
+                                    persistence.quote,
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.quote ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("> Quote");
 
                             Separator::default().spacing(MENU_SPACE).ui(ui);
                             top_left.y += MENU_SPACE;
