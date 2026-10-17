@@ -18,6 +18,9 @@ struct PinnedDocumentsEntry: TimelineEntry {
         PinnedDocument(id: UUID(), name: "Daily notes.md"),
         PinnedDocument(id: UUID(), name: "Weekend plans.md"),
         PinnedDocument(id: UUID(), name: "Reading list.md"),
+        PinnedDocument(id: UUID(), name: "Travel.pdf"),
+        PinnedDocument(id: UUID(), name: "Ideas.md"),
+        PinnedDocument(id: UUID(), name: "Sketch.svg"),
     ])
 }
 
@@ -93,17 +96,27 @@ struct PinnedDocumentsWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: PinnedDocumentsEntry
 
-    private var limit: Int { family == .systemLarge ? 8 : 3 }
+    private var limit: Int {
+        switch family {
+        case .systemSmall: 1
+        case .systemLarge: 6
+        default: 3
+        }
+    }
+
+    private var documents: [PinnedDocument] { Array(entry.documents.prefix(limit)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Label("Pinned", systemImage: "pin.fill")
-                    .font(.headline)
+                    .font(.caption.weight(.semibold))
                 Spacer()
-                Text("Lockbook")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if family != .systemSmall {
+                    Text("Lockbook")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if entry.documents.isEmpty {
@@ -111,19 +124,12 @@ struct PinnedDocumentsWidgetView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            } else if family == .systemSmall, let document = documents.first {
+                documentLabel(document)
+                    .widgetURL(document.url)
             } else {
-                ForEach(entry.documents.prefix(limit)) { document in
-                    Link(destination: document.url) {
-                        Label(document.name, systemImage: "doc.text")
-                            .font(.callout)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer(minLength: 0)
-                if entry.documents.count > limit {
+                documentGrid
+                if family == .systemLarge, entry.documents.count > limit {
                     Text("+\(entry.documents.count - limit) more in Lockbook")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -132,6 +138,51 @@ struct PinnedDocumentsWidgetView: View {
         }
         .privacySensitive()
         .containerBackground(.background, for: .widget)
+    }
+
+    private var documentGrid: some View {
+        let columns = family == .systemLarge ? 2 : 3
+        let rows = family == .systemLarge ? 3 : 1
+
+        return VStack(spacing: 8) {
+            ForEach(0..<rows, id: \.self) { row in
+                HStack(spacing: 8) {
+                    ForEach(0..<columns, id: \.self) { column in
+                        let index = row * columns + column
+                        if index < documents.count {
+                            let document = documents[index]
+                            Link(destination: document.url) {
+                                documentLabel(document)
+                                    .padding(10)
+                                    .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 9))
+                                    .contentShape(RoundedRectangle(cornerRadius: 9))
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Color.clear
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func documentLabel(_ document: PinnedDocument) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: FileIconHelper.docNameToSystemImageName(name: document.name))
+                .font(family == .systemSmall ? .title : .title3)
+                .foregroundStyle(Color.accentColor)
+                .widgetAccentable()
+            Spacer(minLength: 0)
+            Text(document.name)
+                .font(family == .systemSmall ? .body : .caption)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(document.name)
     }
 }
 
@@ -143,7 +194,7 @@ struct PinnedDocumentsWidget: Widget {
         }
         .configurationDisplayName("Pinned Documents")
         .description("Open your pinned Lockbook documents.")
-        .supportedFamilies([.systemMedium, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -151,5 +202,22 @@ struct PinnedDocumentsWidget: Widget {
     PinnedDocumentsWidget()
 } timeline: {
     PinnedDocumentsEntry.preview
+    PinnedDocumentsEntry(date: .now, documents: Array(PinnedDocumentsEntry.preview.documents.prefix(1)))
+    PinnedDocumentsEntry(date: .now, documents: Array(PinnedDocumentsEntry.preview.documents.prefix(2)))
+    PinnedDocumentsEntry(date: .now, documents: [])
+}
+
+#Preview(as: .systemSmall) {
+    PinnedDocumentsWidget()
+} timeline: {
+    PinnedDocumentsEntry.preview
+    PinnedDocumentsEntry(date: .now, documents: [])
+}
+
+#Preview(as: .systemLarge) {
+    PinnedDocumentsWidget()
+} timeline: {
+    PinnedDocumentsEntry.preview
+    PinnedDocumentsEntry(date: .now, documents: Array(PinnedDocumentsEntry.preview.documents.prefix(1)))
     PinnedDocumentsEntry(date: .now, documents: [])
 }

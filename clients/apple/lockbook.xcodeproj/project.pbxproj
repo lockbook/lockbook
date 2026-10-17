@@ -69,10 +69,18 @@
 			);
 			target = AC00000000000000000000E0 /* PinnedDocumentsWidget */;
 		};
+		AC00000000000000000000F0 /* Shared widget appearance */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Assets.xcassets,
+				Utils/FileIconHelper.swift,
+			);
+			target = AC00000000000000000000E0 /* PinnedDocumentsWidget */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		AA00000000000000000000A1 /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = App; sourceTree = "<group>"; };
+		AA00000000000000000000A1 /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (AC00000000000000000000F0 /* Shared widget appearance */, ); explicitFileTypes = {}; explicitFolders = (); path = App; sourceTree = "<group>"; };
 		AB00000000000000000000E2 /* ShareExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (AB00000000000000000000E3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = ShareExtension; sourceTree = "<group>"; };
 		AC00000000000000000000E2 /* PinnedDocumentsWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (AC00000000000000000000E3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = PinnedDocumentsWidget; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -478,6 +486,7 @@
 		AC00000000000000000000EC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
 				CODE_SIGN_ENTITLEMENTS = PinnedDocumentsWidget/PinnedDocumentsWidget.entitlements;
@@ -542,6 +551,7 @@
 		AC00000000000000000000ED /* Development */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
 				CODE_SIGN_ENTITLEMENTS = PinnedDocumentsWidget/PinnedDocumentsWidget.entitlements;
@@ -606,6 +616,7 @@
 		AC00000000000000000000EE /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
 				CODE_SIGN_ENTITLEMENTS = PinnedDocumentsWidget/PinnedDocumentsWidget.entitlements;
