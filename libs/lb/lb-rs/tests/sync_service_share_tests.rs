@@ -594,17 +594,14 @@ async fn test_share_link_write() {
         .await
         .unwrap();
     assert::all_paths(&cores[1], &["/", "/passalong.md"]).await;
-    assert_matches!(
-        cores[1]
-            .share_file(link.id, &accounts[2].username, ShareMode::Write)
-            .await
-            .unwrap_err()
-            .kind, // this succeeded and now correctly fails (was sharing link instead of target)
-        LbErrKind::InsufficientPermission
-    );
+    cores[1]
+        .share_file(link.id, &accounts[2].username, ShareMode::Write)
+        .await
+        .unwrap(); // shares the target, not the link
     cores[1].sync().await.unwrap();
 
     cores[2].sync().await.unwrap(); // this failed with FileNonexistent
+    assert::all_pending_shares(&cores[2], &["passalong.md"]).await;
 }
 
 #[tokio::test]
@@ -637,11 +634,12 @@ async fn test_share_link_read() {
         .await
         .unwrap();
     assert::all_paths(&cores[1], &["/", "/passalong.md"]).await;
-    cores[1]
-        .share_file(link.id, &accounts[2].username, ShareMode::Read)
-        .await
-        .unwrap();
-    cores[1].sync().await.unwrap();
-
-    cores[2].sync().await.unwrap();
+    assert_matches!(
+        cores[1]
+            .share_file(link.id, &accounts[2].username, ShareMode::Read)
+            .await
+            .unwrap_err()
+            .kind,
+        LbErrKind::InsufficientPermission
+    );
 }

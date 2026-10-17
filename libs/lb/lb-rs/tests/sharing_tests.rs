@@ -1233,7 +1233,7 @@ async fn share_unowned_file_read() {
 }
 
 #[tokio::test]
-async fn share_unowned_file_write() {
+async fn share_write_by_write_sharee() {
     let cores = [
         test_core_with_account().await,
         test_core_with_account().await,
@@ -1260,10 +1260,11 @@ async fn share_unowned_file_write() {
     cores[0].sync().await.unwrap();
     cores[1].sync().await.unwrap();
 
-    let result = cores[1]
+    cores[1]
         .share_file(folder0.id, &accounts[2].username, ShareMode::Write)
-        .await;
-    assert_matches!(result.unwrap_err().kind, LbErrKind::InsufficientPermission);
+        .await
+        .unwrap();
+    cores[1].sync().await.unwrap();
 }
 
 #[tokio::test]
@@ -2560,4 +2561,25 @@ async fn populate_last_modified_by() {
     assert_eq!(doc.last_modified_by, a2.username);
     let doc = c2.get_file_by_id(doc.id).await.unwrap();
     assert_eq!(doc.last_modified_by, a2.username);
+}
+
+#[tokio::test]
+async fn read_sharee_cannot_share() {
+    let a = test_core_with_account().await;
+    let b = test_core_with_account().await;
+    let c = test_core_with_account().await;
+    let acct_b = b.get_account().unwrap().clone();
+    let acct_c = c.get_account().unwrap().clone();
+
+    let doc = a.create_at_path("/doc").await.unwrap();
+    a.share_file(doc.id, &acct_b.username, ShareMode::Read)
+        .await
+        .unwrap();
+    a.sync().await.unwrap();
+    b.sync().await.unwrap();
+
+    let result = b
+        .share_file(doc.id, &acct_c.username, ShareMode::Read)
+        .await;
+    assert_matches!(result.unwrap_err().kind, LbErrKind::InsufficientPermission);
 }
