@@ -689,3 +689,73 @@ async fn rejected_share_survives_owners_concurrent_rename() {
 
     assert::all_pending_shares(&recipient, &[]).await;
 }
+
+/// A deleted file keeps its owner when a collaborator moves its folder out of the share; the owner
+/// must still be able to push afterwards.
+#[tokio::test]
+async fn collaborator_moves_out_folder_holding_owners_deleted_file() {
+    let owner = test_core_with_account().await;
+    let collaborator = test_core_with_account().await;
+    let collaborator_name = collaborator.get_account().unwrap().username.clone();
+
+    let project = owner.create_at_path("/project/").await.unwrap();
+    let design = owner.create_at_path("/project/design/").await.unwrap();
+    let mockup = owner
+        .create_at_path("/project/design/mockup.png")
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    owner.delete(&mockup.id).await.unwrap();
+    owner
+        .share_file(project.id, &collaborator_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+
+    collaborator.sync().await.unwrap();
+    let collaborator_root = collaborator.root().await.unwrap().id;
+    collaborator
+        .move_file(&design.id, &collaborator_root)
+        .await
+        .unwrap();
+    collaborator.sync().await.unwrap();
+
+    owner.sync().await.unwrap();
+    owner.create_at_path("/notes.md").await.unwrap();
+    owner.sync().await.unwrap();
+}
+
+/// Same with a deleted folder that still has files inside it.
+#[tokio::test]
+async fn collaborator_moves_out_folder_holding_owners_deleted_folder() {
+    let owner = test_core_with_account().await;
+    let collaborator = test_core_with_account().await;
+    let collaborator_name = collaborator.get_account().unwrap().username.clone();
+
+    let project = owner.create_at_path("/project/").await.unwrap();
+    let design = owner.create_at_path("/project/design/").await.unwrap();
+    let old = owner.create_at_path("/project/design/old/").await.unwrap();
+    owner
+        .create_at_path("/project/design/old/mockup.png")
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    owner.delete(&old.id).await.unwrap();
+    owner
+        .share_file(project.id, &collaborator_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+
+    collaborator.sync().await.unwrap();
+    let collaborator_root = collaborator.root().await.unwrap().id;
+    collaborator
+        .move_file(&design.id, &collaborator_root)
+        .await
+        .unwrap();
+    collaborator.sync().await.unwrap();
+
+    owner.sync().await.unwrap();
+    owner.create_at_path("/notes.md").await.unwrap();
+    owner.sync().await.unwrap();
+}
