@@ -54,7 +54,7 @@ struct PinnedDocumentsProvider: TimelineProvider {
                 return
             }
 
-            let core = lb_init_with_background_work(directory.path, false, false)
+            let core = lb_init(directory.path, false, false)
             defer { lb_free_init(core) }
 
             guard core.err == nil else {
