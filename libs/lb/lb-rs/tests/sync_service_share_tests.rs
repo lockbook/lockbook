@@ -643,3 +643,49 @@ async fn test_share_link_read() {
         LbErrKind::InsufficientPermission
     );
 }
+
+#[tokio::test]
+async fn downgrade_write_to_read_survives_owners_sync() {
+    let a = test_core_with_account().await;
+    let b = test_core_with_account().await;
+    let acct_b = b.get_account().unwrap().clone();
+
+    let doc = a.create_at_path("/doc.md").await.unwrap();
+    a.share_file(doc.id, &acct_b.username, ShareMode::Write)
+        .await
+        .unwrap();
+    a.sync().await.unwrap();
+
+    a.share_file(doc.id, &acct_b.username, ShareMode::Read)
+        .await
+        .unwrap();
+    a.sync().await.unwrap();
+
+    let shares = a.get_file_by_id(doc.id).await.unwrap().shares;
+    assert_eq!(shares.len(), 1);
+    assert_eq!(shares[0].mode, ShareMode::Read);
+}
+
+#[tokio::test]
+async fn rejected_share_survives_owners_concurrent_rename() {
+    let owner = test_core_with_account().await;
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let doc = owner.create_at_path("/doc.md").await.unwrap();
+    owner
+        .share_file(doc.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+
+    recipient.reject_share(&doc.id).await.unwrap();
+    recipient.sync().await.unwrap();
+
+    owner.rename_file(&doc.id, "renamed.md").await.unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+
+    assert::all_pending_shares(&recipient, &[]).await;
+}
