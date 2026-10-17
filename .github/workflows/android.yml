@@ -42,4 +42,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lockbook-android
-          path: clients/android/app/build/outputs/apk/play/release/app-play-release.apk
+          path: |
+            clients/android/app/build/outputs/apk/play/release/app-play-release.apk
+            clients/android/app/build/standalone/outputs/apk/play/release/app-play-*-release.apk
+            clients/android/app/build/standalone/outputs/apk/fdroid/release/app-fdroid-*-release.apk

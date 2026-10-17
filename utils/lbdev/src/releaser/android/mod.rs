@@ -18,8 +18,9 @@ const OUTPUTS: &str = "clients/android/app/build/outputs";
 const PACKAGE: &str = "app.lockbook";
 // Google Play distributes the `play` flavor. Keep this explicit so adding
 // another flavor cannot change the artifact that release automation uploads.
-const PLAY_RELEASE_APK: &str = "apk/play/release/app-play-release.apk";
 const PLAY_RELEASE_BUNDLE: &str = "bundle/playRelease/app-play-release.aab";
+const STANDALONE_APKS: &str = "clients/android/app/build/standalone/outputs/apk";
+const APK_ABIS: &[&str] = &["armeabi-v7a", "arm64-v8a", "x86", "x86_64"];
 
 const RELEASES: &str = "https://github.com/lockbook/lockbook/releases/tag";
 
@@ -74,13 +75,22 @@ fn build_android() -> CliResult<()> {
 }
 
 fn release_gh() -> CliResult<()> {
-    build_android()?;
+    Command::new("./gradlew")
+        .args([
+            "assemblePlayRelease",
+            "assembleFdroidRelease",
+            "-PstandaloneApks=true",
+            "--max-workers=2",
+        ])
+        .current_dir("clients/android")
+        .assert_success()?;
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
         .get_release_by_tag_name(&lb_repo(), &lb_version())
         .unwrap();
-    let file = File::open(format!("{OUTPUTS}/{PLAY_RELEASE_APK}")).unwrap();
+    let file = File::open(format!("{STANDALONE_APKS}/play/release/app-play-universal-release.apk"))
+        .unwrap();
 
     client
         .upload_release_asset(
@@ -92,6 +102,27 @@ fn release_gh() -> CliResult<()> {
             None,
         )
         .unwrap();
+
+    for flavor in ["play", "fdroid"] {
+        for abi in APK_ABIS {
+            let path = format!("{STANDALONE_APKS}/{flavor}/release/app-{flavor}-{abi}-release.apk");
+            let name = if flavor == "play" {
+                format!("lockbook-android-{abi}.apk")
+            } else {
+                format!("lockbook-android-fdroid-{abi}.apk")
+            };
+            client
+                .upload_release_asset(
+                    &lb_repo(),
+                    release.id,
+                    &name,
+                    "application/vnd.android.package-archive",
+                    File::open(path).unwrap(),
+                    None,
+                )
+                .unwrap();
+        }
+    }
     Ok(())
 }
 

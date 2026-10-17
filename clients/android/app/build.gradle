@@ -3,9 +3,26 @@ apply plugin: 'org.jmailen.kotlinter'
 apply plugin: 'kotlinx-serialization'
 apply plugin: 'kotlin-parcelize'
 
+def standaloneApks = providers.gradleProperty('standaloneApks').map { it.toBoolean() }.getOrElse(false)
+if (standaloneApks) {
+    // AGP resource shrinking cannot build ABI APKs and a bundle together.
+    // Separate outputs also prevent stale split resources affecting Play builds.
+    layout.buildDirectory.set(layout.projectDirectory.dir('build/standalone'))
+}
+
 android {
     compileSdk=36
     namespace "app.lockbook"
+    ndkVersion rootProject.ext.ndk_version
+
+    splits {
+        abi {
+            enable standaloneApks
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            universalApk true
+        }
+    }
 
     flavorDimensions "store"
 
@@ -52,7 +69,8 @@ android {
             }
 
             minifyEnabled true
-	        zipAlignEnabled true
+            shrinkResources true
+            zipAlignEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -77,6 +95,14 @@ android {
     }
 
     android.buildFeatures.viewBinding = true
+}
+
+androidComponents {
+    onVariants(selector().withBuildType('release')) { variant ->
+        // Direct APK downloads benefit from compression. Play's bundle keeps
+        // its default uncompressed native libraries for installation.
+        variant.packaging.jniLibs.useLegacyPackaging.set(true)
+    }
 }
 
 task printVersionCode {
