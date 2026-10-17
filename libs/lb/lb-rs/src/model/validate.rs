@@ -325,6 +325,7 @@ where
             new_files
         };
 
+        let base = self.tree.base().to_lazy();
         for file_diff in self.diffs()? {
             for field_diff in file_diff.diff() {
                 match field_diff {
@@ -336,7 +337,7 @@ where
                         if !new_files.contains(file.parent()) {
                             // must have parent and have write access to parent
                             if let Some(parent) = self.maybe_find(file.parent()) {
-                                if self.access_mode(owner, parent.id())?
+                                if base.access_mode(owner, parent.id())?
                                     < Some(UserAccessMode::Write)
                                 {
                                     // parent is shared with access < write
@@ -362,7 +363,7 @@ where
 
                             // must have parent and have write access to parent
                             if let Some(parent) = self.maybe_find(parent) {
-                                if self.access_mode(owner, parent.id())?
+                                if base.access_mode(owner, parent.id())?
                                     < Some(UserAccessMode::Write)
                                 {
                                     // parent is shared with access < write
@@ -381,7 +382,7 @@ where
                             if !new_files.contains(parent) {
                                 // must have parent and have write access to parent
                                 if let Some(parent) = self.maybe_find(parent) {
-                                    if self.access_mode(owner, parent.id())?
+                                    if base.access_mode(owner, parent.id())?
                                         < Some(UserAccessMode::Write)
                                     {
                                         // parent is shared with access < write
@@ -396,7 +397,7 @@ where
                     }
                     Diff::Hmac => {
                         // check self access
-                        if self.access_mode(owner, file_diff.id())? < Some(UserAccessMode::Write) {
+                        if base.access_mode(owner, file_diff.id())? < Some(UserAccessMode::Write) {
                             Err(LbErrKind::InsufficientPermission)?;
                         }
                     }
@@ -428,7 +429,7 @@ where
                                 // cannot delete someone else's share without write access
                                 if *staged_deleted
                                     && !*base_deleted
-                                    && self.access_mode(owner, file_diff.id())?
+                                    && base.access_mode(owner, file_diff.id())?
                                         < Some(UserAccessMode::Write)
                                     && owner.0 != key.encrypted_for
                                 {
@@ -436,7 +437,7 @@ where
                                 }
                                 // cannot grant yourself write access
                                 if staged_mode != base_mode
-                                    && self.access_mode(owner, file_diff.id())?
+                                    && base.access_mode(owner, file_diff.id())?
                                         < Some(UserAccessMode::Write)
                                 {
                                     Err(LbErrKind::InsufficientPermission)?;
@@ -445,7 +446,7 @@ where
                                 // adding a new share
 
                                 // to add a share, need equal access
-                                if self.access_mode(owner, file_diff.id())? < Some(key.mode) {
+                                if base.access_mode(owner, file_diff.id())? < Some(key.mode) {
                                     Err(LbErrKind::InsufficientPermission)?;
                                 }
                             }
