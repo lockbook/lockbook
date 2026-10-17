@@ -491,6 +491,7 @@ struct HomeView: View {
                         .scrollContentBackground(.hidden)
                         .frame(width: 310)
                         .background(.regularMaterial, ignoresSafeAreaEdges: .all)
+                        .geometryGroup()
                         .transition(.move(edge: .trailing))
                         .gesture(
                             DragGesture().onEnded { value in
