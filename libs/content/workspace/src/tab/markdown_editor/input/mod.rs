@@ -9,6 +9,8 @@ use egui::Pos2;
 
 use lb_rs::model::text::offset_types::Grapheme;
 
+use super::table::TableAction;
+
 /*
  * This module processes input events, with the following major concerns:
  * * Plumbing: combining programmatic and UI input, delegating to appropriate handlers
@@ -111,6 +113,7 @@ pub enum Event {
     EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
     ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
     OpenLink { url: String, wikilink: bool }, // navigate, on the platform
+    Table(TableAction), // a structure edit of the table at the selection, or a new table there
 }
 
 impl From<(Grapheme, Grapheme)> for Region {
