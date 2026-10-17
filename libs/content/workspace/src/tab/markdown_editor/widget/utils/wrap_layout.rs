@@ -2004,6 +2004,11 @@ impl MdRender {
     }
 }
 
+/// Whether a fragment is part of the table cell with span `cell`.
+fn in_cell(fragment: &Fragment, cell: &(Grapheme, Grapheme)) -> bool {
+    cell.contains_range(&fragment.source_range, true, true)
+}
+
 /// Per-corner rounding for smart-corner bg painting. Returns a
 /// `CornerRadius` (egui 0.31's per-corner type) with a per-side radius —
 /// e.g. a wrapped capsule's full cap on its true end and the subtle
@@ -2114,10 +2119,15 @@ impl MdRender {
     /// box so a click resolves to "select the whole override" via
     /// `pos_to_range`'s atomic branch). Returns `None` only when
     /// `self.fragments` is empty.
+    ///
+    /// A point in a table cell resolves within that cell, however near a
+    /// neighbor's text is.
     pub fn closest_fragment_at_pos(&self, pos: Pos2) -> Option<usize> {
         if self.fragments.is_empty() {
             return None;
         }
+        let cell = self.table_cell_span_at_pos(pos);
+        let cell = cell.filter(|cell| self.fragments.iter().any(|f| in_cell(f, cell)));
 
         // y-distance is to the fragment's *row*, not the fragment: else a tall
         // image captures clicks across its full height, above its line's short
@@ -2127,6 +2137,9 @@ impl MdRender {
         let mut closest: Option<usize> = None;
         let mut closest_dist = (f32::INFINITY, f32::INFINITY);
         for (i, f) in self.fragments.iter().enumerate() {
+            if cell.is_some_and(|cell| !in_cell(f, &cell)) {
+                continue;
+            }
             if f.rect.contains(pos) {
                 return Some(i);
             }
