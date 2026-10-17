@@ -3,11 +3,11 @@ use std::sync::Arc;
 use web_time::{Duration, Instant};
 
 use comrak::Arena;
-use comrak::nodes::{AstNode, ListType, NodeHeading, NodeList, NodeValue};
+use comrak::nodes::{AstNode, ListType, NodeHeading, NodeList, NodeValue, TableAlignment};
 use egui::scroll_area::{ScrollBarVisibility, ScrollSource};
 use egui::{
-    FontId, Frame, Label, Layout, Margin, Pos2, Rect, Response, RichText, ScrollArea, Separator,
-    Stroke, Ui, UiBuilder, Vec2, Widget,
+    Color32, FontId, Frame, Label, Layout, Margin, Pos2, Rect, Response, RichText, ScrollArea,
+    Separator, Stroke, StrokeKind, Ui, UiBuilder, Vec2, Widget,
 };
 use lb_rs::model::text::offset_types::{IntoRangeExt, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
@@ -15,9 +15,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::style::{
     CHROME_BAND_GLYPH, CHROME_BAND_H, STROKE_HAIRLINE, ThemeExt, control_height, icon_button_glyph,
-    phosphor, place_at, tip_text,
+    icon_button_mark, phosphor, phosphor_font_id, place_at, tip_text,
 };
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::table::TableAction;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 
@@ -29,7 +30,7 @@ pub const MOBILE_TOOL_BAR_SIZE: f32 = CHROME_BAND_H;
 pub const MENU_SPACE: f32 = 20.; // space used for separators between menu sections
 pub const MENU_MARGIN: f32 = 20.; // space on left and right side
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub enum MarkdownToolbarAction {
     Undo,
     Redo,
@@ -49,6 +50,25 @@ pub enum MarkdownToolbarAction {
     Link,
     Indent,
     Outdent,
+    /// Inserts a table.
+    Table,
+    // the table set, for the table the selection ends in
+    PreviousCell,
+    NextCell,
+    NextRow,
+    RowAbove,
+    RowBelow,
+    ColumnLeft,
+    ColumnRight,
+    DeleteRow,
+    DeleteColumn,
+    MoveRowUp,
+    MoveRowDown,
+    MoveColumnLeft,
+    MoveColumnRight,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
 }
 
 #[derive(Default, Serialize)]
@@ -56,6 +76,21 @@ pub enum MarkdownToolbarAction {
 pub struct MarkdownToolbarState {
     pub active: Vec<MarkdownToolbarAction>,
     pub heading_level: Option<u8>,
+    /// Whether the selection ends in a table: the table set stands in for
+    /// the block styles.
+    pub in_table: bool,
+    /// Tools of the table set that would do nothing where the selection is.
+    pub disabled: Vec<MarkdownToolbarAction>,
+}
+
+/// A tool of the table set, as it stands where the selection ends.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TableTool {
+    pub action: MarkdownToolbarAction,
+    /// Marked as the current choice, as a column's alignment is.
+    pub applied: bool,
+    /// False where the tool would do nothing.
+    pub enabled: bool,
 }
 
 fn toolbar_icon(
@@ -71,6 +106,105 @@ fn toolbar_icon(
         control_height(),
         CHROME_BAND_GLYPH,
     );
+    tip_text(ui.ctx(), &r, tip);
+    !menu_open && r.clicked()
+}
+
+/// What a table tool's button shows: a Phosphor glyph, or one of the two
+/// marks Phosphor lacks.
+#[derive(Clone, Copy)]
+enum Mark {
+    Glyph(&'static str),
+    RemoveRow,
+    RemoveColumn,
+}
+
+impl Mark {
+    fn paint(self, painter: &egui::Painter, rect: Rect, color: Color32) {
+        let rows = match self {
+            Mark::Glyph(icon) => {
+                let font = phosphor_font_id(CHROME_BAND_GLYPH);
+                let g = painter.layout_no_wrap(icon.into(), font, Color32::PLACEHOLDER);
+                painter.galley(rect.center() - g.size() / 2.0, g, color);
+                return;
+            }
+            Mark::RemoveRow => true,
+            Mark::RemoveColumn => false,
+        };
+
+        // Phosphor's rows-plus-bottom and columns-plus-right, on its
+        // 256-unit grid, with a minus where the plus is
+        let unit = CHROME_BAND_GLYPH / 256.0;
+        let origin = rect.center() - Vec2::splat(CHROME_BAND_GLYPH / 2.0);
+        for bar in [40.0, 112.0] {
+            let (min, size) = (egui::vec2(32.0, bar), egui::vec2(192.0, 56.0));
+            let (min, size) = if rows { (min, size) } else { (min.yx(), size.yx()) };
+            let bar = Rect::from_min_size(origin + min * unit, size * unit);
+            let stroke = Stroke::new(16.0 * unit, color);
+            painter.rect_stroke(bar, 16.0 * unit, stroke, StrokeKind::Inside);
+        }
+        let minus = if rows { egui::vec2(96.0, 208.0) } else { egui::vec2(184.0, 120.0) };
+        let minus = Rect::from_min_size(origin + minus * unit, egui::vec2(64.0, 16.0) * unit);
+        painter.rect_filled(minus, 8.0 * unit, color);
+    }
+}
+
+/// The table set in toolbar groups: each tool's mark and tooltip. The first
+/// group stands in for keys a touch keyboard lacks.
+const TABLE_TOOLS: &[&[(MarkdownToolbarAction, Mark, &str)]] = {
+    use Mark::Glyph;
+    use MarkdownToolbarAction::*;
+    &[
+        &[
+            (PreviousCell, Glyph(phosphor::ARROW_LINE_LEFT), "Previous cell"),
+            (NextCell, Glyph(phosphor::ARROW_LINE_RIGHT), "Next cell"),
+            (NextRow, Glyph(phosphor::KEY_RETURN), "Next row"),
+        ],
+        &[
+            (RowAbove, Glyph(phosphor::ROWS_PLUS_TOP), "Insert row above"),
+            (RowBelow, Glyph(phosphor::ROWS_PLUS_BOTTOM), "Insert row below"),
+            (ColumnLeft, Glyph(phosphor::COLUMNS_PLUS_LEFT), "Insert column left"),
+            (ColumnRight, Glyph(phosphor::COLUMNS_PLUS_RIGHT), "Insert column right"),
+        ],
+        &[
+            (DeleteRow, Mark::RemoveRow, "Delete row"),
+            (DeleteColumn, Mark::RemoveColumn, "Delete column"),
+        ],
+        &[
+            (MoveRowUp, Glyph(phosphor::ARROW_UP), "Move row up"),
+            (MoveRowDown, Glyph(phosphor::ARROW_DOWN), "Move row down"),
+            (MoveColumnLeft, Glyph(phosphor::ARROW_LEFT), "Move column left"),
+            (MoveColumnRight, Glyph(phosphor::ARROW_RIGHT), "Move column right"),
+        ],
+        &[
+            (AlignLeft, Glyph(phosphor::TEXT_ALIGN_LEFT), "Align left"),
+            (AlignCenter, Glyph(phosphor::TEXT_ALIGN_CENTER), "Align center"),
+            (AlignRight, Glyph(phosphor::TEXT_ALIGN_RIGHT), "Align right"),
+        ],
+    ]
+};
+
+/// A table tool's button. One that would do nothing shows muted.
+fn toolbar_table_tool(
+    ui: &mut Ui, t: &crate::style::Theme, tool: TableTool, menu_open: bool,
+) -> bool {
+    let (mark, tip) = TABLE_TOOLS
+        .iter()
+        .flat_map(|tools| tools.iter())
+        .find(|(action, ..)| *action == tool.action)
+        .map(|&(_, mark, tip)| (mark, tip))
+        .expect("a table tool");
+    let hit = control_height();
+    if !tool.enabled {
+        let (rect, r) = ui.allocate_exact_size(Vec2::splat(hit), egui::Sense::hover());
+        mark.paint(ui.painter(), rect, t.neutral());
+        tip_text(ui.ctx(), &r, tip);
+        return false;
+    }
+    let applied = tool.applied && !menu_open;
+    let r = icon_button_mark(ui, t, applied, t.neutral_bg(), hit, |painter, rect, color| {
+        mark.paint(painter, rect, color)
+    });
     tip_text(ui.ctx(), &r, tip);
     !menu_open && r.clicked()
 }
@@ -108,6 +242,8 @@ pub struct ToolbarPersistence {
     indent: bool,
     deindent: bool,
     search: bool,
+    #[serde(default)]
+    table: bool,
 }
 
 impl<'ast> Editor {
@@ -169,10 +305,22 @@ impl<'ast> Editor {
                 }
             }
         }
+        for tool in self.table_tools().into_iter().flatten().flatten() {
+            state.in_table = true;
+            if tool.applied {
+                state.active.push(tool.action);
+            }
+            if !tool.enabled {
+                state.disabled.push(tool.action);
+            }
+        }
         state
     }
 
-    pub fn android_toolbar_action(&mut self, action: MarkdownToolbarAction) -> Event {
+    /// The event a toolbar action stands for.
+    pub fn toolbar_action(&mut self, action: MarkdownToolbarAction) -> Event {
+        use TableAction::*;
+
         let style = match action {
             MarkdownToolbarAction::Undo => return Event::Undo,
             MarkdownToolbarAction::Redo => return Event::Redo,
@@ -224,8 +372,41 @@ impl<'ast> Editor {
                 ..Default::default()
             }),
             MarkdownToolbarAction::Link => NodeValue::Link(Default::default()),
-            MarkdownToolbarAction::Indent => return Event::Indent { deindent: false },
-            MarkdownToolbarAction::Outdent => return Event::Indent { deindent: true },
+            MarkdownToolbarAction::Indent | MarkdownToolbarAction::NextCell => {
+                return Event::Indent { deindent: false };
+            }
+            MarkdownToolbarAction::Outdent | MarkdownToolbarAction::PreviousCell => {
+                return Event::Indent { deindent: true };
+            }
+            MarkdownToolbarAction::NextRow => return Event::Newline { shift: false },
+            MarkdownToolbarAction::Table => return Event::Table(Insert),
+            MarkdownToolbarAction::RowAbove => return Event::Table(InsertRow { below: false }),
+            MarkdownToolbarAction::RowBelow => return Event::Table(InsertRow { below: true }),
+            MarkdownToolbarAction::ColumnLeft => {
+                return Event::Table(InsertColumn { right: false });
+            }
+            MarkdownToolbarAction::ColumnRight => {
+                return Event::Table(InsertColumn { right: true });
+            }
+            MarkdownToolbarAction::DeleteRow => return Event::Table(DeleteRow),
+            MarkdownToolbarAction::DeleteColumn => return Event::Table(DeleteColumn),
+            MarkdownToolbarAction::MoveRowUp => return Event::Table(MoveRow { down: false }),
+            MarkdownToolbarAction::MoveRowDown => return Event::Table(MoveRow { down: true }),
+            MarkdownToolbarAction::MoveColumnLeft => {
+                return Event::Table(MoveColumn { right: false });
+            }
+            MarkdownToolbarAction::MoveColumnRight => {
+                return Event::Table(MoveColumn { right: true });
+            }
+            MarkdownToolbarAction::AlignLeft => {
+                return self.table_align_event(TableAlignment::Left);
+            }
+            MarkdownToolbarAction::AlignCenter => {
+                return self.table_align_event(TableAlignment::Center);
+            }
+            MarkdownToolbarAction::AlignRight => {
+                return self.table_align_event(TableAlignment::Right);
+            }
         };
         Event::ToggleStyle { region: Region::Selection, style }
     }
@@ -259,6 +440,13 @@ impl<'ast> Editor {
         };
         let count =
             |flags: &[bool]| -> usize { flags.iter().filter(|&&on| on || is_default).count() };
+        // a group with nothing after it
+        let last = |n: usize| -> f32 { (group(n) - sep).max(0.) };
+
+        let table_tools = self.table_tools();
+        // a table has no place for the block styles
+        let block =
+            |flags: &[bool]| -> usize { if table_tools.is_some() { 0 } else { count(flags) } };
 
         let mut w = 2. * margin;
 
@@ -267,36 +455,81 @@ impl<'ast> Editor {
         }
 
         w += group(count(&[persistence.undo, persistence.redo]));
-        w += group(count(&[
-            persistence.heading,
-            persistence.bold,
-            persistence.emph,
-            persistence.code,
-            persistence.strikethrough,
-            persistence.highlight,
-            persistence.underline,
-            persistence.spoiler,
-            persistence.subscript,
-            persistence.superscript,
-        ]));
-        w += group(count(&[
+        for tools in table_tools.iter().flatten() {
+            w += group(tools.len());
+        }
+        w += group(
+            block(&[persistence.heading])
+                + count(&[
+                    persistence.bold,
+                    persistence.emph,
+                    persistence.code,
+                    persistence.strikethrough,
+                    persistence.highlight,
+                    persistence.underline,
+                    persistence.spoiler,
+                    persistence.subscript,
+                    persistence.superscript,
+                ]),
+        );
+        w += group(block(&[
             persistence.ordered_list,
             persistence.unordered_list,
             persistence.task_list,
+            persistence.table,
         ]));
 
         let mut media = count(&[persistence.link]);
         if (persistence.image || is_default) && supports_attachments {
             media += 1;
         }
-        w += group(media);
-
-        let n = count(&[persistence.indent, persistence.deindent]);
-        if n > 0 {
-            w += btn * n as f32 + gap * (n - 1) as f32;
-        }
+        let indents = block(&[persistence.indent, persistence.deindent]);
+        w += if indents > 0 { group(media) + last(indents) } else { last(media) };
 
         w
+    }
+
+    /// The toolbar's table set, in groups: what it offers in place of the
+    /// block styles while the selection ends in a table. `None` off one.
+    pub fn table_tools(&self) -> Option<Vec<Vec<TableTool>>> {
+        use MarkdownToolbarAction::*;
+
+        let r = &self.edit.renderer;
+        let (table, row, column) = r.table_position()?;
+        let (last_row, last_column) = (table.rows.len() - 1, table.columns() - 1);
+        let alignment = table.delimiter.alignments[column];
+        let tool = |action| TableTool {
+            action,
+            applied: match action {
+                AlignLeft => alignment == TableAlignment::Left,
+                AlignCenter => alignment == TableAlignment::Center,
+                AlignRight => alignment == TableAlignment::Right,
+                _ => false,
+            },
+            // the header stays the header; a row or column at an edge stays in
+            enabled: match action {
+                DeleteRow | MoveRowUp => row > 0,
+                MoveRowDown => row > 0 && row < last_row,
+                MoveColumnLeft => column > 0,
+                MoveColumnRight => column < last_column,
+                _ => true,
+            },
+        };
+        let groups = TABLE_TOOLS.iter().skip(if r.touch_mode { 0 } else { 1 });
+        Some(
+            groups
+                .map(|tools| tools.iter().map(|&(action, ..)| tool(action)).collect())
+                .collect(),
+        )
+    }
+
+    /// The event for an alignment tool: it sets the alignment of the
+    /// selection's column, or takes it away if the column has it.
+    fn table_align_event(&self, to: TableAlignment) -> Event {
+        let position = self.edit.renderer.table_position();
+        let current = position.map(|(table, _, column)| table.delimiter.alignments[column]);
+        let to = if current == Some(to) { TableAlignment::None } else { to };
+        Event::Table(TableAction::Align(to))
     }
 
     #[allow(clippy::option_map_unit_fn)] // use of .map() reduces line wrapping, improving readability
@@ -324,6 +557,12 @@ impl<'ast> Editor {
 
                     let persistence = self.persistence.get_markdown().toolbar;
                     let toolbar_is_default = persistence == Default::default();
+
+                    let table_tools = self.table_tools();
+                    // a table has no place for the block styles
+                    let in_table = table_tools.is_some();
+                    let block = |on: bool| (on || toolbar_is_default) && !in_table;
+                    let indents = block(persistence.indent) || block(persistence.deindent);
 
                     let mut events = Vec::new();
 
@@ -369,8 +608,20 @@ impl<'ast> Editor {
                         add_seperator(ui);
                     }
 
+                    for tools in table_tools.into_iter().flatten() {
+                        for (i, tool) in tools.into_iter().enumerate() {
+                            if i > 0 {
+                                ui.add_space(5.);
+                            }
+                            if toolbar_table_tool(ui, &t, tool, menu_open) {
+                                events.push(self.toolbar_action(tool.action));
+                            }
+                        }
+                        add_seperator(ui);
+                    }
+
                     let mut any_style = false;
-                    if persistence.heading || toolbar_is_default {
+                    if block(persistence.heading) {
                         self.heading_button(root, ui).map(|e| events.push(e));
                         any_style = true;
                     }
@@ -456,7 +707,7 @@ impl<'ast> Editor {
                     }
 
                     let mut any_list = false;
-                    if persistence.ordered_list || toolbar_is_default {
+                    if block(persistence.ordered_list) {
                         self.style(
                             phosphor::LIST_NUMBERS,
                             NodeValue::List(NodeList {
@@ -469,7 +720,7 @@ impl<'ast> Editor {
                         .map(|e| events.push(e));
                         any_list = true;
                     }
-                    if persistence.unordered_list || toolbar_is_default {
+                    if block(persistence.unordered_list) {
                         if any_list {
                             ui.add_space(5.);
                         }
@@ -485,7 +736,7 @@ impl<'ast> Editor {
                         .map(|e| events.push(e));
                         any_list = true;
                     }
-                    if persistence.task_list || toolbar_is_default {
+                    if block(persistence.task_list) {
                         if any_list {
                             ui.add_space(5.);
                         }
@@ -500,6 +751,15 @@ impl<'ast> Editor {
                             ui,
                         )
                         .map(|e| events.push(e));
+                        any_list = true;
+                    }
+                    if block(persistence.table) {
+                        if any_list {
+                            ui.add_space(5.);
+                        }
+                        if toolbar_icon(ui, &t, phosphor::TABLE, false, menu_open, "Table") {
+                            events.push(self.toolbar_action(MarkdownToolbarAction::Table));
+                        }
                         any_list = true;
                     }
                     if any_list {
@@ -529,18 +789,18 @@ impl<'ast> Editor {
                         }
                         any_media = true;
                     }
-                    if any_media {
+                    if any_media && (indents || self.edit.phone_mode) {
                         add_seperator(ui);
                     }
 
                     let mut any_indent = false;
-                    if persistence.indent || toolbar_is_default {
+                    if block(persistence.indent) {
                         if toolbar_icon(ui, &t, phosphor::TEXT_INDENT, false, menu_open, "Indent") {
                             events.push(Event::Indent { deindent: false });
                         }
                         any_indent = true;
                     }
-                    if persistence.deindent || toolbar_is_default {
+                    if block(persistence.deindent) {
                         if any_indent {
                             ui.add_space(5.);
                         }
@@ -1031,6 +1291,24 @@ impl<'ast> Editor {
                                 self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("- [ ] Task List");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
+                                    "Table",
+                                    phosphor::TABLE,
+                                    persistence.table,
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.table ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("Table");
 
                             Separator::default().spacing(MENU_SPACE).ui(ui);
                             top_left.y += MENU_SPACE;

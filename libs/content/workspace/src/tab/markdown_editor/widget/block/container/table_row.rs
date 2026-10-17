@@ -1,9 +1,9 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rangef, Rect, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::table::TableCellBox;
+use crate::tab::markdown_editor::widget::block::drag::DragUnit;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -53,7 +53,7 @@ impl<'ast> MdRender {
         }
 
         // draw cell contents
-        let row = self.node_line(node, self.node_first_line(node)).start();
+        let row = self.table_row_key(node);
         let mut child_top_left = top_left;
         for (column, table_cell) in node.children().enumerate() {
             let column_width = columns.get(column).copied().unwrap_or_default();
@@ -64,6 +64,13 @@ impl<'ast> MdRender {
                 column,
             });
             child_top_left.x += column_width;
+        }
+
+        // body rows reorder among themselves; the header stays the header
+        if !is_header_row {
+            if let Some(table) = self.table_key(row) {
+                self.push_block_box(node, row_rect, table, DragUnit::Row);
+            }
         }
     }
 }

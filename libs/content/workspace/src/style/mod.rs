@@ -51,7 +51,7 @@ pub use spacer::{begin_record as begin_spacer_record, take_record as take_spacer
 pub use tree_metrics::ROW_H;
 pub use typography::TypeRole;
 
-pub use button::{Button, icon_button, icon_button_glyph, icon_button_hit};
+pub use button::{Button, icon_button, icon_button_glyph, icon_button_hit, icon_button_mark};
 pub use field::Field;
 pub use file_name::{measure as measure_file_name, paint_body as paint_file_name};
 pub use file_row::FileRow;

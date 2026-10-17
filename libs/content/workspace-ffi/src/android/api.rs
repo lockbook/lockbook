@@ -52,7 +52,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarActi
         if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
             return;
         }
-        let event = editor.android_toolbar_action(action);
+        let event = editor.toolbar_action(action);
         obj.renderer.context.push_markdown_event(event);
     }
 }

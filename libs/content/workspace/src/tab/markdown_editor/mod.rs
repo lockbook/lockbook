@@ -268,11 +268,11 @@ pub struct MdEdit {
     /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
     pub touch_reorder_driven: bool,
 
-    /// A committed reorder `(section_range, insert_offset)`, applied at the
+    /// A committed reorder `(drag, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
     /// new layout is then current before the platform refetches selection
     /// geometry. Set on drag release (which runs post-render).
-    pub pending_block_move: Option<((Grapheme, Grapheme), Grapheme)>,
+    pub pending_block_move: Option<(widget::block::drag::BlockDrag, Grapheme)>,
 
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.

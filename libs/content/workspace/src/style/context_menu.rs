@@ -159,11 +159,13 @@ pub fn is_open(resp: &Response) -> bool {
 
 /// True when `id` is the host of the open menu.
 pub fn is_open_id(ctx: &egui::Context, id: Id) -> bool {
-    ctx.memory(|m| {
-        m.data
-            .get_temp::<OpenState>(open_id())
-            .is_some_and(|s| s.host == id)
-    })
+    open_host(ctx) == Some(id)
+}
+
+/// The host of the open menu.
+pub fn open_host(ctx: &egui::Context) -> Option<Id> {
+    ctx.memory(|m| m.data.get_temp::<OpenState>(open_id()))
+        .map(|s| s.host)
 }
 
 fn show_open<T: Clone>(
