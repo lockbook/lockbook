@@ -9,7 +9,7 @@ use egui::Pos2;
 
 use lb_rs::model::text::offset_types::Grapheme;
 
-use super::table::TableAction;
+use super::table::{Grid, TableAction};
 
 /*
  * This module processes input events, with the following major concerns:
@@ -114,6 +114,7 @@ pub enum Event {
     ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
     OpenLink { url: String, wikilink: bool }, // navigate, on the platform
     Table(TableAction), // a structure edit of the table at the selection, or a new table there
+    PasteGrid(Grid), // rows of cells pasted: into the table at the selection, or as a new table there
 }
 
 impl From<(Grapheme, Grapheme)> for Region {

@@ -3,10 +3,11 @@
 //! [`TestEditor`].
 
 use super::super::input::{Advance, Bound, Event, Location, Region};
-use super::doc_gen::{self, BlockFeatures, Features, ScriptFeatures, WhitespaceFeatures, gen_doc};
+use super::super::table::TableAction;
+use super::doc_gen::{self, Features, ScriptFeatures, WhitespaceFeatures, gen_doc};
 use super::harness::TestEditor;
 use crate::test_utils::byte_source::ByteSource;
-use lb_rs::model::text::offset_types::Grapheme;
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 
 // ── runners (one per corpus) ──
 //
@@ -47,6 +48,38 @@ where
     crate::test_utils::prop::run(seeds, 64, check, |b| {
         doc_events_repro(b, |s| gen_doc(s, &Features::all()))
     });
+}
+
+/// Corpus for properties of one table: a generated table in one of
+/// [`CONTAINERS`](super::tables::CONTAINERS), between paragraphs. The check
+/// gets the document and four choices, which are drawn ahead of the table:
+/// it may use up the byte stream.
+fn run_tables<C>(check: C, seeds: u64)
+where
+    C: Fn(&str, [usize; 4]) -> Result<(), String>,
+{
+    use super::tables::{CONTAINERS, contain};
+    let draw = |b: &[u8]| {
+        let mut src = ByteSource::new(b);
+        let choices = [(); 4].map(|_| src.draw(256));
+        let container = CONTAINERS[src.draw(CONTAINERS.len())];
+        let table = doc_gen::gen_table(&mut src, &Features::all());
+        let md = format!("before\n\n{}\n\nafter\n", contain(table.trim_end(), container));
+        (md, choices)
+    };
+    crate::test_utils::prop::run(
+        seeds,
+        64,
+        |b| {
+            let (md, choices) = draw(b);
+            let checked = std::panic::AssertUnwindSafe(|| check(&md, choices));
+            std::panic::catch_unwind(checked).unwrap_or(Err("editor panicked".into()))
+        },
+        |b| {
+            let (md, choices) = draw(b);
+            format!("initial buffer:\n{md:?}\nchoices {choices:?}")
+        },
+    );
 }
 
 /// Plain-ASCII `gen_doc(default())` corpus — the "general case".
@@ -127,7 +160,6 @@ fn cursor_renders() {
     let f = Features {
         scripts: ScriptFeatures::default(),
         whitespace: WhitespaceFeatures { long_token: false, id_token: false, ..all.whitespace },
-        blocks: BlockFeatures { table: false, ..all.blocks },
         ..all
     };
     run(cursor_renders_check, f, 100);
@@ -175,6 +207,22 @@ fn table_ranges_survive_edits() {
 #[test]
 fn table_caret_in_cells() {
     run(table_caret_in_cells_check, Features::all(), 1000);
+}
+#[test]
+fn table_structure_edit_conserves() {
+    run_tables(table_structure_edit_conserves_check, 1000);
+}
+#[test]
+fn table_column_insert_delete_round_trip() {
+    run_tables(table_column_insert_delete_round_trip_check, 1000);
+}
+#[test]
+fn table_row_move_round_trip() {
+    run_tables(table_row_move_round_trip_check, 1000);
+}
+#[test]
+fn table_tab_round_trip() {
+    run_tables(table_tab_round_trip_check, 1000);
 }
 
 // indent / structure
@@ -561,7 +609,8 @@ fn cursor_in_bounds_check(buf: &[u8]) -> Result<(), &'static str> {
 
 /// Sweeps `[0, last_cursor_position]` of the editor's current buffer:
 /// for each offset, jump the cursor there, re-render, and check that it
-/// has an on-screen representation (`cursor_line` Some). Returns the
+/// has an on-screen representation (`cursor_line` Some) where it is — the
+/// offset, or in a table the cell position it is taken to. Returns the
 /// first offset that doesn't, or `None`. The cursor-jump + frame is what
 /// catches reveal-gated holes (syntax that only emits fragments when the
 /// cursor sits in it).
@@ -583,10 +632,12 @@ fn cursor_visible_sweep(ws: &mut TestEditor) -> Option<String> {
             },
         });
         ws.enter_frame();
-        if ws.editor.edit.cursor_line(g).is_none() {
+        let at = ws.editor.edit.renderer.buffer.current.selection.1;
+        if ws.editor.edit.cursor_line(at).is_none() {
             let text = ws.editor.edit.renderer.buffer.current.text.clone();
             return Some(format!(
-                "offset {i} has no on-screen representation (last={})\n  buffer ({} bytes): {:?}",
+                "the cursor sent to offset {i} is at {}, which has no on-screen representation (last={})\n  buffer ({} bytes): {:?}",
+                at.0,
                 last.0,
                 text.len(),
                 text,
@@ -977,6 +1028,197 @@ fn table_caret_in_cells_check(buf: &[u8], features: &Features) -> Result<(), Str
     })
     .map_err(|_| "editor panicked during an edit".to_string())?;
     violation.map(Err).unwrap_or(Ok(()))
+}
+
+/// An editor on `md` with the caret in a cell of one of its tables, both
+/// chosen by `choices`: the table by ordinal, and the cell's row and column.
+/// `None` if `md` has no table.
+fn in_table_cell(md: &str, choices: [usize; 4]) -> Option<(TestEditor, usize, usize, usize)> {
+    let mut ws = TestEditor::new(md);
+    let tables = &ws.editor.edit.renderer.bounds.tables;
+    let table = choices[0] % tables.len().max(1);
+    let rows = &tables.get(table)?.rows;
+    let row = choices[1] % rows.len();
+    let column = choices[2] % rows[row].cells.len();
+    to_table_cell(&mut ws, table, row, column);
+    Some((ws, table, row, column))
+}
+
+fn to_table_cell(ws: &mut TestEditor, table: usize, row: usize, column: usize) {
+    let cell = ws.editor.edit.renderer.bounds.tables[table].rows[row].cells[column];
+    ws.push(Event::Select { region: cell.content.start().into_range().into() });
+    ws.enter_frame();
+}
+
+fn table_event(ws: &mut TestEditor, event: Event) {
+    ws.push(event);
+    ws.enter_frame();
+}
+
+/// The text of each of a table's cells that has any, in order.
+fn table_cell_texts(ws: &TestEditor, table: usize) -> Vec<String> {
+    let r = &ws.editor.edit.renderer;
+    let cells = r.bounds.tables[table]
+        .rows
+        .iter()
+        .flat_map(|row| &row.cells);
+    cells
+        .map(|cell| r.buffer[cell.content].to_string())
+        .filter(|text| !text.is_empty())
+        .collect()
+}
+
+/// Property: a structure edit of a table changes no byte outside the
+/// table's lines and leaves every table's ranges sound. The table's cells
+/// keep their text — a deleted row's or column's aside — and after an edit
+/// of its columns every row has them all.
+fn table_structure_edit_conserves_check(md: &str, choices: [usize; 4]) -> Result<(), String> {
+    use TableAction::*;
+    use comrak::nodes::TableAlignment;
+    let actions = [
+        InsertRow { below: true },
+        InsertRow { below: false },
+        DeleteRow,
+        MoveRow { down: true },
+        MoveRow { down: false },
+        InsertColumn { right: true },
+        InsertColumn { right: false },
+        DeleteColumn,
+        MoveColumn { right: true },
+        MoveColumn { right: false },
+        Align(TableAlignment::Center),
+        Align(TableAlignment::None),
+    ];
+    let Some((mut ws, table, ..)) = in_table_cell(md, choices) else { return Ok(()) };
+    let action = actions[choices[3] % actions.len()];
+
+    let r = &ws.editor.edit.renderer;
+    let (first, end) = r.bounds.tables[table].lines();
+    let lines = &r.bounds.source_lines;
+    let (start, end) = (r.offset_to_byte(lines[first].0).0, r.offset_to_byte(lines[end - 1].1).0);
+    let (above, below) = (md[..start].to_string(), md[end..].to_string());
+    let (tables, before) = (r.bounds.tables.len(), table_cell_texts(&ws, table));
+
+    table_event(&mut ws, Event::Table(action));
+    let text = ws.get_text().to_string();
+    let context = format!("{action:?} gave\n{text:?}");
+    if !text.starts_with(&above) || !text.ends_with(&below) {
+        return Err(format!("text outside the table changed: {context}"));
+    }
+    super::tables::table_ranges_check_md(&text).map_err(|reason| format!("{reason}: {context}"))?;
+
+    // the table goes with its last column
+    let r = &ws.editor.edit.renderer;
+    if r.bounds.tables.len() < tables {
+        return if action == DeleteColumn { Ok(()) } else { Err(format!("no table: {context}")) };
+    }
+    let rows = &r.bounds.tables[table].rows;
+    let column_edit = matches!(action, InsertColumn { .. } | DeleteColumn | MoveColumn { .. });
+    if column_edit
+        && text != md
+        && rows
+            .iter()
+            .any(|row| row.cells.len() != rows[0].cells.len())
+    {
+        return Err(format!("ragged: {context}"));
+    }
+    let (mut before, mut after) = (before, table_cell_texts(&ws, table));
+    before.sort();
+    after.sort();
+    let kept = match action {
+        DeleteRow | DeleteColumn => after.iter().all(|text| before.contains(text)),
+        _ => after == before,
+    };
+    if kept { Ok(()) } else { Err(format!("cells {before:?} became {after:?}: {context}")) }
+}
+
+/// Property: a column inserted and then deleted leaves the table's cells
+/// as they were, and done again changes nothing: the first time may pad a
+/// ragged row and give a row an outer pipe. A table whose rows are whole
+/// from the start is left as it was, byte for byte.
+fn table_column_insert_delete_round_trip_check(
+    md: &str, choices: [usize; 4],
+) -> Result<(), String> {
+    use TableAction::*;
+    let Some((mut ws, table, row, column)) = in_table_cell(md, choices) else { return Ok(()) };
+    let right = choices[3] % 2 == 1;
+    let bounds = &ws.editor.edit.renderer.bounds.tables[table];
+    let whole = |row: &super::super::table::RowBounds| {
+        row.cells.len() == bounds.columns() && row.leading_pipe && row.trailing_pipe
+    };
+    let whole = bounds.rows.iter().all(whole);
+    let before = table_cell_texts(&ws, table);
+
+    // the new column is the next cell over, where Tab or Shift+Tab goes
+    let round_trip = |ws: &mut TestEditor| {
+        to_table_cell(ws, table, row, column);
+        table_event(ws, Event::Table(InsertColumn { right }));
+        table_event(ws, Event::Indent { deindent: !right });
+        table_event(ws, Event::Table(DeleteColumn));
+        ws.get_text().to_string()
+    };
+    let once = round_trip(&mut ws);
+    if whole && once != md {
+        return Err(format!("a whole table changed, to\n{once:?}"));
+    }
+    if table_cell_texts(&ws, table) != before {
+        return Err(format!("cells changed, in\n{once:?}"));
+    }
+    let twice = round_trip(&mut ws);
+    if twice != once {
+        return Err(format!("not settled after one round trip:\n{once:?}\nthen\n{twice:?}"));
+    }
+    Ok(())
+}
+
+/// Property: a body row moved down and then up, or up and then down, among
+/// the body rows leaves the document as it was, byte for byte.
+fn table_row_move_round_trip_check(md: &str, choices: [usize; 4]) -> Result<(), String> {
+    let Some((mut ws, table, row, _)) = in_table_cell(md, choices) else { return Ok(()) };
+    let rows = ws.editor.edit.renderer.bounds.tables[table].rows.len();
+    let down = choices[3] % 2 == 1;
+    // the header stays, so a row beside it has one way to go
+    let neighbor = if down { row + 1 } else { row.wrapping_sub(1) };
+    if row == 0 || neighbor == 0 || neighbor >= rows {
+        return Ok(());
+    }
+    table_event(&mut ws, Event::Table(TableAction::MoveRow { down }));
+    table_event(&mut ws, Event::Table(TableAction::MoveRow { down: !down }));
+    if ws.get_text() != md {
+        return Err(format!("moved there and back gave\n{:?}", ws.get_text()));
+    }
+    Ok(())
+}
+
+/// Property: Tab pressed some number of times short of the table's end,
+/// then Shift+Tab as many, selects the cell it started in. The cells keep
+/// their text: a cell a row lacked is written on the way, blank.
+fn table_tab_round_trip_check(md: &str, choices: [usize; 4]) -> Result<(), String> {
+    let Some((mut ws, table, row, column)) = in_table_cell(md, choices) else { return Ok(()) };
+    let bounds = &ws.editor.edit.renderer.bounds.tables[table];
+    let after = (bounds.rows.len() - row) * bounds.columns() - column - 1;
+    if after == 0 {
+        return Ok(());
+    }
+    let presses = 1 + choices[3] % after;
+    let before = table_cell_texts(&ws, table);
+
+    for deindent in [false, true] {
+        for _ in 0..presses {
+            table_event(&mut ws, Event::Indent { deindent });
+        }
+    }
+    let r = &ws.editor.edit.renderer;
+    let cell = r.bounds.tables[table].rows[row].cells[column];
+    let selection = r.buffer.current.selection;
+    if selection != cell.content {
+        let text = ws.get_text();
+        return Err(format!("{presses} there and back selected {selection:?} of\n{text:?}"));
+    }
+    if table_cell_texts(&ws, table) != before {
+        return Err(format!("cells changed, in\n{:?}", ws.get_text()));
+    }
+    Ok(())
 }
 
 /// Property: after any edit sequence, the resulting buffer renders with the

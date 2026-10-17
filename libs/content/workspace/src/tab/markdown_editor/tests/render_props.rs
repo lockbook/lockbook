@@ -87,11 +87,9 @@ fn render_deterministic() {
 fn resize_idempotence() {
     run(resize_idempotence_check, Features::all(), 1000);
 }
-// tier_a, not all(): the table × wide-indent reveal bug (see `tier_a`) is
-// demoted out; wide-indented lists are still covered.
 #[test]
 fn drag_never_reveals() {
-    run(drag_never_reveals_check, Features::tier_a(), 1000);
+    run(drag_never_reveals_check, Features::all(), 1000);
 }
 
 // cursor hit-testing
@@ -124,8 +122,8 @@ fn table_cells_hold_their_content() {
     run(table_cells_hold_their_content_check, Features::all(), 1000);
 }
 
-// glyph painting — runs on tier_b (no tables / scripts / long tokens /
-// nesting, see those defs); a failure there is a real walker bug.
+// glyph painting — runs on tier_b (no scripts / long tokens / nesting, see
+// those defs); a failure there is a real walker bug.
 #[test]
 fn glyph_in_render_area() {
     // …plus inline math off: math isn't a supported feature, so its layout

@@ -312,6 +312,10 @@ pub struct MdEdit {
     /// the menu is open and the pointer moves.
     pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
 
+    /// When "Paste as table" was last chosen: the paste it requested from
+    /// the platform, which arrives as any other does, is to be a table.
+    pub paste_as_table: std::cell::Cell<Option<f64>>,
+
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
@@ -349,6 +353,7 @@ impl MdEdit {
             emoji_completions: Default::default(),
             link_completions: Default::default(),
             context_menu_link: None,
+            paste_as_table: Default::default(),
             scroll_area: AffineScrollArea::new(file_id),
             cursor_last_interact: None,
         }
@@ -838,6 +843,7 @@ impl Editor {
                 emoji_completions: Default::default(),
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
+                paste_as_table: Default::default(),
                 scroll_area: AffineScrollArea::new(file_id),
                 cursor_last_interact: None,
             },

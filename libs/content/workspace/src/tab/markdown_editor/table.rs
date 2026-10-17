@@ -18,8 +18,10 @@ use lb_rs::model::text::operation_types::{Operation, Replace};
 
 mod chrome;
 mod edit;
+mod paste;
 mod structure;
 
+pub use paste::Grid;
 pub use structure::TableAction;
 
 use super::bounds::{Bounds, RangesExt as _};
@@ -245,8 +247,11 @@ impl<'ast> MdRender {
         if bytes.get(start) == Some(&b'|') {
             start += 1;
         }
+        // the last cell ends at its pipe, or else with the line
         if end > start && bytes[end - 1] == b'|' {
             end -= 1;
+        } else {
+            end = text.len();
         }
 
         let mut cells = Vec::new();

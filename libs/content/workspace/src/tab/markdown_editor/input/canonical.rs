@@ -72,6 +72,16 @@ impl<'ast> MdEdit {
 
                 let text = text.replace('\u{a0}', " "); // parser does not interact well with non-breaking spaces
 
+                // a table asked for a moment ago is what this paste is for
+                let now = self.renderer.ctx.input(|i| i.time);
+                let as_table = self
+                    .paste_as_table
+                    .take()
+                    .is_some_and(|asked| now - asked < 1.0);
+                if let Some(grid) = self.renderer.pasted_grid(&text, as_table) {
+                    return Some(Event::PasteGrid(grid));
+                }
+
                 // with text selected, pasting a link turns selected text into a
                 // markdown link...
                 let mut link_paste = false;

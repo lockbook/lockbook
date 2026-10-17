@@ -35,7 +35,7 @@ pub enum TableAction {
 }
 
 /// A blank cell as the editor writes one: a space of padding either side.
-const BLANK: &str = "  ";
+pub(super) const BLANK: &str = "  ";
 
 #[derive(Clone, Copy)]
 pub(super) enum ColumnEdit {
@@ -84,20 +84,20 @@ impl ColumnEdit {
 }
 
 /// A row of cells, each the text between its pipes, as source.
-fn row_text(cells: &[String], leading_pipe: bool, trailing_pipe: bool) -> String {
+pub(super) fn row_text(cells: &[String], leading_pipe: bool, trailing_pipe: bool) -> String {
     let (leading, trailing) =
         (if leading_pipe { "|" } else { "" }, if trailing_pipe { "|" } else { "" });
     format!("{leading}{}{trailing}", cells.join("|"))
 }
 
-fn blank(cell: &str) -> bool {
+pub(super) fn blank(cell: &str) -> bool {
     cell.chars().all(is_cell_space)
 }
 
 impl MdRender {
     /// The part of `row`'s line its cells and their pipes take up: all of
     /// it but indentation, space after it, and a long row's surplus cells.
-    fn table_row_structure(&self, row: &RowBounds) -> (Grapheme, Grapheme) {
+    pub(super) fn table_row_structure(&self, row: &RowBounds) -> (Grapheme, Grapheme) {
         let (first, last) = (row.cells[0].span, row.cells[row.cells.len() - 1].span);
         (first.start() - row.leading_pipe as usize, last.end() + row.trailing_pipe as usize)
     }
@@ -106,7 +106,7 @@ impl MdRender {
     /// cells for those it lacks of `columns`. A cell with nothing between
     /// its pipes — only a row's first can be — is written blank: anywhere
     /// else it would not be a cell.
-    fn table_row_cells(&self, row: &RowBounds, columns: usize) -> Vec<String> {
+    pub(super) fn table_row_cells(&self, row: &RowBounds, columns: usize) -> Vec<String> {
         let mut cells: Vec<String> = row
             .cells
             .iter()
@@ -119,7 +119,9 @@ impl MdRender {
 
     /// The delimiter row's structure, as a row's: where its cells and
     /// their pipes are, and whether it has the outer two.
-    fn table_delimiter_structure(&self, table: &TableBounds) -> ((Grapheme, Grapheme), bool, bool) {
+    pub(super) fn table_delimiter_structure(
+        &self, table: &TableBounds,
+    ) -> ((Grapheme, Grapheme), bool, bool) {
         let delimiter = &table.delimiter;
         let (first, last) = (delimiter.cells[0], delimiter.cells[delimiter.cells.len() - 1]);
         let pipe_at = |offset: Grapheme| {

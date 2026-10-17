@@ -362,20 +362,12 @@ impl Features {
         }
     }
 
-    /// [`Self::all`] minus tables: a table in a wide-indented item mis-tiles
-    /// its row prefix (drag reveals on the leaked space), so tables stay
-    /// top-tier-only until fixed. For layout invariants needing nesting.
-    pub fn tier_a() -> Self {
-        let all = Self::all();
-        Self { blocks: BlockFeatures { table: false, ..all.blocks }, ..all }
-    }
-
-    /// [`Self::tier_a`] (so also no tables) minus the by-design-fuzzy axes:
-    /// complex scripts and long unbreakable tokens (font-fallback / wrap
-    /// divergence) and container nesting (inner columns shift under reveal).
-    /// The layout-precision corpus; a failure here is a real bug.
+    /// [`Self::all`] minus the by-design-fuzzy axes: complex scripts and long
+    /// unbreakable tokens (font-fallback / wrap divergence) and container
+    /// nesting (inner columns shift under reveal). The layout-precision
+    /// corpus; a failure here is a real bug.
     pub fn tier_b() -> Self {
-        let a = Self::tier_a();
+        let a = Self::all();
         Self {
             scripts: ScriptFeatures::default(),
             whitespace: WhitespaceFeatures { long_token: false, id_token: false, ..a.whitespace },
@@ -645,7 +637,7 @@ fn gen_paragraph_f(src: &mut ByteSource, f: &Features) -> String {
 /// rectangular and padded; a minority leave cells blank, escape a pipe, run
 /// a body row short or long, or drop their outer pipes — the shapes a
 /// hand-written table has.
-fn gen_table(src: &mut ByteSource, f: &Features) -> String {
+pub(super) fn gen_table(src: &mut ByteSource, f: &Features) -> String {
     let n_cols = 2 + src.bias(&[2, 1]);
     let n_rows = 1 + src.bias(&[2, 1]);
     let alignments = [" --- ", " :--- ", " ---: ", " :---: "];
