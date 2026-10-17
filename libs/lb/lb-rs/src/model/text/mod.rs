@@ -36,9 +36,9 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
         match diff_op {
             similar::DiffOp::Equal { .. } => {}
             similar::DiffOp::Delete { old_index, old_len, .. } => {
-                let old_len = from_segs.offset_to_char(from_words[old_index + old_len])
-                    - from_segs.offset_to_char(from_words[old_index]);
-                let old_index = from_segs.offset_to_char(from_words[old_index]);
+                let old_len = from_segs.byte_to_char_floor(from_words[old_index + old_len])
+                    - from_segs.byte_to_char_floor(from_words[old_index]);
+                let old_index = from_segs.byte_to_char_floor(from_words[old_index]);
 
                 let mut extended = false;
                 if let Some(op) = result.last_mut() {
@@ -56,10 +56,10 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
                 }
             }
             similar::DiffOp::Insert { old_index, new_index, new_len } => {
-                let old_index = from_segs.offset_to_char(from_words[old_index]);
-                let new_len = to_segs.offset_to_char(to_words[new_index + new_len])
-                    - to_segs.offset_to_char(to_words[new_index]);
-                let new_index = to_segs.offset_to_char(to_words[new_index]);
+                let old_index = from_segs.byte_to_char_floor(from_words[old_index]);
+                let new_len = to_segs.byte_to_char_floor(to_words[new_index + new_len])
+                    - to_segs.byte_to_char_floor(to_words[new_index]);
+                let new_index = to_segs.byte_to_char_floor(to_words[new_index]);
 
                 let new_text_range = to_segs.range_to_byte((new_index, new_index + new_len));
                 let new_text = to[new_text_range.start().0..new_text_range.end().0].to_string();
@@ -79,12 +79,12 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
                 }
             }
             similar::DiffOp::Replace { old_index, old_len, new_index, new_len } => {
-                let old_len = from_segs.offset_to_char(from_words[old_index + old_len])
-                    - from_segs.offset_to_char(from_words[old_index]);
-                let old_index = from_segs.offset_to_char(from_words[old_index]);
-                let new_len = to_segs.offset_to_char(to_words[new_index + new_len])
-                    - to_segs.offset_to_char(to_words[new_index]);
-                let new_index = to_segs.offset_to_char(to_words[new_index]);
+                let old_len = from_segs.byte_to_char_floor(from_words[old_index + old_len])
+                    - from_segs.byte_to_char_floor(from_words[old_index]);
+                let old_index = from_segs.byte_to_char_floor(from_words[old_index]);
+                let new_len = to_segs.byte_to_char_floor(to_words[new_index + new_len])
+                    - to_segs.byte_to_char_floor(to_words[new_index]);
+                let new_index = to_segs.byte_to_char_floor(to_words[new_index]);
 
                 let new_text_range = to_segs.range_to_byte((new_index, new_index + new_len));
                 let new_text = to[new_text_range.start().0..new_text_range.end().0].to_string();
@@ -134,6 +134,20 @@ mod test {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].range, (7.into(), 12.into()));
         assert_eq!(result[0].text, "Rust");
+    }
+
+    // word segmentation skips the format char and pairs the regional indicators into one word,
+    // putting a word boundary inside the flag grapheme
+    #[test]
+    fn diff_word_boundary_inside_grapheme() {
+        let from = "\u{1f1f8}";
+        let to = "\u{1f1f8}\u{feff}\u{1f1fa}\u{1f1f8}";
+
+        let result = super::diff(from, to);
+        let from_graphemes = super::unicode_segs::calc(from).grapheme_indexes.len() - 1;
+        for op in &result {
+            assert!(op.range.0 <= op.range.1 && op.range.1.0 <= from_graphemes);
+        }
     }
 
     #[test]
