@@ -55,6 +55,7 @@ impl<'ast> MdRender {
                 top_left.y += self.layout.block_spacing;
             }
         } else {
+            let first_cell_box = self.table_cell_boxes.len();
             self.show_block_children(ui, node, top_left);
 
             // draw exterior decoration
@@ -67,6 +68,7 @@ impl<'ast> MdRender {
                 Stroke { width: 1., color: self.ctx.get_lb_theme().neutral_bg_tertiary() },
                 egui::epaint::StrokeKind::Inside,
             );
+            self.show_table_handles(ui, first_cell_box);
         }
     }
 

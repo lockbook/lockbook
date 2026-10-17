@@ -8,6 +8,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use super::super::MdRender;
 use super::super::input::{Advance, Bound, Event, Increment, Location, Region};
 use super::super::table::{DelimiterBounds, RowBounds, TableAction};
+use super::super::widget::toolbar::{MarkdownToolbarAction as ToolbarAction, TableTool};
 use super::harness::TestEditor;
 use super::render_props::test_renderer;
 
@@ -1439,21 +1440,6 @@ fn structure_edits() {
         ),
         ("d", MoveColumn { right: false }, md),
         ("f", MoveColumn { right: true }, md),
-        (
-            "d",
-            MoveColumnTo { from: 0, to: 2 },
-            "| b | c | a |\n| :-: | --: | - |\n| e | f | d |\n| h | i | g |",
-        ),
-        (
-            "d",
-            MoveColumnTo { from: 2, to: 0 },
-            "| c | a | b |\n| --: | - | :-: |\n| f | d | e |\n| i | g | h |",
-        ),
-        (
-            "d",
-            MoveRowTo { from: 2, to: 1 },
-            "| a | b | c |\n| - | :-: | --: |\n| g | h | i |\n| d | e | f |",
-        ),
         ("d", Align(Left), "| a | b | c |\n| :- | :-: | --: |\n| d | e | f |\n| g | h | i |"),
         ("e", Align(Right), "| a | b | c |\n| - | --: | --: |\n| d | e | f |\n| g | h | i |"),
         ("f", Align(Center), "| a | b | c |\n| - | :-: | :-: |\n| d | e | f |\n| g | h | i |"),
@@ -1569,10 +1555,6 @@ fn structure_edits_leave_the_rest_alone() {
         DeleteColumn,
         MoveColumn { right: true },
         MoveColumn { right: false },
-        MoveColumnTo { from: 0, to: 2 },
-        MoveColumnTo { from: 2, to: 0 },
-        MoveRowTo { from: 1, to: 2 },
-        MoveRowTo { from: 2, to: 1 },
     ];
     let sorted = |mut texts: Vec<String>| {
         texts.retain(|text| !text.is_empty());
@@ -1602,10 +1584,8 @@ fn structure_edits_leave_the_rest_alone() {
                 table_ranges_check_md(&text).unwrap_or_else(|reason| panic!("{reason}\n{context}"));
 
                 let after = cells(&editor);
-                let column_edit = matches!(
-                    action,
-                    InsertColumn { .. } | DeleteColumn | MoveColumn { .. } | MoveColumnTo { .. }
-                );
+                let column_edit =
+                    matches!(action, InsertColumn { .. } | DeleteColumn | MoveColumn { .. });
                 if column_edit && text != md {
                     let width = after[0].len();
                     assert!(after.iter().all(|row| row.len() == width), "ragged: {context}");
@@ -1803,4 +1783,281 @@ fn an_image_is_clamped_to_its_cell() {
         );
     }
     assert!(rects[1][3].right() <= r.width + rects[1][0].left() + 0.5);
+}
+
+// ─── toolbar ─────────────────────────────────────────────────────────
+
+fn tools(editor: &TestEditor) -> Vec<TableTool> {
+    let groups = editor.editor.table_tools();
+    groups.into_iter().flatten().flatten().collect()
+}
+
+fn tools_where(editor: &TestEditor, pick: impl Fn(&TableTool) -> bool) -> Vec<ToolbarAction> {
+    let picked = tools(editor).into_iter().filter(pick);
+    picked.map(|tool| tool.action).collect()
+}
+
+fn use_tool(editor: &mut TestEditor, action: ToolbarAction) {
+    let event = editor.editor.toolbar_action(action);
+    editor.push(event);
+    editor.enter_frame();
+}
+
+#[test]
+fn the_toolbar_offers_the_table_set_in_a_table() {
+    use ToolbarAction::*;
+    let md = "p\n\n| a | b |\n| :-: | - |\n| c | d |\n| e | f |\n";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, 0);
+    assert_eq!(editor.editor.table_tools(), None);
+
+    // the header stays the header, and its first cell is at an edge
+    caret_at(&mut editor, md.find('a').unwrap());
+    assert_eq!(tools_where(&editor, |tool| !tool.enabled), [DeleteRow]);
+    assert_eq!(tools_where(&editor, |tool| tool.applied), [AlignCenter]);
+    // moving is a drag, not a tool
+    assert!(
+        !tools(&editor)
+            .iter()
+            .any(|tool| matches!(tool.action, MoveRowUp | MoveColumnLeft))
+    );
+
+    caret_at(&mut editor, md.find('f').unwrap());
+    assert_eq!(tools_where(&editor, |tool| !tool.enabled), []);
+    assert_eq!(tools_where(&editor, |tool| tool.applied), []);
+
+    // a touch keyboard has no Tab
+    assert_eq!(tools(&editor)[0].action, RowAbove);
+    editor.editor.edit.renderer.touch_mode = true;
+    assert_eq!(tools_where(&editor, |_| true)[..3], [PreviousCell, NextCell, NextRow]);
+
+    let state = editor.editor.android_toolbar_state();
+    assert!(state.in_table);
+    assert_eq!(state.disabled, []);
+}
+
+/// A tool is enabled exactly where using it changes something.
+#[test]
+fn a_table_tool_is_enabled_where_it_does_something() {
+    let md = "| a | b |\n| - | - |\n| c | d |\n| e | f |\n";
+    for cell in ['a', 'b', 'c', 'd', 'e', 'f'] {
+        let mut editor = TestEditor::new(md);
+        editor.editor.edit.renderer.touch_mode = true;
+        caret_at(&mut editor, md.find(cell).unwrap());
+        for tool in tools(&editor) {
+            let mut editor = TestEditor::new(md);
+            caret_at(&mut editor, md.find(cell).unwrap());
+            let before = selection(&editor);
+            use_tool(&mut editor, tool.action);
+            let changed = editor.get_text() != md || selection(&editor) != before;
+            assert_eq!(changed, tool.enabled, "{:?} in {cell}", tool.action);
+        }
+    }
+}
+
+#[test]
+fn an_alignment_tool_sets_its_alignment_or_takes_it_away() {
+    use ToolbarAction::*;
+    let md = "| a | b |\n| --- | --- |\n| c | d |\n";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, md.find('d').unwrap());
+    use_tool(&mut editor, AlignRight);
+    assert_eq!(editor.get_text(), "| a | b |\n| --- | --: |\n| c | d |\n");
+    assert_eq!(tools_where(&editor, |tool| tool.applied), [AlignRight]);
+    use_tool(&mut editor, AlignCenter);
+    assert_eq!(editor.get_text(), "| a | b |\n| --- | :-: |\n| c | d |\n");
+    use_tool(&mut editor, AlignCenter);
+    assert_eq!(editor.get_text(), md);
+    assert_eq!(tools_where(&editor, |tool| tool.applied), []);
+}
+
+#[test]
+fn the_table_tool_inserts_a_table() {
+    let mut editor = TestEditor::new("text");
+    caret_at(&mut editor, 4);
+    use_tool(&mut editor, ToolbarAction::Table);
+    assert_eq!(editor.get_text(), "text\n\n|  |  |  |\n| --- | --- | --- |\n|  |  |  |");
+    assert_eq!(caret_cell(&editor), Some((0, 0, 0)));
+    assert!(editor.editor.table_tools().is_some());
+}
+
+// ─── block styles ────────────────────────────────────────────────────
+
+#[test]
+fn a_block_style_takes_the_whole_table() {
+    use comrak::nodes::{ListType, NodeHeading, NodeList};
+    let toggle = |editor: &mut TestEditor, style: NodeValue| {
+        editor.push(Event::ToggleStyle { region: Region::Selection, style });
+        editor.enter_frame();
+    };
+    let bullets =
+        || NodeValue::List(NodeList { list_type: ListType::Bullet, ..Default::default() });
+    let md = "| a | b |\n| - | - |\n| c | d |\n| e | f |\n";
+    let listed = "* | a | b |\n  | - | - |\n  | c | d |\n  | e | f |\n";
+
+    // from a caret, from cells of a row, and from rows
+    let (c, d, f) = (md.find('c').unwrap(), md.find('d').unwrap(), md.find('f').unwrap());
+    for (from, to) in [(c, c), (c, d + 1), (c, f + 1)] {
+        let mut editor = TestEditor::new(md);
+        select(&mut editor, from, to);
+        toggle(&mut editor, bullets());
+        assert_eq!(editor.get_text(), listed, "{from}..{to}");
+        assert_eq!(table_ranges_check_md(listed), Ok(1));
+        toggle(&mut editor, bullets());
+        assert_eq!(editor.get_text(), md, "{from}..{to}");
+    }
+
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, c);
+    toggle(&mut editor, NodeValue::BlockQuote);
+    assert_eq!(editor.get_text(), "> | a | b |\n> | - | - |\n> | c | d |\n> | e | f |\n");
+    assert_eq!(caret_in(&editor), Some(("c".into(), 0)));
+
+    // a cell holds no heading
+    let quoted = editor.get_text().to_string();
+    toggle(&mut editor, NodeValue::Heading(NodeHeading { level: 1, ..Default::default() }));
+    assert_eq!(editor.get_text(), quoted);
+}
+
+// ─── handles and drags ───────────────────────────────────────────────
+
+fn button(pos: egui::Pos2, pressed: bool) -> egui::Event {
+    let (button, modifiers) = (egui::PointerButton::Primary, Default::default());
+    egui::Event::PointerButton { pos, button, pressed, modifiers }
+}
+
+fn click(editor: &mut TestEditor, pos: egui::Pos2) {
+    editor.enter_frame_with_input(vec![egui::Event::PointerMoved(pos)]);
+    editor.enter_frame_with_input(vec![button(pos, true)]);
+    editor.enter_frame_with_input(vec![button(pos, false)]);
+    editor.enter_frame();
+}
+
+/// Presses at `from`, moves to `to` over a few frames, and lets go.
+fn drag(editor: &mut TestEditor, from: egui::Pos2, to: egui::Pos2) {
+    editor.enter_frame_with_input(vec![egui::Event::PointerMoved(from)]);
+    editor.enter_frame_with_input(vec![button(from, true)]);
+    for step in 1..=4 {
+        let pos = from + (to - from) * (step as f32 / 4.0);
+        editor.enter_frame_with_input(vec![egui::Event::PointerMoved(pos)]);
+    }
+    editor.enter_frame_with_input(vec![button(to, false)]);
+    editor.enter_frame();
+    editor.enter_frame();
+}
+
+/// The rect of each row of the table, header first.
+fn row_rects(editor: &TestEditor) -> Vec<egui::Rect> {
+    let rows = cell_rects(editor);
+    let union = |row: &Vec<egui::Rect>| row.iter().copied().reduce(egui::Rect::union).unwrap();
+    rows.iter().map(union).collect()
+}
+
+const DRAGGED: &str =
+    "| a | bb | ccc |\n| - | :-: | --: |\n| d | e |\n| g | h | i |\n| j | k | l |";
+
+#[test]
+fn dragging_a_row_handle_reorders_the_body_rows() {
+    let mut editor = TestEditor::new(DRAGGED);
+    let down = egui::Vec2::new(0.0, 4.0);
+
+    // a row's handle is on the table's left border; past the last row
+    let rows = row_rects(&editor);
+    drag(&mut editor, rows[1].left_center(), rows[3].left_bottom() + down);
+    let moved = "| a | bb | ccc |\n| - | :-: | --: |\n| g | h | i |\n| j | k | l |\n| d | e |";
+    assert_eq!(editor.get_text(), moved);
+
+    // back to above the first body row
+    let rows = row_rects(&editor);
+    drag(&mut editor, rows[3].left_center(), rows[1].left_top() + down);
+    assert_eq!(editor.get_text(), DRAGGED);
+
+    // dropped on its own slot, a row stays; the header's handle drags nothing
+    let rows = row_rects(&editor);
+    drag(&mut editor, rows[2].left_center(), rows[2].left_center() + 2.0 * down);
+    drag(&mut editor, rows[0].left_center(), rows[2].left_center());
+    assert_eq!(editor.get_text(), DRAGGED);
+}
+
+#[test]
+fn dragging_a_column_handle_reorders_the_columns() {
+    let mut editor = TestEditor::new(DRAGGED);
+    let along = egui::Vec2::new(2.0, 0.0);
+
+    // a column's handle is on the table's top border; a ragged row is padded
+    let header = cell_rects(&editor).swap_remove(0);
+    drag(&mut editor, header[0].center_top(), header[2].center_top() + along);
+    let moved = "| bb | ccc | a |\n| :-: | --: | - |\n| e |  | d |\n| h | i | g |\n| k | l | j |";
+    assert_eq!(editor.get_text(), moved);
+    table_ranges_check_md(moved).unwrap();
+
+    let header = cell_rects(&editor).swap_remove(0);
+    drag(&mut editor, header[2].center_top(), header[0].center_top() - along);
+    let back = "| a | bb | ccc |\n| - | :-: | --: |\n| d | e |  |\n| g | h | i |\n| j | k | l |";
+    assert_eq!(editor.get_text(), back);
+
+    // dropped on its own slot, a column stays
+    let header = cell_rects(&editor).swap_remove(0);
+    drag(&mut editor, header[1].center_top(), header[1].center_top() + 4.0 * along);
+    assert_eq!(editor.get_text(), back);
+}
+
+#[test]
+fn clicking_a_handle_selects_its_row_or_column() {
+    let mut editor = TestEditor::new(DRAGGED);
+    let (rows, cells) = (row_rects(&editor), cell_rects(&editor));
+    let table = editor.editor.edit.renderer.bounds.tables[0].clone();
+
+    click(&mut editor, rows[3].left_center());
+    assert_eq!(selection(&editor), (table.rows[3].line.0.0, table.rows[3].line.1.0));
+    // a click off the menu the handle opened puts it away
+    click(&mut editor, rows[1].center());
+
+    click(&mut editor, cells[0][1].center_top());
+    assert_eq!(selected(&editor), "bb");
+    click(&mut editor, rows[1].center());
+
+    // a table that can't be edited has no handles: a click there is a click
+    editor.editor.edit.renderer.readonly = true;
+    click(&mut editor, rows[3].left_center());
+    let (start, end) = selection(&editor);
+    assert_eq!(start, end);
+}
+
+/// The platform's own long press, as iOS delivers it.
+#[test]
+fn a_long_press_lifts_a_body_row_or_a_header_cells_column() {
+    let mut editor = TestEditor::new(DRAGGED);
+    editor.editor.edit.renderer.touch_mode = true;
+    editor.enter_frame();
+    let lift = |editor: &mut TestEditor, from: egui::Pos2, to: egui::Pos2| {
+        assert!(editor.editor.edit.reorder_can_start(from));
+        assert!(editor.editor.edit.reorder_start(from));
+        editor.enter_frame();
+        editor.editor.edit.reorder_move(to);
+        editor.enter_frame();
+        editor.editor.edit.reorder_end(to, false);
+        editor.enter_frame();
+        editor.enter_frame();
+    };
+
+    // a header cell takes its column along the row
+    let cells = cell_rects(&editor);
+    lift(&mut editor, cells[0][1].center(), cells[0][0].center() - egui::Vec2::new(2.0, 0.0));
+    let moved = "| bb | a | ccc |\n| :-: | - | --: |\n| e | d |  |\n| h | g | i |\n| k | j | l |";
+    assert_eq!(editor.get_text(), moved);
+
+    // a body row moves among the body rows
+    let cells = cell_rects(&editor);
+    lift(&mut editor, cells[3][0].center(), cells[1][0].center_top());
+    let moved = "| bb | a | ccc |\n| :-: | - | --: |\n| k | j | l |\n| e | d |  |\n| h | g | i |";
+    assert_eq!(editor.get_text(), moved);
+
+    // one of a kind has nowhere to go
+    let mut editor = TestEditor::new("| a |\n| - |\n| b |");
+    editor.editor.edit.renderer.touch_mode = true;
+    editor.enter_frame();
+    for cell in cell_rects(&editor).concat() {
+        assert!(!editor.editor.edit.reorder_can_start(cell.center()));
+    }
 }

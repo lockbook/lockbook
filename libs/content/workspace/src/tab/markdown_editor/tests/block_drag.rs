@@ -161,6 +161,7 @@ fn appending_to_tight_list_stays_tight() {
         grabbed: one_box.node_range,
         parent_start: one_box.parent_start,
         grab_offset: one_box.rect.center() - one_box.rect.left_top(),
+        unit: Default::default(),
     };
     let past_end = egui::Pos2::new(one_box.rect.center().x, 1.0e6);
     let gap = r
@@ -204,6 +205,7 @@ fn drop_gap_geometry_for_list() {
         grabbed: one.node_range,
         parent_start: one.parent_start,
         grab_offset: one.rect.center() - one.rect.left_top(),
+        unit: Default::default(),
     };
     let low = egui::Pos2::new(one.rect.center().x, 100_000.0);
     let gap = r.drop_gap_for(&drag, low).expect("a gap exists");
@@ -232,6 +234,7 @@ fn drag_within_own_span_is_a_cancel() {
         parent_start: one.parent_start,
         // grab at the marker (top-left of the source row, x at the marker center)
         grab_offset: egui::Vec2::new(one.rect.width() / 2.0, 0.0),
+        unit: Default::default(),
     };
     let within = one.rect.center();
     assert!(r.drop_gap_for(&drag, within).is_none(), "hovering own span cancels");
@@ -271,6 +274,7 @@ fn dragged_item_stays_indexed_off_screen() {
         grabbed: last_range,
         parent_start: last_parent,
         grab_offset: egui::Vec2::ZERO,
+        unit: Default::default(),
     });
     ws.enter_frame();
 

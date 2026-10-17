@@ -11,6 +11,7 @@ use lb_rs::model::text::offset_types::{
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
+use crate::tab::markdown_editor::widget::block::drag::DragUnit;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     Fragment, FragmentContent, FragmentInset,
@@ -146,7 +147,7 @@ impl<'ast> MdRender {
                         egui::Vec2::new(self.width(child), child_height),
                     );
                     let parent_start = self.node_range(node).start();
-                    self.push_block_box(child, block_rect, parent_start);
+                    self.push_block_box(child, block_rect, parent_start, DragUnit::Item);
                 }
             } else {
                 let in_buffer = top_left.y + child_height > viewport.min.y - buffer

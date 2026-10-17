@@ -610,7 +610,7 @@ impl<'ast> MdEdit {
 
                 let mut handled = false;
                 for node in root.descendants() {
-                    if self.renderer.selected_block(node) {
+                    if self.renderer.table_styled_whole(node) {
                         handled = true;
 
                         // apply heading to ATX heading: replace existing heading
@@ -684,7 +684,8 @@ impl<'ast> MdEdit {
                         } else {
                             // remove target prefix regardless (will often be empty / supports replacements)
                             // todo: space between selected nodes?
-                            let target_node = if node.is_container_block() {
+                            let is_table = matches!(node.data.borrow().value, NodeValue::Table(_));
+                            let target_node = if node.is_container_block() && !is_table {
                                 node
                             } else {
                                 node.parent().unwrap()

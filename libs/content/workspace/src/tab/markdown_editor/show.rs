@@ -23,11 +23,11 @@ use crate::tab::markdown_editor::ScrollTarget;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
-use super::MdEdit;
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
-use super::widget::block::drag::{BlockBox, BlockDragAction, TouchReorder};
+use super::widget::block::drag::{BlockBox, BlockDragAction, DragUnit, TouchReorder};
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
+use super::{MdEdit, MdRender};
 
 #[derive(Clone)]
 enum EditorMenuCmd {
@@ -65,7 +65,10 @@ impl MdEdit {
 
         // Deferred block reorder
         let move_resp = match self.pending_block_move.take() {
-            Some((section_range, insert_offset)) => self.move_block(section_range, insert_offset),
+            Some((drag, insert_offset)) => match drag.unit {
+                DragUnit::Item => self.move_block(drag.section_range, insert_offset),
+                DragUnit::Row | DragUnit::Column(_) => self.move_table_part(drag, insert_offset),
+            },
             None => buffer::Response::default(),
         };
 
@@ -446,7 +449,7 @@ impl MdEdit {
                 if let Some(drag) = self.in_progress_block_drag.take() {
                     if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
                         // deferred move (applied next frame in `handle_input`)
-                        self.pending_block_move = Some((drag.section_range, gap.insert_offset));
+                        self.pending_block_move = Some((drag, gap.insert_offset));
                         ui.ctx().request_repaint();
                     }
                 }
@@ -501,8 +504,13 @@ impl MdEdit {
     ) {
         let Some(drag) = self.in_progress_block_drag else { return };
         let Some(p) = self.drag_pointer(ui) else { return };
+        if let DragUnit::Column(column) = drag.unit {
+            return self.draw_dragged_column(ui, root, drag, column, p);
+        }
         let theme = self.renderer.ctx.get_lb_theme();
         let primary = theme.bg().get_color(theme.prefs().primary);
+        // a table's rows touch: nothing of one reaches past its rect
+        let is_row = drag.unit == DragUnit::Row;
 
         // Drop-gap indicator: soft capsule with a hollow leading dot.
         if let Some(gap) = self.renderer.drop_gap_for(&drag, p) {
@@ -517,7 +525,7 @@ impl MdEdit {
             if x0 <= x1 {
                 // Start in the gutter so the dot isn't hidden by markers.
                 let x0 = x0 - self.renderer.layout.indent;
-                let y = gap.y as f32;
+                let y = gap.at as f32;
                 let dot = 4.0;
                 let half = 1.25;
                 let painter = ui.painter();
@@ -542,7 +550,7 @@ impl MdEdit {
         let Some(src_rect) = self.renderer.section_rect(drag.section_range) else { return };
         // Vertical pad covers content that overflows the section rect
         // (taller cursor row, code/spoiler outlines).
-        let vpad = self.renderer.layout.block_spacing / 2.0;
+        let vpad = if is_row { 0.0 } else { self.renderer.layout.block_spacing / 2.0 };
         let card_rect = src_rect.expand2(egui::Vec2::new(0.0, vpad));
         let hole = src_rect.expand2(egui::Vec2::new(0.0, vpad));
 
@@ -573,13 +581,7 @@ impl MdEdit {
             egui::epaint::StrokeKind::Inside,
         );
 
-        // Re-draw the span translated; submit a second callback above
-        // the main text. Discard the fragments/block_boxes the float
-        // produces — keeping them would corrupt hit-testing.
-        let frag_len = self.renderer.fragments.len();
-        let box_len = self.renderer.block_boxes.len();
-        let cell_box_len = self.renderer.table_cell_boxes.len();
-        let header_slot_len = self.renderer.table_header_slots.len();
+        // Re-draw the span translated.
         let section = drag.section_range;
         // Top-most items in the span; descendants paint via `show_block`.
         let in_span: Vec<BlockBox> = self
@@ -602,17 +604,29 @@ impl MdEdit {
             })
             .map(|b| (b.rect, b.node_range))
             .collect();
-        self.renderer.painting_drag_float = true;
-        ui.push_id("md_block_drag_float", |ui| {
+        self.paint_drag_float(ui, root, |r, ui| {
             for (rect, nr) in &constituents {
-                if let Some(node) = root
-                    .descendants()
-                    .find(|n| self.renderer.node_range(n) == *nr)
-                {
-                    self.renderer.show_block(ui, node, rect.min + offset);
+                if let Some(node) = root.descendants().find(|n| r.node_range(n) == *nr) {
+                    r.show_block(ui, node, rect.min + offset);
                 }
             }
         });
+    }
+
+    /// Paints what `float` draws — part of the document, again, where it
+    /// is dragged to — as a second callback above the main text. Discards
+    /// the fragments and boxes it leaves: keeping them would corrupt
+    /// hit-testing.
+    pub(crate) fn paint_drag_float<'a>(
+        &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>,
+        float: impl FnOnce(&mut MdRender, &mut Ui),
+    ) {
+        let frag_len = self.renderer.fragments.len();
+        let box_len = self.renderer.block_boxes.len();
+        let cell_box_len = self.renderer.table_cell_boxes.len();
+        let header_slot_len = self.renderer.table_header_slots.len();
+        self.renderer.painting_drag_float = true;
+        ui.push_id("md_block_drag_float", |ui| float(&mut self.renderer, ui));
         self.renderer.painting_drag_float = false;
         // Favicons paint in a separate pass over `fragments`; the float's
         // capsules live in `fragments[frag_len..]`, so re-run that pass
