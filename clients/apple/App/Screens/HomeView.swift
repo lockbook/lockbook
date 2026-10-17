@@ -26,6 +26,7 @@ struct HomeView: View {
         @State private var showSettings = false
         @State private var keyboardVisible = false
         @State private var showCreateAlongside = false
+        @State private var showSearchOptions = false
     #else
         @State private var showImporter = false
     #endif
@@ -391,7 +392,13 @@ struct HomeView: View {
         private var detailSearchButton: some View {
             Group {
                 if workspaceOutput.openDoc != nil {
-                    Menu {
+                    Button {
+                        showSearchOptions = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .frame(width: 26, height: 26)
+                    }
+                    .confirmationDialog("Search", isPresented: $showSearchOptions) {
                         Button {
                             workspaceInput.showFindInDoc()
                         } label: {
@@ -403,9 +410,6 @@ struct HomeView: View {
                         } label: {
                             Label("Search everywhere", systemImage: "magnifyingglass")
                         }
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .frame(width: 26, height: 26)
                     }
                 } else {
                     Button {
