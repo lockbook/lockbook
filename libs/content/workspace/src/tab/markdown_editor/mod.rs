@@ -65,6 +65,7 @@ pub mod input;
 pub mod md_label;
 mod scroll_content;
 pub mod show;
+pub mod table;
 pub mod text_units;
 mod theme;
 pub(crate) mod widget;
@@ -121,6 +122,9 @@ pub struct MdRender {
     /// Set only while painting the floating drag-reorder card, so chrome
     /// that shouldn't travel with it (the fold button) can opt out.
     pub painting_drag_float: bool,
+    /// The user moved the selection since the last frame was painted: a
+    /// table wider than the note scrolls to show its end.
+    pub caret_moved: bool,
 
     // document
     pub buffer: Buffer,
@@ -141,6 +145,15 @@ pub struct MdRender {
     /// render DFS. Cleared each frame (mirrors `fragments`); read for
     /// pointer hit-testing and drop-gap math by drag-to-reorder.
     pub block_boxes: Vec<widget::block::drag::BlockBox>,
+    /// Per-frame geometry index of every table cell, cleared and read like
+    /// `block_boxes`: a pointer in a cell resolves to that cell.
+    pub table_cell_boxes: Vec<table::TableCellBox>,
+    /// A painter slot above each header row's background, with the row's
+    /// rect: the selection's highlight there would paint under it.
+    pub table_header_slots: Vec<(egui::layers::ShapeIdx, Rect)>,
+    /// How far each table too wide for the note is scrolled, by its index
+    /// in [`bounds::Bounds::tables`].
+    pub table_scrolls: HashMap<usize, table::TableScroll>,
     /// Drag action emitted by a list marker this frame, drained by
     /// `MdEdit::show` to update / commit the in-progress block drag
     /// (mirrors how `render_events` carries buffer edits out of render).
@@ -261,11 +274,11 @@ pub struct MdEdit {
     /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
     pub touch_reorder_driven: bool,
 
-    /// A committed reorder `(section_range, insert_offset)`, applied at the
+    /// A committed reorder `(drag, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
     /// new layout is then current before the platform refetches selection
     /// geometry. Set on drag release (which runs post-render).
-    pub pending_block_move: Option<((Grapheme, Grapheme), Grapheme)>,
+    pub pending_block_move: Option<(widget::block::drag::BlockDrag, Grapheme)>,
 
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
@@ -305,6 +318,15 @@ pub struct MdEdit {
     /// the menu is open and the pointer moves.
     pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
 
+    /// When "Paste as table" was last chosen: the paste it requested from
+    /// the platform, which arrives as any other does, is to be a table.
+    pub paste_as_table: std::cell::Cell<Option<f64>>,
+
+    /// A touch drag that began on a table wider than the note: the table,
+    /// by its place among the tables, and once the drag has set out,
+    /// whether along the rows. See [`MdEdit::pan_table`].
+    pub table_pan: Option<(usize, Option<bool>)>,
+
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
@@ -342,6 +364,8 @@ impl MdEdit {
             emoji_completions: Default::default(),
             link_completions: Default::default(),
             context_menu_link: None,
+            paste_as_table: Default::default(),
+            table_pan: None,
             scroll_area: AffineScrollArea::new(file_id),
             cursor_last_interact: None,
         }
@@ -506,11 +530,15 @@ impl MdRender {
             ext: "md".into(),
             touch_mode,
             painting_drag_float: false,
+            caret_moved: false,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
             fragments: Vec::new(),
             block_boxes: Vec::new(),
+            table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
+            table_scrolls: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -590,10 +618,14 @@ impl MdRender {
             ext: "md".into(),
             touch_mode: false,
             painting_drag_float: false,
+            caret_moved: false,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
             block_boxes: Vec::new(),
+            table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
+            table_scrolls: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -670,6 +702,7 @@ impl MdRender {
             self.calc_source_lines();
             self.calc_fold_bounds(root);
             self.calc_atom_bounds(root);
+            self.calc_table_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
             // from compute_bounds_block_pre_spacing) queries
             // hidden_by_fold, which now expects every node already
@@ -703,7 +736,7 @@ impl MdRender {
         options.extension.footnotes = false;
         options.extension.front_matter_delimiter = Some("---".to_string());
         options.extension.greentext = false;
-        options.extension.header_ids = None; // intended for HTML renderers
+        options.extension.header_id_prefix = None; // intended for HTML renderers
         options.extension.highlight = true;
         options.extension.math_code = true; // rendered as code for now
         options.extension.math_dollars = true; // rendered as code for now
@@ -714,7 +747,6 @@ impl MdRender {
         options.extension.subscript = true;
         options.extension.superscript = true;
         options.extension.table = true;
-        options.extension.tagfilter = false; // intended for HTML renderers
         options.extension.tasklist = true;
         options.extension.underline = true;
         options.extension.wikilinks_title_after_pipe = true; // matches obsidian
@@ -752,12 +784,16 @@ impl Editor {
             ext,
             touch_mode,
             painting_drag_float: false,
+            caret_moved: false,
 
             bounds: Default::default(),
             buffer: md.into(),
 
             fragments: Vec::new(),
             block_boxes: Vec::new(),
+            table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
+            table_scrolls: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -825,6 +861,8 @@ impl Editor {
                 emoji_completions: Default::default(),
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
+                paste_as_table: Default::default(),
+                table_pan: None,
                 scroll_area: AffineScrollArea::new(file_id),
                 cursor_last_interact: None,
             },
@@ -1520,11 +1558,16 @@ impl Editor {
                         // the body's drag (so taps reach it) but below
                         // the scrollbar (so taps on the bar don't).
                         let begun = self.edit.scroll_area.begin(ui);
+                        if self.edit.pan_table(ui, begun.body_response()) {
+                            self.edit.scroll_area.suppress_body_drag = true;
+                        }
 
                         let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
                         self.edit.renderer.fragments.clear();
                         self.edit.renderer.block_boxes.clear();
+                        self.edit.renderer.table_cell_boxes.clear();
+                        self.edit.renderer.table_header_slots.clear();
                         self.edit.renderer.in_progress_block_drag =
                             self.edit.in_progress_block_drag;
                         self.edit.renderer.bounds.wrap_lines.clear();

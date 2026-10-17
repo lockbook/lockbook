@@ -39,6 +39,8 @@ const SCREEN_SIZE: Vec2 = Vec2::new(800., 600.);
 pub struct TestEditor {
     pub editor: Editor,
     pending: Vec<Event>,
+    /// Text the last frame put on the clipboard.
+    pub copied: Option<String>,
 }
 
 impl TestEditor {
@@ -55,7 +57,8 @@ impl TestEditor {
     /// Build with a custom `EmbedResolver`. Used by tests that exercise
     /// image-load layout behavior.
     pub fn with_embeds(lb: Lb, md: &str, embeds: Box<dyn EmbedResolver>) -> Self {
-        let mut harness = Self { editor: build_editor(lb, md, "md", embeds), pending: vec![] };
+        let mut harness =
+            Self { editor: build_editor(lb, md, "md", embeds), pending: vec![], copied: None };
         harness.enter_frame();
         harness
     }
@@ -64,8 +67,11 @@ impl TestEditor {
     /// the caller can complete fake loads via [`TestEmbeds::complete`].
     pub fn with_test_embeds(lb: Lb, md: &str) -> (Self, Arc<TestEmbeds>) {
         let embeds = Arc::new(TestEmbeds::default());
-        let mut harness =
-            Self { editor: build_editor(lb, md, "md", Box::new(embeds.clone())), pending: vec![] };
+        let mut harness = Self {
+            editor: build_editor(lb, md, "md", Box::new(embeds.clone())),
+            pending: vec![],
+            copied: None,
+        };
         harness.enter_frame();
         (harness, embeds)
     }
@@ -74,7 +80,7 @@ impl TestEditor {
     /// or other non-default construction can still drive it through the
     /// harness's `enter_frame` API.
     pub fn from_editor(editor: super::super::Editor) -> Self {
-        let mut harness = Self { editor, pending: vec![] };
+        let mut harness = Self { editor, pending: vec![], copied: None };
         harness.enter_frame();
         harness
     }
@@ -109,21 +115,30 @@ impl TestEditor {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, size);
-        let _ = ctx.run(RawInput { screen_rect: Some(screen_rect), ..Default::default() }, |ctx| {
-            ctx.set_lb_theme(Theme::default(Mode::Dark));
-            crate::register_font_system(ctx);
-            if focused {
-                self.editor.focus(ctx);
-            } else {
-                self.editor.surrender_focus(ctx);
-            }
-            for event in &pending {
-                ctx.push_markdown_event(event.clone());
-            }
-            egui::CentralPanel::default().show(ctx, |ui| {
-                self.editor.show(ui);
+        let out =
+            ctx.run(RawInput { screen_rect: Some(screen_rect), ..Default::default() }, |ctx| {
+                ctx.set_lb_theme(Theme::default(Mode::Dark));
+                crate::register_font_system(ctx);
+                if focused {
+                    self.editor.focus(ctx);
+                } else {
+                    self.editor.surrender_focus(ctx);
+                }
+                for event in &pending {
+                    ctx.push_markdown_event(event.clone());
+                }
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    self.editor.show(ui);
+                });
             });
-        });
+        self.copied = out
+            .platform_output
+            .commands
+            .into_iter()
+            .find_map(|command| match command {
+                egui::OutputCommand::CopyText(text) => Some(text),
+                _ => None,
+            });
     }
 
     pub fn get_text(&self) -> &str {

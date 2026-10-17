@@ -2,11 +2,13 @@
 //! event → operation → buffer → reparse → render pipeline via
 //! [`TestEditor`].
 
-use super::super::input::{Advance, Bound, Event, Location, Region};
-use super::doc_gen::{self, BlockFeatures, Features, ScriptFeatures, WhitespaceFeatures, gen_doc};
+use super::super::input::{Advance, Bound, Event, Increment, Location, Region};
+use super::super::table::{RowBounds, TableAction};
+use super::super::widget::toolbar::MarkdownToolbarAction as ToolbarAction;
+use super::doc_gen::{self, Features, ScriptFeatures, WhitespaceFeatures, gen_doc};
 use super::harness::TestEditor;
 use crate::test_utils::byte_source::ByteSource;
-use lb_rs::model::text::offset_types::Grapheme;
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 
 // ── runners (one per corpus) ──
 //
@@ -47,6 +49,42 @@ where
     crate::test_utils::prop::run(seeds, 64, check, |b| {
         doc_events_repro(b, |s| gen_doc(s, &Features::all()))
     });
+}
+
+/// Corpus for properties of one table: a generated table in one of
+/// [`CONTAINERS`](super::tables::CONTAINERS), between paragraphs. The check
+/// gets the document and the choices it is to make, which are drawn ahead
+/// of the table: it may use up the rest of the byte stream.
+fn run_tables<C>(check: C, seeds: u64)
+where
+    C: Fn(&str, &[usize]) -> Result<(), String>,
+{
+    use super::tables::{CONTAINERS, contain};
+    let draw = |b: &[u8]| {
+        let mut src = ByteSource::new(b);
+        let choices: Vec<usize> = (0..44).map(|_| src.draw(256)).collect();
+        let container = CONTAINERS[src.draw(CONTAINERS.len())];
+        let table = doc_gen::gen_table(&mut src, &Features::all());
+        let md = format!("before\n\n{}\n\nafter\n", contain(table.trim_end(), container));
+        (md, choices)
+    };
+    crate::test_utils::prop::run(
+        seeds,
+        300,
+        |b| {
+            let (md, choices) = draw(b);
+            let checked = std::panic::AssertUnwindSafe(|| check(&md, &choices));
+            std::panic::catch_unwind(checked).unwrap_or_else(|panic| {
+                let message = panic.downcast_ref::<String>().map(String::as_str);
+                let message = message.or(panic.downcast_ref::<&str>().copied());
+                Err(format!("panicked: {}", message.unwrap_or("with no message")))
+            })
+        },
+        |b| {
+            let (md, choices) = draw(b);
+            format!("initial buffer:\n{md:?}\nchoices {choices:?}")
+        },
+    );
 }
 
 /// Plain-ASCII `gen_doc(default())` corpus — the "general case".
@@ -127,7 +165,6 @@ fn cursor_renders() {
     let f = Features {
         scripts: ScriptFeatures::default(),
         whitespace: WhitespaceFeatures { long_token: false, id_token: false, ..all.whitespace },
-        blocks: BlockFeatures { table: false, ..all.blocks },
         ..all
     };
     run(cursor_renders_check, f, 100);
@@ -166,6 +203,40 @@ fn fold_toggle_does_not_jump_scroll() {
 fn layout_cache_consistent() {
     run_all(layout_cache_consistent_check, 1000);
 } // + embed resolver
+
+// tables
+#[test]
+fn table_ranges_survive_edits() {
+    run(table_ranges_survive_edits_check, Features::all(), 1000);
+}
+#[test]
+fn table_caret_in_cells() {
+    run(table_caret_in_cells_check, Features::all(), 1000);
+}
+#[test]
+fn table_structure_edit_conserves() {
+    run_tables(table_structure_edit_conserves_check, 1000);
+}
+#[test]
+fn table_column_insert_delete_round_trip() {
+    run_tables(table_column_insert_delete_round_trip_check, 1000);
+}
+#[test]
+fn table_row_insert_delete_round_trip() {
+    run_tables(table_row_insert_delete_round_trip_check, 1000);
+}
+#[test]
+fn table_row_move_round_trip() {
+    run_tables(table_row_move_round_trip_check, 1000);
+}
+#[test]
+fn table_tab_round_trip() {
+    run_tables(table_tab_round_trip_check, 1000);
+}
+#[test]
+fn table_survives_edits() {
+    run_tables(table_survives_edits_check, 1000);
+}
 
 // indent / structure
 #[test]
@@ -551,7 +622,8 @@ fn cursor_in_bounds_check(buf: &[u8]) -> Result<(), &'static str> {
 
 /// Sweeps `[0, last_cursor_position]` of the editor's current buffer:
 /// for each offset, jump the cursor there, re-render, and check that it
-/// has an on-screen representation (`cursor_line` Some). Returns the
+/// has an on-screen representation (`cursor_line` Some) where it is — the
+/// offset, or in a table the cell position it is taken to. Returns the
 /// first offset that doesn't, or `None`. The cursor-jump + frame is what
 /// catches reveal-gated holes (syntax that only emits fragments when the
 /// cursor sits in it).
@@ -573,10 +645,19 @@ fn cursor_visible_sweep(ws: &mut TestEditor) -> Option<String> {
             },
         });
         ws.enter_frame();
-        if ws.editor.edit.cursor_line(g).is_none() {
+        // off a table the cursor is where it was sent; on one, in a cell
+        // of that table
+        let r = &ws.editor.edit.renderer;
+        let at = r.buffer.current.selection.1;
+        let placed = match r.bounds.table_at(g) {
+            Some(table) => r.bounds.table_at(at) == Some(table) && table.cell_at(at).is_some(),
+            None => at == g,
+        };
+        if !placed || ws.editor.edit.cursor_line(at).is_none() {
             let text = ws.editor.edit.renderer.buffer.current.text.clone();
             return Some(format!(
-                "offset {i} has no on-screen representation (last={})\n  buffer ({} bytes): {:?}",
+                "the cursor sent to offset {i} is at {}, which has no on-screen representation (last={})\n  buffer ({} bytes): {:?}",
+                at.0,
                 last.0,
                 text.len(),
                 text,
@@ -915,6 +996,496 @@ fn render_stable_after_event_check(buf: &[u8]) -> Result<(), &'static str> {
     })
     .map_err(|_| "editor panicked while checking stability")?;
     violation.map(Err).unwrap_or(Ok(()))
+}
+
+/// Property: after every edit of a sequence, each table the buffer then
+/// holds satisfies the range invariant, stated at
+/// [`super::tables::table_ranges_check_md`]. Edits reach table shapes the
+/// generator does not write.
+fn table_ranges_survive_edits_check(buf: &[u8], features: &Features) -> Result<(), String> {
+    let mut violation: Option<String> = None;
+    drive_features(buf, features, |ws, src| {
+        let (cursor, len) = cursor_and_len(ws);
+        ws.push(event_with(src, cursor, len, features));
+        ws.enter_frame();
+        if violation.is_none() {
+            violation = super::tables::table_ranges_check_md(ws.get_text())
+                .err()
+                .map(|reason| format!("{reason}\nbuffer:\n{:?}", ws.get_text()));
+        }
+    })
+    .map_err(|_| "editor panicked during an edit".to_string())?;
+    violation.map(Err).unwrap_or(Ok(()))
+}
+
+/// Property: a caret on one of a table's lines is in a cell, or on the
+/// delimiter row. Checked after every event of a sequence, undo and redo
+/// aside: they restore the selection of an earlier text.
+fn table_caret_in_cells_check(buf: &[u8], features: &Features) -> Result<(), String> {
+    let mut violation: Option<String> = None;
+    drive_features(buf, features, |ws, src| {
+        let (cursor, len) = cursor_and_len(ws);
+        let event = event_with(src, cursor, len, features);
+        let undo_redo = matches!(event, Event::Undo | Event::Redo);
+        ws.push(event);
+        ws.enter_frame();
+
+        let r = &ws.editor.edit.renderer;
+        let selection = r.buffer.current.selection;
+        if violation.is_some() || undo_redo || selection.0 != selection.1 {
+            return;
+        }
+        let Some(table) = r.bounds.table_at(selection.1) else { return };
+        let delimiter_line = r.bounds.source_lines[table.first_line + 1];
+        let on_delimiter_row = delimiter_line.0 <= selection.1 && selection.1 <= delimiter_line.1;
+        if table.cell_at(selection.1).is_none() && !on_delimiter_row {
+            violation = Some(format!(
+                "caret at {:?} is on a table line, outside every cell\nbuffer:\n{:?}",
+                selection.1,
+                ws.get_text()
+            ));
+        }
+    })
+    .map_err(|_| "editor panicked during an edit".to_string())?;
+    violation.map(Err).unwrap_or(Ok(()))
+}
+
+/// An editor on `md` with the caret in a cell of one of its tables, both
+/// chosen by `choices`: the table by ordinal, and the cell's row and column.
+/// `None` if `md` has no table.
+fn in_table_cell(md: &str, choices: &[usize]) -> Option<(TestEditor, usize, usize, usize)> {
+    let mut ws = TestEditor::new(md);
+    let tables = &ws.editor.edit.renderer.bounds.tables;
+    let table = choices[0] % tables.len().max(1);
+    let rows = &tables.get(table)?.rows;
+    let row = choices[1] % rows.len();
+    let column = choices[2] % rows[row].cells.len();
+    to_table_cell(&mut ws, table, row, column);
+    Some((ws, table, row, column))
+}
+
+fn to_table_cell(ws: &mut TestEditor, table: usize, row: usize, column: usize) {
+    let cell = ws.editor.edit.renderer.bounds.tables[table].rows[row].cells[column];
+    ws.push(Event::Select { region: cell.content.start().into_range().into() });
+    ws.enter_frame();
+}
+
+fn table_event(ws: &mut TestEditor, event: Event) {
+    ws.push(event);
+    ws.enter_frame();
+}
+
+fn use_table_tool(ws: &mut TestEditor, tool: ToolbarAction) {
+    let event = ws.editor.toolbar_action(tool);
+    table_event(ws, event);
+}
+
+/// The text of each cell of a table, row by row: empty for a cell that is
+/// blank or that its row lacks. A vertical tab or form feed that leads a
+/// row is left out: it is padding once an edit gives the row its pipe.
+fn table_grid(ws: &TestEditor, table: usize) -> Vec<Vec<String>> {
+    let r = &ws.editor.edit.renderer;
+    let table = &r.bounds.tables[table];
+    let text = |row: &RowBounds, column: usize| {
+        let content = row
+            .cells
+            .get(column)
+            .map_or("", |cell| &r.buffer[cell.content]);
+        content
+            .trim_start_matches([' ', '\t', '\x0b', '\x0c'])
+            .to_string()
+    };
+    let row = |row: &RowBounds| {
+        (0..table.columns())
+            .map(|column| text(row, column))
+            .collect()
+    };
+    table.rows.iter().map(row).collect()
+}
+
+fn transposed(grid: &[Vec<String>]) -> Vec<Vec<String>> {
+    let column = |column: usize| grid.iter().map(|row| row[column].clone()).collect();
+    (0..grid.first().map_or(0, Vec::len)).map(column).collect()
+}
+
+/// Property: a tool of the table set changes no byte outside the table's
+/// lines, leaves every table's ranges sound, and does to the grid of cell
+/// texts what it says and nothing else: one row or column more, less, or
+/// moved over, or one column's alignment set. Where the toolbar shows it
+/// as unavailable, it does nothing.
+fn table_structure_edit_conserves_check(md: &str, choices: &[usize]) -> Result<(), String> {
+    use ToolbarAction::*;
+    use comrak::nodes::TableAlignment;
+    let tools = [
+        RowAbove,
+        RowBelow,
+        DeleteRow,
+        MoveRowUp,
+        MoveRowDown,
+        ColumnLeft,
+        ColumnRight,
+        DeleteColumn,
+        MoveColumnLeft,
+        MoveColumnRight,
+        AlignLeft,
+        AlignCenter,
+        AlignRight,
+    ];
+    let Some((mut ws, table, row, column)) = in_table_cell(md, choices) else { return Ok(()) };
+    let tool = tools[choices[3] % tools.len()];
+    let offered = ws.editor.table_tools().into_iter().flatten().flatten();
+    let offered = offered.clone().find(|offered| offered.action == tool);
+    let (rows, columns) = {
+        let table = &ws.editor.edit.renderer.bounds.tables[table];
+        (table.rows.len(), table.columns())
+    };
+    // moving is a drag, not a tool: available where there is somewhere to go
+    let enabled = offered.map_or(
+        match tool {
+            MoveRowUp => row > 0,
+            MoveRowDown => row > 0 && row + 1 < rows,
+            MoveColumnLeft => column > 0,
+            MoveColumnRight => column + 1 < columns,
+            _ => true,
+        },
+        |offered| offered.enabled,
+    );
+
+    let r = &ws.editor.edit.renderer;
+    let (first, end) = r.bounds.tables[table].lines();
+    let lines = &r.bounds.source_lines;
+    let (start, end) = (r.offset_to_byte(lines[first].0).0, r.offset_to_byte(lines[end - 1].1).0);
+    let (above, below) = (md[..start].to_string(), md[end..].to_string());
+    let tables = r.bounds.tables.len();
+    let alignments = r.bounds.tables[table].delimiter.alignments.clone();
+    let before = table_grid(&ws, table);
+
+    use_table_tool(&mut ws, tool);
+    let text = ws.get_text().to_string();
+    let context = format!("{tool:?} at row {row}, column {column} gave\n{text:?}");
+    if !text.starts_with(&above) || !text.ends_with(&below) {
+        return Err(format!("text outside the table changed: {context}"));
+    }
+    super::tables::table_ranges_check_md(&text).map_err(|reason| format!("{reason}: {context}"))?;
+    if !enabled {
+        return if text == md { Ok(()) } else { Err(format!("unavailable, yet: {context}")) };
+    }
+
+    // the table goes with its last column
+    let r = &ws.editor.edit.renderer;
+    if r.bounds.tables.len() < tables {
+        let last_column = tool == DeleteColumn && before[0].len() == 1;
+        return if last_column { Ok(()) } else { Err(format!("no table: {context}")) };
+    }
+    let bounds = &r.bounds.tables[table];
+    let after = table_grid(&ws, table);
+    let mut grid = before.clone();
+    let mut aligned = alignments.clone();
+    let columns = |edit: &dyn Fn(&mut Vec<Vec<String>>)| {
+        let mut columns = transposed(&before);
+        edit(&mut columns);
+        transposed(&columns)
+    };
+    match tool {
+        RowAbove | RowBelow => {
+            grid.insert(row + (tool == RowBelow) as usize, vec![String::new(); before[0].len()])
+        }
+        DeleteRow => drop(grid.remove(row)),
+        MoveRowUp => grid.swap(row, row - 1),
+        MoveRowDown => grid.swap(row, row + 1),
+        ColumnLeft | ColumnRight => {
+            let at = column + (tool == ColumnRight) as usize;
+            grid = columns(&|columns| columns.insert(at, vec![String::new(); before.len()]));
+            aligned.insert(at, TableAlignment::None);
+        }
+        DeleteColumn => {
+            grid = columns(&|columns| drop(columns.remove(column)));
+            aligned.remove(column);
+        }
+        MoveColumnLeft | MoveColumnRight => {
+            let to = if tool == MoveColumnLeft { column - 1 } else { column + 1 };
+            grid = columns(&|columns| columns.swap(column, to));
+            aligned.swap(column, to);
+        }
+        AlignLeft | AlignCenter | AlignRight => {
+            let to = match tool {
+                AlignLeft => TableAlignment::Left,
+                AlignCenter => TableAlignment::Center,
+                _ => TableAlignment::Right,
+            };
+            aligned[column] = if aligned[column] == to { TableAlignment::None } else { to };
+        }
+        _ => unreachable!("not a tool of the table set"),
+    }
+    if after != grid {
+        return Err(format!("cells {before:?} became {after:?}, not {grid:?}: {context}"));
+    }
+    if bounds.delimiter.alignments != aligned {
+        return Err(format!("alignments became {:?}: {context}", bounds.delimiter.alignments));
+    }
+    let column_edit =
+        matches!(tool, ColumnLeft | ColumnRight | DeleteColumn | MoveColumnLeft | MoveColumnRight);
+    let ragged = |row: &RowBounds| row.cells.len() != bounds.columns();
+    if column_edit && bounds.rows.iter().any(ragged) {
+        return Err(format!("ragged: {context}"));
+    }
+    Ok(())
+}
+
+/// Property: a column inserted and then deleted leaves the table's cells
+/// and alignments as they were, and done again changes nothing: the first
+/// time may pad a ragged row and give a row an outer pipe. A table whose
+/// rows are whole from the start is left as it was, byte for byte.
+fn table_column_insert_delete_round_trip_check(md: &str, choices: &[usize]) -> Result<(), String> {
+    use ToolbarAction::*;
+    let Some((mut ws, table, row, column)) = in_table_cell(md, choices) else { return Ok(()) };
+    let right = choices[3] % 2 == 1;
+    let bounds = &ws.editor.edit.renderer.bounds.tables[table];
+    let whole = |row: &RowBounds| {
+        row.cells.len() == bounds.columns() && row.leading_pipe && row.trailing_pipe
+    };
+    let whole = bounds.rows.iter().all(whole);
+    let alignments = bounds.delimiter.alignments.clone();
+    let before = table_grid(&ws, table);
+
+    // the new column is the next cell over, where Tab or Shift+Tab goes
+    let round_trip = |ws: &mut TestEditor| {
+        to_table_cell(ws, table, row, column);
+        use_table_tool(ws, if right { ColumnRight } else { ColumnLeft });
+        let widened = table_grid(ws, table);
+        use_table_tool(ws, if right { NextCell } else { PreviousCell });
+        use_table_tool(ws, DeleteColumn);
+        (widened, ws.get_text().to_string())
+    };
+    let (widened, once) = round_trip(&mut ws);
+    if widened
+        .iter()
+        .any(|cells| cells.len() != before[0].len() + 1)
+    {
+        return Err(format!("no column was added: {widened:?}"));
+    }
+    if whole && once != md {
+        return Err(format!("a whole table changed, to\n{once:?}"));
+    }
+    let bounds = &ws.editor.edit.renderer.bounds.tables[table];
+    if table_grid(&ws, table) != before || bounds.delimiter.alignments != alignments {
+        return Err(format!("cells or alignments changed, in\n{once:?}"));
+    }
+    let (_, twice) = round_trip(&mut ws);
+    if twice != once {
+        return Err(format!("not settled after one round trip:\n{once:?}\nthen\n{twice:?}"));
+    }
+    Ok(())
+}
+
+/// Property: a row inserted below and then deleted from within, or
+/// inserted above a body row and deleted, leaves the document as it was,
+/// byte for byte.
+fn table_row_insert_delete_round_trip_check(md: &str, choices: &[usize]) -> Result<(), String> {
+    use ToolbarAction::*;
+    let Some((mut ws, table, row, _)) = in_table_cell(md, choices) else { return Ok(()) };
+    let below = choices[3] % 2 == 1 || row == 0;
+    let rows = ws.editor.edit.renderer.bounds.tables[table].rows.len();
+
+    use_table_tool(&mut ws, if below { RowBelow } else { RowAbove });
+    if ws.editor.edit.renderer.bounds.tables[table].rows.len() != rows + 1 {
+        return Err(format!("no row was added, in\n{:?}", ws.get_text()));
+    }
+    // the new row is the cell below, or above, where Return goes
+    table_event(&mut ws, Event::Newline { shift: !below });
+    use_table_tool(&mut ws, DeleteRow);
+    if ws.get_text() != md {
+        return Err(format!("inserted and deleted gave\n{:?}", ws.get_text()));
+    }
+    Ok(())
+}
+
+/// Property: a body row moved down and then up, or up and then down, among
+/// the body rows leaves the document as it was, byte for byte. The caret
+/// goes with its row.
+fn table_row_move_round_trip_check(md: &str, choices: &[usize]) -> Result<(), String> {
+    use ToolbarAction::*;
+    let Some((mut ws, table, row, _)) = in_table_cell(md, choices) else { return Ok(()) };
+    let rows = ws.editor.edit.renderer.bounds.tables[table].rows.len();
+    let down = choices[3] % 2 == 1;
+    // the header stays, so a row beside it has one way to go
+    let neighbor = if down { row + 1 } else { row.wrapping_sub(1) };
+    if row == 0 || neighbor == 0 || neighbor >= rows {
+        return Ok(());
+    }
+    use_table_tool(&mut ws, if down { MoveRowDown } else { MoveRowUp });
+    let now = ws.editor.edit.renderer.table_position();
+    if now.map(|(_, row, _)| row) != Some(neighbor) {
+        return Err(format!("the caret did not go with its row, in\n{:?}", ws.get_text()));
+    }
+    use_table_tool(&mut ws, if down { MoveRowUp } else { MoveRowDown });
+    if ws.get_text() != md {
+        return Err(format!("moved there and back gave\n{:?}", ws.get_text()));
+    }
+    Ok(())
+}
+
+/// Property: Tab pressed some number of times short of the table's end,
+/// then Shift+Tab as many, selects the cell it started in. The cells keep
+/// their text: a cell a row lacked is written on the way, blank.
+fn table_tab_round_trip_check(md: &str, choices: &[usize]) -> Result<(), String> {
+    let Some((mut ws, table, row, column)) = in_table_cell(md, choices) else { return Ok(()) };
+    let bounds = &ws.editor.edit.renderer.bounds.tables[table];
+    let after = (bounds.rows.len() - row) * bounds.columns() - column - 1;
+    if after == 0 {
+        return Ok(());
+    }
+    let presses = 1 + choices[3] % after;
+    let before = table_grid(&ws, table);
+
+    for deindent in [false, true] {
+        for _ in 0..presses {
+            table_event(&mut ws, Event::Indent { deindent });
+        }
+    }
+    let r = &ws.editor.edit.renderer;
+    let cell = r.bounds.tables[table].rows[row].cells[column];
+    let selection = r.buffer.current.selection;
+    if selection != cell.content {
+        let text = ws.get_text();
+        return Err(format!("{presses} there and back selected {selection:?} of\n{text:?}"));
+    }
+    if table_grid(&ws, table) != before {
+        return Err(format!("cells changed, in\n{:?}", ws.get_text()));
+    }
+    Ok(())
+}
+
+/// One of the things done in a table, picked by two bytes, and whether it
+/// only moves the caret.
+fn table_edit(ws: &mut TestEditor, kind: usize, pick: usize) -> (Event, bool) {
+    use ToolbarAction::*;
+    let typed = ["a", " ", "|", "\\", "'", "é", "*", "`", "-", ":", "||", "x y"];
+    let tools = [
+        RowAbove,
+        RowBelow,
+        DeleteRow,
+        MoveRowUp,
+        MoveRowDown,
+        ColumnLeft,
+        ColumnRight,
+        DeleteColumn,
+        MoveColumnLeft,
+        MoveColumnRight,
+        AlignCenter,
+    ];
+    let by = |advance, backwards| Region::ToAdvance { advance, backwards, extend_selection: false };
+    let delete = |backwards| {
+        let advance = Advance::By(Increment::Char);
+        Event::Delete { region: Region::SelectionOrAdvance { advance, backwards } }
+    };
+    match kind % 24 {
+        0..=6 => {
+            let text = typed[pick % typed.len()].to_string();
+            (Event::Replace { region: Region::Selection, text, advance_cursor: true }, false)
+        }
+        7 | 8 => (delete(kind % 2 == 1), false),
+        9..=12 => {
+            let advance =
+                Advance::By(if kind < 11 { Increment::Char } else { Increment::Lines(1) });
+            (Event::Select { region: by(advance, kind % 2 == 1) }, true)
+        }
+        13 | 14 => (Event::Indent { deindent: kind == 14 }, true),
+        15 | 16 => (Event::Newline { shift: kind == 16 }, true),
+        17 | 18 => (Event::Select { region: by(Advance::To(Bound::Line), kind == 18) }, true),
+        19 => (Event::Select { region: by(Advance::Next(Bound::Word), pick % 2 == 1) }, true),
+        20 | 21 => {
+            // a point somewhere on the table as it is painted
+            let boxes = &ws.editor.edit.renderer.table_cell_boxes;
+            let painted = boxes
+                .iter()
+                .map(|cell_box| cell_box.rect)
+                .reduce(egui::Rect::union);
+            let painted = painted.unwrap_or(egui::Rect::ZERO);
+            let along = egui::Vec2::new((pick % 16) as f32 / 15.0, (pick / 16) as f32 / 15.0);
+            let pos = painted.min + painted.size() * along;
+            (Event::Select { region: Region::Location(Location::Pos(pos)) }, true)
+        }
+        22 => {
+            let grid = ["1\t2\n3\t4", "x\ty\tz", "p\n\tq"][pick % 3];
+            let pasted = ws.editor.edit.paste_event(grid.into());
+            (pasted.expect("an editor that takes a paste"), false)
+        }
+        _ => (ws.editor.toolbar_action(tools[pick % tools.len()]), false),
+    }
+}
+
+/// Property: through any run of typing, keys, clicks, pastes, and tools in
+/// a table, the table stays one table whose ranges are sound and are the
+/// ones a fresh parse gives; the caret, while on one of its lines, is in a
+/// cell — in its content after a move — and never on the delimiter row;
+/// and a tool's edit can be undone and redone.
+fn table_survives_edits_check(md: &str, choices: &[usize]) -> Result<(), String> {
+    let Some((mut ws, ..)) = in_table_cell(md, choices) else { return Ok(()) };
+    for step in choices[4..].as_chunks::<2>().0 {
+        // every edit is made from within the table
+        let r = &ws.editor.edit.renderer;
+        if r.table_position().is_none() {
+            let rows = &r.bounds.tables[0].rows;
+            let row = step[0] % rows.len();
+            let column = step[1] % rows[row].cells.len();
+            to_table_cell(&mut ws, 0, row, column);
+        }
+        let before = ws.get_text().to_string();
+        let columns = ws.editor.edit.renderer.bounds.tables[0].columns();
+        let (event, moves) = table_edit(&mut ws, step[0], step[1]);
+        let tool = matches!(event, Event::Table(_));
+        let done = format!("{event:?}");
+        // the table goes with its last column
+        let goes = columns == 1 && event == Event::Table(TableAction::DeleteColumn);
+        table_event(&mut ws, event);
+        let text = ws.get_text().to_string();
+        let context = format!("{done} on\n{before:?}\ngave\n{text:?}");
+        if goes {
+            let gone = ws.editor.edit.renderer.bounds.tables.is_empty();
+            return if gone { Ok(()) } else { Err(format!("the table stayed: {context}")) };
+        }
+
+        super::tables::table_ranges_check_md(&text)
+            .map_err(|reason| format!("{reason}: {context}"))?;
+        let r = &ws.editor.edit.renderer;
+        let mut fresh = super::render_props::test_renderer(&text);
+        fresh.reparse(&comrak::Arena::new());
+        if r.bounds.tables != fresh.bounds.tables {
+            return Err(format!("the table's ranges are stale: {context}"));
+        }
+        let [table] = &r.bounds.tables[..] else {
+            return Err(format!("{} tables: {context}", r.bounds.tables.len()));
+        };
+
+        let selection = r.buffer.current.selection;
+        let delimiter_row = r.bounds.source_lines[table.first_line + 1];
+        for end in [selection.0, selection.1] {
+            if r.bounds.table_at(end).is_none() {
+                continue;
+            }
+            let cell = table
+                .cell_at(end)
+                .map(|(row, column)| table.rows[row].cells[column]);
+            let placed = cell.is_some_and(|cell| !moves || cell.content.contains_inclusive(end));
+            if !placed || delimiter_row.contains_inclusive(end) {
+                return Err(format!("the selection {selection:?} is out of place: {context}"));
+            }
+        }
+
+        // undo may take a burst of typing just before with it; redo
+        // brings back exactly what it took
+        if tool && text != before {
+            table_event(&mut ws, Event::Undo);
+            let undone = ws.get_text() != text;
+            table_event(&mut ws, Event::Redo);
+            if !undone || ws.get_text() != text {
+                let got = ws.get_text();
+                return Err(format!("undone and redone to\n{got:?}: {context}"));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Property: after any edit sequence, the resulting buffer renders with the

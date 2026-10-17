@@ -87,11 +87,9 @@ fn render_deterministic() {
 fn resize_idempotence() {
     run(resize_idempotence_check, Features::all(), 1000);
 }
-// tier_a, not all(): the table × wide-indent reveal bug (see `tier_a`) is
-// demoted out; wide-indented lists are still covered.
 #[test]
 fn drag_never_reveals() {
-    run(drag_never_reveals_check, Features::tier_a(), 1000);
+    run(drag_never_reveals_check, Features::all(), 1000);
 }
 
 // cursor hit-testing
@@ -114,8 +112,18 @@ fn list_marker_fully_captured() {
     run(list_marker_fully_captured_check, f, 1000);
 }
 
-// glyph painting — runs on tier_b (no tables / scripts / long tokens /
-// nesting, see those defs); a failure there is a real walker bug.
+// tables
+#[test]
+fn table_ranges() {
+    run(table_ranges_check, Features::all(), 1000);
+}
+#[test]
+fn table_cells_hold_their_content() {
+    run(table_cells_hold_their_content_check, Features::all(), 1000);
+}
+
+// glyph painting — runs on tier_b (no scripts / long tokens / nesting, see
+// those defs); a failure there is a real walker bug.
 #[test]
 fn glyph_in_render_area() {
     // …plus inline math off: math isn't a supported feature, so its layout
@@ -200,6 +208,8 @@ pub(super) fn render_frame<T>(
             let height = r.height(root);
             let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
             r.fragments.clear();
+            r.table_cell_boxes.clear();
+            r.table_header_slots.clear();
             r.bounds.wrap_lines.clear();
             r.text_areas.clear();
             ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
@@ -252,8 +262,12 @@ fn content_coverage_check_md(md: &str) -> Result<(), &'static str> {
     // Render once via the editor's main show path and inspect
     // fragments to verify every text-bearing node manifests.
     let mut r = test_renderer(md);
-    let fragments: Vec<(Grapheme, Grapheme)> =
-        render_frame(&mut r, 800.0, None, |r| r.fragments.iter().map(|f| f.source_range).collect());
+    let (fragments, cell_boxes) = render_frame(&mut r, 800.0, None, |r| {
+        let fragments: Vec<_> = r.fragments.iter().map(|f| f.source_range).collect();
+        let cell_boxes = r.table_cell_boxes.iter();
+        let cell_boxes: Vec<_> = cell_boxes.map(|b| (b.row, b.column)).collect();
+        (fragments, cell_boxes)
+    });
     let arena = Arena::new();
     let root = r.reparse(&arena);
     for node in root.descendants() {
@@ -263,6 +277,17 @@ fn content_coverage_check_md(md: &str) -> Result<(), &'static str> {
         );
         if !bears_text {
             continue;
+        }
+        // A table wider than the note scrolls, and a cell it has scrolled
+        // out of view renders nothing until it is scrolled back.
+        let cell = node
+            .ancestors()
+            .find(|a| matches!(a.data.borrow().value, TableCell));
+        if let Some((cell, row)) = cell.and_then(|cell| Some((cell, cell.parent()?))) {
+            let column = row.children().take_while(|c| !c.same_node(cell)).count();
+            if !cell_boxes.contains(&(r.table_row_key(row), column)) {
+                continue;
+            }
         }
         // Folded nodes (and their descendants) intentionally render
         // nothing — `<!-- {"fold":true} -->` after a heading hides
@@ -342,6 +367,58 @@ fn list_marker_fully_captured_check(buf: &[u8], f: &Features) -> Result<(), Stri
                 &r.buffer[r.line_prefix(node, first_line)],
                 &r.buffer[gap],
             ));
+        }
+    }
+    Ok(())
+}
+
+/// Property: every table's cell ranges satisfy the range invariant, stated
+/// at [`super::tables::table_ranges_check_md`].
+fn table_ranges_check(buf: &[u8], f: &Features) -> Result<(), String> {
+    let mut src = ByteSource::new(buf);
+    let md = gen_doc(&mut src, f);
+    super::tables::table_ranges_check_md(&md).map(|_| ())
+}
+
+/// Property: nothing overflows a table cell — every fragment of a cell's
+/// text is painted inside the cell — and given room for every column's
+/// widest cell, no cell wraps.
+fn table_cells_hold_their_content_check(buf: &[u8], f: &Features) -> Result<(), String> {
+    let mut src = ByteSource::new(buf);
+    let md = gen_doc(&mut src, f);
+    let roomy = src.draw(4) == 0;
+    let width = if roomy { 20_000.0 } else { 250.0 + (src.draw(8) as f32) * 100.0 };
+
+    let mut r = test_renderer(&md);
+    render_frame(&mut r, width, None, |_| {});
+    for cell_box in &r.table_cell_boxes {
+        let Some((_, row)) = r.table_row_of(*cell_box) else {
+            return Err(format!("no row for the cell painted at {:?}", cell_box.rect));
+        };
+        let Some(cell) = row.cells.get(cell_box.column) else { continue };
+        let fragments: Vec<_> = r
+            .fragments
+            .iter()
+            .filter(|fragment| cell.span.contains_range(&fragment.source_range, true, true))
+            .collect();
+        for fragment in &fragments {
+            if !cell_box.rect.expand(0.5).contains_rect(fragment.rect) {
+                return Err(format!(
+                    "{:?} painted at {:?}, outside its cell {:?} (width {width})",
+                    &r.buffer[fragment.source_range], fragment.rect, cell_box.rect
+                ));
+            }
+        }
+        let first_row_bottom = fragments
+            .iter()
+            .map(|fragment| fragment.rect.bottom())
+            .fold(f32::INFINITY, f32::min);
+        if roomy
+            && fragments
+                .iter()
+                .any(|fragment| fragment.rect.top() >= first_row_bottom)
+        {
+            return Err(format!("{:?} wrapped with room to spare", &r.buffer[cell.span]));
         }
     }
     Ok(())

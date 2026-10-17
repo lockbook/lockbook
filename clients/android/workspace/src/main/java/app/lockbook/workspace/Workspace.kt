@@ -57,12 +57,31 @@ enum class MarkdownToolbarAction {
     Link,
     Indent,
     Outdent,
+    Table,
+    PreviousCell,
+    NextCell,
+    NextRow,
+    RowAbove,
+    RowBelow,
+    ColumnLeft,
+    ColumnRight,
+    DeleteRow,
+    DeleteColumn,
+    MoveRowUp,
+    MoveRowDown,
+    MoveColumnLeft,
+    MoveColumnRight,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
 }
 
 @Serializable
 data class MarkdownToolbarState(
     val active: Set<MarkdownToolbarAction>,
     val headingLevel: Int? = null,
+    val inTable: Boolean = false,
+    val disabled: Set<MarkdownToolbarAction> = emptySet(),
 )
 
 object Workspace {

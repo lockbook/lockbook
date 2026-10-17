@@ -65,8 +65,14 @@ impl<'ast> MdEdit {
         let mut response = buffer::Response::default();
         match event {
             Event::Select { region } => {
-                let range = self.region_to_range(region);
+                if self.select_unwritten_table_cell(region, operations) {
+                    return response;
+                }
+                let range = self
+                    .extend_table_selection(region)
+                    .unwrap_or_else(|| self.region_to_range(region));
                 let range = self.renderer.snap_selection_out_of_fold_tags(range);
+                let range = self.renderer.snap_selection_into_table_cells(range);
                 operations.push(Operation::Select(range));
             }
             Event::Replace { region, text, advance_cursor } => {
@@ -75,6 +81,9 @@ impl<'ast> MdEdit {
                     // selecting a fold chip is just selecting a fold tag, but
                     // replacing it should delete folded content
                     range = self.renderer.grow_range_over_fold_contents(range);
+                }
+                if self.replace_in_table(range, &text, advance_cursor, operations) {
+                    return response;
                 }
                 operations.push(Operation::Replace(Replace { range, text }));
                 if advance_cursor {
@@ -92,6 +101,10 @@ impl<'ast> MdEdit {
                 response.open_camera = true;
             }
             Event::Newline { shift } => {
+                if self.newline_in_table(shift, operations) {
+                    return response;
+                }
+
                 // Enter after a `···` fold chip creates the new heading / list
                 // item after the hidden contents
                 let handled = !shift && self.newline_at_fold(root, operations);
@@ -205,6 +218,10 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                if self.delete_from_caret_at_table(region, operations) {
+                    return response;
+                }
+
                 // delete container block prefix
                 let mut handled = || {
                     // must be mostly vanilla backspace
@@ -256,6 +273,9 @@ impl<'ast> MdEdit {
                     }
 
                     let range = self.renderer.grow_delete_over_fold_tags(range);
+                    if self.delete_range_in_table(range, operations) {
+                        return response;
+                    }
                     operations.push(Operation::Replace(Replace { range, text: "".into() }));
                 }
 
@@ -263,6 +283,10 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Indent { deindent } => {
+                if self.indent_in_table(deindent, operations) {
+                    return response;
+                }
+
                 let selected_lines = self
                     .renderer
                     .bounds
@@ -455,9 +479,15 @@ impl<'ast> MdEdit {
                 // selecting a fold chip is just selecting a fold tag, but
                 // copying it should copy folded content
                 let range = self.renderer.grow_range_over_fold_contents(range);
+                let (range, text) = self
+                    .renderer
+                    .table_rows_clipboard()
+                    .unwrap_or_else(|| (range, self.renderer.buffer[range].into()));
 
-                ctx.copy_text(self.renderer.buffer[range].into());
-                operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                ctx.copy_text(text);
+                if !self.cut_range_in_table(range, operations) {
+                    operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                }
             }
             Event::Copy => {
                 let range = if !current_selection.is_empty() {
@@ -466,8 +496,12 @@ impl<'ast> MdEdit {
                     self.clipboard_current_line()
                 };
                 let range = self.renderer.grow_range_over_fold_contents(range);
+                let text = match self.renderer.table_rows_clipboard() {
+                    Some((_, text)) => text,
+                    None => self.renderer.buffer[range].into(),
+                };
 
-                ctx.copy_text(self.renderer.buffer[range].into());
+                ctx.copy_text(text);
             }
             Event::ToggleDebug => {
                 self.renderer.debug = !self.renderer.debug;
@@ -531,6 +565,16 @@ impl<'ast> MdEdit {
                     self.enter_at_link(root, operations);
                 }
             }
+            Event::Table(action) => {
+                if !self.renderer.readonly && !self.renderer.plaintext {
+                    self.table_action(root, action, operations);
+                }
+            }
+            Event::PasteGrid(grid) => {
+                if !self.renderer.readonly && !self.renderer.plaintext {
+                    self.paste_grid(root, &grid, operations);
+                }
+            }
         }
 
         response
@@ -571,7 +615,7 @@ impl<'ast> MdEdit {
 
                 let mut handled = false;
                 for node in root.descendants() {
-                    if self.renderer.selected_block(node) {
+                    if self.renderer.table_styled_whole(node) {
                         handled = true;
 
                         // apply heading to ATX heading: replace existing heading
@@ -645,7 +689,8 @@ impl<'ast> MdEdit {
                         } else {
                             // remove target prefix regardless (will often be empty / supports replacements)
                             // todo: space between selected nodes?
-                            let target_node = if node.is_container_block() {
+                            let is_table = matches!(node.data.borrow().value, NodeValue::Table(_));
+                            let target_node = if node.is_container_block() && !is_table {
                                 node
                             } else {
                                 node.parent().unwrap()
@@ -1492,6 +1537,7 @@ impl NodeType for NodeValue {
             }
             NodeValue::Math(_) => NodeValue::Math(Default::default()),
             NodeValue::MultilineBlockQuote(_) => NodeValue::MultilineBlockQuote(Default::default()),
+            NodeValue::BlockDirective(_) => NodeValue::BlockDirective(Default::default()),
             NodeValue::Escaped => NodeValue::Escaped,
             NodeValue::WikiLink(_) => NodeValue::WikiLink(Default::default()),
             NodeValue::Underline => NodeValue::Underline,
@@ -1509,6 +1555,7 @@ impl NodeType for NodeValue {
                 }
                 .into(),
             ),
+            NodeValue::Insert => NodeValue::Insert,
             NodeValue::Subtext => NodeValue::Subtext,
         }
     }

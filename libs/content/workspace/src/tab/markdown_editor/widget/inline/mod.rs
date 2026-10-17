@@ -107,11 +107,15 @@ impl<'ast> MdRender {
         self.range_revealed(self.node_range(node), true)
     }
 
+    /// What reveals the syntax it touches. Nothing does while a table's
+    /// columns are measured: placing the caret does not move them.
     pub fn reveal_ranges(&self) -> impl Iterator<Item = (Grapheme, Grapheme)> + '_ {
+        let measuring = self.layout_cache.table_cell_measure.get().is_some();
         self.reveal_selection
             .into_iter()
             .chain(self.find_current_match)
             .chain(self.preview_match)
+            .filter(move |_| !measuring)
     }
 
     /// Returns true if `range` intersects any reveal range.
@@ -126,7 +130,8 @@ impl<'ast> MdRender {
     /// interior. Exception: `range` is the atom entered via `Event::EnterAtom`,
     /// whose whole-URL selection has no interior endpoint to offer.
     pub fn range_revealed_interior(&self, range: (Grapheme, Grapheme)) -> bool {
-        self.entered_atom == Some(range)
+        let measuring = self.layout_cache.table_cell_measure.get().is_some();
+        (self.entered_atom == Some(range) && !measuring)
             || self.reveal_ranges().any(|rr| {
                 range.contains(rr.start(), false, false) || range.contains(rr.end(), false, false)
             })
@@ -166,6 +171,7 @@ impl<'ast> MdRender {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             NodeValue::Alert(_)
+            | NodeValue::BlockDirective(_)
             | NodeValue::BlockQuote
             | NodeValue::DescriptionItem(_)
             | NodeValue::DescriptionList
@@ -187,6 +193,7 @@ impl<'ast> MdRender {
             | NodeValue::ThematicBreak => {
                 unimplemented!("not an inline: {:?}", node.data.borrow().value)
             }
+            NodeValue::Insert => unimplemented!("extension disabled"),
             NodeValue::Subtext => unimplemented!("extension disabled"),
 
             NodeValue::Code(_) => self.layout_code(layout, node, range),

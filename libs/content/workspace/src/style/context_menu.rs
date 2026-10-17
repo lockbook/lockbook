@@ -152,6 +152,20 @@ pub fn show_click<T: Clone>(
     show_open(resp, t, resp.clicked(), build)
 }
 
+/// A menu a click on `resp` opens and a second click puts away; a right
+/// click opens it where it is.
+pub fn show_toggle<T: Clone>(
+    resp: &Response, t: &Theme, build: impl FnOnce(&mut Entries<T>),
+) -> Option<T> {
+    let open = (resp.clicked() && !is_open(resp)) || resp.secondary_clicked();
+    show_open(resp, t, open, build)
+}
+
+/// Puts the open menu away, whoever hosts it.
+pub fn close(ctx: &egui::Context) {
+    ctx.memory_mut(|m| m.data.remove::<OpenState>(open_id()));
+}
+
 /// True when this response is the host of the open menu.
 pub fn is_open(resp: &Response) -> bool {
     is_open_id(&resp.ctx, resp.id)
@@ -159,11 +173,13 @@ pub fn is_open(resp: &Response) -> bool {
 
 /// True when `id` is the host of the open menu.
 pub fn is_open_id(ctx: &egui::Context, id: Id) -> bool {
-    ctx.memory(|m| {
-        m.data
-            .get_temp::<OpenState>(open_id())
-            .is_some_and(|s| s.host == id)
-    })
+    open_host(ctx) == Some(id)
+}
+
+/// The host of the open menu.
+pub fn open_host(ctx: &egui::Context) -> Option<Id> {
+    ctx.memory(|m| m.data.get_temp::<OpenState>(open_id()))
+        .map(|s| s.host)
 }
 
 fn show_open<T: Clone>(

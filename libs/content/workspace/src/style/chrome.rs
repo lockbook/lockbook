@@ -298,6 +298,9 @@ pub mod phosphor {
     pub const CHECK_CIRCLE: &str = "\u{e184}";
     /// Horizontal ellipsis (`ph-dots-three`).
     pub const DOTS_THREE: &str = "\u{e1fe}";
+    /// Drag grips (`ph-dots-six` / `ph-dots-six-vertical`).
+    pub const DOTS_SIX: &str = "\u{e794}";
+    pub const DOTS_SIX_VERTICAL: &str = "\u{eae2}";
     /// GFM alert / status.
     pub const INFO: &str = "\u{e2ce}";
     pub const LIGHTBULB: &str = "\u{e2dc}";
@@ -346,6 +349,17 @@ pub mod phosphor {
     pub const TEXT_SUPERSCRIPT: &str = "\u{ec9a}";
     pub const TEXT_INDENT: &str = "\u{ea1e}";
     pub const TEXT_OUTDENT: &str = "\u{ea1c}";
+    pub const TABLE: &str = "\u{e476}";
+    pub const ROWS_PLUS_TOP: &str = "\u{e5a0}";
+    pub const ROWS_PLUS_BOTTOM: &str = "\u{e59e}";
+    pub const COLUMNS_PLUS_LEFT: &str = "\u{e544}";
+    pub const COLUMNS_PLUS_RIGHT: &str = "\u{e542}";
+    pub const TEXT_ALIGN_LEFT: &str = "\u{e484}";
+    pub const TEXT_ALIGN_CENTER: &str = "\u{e480}";
+    pub const TEXT_ALIGN_RIGHT: &str = "\u{e486}";
+    /// Tab and back-tab (`ph-arrow-line-right` / `ph-arrow-line-left`).
+    pub const ARROW_LINE_RIGHT: &str = "\u{e064}";
+    pub const ARROW_LINE_LEFT: &str = "\u{e062}";
     /// Nested lines — document outline (`ph-list`).
     pub const LIST: &str = "\u{e2f0}";
     pub const LIST_BULLETS: &str = "\u{e2f2}";
@@ -367,6 +381,8 @@ pub mod phosphor {
     /// Titleband back / forward.
     pub const ARROW_LEFT: &str = "\u{e058}";
     pub const ARROW_RIGHT: &str = "\u{e06c}";
+    pub const ARROW_UP: &str = "\u{e08e}";
+    pub const ARROW_DOWN: &str = "\u{e03e}";
     pub const FOLDERS: &str = "\u{e260}";
     pub const PUSH_PIN: &str = "\u{e3e2}";
     pub const SCISSORS: &str = "\u{eae0}";

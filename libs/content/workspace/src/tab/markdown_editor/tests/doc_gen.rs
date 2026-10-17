@@ -362,20 +362,12 @@ impl Features {
         }
     }
 
-    /// [`Self::all`] minus tables: a table in a wide-indented item mis-tiles
-    /// its row prefix (drag reveals on the leaked space), so tables stay
-    /// top-tier-only until fixed. For layout invariants needing nesting.
-    pub fn tier_a() -> Self {
-        let all = Self::all();
-        Self { blocks: BlockFeatures { table: false, ..all.blocks }, ..all }
-    }
-
-    /// [`Self::tier_a`] (so also no tables) minus the by-design-fuzzy axes:
-    /// complex scripts and long unbreakable tokens (font-fallback / wrap
-    /// divergence) and container nesting (inner columns shift under reveal).
-    /// The layout-precision corpus; a failure here is a real bug.
+    /// [`Self::all`] minus the by-design-fuzzy axes: complex scripts and long
+    /// unbreakable tokens (font-fallback / wrap divergence) and container
+    /// nesting (inner columns shift under reveal). The layout-precision
+    /// corpus; a failure here is a real bug.
     pub fn tier_b() -> Self {
-        let a = Self::tier_a();
+        let a = Self::all();
         Self {
             scripts: ScriptFeatures::default(),
             whitespace: WhitespaceFeatures { long_token: false, id_token: false, ..a.whitespace },
@@ -641,6 +633,50 @@ fn gen_paragraph_f(src: &mut ByteSource, f: &Features) -> String {
     s
 }
 
+/// Pipe table with feature-aware inline contents per cell. Most tables are
+/// rectangular and padded; a minority leave cells blank, escape a pipe, run
+/// a body row short or long, or drop their outer pipes — the shapes a
+/// hand-written table has.
+pub(super) fn gen_table(src: &mut ByteSource, f: &Features) -> String {
+    let n_cols = 2 + src.bias(&[2, 1]);
+    let n_rows = 1 + src.bias(&[2, 1]);
+    let alignments = [" --- ", " :--- ", " ---: ", " :---: "];
+    let (leading, trailing) = match src.bias(&[9, 1, 1, 1]) {
+        0 => ("|", "|"),
+        1 => ("|", ""),
+        2 => ("", "|"),
+        _ => ("", ""),
+    };
+    // without both outer pipes, a blank cell at a row's edge isn't a cell
+    let blanks = !leading.is_empty() && !trailing.is_empty();
+
+    let cell = |src: &mut ByteSource| match src.bias(&[12, 1, 1, 1]) {
+        1 if blanks => "  ".to_string(),
+        2 if blanks => " ".to_string(),
+        3 => format!(" {} \\| {} ", gen_text_f(src, f), gen_text_f(src, f)),
+        _ => format!(" {} ", gen_inline_tree_f(src, f, 1)),
+    };
+    let row = |src: &mut ByteSource, n_cells: usize| {
+        let cells: Vec<String> = (0..n_cells).map(|_| cell(src)).collect();
+        format!("{leading}{}{trailing}\n", cells.join("|"))
+    };
+
+    let mut s = row(src, n_cols);
+    let delimiter: Vec<&str> = (0..n_cols)
+        .map(|_| alignments[src.bias(&[3, 1, 1, 1])])
+        .collect();
+    s.push_str(&format!("{leading}{}{trailing}\n", delimiter.join("|")));
+    for _ in 0..n_rows {
+        let n_cells = match src.bias(&[10, 1, 1]) {
+            0 => n_cols,
+            1 => 1 + src.draw(n_cols - 1),
+            _ => n_cols + 1,
+        };
+        s.push_str(&row(src, n_cells));
+    }
+    s
+}
+
 fn gen_leaf_block_f(src: &mut ByteSource, f: &Features) -> String {
     let b = &f.blocks;
     let mut weights: Vec<u32> = vec![8];
@@ -693,29 +729,7 @@ fn gen_leaf_block_f(src: &mut ByteSource, f: &Features) -> String {
         3 => gen_fenced_code(src),
         4 => gen_indented_code(src),
         5 => gen_thematic_break(src),
-        6 => {
-            // table with feature-aware inline contents per cell
-            let n_cols = 2 + src.bias(&[2, 1]);
-            let n_rows = 1 + src.bias(&[2, 1]);
-            let alignments = [" --- ", " :--- ", " ---: ", " :---: "];
-            let mut s = String::new();
-            let row = |src: &mut ByteSource, f: &Features| {
-                let cells: Vec<String> =
-                    (0..n_cols).map(|_| gen_inline_tree_f(src, f, 1)).collect();
-                format!("| {} |\n", cells.join(" | "))
-            };
-            s.push_str(&row(src, f));
-            s.push('|');
-            for _ in 0..n_cols {
-                s.push_str(alignments[src.bias(&[3, 1, 1, 1])]);
-                s.push('|');
-            }
-            s.push('\n');
-            for _ in 0..n_rows {
-                s.push_str(&row(src, f));
-            }
-            s
-        }
+        6 => gen_table(src, f),
         7 => {
             let tag = HTML_BLOCK_TAGS[src.draw(HTML_BLOCK_TAGS.len())];
             let inner = gen_inline_tree_f(src, f, 1);
