@@ -1022,7 +1022,10 @@ impl Workspace {
                     let mut ids_to_delete = vec![];
                     for slot in &self.tab_strip {
                         if let Destination::File(id) = slot.dest {
-                            if files.get_by_id(id).is_none() {
+                            // A background snapshot can predate a newly opened file.
+                            if files.get_by_id(id).is_none()
+                                && self.core.get_file_by_id(id).is_err()
+                            {
                                 ids_to_delete.push(slot.id);
                             }
                         }
