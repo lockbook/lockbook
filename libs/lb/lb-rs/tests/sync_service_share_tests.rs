@@ -759,3 +759,33 @@ async fn collaborator_moves_out_folder_holding_owners_deleted_folder() {
     owner.create_at_path("/notes.md").await.unwrap();
     owner.sync().await.unwrap();
 }
+
+/// Declining a share with an unsynced edit inside it drops the edit rather than wedging sync.
+#[tokio::test]
+async fn reject_share_with_unsynced_create_inside_it() {
+    let owner = test_core_with_account().await;
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let folder = owner.create_at_path("/folder/").await.unwrap();
+    owner
+        .share_file(folder.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+
+    recipient
+        .create_file("notes.md", &folder.id, lb_rs::model::file_metadata::FileType::Document)
+        .await
+        .unwrap();
+    recipient.reject_share(&folder.id).await.unwrap();
+
+    recipient.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    assert::all_paths(&recipient, &["/"]).await;
+    assert::all_pending_shares(&recipient, &[]).await;
+
+    owner.sync().await.unwrap();
+    assert::all_paths(&owner, &["/", "/folder/"]).await;
+}
