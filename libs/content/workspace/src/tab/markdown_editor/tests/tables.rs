@@ -7,7 +7,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use super::super::MdRender;
 use super::super::input::{Advance, Bound, Event, Increment, Location, Region};
-use super::super::table::{DelimiterBounds, RowBounds};
+use super::super::table::{DelimiterBounds, RowBounds, TableAction};
 use super::harness::TestEditor;
 use super::render_props::test_renderer;
 
@@ -1335,4 +1335,316 @@ fn cut_and_copy_take_rows_without_their_container() {
     editor.enter_frame();
     assert_eq!(editor.copied.as_deref(), Some("| aa | bb |"));
     assert_eq!(editor.get_text(), "> |  |  |\n> | - | - |\n> | ee | ff |");
+}
+
+// ─── structure ───────────────────────────────────────────────────────
+
+fn act(editor: &mut TestEditor, action: TableAction) {
+    editor.push(Event::Table(action));
+    editor.enter_frame();
+}
+
+/// What the caret is in: its cell's text, and how far into it.
+fn caret_in(editor: &TestEditor) -> Option<(String, usize)> {
+    let (row, column, into) = caret_cell(editor)?;
+    Some((cells(editor)[row][column].clone(), into))
+}
+
+#[test]
+fn structure_edits() {
+    use TableAction::*;
+    use comrak::nodes::TableAlignment::{Center, Left, None as Unaligned, Right};
+    let md = "| a | b | c |\n| - | :-: | --: |\n| d | e | f |\n| g | h | i |";
+    for (cell, action, gives) in [
+        (
+            "e",
+            InsertRow { below: true },
+            "| a | b | c |\n| - | :-: | --: |\n| d | e | f |\n|  |  |  |\n| g | h | i |",
+        ),
+        (
+            "e",
+            InsertRow { below: false },
+            "| a | b | c |\n| - | :-: | --: |\n|  |  |  |\n| d | e | f |\n| g | h | i |",
+        ),
+        (
+            "h",
+            InsertRow { below: true },
+            "| a | b | c |\n| - | :-: | --: |\n| d | e | f |\n| g | h | i |\n|  |  |  |",
+        ),
+        (
+            "b",
+            InsertRow { below: true },
+            "| a | b | c |\n| - | :-: | --: |\n|  |  |  |\n| d | e | f |\n| g | h | i |",
+        ),
+        // a row above the header is a new header
+        (
+            "b",
+            InsertRow { below: false },
+            "|  |  |  |\n| - | :-: | --: |\n| a | b | c |\n| d | e | f |\n| g | h | i |",
+        ),
+        ("e", DeleteRow, "| a | b | c |\n| - | :-: | --: |\n| g | h | i |"),
+        ("h", DeleteRow, "| a | b | c |\n| - | :-: | --: |\n| d | e | f |"),
+        ("b", DeleteRow, md),
+        (
+            "e",
+            MoveRow { down: true },
+            "| a | b | c |\n| - | :-: | --: |\n| g | h | i |\n| d | e | f |",
+        ),
+        (
+            "h",
+            MoveRow { down: false },
+            "| a | b | c |\n| - | :-: | --: |\n| g | h | i |\n| d | e | f |",
+        ),
+        ("h", MoveRow { down: true }, md),
+        // a row moved above the header trades cells with it; the header does not move down
+        (
+            "e",
+            MoveRow { down: false },
+            "| d | e | f |\n| - | :-: | --: |\n| a | b | c |\n| g | h | i |",
+        ),
+        ("b", MoveRow { down: true }, md),
+        ("b", MoveRow { down: false }, md),
+        (
+            "e",
+            InsertColumn { right: true },
+            "| a | b |  | c |\n| - | :-: | --- | --: |\n| d | e |  | f |\n| g | h |  | i |",
+        ),
+        (
+            "e",
+            InsertColumn { right: false },
+            "| a |  | b | c |\n| - | --- | :-: | --: |\n| d |  | e | f |\n| g |  | h | i |",
+        ),
+        (
+            "d",
+            InsertColumn { right: false },
+            "|  | a | b | c |\n| --- | - | :-: | --: |\n|  | d | e | f |\n|  | g | h | i |",
+        ),
+        (
+            "f",
+            InsertColumn { right: true },
+            "| a | b | c |  |\n| - | :-: | --: | --- |\n| d | e | f |  |\n| g | h | i |  |",
+        ),
+        ("e", DeleteColumn, "| a | c |\n| - | --: |\n| d | f |\n| g | i |"),
+        ("d", DeleteColumn, "| b | c |\n| :-: | --: |\n| e | f |\n| h | i |"),
+        ("f", DeleteColumn, "| a | b |\n| - | :-: |\n| d | e |\n| g | h |"),
+        (
+            "e",
+            MoveColumn { right: true },
+            "| a | c | b |\n| - | --: | :-: |\n| d | f | e |\n| g | i | h |",
+        ),
+        (
+            "e",
+            MoveColumn { right: false },
+            "| b | a | c |\n| :-: | - | --: |\n| e | d | f |\n| h | g | i |",
+        ),
+        ("d", MoveColumn { right: false }, md),
+        ("f", MoveColumn { right: true }, md),
+        (
+            "d",
+            MoveColumnTo { from: 0, to: 2 },
+            "| b | c | a |\n| :-: | --: | - |\n| e | f | d |\n| h | i | g |",
+        ),
+        (
+            "d",
+            MoveColumnTo { from: 2, to: 0 },
+            "| c | a | b |\n| --: | - | :-: |\n| f | d | e |\n| i | g | h |",
+        ),
+        (
+            "d",
+            MoveRowTo { from: 2, to: 1 },
+            "| a | b | c |\n| - | :-: | --: |\n| g | h | i |\n| d | e | f |",
+        ),
+        ("d", Align(Left), "| a | b | c |\n| :- | :-: | --: |\n| d | e | f |\n| g | h | i |"),
+        ("e", Align(Right), "| a | b | c |\n| - | --: | --: |\n| d | e | f |\n| g | h | i |"),
+        ("f", Align(Center), "| a | b | c |\n| - | :-: | :-: |\n| d | e | f |\n| g | h | i |"),
+        ("e", Align(Unaligned), "| a | b | c |\n| - | --- | --: |\n| d | e | f |\n| g | h | i |"),
+    ] {
+        let mut editor = TestEditor::new(md);
+        caret_at(&mut editor, md.find(cell).unwrap() + 1);
+        act(&mut editor, action);
+        assert_eq!(editor.get_text(), gives, "{action:?} at {cell:?}");
+        table_ranges_check_md(editor.get_text()).unwrap();
+        // the caret is where it was in its cell, if the cell is still there
+        let gone = matches!(action, DeleteRow | DeleteColumn) && editor.get_text() != md;
+        if !gone {
+            assert_eq!(caret_in(&editor), Some((cell.to_string(), 1)), "{action:?} at {cell:?}");
+        }
+        // one undo unit
+        editor.push(Event::Undo);
+        editor.enter_frame();
+        assert_eq!(editor.get_text(), md, "undoing {action:?} at {cell:?}");
+    }
+}
+
+#[test]
+fn deleting_the_last_column_deletes_the_table() {
+    let md = "above\n\n| a |\n| - |\n| b |\n\nbelow";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, md.find("b |").unwrap());
+    act(&mut editor, TableAction::DeleteColumn);
+    assert_eq!(editor.get_text(), "above\n\n\n\nbelow");
+}
+
+#[test]
+fn structure_edits_round_trip() {
+    use TableAction::*;
+    enum Step {
+        Edit(TableAction),
+        Arrow(Region),
+        Tab { shift: bool },
+    }
+    use Step::*;
+    // an edit, then its inverse: the bytes come back. A new row or column is
+    // deleted from within it.
+    let round_trips = [
+        vec![Edit(InsertRow { below: true }), Arrow(DOWN), Edit(DeleteRow)],
+        vec![Edit(InsertRow { below: false }), Arrow(UP), Edit(DeleteRow)],
+        vec![Edit(InsertColumn { right: true }), Tab { shift: false }, Edit(DeleteColumn)],
+        vec![Edit(InsertColumn { right: false }), Tab { shift: true }, Edit(DeleteColumn)],
+        vec![Edit(MoveRow { down: true }), Edit(MoveRow { down: false })],
+        vec![Edit(MoveRow { down: false }), Edit(MoveRow { down: true })],
+        vec![Edit(MoveColumn { right: true }), Edit(MoveColumn { right: false })],
+        vec![Edit(MoveColumn { right: false }), Edit(MoveColumn { right: true })],
+    ];
+    let tables = [
+        "| a | b | c |\n| - | - | - |\n| d | e | f |\n| g | h | i |",
+        "|a|b|c|\n|-|-|-|\n|d|e|f|\n|g|h|i|",
+        "> |  a  | b |   c |\n> |:--|--:|:-:|\n> | d | \\| | `f` |\n> | **g** |  | i |",
+        "- | a | b | c |\n  | - | - | - |\n  | d | e | f |\n  | g | h | i |",
+    ];
+    for md in tables {
+        for (i, steps) in round_trips.iter().enumerate() {
+            for cell in 0..9 {
+                // the header neither moves nor is deleted: no inverse there
+                let on_header =
+                    cell < 3 || (cell < 6 && matches!(steps[0], Edit(MoveRow { down: false })));
+                if on_header
+                    && matches!(steps[0], Edit(MoveRow { .. } | InsertRow { below: false }))
+                {
+                    continue;
+                }
+                let mut editor = TestEditor::new(md);
+                let content = editor.editor.edit.renderer.bounds.tables[0].rows[cell / 3].cells
+                    [cell % 3]
+                    .content;
+                caret_at(&mut editor, content.0.0);
+                for step in steps {
+                    match step {
+                        Edit(action) => act(&mut editor, *action),
+                        Arrow(region) => drop(press(&mut editor, *region)),
+                        Tab { shift } => tab(&mut editor, *shift),
+                    }
+                    // at the table's edge a move is no edit, and has no inverse
+                    if editor.get_text() == md {
+                        break;
+                    }
+                }
+                assert_eq!(editor.get_text(), md, "round trip {i} from cell {cell}");
+            }
+        }
+    }
+}
+
+#[test]
+fn structure_edits_leave_the_rest_alone() {
+    use TableAction::*;
+    // ragged rows, missing pipes, and containers: whatever the edit, the table is
+    // then rectangular, every other cell reads as it did, and nothing around it moved
+    let tables = [
+        "| a | b | c |\n| - | - | - |\n| d |\n| g | h | i | extra |",
+        "a | b | c\n--|--|--\nd | e\ng | h | i",
+        "|a|b|c|\n|-|-|-|\n||e|\n|g|h|i|",
+        "> | a | b | c |\n> | - | - | - |\n> | d | e\n> | 'g' | \\| | `i` |",
+    ];
+    let actions = [
+        InsertRow { below: true },
+        InsertRow { below: false },
+        DeleteRow,
+        MoveRow { down: true },
+        MoveRow { down: false },
+        InsertColumn { right: true },
+        InsertColumn { right: false },
+        DeleteColumn,
+        MoveColumn { right: true },
+        MoveColumn { right: false },
+        MoveColumnTo { from: 0, to: 2 },
+        MoveColumnTo { from: 2, to: 0 },
+        MoveRowTo { from: 1, to: 2 },
+        MoveRowTo { from: 2, to: 1 },
+    ];
+    let sorted = |mut texts: Vec<String>| {
+        texts.retain(|text| !text.is_empty());
+        texts.sort();
+        texts
+    };
+    for table in tables {
+        let md = format!("above\n\n{table}\n\nbelow");
+        for action in actions {
+            let mut starts: Vec<usize> = Vec::new();
+            {
+                let editor = TestEditor::new(&md);
+                let rows = &editor.editor.edit.renderer.bounds.tables[0].rows;
+                starts.extend(
+                    rows.iter()
+                        .flat_map(|row| row.cells.iter().map(|c| c.content.0.0)),
+                );
+            }
+            for start in starts {
+                let mut editor = TestEditor::new(&md);
+                caret_at(&mut editor, start);
+                let before = cells(&editor);
+                act(&mut editor, action);
+                let text = editor.get_text().to_string();
+                let context = format!("{action:?} at {start} of\n{md}\ngave\n{text}");
+                assert!(text.starts_with("above\n\n") && text.ends_with("\n\nbelow"), "{context}");
+                table_ranges_check_md(&text).unwrap_or_else(|reason| panic!("{reason}\n{context}"));
+
+                let after = cells(&editor);
+                let column_edit = matches!(
+                    action,
+                    InsertColumn { .. } | DeleteColumn | MoveColumn { .. } | MoveColumnTo { .. }
+                );
+                if column_edit && text != md {
+                    let width = after[0].len();
+                    assert!(after.iter().all(|row| row.len() == width), "ragged: {context}");
+                }
+                // cells keep their text: all of them, less a deleted row or column's
+                let (before, after) = (sorted(before.concat()), sorted(after.concat()));
+                if matches!(action, DeleteRow | DeleteColumn) {
+                    assert!(after.iter().all(|text| before.contains(text)), "{context}");
+                } else {
+                    assert_eq!(after, before, "{context}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn insert_table() {
+    for (md, at, gives, lands) in [
+        ("", 0, "|  |  |  |\n| --- | --- | --- |\n|  |  |  |", 2),
+        // after a line of text, with a blank line between
+        ("text", 2, "text\n\n|  |  |  |\n| --- | --- | --- |\n|  |  |  |", 8),
+        // on a blank line under text, on the line after
+        ("text\n", 5, "text\n\n|  |  |  |\n| --- | --- | --- |\n|  |  |  |", 8),
+        ("text\n\n", 6, "text\n\n|  |  |  |\n| --- | --- | --- |\n|  |  |  |", 8),
+        // and a blank line before what follows
+        ("text\nmore", 2, "text\n\n|  |  |  |\n| --- | --- | --- |\n|  |  |  |\n\nmore", 8),
+        ("\nmore", 0, "|  |  |  |\n| --- | --- | --- |\n|  |  |  |\n\nmore", 2),
+        // inside a container
+        ("> text", 4, "> text\n> \n> |  |  |  |\n> | --- | --- | --- |\n> |  |  |  |", 14),
+        ("- text", 4, "- text\n  \n  |  |  |  |\n  | --- | --- | --- |\n  |  |  |  |", 14),
+    ] {
+        let mut editor = TestEditor::new(md);
+        caret_at(&mut editor, at);
+        act(&mut editor, TableAction::Insert);
+        assert_eq!(editor.get_text(), gives, "inserting a table at {at} of {md:?}");
+        assert_eq!(caret(&editor), lands, "inserting a table at {at} of {md:?}");
+        assert_eq!(table_ranges_check_md(editor.get_text()), Ok(1));
+        assert_eq!(caret_cell(&editor), Some((0, 0, 0)));
+        editor.push(Event::Undo);
+        editor.enter_frame();
+        assert_eq!(editor.get_text(), md);
+    }
 }

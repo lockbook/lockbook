@@ -565,6 +565,11 @@ impl<'ast> MdEdit {
                     self.enter_at_link(root, operations);
                 }
             }
+            Event::Table(action) => {
+                if !self.renderer.readonly && !self.renderer.plaintext {
+                    self.table_action(root, action, operations);
+                }
+            }
         }
 
         response

@@ -13,14 +13,14 @@ use crate::tab::markdown_editor::input::{Advance, Region};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 
 /// Everything between a cell's pipes, made to parse as that one cell.
-struct CellText {
-    text: String,
+pub(super) struct CellText {
+    pub text: String,
     /// Byte index into `text` of the caret.
-    caret: usize,
+    pub caret: usize,
     /// The row lacks this cell's opening pipe, and the cell needs it.
-    opening_pipe: bool,
+    pub opening_pipe: bool,
     /// The row lacks this cell's closing pipe, and the cell needs it.
-    closing_pipe: bool,
+    pub closing_pipe: bool,
 }
 
 /// Makes `text` safe as a cell's whole span, keeping `caret` (a byte index
@@ -35,7 +35,7 @@ struct CellText {
 /// keeps a space, or a row would read `||`; at a row's end without a pipe a
 /// blank cell would not be a cell at all, and a first cell without one could
 /// start another block.
-fn cell_text(text: &str, caret: usize, opened: bool, closed: bool) -> CellText {
+pub(super) fn cell_text(text: &str, caret: usize, opened: bool, closed: bool) -> CellText {
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     let mut out = String::with_capacity(text.len() + 4);
     let mut new_caret = None;
@@ -141,8 +141,17 @@ impl MdRender {
             text.push('|');
         }
 
+        self.rewrite(cell.span, &text, Some(caret), operations);
+    }
+
+    /// The replacement that makes `range` read `text` — the smallest that
+    /// does — with the caret, if any, left at byte `caret` of `text`.
+    pub(super) fn rewrite(
+        &self, range: (Grapheme, Grapheme), text: &str, caret: Option<usize>,
+        operations: &mut Vec<Operation>,
+    ) {
         // trim what the old and new text share, a grapheme at a time
-        let old: Vec<&str> = self.buffer[cell.span].graphemes(true).collect();
+        let old: Vec<&str> = self.buffer[range].graphemes(true).collect();
         let new: Vec<(usize, &str)> = text.grapheme_indices(true).collect();
         let shared = |pairs: &mut dyn Iterator<Item = (&str, &str)>| {
             pairs.take_while(|(old, new)| old == new).count()
@@ -157,22 +166,28 @@ impl MdRender {
         );
         let byte_at = |grapheme: usize| new.get(grapheme).map_or(text.len(), |g| g.0);
         let (changed_start, changed_end) = (byte_at(prefix), byte_at(new.len() - suffix));
-        let range = (cell.span.start() + prefix, cell.span.end() - suffix);
+        let changed = (range.start() + prefix, range.end() - suffix);
 
+        let Some(caret) = caret else {
+            if !changed.is_empty() || changed_start < changed_end {
+                operations.push(replace(changed, &text[changed_start..changed_end]));
+            }
+            return;
+        };
         if caret < changed_start {
             let before = text[..caret].graphemes(true).count();
-            operations.push(Operation::Select((cell.span.start() + before).into_range()));
-            operations.push(replace(range, &text[changed_start..changed_end]));
+            operations.push(Operation::Select((range.start() + before).into_range()));
+            operations.push(replace(changed, &text[changed_start..changed_end]));
         } else if caret > changed_end {
             let after = text[caret..].graphemes(true).count();
-            operations.push(replace(range, &text[changed_start..changed_end]));
-            operations.push(Operation::Select((cell.span.end() - after).into_range()));
+            operations.push(replace(changed, &text[changed_start..changed_end]));
+            operations.push(Operation::Select((range.end() - after).into_range()));
         } else {
             // the caret sits inside the replacement: write up to it, place
             // it, then write the rest behind it
-            operations.push(replace(range, &text[changed_start..caret]));
-            operations.push(Operation::Select(range.end().into_range()));
-            operations.push(replace(range.end().into_range(), &text[caret..changed_end]));
+            operations.push(replace(changed, &text[changed_start..caret]));
+            operations.push(Operation::Select(changed.end().into_range()));
+            operations.push(replace(changed.end().into_range(), &text[caret..changed_end]));
         }
     }
 
@@ -315,7 +330,6 @@ impl MdRender {
     fn apply_table_cuts(
         &self, cuts: Vec<Cut>, text: &str, select: bool, operations: &mut Vec<Operation>,
     ) {
-        let lines = &self.bounds.source_lines;
         for (i, cut) in cuts.into_iter().enumerate() {
             let text = if i == 0 { text } else { "" };
             let mut ops = Vec::new();
@@ -343,12 +357,7 @@ impl MdRender {
                     self.rewrite_cell(&row, column, &text, caret, &mut ops);
                 }
                 Cut::Lines(first, last) => {
-                    // with the line break after them, or at the document's
-                    // end the one before
-                    let range = match lines.get(last + 1) {
-                        Some(next) => (lines[first].start(), next.start()),
-                        None => (lines[first - 1].end(), lines[last].end()),
-                    };
+                    let range = self.whole_lines(first, last);
                     ops.push(replace(range, ""));
                     ops.push(Operation::Select(range.start().into_range()));
                 }
@@ -362,7 +371,7 @@ impl MdRender {
     }
 }
 
-fn replace(range: (Grapheme, Grapheme), text: &str) -> Operation {
+pub(super) fn replace(range: (Grapheme, Grapheme), text: &str) -> Operation {
     Operation::Replace(Replace { range, text: text.into() })
 }
 
@@ -476,7 +485,7 @@ impl MdEdit {
 impl MdRender {
     /// The table, row, and column the selection's end is in. `None` off a
     /// table, and on a delimiter row, which shows as source.
-    fn table_position(&self) -> Option<(&TableBounds, usize, usize)> {
+    pub fn table_position(&self) -> Option<(&TableBounds, usize, usize)> {
         let offset = self.buffer.current.selection.1;
         let table = self.bounds.table_at(offset)?;
         let line = self
@@ -505,7 +514,7 @@ impl MdRender {
 
     /// What a new line of `table` starts with: its container's prefix, as
     /// the delimiter row's line has it.
-    fn table_line_prefix(&self, table: &TableBounds) -> &str {
+    pub(super) fn table_line_prefix(&self, table: &TableBounds) -> &str {
         let line = self.bounds.source_lines[table.first_line + 1];
         &self.buffer[(line.start(), table.delimiter.line.start())]
     }

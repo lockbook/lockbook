@@ -17,6 +17,9 @@ use lb_rs::model::text::offset_types::{Byte, Grapheme, IntoRangeExt as _, RangeE
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
 mod edit;
+mod structure;
+
+pub use structure::TableAction;
 
 use super::bounds::{Bounds, RangesExt as _};
 use super::input::{Advance, Increment, Location, Region};
