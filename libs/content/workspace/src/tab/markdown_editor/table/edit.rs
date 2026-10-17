@@ -388,8 +388,16 @@ impl MdEdit {
     pub fn delete_range_in_table(
         &self, range: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
     ) -> bool {
+        let range = self.renderer.table_edit_range(range);
+        self.cut_range_in_table(range, operations)
+    }
+
+    /// [`Self::delete_range_in_table`] of a range that is the selection, or
+    /// the caret's row: taken as it is.
+    pub fn cut_range_in_table(
+        &self, range: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
+    ) -> bool {
         let r = &self.renderer;
-        let range = r.table_edit_range(range);
         let Some(cuts) = r.table_cuts(range, true) else { return false };
         r.apply_table_cuts(cuts, "", true, operations);
         true
@@ -460,5 +468,162 @@ impl MdEdit {
         } else {
             caret + 1
         }
+    }
+}
+
+// ─── keys ────────────────────────────────────────────────────────────
+
+impl MdRender {
+    /// The table, row, and column the selection's end is in. `None` off a
+    /// table, and on a delimiter row, which shows as source.
+    fn table_position(&self) -> Option<(&TableBounds, usize, usize)> {
+        let offset = self.buffer.current.selection.1;
+        let table = self.bounds.table_at(offset)?;
+        let line = self
+            .bounds
+            .source_lines
+            .find_containing(offset, true, true)
+            .0;
+        if line == table.first_line + 1 {
+            return None;
+        }
+        let row = table.row_on_line(line);
+        Some((table, row, table.rows[row].cell_near(offset)))
+    }
+
+    /// Moves to a cell and selects its content, writing the cell first if
+    /// its row is short of it.
+    fn enter_table_cell(
+        &self, table: &TableBounds, row: usize, column: usize, operations: &mut Vec<Operation>,
+    ) {
+        let row = &table.rows[row];
+        match row.cells.get(column) {
+            Some(cell) => operations.push(Operation::Select(cell.content)),
+            None => self.write_table_cells(row, column, operations),
+        }
+    }
+
+    /// What a new line of `table` starts with: its container's prefix, as
+    /// the delimiter row's line has it.
+    fn table_line_prefix(&self, table: &TableBounds) -> &str {
+        let line = self.bounds.source_lines[table.first_line + 1];
+        &self.buffer[(line.start(), table.delimiter.line.start())]
+    }
+
+    /// Adds a blank row at the table's end, with the caret in `column`.
+    fn append_table_row(
+        &self, table: &TableBounds, column: usize, operations: &mut Vec<Operation>,
+    ) {
+        let prefix = self.table_line_prefix(table);
+        let at = self.bounds.source_lines[table.lines().1 - 1]
+            .end()
+            .into_range();
+        let before = format!("\n{prefix}|{} ", "  |".repeat(column));
+        let after = format!(" |{}", "  |".repeat(table.columns() - column - 1));
+        operations.push(replace(at, &before));
+        operations.push(Operation::Select(at));
+        operations.push(replace(at, &after));
+    }
+
+    /// Takes a blank last row away and puts the caret below the table,
+    /// past a blank line: text on the line after a table would be a row.
+    fn leave_table(&self, table: &TableBounds, row: &RowBounds, operations: &mut Vec<Operation>) {
+        let lines = &self.bounds.source_lines;
+        let prefix = self.table_line_prefix(table);
+        // a line is blank if it holds nothing but the container's prefix
+        let below = lines
+            .get(table.lines().1)
+            .filter(|below| self.buffer[**below].trim() == prefix.trim());
+        match below {
+            Some(below) => {
+                operations.push(replace(row.line, ""));
+                operations.push(Operation::Select(below.end().into_range()));
+            }
+            None => {
+                operations.push(replace(row.line, &format!("\n{prefix}")));
+                operations.push(Operation::Select(row.line.start().into_range()));
+            }
+        }
+    }
+
+    /// What cut and copy take when they take whole rows, and its text: the
+    /// rows' lines without their container's prefix, so that with the
+    /// header among them they paste as a table. With no selection, the
+    /// caret's row. `None` if the selection isn't whole rows of one table.
+    pub fn table_rows_clipboard(&self) -> Option<((Grapheme, Grapheme), String)> {
+        let selection = self.buffer.current.selection;
+        let (table, rows) = match self.table_selection(selection) {
+            Some(TableSelection::Rows { table, rows }) => (table, rows),
+            _ if selection.is_empty() => {
+                let (table, row, _) = self.table_position()?;
+                (table, (row, row))
+            }
+            _ => return None,
+        };
+        let mut lines = Vec::new();
+        for (i, row) in table.rows.iter().enumerate().take(rows.1 + 1).skip(rows.0) {
+            lines.push(&self.buffer[row.line]);
+            if i == 0 && rows.1 > 0 {
+                lines.push(&self.buffer[table.delimiter.line]);
+            }
+        }
+        let range = (table.rows[rows.0].line.start(), table.rows[rows.1].line.end());
+        Some((range, lines.join("\n")))
+    }
+}
+
+impl MdEdit {
+    /// Tab in a table moves to the next cell, or with shift the previous,
+    /// wrapping across rows, and selects its content. From the last cell it
+    /// adds a row. False off a table.
+    pub fn indent_in_table(&self, deindent: bool, operations: &mut Vec<Operation>) -> bool {
+        let r = &self.renderer;
+        let Some((table, row, column)) = r.table_position() else { return false };
+        let last_column = table.columns() - 1;
+        if deindent {
+            let (row, column) = match (row, column) {
+                (row, 0) => (row.saturating_sub(1), if row == 0 { 0 } else { last_column }),
+                (row, column) => (row, column - 1),
+            };
+            r.enter_table_cell(table, row, column, operations);
+        } else if column < last_column {
+            r.enter_table_cell(table, row, column + 1, operations);
+        } else if row + 1 < table.rows.len() {
+            r.enter_table_cell(table, row + 1, 0, operations);
+        } else {
+            r.append_table_row(table, 0, operations);
+        }
+        true
+    }
+
+    /// Return in a table moves to the cell below, or with shift the cell
+    /// above, and selects its content. From the last row it adds a row —
+    /// unless that row is blank, when it takes the row away and leaves the
+    /// table, as Return on an empty list item ends a list. From the
+    /// delimiter row of a table typed by hand it starts the first row.
+    /// False off a table.
+    pub fn newline_in_table(&self, shift: bool, operations: &mut Vec<Operation>) -> bool {
+        let r = &self.renderer;
+        let Some((table, row, column)) = r.table_position() else {
+            let offset = r.buffer.current.selection.1;
+            let Some(table) = r.bounds.table_at(offset).filter(|_| !shift) else { return false };
+            if table.rows.len() > 1 {
+                r.enter_table_cell(table, 1, 0, operations);
+            } else {
+                r.append_table_row(table, 0, operations);
+            }
+            return true;
+        };
+        let blank = |row: &RowBounds| row.cells.iter().all(|cell| cell.content.is_empty());
+        if shift {
+            r.enter_table_cell(table, row.saturating_sub(1), column, operations);
+        } else if row + 1 < table.rows.len() {
+            r.enter_table_cell(table, row + 1, column, operations);
+        } else if row > 0 && blank(&table.rows[row]) {
+            r.leave_table(table, &table.rows[row], operations);
+        } else {
+            r.append_table_row(table, column, operations);
+        }
+        true
     }
 }
