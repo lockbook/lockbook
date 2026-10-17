@@ -1490,15 +1490,15 @@ fn structure_edits_round_trip() {
     use TableAction::*;
     enum Step {
         Edit(TableAction),
-        Arrow(Region),
+        Return { shift: bool },
         Tab { shift: bool },
     }
     use Step::*;
     // an edit, then its inverse: the bytes come back. A new row or column is
     // deleted from within it.
     let round_trips = [
-        vec![Edit(InsertRow { below: true }), Arrow(DOWN), Edit(DeleteRow)],
-        vec![Edit(InsertRow { below: false }), Arrow(UP), Edit(DeleteRow)],
+        vec![Edit(InsertRow { below: true }), Return { shift: false }, Edit(DeleteRow)],
+        vec![Edit(InsertRow { below: false }), Return { shift: true }, Edit(DeleteRow)],
         vec![Edit(InsertColumn { right: true }), Tab { shift: false }, Edit(DeleteColumn)],
         vec![Edit(InsertColumn { right: false }), Tab { shift: true }, Edit(DeleteColumn)],
         vec![Edit(MoveRow { down: true }), Edit(MoveRow { down: false })],
@@ -1528,14 +1528,16 @@ fn structure_edits_round_trip() {
                     [cell % 3]
                     .content;
                 caret_at(&mut editor, content.0.0);
-                for step in steps {
+                for (n, step) in steps.iter().enumerate() {
                     match step {
                         Edit(action) => act(&mut editor, *action),
-                        Arrow(region) => drop(press(&mut editor, *region)),
+                        Return { shift } => enter(&mut editor, *shift),
                         Tab { shift } => tab(&mut editor, *shift),
                     }
                     // at the table's edge a move is no edit, and has no inverse
-                    if editor.get_text() == md {
+                    if n == 0 && editor.get_text() == md {
+                        let moves = matches!(step, Edit(MoveRow { .. } | MoveColumn { .. }));
+                        assert!(moves, "round trip {i} from cell {cell}: a step did nothing");
                         break;
                     }
                 }
@@ -1647,4 +1649,158 @@ fn insert_table() {
         editor.enter_frame();
         assert_eq!(editor.get_text(), md);
     }
+}
+
+// ─── layout ──────────────────────────────────────────────────────────
+
+/// The rect of each cell of the document's first table, row by row.
+fn cell_rects(editor: &TestEditor) -> Vec<Vec<egui::Rect>> {
+    let r = &editor.editor.edit.renderer;
+    let table = &r.bounds.tables[0];
+    table
+        .rows
+        .iter()
+        .map(|row| {
+            let mut boxes: Vec<_> = r
+                .table_cell_boxes
+                .iter()
+                .filter(|cell_box| cell_box.row == row.line.start())
+                .collect();
+            boxes.sort_by_key(|cell_box| cell_box.column);
+            boxes.iter().map(|cell_box| cell_box.rect).collect()
+        })
+        .collect()
+}
+
+/// The rects of what is painted for the text `needle`.
+fn rects_of(editor: &TestEditor, needle: &str) -> Vec<egui::Rect> {
+    let start = editor.get_text().find(needle).unwrap();
+    let range = (Grapheme(start), Grapheme(start + needle.chars().count()));
+    editor.editor.edit.renderer.range_rects(range)
+}
+
+#[test]
+fn columns_fit_their_content() {
+    let md = "| a | a much longer cell |\n| - | - |\n| bb | c |";
+    let editor = TestEditor::new(md);
+    let rects = cell_rects(&editor);
+    // a column is as wide in every row, and the wider cell's is the wider
+    assert_eq!(rects[0][0].x_range(), rects[1][0].x_range());
+    assert_eq!(rects[0][1].x_range(), rects[1][1].x_range());
+    assert!(rects[0][1].width() > 2.0 * rects[0][0].width());
+    // snug: each column holds its widest cell on one row, without room for two
+    for (text, column) in [("bb", 0), ("a much longer cell", 1)] {
+        let text = rects_of(&editor, text);
+        assert_eq!(text.len(), 1, "{text:?} wrapped");
+        let spare = rects[0][column].width() - text[0].width();
+        assert!((0.0..2.0 * text[0].width()).contains(&spare), "{spare} to spare around {text:?}");
+    }
+    // so the table is narrower than the note
+    assert!(rects[0][1].right() < 400.0);
+}
+
+#[test]
+fn cells_wrap_before_the_table_outgrows_the_note() {
+    let long = "word ".repeat(60);
+    let md = format!("| a | {long}|\n| - | - |\n| b | c |");
+    let editor = TestEditor::new(&md);
+    let rects = cell_rects(&editor);
+    let note = editor.editor.edit.renderer.width;
+    let table = rects[0][0].left()..=rects[0][1].right();
+    assert!(table.end() - table.start() <= note + 0.5, "table wider than the note's {note}");
+    assert!(table.end() - table.start() > note - 1.0, "table narrower than it need be");
+    // the long cell wrapped; the short column kept its text on a row
+    assert!(rects[0][0].height() > 3.0 * rects[1][0].height());
+    assert_eq!(rects_of(&editor, "b |").len(), 1);
+}
+
+#[test]
+fn nothing_overflows_a_cell_too_narrow_for_its_words() {
+    let wide = "unbreakable".repeat(8);
+    let md = format!("| {wide} | {wide} | {wide} |\n| - | - | - |\n| a | b | c |");
+    let editor = TestEditor::new(&md);
+    let r = &editor.editor.edit.renderer;
+    let rects = cell_rects(&editor);
+    assert!(rects[0][2].right() <= r.width + rects[0][0].left() + 0.5);
+    let header = &r.bounds.tables[0].rows[0];
+    for (cell, rect) in header.cells.iter().zip(&rects[0]) {
+        for painted in r.range_rects(cell.content) {
+            assert!(
+                rect.expand(0.5).contains_rect(painted),
+                "{painted:?} outside its cell {rect:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn cells_align_as_the_delimiter_row_says() {
+    let md = "| left | center | right | none |\n| :-- | :-: | --: | --- |\n| a much longer cell | a much longer cell | a much longer cell | a much longer cell |\n|  |  |  |  |";
+    let mut editor = TestEditor::new(md);
+    let rects = cell_rects(&editor);
+    let padding = editor.editor.edit.renderer.layout.block_padding;
+    let gaps = |editor: &TestEditor, text: &str, column: usize| {
+        let text = rects_of(editor, text)[0];
+        let cell = rects[0][column].shrink(padding);
+        (text.left() - cell.left(), cell.right() - text.right())
+    };
+    let (left, right) = gaps(&editor, "left", 0);
+    assert!(left.abs() < 0.5 && right > 20.0);
+    let (left, right) = gaps(&editor, "center", 1);
+    assert!((left - right).abs() < 1.0 && left > 10.0);
+    let (left, right) = gaps(&editor, "right", 2);
+    assert!(right.abs() < 0.5 && left > 20.0);
+    let (left, right) = gaps(&editor, "none", 3);
+    assert!(left.abs() < 0.5 && right > 20.0);
+
+    // a blank cell's caret sits where its text would start
+    let blank_row = &editor.editor.edit.renderer.bounds.tables[0].rows[2].clone();
+    for (column, side) in [(0, 0.0), (1, 0.5), (2, 1.0), (3, 0.0)] {
+        caret_at(&mut editor, blank_row.cells[column].content.0.0);
+        let caret = editor
+            .editor
+            .edit
+            .cursor_line(blank_row.cells[column].content.0)
+            .unwrap()[0]
+            .x;
+        let cell = rects[2][column].shrink(padding);
+        let expected = cell.left() + cell.width() * side;
+        assert!(
+            (caret - expected).abs() < 1.0,
+            "column {column}: caret at {caret}, not {expected}"
+        );
+    }
+}
+
+/// #5071
+#[test]
+fn an_image_is_clamped_to_its_cell() {
+    use super::harness::build_lb;
+    let wide = "| a | b | c | d |\n| - | - | - | - |\n| ![big](big.png) | ![sized\\|900x300](big.png) | text text text text text text text text text text text text text text text text text | x |";
+    let (mut editor, embeds) = TestEditor::with_test_embeds(build_lb(), wide);
+    embeds.complete("big.png", egui::Vec2::new(4000.0, 1000.0));
+    editor.enter_frame();
+    editor.enter_frame();
+    let r = &editor.editor.edit.renderer;
+    let rects = cell_rects(&editor);
+    let padding = r.layout.block_padding;
+    let images: Vec<_> = r
+        .fragments
+        .iter()
+        .filter(|fragment| {
+            matches!(
+                fragment.content,
+                crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent::Embed { .. }
+            )
+        })
+        .collect();
+    assert_eq!(images.len(), 2);
+    for (image, cell) in images.iter().zip(&rects[1]) {
+        assert!(
+            cell.shrink(padding).expand(0.5).contains_rect(image.rect),
+            "image {:?} outside its cell {cell:?}",
+            image.rect
+        );
+    }
+    assert!(rects[1][3].right() <= r.width + rects[1][0].left() + 0.5);
 }
