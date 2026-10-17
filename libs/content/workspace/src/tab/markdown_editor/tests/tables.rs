@@ -66,7 +66,7 @@ const INDENTED: &[&str] =
     &["  | a | b |\n  | - | - |\n   | c | d |\n | e |", "| a | b |\n   |:-:| - |\n| c | d |"];
 
 /// Container prefixes: the first line's, then every later line's.
-const CONTAINERS: &[(&str, &str)] = &[
+pub(super) const CONTAINERS: &[(&str, &str)] = &[
     ("", ""),
     ("> ", "> "),
     (">\t", ">\t"),
@@ -79,7 +79,7 @@ const CONTAINERS: &[(&str, &str)] = &[
     ("- x\n\n  ", "  "),
 ];
 
-fn contain(md: &str, (first, rest): (&str, &str)) -> String {
+pub(super) fn contain(md: &str, (first, rest): (&str, &str)) -> String {
     md.split('\n')
         .enumerate()
         .map(|(i, line)| format!("{}{line}", if i == 0 { first } else { rest }))
@@ -2060,4 +2060,134 @@ fn a_long_press_lifts_a_body_row_or_a_header_cells_column() {
     for cell in cell_rects(&editor).concat() {
         assert!(!editor.editor.edit.reorder_can_start(cell.center()));
     }
+}
+
+// ─── paste ───────────────────────────────────────────────────────────
+
+fn paste(editor: &mut TestEditor, text: &str) {
+    let event = editor.editor.edit.paste_event(text.into());
+    editor.push(event.unwrap());
+    editor.enter_frame();
+}
+
+/// A paste after "Paste as table" was chosen.
+fn paste_as_table(editor: &mut TestEditor, text: &str) {
+    let edit = &editor.editor.edit;
+    let now = edit.renderer.ctx.input(|i| i.time);
+    edit.paste_as_table.set(Some(now));
+    paste(editor, text);
+}
+
+#[test]
+fn tab_separated_lines_paste_as_a_table() {
+    let table = "| a | b |\n| --- | --- |\n| c | d |";
+    for (md, at, gives) in [
+        ("", 0, table.to_string()),
+        ("before\n\nafter", 6, format!("before\n\n{table}\n\nafter")),
+        ("before\nafter", 6, format!("before\n\n{table}\n\nafter")),
+        ("before\nafter", 7, format!("before\n\n{table}\n\nafter")),
+        ("abcd", 2, format!("ab\n\n{table}\n\ncd")),
+        ("> quote", 7, "> quote\n> \n> | a | b |\n> | --- | --- |\n> | c | d |".to_string()),
+    ] {
+        for tsv in ["a\tb\nc\td", "a\tb\r\nc\td\r\n"] {
+            let mut editor = TestEditor::new(md);
+            caret_at(&mut editor, at);
+            paste(&mut editor, tsv);
+            assert_eq!(editor.get_text(), gives, "{tsv:?} at {at} of {md:?}");
+            assert_eq!(caret_in(&editor), Some(("d".into(), 1)));
+        }
+    }
+
+    // over a selection, in its place
+    let mut editor = TestEditor::new("one two three");
+    select(&mut editor, 4, 7);
+    paste(&mut editor, "a\tb\nc\td");
+    assert_eq!(editor.get_text(), format!("one \n\n{table}\n\n three"));
+
+    // one line, lines of differing lengths, and commas are text
+    for text in ["a\tb", "a\tb\nc", "a,b\nc,d"] {
+        let mut editor = TestEditor::new("");
+        paste(&mut editor, text);
+        assert!(editor.editor.edit.renderer.bounds.tables.is_empty(), "{text:?}");
+    }
+}
+
+#[test]
+fn paste_as_table_reads_comma_separated_text() {
+    for (csv, gives) in [
+        ("a,b\nc,d", "| a | b |\n| --- | --- |\n| c | d |"),
+        // quoted fields hold commas, quotes, and line breaks
+        (
+            "name,note\n\"Smith, J\",\"said \"\"hi\"\"\"\nx,\"two\nlines\"\n",
+            "| name | note |\n| --- | --- |\n| Smith, J | said \"hi\" |\n| x | two lines |",
+        ),
+        // a pipe is escaped; a short row is padded; a quote mid-field is text
+        ("a|b,c\nd", "| a\\|b | c |\n| --- | --- |\n| d |  |"),
+        ("5\" nail,x", "| 5\" nail | x |\n| --- | --- |"),
+        ("a\tb,c\nd\te", "| a | b,c |\n| --- | --- |\n| d | e |"),
+    ] {
+        let mut editor = TestEditor::new("");
+        paste_as_table(&mut editor, csv);
+        assert_eq!(editor.get_text(), gives, "{csv:?}");
+        table_ranges_check_md(gives).unwrap();
+    }
+
+    // the next paste is an ordinary one
+    let mut editor = TestEditor::new("x");
+    caret_at(&mut editor, 1);
+    paste_as_table(&mut editor, "a,b");
+    caret_at(&mut editor, 0);
+    paste(&mut editor, "c,d");
+    assert_eq!(editor.get_text(), "c,dx\n\n| a | b |\n| --- | --- |");
+}
+
+#[test]
+fn a_grid_pasted_into_a_table_fills_its_cells() {
+    let md = "^^\n\n| a | b |\n| - | - |\n|  c  | d|\n| e | f |\n\n$$";
+    for (cell, grid, gives, caret) in [
+        // rightward and downward from the caret's cell, each cell's padding kept
+        ("c", "1\t2\n3\t4", "| a | b |\n| - | - |\n|  1  | 2|\n| 3 | 4 |", "4"),
+        ("a", "x\ty", "| x | y |\n| - | - |\n|  c  | d|\n| e | f |", "y"),
+        ("d", "1\n", "| a | b |\n| - | - |\n|  c  | d|\n| e | f |", ""),
+        // the table grows to hold it: columns at its right, rows at its end
+        (
+            "f",
+            "1\t2\n3\t4",
+            "| a | b |  |\n| - | - | --- |\n|  c  | d|  |\n| e | 1 | 2 |\n|  | 3 | 4 |",
+            "4",
+        ),
+        ("e", "1\n2\n3", "| a | b |\n| - | - |\n|  c  | d|\n| e | f |", ""),
+        // a pipe is escaped, and a cell is one line
+        ("e", "x|y\t\"two\nlines\"", "| a | b |\n| - | - |\n|  c  | d|\n| x\\|y | two lines |", ""),
+        // a short row of the grid fills what it has
+        ("c", "1\t2\n3", "| a | b |\n| - | - |\n|  1  | 2|\n| 3 | f |", "3"),
+    ] {
+        let mut editor = TestEditor::new(md);
+        caret_at(&mut editor, md.find(cell).unwrap());
+        paste(&mut editor, grid);
+        // without a tab it is text for the caret's cell
+        if !grid.contains('\t') {
+            assert_eq!(editor.editor.edit.renderer.bounds.tables[0].rows.len(), 3, "{grid:?}");
+            continue;
+        }
+        assert_eq!(editor.get_text(), format!("^^\n\n{gives}\n\n$$"), "{grid:?} at {cell}");
+        table_ranges_check_md(editor.get_text()).unwrap();
+        if !caret.is_empty() {
+            assert_eq!(caret_in(&editor), Some((caret.into(), caret.len())), "{grid:?} at {cell}");
+        }
+    }
+
+    // from the first cell a selection takes; new rows keep the container
+    let md = "> | a | b |\n> | - | - |\n> | c | d |";
+    let mut editor = TestEditor::new(md);
+    select(&mut editor, md.find('c').unwrap(), md.find('d').unwrap() + 1);
+    paste(&mut editor, "1\t2\n3\t4");
+    assert_eq!(editor.get_text(), "> | a | b |\n> | - | - |\n> | 1 | 2 |\n> | 3 | 4 |");
+
+    // asked for as a table, lines are rows
+    let md = "| a | b |\n| - | - |\n| c | d |";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, md.find('d').unwrap());
+    paste_as_table(&mut editor, "1,2\n3");
+    assert_eq!(editor.get_text(), "| a | b |  |\n| - | - | --- |\n| c | 1 | 2 |\n|  | 3 |  |");
 }
