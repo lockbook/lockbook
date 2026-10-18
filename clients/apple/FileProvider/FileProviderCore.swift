@@ -11,14 +11,21 @@ final class FileProviderCore {
     private var sizes: [String: Size] = [:]
     private let sizesURL: URL
     private var sizesChanged = false
+    private var folders: Set<String> = [NSFileProviderItemIdentifier.rootContainer.rawValue]
+    private let foldersURL: URL
+    private var foldersChanged = false
 
     init(domain: NSFileProviderDomain) throws {
         let fm = FileManager.default
         let cache = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try fm.createDirectory(at: cache, withIntermediateDirectories: true)
         sizesURL = cache.appendingPathComponent("\(domain.identifier.rawValue)-sizes.json")
+        foldersURL = cache.appendingPathComponent("\(domain.identifier.rawValue)-folders.json")
         if let data = try? Data(contentsOf: sizesURL) {
             sizes = (try? JSONDecoder().decode([String: Size].self, from: data)) ?? [:]
+        }
+        if let data = try? Data(contentsOf: foldersURL), let saved = try? JSONDecoder().decode(Set<String>.self, from: data) {
+            folders.formUnion(saved)
         }
         let saved = cache.appendingPathComponent("\(domain.identifier.rawValue).bookmark")
         var stale = false
@@ -64,6 +71,9 @@ final class FileProviderCore {
         if sizesChanged, let data = try? JSONEncoder().encode(sizes) {
             try? data.write(to: sizesURL, options: .atomic)
         }
+        if foldersChanged, let data = try? JSONEncoder().encode(folders) {
+            try? data.write(to: foldersURL, options: .atomic)
+        }
         lb_free_init(core)
         location.stopAccessingSecurityScopedResource()
     }
@@ -85,7 +95,7 @@ final class FileProviderCore {
         return try item(result.file)
     }
 
-    private func item(_ file: LbFile) throws -> FileProviderItem {
+    private func item(_ file: LbFile, loadSize: Bool = true) throws -> FileProviderItem {
         let id = UUID(uuid: file.id.bytes)
         let folder = file.typ.tag == LbFolder
         let version = lb_document_version(core.lb, file.id)
@@ -95,23 +105,31 @@ final class FileProviderCore {
                                 name: id == root ? "Lockbook" : String(cString: file.name), folder: folder,
                                 modified: file.lastmod, contentVersion: Self.data(version.version))
         if !folder {
-            if let cached = sizes[item.id], cached.version == item.contentVersion {
+            if !version.version.present {
+                item.size = 0
+            } else if let cached = sizes[item.id], cached.version == item.contentVersion {
                 item.size = cached.count
-            } else {
-                // Core tracks encrypted/compressed sizes, whereas Finder needs the exact plaintext size.
+            } else if loadSize || sizes[item.id] != nil {
+                // Finder treats a nil size as an empty file. Resolve sizes only for a
+                // folder being browsed, or a previously enumerated document that changed.
                 _ = try read(item)
-                sizes[item.id] = Size(version: item.contentVersion, count: item.size!)
-                sizesChanged = true
             }
         }
         return item
     }
 
-    func items() throws -> [FileProviderItem] {
-        let result = lb_get_and_get_children_recursively(core.lb, LbUuid(bytes: root.uuid))
+    func items(in parent: NSFileProviderItemIdentifier? = nil) throws -> [FileProviderItem] {
+        let result: LbFileListRes
+        if let parent {
+            result = lb_get_children(core.lb, LbUuid(bytes: try uuid(parent).uuid))
+            foldersChanged = folders.insert(parent.rawValue).inserted || foldersChanged
+        } else {
+            result = lb_get_and_get_children_recursively(core.lb, LbUuid(bytes: root.uuid))
+        }
         defer { lb_free_file_list_res(result) }
         try check(result.err)
-        return try UnsafeBufferPointer(start: result.list.list, count: Int(result.list.count)).map(item)
+        return try UnsafeBufferPointer(start: result.list.list, count: Int(result.list.count))
+            .map { try item($0, loadSize: folders.contains(identifier(UUID(uuid: $0.parent.bytes)))) }
     }
 
     func read(_ item: FileProviderItem) throws -> Data {
@@ -121,6 +139,8 @@ final class FileProviderCore {
         try check(result.err)
         item.contentVersion = Self.data(version)
         item.size = Int(result.len)
+        sizes[item.id] = Size(version: item.contentVersion, count: Int(result.len))
+        sizesChanged = true
         return Data(bytes: result.doc, count: Int(result.len))
     }
 
@@ -136,6 +156,8 @@ final class FileProviderCore {
         }
         defer { lb_free_err(result.err) }
         try check(result.err)
+        sizes[identifier(uuid)] = Size(version: Self.data(result.version), count: data.count)
+        sizesChanged = true
     }
 
     func create(name: String, parent: NSFileProviderItemIdentifier, folder: Bool, data: Data?) throws -> FileProviderItem {
@@ -144,7 +166,7 @@ final class FileProviderCore {
                                     LbFileType(tag: folder ? LbFolder : LbDocument, link_target: LbUuid()))
         defer { lb_free_file_res(result) }
         if let error = result.err, error.pointee.code == PathTaken,
-           let existing = try items().first(where: { $0.parentItemIdentifier == parent && $0.filename == name }) {
+           let existing = try items(in: parent).first(where: { $0.filename == name }) {
             throw NSError.fileProviderErrorForCollision(with: existing)
         }
         try check(result.err)

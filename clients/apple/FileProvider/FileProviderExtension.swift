@@ -73,7 +73,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             return (url, item)
         }) {
             switch $0 {
-            case .success(let (url, item)): completionHandler(url, item, nil)
+            case .success(let (url, item)): self.signalChanges(); completionHandler(url, item, nil)
             case .failure(let error): completionHandler(nil, nil, error)
             }
         }
@@ -90,8 +90,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             let data = try contents.map { try Data(contentsOf: $0) }
             // A crash/reimport can replay creation. Reuse only an identical item.
             if options.contains(.mayAlreadyExist),
-               let existing = try core.items().first(where: {
-                   $0.parentItemIdentifier == template.parentItemIdentifier && $0.filename == template.filename && $0.folder == folder
+               let existing = try core.items(in: template.parentItemIdentifier).first(where: {
+                   $0.filename == template.filename && $0.folder == folder
                }), try folder || core.read(existing) == (data ?? Data()) {
                 return existing
             }
@@ -111,8 +111,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         perform({ core in
             let uuid = LbUuid(bytes: try core.uuid(item.itemIdentifier).uuid)
             if !changedFields.intersection([.filename, .parentItemIdentifier]).isEmpty,
-               let collision = try core.items().first(where: {
-                   $0.itemIdentifier != item.itemIdentifier && $0.parentItemIdentifier == item.parentItemIdentifier && $0.filename == item.filename
+               let collision = try core.items(in: item.parentItemIdentifier).first(where: {
+                   $0.itemIdentifier != item.itemIdentifier && $0.filename == item.filename
                }) {
                 throw NSError.fileProviderErrorForCollision(with: collision)
             }
