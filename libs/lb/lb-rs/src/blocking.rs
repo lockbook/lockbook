@@ -111,6 +111,16 @@ impl Lb {
         self.block_on(self.lb.safe_write(id, old_hmac, content, origin))
     }
 
+    pub fn document_hmac(&self, id: Uuid) -> LbResult<Option<DocumentHmac>> {
+        use crate::model::{file_like::FileLike, tree_like::TreeLike};
+        self.block_on(async {
+            let tx = self.lb.ro_tx().await;
+            let db = tx.db();
+            let tree = db.base_metadata.stage(&db.local_metadata);
+            Ok(tree.find(&id)?.document_hmac().copied())
+        })
+    }
+
     pub fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
         self.block_on(self.lb.write_document(id, content))
     }

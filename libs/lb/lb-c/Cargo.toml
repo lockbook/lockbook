@@ -9,3 +9,6 @@ crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
 lb-rs = { path = "../lb-rs" }
+
+[dev-dependencies]
+test_utils = { path = "../test_utils" }
