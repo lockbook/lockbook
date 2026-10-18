@@ -18,6 +18,8 @@ pub(crate) struct Ipc {
     directory: PathBuf,
     path: Option<PathBuf>,
     socket: UnixDatagram,
+    #[cfg(target_os = "macos")]
+    notification_name: std::ffi::CString,
 }
 
 impl Ipc {
@@ -52,12 +54,30 @@ impl Ipc {
         } else {
             (None, UnixDatagram::unbound()?)
         };
-        let ipc = Self { directory, path, socket };
+        #[cfg(target_os = "macos")]
+        let notification_name = {
+            use sha2::{Digest, Sha256};
+            let hash = Sha256::digest(directory.as_os_str().as_encoded_bytes());
+            std::ffi::CString::new(format!("app.lockbook.database.{hash:x}")).unwrap()
+        };
+        let ipc = Self {
+            directory,
+            path,
+            socket,
+            #[cfg(target_os = "macos")]
+            notification_name,
+        };
         ipc.socket.set_nonblocking(true)?;
         Ok(ipc)
     }
 
     pub(crate) fn notify_peers(&self) {
+        // Sandboxed File Provider extensions can receive Darwin notifications,
+        // but cannot open Unix sockets beside a user-selected database.
+        #[cfg(target_os = "macos")]
+        unsafe {
+            notify_post(self.notification_name.as_ptr());
+        }
         if let Err(error) = self.send() {
             warn!(?error, "could not notify other database instances");
         }
@@ -96,6 +116,11 @@ impl Drop for Ipc {
 }
 
 impl Lb {
+    #[cfg(target_os = "macos")]
+    pub fn change_notification_name(&self) -> &str {
+        self.ipc.notification_name.to_str().unwrap()
+    }
+
     pub(crate) async fn setup_ipc(&self) -> LbResult<()> {
         if !self.config.background_work {
             return Ok(());
@@ -132,6 +157,11 @@ impl Lb {
             .await
             .map_unexpected()
     }
+}
+
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    fn notify_post(name: *const std::ffi::c_char) -> u32;
 }
 
 #[cfg(test)]
