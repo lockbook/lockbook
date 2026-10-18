@@ -70,8 +70,7 @@ struct CreateDocumentIntent: AppIntent {
             throw WidgetOperationError(message: "Couldn't choose a new document name. Please try again.")
         }
 
-        let edit = drawing ? "" : "?edit=true"
-        let url = URL(string: "https://app.lockbook.net/open/\(id.uuidString)\(edit)")!
+        let url = URL(string: "https://app.lockbook.net/open/\(id.uuidString)")!
         return .result(opensIntent: OpenURLIntent(url))
     }
 }
