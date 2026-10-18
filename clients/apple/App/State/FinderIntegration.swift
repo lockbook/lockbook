@@ -61,12 +61,15 @@ import SwiftWorkspace
         }
     }
 
-    func open() {
+    func open(id: UUID? = nil) {
         guard let domain else { return }
-        NSFileProviderManager(for: domain)?.getUserVisibleURL(for: .rootContainer) { url, error in
+        let item: NSFileProviderItemIdentifier = id.map { .init($0.uuidString) } ?? .rootContainer
+        NSFileProviderManager(for: domain)?.getUserVisibleURL(for: item) { url, error in
             DispatchQueue.main.async {
-                if let url { NSWorkspace.shared.open(url) }
-                else if let error { self.report(error) }
+                if let url {
+                    if id != nil { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                    else { NSWorkspace.shared.open(url) }
+                } else if let error { self.report(error) }
             }
         }
     }
