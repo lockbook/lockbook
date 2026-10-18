@@ -44,6 +44,15 @@ struct OpenLbLinkModifier: ViewModifier {
                 return
             }
 
+            if url.host() == "search" {
+                #if os(iOS)
+                    workspaceOutput.openSearch = true
+                #else
+                    workspaceInput.showSearch()
+                #endif
+                return
+            }
+
             guard let host = url.host(), let id = UUID(uuidString: host) else {
                 AppState.shared.error = .custom(title: "Could not open link", msg: "Invalid link")
                 return

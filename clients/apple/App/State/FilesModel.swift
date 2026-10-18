@@ -102,7 +102,7 @@ import SwiftWorkspace
 
                 self.recomputeStatusDots(status: AppState.lb.events.status)
                 #if os(iOS)
-                    WidgetCenter.shared.reloadTimelines(ofKind: "PinnedDocuments")
+                    WidgetCenter.shared.reloadAllTimelines()
                 #endif
             }
         }
