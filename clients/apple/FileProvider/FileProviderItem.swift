@@ -28,9 +28,10 @@ final class FileProviderItem: NSObject, NSFileProviderItem, Codable {
     var filename: String { name }
     var contentType: UTType { folder ? .folder : UTType(filenameExtension: (name as NSString).pathExtension) ?? .data }
     var documentSize: NSNumber? { size.map(NSNumber.init(value:)) }
+    var contentPolicy: NSFileProviderContentPolicy { .downloadLazily }
     var contentModificationDate: Date? { Date(timeIntervalSince1970: Double(modified) / 1000) }
     var itemVersion: NSFileProviderItemVersion {
-        let metadata = Data("\(parent)\u{0}\(name)\u{0}\(modified)\u{0}\(writable)\u{0}\(size ?? 0)".utf8)
+        let metadata = Data("\(parent)\u{0}\(name)\u{0}\(modified)\u{0}\(writable)\u{0}\(size ?? 0)\u{0}\(contentPolicy.rawValue)".utf8)
         return NSFileProviderItemVersion(contentVersion: contentVersion, metadataVersion: Data(SHA256.hash(data: metadata)))
     }
     var capabilities: NSFileProviderItemCapabilities {
