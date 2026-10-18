@@ -1212,6 +1212,7 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
 }
 
 mod ffi_utils;
+mod document_version;
 mod lb_c_err;
 mod lb_file;
 mod mem_cleanup;
