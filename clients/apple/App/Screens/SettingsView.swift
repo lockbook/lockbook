@@ -193,10 +193,23 @@ import SwiftWorkspace
     }
 
     struct SettingsGeneralView: View {
+        @State private var finder = FinderIntegration.shared
         @AppStorage("openInNewTab") private var openInNewTab: Bool = true
 
         var body: some View {
             Form {
+                Section("Finder") {
+                    Toggle("Show Lockbook in Finder", isOn: Binding(
+                        get: { finder.enabled }, set: { finder.setEnabled($0) }
+                    ))
+                    .disabled(finder.busy)
+                    if finder.enabled {
+                        Button("Open in Finder") { finder.open() }
+                    }
+                    Text("Files you open in Finder are downloaded as regular, unencrypted files on this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Section("Tabs") {
                     Toggle("Open files in new tabs", isOn: $openInNewTab)
                     Text(
@@ -207,6 +220,7 @@ import SwiftWorkspace
                 }
             }
             .formStyle(.grouped)
+            .onAppear { finder.refresh() }
         }
     }
 
@@ -288,7 +302,11 @@ struct LogoutButton: View {
             titleVisibility: .visible
         ) {
             Button("Logout", role: .destructive) {
+                #if os(macOS)
+                FinderIntegration.shared.setEnabled(false) { AppState.lb.logoutAndExit() }
+                #else
                 AppState.lb.logoutAndExit()
+                #endif
             }
         }
     }
