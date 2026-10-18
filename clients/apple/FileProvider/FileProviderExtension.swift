@@ -1,27 +1,27 @@
 import Bridge
+import notify
 import FileProvider
+import OSLog
 
 final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     let domain: NSFileProviderDomain
     let manager: NSFileProviderManager
     let queue = DispatchQueue(label: "app.lockbook.file-provider")
-    private var timer: DispatchSourceTimer?
+    private var changeToken = NOTIFY_TOKEN_INVALID
+    private var invalidated = false
     private var syncTimer: DispatchSourceTimer?
 
     required init(domain: NSFileProviderDomain) {
         self.domain = domain
         manager = NSFileProviderManager(for: domain)!
         super.init()
-        // Also notices CLI edits and server changes while Finder is browsing.
-        let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + 5, repeating: 5)
-        timer.setEventHandler { [weak self] in self?.signalChanges() }
-        timer.resume()
-        self.timer = timer
+        queue.async { [weak self] in self?.observeChanges() }
         let syncTimer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "app.lockbook.file-provider.sync"))
         syncTimer.schedule(deadline: .now(), repeating: 30)
         syncTimer.setEventHandler { [weak self] in
-            guard let self, let core = try? FileProviderCore(domain: self.domain) else { return }
+            guard let self else { return }
+            self.queue.async { self.observeChanges() }
+            guard let core = try? FileProviderCore(domain: self.domain) else { return }
             lb_free_err(lb_sync(core.core.lb))
             self.signalChanges()
         }
@@ -29,7 +29,43 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         self.syncTimer = syncTimer
     }
 
-    func invalidate() { timer?.cancel(); syncTimer?.cancel(); timer = nil; syncTimer = nil }
+    func invalidate() {
+        syncTimer?.cancel()
+        syncTimer = nil
+        queue.async {
+            self.invalidated = true
+            if self.changeToken != NOTIFY_TOKEN_INVALID {
+                notify_cancel(self.changeToken)
+                self.changeToken = NOTIFY_TOKEN_INVALID
+            }
+        }
+    }
+
+    deinit {
+        if changeToken != NOTIFY_TOKEN_INVALID { notify_cancel(changeToken) }
+    }
+
+    private func observeChanges() {
+        guard !invalidated, changeToken == NOTIFY_TOKEN_INVALID else { return }
+        do {
+            let core = try FileProviderCore(domain: domain)
+            let name = lb_change_notification_name(core.core.lb)
+            defer { lb_free_str(name) }
+            let status = notify_register_dispatch(name, &changeToken, queue) { [weak self] _ in
+                guard let self, !self.invalidated else { return }
+                self.signalChanges()
+            }
+            guard status == NOTIFY_STATUS_OK else {
+                changeToken = NOTIFY_TOKEN_INVALID
+                throw CocoaError(.featureUnsupported)
+            }
+            // Cover commits before registration, including during extension startup.
+            signalChanges()
+        } catch {
+            Logger(subsystem: "app.lockbook.FileProvider", category: "changes")
+                .error("Could not observe Lockbook changes: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 
     func signalChanges() {
         manager.signalEnumerator(for: .workingSet) { _ in }
