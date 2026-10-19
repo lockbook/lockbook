@@ -32,23 +32,13 @@ pub enum TableAction {
         right: bool,
     },
     Align(TableAlignment),
-    /// Moves body row `from` to where body row `to` is, as a drag does.
-    MoveRowTo {
-        from: usize,
-        to: usize,
-    },
-    /// Moves column `from` to where column `to` is, as a drag does.
-    MoveColumnTo {
-        from: usize,
-        to: usize,
-    },
 }
 
 /// A blank cell as the editor writes one: a space of padding either side.
 const BLANK: &str = "  ";
 
 #[derive(Clone, Copy)]
-enum ColumnEdit {
+pub(super) enum ColumnEdit {
     Insert(usize),
     Delete(usize),
     Move { from: usize, to: usize },
@@ -143,7 +133,7 @@ impl MdRender {
 
     /// Edits a column in every row and the delimiter row. A row is padded
     /// to the table's width first, so the table is left rectangular.
-    fn edit_table_columns(
+    pub(super) fn edit_table_columns(
         &self, table: &TableBounds, edit: ColumnEdit, operations: &mut Vec<Operation>,
     ) {
         let caret = self.buffer.current.selection.1;
@@ -194,7 +184,7 @@ impl MdRender {
     /// Moves row `from` to where row `to` is. Body rows trade lines; the
     /// header stays where it is and trades its cells instead, padded to the
     /// table's width, since the table is as wide as its header.
-    fn move_table_row(
+    pub(super) fn move_table_row(
         &self, table: &TableBounds, from: usize, to: usize, operations: &mut Vec<Operation>,
     ) {
         let caret = self.buffer.current.selection.1;
@@ -307,11 +297,6 @@ impl<'ast> MdEdit {
                     r.move_table_row(table, row, to, operations);
                 }
             }
-            TableAction::MoveRowTo { from, to } => {
-                if from != to && from > 0 && to > 0 && from < rows && to < rows {
-                    r.move_table_row(table, from, to, operations);
-                }
-            }
             TableAction::InsertColumn { right } => {
                 r.edit_table_columns(
                     table,
@@ -331,11 +316,6 @@ impl<'ast> MdEdit {
                 let to = if right { column + 1 } else { column.wrapping_sub(1) };
                 if to < columns {
                     r.edit_table_columns(table, ColumnEdit::Move { from: column, to }, operations);
-                }
-            }
-            TableAction::MoveColumnTo { from, to } => {
-                if from != to && from < columns && to < columns {
-                    r.edit_table_columns(table, ColumnEdit::Move { from, to }, operations);
                 }
             }
             TableAction::Align(alignment) => {

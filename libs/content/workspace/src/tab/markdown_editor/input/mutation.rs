@@ -610,7 +610,7 @@ impl<'ast> MdEdit {
 
                 let mut handled = false;
                 for node in root.descendants() {
-                    if self.renderer.selected_block(node) {
+                    if self.renderer.table_styled_whole(node) {
                         handled = true;
 
                         // apply heading to ATX heading: replace existing heading

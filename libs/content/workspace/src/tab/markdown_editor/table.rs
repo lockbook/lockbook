@@ -16,6 +16,7 @@ use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{Byte, Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
+mod chrome;
 mod edit;
 mod structure;
 
@@ -580,6 +581,17 @@ impl MdRender {
 }
 
 impl<'ast> MdRender {
+    /// Whether a block style toggled now applies to `node`. A table takes
+    /// one whole, as a leaf block does: a prefix on one row's line would
+    /// end the table there.
+    pub fn table_styled_whole(&self, node: &'ast AstNode<'ast>) -> bool {
+        match node.data.borrow().value {
+            NodeValue::Table(_) => node.descendants().any(|part| self.selected_block(part)),
+            NodeValue::TableRow(_) | NodeValue::TableCell => false,
+            _ => self.selected_block(node),
+        }
+    }
+
     /// Whether the table shows as its source lines instead of a grid: while
     /// the selection has an end on the delimiter row, which has no place
     /// in the grid, or a find match covers some of the table's syntax.
