@@ -664,7 +664,7 @@ impl ShellApp {
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::N)) {
                 self.queue.push(A::Create);
             }
-            if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::E)) {
+            if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::Backslash)) {
                 self.queue.push(A::ToggleSidebar);
             }
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::S)) {
