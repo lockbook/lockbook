@@ -10,7 +10,7 @@ use winit::dpi::LogicalSize;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::window::{Icon, Window, WindowId};
-use workspace_rs::tab::{ClipContent, ExtendedInput};
+use workspace_rs::tab::{ClipContent, ExtendedInput, ExtendedOutput as _};
 
 use crate::{Output, ShellApp, WgpuLockbook};
 
@@ -314,6 +314,9 @@ impl AppState {
         platform.commands.retain(|c| {
             !matches!(c, egui::OutputCommand::CopyText(_) | egui::OutputCommand::CopyImage(_))
         });
+        if let Some(copied) = self.lb.renderer.context.pop_copied_rendered() {
+            let _ = self.clipboard.set_html(copied.html, Some(copied.plain));
+        }
 
         self.egui_winit
             .handle_platform_output(&self.window, platform);
