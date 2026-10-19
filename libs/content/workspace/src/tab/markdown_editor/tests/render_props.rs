@@ -208,6 +208,8 @@ pub(super) fn render_frame<T>(
             let height = r.height(root);
             let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
             r.fragments.clear();
+            r.table_cell_boxes.clear();
+            r.table_header_slots.clear();
             r.bounds.wrap_lines.clear();
             r.text_areas.clear();
             ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
@@ -260,8 +262,12 @@ fn content_coverage_check_md(md: &str) -> Result<(), &'static str> {
     // Render once via the editor's main show path and inspect
     // fragments to verify every text-bearing node manifests.
     let mut r = test_renderer(md);
-    let fragments: Vec<(Grapheme, Grapheme)> =
-        render_frame(&mut r, 800.0, None, |r| r.fragments.iter().map(|f| f.source_range).collect());
+    let (fragments, cell_boxes) = render_frame(&mut r, 800.0, None, |r| {
+        let fragments: Vec<_> = r.fragments.iter().map(|f| f.source_range).collect();
+        let cell_boxes = r.table_cell_boxes.iter();
+        let cell_boxes: Vec<_> = cell_boxes.map(|b| (b.row, b.column)).collect();
+        (fragments, cell_boxes)
+    });
     let arena = Arena::new();
     let root = r.reparse(&arena);
     for node in root.descendants() {
@@ -271,6 +277,17 @@ fn content_coverage_check_md(md: &str) -> Result<(), &'static str> {
         );
         if !bears_text {
             continue;
+        }
+        // A table wider than the note scrolls, and a cell it has scrolled
+        // out of view renders nothing until it is scrolled back.
+        let cell = node
+            .ancestors()
+            .find(|a| matches!(a.data.borrow().value, TableCell));
+        if let Some((cell, row)) = cell.and_then(|cell| Some((cell, cell.parent()?))) {
+            let column = row.children().take_while(|c| !c.same_node(cell)).count();
+            if !cell_boxes.contains(&(r.table_row_key(row), column)) {
+                continue;
+            }
         }
         // Folded nodes (and their descendants) intentionally render
         // nothing — `<!-- {"fold":true} -->` after a heading hides

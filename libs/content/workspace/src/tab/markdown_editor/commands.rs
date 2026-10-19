@@ -36,6 +36,39 @@ impl MdEdit {
         }
     }
 
+    /// Takes a horizontal pan that began at `pos` for the table wider than
+    /// the note there, if any: the platform then drives it with
+    /// [`Self::table_pan_by`]. False while a lifted item or row is dragged.
+    pub fn table_pan_begin(&mut self, pos: Pos2) -> bool {
+        let dragging = self.in_progress_block_drag.is_some()
+            || !matches!(self.touch_reorder, TouchReorder::Idle);
+        let table = self.renderer.scrolling_table_at(pos).filter(|_| !dragging);
+        self.platform_table_pan = table;
+        table.is_some()
+    }
+
+    /// Pans the table taken by [`Self::table_pan_begin`] by `dx` points of
+    /// finger travel. The frame clamps it to the table's width.
+    pub fn table_pan_by(&mut self, dx: f32) {
+        let scroll = self
+            .platform_table_pan
+            .and_then(|table| self.renderer.table_scrolls.get_mut(&table));
+        if let Some(scroll) = scroll.filter(|_| dx.is_finite()) {
+            scroll.offset -= dx;
+            self.renderer.ctx.request_repaint();
+        }
+    }
+
+    /// The pan ended at `vx` points per second: the table coasts from it.
+    pub fn table_pan_end(&mut self, vx: f32) {
+        if let Some(table) = self.platform_table_pan.take() {
+            if let Some(scroll) = self.renderer.table_scrolls.get_mut(&table) {
+                scroll.velocity = if vx.is_finite() { -vx } else { 0.0 };
+                self.renderer.ctx.request_repaint();
+            }
+        }
+    }
+
     /// Whether a long press at `pos` can lift a list item. The platform
     /// checks the keyboard: with it up, a long press is text selection.
     pub fn reorder_can_start(&self, pos: Pos2) -> bool {

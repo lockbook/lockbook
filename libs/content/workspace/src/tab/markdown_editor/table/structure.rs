@@ -9,14 +9,17 @@ use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as 
 use lb_rs::model::text::operation_types::Operation;
 
 use super::edit::{cell_text, replace};
-use super::{RowBounds, TableBounds, is_cell_space};
+use super::{RowBounds, TableBounds, cell_content, is_cell_space};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 
 /// A structure edit, made where the selection ends.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TableAction {
-    /// A new table of three columns and one row.
-    Insert,
+    /// A new table of `columns` columns, with a header and `rows` rows.
+    Insert {
+        columns: usize,
+        rows: usize,
+    },
     InsertRow {
         below: bool,
     },
@@ -54,8 +57,7 @@ impl ColumnEdit {
                 cells.remove(at);
             }
             ColumnEdit::Move { from, to } => {
-                // a cell from the row's edge may lean on having no pipe there
-                let cell = cell_text(&cells.remove(from), 0, true, true).text;
+                let cell = cells.remove(from);
                 cells.insert(to, cell);
             }
         }
@@ -90,8 +92,49 @@ pub(super) fn row_text(cells: &[String], leading_pipe: bool, trailing_pipe: bool
     format!("{leading}{}{trailing}", cells.join("|"))
 }
 
-pub(super) fn blank(cell: &str) -> bool {
-    cell.chars().all(is_cell_space)
+/// Whether a delimiter row is another block without a leading pipe: dashes
+/// alone are a thematic break, and a dash then a space begin a list item.
+pub(super) fn delimiter_wants_pipe(cells: &[String], trailing_pipe: bool) -> bool {
+    let first = cells[0].trim_start_matches(is_cell_space);
+    let alone = cells.len() == 1 && !trailing_pipe && !first.contains(':');
+    alone || first.starts_with("- ") || first.starts_with("-\t")
+}
+
+/// A row as a structure edit works on it and writes it back: each cell's
+/// text between its pipes, whether it has the outer pipes, and the caret as
+/// a cell and a byte into it.
+pub(super) struct RowText {
+    pub cells: Vec<String>,
+    pub leading: bool,
+    pub trailing: bool,
+    pub caret: Option<(usize, usize)>,
+}
+
+impl RowText {
+    /// The row as source, and the caret as a byte into it. Each cell is
+    /// made safe beside the pipes it now has — one from the row's edge may
+    /// have leaned on there being none — and the row gets the outer pipe an
+    /// edge cell needs.
+    pub fn write(mut self) -> (String, Option<usize>) {
+        let last = self.cells.len() - 1;
+        for index in 0..=last {
+            let (opened, closed) = (index > 0 || self.leading, index < last || self.trailing);
+            let caret = self.caret.filter(|(column, _)| *column == index);
+            let cell =
+                cell_text(&self.cells[index], caret.map_or(0, |caret| caret.1), opened, closed);
+            self.leading |= index == 0 && cell.opening_pipe;
+            self.trailing |= index == last && cell.closing_pipe;
+            self.caret = self
+                .caret
+                .map(|kept| caret.map_or(kept, |_| (index, cell.caret)));
+            self.cells[index] = cell.text;
+        }
+        let caret = self.caret.map(|(column, into)| {
+            let before: usize = self.cells[..column].iter().map(|cell| cell.len() + 1).sum();
+            self.leading as usize + before + into
+        });
+        (row_text(&self.cells, self.leading, self.trailing), caret)
+    }
 }
 
 impl MdRender {
@@ -102,19 +145,23 @@ impl MdRender {
         (first.start() - row.leading_pipe as usize, last.end() + row.trailing_pipe as usize)
     }
 
-    /// The text between the pipes of each of `row`'s cells, with blank
-    /// cells for those it lacks of `columns`. A cell with nothing between
-    /// its pipes — only a row's first can be — is written blank: anywhere
-    /// else it would not be a cell.
-    pub(super) fn table_row_cells(&self, row: &RowBounds, columns: usize) -> Vec<String> {
+    /// `row` to edit and write back: the text between the pipes of each of
+    /// its cells, with blank cells for those it lacks of `columns`, and the
+    /// selection's end if it is in the row.
+    pub(super) fn table_row_text(&self, row: &RowBounds, columns: usize) -> RowText {
         let mut cells: Vec<String> = row
             .cells
             .iter()
-            .map(|cell| &self.buffer[cell.span])
-            .map(|cell| if cell.is_empty() { BLANK } else { cell }.to_string())
+            .map(|cell| self.buffer[cell.span].to_string())
             .collect();
         cells.resize(columns.max(cells.len()), BLANK.into());
-        cells
+        let caret = self.buffer.current.selection.1;
+        let caret = row.line.contains_inclusive(caret).then(|| {
+            let column = row.cell_near(caret);
+            let cell = row.cells[column].span;
+            (column, self.buffer[(cell.start(), caret.max(cell.start()).min(cell.end()))].len())
+        });
+        RowText { cells, leading: row.leading_pipe, trailing: row.trailing_pipe, caret }
     }
 
     /// The delimiter row's structure, as a row's: where its cells and
@@ -138,26 +185,15 @@ impl MdRender {
     pub(super) fn edit_table_columns(
         &self, table: &TableBounds, edit: ColumnEdit, operations: &mut Vec<Operation>,
     ) {
-        let caret = self.buffer.current.selection.1;
         for row in &table.rows {
-            let mut cells = self.table_row_cells(row, table.columns());
+            let mut text = self.table_row_text(row, table.columns());
+            edit.apply(&mut text.cells, BLANK);
             // the caret keeps its place in its cell, wherever the cell goes
-            let caret = row.line.contains_inclusive(caret).then(|| {
-                let column = row.cell_near(caret);
-                let cell = row.cells[column].span;
-                let into =
-                    self.buffer[(cell.start(), caret.max(cell.start()).min(cell.end()))].len();
-                (column, into)
-            });
-            edit.apply(&mut cells, BLANK);
-            let leading = row.leading_pipe || edit.moves_first() || blank(&cells[0]);
-            let trailing = row.trailing_pipe || blank(&cells[cells.len() - 1]);
-            let caret = caret.and_then(|(column, into)| {
-                let column = edit.moves(column)?;
-                let before: usize = cells[..column].iter().map(|cell| cell.len() + 1).sum();
-                Some(leading as usize + before + into.min(cells[column].len()))
-            });
-            let text = row_text(&cells, leading, trailing);
+            text.caret = text
+                .caret
+                .and_then(|(column, into)| Some((edit.moves(column)?, into)));
+            text.leading |= edit.moves_first();
+            let (text, caret) = text.write();
             self.rewrite(self.table_row_structure(row), &text, caret, operations);
         }
 
@@ -169,8 +205,8 @@ impl MdRender {
             .map(|cell| self.buffer[*cell].to_string())
             .collect();
         edit.apply(&mut cells, " --- ");
-        let text = row_text(&cells, leading || edit.moves_first(), trailing);
-        self.rewrite(structure, &text, None, operations);
+        let leading = leading || edit.moves_first() || delimiter_wants_pipe(&cells, trailing);
+        self.rewrite(structure, &row_text(&cells, leading, trailing), None, operations);
     }
 
     /// The lines `first..=last`, by index, with a line break: the one after
@@ -192,15 +228,6 @@ impl MdRender {
         let caret = self.buffer.current.selection.1;
         let (low, high) = (from.min(to), from.max(to));
         let with_header = low == 0;
-        let part =
-            |row: &RowBounds| if with_header { self.table_row_structure(row) } else { row.line };
-        let text = |row: &RowBounds| {
-            if with_header {
-                row_text(&self.table_row_cells(row, table.columns()), true, true)
-            } else {
-                self.buffer[row.line].to_string()
-            }
-        };
 
         // each row between takes its neighbor's text; `to` takes `from`'s
         for row in low..=high {
@@ -210,30 +237,31 @@ impl MdRender {
                 row => row - 1,
             };
             let (row, source) = (&table.rows[row], &table.rows[source]);
-            let caret = part(source).contains_inclusive(caret).then(|| {
-                let kept = self.buffer[(part(source).start(), caret)].len();
-                let gained_pipe = with_header && !source.leading_pipe;
-                (kept + gained_pipe as usize).min(text(source).len())
-            });
-            self.rewrite(part(row), &text(source), caret, operations);
+            if with_header {
+                let source = self.table_row_text(source, table.columns());
+                let (text, caret) = RowText { leading: true, trailing: true, ..source }.write();
+                self.rewrite(self.table_row_structure(row), &text, caret, operations);
+            } else {
+                let kept = source.line.contains_inclusive(caret);
+                let kept = kept.then(|| self.buffer[(source.line.start(), caret)].len());
+                self.rewrite(row.line, &self.buffer[source.line], kept, operations);
+            }
         }
     }
 
     /// A delimiter cell that says `alignment`, as wide as `cell` was where
-    /// that is wide enough.
-    fn aligned_delimiter_cell(cell: &str, alignment: TableAlignment) -> String {
-        let padding = |text: &str| text.len() - text.trim_start_matches(is_cell_space).len();
-        let (before, after) =
-            (padding(cell), cell.len() - cell.trim_end_matches(is_cell_space).len());
+    /// that is wide enough. `opened`: whether a pipe precedes it.
+    fn aligned_delimiter_cell(cell: &str, opened: bool, alignment: TableAlignment) -> String {
+        let (start, end) = cell_content(cell, opened);
         let (left, right) = match alignment {
             TableAlignment::None => ("", ""),
             TableAlignment::Left => (":", ""),
             TableAlignment::Center => (":", ":"),
             TableAlignment::Right => ("", ":"),
         };
-        let width = cell.len().saturating_sub(before + after);
-        let dashes = "-".repeat(width.saturating_sub(left.len() + right.len()).max(1));
-        format!("{}{left}{dashes}{right}{}", &cell[..before], &cell[cell.len() - after..])
+        let dashes = (end - start).saturating_sub(left.len() + right.len());
+        let dashes = "-".repeat(dashes.max(1));
+        format!("{}{left}{dashes}{right}{}", &cell[..start], &cell[end..])
     }
 }
 
@@ -245,15 +273,15 @@ impl<'ast> MdEdit {
     ) {
         let r = &self.renderer;
         let Some((table, row, column)) = r.table_position() else {
-            if action == TableAction::Insert {
-                self.insert_table(root, operations);
+            if let TableAction::Insert { columns, rows } = action {
+                self.insert_table(root, columns.max(1), rows, operations);
             }
             return;
         };
         let (rows, columns) = (table.rows.len(), table.columns());
         let lines = &r.bounds.source_lines;
         match action {
-            TableAction::Insert => {}
+            TableAction::Insert { .. } => {}
             TableAction::InsertRow { below } => {
                 let blank_row = row_text(&vec![BLANK.to_string(); columns], true, true);
                 let prefix = r.table_line_prefix(table);
@@ -265,11 +293,9 @@ impl<'ast> MdEdit {
                     // cells move down a row, and the caret with them
                     let header = &table.rows[0];
                     let structure = r.table_row_structure(header);
-                    let caret = r.buffer.current.selection.1;
-                    let moved = row_text(&r.table_row_cells(header, columns), true, true);
-                    let kept = r.buffer[(structure.start(), caret.max(structure.start()))].len()
-                        + !header.leading_pipe as usize;
-                    let kept = kept.min(moved.len());
+                    let moved = r.table_row_text(header, columns);
+                    let (moved, kept) = RowText { leading: true, trailing: true, ..moved }.write();
+                    let kept = kept.unwrap_or(0);
                     r.rewrite(structure, &blank_row, None, operations);
                     operations.push(replace(at, &format!("\n{prefix}{}", &moved[..kept])));
                     operations.push(Operation::Select(at));
@@ -322,7 +348,13 @@ impl<'ast> MdEdit {
             }
             TableAction::Align(alignment) => {
                 let cell = table.delimiter.cells[column];
-                let aligned = MdRender::aligned_delimiter_cell(&r.buffer[cell], alignment);
+                let (_, leading, trailing) = r.table_delimiter_structure(table);
+                let opened = column > 0 || leading;
+                let mut aligned =
+                    MdRender::aligned_delimiter_cell(&r.buffer[cell], opened, alignment);
+                if columns == 1 && !leading && delimiter_wants_pipe(&[aligned.clone()], trailing) {
+                    aligned.insert(0, '|');
+                }
                 r.rewrite(cell, &aligned, None, operations);
             }
         }
@@ -331,7 +363,10 @@ impl<'ast> MdEdit {
     /// Writes a header, a delimiter row, and one row of three columns on
     /// their own lines, with a blank line either side where there is text,
     /// and puts the caret in the first header cell.
-    fn insert_table(&self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>) {
+    fn insert_table(
+        &self, root: &'ast AstNode<'ast>, columns: usize, rows: usize,
+        operations: &mut Vec<Operation>,
+    ) {
         let r = &self.renderer;
         let offset = r.buffer.current.selection.end();
         let lines = &r.bounds.source_lines;
@@ -358,7 +393,13 @@ impl<'ast> MdEdit {
             before += &format!("\n{prefix}");
         }
         before += "| ";
-        let mut after = format!(" |  |  |\n{prefix}| --- | --- | --- |\n{prefix}|  |  |  |");
+        let blank_row = row_text(&vec![BLANK.to_string(); columns], true, true);
+        let mut after = format!(" {}", &blank_row[3..]);
+        after +=
+            &format!("\n{prefix}{}", row_text(&vec![" --- ".to_string(); columns], true, true));
+        for _ in 0..rows {
+            after += &format!("\n{prefix}{blank_row}");
+        }
         if has_text(line_index + 1) {
             after += &format!("\n{prefix}");
         }

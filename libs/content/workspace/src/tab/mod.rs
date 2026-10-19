@@ -416,6 +416,7 @@ impl Tab {
                         resp.scroll_updated = md_resp.scroll_updated;
                         resp.text_interaction_rect = md_resp.text_interaction_rect;
                         resp.mobile_toolbar_shown = md_resp.mobile_toolbar_shown;
+                        resp.caret_covered = md_resp.caret_covered;
                     }
                     TabContent::Image(img) => img.show(ui),
                     TabContent::Pdf(pdf) => pdf.show(ui),
@@ -563,6 +564,7 @@ pub struct Response {
     pub open_camera: bool,
     pub text_interaction_rect: Option<egui::Rect>,
     pub mobile_toolbar_shown: bool,
+    pub caret_covered: bool,
     pub open_file: Option<Uuid>,
 }
 

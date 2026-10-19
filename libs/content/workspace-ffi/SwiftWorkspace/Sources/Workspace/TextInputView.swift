@@ -40,6 +40,7 @@
         }
         /// The editor's find or replace field has focus, per the frame output.
         private var chromeFocused = false
+        private var caretCovered = false
         /// Characters of a composition (a swipe-typed word) sent to that
         /// field so far; a revision deletes them first.
         private var chromeMarkedLength = 0
@@ -171,7 +172,7 @@
             // Focus from code leaves the caret hidden until a tap (FB12622609);
             // Runestone activates the display the same way.
             if result {
-                selectionDisplay?.isActivated = !chromeFocused
+                selectionDisplay?.isActivated = !chromeFocused && !caretCovered
             }
             return result
         }
@@ -207,8 +208,13 @@
             if output.chrome_text_focused != chromeFocused {
                 chromeFocused = output.chrome_text_focused
                 chromeMarkedLength = 0
-                selectionDisplay?.isActivated = !chromeFocused
+                selectionDisplay?.isActivated = !chromeFocused && !caretCovered
                 refreshTraits()
+            }
+            // the editor's popups paint under UIKit's caret: it hides while one covers it
+            if output.caret_covered != caretCovered {
+                caretCovered = output.caret_covered
+                selectionDisplay?.isActivated = !chromeFocused && !caretCovered
             }
             if output.text_updated {
                 marked = nil

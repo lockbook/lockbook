@@ -139,6 +139,16 @@ impl MdEdit {
             }
         }
 
+        // a key puts a handle's menu away; a click does so on its own
+        let typed = ctx.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Text(_)))
+        });
+        if typed {
+            crate::style::context_menu::close(ctx);
+        }
+
         self.renderer.buffer.queue(ops);
         let mut buf_resp = direct_resp;
         buf_resp |= self.renderer.buffer.update();
@@ -179,6 +189,7 @@ impl MdEdit {
         if buf_resp.text_updated || buf_resp.selection_user_moved {
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
         }
+        self.renderer.caret_moved |= buf_resp.selection_user_moved;
 
         buf_resp
     }
@@ -214,6 +225,7 @@ impl MdEdit {
         if reveal && (resp.text_updated || resp.selection_user_moved) {
             self.pending_scroll = Some(ScrollTarget::Cursor);
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
+            self.renderer.caret_moved |= resp.selection_user_moved;
         }
         ctx.request_repaint();
         resp
@@ -289,6 +301,7 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
+        self.renderer.table_fades.clear();
         self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
@@ -605,10 +618,16 @@ impl MdEdit {
             })
             .map(|b| (b.rect, b.node_range))
             .collect();
+        // a row shows what its table showed of it, scrolled as the table is
+        let scrolled = self.renderer.table_scrolled(drag.parent_start);
+        let scrolled = egui::Vec2::new(if is_row { scrolled } else { 0.0 }, 0.0);
         self.paint_drag_float(ui, root, |r, ui| {
+            let mut row_ui = ui.new_child(UiBuilder::new().max_rect(card));
+            row_ui.set_clip_rect(card.intersect(ui.clip_rect()));
+            let ui = if is_row { &mut row_ui } else { ui };
             for (rect, nr) in &constituents {
                 if let Some(node) = root.descendants().find(|n| r.node_range(n) == *nr) {
-                    r.show_block(ui, node, rect.min + offset);
+                    r.show_block(ui, node, rect.min + offset - scrolled);
                 }
             }
         });
@@ -758,7 +777,11 @@ impl MdEdit {
                         }
                     }
                 }
-                Some(EditorMenuCmd::Cut) => menu_events.push(Event::Cut),
+                // an edit, which is the next input pass's to make
+                Some(EditorMenuCmd::Cut) => {
+                    self.event.internal_events.push(Event::Cut);
+                    ui.ctx().request_repaint();
+                }
                 Some(EditorMenuCmd::Copy) => menu_events.push(Event::Copy),
                 Some(EditorMenuCmd::Paste) => {
                     ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
@@ -863,7 +886,19 @@ impl MdEdit {
                 if !cfg!(target_os = "ios") {
                     if let Some(region) = region_opt {
                         ui.memory_mut(|m| m.request_focus(id));
-                        self.calc_operations(ui.ctx(), root, Event::Select { region }, &mut ops);
+                        // a click on a cell its row lacks writes the cell: an
+                        // edit, which is the next input pass's to make
+                        if self.select_unwritten_table_cell(region, &mut Vec::new()) {
+                            self.event.internal_events.push(Event::Select { region });
+                            ui.ctx().request_repaint();
+                        } else {
+                            self.calc_operations(
+                                ui.ctx(),
+                                root,
+                                Event::Select { region },
+                                &mut ops,
+                            );
+                        }
                     }
                 }
             }
@@ -874,6 +909,7 @@ impl MdEdit {
         if pointer_resp.text_updated || pointer_resp.selection_user_moved {
             self.cursor_last_interact = Some(ui.ctx().input(|i| i.time));
         }
+        self.renderer.caret_moved |= pointer_resp.selection_user_moved;
         // Pointer only emits Select ops (no text change), so no re-parse
         // needed — but reveal must reflect the applied ops (and any
         // `entered_atom` a menu "Edit" set) in this frame's paint: iOS
@@ -951,6 +987,7 @@ impl MdEdit {
             }
         }
 
+        self.renderer.caret_moved = false;
         // FindMatch is consumed by the caller (it owns find state).
         if matches!(self.pending_scroll, Some(ScrollTarget::Cursor)) {
             self.pending_scroll = None;
@@ -989,6 +1026,10 @@ impl MdEdit {
                 ));
         }
 
+        // a scrolled table's rows fade out at an edge, text and all
+        for (rect, left, right) in std::mem::take(&mut self.renderer.table_fades) {
+            fade_x(ui.painter(), rect, left, right);
+        }
         // strikethroughs and underlines painted on top of text
         for deco in std::mem::take(&mut self.renderer.deco_lines) {
             ui.painter()
@@ -1111,4 +1152,18 @@ impl MdEdit {
 
         Some(Pos2 { x: (start_line[1].x + end_line[1].x) / 2., y: anchor_y })
     }
+}
+
+/// Paints `rect` from `left` at its left edge to `right` at its right.
+pub(crate) fn fade_x(
+    painter: &egui::Painter, rect: Rect, left: egui::Color32, right: egui::Color32,
+) {
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(rect.left_top(), left);
+    mesh.colored_vertex(rect.right_top(), right);
+    mesh.colored_vertex(rect.left_bottom(), left);
+    mesh.colored_vertex(rect.right_bottom(), right);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(1, 2, 3);
+    painter.add(egui::Shape::mesh(mesh));
 }

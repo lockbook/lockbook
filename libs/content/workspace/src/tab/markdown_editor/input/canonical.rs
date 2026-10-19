@@ -78,7 +78,7 @@ impl<'ast> MdEdit {
                     .paste_as_table
                     .take()
                     .is_some_and(|asked| now - asked < 1.0);
-                if let Some(grid) = self.renderer.pasted_grid(&text, as_table) {
+                if let Some(grid) = self.renderer.pasted_grid(root, &text, as_table) {
                     return Some(Event::PasteGrid(grid));
                 }
 

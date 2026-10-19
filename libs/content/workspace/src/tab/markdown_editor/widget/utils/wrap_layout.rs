@@ -1997,7 +1997,9 @@ impl MdRender {
                 if let Some(style) = frag.style_stack.last() {
                     let fmt = &style.format;
                     let baseline_top = screen_rect.min.y + frag.content_inset.top;
-                    let x = screen_rect.left()..=screen_rect.right();
+                    // painted later, outside this clip: a scrolled table's
+                    let clip = ui.clip_rect().x_range();
+                    let x = screen_rect.left().max(clip.min)..=screen_rect.right().min(clip.max);
                     if fmt.strikethrough {
                         self.deco_lines.push(DecoLine {
                             x: x.clone(),
@@ -2135,6 +2137,8 @@ impl MdRender {
             } else {
                 f.rect
             };
+            // less what a scrolled table hides of it
+            let Some(rect) = self.table_showing(rect) else { continue };
             let parent_id = parent_base.with(salt);
             let r = ui.interact(rect, parent_id.with(i), sense);
             let merged = match per_parent.remove(&parent_id) {

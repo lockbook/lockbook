@@ -17,9 +17,9 @@ use crate::style::{
     CHROME_BAND_GLYPH, CHROME_BAND_H, STROKE_HAIRLINE, ThemeExt, control_height, icon_button_glyph,
     icon_button_mark, phosphor, phosphor_font_id, place_at, tip_text,
 };
-use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::table::TableAction;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
+use crate::tab::markdown_editor::{MdRender, TouchTarget};
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 
 use crate::tab::markdown_editor::{self, Editor};
@@ -82,6 +82,8 @@ pub struct MarkdownToolbarState {
     pub in_table: bool,
     /// Tools of the table set that would do nothing where the selection is.
     pub disabled: Vec<MarkdownToolbarAction>,
+    /// Whether the selection is in the header, where Delete row deletes the table.
+    pub on_header: bool,
 }
 
 /// A tool of the table set, as it stands where the selection ends.
@@ -92,6 +94,8 @@ pub struct TableTool {
     pub applied: bool,
     /// False where the tool would do nothing.
     pub enabled: bool,
+    /// What it does where the selection is.
+    pub tip: &'static str,
 }
 
 fn toolbar_icon(
@@ -183,12 +187,13 @@ const TABLE_TOOLS: &[&[(MarkdownToolbarAction, Mark, &str)]] = {
 fn toolbar_table_tool(
     ui: &mut Ui, t: &crate::style::Theme, tool: TableTool, menu_open: bool,
 ) -> bool {
-    let (mark, tip) = TABLE_TOOLS
+    let mark = TABLE_TOOLS
         .iter()
         .flat_map(|tools| tools.iter())
         .find(|(action, ..)| *action == tool.action)
-        .map(|&(_, mark, tip)| (mark, tip))
+        .map(|&(_, mark, _)| mark)
         .expect("a table tool");
+    let tip = tool.tip;
     let hit = control_height();
     if !tool.enabled {
         let (rect, r) = ui.allocate_exact_size(Vec2::splat(hit), egui::Sense::hover());
@@ -207,12 +212,119 @@ fn toolbar_table_tool(
 pub struct Toolbar {
     pub menu_open: bool,
     heading_last_click_at: Instant,
+    /// Whether the table set was shown last frame: entering or leaving a
+    /// table scrolls the toolbar back to its start.
+    in_table: bool,
+    /// The size picker under the insert-table button, while open.
+    pub table_picker_open: bool,
+    /// The picker's grid as last painted, for a test to click in.
+    pub table_picker_grid: Option<Rect>,
 }
 
 impl Default for Toolbar {
     fn default() -> Self {
-        Self { menu_open: false, heading_last_click_at: Instant::now() }
+        Self {
+            menu_open: false,
+            heading_last_click_at: Instant::now(),
+            in_table: false,
+            table_picker_open: false,
+            table_picker_grid: None,
+        }
     }
+}
+
+/// The insert-table picker's grid, in cells.
+pub const TABLE_PICKER: (usize, usize) = (10, 8);
+
+/// The size picker by the insert-table button — under it, or on a `phone`
+/// over it, where the keyboard is under the toolbar, and sized for a
+/// finger: the block of cells up to the one under the pointer lights up,
+/// a caption says its size, and a click or a lift inserts a table of it.
+/// Any other click, or Escape, puts it away.
+fn show_table_picker(
+    ui: &mut Ui, t: &crate::style::Theme, anchor: Rect, phone: bool,
+) -> (Option<Event>, Option<Rect>, Rect, bool) {
+    use crate::style::Space;
+    let (columns, rows) = TABLE_PICKER;
+    let (cell_side, gap, caption_size, padding) =
+        if phone { (22.0, 5.0, 15.0, Space::Sm) } else { (14.0, 4.0, 12.0, Space::Xs) };
+    let above = phone;
+    let step = cell_side + gap;
+    let grid_size = Vec2::new(columns as f32 * step - gap, rows as f32 * step - gap);
+    let mut chosen = None;
+    let mut grid_rect = None;
+    let area = egui::Area::new(egui::Id::new("md_table_picker"))
+        .order(egui::Order::Foreground)
+        .pivot(if above { egui::Align2::LEFT_BOTTOM } else { egui::Align2::LEFT_TOP })
+        .fixed_pos(if above {
+            anchor.left_top() - Vec2::new(0.0, 4.0)
+        } else {
+            anchor.left_bottom() + Vec2::new(0.0, 4.0)
+        })
+        .constrain(true)
+        .show(ui.ctx(), |ui| {
+            crate::style::chrome::canvas_overlay_frame(t, padding).show(ui, |ui| {
+                let (rect, resp) = ui.allocate_exact_size(grid_size, egui::Sense::click());
+                grid_rect = Some(rect);
+                // a lifted finger has no hover position in the frame it clicks
+                let pos = resp.interact_pointer_pos().or(resp.hover_pos());
+                let picked = pos.map(|pos| {
+                    let cell = ((pos - rect.min) / step).floor();
+                    (
+                        cell.x.clamp(0.0, columns as f32 - 1.0) as usize + 1,
+                        cell.y.clamp(0.0, rows as f32 - 1.0) as usize + 1,
+                    )
+                });
+                let painter = ui.painter();
+                for row in 0..rows {
+                    for column in 0..columns {
+                        let min = rect.min + Vec2::new(column as f32 * step, row as f32 * step);
+                        let cell = Rect::from_min_size(min, Vec2::splat(cell_side));
+                        let lit = picked.is_some_and(|(c, r)| column < c && row < r);
+                        let fill = if lit {
+                            t.accent().gamma_multiply(0.25)
+                        } else {
+                            t.neutral_bg_secondary()
+                        };
+                        let edge = if lit { t.accent() } else { t.neutral_bg_tertiary() };
+                        painter.rect_filled(cell, 2.0, fill);
+                        painter.rect_stroke(
+                            cell,
+                            2.0,
+                            Stroke::new(1.0_f32, edge),
+                            StrokeKind::Inside,
+                        );
+                    }
+                }
+                let caption = match picked {
+                    Some((c, r)) => format!("{c} × {r}"),
+                    None => "Table size".to_string(),
+                };
+                ui.add_space(gap);
+                ui.label(
+                    RichText::new(caption)
+                        .color(t.neutral_fg_secondary())
+                        .size(caption_size),
+                );
+                // a finger slid to its size and lifted is no click to egui
+                let lifted = ui.input(|i| {
+                    i.pointer.any_released() && pos.is_some_and(|pos| rect.contains(pos))
+                });
+                if resp.clicked() || lifted {
+                    if let Some((c, r)) = picked {
+                        chosen =
+                            Some(Event::Table(TableAction::Insert { columns: c, rows: r - 1 }));
+                    }
+                }
+            });
+        });
+    let outside = ui.input(|i| {
+        let clicked = i.pointer.any_click();
+        let pos = i.pointer.interact_pos();
+        clicked && pos.is_some_and(|p| !area.response.rect.contains(p) && !anchor.contains(p))
+    });
+    let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
+    (chosen, grid_rect, area.response.rect, outside || escape)
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -312,6 +424,8 @@ impl<'ast> Editor {
                 state.disabled.push(tool.action);
             }
         }
+        let position = self.edit.renderer.table_position();
+        state.on_header = position.is_some_and(|(_, row, _)| row == 0);
         state
     }
 
@@ -378,7 +492,7 @@ impl<'ast> Editor {
                 return Event::Indent { deindent: true };
             }
             MarkdownToolbarAction::NextRow => return Event::Newline { shift: false },
-            MarkdownToolbarAction::Table => return Event::Table(Insert),
+            MarkdownToolbarAction::Table => return Event::Table(Insert { columns: 3, rows: 1 }),
             MarkdownToolbarAction::RowAbove => return Event::Table(InsertRow { below: false }),
             MarkdownToolbarAction::RowBelow => return Event::Table(InsertRow { below: true }),
             MarkdownToolbarAction::ColumnLeft => {
@@ -497,7 +611,7 @@ impl<'ast> Editor {
         let r = &self.edit.renderer;
         let (table, row, column) = r.table_position()?;
         let alignment = table.delimiter.alignments[column];
-        let tool = |action| TableTool {
+        let tool = |action, tip| TableTool {
             action,
             applied: match action {
                 AlignLeft => alignment == TableAlignment::Left,
@@ -505,13 +619,19 @@ impl<'ast> Editor {
                 AlignRight => alignment == TableAlignment::Right,
                 _ => false,
             },
-            // the header stays the header
-            enabled: action != DeleteRow || row > 0,
+            enabled: true,
+            // the header is the table
+            tip: if action == DeleteRow && row == 0 { "Delete table" } else { tip },
         };
         let groups = TABLE_TOOLS.iter().skip(if r.touch_mode { 0 } else { 1 });
         Some(
             groups
-                .map(|tools| tools.iter().map(|&(action, ..)| tool(action)).collect())
+                .map(|tools| {
+                    tools
+                        .iter()
+                        .map(|&(action, _, tip)| tool(action, tip))
+                        .collect()
+                })
                 .collect(),
         )
     }
@@ -532,334 +652,358 @@ impl<'ast> Editor {
         let available = ui.available_width();
         let offset = ((available - toolbar_w) / 2.).max(0.);
 
-        ScrollArea::horizontal()
+        let in_table = self.table_tools().is_some();
+        let swapped = mem::replace(&mut self.toolbar.in_table, in_table) != in_table;
+        let mut scroll = ScrollArea::horizontal()
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
-            .max_height(control_height())
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-                    let t = ui.ctx().get_lb_theme();
-                    let menu_open = self.toolbar.menu_open;
-                    let is_ios = cfg!(target_os = "ios");
-                    let supports_attachments = cfg!(any(target_os = "ios", target_os = "android"));
+            .max_height(control_height());
+        if swapped {
+            scroll = scroll.horizontal_scroll_offset(0.0);
+        }
+        scroll.show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                let t = ui.ctx().get_lb_theme();
+                let menu_open = self.toolbar.menu_open;
+                let is_ios = cfg!(target_os = "ios");
+                let supports_attachments = cfg!(any(target_os = "ios", target_os = "android"));
 
-                    let toolbar_margin = 10.;
-                    // offset centers the full toolbar_w (including margins);
-                    // add margin so buttons start after the leading margin
-                    ui.add_space(offset + toolbar_margin);
+                let toolbar_margin = 10.;
+                // offset centers the full toolbar_w (including margins);
+                // add margin so buttons start after the leading margin
+                ui.add_space(offset + toolbar_margin);
 
-                    let persistence = self.persistence.get_markdown().toolbar;
-                    let toolbar_is_default = persistence == Default::default();
+                let persistence = self.persistence.get_markdown().toolbar;
+                let toolbar_is_default = persistence == Default::default();
 
-                    let table_tools = self.table_tools();
-                    // a table has no place for the block styles
-                    let in_table = table_tools.is_some();
-                    let block = |on: bool| (on || toolbar_is_default) && !in_table;
-                    let indents = block(persistence.indent) || block(persistence.deindent);
+                let table_tools = self.table_tools();
+                // a table has no place for the block styles
+                let in_table = table_tools.is_some();
+                let block = |on: bool| (on || toolbar_is_default) && !in_table;
+                let indents = block(persistence.indent) || block(persistence.deindent);
 
-                    let mut events = Vec::new();
+                let mut events = Vec::new();
 
-                    if is_ios && (persistence.search || toolbar_is_default) {
-                        let find_open = self.find.term.is_some();
-                        if toolbar_icon(ui, &t, phosphor::SEARCH, find_open, menu_open, "Search") {
-                            if find_open {
-                                self.find.term = None;
-                                self.find.matches.clear();
-                                self.find.current_match = None;
-                            } else {
-                                self.find.open_requested = true;
-                            }
-                        }
-                        add_seperator(ui);
-                    }
-
-                    let mut any_undo_redo = false;
-                    if persistence.undo || toolbar_is_default {
-                        if toolbar_icon(
-                            ui,
-                            &t,
-                            phosphor::ARROW_COUNTER_CLOCKWISE,
-                            false,
-                            menu_open,
-                            "Undo",
-                        ) {
-                            events.push(Event::Undo);
-                        }
-                        any_undo_redo = true;
-                    }
-                    if persistence.redo || toolbar_is_default {
-                        if any_undo_redo {
-                            ui.add_space(5.);
-                        }
-                        if toolbar_icon(ui, &t, phosphor::ARROW_CLOCKWISE, false, menu_open, "Redo")
-                        {
-                            events.push(Event::Redo);
-                        }
-                        any_undo_redo = true;
-                    }
-                    if any_undo_redo {
-                        add_seperator(ui);
-                    }
-
-                    for tools in table_tools.into_iter().flatten() {
-                        for (i, tool) in tools.into_iter().enumerate() {
-                            if i > 0 {
-                                ui.add_space(5.);
-                            }
-                            if toolbar_table_tool(ui, &t, tool, menu_open) {
-                                events.push(self.toolbar_action(tool.action));
-                            }
-                        }
-                        add_seperator(ui);
-                    }
-
-                    let mut any_style = false;
-                    if block(persistence.heading) {
-                        self.heading_button(root, ui).map(|e| events.push(e));
-                        any_style = true;
-                    }
-                    if persistence.bold || toolbar_is_default {
-                        if any_style {
-                            ui.add_space(5.);
-                        }
-                        self.style(phosphor::TEXT_B, NodeValue::Strong, root, ui)
-                            .map(|e| events.push(e));
-                        any_style = true;
-                    }
-                    if persistence.emph || toolbar_is_default {
-                        if any_style {
-                            ui.add_space(5.);
-                        }
-                        self.style(phosphor::TEXT_ITALIC, NodeValue::Emph, root, ui)
-                            .map(|e| events.push(e));
-                        any_style = true;
-                    }
-                    if persistence.code || toolbar_is_default {
-                        if any_style {
-                            ui.add_space(5.);
-                        }
-                        self.style(phosphor::CODE, NodeValue::Code(Default::default()), root, ui)
-                            .map(|e| events.push(e));
-                        any_style = true;
-                    }
-                    if persistence.strikethrough || toolbar_is_default {
-                        if any_style {
-                            ui.add_space(5.);
-                        }
-                        self.style(
-                            phosphor::TEXT_STRIKETHROUGH,
-                            NodeValue::Strikethrough,
-                            root,
-                            ui,
-                        )
-                        .map(|e| events.push(e));
-                        any_style = true;
-                    }
-                    if persistence.highlight || toolbar_is_default {
-                        if any_style {
-                            ui.add_space(5.);
-                        }
-                        self.style(phosphor::HIGHLIGHTER, NodeValue::Highlight, root, ui)
-                            .map(|e| events.push(e));
-                        any_style = true;
-                    }
-                    if persistence.underline || toolbar_is_default {
-                        if any_style {
-                            ui.add_space(5.);
-                        }
-                        self.style(phosphor::TEXT_UNDERLINE, NodeValue::Underline, root, ui)
-                            .map(|e| events.push(e));
-                        any_style = true;
-                    }
-                    if persistence.spoiler || toolbar_is_default {
-                        if any_style {
-                            ui.add_space(5.);
-                        }
-                        self.style(phosphor::EYE_SLASH, NodeValue::SpoileredText, root, ui)
-                            .map(|e| events.push(e));
-                        any_style = true;
-                    }
-                    if persistence.subscript || toolbar_is_default {
-                        if any_style {
-                            ui.add_space(5.);
-                        }
-                        self.style(phosphor::TEXT_SUBSCRIPT, NodeValue::Subscript, root, ui)
-                            .map(|e| events.push(e));
-                        any_style = true;
-                    }
-                    if persistence.superscript || toolbar_is_default {
-                        if any_style {
-                            ui.add_space(5.);
-                        }
-                        self.style(phosphor::TEXT_SUPERSCRIPT, NodeValue::Superscript, root, ui)
-                            .map(|e| events.push(e));
-                        any_style = true;
-                    }
-                    if any_style {
-                        add_seperator(ui);
-                    }
-
-                    let mut any_list = false;
-                    if block(persistence.ordered_list) {
-                        self.style(
-                            phosphor::LIST_NUMBERS,
-                            NodeValue::List(NodeList {
-                                list_type: ListType::Ordered,
-                                ..Default::default()
-                            }),
-                            root,
-                            ui,
-                        )
-                        .map(|e| events.push(e));
-                        any_list = true;
-                    }
-                    if block(persistence.unordered_list) {
-                        if any_list {
-                            ui.add_space(5.);
-                        }
-                        self.style(
-                            phosphor::LIST_BULLETS,
-                            NodeValue::List(NodeList {
-                                list_type: ListType::Bullet,
-                                ..Default::default()
-                            }),
-                            root,
-                            ui,
-                        )
-                        .map(|e| events.push(e));
-                        any_list = true;
-                    }
-                    if block(persistence.task_list) {
-                        if any_list {
-                            ui.add_space(5.);
-                        }
-                        self.style(
-                            phosphor::CHECK_SQUARE,
-                            NodeValue::List(NodeList {
-                                list_type: ListType::Bullet,
-                                is_task_list: true,
-                                ..Default::default()
-                            }),
-                            root,
-                            ui,
-                        )
-                        .map(|e| events.push(e));
-                        any_list = true;
-                    }
-                    if block(persistence.quote) {
-                        if any_list {
-                            ui.add_space(5.);
-                        }
-                        self.style(phosphor::QUOTES, NodeValue::BlockQuote, root, ui)
-                            .map(|e| events.push(e));
-                        any_list = true;
-                    }
-                    if block(persistence.table) {
-                        if any_list {
-                            ui.add_space(5.);
-                        }
-                        if toolbar_icon(ui, &t, phosphor::TABLE, false, menu_open, "Table") {
-                            events.push(self.toolbar_action(MarkdownToolbarAction::Table));
-                        }
-                        any_list = true;
-                    }
-                    if any_list {
-                        add_seperator(ui);
-                    }
-
-                    let mut any_media = false;
-                    if persistence.link || toolbar_is_default {
-                        self.style(phosphor::LINK, NodeValue::Link(Default::default()), root, ui)
-                            .map(|e| events.push(e));
-                        any_media = true;
-                    }
-                    if (persistence.image || toolbar_is_default) && supports_attachments {
-                        if any_media {
-                            ui.add_space(5.);
-                        }
-                        // Accent only when the cursor is inside an image, matching link.
-                        let applied = self.edit.inline_styled(
-                            root,
-                            self.edit.renderer.buffer.current.selection,
-                            &NodeValue::Image(Default::default()),
-                        );
-                        let tooltip =
-                            if cfg!(target_os = "android") { "Insert photo" } else { "Camera" };
-                        if toolbar_icon(ui, &t, phosphor::CAMERA, applied, menu_open, tooltip) {
-                            events.push(Event::Camera);
-                        }
-                        any_media = true;
-                    }
-                    if any_media && (indents || self.edit.phone_mode) {
-                        add_seperator(ui);
-                    }
-
-                    let mut any_indent = false;
-                    if block(persistence.indent) {
-                        if toolbar_icon(ui, &t, phosphor::TEXT_INDENT, false, menu_open, "Indent") {
-                            events.push(Event::Indent { deindent: false });
-                        }
-                        any_indent = true;
-                    }
-                    if block(persistence.deindent) {
-                        if any_indent {
-                            ui.add_space(5.);
-                        }
-                        if toolbar_icon(
-                            ui,
-                            &t,
-                            phosphor::TEXT_OUTDENT,
-                            false,
-                            menu_open,
-                            "De-indent",
-                        ) {
-                            events.push(Event::Indent { deindent: true });
-                        }
-                        any_indent = true;
-                    }
-
-                    if self.edit.phone_mode {
-                        if any_indent {
-                            add_seperator(ui);
-                        }
-
-                        // fill remaining space
-                        const MENU_TOGGLE_SPACE: f32 = 40.;
-                        if ui.available_width() > MENU_TOGGLE_SPACE {
-                            ui.add_space(ui.available_width() - MENU_TOGGLE_SPACE);
-                        }
-
-                        let chevron = if self.toolbar.menu_open {
-                            phosphor::CARET_DOWN
+                if is_ios && (persistence.search || toolbar_is_default) {
+                    let find_open = self.find.term.is_some();
+                    if toolbar_icon(ui, &t, phosphor::SEARCH, find_open, menu_open, "Search") {
+                        if find_open {
+                            self.find.term = None;
+                            self.find.matches.clear();
+                            self.find.current_match = None;
                         } else {
-                            phosphor::CARET_UP
-                        };
-                        if toolbar_icon(
-                            ui,
-                            &t,
-                            chevron,
-                            self.toolbar.menu_open,
-                            false,
-                            "Toolbar Settings",
-                        ) {
-                            self.toolbar.menu_open = !self.toolbar.menu_open;
-                            ui.ctx().set_virtual_keyboard_shown(false);
+                            self.find.open_requested = true;
                         }
+                    }
+                    add_seperator(ui);
+                }
+
+                let mut any_undo_redo = false;
+                if persistence.undo || toolbar_is_default {
+                    if toolbar_icon(
+                        ui,
+                        &t,
+                        phosphor::ARROW_COUNTER_CLOCKWISE,
+                        false,
+                        menu_open,
+                        "Undo",
+                    ) {
+                        events.push(Event::Undo);
+                    }
+                    any_undo_redo = true;
+                }
+                if persistence.redo || toolbar_is_default {
+                    if any_undo_redo {
                         ui.add_space(5.);
                     }
+                    if toolbar_icon(ui, &t, phosphor::ARROW_CLOCKWISE, false, menu_open, "Redo") {
+                        events.push(Event::Redo);
+                    }
+                    any_undo_redo = true;
+                }
+                if any_undo_redo {
+                    add_seperator(ui);
+                }
 
-                    ui.add_space(toolbar_margin);
-                    ui.add_space(ui.available_width());
-
-                    for event in events {
-                        ui.ctx().push_markdown_event(event);
-                        if self.edit.phone_mode {
-                            // bottom toolbar painted after editor events processed
-                            ui.ctx().request_repaint();
+                for tools in table_tools.into_iter().flatten() {
+                    for (i, tool) in tools.into_iter().enumerate() {
+                        if i > 0 {
+                            ui.add_space(5.);
+                        }
+                        if toolbar_table_tool(ui, &t, tool, menu_open) {
+                            events.push(self.toolbar_action(tool.action));
                         }
                     }
-                })
-            });
+                    add_seperator(ui);
+                }
+
+                let mut any_style = false;
+                if block(persistence.heading) {
+                    self.heading_button(root, ui).map(|e| events.push(e));
+                    any_style = true;
+                }
+                if persistence.bold || toolbar_is_default {
+                    if any_style {
+                        ui.add_space(5.);
+                    }
+                    self.style(phosphor::TEXT_B, NodeValue::Strong, root, ui)
+                        .map(|e| events.push(e));
+                    any_style = true;
+                }
+                if persistence.emph || toolbar_is_default {
+                    if any_style {
+                        ui.add_space(5.);
+                    }
+                    self.style(phosphor::TEXT_ITALIC, NodeValue::Emph, root, ui)
+                        .map(|e| events.push(e));
+                    any_style = true;
+                }
+                if persistence.code || toolbar_is_default {
+                    if any_style {
+                        ui.add_space(5.);
+                    }
+                    self.style(phosphor::CODE, NodeValue::Code(Default::default()), root, ui)
+                        .map(|e| events.push(e));
+                    any_style = true;
+                }
+                if persistence.strikethrough || toolbar_is_default {
+                    if any_style {
+                        ui.add_space(5.);
+                    }
+                    self.style(phosphor::TEXT_STRIKETHROUGH, NodeValue::Strikethrough, root, ui)
+                        .map(|e| events.push(e));
+                    any_style = true;
+                }
+                if persistence.highlight || toolbar_is_default {
+                    if any_style {
+                        ui.add_space(5.);
+                    }
+                    self.style(phosphor::HIGHLIGHTER, NodeValue::Highlight, root, ui)
+                        .map(|e| events.push(e));
+                    any_style = true;
+                }
+                if persistence.underline || toolbar_is_default {
+                    if any_style {
+                        ui.add_space(5.);
+                    }
+                    self.style(phosphor::TEXT_UNDERLINE, NodeValue::Underline, root, ui)
+                        .map(|e| events.push(e));
+                    any_style = true;
+                }
+                if persistence.spoiler || toolbar_is_default {
+                    if any_style {
+                        ui.add_space(5.);
+                    }
+                    self.style(phosphor::EYE_SLASH, NodeValue::SpoileredText, root, ui)
+                        .map(|e| events.push(e));
+                    any_style = true;
+                }
+                if persistence.subscript || toolbar_is_default {
+                    if any_style {
+                        ui.add_space(5.);
+                    }
+                    self.style(phosphor::TEXT_SUBSCRIPT, NodeValue::Subscript, root, ui)
+                        .map(|e| events.push(e));
+                    any_style = true;
+                }
+                if persistence.superscript || toolbar_is_default {
+                    if any_style {
+                        ui.add_space(5.);
+                    }
+                    self.style(phosphor::TEXT_SUPERSCRIPT, NodeValue::Superscript, root, ui)
+                        .map(|e| events.push(e));
+                    any_style = true;
+                }
+                if any_style {
+                    add_seperator(ui);
+                }
+
+                let mut any_list = false;
+                if block(persistence.ordered_list) {
+                    self.style(
+                        phosphor::LIST_NUMBERS,
+                        NodeValue::List(NodeList {
+                            list_type: ListType::Ordered,
+                            ..Default::default()
+                        }),
+                        root,
+                        ui,
+                    )
+                    .map(|e| events.push(e));
+                    any_list = true;
+                }
+                if block(persistence.unordered_list) {
+                    if any_list {
+                        ui.add_space(5.);
+                    }
+                    self.style(
+                        phosphor::LIST_BULLETS,
+                        NodeValue::List(NodeList {
+                            list_type: ListType::Bullet,
+                            ..Default::default()
+                        }),
+                        root,
+                        ui,
+                    )
+                    .map(|e| events.push(e));
+                    any_list = true;
+                }
+                if block(persistence.task_list) {
+                    if any_list {
+                        ui.add_space(5.);
+                    }
+                    self.style(
+                        phosphor::CHECK_SQUARE,
+                        NodeValue::List(NodeList {
+                            list_type: ListType::Bullet,
+                            is_task_list: true,
+                            ..Default::default()
+                        }),
+                        root,
+                        ui,
+                    )
+                    .map(|e| events.push(e));
+                    any_list = true;
+                }
+                if block(persistence.quote) {
+                    if any_list {
+                        ui.add_space(5.);
+                    }
+                    self.style(phosphor::QUOTES, NodeValue::BlockQuote, root, ui)
+                        .map(|e| events.push(e));
+                    any_list = true;
+                }
+                if block(persistence.table) {
+                    if any_list {
+                        ui.add_space(5.);
+                    }
+                    let open = self.toolbar.table_picker_open;
+                    let r = icon_button_glyph(
+                        ui,
+                        &t,
+                        phosphor::TABLE,
+                        open && !menu_open,
+                        t.neutral_bg(),
+                        control_height(),
+                        CHROME_BAND_GLYPH,
+                    );
+                    tip_text(ui.ctx(), &r, "Table");
+                    if !menu_open && r.clicked() {
+                        self.toolbar.table_picker_open = !open;
+                    }
+                    if self.toolbar.table_picker_open && !menu_open {
+                        let phone = self.edit.phone_mode;
+                        let (chosen, grid, rect, close) = show_table_picker(ui, &t, r.rect, phone);
+                        self.toolbar.table_picker_grid = grid;
+                        // its touches stay with egui, not the iOS text page
+                        self.edit
+                            .renderer
+                            .touch_targets
+                            .push((rect, TouchTarget::Popup));
+                        let caret = self.edit.renderer.buffer.current.selection.1;
+                        let caret = self.edit.cursor_line(caret);
+                        self.next_resp.caret_covered = caret.is_some_and(|[top, bottom]| {
+                            rect.intersects(Rect::from_two_pos(top, bottom))
+                        });
+                        if chosen.is_some() || close {
+                            self.toolbar.table_picker_open = false;
+                        }
+                        events.extend(chosen);
+                    } else {
+                        self.toolbar.table_picker_grid = None;
+                    }
+                    any_list = true;
+                }
+                if any_list {
+                    add_seperator(ui);
+                }
+
+                let mut any_media = false;
+                if persistence.link || toolbar_is_default {
+                    self.style(phosphor::LINK, NodeValue::Link(Default::default()), root, ui)
+                        .map(|e| events.push(e));
+                    any_media = true;
+                }
+                if (persistence.image || toolbar_is_default) && supports_attachments {
+                    if any_media {
+                        ui.add_space(5.);
+                    }
+                    // Accent only when the cursor is inside an image, matching link.
+                    let applied = self.edit.inline_styled(
+                        root,
+                        self.edit.renderer.buffer.current.selection,
+                        &NodeValue::Image(Default::default()),
+                    );
+                    let tooltip =
+                        if cfg!(target_os = "android") { "Insert photo" } else { "Camera" };
+                    if toolbar_icon(ui, &t, phosphor::CAMERA, applied, menu_open, tooltip) {
+                        events.push(Event::Camera);
+                    }
+                    any_media = true;
+                }
+                if any_media && (indents || self.edit.phone_mode) {
+                    add_seperator(ui);
+                }
+
+                let mut any_indent = false;
+                if block(persistence.indent) {
+                    if toolbar_icon(ui, &t, phosphor::TEXT_INDENT, false, menu_open, "Indent") {
+                        events.push(Event::Indent { deindent: false });
+                    }
+                    any_indent = true;
+                }
+                if block(persistence.deindent) {
+                    if any_indent {
+                        ui.add_space(5.);
+                    }
+                    if toolbar_icon(ui, &t, phosphor::TEXT_OUTDENT, false, menu_open, "De-indent") {
+                        events.push(Event::Indent { deindent: true });
+                    }
+                    any_indent = true;
+                }
+
+                if self.edit.phone_mode {
+                    if any_indent {
+                        add_seperator(ui);
+                    }
+
+                    // fill remaining space
+                    const MENU_TOGGLE_SPACE: f32 = 40.;
+                    if ui.available_width() > MENU_TOGGLE_SPACE {
+                        ui.add_space(ui.available_width() - MENU_TOGGLE_SPACE);
+                    }
+
+                    let chevron = if self.toolbar.menu_open {
+                        phosphor::CARET_DOWN
+                    } else {
+                        phosphor::CARET_UP
+                    };
+                    if toolbar_icon(
+                        ui,
+                        &t,
+                        chevron,
+                        self.toolbar.menu_open,
+                        false,
+                        "Toolbar Settings",
+                    ) {
+                        self.toolbar.menu_open = !self.toolbar.menu_open;
+                        ui.ctx().set_virtual_keyboard_shown(false);
+                    }
+                    ui.add_space(5.);
+                }
+
+                ui.add_space(toolbar_margin);
+                ui.add_space(ui.available_width());
+
+                for event in events {
+                    ui.ctx().push_markdown_event(event);
+                    if self.edit.phone_mode {
+                        // bottom toolbar painted after editor events processed
+                        ui.ctx().request_repaint();
+                    }
+                }
+            })
+        });
     }
 
     fn heading_button(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) -> Option<Event> {

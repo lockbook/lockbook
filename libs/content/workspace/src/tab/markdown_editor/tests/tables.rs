@@ -8,7 +8,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use super::super::MdRender;
 use super::super::input::{Event, Location, Region};
-use super::super::table::{DelimiterBounds, RowBounds};
+use super::super::table::{DelimiterBounds, RowBounds, TableAction};
 use super::harness::TestEditor;
 use super::render_props::test_renderer;
 
@@ -227,6 +227,15 @@ fn caret_at(editor: &mut TestEditor, offset: usize) {
     editor.enter_frame();
 }
 
+fn type_text(editor: &mut TestEditor, text: &str) {
+    editor.push(Event::Replace {
+        region: Region::Selection,
+        text: text.into(),
+        advance_cursor: true,
+    });
+    editor.enter_frame();
+}
+
 fn select(editor: &mut TestEditor, from: usize, to: usize) -> (usize, usize) {
     editor.editor.edit.cursor.x_target = None;
     editor.push(Event::Select { region: (Grapheme(from), Grapheme(to)).into() });
@@ -237,6 +246,11 @@ fn select(editor: &mut TestEditor, from: usize, to: usize) -> (usize, usize) {
 fn selection(editor: &TestEditor) -> (usize, usize) {
     let selection = editor.editor.edit.renderer.buffer.current.selection;
     (selection.0.0, selection.1.0)
+}
+
+fn act(editor: &mut TestEditor, action: TableAction) {
+    editor.push(Event::Table(action));
+    editor.enter_frame();
 }
 
 /// The rect of each cell of the document's first table, row by row.
@@ -256,6 +270,38 @@ fn cell_rects(editor: &TestEditor) -> Vec<Vec<egui::Rect>> {
             boxes.iter().map(|cell_box| cell_box.rect).collect()
         })
         .collect()
+}
+
+/// The rects of what is painted for the text `needle`.
+fn rects_of(editor: &TestEditor, needle: &str) -> Vec<egui::Rect> {
+    let start = editor.get_text().find(needle).unwrap();
+    let range = (Grapheme(start), Grapheme(start + needle.chars().count()));
+    editor.editor.edit.renderer.range_rects(range)
+}
+
+/// A table of more columns than a note has room for.
+fn wide() -> String {
+    let row = |cell: &dyn Fn(usize) -> String| {
+        let cells: Vec<String> = (0..24).map(cell).collect();
+        format!("| {} |", cells.join(" | "))
+    };
+    let header = row(&|column| format!("column{column:02}"));
+    let delimiter = row(&|_| "-".into());
+    let body = row(&|column| format!("{column},204,000"));
+    format!("{header}\n{delimiter}\n{body}\n{body}")
+}
+
+/// The columns of the first table that show, and the span they show in.
+fn showing(editor: &TestEditor) -> (Vec<usize>, egui::Rangef) {
+    let r = &editor.editor.edit.renderer;
+    let header = r.bounds.tables[0].rows[0].line.0;
+    let boxes = r.table_cell_boxes.iter();
+    let boxes: Vec<_> = boxes.filter(|cell_box| cell_box.row == header).collect();
+    let span = boxes
+        .iter()
+        .map(|cell_box| cell_box.rect)
+        .reduce(egui::Rect::union);
+    (boxes.iter().map(|cell_box| cell_box.column).collect(), span.unwrap().x_range())
 }
 
 fn paste(editor: &mut TestEditor, text: &str) {
@@ -378,6 +424,37 @@ fn paste_as_table_reads_comma_separated_text() {
 }
 
 #[test]
+fn keystrokes_of_one_frame_land_in_the_order_typed() {
+    let mut editor = TestEditor::new("| a | x |\n|-|-|");
+    caret_at(&mut editor, 3);
+    for text in [" ", "b"] {
+        let (region, text) = (Region::Selection, text.to_string());
+        editor.push(Event::Replace { region, text, advance_cursor: true });
+    }
+    editor.enter_frame();
+    assert_eq!(editor.get_text(), "| a b | x |\n|-|-|");
+}
+
+#[test]
+fn a_pipe_written_in_a_cell_shows_as_a_pipe() {
+    // two that flank text, which the parser pairs up; and one in a code span
+    let md = "| fast\\|slow\\|auto | x |\n| - | - |\n| `p\\|q` | y |\n\na |b| c";
+    let mut editor = TestEditor::new(md);
+    caret_at(&mut editor, md.find('y').unwrap());
+    let r = &editor.editor.edit.renderer;
+    let painted = |at: usize| !r.range_rects((Grapheme(at), Grapheme(at + 1))).is_empty();
+    let escapes: Vec<usize> = md.match_indices("\\|").map(|(at, _)| at).collect();
+    assert_eq!(escapes.len(), 3);
+    for escape in escapes {
+        assert!(!painted(escape), "the backslash at {escape} shows");
+        assert!(painted(escape + 1), "the pipe at {} is hidden", escape + 1);
+    }
+    // a pair of pipes in a paragraph is text too
+    let pair = md.find("|b|").unwrap();
+    assert!(painted(pair) && painted(pair + 2));
+}
+
+#[test]
 fn cut_and_copy_take_rows_without_their_container() {
     let md = "> | aa | bb |\n> | - | - |\n> | cc | dd |\n> | ee | ff |";
     // rows with their header copy as a table
@@ -401,4 +478,43 @@ fn cut_and_copy_take_rows_without_their_container() {
     editor.enter_frame();
     assert_eq!(editor.copied.as_deref(), Some("| aa | bb |"));
     assert_eq!(editor.get_text(), "> |  |  |\n> | - | - |\n> | ee | ff |");
+}
+
+#[test]
+fn a_find_match_in_a_column_out_of_view_brings_it_in() {
+    let md = wide();
+    let mut editor = TestEditor::new(&md);
+    caret_at(&mut editor, md.find("column00").unwrap());
+    editor.editor.find.open_requested = true;
+    editor.enter_frame();
+    editor.editor.find.term = Some("column23".into());
+    editor.enter_frame_with_input(vec![]);
+    editor.editor.find.current_match = Some(0);
+    for _ in 0..3 {
+        editor.enter_frame_with_input(vec![]);
+    }
+    let found = md.find("column23").unwrap();
+    let r = &editor.editor.edit.renderer;
+    assert!(showing(&editor).0.contains(&23));
+    assert!(
+        !r.range_rects((Grapheme(found), Grapheme(found + 8)))
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_table_the_parser_places_oddly_shows_as_its_source() {
+    // a header on a lazily continued line: its cells are not where it says
+    for md in ["- text\n a | b\n  -|-\n  c | d", ">\t- x\n>\ta | b\n>\t  -|-\n>\t  c | d"] {
+        let mut editor = TestEditor::new(md);
+        assert!(editor.editor.edit.renderer.bounds.tables.is_empty(), "{md:?}");
+        assert_eq!(rects_of(&editor, "a | b").len(), 1, "{md:?}");
+
+        // and is text to every edit
+        caret_at(&mut editor, md.find('a').unwrap());
+        act(&mut editor, TableAction::InsertColumn { right: true });
+        assert_eq!(editor.get_text(), md);
+        type_text(&mut editor, "x");
+        assert_eq!(editor.get_text(), md.replacen('a', "xa", 1));
+    }
 }

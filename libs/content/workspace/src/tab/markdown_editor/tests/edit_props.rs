@@ -2,8 +2,8 @@
 //! event → operation → buffer → reparse → render pipeline via
 //! [`TestEditor`].
 
-use super::super::input::{Advance, Bound, Event, Location, Region};
-use super::super::table::RowBounds;
+use super::super::input::{Advance, Bound, Event, Increment, Location, Region};
+use super::super::table::{RowBounds, TableAction};
 use super::super::widget::toolbar::MarkdownToolbarAction as ToolbarAction;
 use super::doc_gen::{self, Features, ScriptFeatures, WhitespaceFeatures, gen_doc};
 use super::harness::TestEditor;
@@ -243,6 +243,10 @@ fn table_column_insert_delete_round_trip() {
     run_tables(table_column_insert_delete_round_trip_check, 1000);
 }
 #[test]
+fn table_row_insert_delete_round_trip() {
+    run_tables(table_row_insert_delete_round_trip_check, 1000);
+}
+#[test]
 fn table_row_move_round_trip() {
     run_tables(table_row_move_round_trip_check, 1000);
 }
@@ -250,6 +254,11 @@ fn table_row_move_round_trip() {
 fn table_tab_round_trip() {
     run_tables(table_tab_round_trip_check, 1000);
 }
+#[test]
+fn table_survives_edits() {
+    run_tables(table_survives_edits_check, 1000);
+}
+
 // indent / structure
 #[test]
 fn indent_only_moves_selected_line() {
@@ -1291,6 +1300,28 @@ fn table_column_insert_delete_round_trip_check(md: &str, choices: &[usize]) -> R
     Ok(())
 }
 
+/// Property: a row inserted below and then deleted from within, or
+/// inserted above a body row and deleted, leaves the document as it was,
+/// byte for byte.
+fn table_row_insert_delete_round_trip_check(md: &str, choices: &[usize]) -> Result<(), String> {
+    use ToolbarAction::*;
+    let Some((mut ws, table, row, _)) = in_table_cell(md, choices) else { return Ok(()) };
+    let below = choices[3] % 2 == 1 || row == 0;
+    let rows = ws.editor.edit.renderer.bounds.tables[table].rows.len();
+
+    use_table_tool(&mut ws, if below { RowBelow } else { RowAbove });
+    if ws.editor.edit.renderer.bounds.tables[table].rows.len() != rows + 1 {
+        return Err(format!("no row was added, in\n{:?}", ws.get_text()));
+    }
+    // the new row is the cell below, or above, where Return goes
+    table_event(&mut ws, Event::Newline { shift: !below });
+    use_table_tool(&mut ws, DeleteRow);
+    if ws.get_text() != md {
+        return Err(format!("inserted and deleted gave\n{:?}", ws.get_text()));
+    }
+    Ok(())
+}
+
 /// Property: a body row moved down and then up, or up and then down, among
 /// the body rows leaves the document as it was, byte for byte. The caret
 /// goes with its row.
@@ -1343,6 +1374,158 @@ fn table_tab_round_trip_check(md: &str, choices: &[usize]) -> Result<(), String>
     }
     if table_grid(&ws, table) != before {
         return Err(format!("cells changed, in\n{:?}", ws.get_text()));
+    }
+    Ok(())
+}
+
+/// One of the things done in a table, picked by two bytes, and whether it
+/// only moves the caret.
+fn table_edit(ws: &mut TestEditor, kind: usize, pick: usize) -> (Event, bool) {
+    use ToolbarAction::*;
+    let typed = [
+        "a", " ", "|", "\\", "'", "é", "*", "`", "-", ":", "||", "x y", "- ", "# ", "1. ", "> ",
+        "```", "<a b=\"",
+    ];
+    let tools = [
+        RowAbove,
+        RowBelow,
+        DeleteRow,
+        MoveRowUp,
+        MoveRowDown,
+        ColumnLeft,
+        ColumnRight,
+        DeleteColumn,
+        MoveColumnLeft,
+        MoveColumnRight,
+        AlignCenter,
+    ];
+    let by = |advance, backwards| Region::ToAdvance { advance, backwards, extend_selection: false };
+    let delete = |backwards| {
+        let advance = Advance::By(Increment::Char);
+        Event::Delete { region: Region::SelectionOrAdvance { advance, backwards } }
+    };
+    match kind % 24 {
+        0..=6 => {
+            let text = typed[pick % typed.len()].to_string();
+            (Event::Replace { region: Region::Selection, text, advance_cursor: true }, false)
+        }
+        7 | 8 => (delete(kind % 2 == 1), false),
+        9..=12 => {
+            let advance =
+                Advance::By(if kind < 11 { Increment::Char } else { Increment::Lines(1) });
+            (Event::Select { region: by(advance, kind % 2 == 1) }, true)
+        }
+        13 | 14 => (Event::Indent { deindent: kind == 14 }, true),
+        15 | 16 => (Event::Newline { shift: kind == 16 }, true),
+        17 | 18 => (Event::Select { region: by(Advance::To(Bound::Line), kind == 18) }, true),
+        19 => (Event::Select { region: by(Advance::Next(Bound::Word), pick % 2 == 1) }, true),
+        20 | 21 => {
+            // a point somewhere on the table as it is painted
+            let boxes = &ws.editor.edit.renderer.table_cell_boxes;
+            let painted = boxes
+                .iter()
+                .map(|cell_box| cell_box.rect)
+                .reduce(egui::Rect::union);
+            let painted = painted.unwrap_or(egui::Rect::ZERO);
+            let along = egui::Vec2::new((pick % 16) as f32 / 15.0, (pick / 16) as f32 / 15.0);
+            let pos = painted.min + painted.size() * along;
+            (Event::Select { region: Region::Location(Location::Pos(pos)) }, true)
+        }
+        22 => {
+            let grid = ["1\t2\n3\t4", "x\ty\tz", "p\n\tq"][pick % 3];
+            let pasted = ws.editor.edit.paste_event(grid.into());
+            (pasted.expect("an editor that takes a paste"), false)
+        }
+        _ => (ws.editor.toolbar_action(tools[pick % tools.len()]), false),
+    }
+}
+
+/// Property: through any run of typing, keys, clicks, pastes, and tools in
+/// a table, the table stays one table whose ranges are sound and are the
+/// ones a fresh parse gives; the caret, while on one of its lines, is in a
+/// cell — in its content after a move — and never on the delimiter row; a
+/// pasted grid reads back from the cells it filled; and a tool's edit can
+/// be undone and redone.
+fn table_survives_edits_check(md: &str, choices: &[usize]) -> Result<(), String> {
+    let Some((mut ws, ..)) = in_table_cell(md, choices) else { return Ok(()) };
+    for step in choices[4..].as_chunks::<2>().0 {
+        // every edit is made from within the table
+        let r = &ws.editor.edit.renderer;
+        if r.table_position().is_none() {
+            let rows = &r.bounds.tables[0].rows;
+            let row = step[0] % rows.len();
+            let column = step[1] % rows[row].cells.len();
+            to_table_cell(&mut ws, 0, row, column);
+        }
+        let before = ws.get_text().to_string();
+        let columns = ws.editor.edit.renderer.bounds.tables[0].columns();
+        let (_, top, left) = ws.editor.edit.renderer.table_position().unwrap();
+        let (event, moves) = table_edit(&mut ws, step[0], step[1]);
+        let tool = matches!(event, Event::Table(_));
+        let pasted = if let Event::PasteGrid(grid) = &event { Some(grid.clone()) } else { None };
+        let done = format!("{event:?}");
+        // the table goes with its last column, and with its header
+        let goes = columns == 1 && event == Event::Table(TableAction::DeleteColumn)
+            || top == 0 && event == Event::Table(TableAction::DeleteRow);
+        table_event(&mut ws, event);
+        let text = ws.get_text().to_string();
+        let context = format!("{done} on\n{before:?}\ngave\n{text:?}");
+        if goes {
+            let gone = ws.editor.edit.renderer.bounds.tables.is_empty();
+            return if gone { Ok(()) } else { Err(format!("the table stayed: {context}")) };
+        }
+
+        super::tables::table_ranges_check_md(&text)
+            .map_err(|reason| format!("{reason}: {context}"))?;
+        let r = &ws.editor.edit.renderer;
+        let mut fresh = super::render_props::test_renderer(&text);
+        fresh.reparse(&comrak::Arena::new());
+        if r.bounds.tables != fresh.bounds.tables {
+            return Err(format!("the table's ranges are stale: {context}"));
+        }
+        let [table] = &r.bounds.tables[..] else {
+            return Err(format!("{} tables: {context}", r.bounds.tables.len()));
+        };
+
+        if let Some(grid) = &pasted {
+            let cells = table_grid(&ws, 0);
+            for (i, row) in grid.iter().enumerate() {
+                for (j, value) in row.iter().enumerate() {
+                    let cell = cells.get(top + i).and_then(|row| row.get(left + j));
+                    if cell.map(String::as_str) != Some(value.trim()) {
+                        return Err(format!("{grid:?} did not fill the cells: {context}"));
+                    }
+                }
+            }
+        }
+
+        let r = &ws.editor.edit.renderer;
+        let selection = r.buffer.current.selection;
+        let delimiter_row = r.bounds.source_lines[table.first_line + 1];
+        for end in [selection.0, selection.1] {
+            if r.bounds.table_at(end).is_none() {
+                continue;
+            }
+            let cell = table
+                .cell_at(end)
+                .map(|(row, column)| table.rows[row].cells[column]);
+            let placed = cell.is_some_and(|cell| !moves || cell.content.contains_inclusive(end));
+            if !placed || delimiter_row.contains_inclusive(end) {
+                return Err(format!("the selection {selection:?} is out of place: {context}"));
+            }
+        }
+
+        // undo may take a burst of typing just before with it; redo
+        // brings back exactly what it took
+        if tool && text != before {
+            table_event(&mut ws, Event::Undo);
+            let undone = ws.get_text() != text;
+            table_event(&mut ws, Event::Redo);
+            if !undone || ws.get_text() != text {
+                let got = ws.get_text();
+                return Err(format!("undone and redone to\n{got:?}: {context}"));
+            }
+        }
     }
     Ok(())
 }
