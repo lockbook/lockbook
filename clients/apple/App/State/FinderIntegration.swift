@@ -61,14 +61,20 @@ import SwiftWorkspace
         }
     }
 
-    func open(id: UUID? = nil) {
+    func open(id: UUID? = nil, reveal: Bool = true) {
         guard let domain else { return }
         let item: NSFileProviderItemIdentifier = id.map { .init($0.uuidString) } ?? .rootContainer
         NSFileProviderManager(for: domain)?.getUserVisibleURL(for: item) { url, error in
             DispatchQueue.main.async {
                 if let url {
-                    if id != nil { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-                    else { NSWorkspace.shared.open(url) }
+                    if id != nil && reveal { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                    else {
+                        let accessing = url.startAccessingSecurityScopedResource()
+                        NSWorkspace.shared.open(url, configuration: .init()) { _, error in
+                            if accessing { url.stopAccessingSecurityScopedResource() }
+                            if let error { DispatchQueue.main.async { self.report(error) } }
+                        }
+                    }
                 } else if let error { self.report(error) }
             }
         }
