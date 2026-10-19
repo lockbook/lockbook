@@ -55,7 +55,7 @@ impl ApplicationHandler<UserEvent> for App {
 
         // Frameless product chrome: shell paints its own titlebar / controls.
         // macOS keeps native traffic lights over fullsize content.
-        #[cfg(target_os = "macos")]
+        #[cfg(chrome = "macos")]
         {
             use winit::platform::macos::WindowAttributesExtMacOS;
             window_attrs = window_attrs
@@ -63,7 +63,7 @@ impl ApplicationHandler<UserEvent> for App {
                 .with_titlebar_transparent(true)
                 .with_title_hidden(true);
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(chrome = "macos"))]
         {
             window_attrs = window_attrs.with_decorations(false);
         }
@@ -79,13 +79,18 @@ impl ApplicationHandler<UserEvent> for App {
             set_macos_app_icon(&icon.rgba, icon.width, icon.height);
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(chrome = "macos")]
         {
             crate::shell::macos_window::disable_automatic_titlebar_drag(window.as_ref());
             crate::shell::macos_window::pin_traffic_lights(window.as_ref());
         }
 
         let mut lb = init_app(Arc::clone(&window));
+        // Chords and badges follow the chrome, not the build host.
+        #[cfg(chrome = "windows")]
+        lb.renderer
+            .context
+            .set_os(egui::os::OperatingSystem::Windows);
 
         let proxy = self.proxy.clone();
         lb.renderer
@@ -192,7 +197,7 @@ impl ApplicationHandler<UserEvent> for App {
             }
             WindowEvent::Resized(size) => {
                 state.lb.renderer.screen.size_in_pixels = [size.width, size.height];
-                #[cfg(target_os = "macos")]
+                #[cfg(chrome = "macos")]
                 crate::shell::macos_window::pin_traffic_lights(state.window.as_ref());
                 // Nested WM_SIZE loop: paint now or the swapchain lags the HWND.
                 #[cfg(target_os = "windows")]
@@ -266,7 +271,7 @@ impl AppState {
             self.lb.renderer.screen.size_in_pixels = [size.width, size.height];
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(chrome = "macos")]
         crate::shell::macos_window::pin_traffic_lights(self.window.as_ref());
 
         let mut raw_input = self.egui_winit.take_egui_input(&self.window);
@@ -385,14 +390,14 @@ impl AppState {
                 .show_window_menu(winit::dpi::LogicalPosition::new(pos.x as f64, pos.y as f64));
         }
 
-        #[cfg(target_os = "macos")]
+        #[cfg(chrome = "macos")]
         if crate::shell::titlebar::take_titlebar_double_click(&self.lb.renderer.context) {
             crate::shell::macos_window::perform_titlebar_double_click(self.window.as_ref());
         }
 
         // Title (and other viewport cmds) make AppKit re-layout the titlebar
         // after paint — Back is a common trigger. Re-pin after those cmds.
-        #[cfg(target_os = "macos")]
+        #[cfg(chrome = "macos")]
         crate::shell::macos_window::pin_traffic_lights(self.window.as_ref());
 
         if info

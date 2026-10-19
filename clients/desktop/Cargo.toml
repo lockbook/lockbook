@@ -3,6 +3,10 @@ name = "lockbook-desktop"
 version = "26.10.31"
 edition = "2021"
 
+[features]
+# Paint Windows captions on any OS (store screenshots captured on a Mac).
+win-chrome = []
+
 [dependencies]
 arboard = { version = "3.6", features = ["image", "wayland-data-control"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
@@ -29,6 +33,9 @@ serde_json = "1.0.82"
 wgpu = "30.0.1"
 workspace = { path = "../../libs/content/workspace" }
 winit = "0.30"
+
+[dev-dependencies]
+pollster = "0.2"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

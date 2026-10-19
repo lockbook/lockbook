@@ -11,10 +11,10 @@
 //! group after them. Tab strip insets clear this cluster (and macOS lights) —
 //! see [`tab_left_inset`] / [`tab_right_inset`].
 
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(chrome = "linux")]
 mod linux;
 mod metrics;
-#[cfg(target_os = "windows")]
+#[cfg(chrome = "windows")]
 mod windows;
 
 pub use metrics::{
@@ -24,7 +24,7 @@ pub use metrics::{
 
 use metrics::sidecar_toggle_inset;
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(chrome = "macos"))]
 use egui::Sense;
 use egui::{Area, Id, Order, Rect, pos2, vec2};
 
@@ -39,9 +39,9 @@ use super::action::{Action, SidebarPane};
 
 use metrics::{group_gap, icon_hit_size, icon_size, left_chrome_w, titlebar_glyph, toolbar_gap};
 
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(chrome = "linux")]
 use linux::window_controls;
-#[cfg(target_os = "windows")]
+#[cfg(chrome = "windows")]
 use windows::window_controls;
 
 /// Temp-data id: rects where a primary drag must **not** move the OS window
@@ -90,18 +90,18 @@ pub fn take_window_menu_request(ctx: &egui::Context) -> Option<egui::Pos2> {
     ctx.data_mut(|d| d.remove_temp(window_menu_request_id()))
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(chrome = "macos")]
 fn titlebar_double_click_request_id() -> Id {
     Id::unique("shell_titlebar_double_click")
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(chrome = "macos")]
 fn request_titlebar_double_click(ctx: &egui::Context) {
     ctx.data_mut(|d| d.insert_temp(titlebar_double_click_request_id(), true));
 }
 
 /// Host: run the Mac system titlebar double-click action this frame.
-#[cfg(target_os = "macos")]
+#[cfg(chrome = "macos")]
 pub fn take_titlebar_double_click(ctx: &egui::Context) -> bool {
     ctx.data_mut(|d| d.remove_temp::<bool>(titlebar_double_click_request_id()))
         .unwrap_or(false)
@@ -112,11 +112,11 @@ fn titleband_last_click_id() -> Id {
 }
 
 fn titleband_double_click_interval() -> f64 {
-    #[cfg(target_os = "macos")]
+    #[cfg(chrome = "macos")]
     {
         crate::shell::macos_window::double_click_interval_secs()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(chrome = "macos"))]
     {
         0.5
     }
@@ -133,7 +133,7 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
         source_toggle(app, ctx, t, queue);
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(chrome = "macos"))]
     {
         window_resize_edges(ctx);
         window_controls(ctx, t);
@@ -203,9 +203,9 @@ fn drag_strip(ctx: &egui::Context) {
                 });
                 if is_double {
                     ctx.data_mut(|d| d.remove_temp::<(f64, egui::Pos2)>(last_id));
-                    #[cfg(target_os = "macos")]
+                    #[cfg(chrome = "macos")]
                     request_titlebar_double_click(ctx);
-                    #[cfg(not(target_os = "macos"))]
+                    #[cfg(not(chrome = "macos"))]
                     {
                         let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
                         ctx.send_viewport_cmd(ViewportCommand::Maximized(!maximized));
@@ -375,7 +375,7 @@ fn titlebar_icon(
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(chrome = "macos"))]
 fn window_resize_edges(ctx: &egui::Context) {
     use egui::{CursorIcon, PointerButton, ResizeDirection, ViewportCommand};
     let r = ctx.content_rect();
@@ -458,7 +458,7 @@ fn window_resize_edges(ctx: &egui::Context) {
     }
 }
 
-#[cfg(all(test, not(target_os = "macos")))]
+#[cfg(all(test, not(chrome = "macos")))]
 mod tests {
     use super::metrics::{caption_cluster_w, window_controls_inset};
 

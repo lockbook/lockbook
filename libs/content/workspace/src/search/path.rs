@@ -293,7 +293,7 @@ impl PathSearch {
 
 fn shortcut_mod(ui: &Ui, ink: Color32) -> Arc<Galley> {
     // Same language as button badges: Phosphor ⌘ at body, or “Ctrl” in body mono.
-    let (text, font) = if cfg!(any(target_os = "macos", target_os = "ios")) {
+    let (text, font) = if crate::style::mac_chords(ui.ctx()) {
         (phosphor::COMMAND.to_owned(), phosphor_ui_font_id())
     } else {
         ("Ctrl".to_owned(), FontId::new(TypeRole::Body.size(), FontFamily::Monospace))

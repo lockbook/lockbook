@@ -782,7 +782,7 @@ pub(crate) fn link_sheet_modal(
                             ui.with_layout(layout, |ui| {
                                 let mut primary = Button::primary(&t, "Open").height(button_h);
                                 if !touch {
-                                    primary = primary.shortcut(shortcut_return());
+                                    primary = primary.shortcut(shortcut_return(ui.ctx()));
                                 }
                                 open |= primary.show(ui).clicked();
                             });

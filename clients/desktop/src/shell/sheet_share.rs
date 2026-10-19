@@ -270,7 +270,7 @@ pub(crate) fn show_share(
                         .divider(false)
                         .accent(true)
                         .primary_enabled(can_share)
-                        .primary_shortcut(shortcut_return()),
+                        .primary_shortcut(shortcut_return(ui.ctx())),
                 );
                 if foot.cancel {
                     queue.push(A::CloseModal);

@@ -194,7 +194,7 @@ fn show_delete(
                     SheetFooterOpts::default()
                         .danger(!remove_only)
                         .divider(false)
-                        .primary_shortcut(shortcut_return()),
+                        .primary_shortcut(shortcut_return(ui.ctx())),
                 );
                 if foot.cancel {
                     queue.push(A::CloseModal);

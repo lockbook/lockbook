@@ -186,10 +186,12 @@ impl Workspace {
                 t.neutral_fg_secondary(),
             );
             ui.add(Spacer::new(Space::Xl));
-            if command_row(ui, &t, phosphor::NOTE_PENCIL, "New note", shortcut_cmd_n()).clicked() {
+            if command_row(ui, &t, phosphor::NOTE_PENCIL, "New note", shortcut_cmd_n(ui.ctx()))
+                .clicked()
+            {
                 new_note = true;
             }
-            if command_row(ui, &t, phosphor::SEARCH, "Search", shortcut_cmd_o()).clicked() {
+            if command_row(ui, &t, phosphor::SEARCH, "Search", shortcut_cmd_o(ui.ctx())).clicked() {
                 search = true;
             }
         });

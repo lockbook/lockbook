@@ -109,7 +109,7 @@ pub(crate) fn show_onboard(
                             ui.set_min_height(row_h);
                             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
                             let import = Button::quiet(t, "Import account")
-                                .shortcut(shortcut_cmd_i())
+                                .shortcut(shortcut_cmd_i(ui.ctx()))
                                 .height(row_h)
                                 .enabled(!busy)
                                 .show(ui);
@@ -126,7 +126,7 @@ pub(crate) fn show_onboard(
                                 |ui| {
                                     ui.set_max_width(primary_max);
                                     if Button::primary(t, "Create account")
-                                        .shortcut(shortcut_cmd_n())
+                                        .shortcut(shortcut_cmd_n(ui.ctx()))
                                         .height(row_h)
                                         .max_width(primary_max)
                                         .enabled(!busy)
@@ -253,7 +253,7 @@ pub(crate) fn show_onboard(
                             SheetFooterOpts::default()
                                 .divider(false)
                                 .primary_enabled(!busy && uname_available)
-                                .primary_shortcut(shortcut_return()),
+                                .primary_shortcut(shortcut_return(ui.ctx())),
                         );
                         if foot.cancel {
                             queue.push(A::OnboardSetMode(OnboardMode::Choice));
@@ -332,7 +332,7 @@ pub(crate) fn show_onboard(
                             SheetFooterOpts::default()
                                 .divider(false)
                                 .primary_enabled(!busy && can_import)
-                                .primary_shortcut(shortcut_return()),
+                                .primary_shortcut(shortcut_return(ui.ctx())),
                         );
                         if foot.cancel {
                             queue.push(A::OnboardSetMode(OnboardMode::Choice));
@@ -435,7 +435,7 @@ fn onboard_backup(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut 
             |ui| {
                 ui.set_max_width(primary_max);
                 if Button::primary(t, "Done")
-                    .shortcut(shortcut_return())
+                    .shortcut(shortcut_return(ui.ctx()))
                     .height(row_h)
                     .max_width(primary_max)
                     .enabled(stored && phrase_ok)

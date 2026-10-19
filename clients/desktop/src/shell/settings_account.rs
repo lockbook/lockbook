@@ -179,7 +179,7 @@ fn page_account_logout(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
             .danger(true)
             .divider(false)
             .primary_enabled(acked_now)
-            .primary_shortcut(shortcut_return()),
+            .primary_shortcut(shortcut_return(ui.ctx())),
     );
     if foot.cancel {
         queue.push(A::HideAccountKey);
@@ -251,7 +251,7 @@ fn page_account_delete(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
             .danger(true)
             .divider(false)
             .primary_enabled(can_commit)
-            .primary_shortcut(shortcut_return()),
+            .primary_shortcut(shortcut_return(ui.ctx())),
     );
     if foot.cancel {
         queue.push(A::HideAccountKey);
@@ -381,7 +381,7 @@ fn page_account_upgrade(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut 
                 SheetFooterOpts::default()
                     .divider(false)
                     .accent(true)
-                    .primary_shortcut(shortcut_return()),
+                    .primary_shortcut(shortcut_return(ui.ctx())),
             );
             if foot.cancel {
                 queue.push(A::UpgradeBack);
@@ -509,7 +509,7 @@ fn page_account_cancel_sub(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
         SheetFooterOpts::default()
             .danger(true)
             .divider(false)
-            .primary_shortcut(shortcut_return()),
+            .primary_shortcut(shortcut_return(ui.ctx())),
     );
     if foot.cancel {
         queue.push(A::HideAccountKey);

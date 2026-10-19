@@ -608,9 +608,15 @@ fn centered_status(ui: &mut Ui, icon: &'static str, caption: &str, ink: Color32,
     let _ = ui.allocate_rect(rect, Sense::hover());
 }
 
+/// ⌘ chords on Apple hosts, Ctrl elsewhere — by the context's OS, so a
+/// host painting another platform's chrome gets its badges too.
+pub fn mac_chords(ctx: &egui::Context) -> bool {
+    matches!(ctx.os(), egui::os::OperatingSystem::Mac | egui::os::OperatingSystem::IOS)
+}
+
 /// Commit shortcut badge (⌘⏎ on macOS, Ctrl+⏎ elsewhere).
-pub fn shortcut_return() -> Shortcut {
-    if cfg!(target_os = "macos") {
+pub fn shortcut_return(ctx: &egui::Context) -> Shortcut {
+    if mac_chords(ctx) {
         Shortcut { parts: &[KbdPart::Icon(phosphor::COMMAND), KbdPart::Icon(phosphor::KEY_RETURN)] }
     } else {
         Shortcut { parts: &[KbdPart::Mono("Ctrl+"), KbdPart::Icon(phosphor::KEY_RETURN)] }
@@ -628,8 +634,8 @@ pub fn shortcut_esc() -> Shortcut {
 }
 
 /// ⌘N / Ctrl+N — onboard Create account (and product Create when signed in).
-pub fn shortcut_cmd_n() -> Shortcut {
-    if cfg!(target_os = "macos") {
+pub fn shortcut_cmd_n(ctx: &egui::Context) -> Shortcut {
+    if mac_chords(ctx) {
         Shortcut { parts: &[KbdPart::Icon(phosphor::COMMAND), KbdPart::Mono("N")] }
     } else {
         Shortcut { parts: &[KbdPart::Mono("Ctrl+"), KbdPart::Mono("N")] }
@@ -637,8 +643,8 @@ pub fn shortcut_cmd_n() -> Shortcut {
 }
 
 /// ⌘O / Ctrl+O — search / open quickly.
-pub fn shortcut_cmd_o() -> Shortcut {
-    if cfg!(target_os = "macos") {
+pub fn shortcut_cmd_o(ctx: &egui::Context) -> Shortcut {
+    if mac_chords(ctx) {
         Shortcut { parts: &[KbdPart::Icon(phosphor::COMMAND), KbdPart::Mono("O")] }
     } else {
         Shortcut { parts: &[KbdPart::Mono("Ctrl+"), KbdPart::Mono("O")] }
@@ -646,8 +652,8 @@ pub fn shortcut_cmd_o() -> Shortcut {
 }
 
 /// ⌘I / Ctrl+I — onboard Import account.
-pub fn shortcut_cmd_i() -> Shortcut {
-    if cfg!(target_os = "macos") {
+pub fn shortcut_cmd_i(ctx: &egui::Context) -> Shortcut {
+    if mac_chords(ctx) {
         Shortcut { parts: &[KbdPart::Icon(phosphor::COMMAND), KbdPart::Mono("I")] }
     } else {
         Shortcut { parts: &[KbdPart::Mono("Ctrl+"), KbdPart::Mono("I")] }

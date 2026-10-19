@@ -250,7 +250,9 @@ pub fn sheet_footer(
     let row_w = ui_width(ui);
     let row_h = control_height();
     let gap = Space::Sm;
-    let primary_sc = opts.primary_shortcut.unwrap_or_else(shortcut_return);
+    let primary_sc = opts
+        .primary_shortcut
+        .unwrap_or_else(|| shortcut_return(ui.ctx()));
     let top_left = origin(ui);
     let outer = egui::Rect::from_min_size(top_left, vec2(row_w, row_h));
 

@@ -8,37 +8,37 @@ pub const HEADER_CENTER: f32 = 20.0;
 pub const HEADER_H: f32 = HEADER_CENTER * 2.0;
 
 /// Native close/miniaturize/zoom diameter (logical pt). Used for [`TOGGLE_X`].
-#[cfg(target_os = "macos")]
+#[cfg(chrome = "macos")]
 pub const TRAFFIC_LIGHT_D: f32 = 12.0;
-#[cfg(target_os = "macos")]
+#[cfg(chrome = "macos")]
 pub const TRAFFIC_LIGHT_GAP: f32 = 8.0;
 
 /// Left edge of the floating toolbar.
-#[cfg(target_os = "macos")]
+#[cfg(chrome = "macos")]
 pub const TOGGLE_X: f32 = (HEADER_H - TRAFFIC_LIGHT_D) / 2.0
     + TRAFFIC_LIGHT_D * 3.0
     + TRAFFIC_LIGHT_GAP * 2.0
     + Space::Lg.pts();
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(chrome = "macos"))]
 pub const TOGGLE_X: f32 = 10.0;
 
 const TOOLBAR_GAP: f32 = 4.0;
 /// Win11 caption cell width (~46). Height follows [`HEADER_H`]. Grab after
 /// tabs is one cell so the empty chrome is as easy to hit as a window button.
 pub const CAPTION_CELL_W: f32 = 46.0;
-#[cfg(target_os = "windows")]
+#[cfg(chrome = "windows")]
 pub const CAPTION_W: f32 = CAPTION_CELL_W;
 
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(chrome = "linux")]
 pub const LINUX_HIT_W: f32 = 36.0;
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(chrome = "linux")]
 pub const LINUX_GAP: f32 = 2.0;
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(chrome = "linux")]
 pub const LINUX_WASH: f32 = 28.0;
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(chrome = "linux")]
 pub const LINUX_GLYPH: f32 = 12.0;
 /// Optical drop so the minimize dash sits low in the box (Adwaita / COSMIC).
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(chrome = "linux")]
 pub const LINUX_MIN_SHIFT: f32 = 3.0;
 
 const TOOLBAR_ICONS: usize = 3;
@@ -102,11 +102,11 @@ pub fn tab_left_inset(sidebar_w: f32) -> f32 {
 /// Room the window controls take at the right edge: a margin on macOS,
 /// whose controls are on the left.
 pub fn window_controls_inset() -> f32 {
-    #[cfg(target_os = "macos")]
+    #[cfg(chrome = "macos")]
     {
         Space::Sm.pts()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(chrome = "macos"))]
     {
         caption_cluster_w()
     }
@@ -122,12 +122,12 @@ pub fn tab_right_inset() -> f32 {
     sidecar_toggle_inset() + 2.0 * icon_size() + group_gap()
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(chrome = "windows")]
 pub fn caption_cluster_w() -> f32 {
     3.0 * CAPTION_W
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(chrome = "linux")]
 pub fn caption_cluster_w() -> f32 {
     3.0 * LINUX_HIT_W + 2.0 * LINUX_GAP + Space::Sm.pts()
 }

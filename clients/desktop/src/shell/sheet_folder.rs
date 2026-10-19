@@ -365,7 +365,7 @@ pub(crate) fn show_decline_share(
                     SheetFooterOpts::default()
                         .danger(true)
                         .divider(false)
-                        .primary_shortcut(shortcut_return()),
+                        .primary_shortcut(shortcut_return(ui.ctx())),
                 );
                 if foot.cancel {
                     queue.push(A::CloseModal);

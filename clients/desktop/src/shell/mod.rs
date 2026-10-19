@@ -184,6 +184,11 @@ impl Default for ShellApp {
 }
 
 impl ShellApp {
+    /// Queue an action for the next frame (headless drivers).
+    pub fn push_action(&mut self, action: A) {
+        self.queue.push(action);
+    }
+
     pub fn close_account_panel(&mut self) {
         self.account_panel = AccountPanel::Closed;
     }
@@ -684,7 +689,7 @@ impl ShellApp {
             }
             // History: Cmd+[ ] on Apple (Option+arrows are word motion).
             // Elsewhere Alt+arrows (exact, so Alt+Shift still reaches the editor).
-            #[cfg(target_os = "macos")]
+            #[cfg(chrome = "macos")]
             {
                 if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::OpenBracket)) {
                     self.queue.push(A::NavBack);
@@ -693,7 +698,7 @@ impl ShellApp {
                     self.queue.push(A::NavForward);
                 }
             }
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(not(chrome = "macos"))]
             {
                 let alt_arrows = ctx.input(|i| {
                     i.modifiers.alt
