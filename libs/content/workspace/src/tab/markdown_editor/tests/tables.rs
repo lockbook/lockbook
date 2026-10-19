@@ -7,7 +7,7 @@ use comrak::nodes::{AstNode, NodeValue, TableAlignment};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use super::super::MdRender;
-use super::super::input::{Event, Region};
+use super::super::input::{Event, Location, Region};
 use super::super::table::{DelimiterBounds, RowBounds};
 use super::harness::TestEditor;
 use super::render_props::test_renderer;
@@ -220,6 +220,25 @@ fn delimiter_check(r: &MdRender, delimiter: &DelimiterBounds) -> Result<(), Stri
 
 // ═════════════════════════ examples ═════════════════════════
 
+/// Byte offsets, which are grapheme offsets in the ASCII documents here.
+fn caret_at(editor: &mut TestEditor, offset: usize) {
+    editor.editor.edit.cursor.x_target = None;
+    editor.push(Event::Select { region: Region::Location(Location::Grapheme(Grapheme(offset))) });
+    editor.enter_frame();
+}
+
+fn select(editor: &mut TestEditor, from: usize, to: usize) -> (usize, usize) {
+    editor.editor.edit.cursor.x_target = None;
+    editor.push(Event::Select { region: (Grapheme(from), Grapheme(to)).into() });
+    editor.enter_frame();
+    selection(editor)
+}
+
+fn selection(editor: &TestEditor) -> (usize, usize) {
+    let selection = editor.editor.edit.renderer.buffer.current.selection;
+    (selection.0.0, selection.1.0)
+}
+
 const EMPTY_CELL_ROW: &str =
     "|Use Case|Required Behavior|\n|-|-|\n|iOS end-of-line cursor placement||";
 
@@ -261,4 +280,30 @@ fn bold_in_a_row_with_an_empty_cell() {
     editor.push(Event::ToggleStyle { region: Region::Selection, style: Strong });
     editor.enter_frame();
     assert_eq!(editor.get_text(), EMPTY_CELL_ROW);
+}
+
+#[test]
+fn cut_and_copy_take_rows_without_their_container() {
+    let md = "> | aa | bb |\n> | - | - |\n> | cc | dd |\n> | ee | ff |";
+    // rows with their header copy as a table
+    let mut editor = TestEditor::new(md);
+    select(&mut editor, md.find("aa").unwrap(), md.find("cc").unwrap());
+    editor.push(Event::Copy);
+    editor.enter_frame();
+    assert_eq!(editor.copied.as_deref(), Some("| aa | bb |\n| - | - |\n| cc | dd |"));
+    assert_eq!(editor.get_text(), md);
+
+    // with no selection, cut takes the caret's row
+    caret_at(&mut editor, md.find("dd").unwrap());
+    editor.push(Event::Cut);
+    editor.enter_frame();
+    assert_eq!(editor.copied.as_deref(), Some("| cc | dd |"));
+    assert_eq!(editor.get_text(), "> | aa | bb |\n> | - | - |\n> | ee | ff |");
+
+    // cutting the header empties it: the rows under it stay a table
+    caret_at(&mut editor, md.find("aa").unwrap());
+    editor.push(Event::Cut);
+    editor.enter_frame();
+    assert_eq!(editor.copied.as_deref(), Some("| aa | bb |"));
+    assert_eq!(editor.get_text(), "> |  |  |\n> | - | - |\n> | ee | ff |");
 }

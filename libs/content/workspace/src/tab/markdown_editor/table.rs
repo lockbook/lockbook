@@ -552,6 +552,30 @@ impl MdRender {
     }
 }
 
+impl MdRender {
+    /// Gives `row` the cells it lacks through `column`, with the caret in
+    /// the last: between its two spaces.
+    pub fn write_table_cells(
+        &self, row: &RowBounds, column: usize, operations: &mut Vec<Operation>,
+    ) {
+        let Some(last) = row.cells.last() else { return };
+        let mut before = String::new();
+        let at = if row.trailing_pipe {
+            last.span.end() + 1
+        } else {
+            let padded = self.buffer[last.span].ends_with([' ', '\t']);
+            before += if padded { "|" } else { " |" };
+            last.span.end()
+        };
+        before += &"  |".repeat(column - row.cells.len());
+        before += " ";
+        let at = at.into_range();
+        operations.push(Operation::Replace(Replace { range: at, text: before }));
+        operations.push(Operation::Select(at));
+        operations.push(Operation::Replace(Replace { range: at, text: " |".into() }));
+    }
+}
+
 impl<'ast> MdRender {
     /// Whether the table shows as its source lines instead of a grid: while
     /// the selection has an end on the delimiter row, which has no place
@@ -638,26 +662,10 @@ impl MdEdit {
             _ => None,
         };
         let Some((table, row, column)) = target else { return false };
-        let Some(last) = row.cells.last() else { return false };
         if column < row.cells.len() || column >= table.columns() {
             return false;
         }
-
-        // the caret goes between the last new cell's two spaces
-        let mut before = String::new();
-        let at = if row.trailing_pipe {
-            last.span.end() + 1
-        } else {
-            let padded = r.buffer[last.span].ends_with([' ', '\t']);
-            before += if padded { "|" } else { " |" };
-            last.span.end()
-        };
-        before += &"  |".repeat(column - row.cells.len());
-        before += " ";
-        let at = at.into_range();
-        operations.push(Operation::Replace(Replace { range: at, text: before }));
-        operations.push(Operation::Select(at));
-        operations.push(Operation::Replace(Replace { range: at, text: " |".into() }));
+        r.write_table_cells(row, column, operations);
         true
     }
 

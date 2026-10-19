@@ -101,6 +101,10 @@ impl<'ast> MdEdit {
                 response.open_camera = true;
             }
             Event::Newline { shift } => {
+                if self.newline_in_table(shift, operations) {
+                    return response;
+                }
+
                 // Enter after a `···` fold chip creates the new heading / list
                 // item after the hidden contents
                 let handled = !shift && self.newline_at_fold(root, operations);
@@ -279,6 +283,10 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Indent { deindent } => {
+                if self.indent_in_table(deindent, operations) {
+                    return response;
+                }
+
                 let selected_lines = self
                     .renderer
                     .bounds
@@ -471,9 +479,15 @@ impl<'ast> MdEdit {
                 // selecting a fold chip is just selecting a fold tag, but
                 // copying it should copy folded content
                 let range = self.renderer.grow_range_over_fold_contents(range);
+                let (range, text) = self
+                    .renderer
+                    .table_rows_clipboard()
+                    .unwrap_or_else(|| (range, self.renderer.buffer[range].into()));
 
-                ctx.copy_text(self.renderer.buffer[range].into());
-                operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                ctx.copy_text(text);
+                if !self.cut_range_in_table(range, operations) {
+                    operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                }
             }
             Event::Copy => {
                 let range = if !current_selection.is_empty() {
@@ -482,8 +496,12 @@ impl<'ast> MdEdit {
                     self.clipboard_current_line()
                 };
                 let range = self.renderer.grow_range_over_fold_contents(range);
+                let text = match self.renderer.table_rows_clipboard() {
+                    Some((_, text)) => text,
+                    None => self.renderer.buffer[range].into(),
+                };
 
-                ctx.copy_text(self.renderer.buffer[range].into());
+                ctx.copy_text(text);
             }
             Event::ToggleDebug => {
                 self.renderer.debug = !self.renderer.debug;
