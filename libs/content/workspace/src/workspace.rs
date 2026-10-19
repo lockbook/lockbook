@@ -230,6 +230,7 @@ impl Workspace {
         }
 
         let (open_sessions, current_tab_index) = ws.cfg.get_sessions();
+        info!(persist, recent_crash, sessions = open_sessions.len(), "workspace init");
         let current_session_id = current_tab_index
             .and_then(|i| open_sessions.get(i))
             .map(|s| s.id);
@@ -265,6 +266,7 @@ impl Workspace {
     /// absent. Does not add to tab_strip or make current — callers decide
     /// visibility.
     pub fn open_dest(&mut self, tab_id: SessionId, dest: &Destination) {
+        info!(?tab_id, ?dest, tabs = self.tab_strip.len(), "open dest");
         self.closed_tabs.retain(|c| c.slot.id != tab_id);
 
         if self.tabs.contains_key(&tab_id) {
@@ -950,6 +952,7 @@ impl Workspace {
         let right = self.tab_strip.get(i + 1).map(|s| s.id);
 
         let closed_slot = self.tab_strip.remove(i);
+        info!(?tab_id, dest = ?closed_slot.dest, tabs = self.tab_strip.len(), "closed tab");
         self.out.tabs_changed = true;
         self.activation_history.retain(|id| *id != tab_id);
         self.closed_tabs.retain(|c| c.slot.id != tab_id);
@@ -1113,6 +1116,7 @@ impl Workspace {
                             if files.get_by_id(id).is_none()
                                 && self.core.get_file_by_id(id).is_err()
                             {
+                                info!(%id, "file gone after cache refresh");
                                 ids_to_delete.push(slot.id);
                             }
                         }
