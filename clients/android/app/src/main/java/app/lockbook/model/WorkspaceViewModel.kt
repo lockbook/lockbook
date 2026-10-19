@@ -69,7 +69,7 @@ class WorkspaceViewModel : ViewModel() {
     /** Holds staged files until the workspace copies their bytes into a paste event. */
     private val pendingAttachments = ArrayDeque<StagedAttachment>()
 
-    /** request workspace view to navigate within tab history **/
+    /** Go back within the tab, then close it to Welcome, then return Home. */
     private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
     val workspaceBackRequested: LiveData<Unit>
         get() = _workspaceBackRequested

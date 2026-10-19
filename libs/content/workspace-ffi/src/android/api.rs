@@ -15,6 +15,15 @@ use crate::WgpuWorkspace;
 use workspace_rs::tab::markdown_editor::MarkdownToolbarAction;
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownCursorUtf16Native(
+    mut env: JNIEnv, _: JClass, text: JString, cursor: jint,
+) -> jint {
+    let Ok(text) = env.get_string(&text) else { return 0 };
+    workspace_rs::document_preview::cursor_utf16(&String::from(text), cursor.max(0) as usize)
+        .min(i32::MAX as usize) as jint
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarStateNative(
     env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
@@ -617,6 +626,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.workspace.close_all_tabs();
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeCurrentTabToWelcome(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.close_current_tab_to_welcome().into()
 }
 
 #[no_mangle]

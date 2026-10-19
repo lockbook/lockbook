@@ -20,7 +20,7 @@ const VIEWPORT_ISLAND_FALLBACK_WIDTH: f32 = 136.0;
 const ZOOM_STOPS_POPOVER_WIDTH: f32 = 80.0;
 const BRING_BACK_FALLBACK_WIDTH: f32 = 220.0;
 const SCREEN_PADDING: egui::Pos2 =
-    if cfg!(target_os = "android") { egui::pos2(10.0, 50.0) } else { egui::pos2(20.0, 20.0) };
+    if cfg!(target_os = "android") { egui::pos2(10.0, 10.0) } else { egui::pos2(20.0, 20.0) };
 
 pub struct ImageViewer {
     pub id: Uuid,
@@ -142,19 +142,17 @@ impl ImageViewer {
     }
 
     fn show_viewport_controls(&mut self, ui: &mut egui::Ui, available: Rect, image_rect: Rect) {
+        let controls = crate::safe_area::controls_rect(ui);
         let viewport_island_width = self
             .viewport_island
             .map(|rect| rect.width())
             .unwrap_or(VIEWPORT_ISLAND_FALLBACK_WIDTH)
             .max(VIEWPORT_ISLAND_FALLBACK_WIDTH);
         let viewport_rect = Rect {
-            min: egui::pos2(
-                available.left() + SCREEN_PADDING.x,
-                available.top() + SCREEN_PADDING.y,
-            ),
+            min: egui::pos2(controls.left() + SCREEN_PADDING.x, controls.top() + SCREEN_PADDING.y),
             max: egui::Pos2 {
-                x: available.left() + SCREEN_PADDING.x + viewport_island_width,
-                y: available.top() + SCREEN_PADDING.y + 35.0,
+                x: controls.left() + SCREEN_PADDING.x + viewport_island_width,
+                y: controls.top() + SCREEN_PADDING.y + 35.0,
             },
         };
 

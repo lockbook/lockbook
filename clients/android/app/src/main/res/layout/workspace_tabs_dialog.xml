@@ -4,53 +4,49 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingVertical="16dp">
+    android:paddingBottom="16dp">
 
-    <TextView
-        android:id="@+id/tabs_title"
+    <com.google.android.material.bottomsheet.BottomSheetDragHandleView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingHorizontal="24dp"
-        android:paddingBottom="8dp"
-        android:text="@string/workspace_switch_tabs"
-        android:textAppearance="?attr/textAppearanceTitleLarge" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="8dp">
 
-    <HorizontalScrollView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:scrollbars="none">
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/open_tabs_count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textStyle="bold" />
 
-        <LinearLayout
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/forward_ws"
+            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/workspace_forward"
+            android:visibility="gone"
+            app:icon="@drawable/ic_baseline_arrow_forward_24" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/close_all_tabs"
+            style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="16dp">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/create_ws"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/create"
-                app:icon="@drawable/ic_baseline_add_24" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/close_all_tabs"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/close_all_tabs" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/forward_ws"
-                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:contentDescription="@string/workspace_forward"
-                app:icon="@drawable/ic_baseline_arrow_forward_24" />
-        </LinearLayout>
-    </HorizontalScrollView>
+            android:layout_marginStart="8dp"
+            android:text="@string/close_all_tabs" />
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/tabs_list"

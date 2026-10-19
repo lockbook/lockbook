@@ -336,7 +336,7 @@ class MainScreenActivity : AppCompatActivity() {
                         return
                     }
 
-                    if (workspaceShell.isDetailOnly) {
+                    if (workspaceShell.isDetailVisible) {
                         workspaceModel.requestWorkspaceBack()
                     } else if (shouldExitFromCurrentSidebar()) {
                         isEnabled = false // Disable this callback to allow normal back behavior
@@ -345,7 +345,7 @@ class MainScreenActivity : AppCompatActivity() {
                 }
 
                 override fun handleOnBackStarted(backEvent: BackEventCompat) {
-                    if (workspaceShell.isDetailOnly) {
+                    if (workspaceShell.isDetailVisible) {
                         workspaceModel.notifyBackGestureStarted()
                     }
                     super.handleOnBackStarted(backEvent)

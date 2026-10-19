@@ -276,7 +276,10 @@ impl SVGEditor {
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) -> bool {
+        let controls_rect =
+            crate::safe_area::inset_rect(ui.ctx(), self.viewport_settings.container_rect);
         let mut toolbar_context = ToolbarContext {
+            controls_rect,
             buffer: &mut self.buffer,
             history: &mut self.history,
             settings: &mut self.settings,
@@ -295,7 +298,7 @@ impl SVGEditor {
             |ui| {
                 let mut ui = ui.new_child(
                     UiBuilder::new()
-                        .max_rect(ui.available_rect_before_wrap())
+                        .max_rect(controls_rect)
                         .layout(egui::Layout::default()),
                 );
                 self.toolbar.show(&mut ui, &mut toolbar_context)

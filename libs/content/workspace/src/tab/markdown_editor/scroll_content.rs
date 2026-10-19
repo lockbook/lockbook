@@ -73,12 +73,12 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     }
 
     /// Set `leading_precise` to the default top-padding for production
-    /// rendering. Larger on Android to clear the system status bar /
-    /// safe area. All production walks (render + persistence + scroll-
+    /// rendering. Platform chrome is handled separately from document padding.
+    /// All production walks (render + persistence + scroll-
     /// to) must agree on this value or anchor offsets drift by the
     /// difference.
     pub fn with_default_leading(mut self) -> Self {
-        self.leading_precise = if cfg!(target_os = "android") { 60.0 } else { 15.0 };
+        self.leading_precise = 15.0;
         self
     }
 
