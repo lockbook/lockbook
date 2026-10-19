@@ -3,8 +3,8 @@
 //! `LOCKBOOK_PATH=… cargo run -p lockbook-desktop --features win-chrome --example shots -- scene.txt out/`
 //!
 //! One command per line: `size W H SCALE` · `ready` · `open PATH` ·
-//! `pane files|recents|shared` · `sidebar on|off` · `settings` · `share PATH` ·
-//! `key [cmd+][shift+]NAME` · `type TEXT` · `move X Y` · `click X Y` ·
+//! `pane files|recents|shared` · `sidebar on|off` · `expand PATH` · `settings` · `reveal` · `share PATH` ·
+//! `key [cmd+][shift+]NAME [COUNT]` · `type TEXT` · `move X Y` · `click X Y` ·
 //! `frames N` · `shot NAME` · `#` comments.
 
 use std::path::PathBuf;
@@ -85,6 +85,7 @@ impl Shots {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(w as f32, h as f32))),
             time: Some(self.time),
             events,
+            max_texture_side: Some(self.device.limits().max_texture_dimension_2d as usize),
             ..Default::default()
         };
         raw.viewports
@@ -98,9 +99,8 @@ impl Shots {
         }
         let shapes = self.ctx.tessellate(out.shapes, out.pixels_per_point);
         self.last = Some((shapes, out.pixels_per_point));
-        for id in &out.textures_delta.free {
-            self.renderer.free_texture(id);
-        }
+        // Freed textures are leaked: paint callbacks keep their own handles
+        // and a scene is a few hundred frames.
         std::thread::sleep(Duration::from_millis(8));
     }
 
@@ -313,7 +313,17 @@ impl Shots {
                 }
             }
             "settings" => self.act(Action::OpenSettings),
-            "key" => self.key(rest),
+            "reveal" => self.act(Action::RevealPhrase),
+            "expand" => {
+                let id = self.id_for(rest);
+                self.act(Action::ToggleExpand(id));
+            }
+            "key" => {
+                let (spec, count) = rest.split_once(' ').unwrap_or((rest, "1"));
+                for _ in 0..num(count) as usize {
+                    self.key(spec);
+                }
+            }
             "type" => {
                 self.frame(vec![Event::Text(rest.to_owned())]);
                 self.frames(20);
