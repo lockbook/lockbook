@@ -1317,17 +1317,9 @@ impl Workspace {
                     let files_clone = self.files.clone();
                     let files_guard = files_clone.read().unwrap();
 
-                    let account = &self.account;
-                    let (name, read_only) = if let Some(file) = files_guard.get_by_id(id) {
-                        (file.name.clone(), files_guard.access(id, account) == UserAccessMode::Read)
-                    } else if let Ok(file) = core.get_file_by_id(id) {
-                        // read-through (can remove when we master cache
-                        // refreshes): a freshly created file isn't in the
-                        // async-rebuilt cache yet; without this the
-                        // completed load is discarded and the tab is stuck
-                        // loading forever. New/owned files are writable.
-                        (file.name, false)
-                    } else {
+                    // The async-rebuilt cache can trail a create or rename;
+                    // the name that picks the editor comes from core.
+                    let Ok(file) = core.get_file_by_id(id) else {
                         // genuinely gone (e.g. deleted): fail the tab
                         // rather than discard the load and hang in Loading.
                         let msg = format!("failed to load file: {id} not found");
@@ -1336,6 +1328,9 @@ impl Workspace {
                         self.out.failure_messages.push(msg);
                         continue;
                     };
+                    let name = file.name;
+                    let read_only = files_guard.get_by_id(id).is_some()
+                        && files_guard.access(id, &self.account) == UserAccessMode::Read;
 
                     let doc_type = DocType::from_name(&name);
                     let ext = name.split('.').next_back().unwrap_or_default().to_owned();
@@ -1771,22 +1766,20 @@ impl Workspace {
     }
 
     pub fn file_renamed(&mut self, id: Uuid, new_name: String) {
-        let mut different_file_type = false;
-        let tab_id = self
+        let dest = Destination::File(id);
+        let tab_ids: Vec<_> = self
             .tab_strip
             .iter()
-            .find(|s| s.dest.id() == id)
-            .map(|s| s.id);
-        if let Some(tab) = tab_id.and_then(|tid| self.tabs.get(&tid)) {
-            different_file_type = !NameComponents::from(&new_name)
-                .extension
-                .eq(&NameComponents::from(&self.tab_title(tab)).extension);
-        }
-
-        if different_file_type {
-            // `ext`/`plaintext` are baked at editor construction; drop and re-open.
-            let dest = Destination::File(id);
-            if let Some(tab_id) = tab_id {
+            .filter(|s| s.dest.id() == id)
+            .map(|s| s.id)
+            .collect();
+        for tab_id in tab_ids {
+            let fits = self
+                .tabs
+                .get(&tab_id)
+                .is_none_or(|t| content_fits_name(&t.content, &new_name));
+            if !fits {
+                // `ext`/`plaintext` are baked at editor construction; drop and re-open.
                 self.tabs.remove(&tab_id);
                 self.open_dest(tab_id, &dest);
             }
@@ -1831,6 +1824,23 @@ pub struct WsPersistentStore {
     pub path: PathBuf,
     pub data: Arc<RwLock<WsPresistentData>>,
     enabled: bool,
+}
+
+/// Whether `content` was built for a file named `name`. Loading content picks
+/// its editor from core's current name when the load lands.
+fn content_fits_name(content: &ContentState, name: &str) -> bool {
+    let ext = name.split('.').next_back().unwrap_or_default();
+    let doc_type = DocType::from_name(name);
+    match content {
+        ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.ext == ext,
+        ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
+        ContentState::Open(TabContent::Image(_)) => doc_type == DocType::Image,
+        ContentState::Open(TabContent::Pdf(_)) => doc_type == DocType::PDF,
+        #[cfg(not(target_family = "wasm"))]
+        ContentState::Open(TabContent::Chat(_)) => doc_type == DocType::Chat,
+        ContentState::Failed(_) => false,
+        _ => true,
+    }
 }
 
 fn default_open_in_new_tab() -> bool {
