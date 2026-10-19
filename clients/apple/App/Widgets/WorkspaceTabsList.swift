@@ -293,7 +293,7 @@ struct WorkspaceTabsList: View {
             }
 
             if let fileId = tab.destFile, tab.destKind == .file {
-                showInFinderMenuItem(fileId)
+                finderMenuSection(fileId)
             }
 
             contextMenuItem("Close", systemImage: "xmark") {
