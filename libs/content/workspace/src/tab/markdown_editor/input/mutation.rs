@@ -65,7 +65,7 @@ impl<'ast> MdEdit {
         let mut response = buffer::Response::default();
         match event {
             Event::Select { region } => {
-                if self.select_unwritten_table_cell(region, operations) {
+                if self.table_select_edits(region, operations) {
                     return response;
                 }
                 let range = self

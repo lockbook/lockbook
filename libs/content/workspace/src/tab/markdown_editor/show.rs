@@ -886,9 +886,9 @@ impl MdEdit {
                 if !cfg!(target_os = "ios") {
                     if let Some(region) = region_opt {
                         ui.memory_mut(|m| m.request_focus(id));
-                        // a click on a cell its row lacks writes the cell: an
-                        // edit, which is the next input pass's to make
-                        if self.select_unwritten_table_cell(region, &mut Vec::new()) {
+                        // a click that edits — on a cell its row lacks, or below
+                        // a trailing table — is the next input pass's to make
+                        if self.table_select_edits(region, &mut Vec::new()) {
                             self.event.internal_events.push(Event::Select { region });
                             ui.ctx().request_repaint();
                         } else {

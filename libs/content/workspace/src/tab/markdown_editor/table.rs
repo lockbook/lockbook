@@ -708,16 +708,39 @@ impl<'ast> MdRender {
 // ─── event hooks ─────────────────────────────────────────────────────
 
 impl MdEdit {
-    /// A short row has no source for the cells it lacks. The first time the
+    /// A Select that is also an edit. True if handled (ops + caret pushed).
+    ///
+    /// A short row has no source for the cells it lacks: the first time the
     /// caret moves into one — by a click, the right arrow from the row's
     /// last cell, or a vertical arrow from the cell above or below — the row
-    /// gets that cell's pipes. True if handled (ops + caret pushed).
-    pub fn select_unwritten_table_cell(
-        &self, region: Region, operations: &mut Vec<Operation>,
-    ) -> bool {
+    /// gets that cell's pipes. And a tap below a table that ends the note
+    /// has nowhere to go but a cell: it gets a line after the table.
+    pub fn table_select_edits(&self, region: Region, operations: &mut Vec<Operation>) -> bool {
         let r = &self.renderer;
         if r.readonly {
             return false;
+        }
+        if let Region::Location(Location::Pos(pos)) = region {
+            if let Some(table) = r.bounds.tables.last() {
+                let last = r.buffer.current.segs.last_cursor_position();
+                let trailing = r.bounds.source_lines[table.lines().1 - 1].end() == last;
+                let bottom = r
+                    .table_cell_boxes
+                    .iter()
+                    .filter(|cell_box| {
+                        table
+                            .rows
+                            .iter()
+                            .any(|row| row.line.start() == cell_box.row)
+                    })
+                    .map(|cell_box| cell_box.rect.bottom())
+                    .fold(f32::MIN, f32::max);
+                if trailing && pos.y > bottom {
+                    let text = format!("\n{}", r.table_line_prefix(table));
+                    r.rewrite((last, last), &text, Some(text.len()), operations);
+                    return true;
+                }
+            }
         }
         let selection = r.buffer.current.selection;
         let caret_cell = || {

@@ -2,6 +2,7 @@
 //! events: taps on its touch targets, and a long-press reorder, decided by the
 //! platform's own gesture system.
 
+use super::input::{Location, Region};
 use egui::Pos2;
 use lb_rs::model::text::offset_types::Grapheme;
 
@@ -23,6 +24,15 @@ impl MdEdit {
     /// be, except a selection, which is the platform's to write: that range
     /// is returned instead.
     pub fn tap(&mut self, pos: Pos2) -> Option<(Grapheme, Grapheme)> {
+        // a tap that edits a table — on a cell its row lacks, or below a
+        // trailing table — is the next frame's to make; the host's own
+        // caret placement comes first and the edit's selection after it
+        let region = Region::Location(Location::Pos(pos));
+        if self.table_select_edits(region, &mut Vec::new()) {
+            self.renderer.render_events.push(Event::Select { region });
+            self.renderer.ctx.request_repaint();
+            return None;
+        }
         let Some(TouchTarget::Tap(event)) = self.touch_target_at(pos).cloned() else {
             return None;
         };

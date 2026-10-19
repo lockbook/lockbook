@@ -4,8 +4,9 @@ use comrak::nodes::AstNode;
 use egui::{Color32, Pos2, Rect, Stroke, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{RangeExt as _, RangeIterExt as _};
 
-use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::table::TableSelection;
+use crate::tab::markdown_editor::{MdRender, TouchTarget};
 
 use crate::style::Space;
 use crate::theme::palette_v2::ThemeExt as _;
@@ -137,6 +138,21 @@ impl<'ast> MdRender {
                 egui::epaint::StrokeKind::Inside,
             );
             self.show_table_handles(ui, first_cell_box);
+
+            // below a table that ends the note a tap edits (`MdEdit::tap`):
+            // a target, so the platform brings the tap to the editor
+            let last = self.buffer.current.segs.last_cursor_position();
+            let trailing = self
+                .bounds
+                .table_at(self.node_range(node).start())
+                .is_some_and(|t| self.bounds.source_lines[t.lines().1 - 1].end() == last);
+            if trailing && !self.readonly {
+                let x = ui.max_rect().x_range();
+                let below = Rect::from_x_y_ranges(x, table.bottom()..=table.bottom() + 100_000.0);
+                let region = Region::Location(Location::Pos(below.left_top() + Vec2::splat(1.0)));
+                self.touch_targets
+                    .push((below, TouchTarget::Tap(Event::Select { region })));
+            }
         }
     }
 
