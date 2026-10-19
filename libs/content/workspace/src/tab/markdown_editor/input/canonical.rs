@@ -180,7 +180,25 @@ impl<'ast> MdEdit {
             {
                 Some(Event::Select { region: Region::Bound { bound: Bound::Doc, backwards: true } })
             }
-            egui::Event::Cut => Some(Event::Cut),
+            // egui-winit folds any Cmd+X / Cmd+C into `Cut` / `Copy` before
+            // the shift reaches us
+            egui::Event::Cut => {
+                if self.renderer.readonly {
+                    return None;
+                }
+                if self
+                    .renderer
+                    .ctx
+                    .input(|i| i.modifiers.command && i.modifiers.shift)
+                {
+                    Some(Event::ToggleStyle {
+                        region: Region::Selection,
+                        style: NodeValue::Strikethrough,
+                    })
+                } else {
+                    Some(Event::Cut)
+                }
+            }
             egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
                 if modifiers.command && !modifiers.shift && !cfg!(target_os = "ios") =>
             {
@@ -189,7 +207,17 @@ impl<'ast> MdEdit {
                 }
                 Some(Event::Cut)
             }
-            egui::Event::Copy => Some(Event::Copy),
+            egui::Event::Copy => {
+                if self
+                    .renderer
+                    .ctx
+                    .input(|i| i.modifiers.command && i.modifiers.shift)
+                {
+                    Some(Event::CopyRendered)
+                } else {
+                    Some(Event::Copy)
+                }
+            }
             egui::Event::Key { key: Key::C, pressed: true, modifiers, .. }
                 if modifiers.command && !modifiers.shift && !cfg!(target_os = "ios") =>
             {
@@ -217,6 +245,11 @@ impl<'ast> MdEdit {
             }
             egui::Event::Key { key: Key::C, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
+            {
+                Some(Event::CopyRendered)
+            }
+            egui::Event::Key { key: Key::E, pressed: true, modifiers, .. }
+                if modifiers.command && !modifiers.shift =>
             {
                 if self.renderer.readonly {
                     return None;

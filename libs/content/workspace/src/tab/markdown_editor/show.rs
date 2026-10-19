@@ -34,6 +34,7 @@ enum EditorMenuCmd {
     Link(LinkMenuAction),
     Cut,
     Copy,
+    CopyRendered,
     Paste,
     PasteTable,
 }
@@ -742,6 +743,7 @@ impl MdEdit {
                     e.item(phosphor::SCISSORS, "Cut", EditorMenuCmd::Cut);
                 }
                 e.item(phosphor::COPY, "Copy", EditorMenuCmd::Copy);
+                e.item(phosphor::TEXT_AA, "Copy Rendered", EditorMenuCmd::CopyRendered);
                 if !readonly {
                     e.item(phosphor::CLIPBOARD_TEXT, "Paste", EditorMenuCmd::Paste);
                 }
@@ -783,6 +785,7 @@ impl MdEdit {
                     ui.ctx().request_repaint();
                 }
                 Some(EditorMenuCmd::Copy) => menu_events.push(Event::Copy),
+                Some(EditorMenuCmd::CopyRendered) => menu_events.push(Event::CopyRendered),
                 Some(EditorMenuCmd::Paste) => {
                     ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
                 }

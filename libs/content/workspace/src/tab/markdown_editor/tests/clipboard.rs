@@ -1,9 +1,10 @@
 //! `Event::CopyRendered`: the selection as drawn (plain) plus its HTML.
 
+use egui::{Key, Modifiers};
 use lb_rs::model::text::offset_types::Grapheme;
 
 use crate::tab::markdown_editor::input::{Event, Location, Region};
-use crate::tab::markdown_editor::tests::harness::TestEditor;
+use crate::tab::markdown_editor::tests::harness::{TestEditor, key_press};
 use crate::tab::{CopiedRendered, ExtendedOutput as _};
 
 fn select(ws: &mut TestEditor, start: usize, end: usize) {
@@ -96,4 +97,49 @@ fn html_flavor() {
     );
     let html = rendered("one\n\ntwo").html;
     assert_eq!(html, "<p>one</p>\n<p>two</p>\n");
+}
+
+#[test]
+fn shortcuts() {
+    let doc = "run ls now";
+    let mut ws = TestEditor::new(doc);
+    select(&mut ws, 4, 6);
+    ws.enter_frame_with_input(key_press(Key::C, Modifiers::COMMAND | Modifiers::SHIFT));
+    assert_eq!(
+        ws.editor
+            .edit
+            .renderer
+            .ctx
+            .pop_copied_rendered()
+            .unwrap()
+            .plain,
+        "ls"
+    );
+    assert_eq!(ws.get_text(), doc);
+
+    ws.enter_frame_with_input(key_press(Key::E, Modifiers::COMMAND));
+    assert_eq!(ws.get_text(), "run `ls` now");
+}
+
+/// Desktop hosts deliver ⇧⌘C / ⇧⌘X as bare `Copy` / `Cut` events with
+/// shift still held.
+#[test]
+fn shifted_copy_event_copies_rendered() {
+    let mut ws = TestEditor::new("run `ls` now");
+    select(&mut ws, 4, 8);
+    let shifted = Modifiers::COMMAND | Modifiers::SHIFT;
+    ws.enter_frame_with_input_held(vec![egui::Event::Copy], shifted);
+    assert_eq!(
+        ws.editor
+            .edit
+            .renderer
+            .ctx
+            .pop_copied_rendered()
+            .unwrap()
+            .plain,
+        "ls"
+    );
+
+    ws.enter_frame_with_input_held(vec![egui::Event::Cut], shifted);
+    assert_eq!(ws.get_text(), "run ~~`ls`~~ now");
 }
