@@ -849,7 +849,13 @@ fn shape_to_items(
                     cluster_advances: Vec::new(),
                 });
             }
-            if advance > width
+            // inside a background the row is narrower by the span's pads
+            let budget = bg_scope_stack
+                .iter()
+                .flatten()
+                .last()
+                .map_or(width, |(_, pad)| width - 2.0 * pad);
+            if advance > budget
                 && !atomic
                 && source_range.end().0 > source_range.start().0 + 1
                 && cluster_advances.len() == source_range.end().0 - source_range.start().0
@@ -866,7 +872,7 @@ fn shape_to_items(
                     &format,
                     &cluster_advances,
                     row_height,
-                    width,
+                    budget,
                     ppi,
                 );
             } else {
