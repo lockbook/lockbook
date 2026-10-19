@@ -239,6 +239,25 @@ fn selection(editor: &TestEditor) -> (usize, usize) {
     (selection.0.0, selection.1.0)
 }
 
+/// The rect of each cell of the document's first table, row by row.
+fn cell_rects(editor: &TestEditor) -> Vec<Vec<egui::Rect>> {
+    let r = &editor.editor.edit.renderer;
+    let table = &r.bounds.tables[0];
+    table
+        .rows
+        .iter()
+        .map(|row| {
+            let mut boxes: Vec<_> = r
+                .table_cell_boxes
+                .iter()
+                .filter(|cell_box| cell_box.row == row.line.start())
+                .collect();
+            boxes.sort_by_key(|cell_box| cell_box.column);
+            boxes.iter().map(|cell_box| cell_box.rect).collect()
+        })
+        .collect()
+}
+
 const EMPTY_CELL_ROW: &str =
     "|Use Case|Required Behavior|\n|-|-|\n|iOS end-of-line cursor placement||";
 
@@ -280,6 +299,39 @@ fn bold_in_a_row_with_an_empty_cell() {
     editor.push(Event::ToggleStyle { region: Region::Selection, style: Strong });
     editor.enter_frame();
     assert_eq!(editor.get_text(), EMPTY_CELL_ROW);
+}
+
+/// #5071
+#[test]
+fn an_image_is_clamped_to_its_cell() {
+    use super::harness::build_lb;
+    let wide = "| a | b | c | d |\n| - | - | - | - |\n| ![big](big.png) | ![sized\\|900x300](big.png) | text text text text text text text text text text text text text text text text text | x |";
+    let (mut editor, embeds) = TestEditor::with_test_embeds(build_lb(), wide);
+    embeds.complete("big.png", egui::Vec2::new(4000.0, 1000.0));
+    editor.enter_frame();
+    editor.enter_frame();
+    let r = &editor.editor.edit.renderer;
+    let rects = cell_rects(&editor);
+    let padding = r.layout.block_padding;
+    let images: Vec<_> = r
+        .fragments
+        .iter()
+        .filter(|fragment| {
+            matches!(
+                fragment.content,
+                crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent::Embed { .. }
+            )
+        })
+        .collect();
+    assert_eq!(images.len(), 2);
+    for (image, cell) in images.iter().zip(&rects[1]) {
+        assert!(
+            cell.shrink(padding).expand(0.5).contains_rect(image.rect),
+            "image {:?} outside its cell {cell:?}",
+            image.rect
+        );
+    }
+    assert!(rects[1][3].right() <= r.width + rects[1][0].left() + 0.5);
 }
 
 #[test]
