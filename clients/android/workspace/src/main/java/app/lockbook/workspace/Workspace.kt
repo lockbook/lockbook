@@ -58,12 +58,32 @@ enum class MarkdownToolbarAction {
     Link,
     Indent,
     Outdent,
+    Table,
+    PreviousCell,
+    NextCell,
+    NextRow,
+    RowAbove,
+    RowBelow,
+    ColumnLeft,
+    ColumnRight,
+    DeleteRow,
+    DeleteColumn,
+    MoveRowUp,
+    MoveRowDown,
+    MoveColumnLeft,
+    MoveColumnRight,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
 }
 
 @Serializable
 data class MarkdownToolbarState(
     val active: Set<MarkdownToolbarAction>,
     val headingLevel: Int? = null,
+    val inTable: Boolean = false,
+    val disabled: Set<MarkdownToolbarAction> = emptySet(),
+    val onHeader: Boolean = false,
 )
 
 object Workspace {
@@ -90,6 +110,7 @@ object Workspace {
     fun markdownToolbarAction(rustObj: Long, action: MarkdownToolbarAction) {
         markdownToolbarActionNative(rustObj, Json.encodeToString(action))
     }
+    external fun insertTable(rustObj: Long, columns: Int, rows: Int)
     external fun setNativeMarkdownToolbarHeight(rustObj: Long, height: Float)
     external fun queueFileForEditorImport(rustObj: Long, path: String, name: String): Boolean
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
