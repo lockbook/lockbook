@@ -65,6 +65,7 @@ pub mod input;
 pub mod md_label;
 mod scroll_content;
 pub mod show;
+pub mod table;
 pub mod text_units;
 mod theme;
 pub(crate) mod widget;
@@ -670,6 +671,7 @@ impl MdRender {
             self.calc_source_lines();
             self.calc_fold_bounds(root);
             self.calc_atom_bounds(root);
+            self.calc_table_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
             // from compute_bounds_block_pre_spacing) queries
             // hidden_by_fold, which now expects every node already

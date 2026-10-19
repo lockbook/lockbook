@@ -31,3 +31,4 @@ mod ios_host;
 mod link_card;
 mod regressions;
 mod render_props;
+mod tables;
