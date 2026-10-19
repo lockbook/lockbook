@@ -4,6 +4,7 @@ use crate::tab::markdown_editor::widget::utils::{
     NodeValueExt as _, leading_indent_cols, leading_indent_range,
 };
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::{CopiedRendered, ExtendedOutput as _};
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
     NodeTaskItem, NodeValue, Sourcepos,
@@ -55,6 +56,13 @@ impl MdEdit {
 }
 
 impl<'ast> MdEdit {
+    /// The selection, else the current line; a selected fold chip is just
+    /// its tag, but the clipboard gets the folded contents too.
+    fn clipboard_range(&self, selection: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
+        let range = if !selection.is_empty() { selection } else { self.clipboard_current_line() };
+        self.renderer.grow_range_over_fold_contents(range)
+    }
+
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
     /// Dispatches events that aren't buffer operations. Returns a (text_updated, selection_updated) pair.
     pub fn calc_operations(
@@ -471,14 +479,7 @@ impl<'ast> MdEdit {
                 response |= self.renderer.buffer.redo();
             }
             Event::Cut => {
-                let range = if !current_selection.is_empty() {
-                    current_selection
-                } else {
-                    self.clipboard_current_line()
-                };
-                // selecting a fold chip is just selecting a fold tag, but
-                // copying it should copy folded content
-                let range = self.renderer.grow_range_over_fold_contents(range);
+                let range = self.clipboard_range(current_selection);
                 let (range, text) = self
                     .renderer
                     .table_rows_clipboard()
@@ -490,18 +491,24 @@ impl<'ast> MdEdit {
                 }
             }
             Event::Copy => {
-                let range = if !current_selection.is_empty() {
-                    current_selection
-                } else {
-                    self.clipboard_current_line()
-                };
-                let range = self.renderer.grow_range_over_fold_contents(range);
+                let range = self.clipboard_range(current_selection);
                 let text = match self.renderer.table_rows_clipboard() {
                     Some((_, text)) => text,
                     None => self.renderer.buffer[range].into(),
                 };
 
                 ctx.copy_text(text);
+            }
+            Event::CopyRendered => {
+                let mut range = self.clipboard_range(current_selection);
+                // a caret's line comes with its leading newline for Copy, so
+                // a paste re-inserts a whole line; rendered pastes start inline
+                if self.renderer.buffer[range].starts_with('\n') {
+                    range.0 += 1;
+                }
+                let plain = self.renderer.rendered_text(root, range);
+                let html = self.renderer.rendered_html(range);
+                ctx.set_copied_rendered(CopiedRendered { plain, html });
             }
             Event::ToggleDebug => {
                 self.renderer.debug = !self.renderer.debug;

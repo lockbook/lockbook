@@ -25,6 +25,7 @@ mod harness;
 
 mod benches;
 mod block_drag;
+mod clipboard;
 mod edit_props;
 mod folding;
 mod ios_host;

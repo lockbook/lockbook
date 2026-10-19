@@ -28,7 +28,7 @@ impl<'ast> MdRender {
     /// Walks the paragraph's pre/infix/post slices (handles leading/
     /// trailing whitespace per CommonMark "raw content" rule), and
     /// recurses into inline children for the inline range.
-    fn layout_paragraph_line(
+    pub(crate) fn layout_paragraph_line(
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
     ) -> Layout {
         let mut layout = Layout::new(node_line);

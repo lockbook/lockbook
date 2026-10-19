@@ -105,6 +105,7 @@ pub enum Event {
     Redo,
     Cut,
     Copy,
+    CopyRendered, // the selection as drawn, as plain text and HTML
     ToggleDebug,
     IncrementBaseFontSize,
     DecrementBaseFontSize,
