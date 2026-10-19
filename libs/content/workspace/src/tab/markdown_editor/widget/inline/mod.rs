@@ -166,6 +166,8 @@ impl<'ast> MdRender {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             NodeValue::Alert(_)
+            | NodeValue::BlockDirective(_)
+            | NodeValue::MultilineComment(_)
             | NodeValue::BlockQuote
             | NodeValue::DescriptionItem(_)
             | NodeValue::DescriptionList
@@ -187,6 +189,8 @@ impl<'ast> MdRender {
             | NodeValue::ThematicBreak => {
                 unimplemented!("not an inline: {:?}", node.data.borrow().value)
             }
+            NodeValue::Insert => unimplemented!("extension disabled"),
+            NodeValue::CommentInline(_) => unimplemented!("extension disabled"),
             NodeValue::Subtext => unimplemented!("extension disabled"),
 
             NodeValue::Code(_) => self.layout_code(layout, node, range),

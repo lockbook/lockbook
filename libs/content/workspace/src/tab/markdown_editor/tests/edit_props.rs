@@ -3,6 +3,7 @@
 //! [`TestEditor`].
 
 use super::super::input::{Advance, Bound, Event, Location, Region};
+
 use super::doc_gen::{self, BlockFeatures, Features, ScriptFeatures, WhitespaceFeatures, gen_doc};
 use super::harness::TestEditor;
 use crate::test_utils::byte_source::ByteSource;
@@ -167,6 +168,7 @@ fn layout_cache_consistent() {
     run_all(layout_cache_consistent_check, 1000);
 } // + embed resolver
 
+// tables
 // indent / structure
 #[test]
 fn indent_only_moves_selected_line() {

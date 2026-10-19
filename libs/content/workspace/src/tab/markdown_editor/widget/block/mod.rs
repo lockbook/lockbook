@@ -42,6 +42,8 @@ impl<'ast> MdRender {
 
             // container_block
             NodeValue::Alert(_) => indented_width(),
+            NodeValue::BlockDirective(_) => unimplemented!("extension disabled"),
+            NodeValue::MultilineComment(_) => unimplemented!("extension disabled"),
             NodeValue::BlockQuote => indented_width(),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -63,6 +65,8 @@ impl<'ast> MdRender {
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
             | NodeValue::Image(_)
+            | NodeValue::Insert
+            | NodeValue::CommentInline(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -116,6 +120,8 @@ impl<'ast> MdRender {
 
             // container_block
             NodeValue::Alert(node_alert) => self.height_alert(node, node_alert),
+            NodeValue::BlockDirective(_) => unimplemented!("extension disabled"),
+            NodeValue::MultilineComment(_) => unimplemented!("extension disabled"),
             NodeValue::BlockQuote => self.height_block_quote(node),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -138,6 +144,8 @@ impl<'ast> MdRender {
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
             | NodeValue::Image(_)
+            | NodeValue::Insert
+            | NodeValue::CommentInline(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -298,6 +306,8 @@ impl<'ast> MdRender {
 
             // container_block
             NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, node_alert),
+            NodeValue::BlockDirective(_) => unimplemented!("extension disabled"),
+            NodeValue::MultilineComment(_) => unimplemented!("extension disabled"),
             NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -324,6 +334,8 @@ impl<'ast> MdRender {
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
             | NodeValue::Image(_)
+            | NodeValue::Insert
+            | NodeValue::CommentInline(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -666,6 +678,10 @@ fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
         NodeValue::Highlight => 42,
         NodeValue::ShortCode(_) => 43,
         NodeValue::Subtext => 44,
+        NodeValue::Insert => 45,
+        NodeValue::BlockDirective(_) => 46,
+        NodeValue::CommentInline(_) => 47,
+        NodeValue::MultilineComment(_) => 48,
     }
 }
 

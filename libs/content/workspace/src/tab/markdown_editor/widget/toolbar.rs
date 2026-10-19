@@ -1372,6 +1372,8 @@ impl Name for NodeValue {
             NodeValue::FootnoteReference(_) => "",
             NodeValue::ShortCode(_) => "",
             NodeValue::Math(_) => "",
+            NodeValue::BlockDirective(_) => "",
+            NodeValue::MultilineComment(_) => "",
             NodeValue::MultilineBlockQuote(_) => "",
             NodeValue::Escaped => "",
             NodeValue::WikiLink(_) => "",
@@ -1380,6 +1382,8 @@ impl Name for NodeValue {
             NodeValue::SpoileredText => "Spoiler",
             NodeValue::EscapedTag(_) => "",
             NodeValue::Alert(_) => "",
+            NodeValue::Insert => "",
+            NodeValue::CommentInline(_) => "",
             NodeValue::Subtext => "",
         }
     }

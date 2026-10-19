@@ -703,7 +703,7 @@ impl MdRender {
         options.extension.footnotes = false;
         options.extension.front_matter_delimiter = Some("---".to_string());
         options.extension.greentext = false;
-        options.extension.header_ids = None; // intended for HTML renderers
+        options.extension.header_id_prefix = None; // intended for HTML renderers
         options.extension.highlight = true;
         options.extension.math_code = true; // rendered as code for now
         options.extension.math_dollars = true; // rendered as code for now
@@ -714,7 +714,6 @@ impl MdRender {
         options.extension.subscript = true;
         options.extension.superscript = true;
         options.extension.table = true;
-        options.extension.tagfilter = false; // intended for HTML renderers
         options.extension.tasklist = true;
         options.extension.underline = true;
         options.extension.wikilinks_title_after_pipe = true; // matches obsidian
