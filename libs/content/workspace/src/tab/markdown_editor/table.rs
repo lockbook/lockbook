@@ -2,16 +2,31 @@
 //! body rows, one source line each. [`TableBounds`] records where each
 //! row's cells and pipes are; everything the editor does to a table is
 //! arithmetic on it.
+//!
+//! A table is a grid: the caret lives in cell content and steps from cell
+//! to cell, never onto a pipe, padding, the delimiter row, or the
+//! container prefix of a table line. The exception is a caret an edit left
+//! on the delimiter row — someone is typing a table by hand — which shows
+//! the table as source ([`MdRender::table_revealed`]) for as long as it
+//! stays.
 
 use comrak::nodes::{AstNode, NodeValue, Sourcepos, TableAlignment};
-use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _};
+use egui::Rect;
+use lb_rs::model::text::buffer;
+use lb_rs::model::text::offset_types::{Byte, Grapheme, IntoRangeExt as _, RangeExt as _};
+use lb_rs::model::text::operation_types::{Operation, Replace};
 
-use super::MdRender;
+use super::bounds::{Bounds, RangesExt as _};
+use super::input::{Advance, Increment, Location, Region};
 use super::widget::utils::NodeValueExt as _;
+use super::{MdEdit, MdRender};
 
 /// One table's rows, cells, and pipes in the source.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TableBounds {
+    /// Index of the header's source line. The delimiter row's is the next,
+    /// then one for each body row.
+    pub first_line: usize,
     /// Header first. The delimiter row is not among them.
     pub rows: Vec<RowBounds>,
     pub delimiter: DelimiterBounds,
@@ -47,9 +62,70 @@ pub struct DelimiterBounds {
     pub alignments: Vec<TableAlignment>,
 }
 
+/// A table cell painted this frame, for resolving a pointer to its cell.
+#[derive(Clone, Copy, Debug)]
+pub struct TableCellBox {
+    pub rect: Rect,
+    /// Start of the row's line, which identifies the row in
+    /// [`Bounds::tables`].
+    pub row: Grapheme,
+    pub column: usize,
+}
+
 impl TableBounds {
     pub fn columns(&self) -> usize {
         self.delimiter.cells.len()
+    }
+
+    /// The table's source lines, as indexes with the end excluded.
+    pub fn lines(&self) -> (usize, usize) {
+        (self.first_line, self.first_line + self.rows.len() + 1)
+    }
+
+    /// The content of every written cell, in document order.
+    pub fn contents(&self) -> impl DoubleEndedIterator<Item = (Grapheme, Grapheme)> + '_ {
+        self.rows
+            .iter()
+            .flat_map(|row| row.cells.iter().map(|cell| cell.content))
+    }
+
+    /// The row and column of the written cell whose span holds `offset`.
+    pub fn cell_at(&self, offset: Grapheme) -> Option<(usize, usize)> {
+        self.rows.iter().enumerate().find_map(|(r, row)| {
+            let c = row
+                .cells
+                .iter()
+                .position(|cell| cell.span.contains_inclusive(offset))?;
+            Some((r, c))
+        })
+    }
+
+    /// The row whose line holds `offset`.
+    pub fn row_at(&self, offset: Grapheme) -> Option<usize> {
+        self.rows
+            .iter()
+            .position(|row| row.line.contains_inclusive(offset))
+    }
+}
+
+impl RowBounds {
+    /// The edge of a cell's content nearest `offset`.
+    fn nearest_content_edge(&self, offset: Grapheme) -> Option<Grapheme> {
+        self.cells
+            .iter()
+            .flat_map(|cell| [cell.content.start(), cell.content.end()])
+            .min_by_key(|edge| edge.0.abs_diff(offset.0))
+    }
+}
+
+impl Bounds {
+    /// The table with a source line that holds `offset`.
+    pub fn table_at(&self, offset: Grapheme) -> Option<&TableBounds> {
+        let line = self.source_lines.find_containing(offset, true, true).0;
+        self.tables.iter().find(|table| {
+            let (start, end) = table.lines();
+            (start..end).contains(&line)
+        })
     }
 }
 
@@ -58,11 +134,13 @@ fn is_cell_space(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\x0b' | '\x0c')
 }
 
+// ─── bounds ──────────────────────────────────────────────────────────
+
 impl<'ast> MdRender {
-    /// Recompute [`super::bounds::Bounds::tables`]. Depends on text only.
+    /// Recompute [`Bounds::tables`]. Depends on text only.
     pub fn calc_table_bounds(&mut self, root: &'ast AstNode<'ast>) {
         let mut tables = Vec::new();
-        for node in root.descendants() {
+        for node in root.descendants().filter(|_| !self.plaintext) {
             if let NodeValue::Table(table) = &node.data.borrow().value {
                 tables.extend(self.table_bounds(node, table.alignments.clone()));
             }
@@ -74,25 +152,24 @@ impl<'ast> MdRender {
         &self, table: &'ast AstNode<'ast>, alignments: Vec<TableAlignment>,
     ) -> Option<TableBounds> {
         // the delimiter row has no node; it is the line after the header's
-        let delimiter_line = self
-            .bounds
-            .source_lines
-            .get(self.node_first_line_idx(table) + 1)?;
+        let first_line = self.node_first_line_idx(table);
+        let delimiter_line = self.bounds.source_lines.get(first_line + 1)?;
         let line = self.node_line(table, *delimiter_line);
         Some(TableBounds {
+            first_line,
             rows: table.children().map(|row| self.row_bounds(row)).collect(),
             delimiter: DelimiterBounds { line, cells: self.delimiter_cells(line), alignments },
         })
     }
 
-    pub fn row_bounds(&self, row: &'ast AstNode<'ast>) -> RowBounds {
+    fn row_bounds(&self, row: &'ast AstNode<'ast>) -> RowBounds {
         let line = self.node_line(row, self.node_first_line(row));
         let cells: Vec<CellBounds> = row
             .children()
             .take_while(|cell| !self.table_cell_autocompleted(cell))
             .map(|cell| {
                 let span = self.node_range(cell);
-                CellBounds { span, content: self.cell_content(span) }
+                CellBounds { span, content: self.table_cell_content(span) }
             })
             .collect();
         let pipe_at = |offset: Grapheme| {
@@ -108,7 +185,7 @@ impl<'ast> MdRender {
     /// `span` less the padding on either side. A blank cell's content is the
     /// empty range after its first space, so that text typed there keeps a
     /// space on either side when the cell has two.
-    fn cell_content(&self, span: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
+    pub fn table_cell_content(&self, span: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
         let text = &self.buffer[span];
         let trimmed = text.trim_matches(is_cell_space);
         if trimmed.is_empty() {
@@ -198,10 +275,11 @@ impl<'ast> MdRender {
                 break;
             }
             let escape = !escaped && content[source] == b'\\';
-            if escape && content.get(source + 1) == Some(&b'|') {
+            let escaped_pipe = escape && content.get(source + 1) == Some(&b'|');
+            if escaped_pipe {
                 source += 1; // the backslash comrak dropped
             }
-            escaped = escape;
+            escaped = escape && !escaped_pipe;
             source += 1;
             unescaped += 1;
         }
@@ -212,5 +290,262 @@ impl<'ast> MdRender {
                 Byte(content_start + end),
             )),
         )
+    }
+}
+
+// ─── the caret ───────────────────────────────────────────────────────
+
+impl MdRender {
+    /// Tables are grids for navigation: an advance from `origin` that lands
+    /// on a table line outside cell content continues in the travel
+    /// direction to the nearest content, or out of the table past its last
+    /// cell. At a document edge with nowhere to leave to, it turns back.
+    ///
+    /// A caret on the delimiter row moves along it as through text, which
+    /// is how the table shows while it is there.
+    pub fn snap_offset_into_table_cell(
+        &self, origin: Grapheme, offset: Grapheme, backwards: bool,
+    ) -> Grapheme {
+        let Some(table) = self.bounds.table_at(offset) else { return offset };
+        if table
+            .contents()
+            .any(|content| content.contains_inclusive(offset))
+        {
+            return offset;
+        }
+        let delimiter_line = self.bounds.source_lines[table.first_line + 1];
+        if delimiter_line.contains_inclusive(origin) && delimiter_line.contains_inclusive(offset) {
+            return offset;
+        }
+
+        let lines = &self.bounds.source_lines;
+        let (first, end) = table.lines();
+        let before = table
+            .contents()
+            .map(|content| content.end())
+            .rfind(|&content_end| content_end <= offset);
+        let after = table
+            .contents()
+            .map(|content| content.start())
+            .find(|&content_start| content_start >= offset);
+        let above = first.checked_sub(1).map(|line| lines[line].end());
+        let below = lines.get(end).map(|line| line.start());
+        if backwards { before.or(above).or(after) } else { after.or(below).or(before) }
+            .unwrap_or(offset)
+    }
+
+    /// Tables are grids for selection: a caret placed on a table line
+    /// outside cell content goes to the nearest content in its row; on the
+    /// delimiter row, to the header cell of its column. A table whose
+    /// delimiter row the selection is already on shows as source, and a
+    /// caret may be placed anywhere along that row.
+    pub fn snap_selection_into_table_cells(
+        &self, range: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
+        if !range.is_empty() {
+            let cell = self.bounds.table_at(range.0).and_then(|table| {
+                let (row, column) = table.cell_at(range.0)?;
+                Some(table.rows[row].cells[column])
+            });
+            let Some(cell) = cell.filter(|cell| cell.span.contains_inclusive(range.1)) else {
+                return range;
+            };
+            let clamp = |offset: Grapheme| offset.max(cell.content.start()).min(cell.content.end());
+            return (clamp(range.0), clamp(range.1));
+        }
+        let offset = range.0;
+        let Some(table) = self.bounds.table_at(offset) else { return range };
+        if table
+            .contents()
+            .any(|content| content.contains_inclusive(offset))
+        {
+            return range;
+        }
+
+        let home = if let Some(row) = table.row_at(self.line_at_offset(offset).end()) {
+            table.rows[row].nearest_content_edge(offset)
+        } else {
+            let delimiter_line = self.bounds.source_lines[table.first_line + 1];
+            if delimiter_line.contains_inclusive(self.buffer.current.selection.1) {
+                return range;
+            }
+            let column = table
+                .delimiter
+                .cells
+                .iter()
+                .position(|cell| offset <= cell.end())
+                .unwrap_or(table.columns().saturating_sub(1));
+            let header = table.rows.first();
+            header.and_then(|row| Some(row.cells.get(column)?.content.start()))
+        };
+        home.map(|home| (home, home)).unwrap_or(range)
+    }
+
+    /// Where a caret at `offset`, on a table row outside every cell,
+    /// belongs: the nearest content in that row. `None` if it may stay — off
+    /// any table, inside a cell (padding included, where typing a space
+    /// puts it), or on the delimiter row.
+    pub fn table_caret_stranded(&self, offset: Grapheme) -> Option<Grapheme> {
+        let table = self.bounds.table_at(offset)?;
+        if table.cell_at(offset).is_some() {
+            return None;
+        }
+        let row = table.row_at(self.line_at_offset(offset).end())?;
+        table.rows[row].nearest_content_edge(offset)
+    }
+
+    /// The painted cell under `pos`.
+    pub fn table_cell_box_at(&self, pos: egui::Pos2) -> Option<TableCellBox> {
+        self.table_cell_boxes
+            .iter()
+            .copied()
+            .find(|cell_box| cell_box.rect.contains(pos))
+    }
+
+    /// The bounds of the row a painted cell is in, with its table's.
+    pub fn table_row_of(&self, cell_box: TableCellBox) -> Option<(&TableBounds, &RowBounds)> {
+        let table = self.bounds.table_at(cell_box.row)?;
+        let row = table
+            .rows
+            .iter()
+            .find(|row| row.line.start() == cell_box.row)?;
+        Some((table, row))
+    }
+
+    /// The span of the cell painted under `pos`; under a cell the row does
+    /// not have, the span of the row's last.
+    pub fn table_cell_span_at_pos(&self, pos: egui::Pos2) -> Option<(Grapheme, Grapheme)> {
+        let cell_box = self.table_cell_box_at(pos)?;
+        let (_, row) = self.table_row_of(cell_box)?;
+        let cell = row.cells.get(cell_box.column).or(row.cells.last())?;
+        Some(cell.span)
+    }
+}
+
+impl<'ast> MdRender {
+    /// Whether the table shows as its source lines instead of a grid: while
+    /// the selection has an end on the delimiter row, which has no place
+    /// in the grid, or a find match covers some of the table's syntax.
+    pub fn table_revealed(&self, table: &'ast AstNode<'ast>) -> bool {
+        let Some(&delimiter_line) = self
+            .bounds
+            .source_lines
+            .get(self.node_first_line_idx(table) + 1)
+        else {
+            return false;
+        };
+        let on_delimiter_row = self.reveal_selection.is_some_and(|selection| {
+            delimiter_line.contains_inclusive(selection.0)
+                || delimiter_line.contains_inclusive(selection.1)
+        });
+        on_delimiter_row || {
+            let range = self.node_range(table);
+            let mut found = self
+                .find_current_match
+                .into_iter()
+                .chain(self.preview_match);
+            found.any(|found| {
+                range.intersects(&found, false)
+                    && !table.descendants().any(|cell| {
+                        matches!(cell.data.borrow().value, NodeValue::TableCell)
+                            && self
+                                .table_cell_content(self.node_range(cell))
+                                .contains_range(&found, true, true)
+                    })
+            })
+        }
+    }
+}
+
+// ─── event hooks ─────────────────────────────────────────────────────
+
+impl MdEdit {
+    /// A short row has no source for the cells it lacks. The first time the
+    /// caret moves into one — by a click, the right arrow from the row's
+    /// last cell, or a vertical arrow from the cell above or below — the row
+    /// gets that cell's pipes. True if handled (ops + caret pushed).
+    pub fn select_unwritten_table_cell(
+        &self, region: Region, operations: &mut Vec<Operation>,
+    ) -> bool {
+        let r = &self.renderer;
+        if r.readonly {
+            return false;
+        }
+        let selection = r.buffer.current.selection;
+        let caret_cell = || {
+            let table = r
+                .bounds
+                .table_at(selection.1)
+                .filter(|_| selection.is_empty())?;
+            let (row, column) = table.cell_at(selection.1)?;
+            Some((table, row, column))
+        };
+        let target = match region {
+            Region::Location(Location::Pos(pos)) => r.table_cell_box_at(pos).and_then(|cell| {
+                let (table, row) = r.table_row_of(cell)?;
+                Some((table, row, cell.column))
+            }),
+            Region::ToAdvance {
+                advance: Advance::By(Increment::Char),
+                backwards: false,
+                extend_selection: false,
+            } => caret_cell().and_then(|(table, row, column)| {
+                let row = &table.rows[row];
+                (selection.1 >= row.cells[column].content.end()).then_some((table, row, column + 1))
+            }),
+            Region::ToAdvance {
+                advance: Advance::By(Increment::Lines(1)),
+                backwards,
+                extend_selection: false,
+            } => caret_cell().and_then(|(table, _, column)| {
+                let neighbor = self.table_row_past(selection.1, backwards)?;
+                self.table_cell_edge_row(selection.1, backwards).then_some((
+                    table,
+                    &table.rows[neighbor],
+                    column,
+                ))
+            }),
+            _ => None,
+        };
+        let Some((table, row, column)) = target else { return false };
+        let Some(last) = row.cells.last() else { return false };
+        if column < row.cells.len() || column >= table.columns() {
+            return false;
+        }
+
+        // the caret goes between the last new cell's two spaces
+        let mut before = String::new();
+        let at = if row.trailing_pipe {
+            last.span.end() + 1
+        } else {
+            let padded = r.buffer[last.span].ends_with([' ', '\t']);
+            before += if padded { "|" } else { " |" };
+            last.span.end()
+        };
+        before += &"  |".repeat(column - row.cells.len());
+        before += " ";
+        let at = at.into_range();
+        operations.push(Operation::Replace(Replace { range: at, text: before }));
+        operations.push(Operation::Select(at));
+        operations.push(Operation::Replace(Replace { range: at, text: " |".into() }));
+        true
+    }
+
+    /// Navigation keeps the caret in cells, but it can still come to rest
+    /// on a table row's pipes: where a document opens, after a paste that
+    /// ends a row, when a merge moves it. With no place for it there, move
+    /// it into the row. Undo and redo restore a selection that had a place.
+    pub fn table_caret_home(&mut self, undo_redo: bool) -> buffer::Response {
+        let selection = self.renderer.buffer.current.selection;
+        if undo_redo || !selection.is_empty() {
+            return buffer::Response::default();
+        }
+        let Some(home) = self.renderer.table_caret_stranded(selection.1) else {
+            return buffer::Response::default();
+        };
+        self.renderer
+            .buffer
+            .queue(vec![Operation::Select(home.into_range())]);
+        self.renderer.buffer.update()
     }
 }

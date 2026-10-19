@@ -65,8 +65,12 @@ impl<'ast> MdEdit {
         let mut response = buffer::Response::default();
         match event {
             Event::Select { region } => {
+                if self.select_unwritten_table_cell(region, operations) {
+                    return response;
+                }
                 let range = self.region_to_range(region);
                 let range = self.renderer.snap_selection_out_of_fold_tags(range);
+                let range = self.renderer.snap_selection_into_table_cells(range);
                 operations.push(Operation::Select(range));
             }
             Event::Replace { region, text, advance_cursor } => {

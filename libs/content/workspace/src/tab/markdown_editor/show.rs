@@ -147,6 +147,7 @@ impl MdEdit {
 
         let edited = buf_resp.text_updated || buf_resp.selection_user_moved;
         buf_resp |= self.unfold_after_edit(&arena, edited, undo_redo);
+        buf_resp |= self.table_caret_home(undo_redo);
 
         // An entered atom stays revealed only while the selection remains
         // within it; the range is re-resolved against the (possibly edited)
@@ -205,6 +206,7 @@ impl MdEdit {
         // applied here, before that frame sees anything to unfold for.
         let edited = resp.text_updated || resp.selection_user_moved;
         resp |= self.unfold_after_edit(&arena, edited, undo_redo);
+        resp |= self.table_caret_home(undo_redo);
         if reveal && (resp.text_updated || resp.selection_user_moved) {
             self.pending_scroll = Some(ScrollTarget::Cursor);
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
@@ -277,6 +279,7 @@ impl MdEdit {
 
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
+        self.renderer.table_cell_boxes.clear();
         self.renderer.in_progress_block_drag = self.in_progress_block_drag;
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
@@ -574,6 +577,7 @@ impl MdEdit {
         // produces — keeping them would corrupt hit-testing.
         let frag_len = self.renderer.fragments.len();
         let box_len = self.renderer.block_boxes.len();
+        let cell_box_len = self.renderer.table_cell_boxes.len();
         let section = drag.section_range;
         // Top-most items in the span; descendants paint via `show_block`.
         let in_span: Vec<BlockBox> = self
@@ -617,6 +621,7 @@ impl MdEdit {
         let floating_deco = std::mem::take(&mut self.renderer.deco_lines);
         self.renderer.fragments.truncate(frag_len);
         self.renderer.block_boxes.truncate(box_len);
+        self.renderer.table_cell_boxes.truncate(cell_box_len);
 
         if !floating_text.is_empty() {
             ui.painter()

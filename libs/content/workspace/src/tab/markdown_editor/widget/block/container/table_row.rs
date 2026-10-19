@@ -1,8 +1,9 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rangef, Rect, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::RangeExt;
+use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::table::TableCellBox;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -13,130 +14,54 @@ impl<'ast> MdRender {
     }
 
     pub fn height_table_row(&self, node: &'ast AstNode<'ast>) -> f32 {
-        if self.reveal_table_row(node) {
-            let line = self.node_first_line(node);
-            let node_line = self.node_line(node, line);
-            let width = self.width(node);
-            self.layout.block_padding
-                + self
-                    .compute_section_layout_new(
-                        node_line,
-                        width,
-                        self.layout.row_height,
-                        self.text_format_syntax(),
-                    )
-                    .height
-                + self.layout.block_padding
-        } else {
-            // the height of the row is the height of the tallest cell
-            let mut cell_height_max = 0.0f32;
-            for table_cell in node.children() {
-                cell_height_max = cell_height_max.max(self.height(table_cell));
-            }
-
-            cell_height_max
+        // the height of the row is the height of the tallest cell
+        let mut cell_height_max = 0.0f32;
+        for table_cell in node.children() {
+            cell_height_max = cell_height_max.max(self.height(table_cell));
         }
+
+        cell_height_max
     }
 
     pub fn show_table_row(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, is_header_row: bool,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, is_header_row: bool,
     ) {
-        if self.reveal_table_row(node) {
-            top_left += Vec2::splat(self.layout.block_padding);
+        let height = self.height_table_row(node);
+        let width = self.width(node);
+        let child_width = width / node.children().count() as f32;
 
-            let line = self.node_first_line(node);
-            let node_line = self.node_line(node, line);
-            let width = self.width(node);
-            let result = self.compute_section_layout_new(
-                node_line,
-                width,
-                self.layout.row_height,
-                self.text_format_syntax(),
+        // draw row backgrounds
+        let row_rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+        if is_header_row {
+            ui.painter()
+                .rect_filled(row_rect, 1., self.ctx.get_lb_theme().neutral_bg_secondary());
+        }
+
+        // draw interior decorations
+        let stroke = Stroke { width: 1., color: self.ctx.get_lb_theme().neutral_bg_tertiary() };
+        if !is_header_row {
+            ui.painter()
+                .hline(Rangef::new(top_left.x, top_left.x + width), top_left.y, stroke);
+        }
+        for child_idx in 1..node.children().count() {
+            ui.painter().vline(
+                top_left.x + child_idx as f32 * child_width,
+                Rangef::new(top_left.y, top_left.y + height),
+                stroke,
             );
-            self.show_wrap_layout(ui, top_left, &result);
-        } else {
-            let height = self.height_table_row(node);
-            let width = self.width(node);
-            let child_width = width / node.children().count() as f32;
-
-            // draw row backgrounds
-            let row_rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-            if is_header_row {
-                ui.painter().rect_filled(
-                    row_rect,
-                    1.,
-                    self.ctx.get_lb_theme().neutral_bg_secondary(),
-                );
-            }
-
-            // draw interior decorations
-            let stroke = Stroke { width: 1., color: self.ctx.get_lb_theme().neutral_bg_tertiary() };
-            if !is_header_row {
-                ui.painter()
-                    .hline(Rangef::new(top_left.x, top_left.x + width), top_left.y, stroke);
-            }
-            for child_idx in 1..node.children().count() {
-                ui.painter().vline(
-                    top_left.x + child_idx as f32 * child_width,
-                    Rangef::new(top_left.y, top_left.y + height),
-                    stroke,
-                );
-            }
-
-            // draw cell contents
-            let mut child_top_left = top_left;
-            for table_cell in node.children() {
-                self.show_table_cell(ui, table_cell, child_top_left);
-                child_top_left.x += child_width;
-            }
-        }
-    }
-
-    /// Reveal the table row's source when the cursor sits between
-    /// cells or after the last cell. Reads `reveal_selection` rather
-    /// than `buffer.current.selection` so unfocused frames see stable
-    /// layout.
-    fn reveal_table_row(&self, node: &'ast AstNode<'ast>) -> bool {
-        let row_range = self.node_range(node);
-        let line = self.node_first_line(node);
-        let node_line = self.node_line(node, line);
-
-        // check for cursor between cells
-        let mut range_start = row_range.start();
-        for cell in node.children() {
-            let cell_range = if let Some((_, _, cell_children_range, _, _)) =
-                self.split_range(cell, node_line)
-            {
-                cell_children_range
-            } else {
-                self.node_range(cell)
-            };
-
-            let between_range = (range_start, cell_range.start());
-
-            if self.range_contains_revealed(between_range, false, false) {
-                return true;
-            }
-
-            range_start = cell_range.end();
         }
 
-        // check for cursor after last cell
-        if let Some(cell) = node.children().last() {
-            let cell_range = if let Some((_, _, cell_children_range, _, _)) =
-                self.split_range(cell, node_line)
-            {
-                cell_children_range
-            } else {
-                self.node_range(cell)
-            };
-
-            let between_range = (cell_range.end(), row_range.end());
-            if self.range_contains_revealed(between_range, false, false) {
-                return true;
-            }
+        // draw cell contents
+        let row = self.node_line(node, self.node_first_line(node)).start();
+        let mut child_top_left = top_left;
+        for (column, table_cell) in node.children().enumerate() {
+            self.show_table_cell(ui, table_cell, child_top_left);
+            self.table_cell_boxes.push(TableCellBox {
+                rect: Rect::from_min_size(child_top_left, Vec2::new(child_width, height)),
+                row,
+                column,
+            });
+            child_top_left.x += child_width;
         }
-
-        false
     }
 }

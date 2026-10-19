@@ -7,9 +7,9 @@ use comrak::nodes::{AstNode, NodeValue, TableAlignment};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use super::super::MdRender;
-
+use super::super::input::{Event, Region};
 use super::super::table::{DelimiterBounds, RowBounds};
-
+use super::harness::TestEditor;
 use super::render_props::test_renderer;
 
 /// What the parser trims from either side of a cell.
@@ -219,3 +219,46 @@ fn delimiter_check(r: &MdRender, delimiter: &DelimiterBounds) -> Result<(), Stri
 // ═════════════════════════ exact-behavior examples ═════════════════════════
 
 // ═════════════════════════ examples ═════════════════════════
+
+const EMPTY_CELL_ROW: &str =
+    "|Use Case|Required Behavior|\n|-|-|\n|iOS end-of-line cursor placement||";
+
+/// #3789
+#[test]
+fn a_row_with_an_empty_cell_paints_its_text_once() {
+    let mut editor = TestEditor::new(EMPTY_CELL_ROW);
+    editor.enter_frame();
+    let mut painted: Vec<_> = editor
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .map(|fragment| fragment.source_range)
+        .filter(|range| !range.is_empty())
+        .collect();
+    painted.sort();
+    for pair in painted.windows(2) {
+        assert!(pair[0].1 <= pair[1].0, "{:?} and {:?} paint the same text", pair[0], pair[1]);
+    }
+}
+
+/// #3788
+#[test]
+fn bold_in_a_row_with_an_empty_cell() {
+    use comrak::nodes::NodeValue::Strong;
+    let mut editor = TestEditor::new(EMPTY_CELL_ROW);
+    let start = EMPTY_CELL_ROW.find("iOS").unwrap();
+    let end = EMPTY_CELL_ROW.find("||").unwrap();
+    editor.push(Event::Select { region: (Grapheme(start), Grapheme(end)).into() });
+    editor.enter_frame();
+    editor.push(Event::ToggleStyle { region: Region::Selection, style: Strong });
+    editor.enter_frame();
+    assert_eq!(
+        editor.get_text(),
+        "|Use Case|Required Behavior|\n|-|-|\n|**iOS end-of-line cursor placement**||"
+    );
+    editor.push(Event::ToggleStyle { region: Region::Selection, style: Strong });
+    editor.enter_frame();
+    assert_eq!(editor.get_text(), EMPTY_CELL_ROW);
+}
