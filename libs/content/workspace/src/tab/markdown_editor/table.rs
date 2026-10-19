@@ -16,6 +16,8 @@ use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{Byte, Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
+mod edit;
+
 use super::bounds::{Bounds, RangesExt as _};
 use super::input::{Advance, Increment, Location, Region};
 use super::widget::utils::NodeValueExt as _;
@@ -106,9 +108,40 @@ impl TableBounds {
             .iter()
             .position(|row| row.line.contains_inclusive(offset))
     }
+
+    /// The row on source line `line`, one of the table's. The delimiter
+    /// row's line counts as the header's.
+    fn row_on_line(&self, line: usize) -> usize {
+        line.saturating_sub(self.first_line + 1)
+            .min(self.rows.len().saturating_sub(1))
+    }
+
+    /// Index of the source line row `row` is on.
+    pub fn line_of_row(&self, row: usize) -> usize {
+        self.first_line + if row == 0 { 0 } else { row + 1 }
+    }
+}
+
+/// What a selection takes of a table that both its ends are in.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TableSelection<'t> {
+    /// Part of one cell's content: an ordinary selection.
+    InCell { table: &'t TableBounds, row: usize, column: usize },
+    /// Cells `columns.0..=columns.1` of a row, whole.
+    Cells { table: &'t TableBounds, row: usize, columns: (usize, usize) },
+    /// Rows `rows.0..=rows.1`, whole.
+    Rows { table: &'t TableBounds, rows: (usize, usize) },
 }
 
 impl RowBounds {
+    /// The cell `offset` is in, or else the one before it in the row.
+    fn cell_near(&self, offset: Grapheme) -> usize {
+        self.cells
+            .iter()
+            .rposition(|cell| cell.span.start() <= offset)
+            .unwrap_or(0)
+    }
+
     /// The edge of a cell's content nearest `offset`.
     fn nearest_content_edge(&self, offset: Grapheme) -> Option<Grapheme> {
         self.cells
@@ -334,41 +367,84 @@ impl MdRender {
             .unwrap_or(offset)
     }
 
-    /// Tables are grids for selection: a caret placed on a table line
+    /// Tables are grids for selection. A caret placed on a table line
     /// outside cell content goes to the nearest content in its row; on the
-    /// delimiter row, to the header cell of its column. A table whose
-    /// delimiter row the selection is already on shows as source, and a
-    /// caret may be placed anywhere along that row.
+    /// delimiter row, to the header cell of its column. A selection within
+    /// a cell stays within its content; across cells of a row it takes
+    /// those cells whole; across rows, or across the table's edge, it takes
+    /// rows whole. So no selection ends on a pipe, and none can be deleted
+    /// into merged cells.
+    ///
+    /// A table whose delimiter row the selection is already on shows as
+    /// source, and a selection may be placed anywhere along that row.
     pub fn snap_selection_into_table_cells(
         &self, range: (Grapheme, Grapheme),
     ) -> (Grapheme, Grapheme) {
-        if !range.is_empty() {
-            let cell = self.bounds.table_at(range.0).and_then(|table| {
-                let (row, column) = table.cell_at(range.0)?;
-                Some(table.rows[row].cells[column])
-            });
-            let Some(cell) = cell.filter(|cell| cell.span.contains_inclusive(range.1)) else {
-                return range;
-            };
-            let clamp = |offset: Grapheme| offset.max(cell.content.start()).min(cell.content.end());
-            return (clamp(range.0), clamp(range.1));
-        }
-        let offset = range.0;
-        let Some(table) = self.bounds.table_at(offset) else { return range };
+        let (start, end) = (range.start(), range.end());
+        let (start_table, end_table) = (self.bounds.table_at(start), self.bounds.table_at(end));
+        let line_of = |offset| {
+            self.bounds
+                .source_lines
+                .find_containing(offset, true, true)
+                .0
+        };
+        let on_delimiter_row =
+            |table: &TableBounds, offset| line_of(offset) == table.first_line + 1;
+
+        let snapped = match (start_table, end_table) {
+            (None, None) => return range,
+            (Some(table), Some(end_table)) if table == end_table => {
+                if on_delimiter_row(table, start)
+                    && on_delimiter_row(table, end)
+                    && on_delimiter_row(table, self.buffer.current.selection.1)
+                {
+                    return range;
+                }
+                if range.is_empty() {
+                    let caret = self.table_caret_home(table, start);
+                    return (caret, caret);
+                }
+                let rows = (table.row_on_line(line_of(start)), table.row_on_line(line_of(end)));
+                let row = &table.rows[rows.0];
+                if rows.0 != rows.1 {
+                    (row.line.start(), table.rows[rows.1].line.end())
+                } else if (start, end) == row.line {
+                    (start, end)
+                } else {
+                    let (first, last) =
+                        (row.cells[row.cell_near(start)], row.cells[row.cell_near(end)]);
+                    if first == last {
+                        let clamp = |offset: Grapheme| {
+                            offset.max(first.content.start()).min(first.content.end())
+                        };
+                        (clamp(start), clamp(end))
+                    } else {
+                        (first.content.start(), last.content.end())
+                    }
+                }
+            }
+            _ => (
+                start_table.map_or(start, |table| {
+                    table.rows[table.row_on_line(line_of(start))].line.start()
+                }),
+                end_table
+                    .map_or(end, |table| table.rows[table.row_on_line(line_of(end))].line.end()),
+            ),
+        };
+        if range.0 <= range.1 { snapped } else { (snapped.1, snapped.0) }
+    }
+
+    /// Where a caret placed at `offset`, on one of `table`'s lines, goes.
+    fn table_caret_home(&self, table: &TableBounds, offset: Grapheme) -> Grapheme {
         if table
             .contents()
             .any(|content| content.contains_inclusive(offset))
         {
-            return range;
+            return offset;
         }
-
         let home = if let Some(row) = table.row_at(self.line_at_offset(offset).end()) {
             table.rows[row].nearest_content_edge(offset)
         } else {
-            let delimiter_line = self.bounds.source_lines[table.first_line + 1];
-            if delimiter_line.contains_inclusive(self.buffer.current.selection.1) {
-                return range;
-            }
             let column = table
                 .delimiter
                 .cells
@@ -378,7 +454,37 @@ impl MdRender {
             let header = table.rows.first();
             header.and_then(|row| Some(row.cells.get(column)?.content.start()))
         };
-        home.map(|home| (home, home)).unwrap_or(range)
+        home.unwrap_or(offset)
+    }
+
+    /// What `range`, a selection as [`Self::snap_selection_into_table_cells`]
+    /// leaves it, takes of the table both its ends are in.
+    pub fn table_selection(&self, range: (Grapheme, Grapheme)) -> Option<TableSelection<'_>> {
+        let (start, end) = (range.start(), range.end());
+        let table = self.bounds.table_at(start)?;
+        if self.bounds.table_at(end) != Some(table) {
+            return None;
+        }
+        let line_of = |offset| {
+            self.bounds
+                .source_lines
+                .find_containing(offset, true, true)
+                .0
+        };
+        if line_of(start) == table.first_line + 1 && line_of(end) == table.first_line + 1 {
+            return None; // along the delimiter row, shown as source
+        }
+        let rows = (table.row_on_line(line_of(start)), table.row_on_line(line_of(end)));
+        let row = &table.rows[rows.0];
+        if rows.0 != rows.1 || (start, end) == row.line {
+            return Some(TableSelection::Rows { table, rows });
+        }
+        let columns = (row.cell_near(start), row.cell_near(end));
+        Some(if columns.0 == columns.1 {
+            TableSelection::InCell { table, row: rows.0, column: columns.0 }
+        } else {
+            TableSelection::Cells { table, row: rows.0, columns }
+        })
     }
 
     /// Where a caret at `offset`, on a table row outside every cell,
@@ -410,6 +516,30 @@ impl MdRender {
             .iter()
             .find(|row| row.line.start() == cell_box.row)?;
         Some((table, row))
+    }
+
+    /// The rects of the cells `selection` takes whole, for a highlight that
+    /// shows it has them: every cell of a row it spans, and each cell whose
+    /// content it reaches beyond.
+    pub fn table_cell_rects_taken_whole(&self, selection: (Grapheme, Grapheme)) -> Vec<Rect> {
+        let (start, end) = (selection.start(), selection.end());
+        let taken = |cell_box: &&TableCellBox| {
+            let Some((_, row)) = self.table_row_of(**cell_box) else { return false };
+            if start <= row.line.start() && row.line.end() <= end {
+                return true;
+            }
+            row.cells.get(cell_box.column).is_some_and(|cell| {
+                let content = cell.content;
+                start <= content.start()
+                    && content.end() <= end
+                    && (start < content.start() || content.end() < end)
+            })
+        };
+        self.table_cell_boxes
+            .iter()
+            .filter(taken)
+            .map(|cell_box| cell_box.rect)
+            .collect()
     }
 
     /// The span of the cell painted under `pos`; under a cell the row does
@@ -531,11 +661,49 @@ impl MdEdit {
         true
     }
 
+    /// Where shift with an arrow key moves the end of a selection that
+    /// takes whole cells or rows, which a step of one character or line
+    /// from that end would leave as it is: toward the anchor it gives up a
+    /// cell, and up or down it takes or gives up a row. `None` otherwise.
+    pub fn extend_table_selection(&self, region: Region) -> Option<(Grapheme, Grapheme)> {
+        let Region::ToAdvance { advance, backwards, extend_selection: true } = region else {
+            return None;
+        };
+        let r = &self.renderer;
+        let selection = r.buffer.current.selection;
+        let end_first = selection.1 < selection.0;
+        let lines = &r.bounds.source_lines;
+        let end = match (r.table_selection(selection)?, advance) {
+            (TableSelection::Cells { table, row, columns }, Advance::By(Increment::Char))
+                if backwards != end_first =>
+            {
+                let cells = &table.rows[row].cells;
+                if end_first {
+                    cells[columns.0 + 1].content.start()
+                } else {
+                    cells[columns.1 - 1].content.end()
+                }
+            }
+            (TableSelection::Rows { table, rows }, Advance::By(Increment::Lines(1))) => {
+                let row = if end_first { rows.0 } else { rows.1 };
+                let past = if backwards { row.checked_sub(1) } else { Some(row + 1) };
+                match past.and_then(|row| table.rows.get(row)) {
+                    Some(row) if end_first => row.line.start(),
+                    Some(row) => row.line.end(),
+                    None if backwards => lines[table.first_line.checked_sub(1)?].end(),
+                    None => lines.get(table.lines().1)?.start(),
+                }
+            }
+            _ => return None,
+        };
+        Some((selection.0, end))
+    }
+
     /// Navigation keeps the caret in cells, but it can still come to rest
     /// on a table row's pipes: where a document opens, after a paste that
     /// ends a row, when a merge moves it. With no place for it there, move
     /// it into the row. Undo and redo restore a selection that had a place.
-    pub fn table_caret_home(&mut self, undo_redo: bool) -> buffer::Response {
+    pub fn rehome_table_caret(&mut self, undo_redo: bool) -> buffer::Response {
         let selection = self.renderer.buffer.current.selection;
         if undo_redo || !selection.is_empty() {
             return buffer::Response::default();

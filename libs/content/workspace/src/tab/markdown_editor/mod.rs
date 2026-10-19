@@ -145,6 +145,9 @@ pub struct MdRender {
     /// Per-frame geometry index of every table cell, cleared and read like
     /// `block_boxes`: a pointer in a cell resolves to that cell.
     pub table_cell_boxes: Vec<table::TableCellBox>,
+    /// A painter slot above each header row's background, with the row's
+    /// rect: the selection's highlight there would paint under it.
+    pub table_header_slots: Vec<(egui::layers::ShapeIdx, Rect)>,
     /// Drag action emitted by a list marker this frame, drained by
     /// `MdEdit::show` to update / commit the in-progress block drag
     /// (mirrors how `render_events` carries buffer edits out of render).
@@ -516,6 +519,7 @@ impl MdRender {
             fragments: Vec::new(),
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -600,6 +604,7 @@ impl MdRender {
             fragments: Vec::new(),
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -765,6 +770,7 @@ impl Editor {
             fragments: Vec::new(),
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -1533,6 +1539,7 @@ impl Editor {
                         self.edit.renderer.fragments.clear();
                         self.edit.renderer.block_boxes.clear();
                         self.edit.renderer.table_cell_boxes.clear();
+                        self.edit.renderer.table_header_slots.clear();
                         self.edit.renderer.in_progress_block_drag =
                             self.edit.in_progress_block_drag;
                         self.edit.renderer.bounds.wrap_lines.clear();

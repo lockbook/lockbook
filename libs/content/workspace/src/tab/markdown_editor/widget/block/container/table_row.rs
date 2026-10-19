@@ -35,6 +35,8 @@ impl<'ast> MdRender {
         if is_header_row {
             ui.painter()
                 .rect_filled(row_rect, 1., self.ctx.get_lb_theme().neutral_bg_secondary());
+            let slot = ui.painter().add(egui::Shape::Noop);
+            self.table_header_slots.push((slot, row_rect));
         }
 
         // draw interior decorations

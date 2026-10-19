@@ -147,7 +147,7 @@ impl MdEdit {
 
         let edited = buf_resp.text_updated || buf_resp.selection_user_moved;
         buf_resp |= self.unfold_after_edit(&arena, edited, undo_redo);
-        buf_resp |= self.table_caret_home(undo_redo);
+        buf_resp |= self.rehome_table_caret(undo_redo);
 
         // An entered atom stays revealed only while the selection remains
         // within it; the range is re-resolved against the (possibly edited)
@@ -206,7 +206,7 @@ impl MdEdit {
         // applied here, before that frame sees anything to unfold for.
         let edited = resp.text_updated || resp.selection_user_moved;
         resp |= self.unfold_after_edit(&arena, edited, undo_redo);
-        resp |= self.table_caret_home(undo_redo);
+        resp |= self.rehome_table_caret(undo_redo);
         if reveal && (resp.text_updated || resp.selection_user_moved) {
             self.pending_scroll = Some(ScrollTarget::Cursor);
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
@@ -280,6 +280,7 @@ impl MdEdit {
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
         self.renderer.table_cell_boxes.clear();
+        self.renderer.table_header_slots.clear();
         self.renderer.in_progress_block_drag = self.in_progress_block_drag;
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
@@ -578,6 +579,7 @@ impl MdEdit {
         let frag_len = self.renderer.fragments.len();
         let box_len = self.renderer.block_boxes.len();
         let cell_box_len = self.renderer.table_cell_boxes.len();
+        let header_slot_len = self.renderer.table_header_slots.len();
         let section = drag.section_range;
         // Top-most items in the span; descendants paint via `show_block`.
         let in_span: Vec<BlockBox> = self
@@ -622,6 +624,7 @@ impl MdEdit {
         self.renderer.fragments.truncate(frag_len);
         self.renderer.block_boxes.truncate(box_len);
         self.renderer.table_cell_boxes.truncate(cell_box_len);
+        self.renderer.table_header_slots.truncate(header_slot_len);
 
         if !floating_text.is_empty() {
             ui.painter()
@@ -855,7 +858,9 @@ impl MdEdit {
         // queries geometry as soon as the change is reported.
         self.sync_reveal_selection(ui.ctx(), id, prior_entered_atom);
 
-        self.renderer.in_progress_selection = self.in_progress_selection;
+        self.renderer.in_progress_selection = self
+            .in_progress_selection
+            .map(|selection| self.renderer.snap_selection_into_table_cells(selection));
 
         // Reserved before block content so the highlight sits behind it;
         // see the `selection_shape` field.
@@ -881,6 +886,7 @@ impl MdEdit {
         // cursor / selection — iOS draws natively
         if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {
             let selection = self
+                .renderer
                 .in_progress_selection
                 .unwrap_or(self.renderer.buffer.current.selection);
             let theme = self.renderer.ctx.get_lb_theme();
@@ -889,13 +895,21 @@ impl MdEdit {
             // Fill the reserved slot so the highlight paints behind the
             // markers (drawn during block render); the cursor stays on top.
             let sel_color = color.lerp_to_gamma(theme.neutral_bg(), 0.7);
-            let shapes: Vec<egui::Shape> = self
-                .range_rects(selection)
-                .into_iter()
-                .map(|r| egui::Shape::rect_filled(r, 2.0, sel_color))
-                .collect();
+            let mut rects = self.range_rects(selection);
+            rects.extend(self.renderer.table_cell_rects_taken_whole(selection));
+            let highlight = |rects: &mut dyn Iterator<Item = Rect>| {
+                egui::Shape::Vec(
+                    rects
+                        .map(|r| egui::Shape::rect_filled(r, 2.0, sel_color))
+                        .collect(),
+                )
+            };
             ui.painter()
-                .set(pre.selection_shape, egui::Shape::Vec(shapes));
+                .set(pre.selection_shape, highlight(&mut rects.iter().copied()));
+            for (slot, row) in std::mem::take(&mut self.renderer.table_header_slots) {
+                let in_row = &mut rects.iter().copied().filter(|r| row.intersects(*r));
+                ui.painter().set(slot, highlight(in_row));
+            }
 
             let now = ui.ctx().input(|i| i.time);
             if self.in_progress_selection.is_some()

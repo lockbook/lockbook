@@ -68,7 +68,9 @@ impl<'ast> MdEdit {
                 if self.select_unwritten_table_cell(region, operations) {
                     return response;
                 }
-                let range = self.region_to_range(region);
+                let range = self
+                    .extend_table_selection(region)
+                    .unwrap_or_else(|| self.region_to_range(region));
                 let range = self.renderer.snap_selection_out_of_fold_tags(range);
                 let range = self.renderer.snap_selection_into_table_cells(range);
                 operations.push(Operation::Select(range));
@@ -79,6 +81,9 @@ impl<'ast> MdEdit {
                     // selecting a fold chip is just selecting a fold tag, but
                     // replacing it should delete folded content
                     range = self.renderer.grow_range_over_fold_contents(range);
+                }
+                if self.replace_in_table(range, &text, advance_cursor, operations) {
+                    return response;
                 }
                 operations.push(Operation::Replace(Replace { range, text }));
                 if advance_cursor {
@@ -209,6 +214,10 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                if self.delete_from_caret_at_table(region, operations) {
+                    return response;
+                }
+
                 // delete container block prefix
                 let mut handled = || {
                     // must be mostly vanilla backspace
@@ -260,6 +269,9 @@ impl<'ast> MdEdit {
                     }
 
                     let range = self.renderer.grow_delete_over_fold_tags(range);
+                    if self.delete_range_in_table(range, operations) {
+                        return response;
+                    }
                     operations.push(Operation::Replace(Replace { range, text: "".into() }));
                 }
 
