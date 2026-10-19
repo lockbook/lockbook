@@ -510,11 +510,15 @@
                 free_urls(output.urls_opened)
             }
 
-            if let text = output.copied_text {
+            if let text = output.copied_text, let html = output.copied_html {
                 let text = textFromPtr(s: text)
+                let html = textFromPtr(s: html)
                 if !text.isEmpty {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)
+                    if !html.isEmpty {
+                        NSPasteboard.general.setString(html, forType: .html)
+                    }
                 }
             }
 

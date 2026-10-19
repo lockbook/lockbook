@@ -16,6 +16,8 @@ pub struct Response {
     // platform response
     pub redraw_in: Option<u64>,
     pub copied_text: String,
+    /// Set with `copied_text` by a rendered copy; hosts write both flavors.
+    pub copied_html: String,
     pub copied_image: Vec<u8>,
     pub urls_opened: Vec<String>,
     pub cursor: CursorIcon,
@@ -46,16 +48,24 @@ impl Response {
             eprintln!("viewport missing: not redrawing or setting window title");
         }
 
+        let (copied_text, copied_html) = match context.pop_copied_rendered() {
+            Some(rendered) => (rendered.plain, rendered.html),
+            None => (
+                platform
+                    .commands
+                    .iter()
+                    .find_map(|c| {
+                        if let OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None }
+                    })
+                    .unwrap_or_default(),
+                String::new(),
+            ),
+        };
         Self {
             workspace,
             redraw_in,
-            copied_text: platform
-                .commands
-                .iter()
-                .find_map(
-                    |c| if let OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None },
-                )
-                .unwrap_or_default(),
+            copied_text,
+            copied_html,
             copied_image: platform
                 .commands
                 .iter()

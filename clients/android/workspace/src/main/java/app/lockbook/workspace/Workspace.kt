@@ -20,6 +20,7 @@ import java.math.BigInteger
 data class AndroidResponse(
     val redrawIn: Long,
     val copiedText: String,
+    val copiedHtml: String,
     val copiedImage: ByteArray,
     val hasURLOpened: Boolean,
     val urlOpened: String,
@@ -166,6 +167,7 @@ object Workspace {
     external fun clipboardCut(rustObj: Long)
     external fun clipboardCopy(rustObj: Long)
     external fun copyImage(rustObj: Long)
+    external fun copyRendered(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
     external fun clipboardSendImage(rustObj: Long, content: ByteArray, isPaste: Boolean)
     external fun isPenOnlyDraw(rustObj: Long) : Boolean

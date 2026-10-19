@@ -487,6 +487,8 @@
                     .keyboardA, .keyboardC, .keyboardV, .keyboardX, .keyboardZ, .keyboardW, .keyboardO,
                 ]
                 if mods.contains(.command), !mods.contains(.control) {
+                    // Cmd+Shift+C / X are the editor's (copy rendered, strikethrough)
+                    if mods.contains(.shift), [.keyboardC, .keyboardX].contains(key.keyCode) { return true }
                     if system.contains(key.keyCode) { return false }
                     if key.keyCode == .keyboardF, mods.contains(.shift) { return false }
                 }
@@ -1316,7 +1318,7 @@
         func editMenu(for _: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
             uikitMenuAsked = true
             menuVisible = true
-            return UIMenu(children: editorMenuItems(atom: false) + suggestedActions.withoutUndo)
+            return UIMenu(children: editorMenuItems(atom: false) + standardMenuItems(suggestedActions))
         }
 
         /// The menu for a tapped link or image.
@@ -1324,7 +1326,7 @@
             _: UIEditMenuInteraction, menuFor _: UIEditMenuConfiguration,
             suggestedActions: [UIMenuElement]
         ) -> UIMenu? {
-            UIMenu(children: editorMenuItems(atom: menuForAtom) + suggestedActions.withoutUndo)
+            UIMenu(children: editorMenuItems(atom: menuForAtom) + standardMenuItems(suggestedActions))
         }
 
         /// Clear of the selection, so the menu does not cover what it acts on.
@@ -1382,6 +1384,30 @@
                 })
             }
             return items
+        }
+
+        /// The system's Cut / Copy / Paste group, with "Copy Rendered" right
+        /// after it while there is a selection.
+        private func standardMenuItems(_ suggested: [UIMenuElement]) -> [UIMenuElement] {
+            let standard = suggested.withoutUndo
+            guard let wsHandle, let range = selectedTextRange, !range.isEmpty else { return standard }
+            let copyRendered = UIAction(title: "Copy Rendered", image: UIImage(systemName: "textformat")) { [weak self] _ in
+                copy_rendered(wsHandle)
+                self?.mtkView.requestFrame()
+            }
+            let group = standard.firstIndex { $0.contains(action: NSSelectorFromString("copy:")) }
+            var items = standard
+            items.insert(copyRendered, at: group.map { $0 + 1 } ?? items.count)
+            return items
+        }
+    }
+
+    extension UIMenuElement {
+        /// Whether this is the command with `action` or a menu containing it.
+        func contains(action: Selector) -> Bool {
+            if let command = self as? UICommand { return command.action == action }
+            if let menu = self as? UIMenu { return menu.children.contains { $0.contains(action: action) } }
+            return false
         }
     }
 

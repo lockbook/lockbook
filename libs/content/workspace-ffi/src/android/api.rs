@@ -146,6 +146,9 @@ fn android_response_to_java<'local>(
     let copied_text = env
         .new_string(response.copied_text)
         .expect("create copied_text string");
+    let copied_html = env
+        .new_string(response.copied_html)
+        .expect("create copied_html string");
     let copied_image: Vec<i8> = response
         .copied_image
         .into_iter()
@@ -182,10 +185,11 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;)V",
+        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
+            JValue::Object(&JObject::from(copied_html)),
             JValue::Object(&JObject::from(copied_image_array)),
             JValue::Bool(if response.has_url_opened { 1 } else { 0 }),
             JValue::Object(&JObject::from(url_opened)),
@@ -993,6 +997,18 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardCopy(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.renderer.context.push_markdown_event(Event::Copy);
+}
+
+/// Edit-menu "Copy Rendered": the selection as drawn, as plain text and
+/// HTML, delivered through the next response's `copied_text` / `copied_html`.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_copyRendered(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer
+        .context
+        .push_markdown_event(Event::CopyRendered);
 }
 
 #[no_mangle]

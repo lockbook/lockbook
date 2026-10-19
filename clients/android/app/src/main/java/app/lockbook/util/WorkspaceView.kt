@@ -393,11 +393,17 @@ class WorkspaceView(
         }
 
         if (response.copiedText.isNotEmpty()) {
+            val clip =
+                if (response.copiedHtml.isEmpty()) {
+                    ClipData.newPlainText("", response.copiedText)
+                } else {
+                    ClipData.newHtmlText("", response.copiedText, response.copiedHtml)
+                }
             (
                 App
                     .applicationContext()
                     .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            ).setPrimaryClip(ClipData.newPlainText("", response.copiedText))
+            ).setPrimaryClip(clip)
         }
 
         if (response.copiedImage.isNotEmpty()) {
@@ -648,6 +654,7 @@ class WorkspaceView(
         const val OPEN_LINK_MENU_ID = 0x00E0170B
         const val COPY_LINK_MENU_ID = 0x00E0170C
         const val REFRESH_PREVIEW_MENU_ID = 0x00E0170D
+        const val COPY_RENDERED_MENU_ID = 0x00E0170E
     }
 
     inner class FloatingTextEditorContextMenu(
@@ -811,15 +818,19 @@ class WorkspaceView(
                     .add(Menu.NONE, android.R.id.copy, 1, "Copy")
                     .setAlphabeticShortcut('c')
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+
+                menu
+                    .add(Menu.NONE, COPY_RENDERED_MENU_ID, 2, "Copy Rendered")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
 
             menu
-                .add(Menu.NONE, android.R.id.paste, 2, "Paste")
+                .add(Menu.NONE, android.R.id.paste, 3, "Paste")
                 .setAlphabeticShortcut('v')
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
 
             menu
-                .add(Menu.NONE, android.R.id.selectAll, 3, "Select all")
+                .add(Menu.NONE, android.R.id.selectAll, 4, "Select all")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
         }
 
@@ -850,6 +861,12 @@ class WorkspaceView(
 
                     REFRESH_PREVIEW_MENU_ID -> {
                         Workspace.refreshSelectionPreviews(wgpuObj)
+                        invalidate()
+                    }
+
+                    COPY_RENDERED_MENU_ID -> {
+                        Workspace.copyRendered(wgpuObj)
+                        // the frame that processes the copy fills `response.copiedHtml`
                         invalidate()
                     }
 
