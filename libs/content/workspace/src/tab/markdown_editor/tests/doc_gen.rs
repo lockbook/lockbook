@@ -362,20 +362,12 @@ impl Features {
         }
     }
 
-    /// [`Self::all`] minus tables: a table in a wide-indented item mis-tiles
-    /// its row prefix (drag reveals on the leaked space), so tables stay
-    /// top-tier-only until fixed. For layout invariants needing nesting.
-    pub fn tier_a() -> Self {
-        let all = Self::all();
-        Self { blocks: BlockFeatures { table: false, ..all.blocks }, ..all }
-    }
-
-    /// [`Self::tier_a`] (so also no tables) minus the by-design-fuzzy axes:
-    /// complex scripts and long unbreakable tokens (font-fallback / wrap
-    /// divergence) and container nesting (inner columns shift under reveal).
-    /// The layout-precision corpus; a failure here is a real bug.
+    /// [`Self::all`] minus the by-design-fuzzy axes: complex scripts and long
+    /// unbreakable tokens (font-fallback / wrap divergence) and container
+    /// nesting (inner columns shift under reveal). The layout-precision
+    /// corpus; a failure here is a real bug.
     pub fn tier_b() -> Self {
-        let a = Self::tier_a();
+        let a = Self::all();
         Self {
             scripts: ScriptFeatures::default(),
             whitespace: WhitespaceFeatures { long_token: false, id_token: false, ..a.whitespace },

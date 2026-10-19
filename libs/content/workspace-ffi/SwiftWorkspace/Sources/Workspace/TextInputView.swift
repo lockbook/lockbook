@@ -999,10 +999,14 @@
             menuVisible = false
             commitPendingSelection()
             guard let wsHandle else { return }
-            if let image = UIPasteboard.general.image {
+            // a spreadsheet copies cells as text and as a picture of them: the
+            // text is the paste. A line beside an image names the image.
+            let text = UIPasteboard.general.string ?? UIPasteboard.general.url?.absoluteString
+            let cells = text.map { $0.contains("\t") || $0.contains("\n") } ?? false
+            if let image = UIPasteboard.general.image, !cells {
                 mtkView.importContent(.image(image), isPaste: true)
                 mtkView.requestFrame()
-            } else if let text = UIPasteboard.general.string ?? UIPasteboard.general.url?.absoluteString {
+            } else if let text {
                 inputDelegate?.selectionWillChange(self)
                 text.withCString { paste_text(wsHandle, $0) }
                 layoutNow()

@@ -304,13 +304,15 @@
         }
 
         func importFromPasteboard(_ pasteBoard: NSPasteboard, isPaste: Bool) -> Bool {
-            if let data = pasteBoard.data(forType: .png) {
+            // a spreadsheet copies cells as text and as a picture of them: the
+            // text is the paste. A line beside an image names the image.
+            let text = pasteBoard.string(forType: .string)
+            let cells = text.map { $0.contains("\t") || $0.contains("\n") } ?? false
+            if let data = pasteBoard.data(forType: .png), !cells {
                 sendImage(img: data, isPaste: isPaste)
                 return true
-            } else if let data = pasteBoard.data(forType: .string) {
-                if let text = String(data: data, encoding: .utf8) {
-                    clipboard_paste(wsHandle, text)
-                }
+            } else if let text {
+                clipboard_paste(wsHandle, text)
             } else if !isPaste {
                 if let data = pasteBoard.data(forType: .fileURL) {
                     if let url = URL(dataRepresentation: data, relativeTo: nil) {

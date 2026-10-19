@@ -105,7 +105,7 @@ pub(super) fn cell_text(text: &str, caret: usize, opened: bool, closed: bool) ->
 }
 
 /// Text typed or pasted into a cell, which is one line.
-fn one_line(text: &str) -> String {
+pub(super) fn one_line(text: &str) -> String {
     text.replace("\r\n", " ").replace(['\n', '\r'], " ")
 }
 
@@ -487,7 +487,12 @@ impl MdRender {
     /// The table, row, and column the selection's end is in. `None` off a
     /// table, and on a delimiter row, which shows as source.
     pub fn table_position(&self) -> Option<(&TableBounds, usize, usize)> {
-        let offset = self.buffer.current.selection.1;
+        self.table_position_at(self.buffer.current.selection.1)
+    }
+
+    /// The table, row, and column `offset` is in, as [`Self::table_position`]
+    /// has the selection's end.
+    pub fn table_position_at(&self, offset: Grapheme) -> Option<(&TableBounds, usize, usize)> {
         let table = self.bounds.table_at(offset)?;
         let line = self
             .bounds

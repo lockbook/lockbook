@@ -35,6 +35,7 @@ enum EditorMenuCmd {
     Cut,
     Copy,
     Paste,
+    PasteTable,
 }
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
@@ -710,7 +711,7 @@ impl MdEdit {
                     .and_then(|pos| self.link_target_at_pos(root, pos));
             }
             let link_target = self.context_menu_link.clone();
-            let readonly = self.renderer.readonly;
+            let (readonly, plaintext) = (self.renderer.readonly, self.renderer.plaintext);
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
                 if let Some(link) = &link_target {
@@ -724,6 +725,9 @@ impl MdEdit {
                 e.item(phosphor::COPY, "Copy", EditorMenuCmd::Copy);
                 if !readonly {
                     e.item(phosphor::CLIPBOARD_TEXT, "Paste", EditorMenuCmd::Paste);
+                }
+                if !readonly && !plaintext {
+                    e.item(phosphor::TABLE, "Paste as table", EditorMenuCmd::PasteTable);
                 }
             });
             let mut menu_events: Vec<Event> = Vec::new();
@@ -757,6 +761,10 @@ impl MdEdit {
                 Some(EditorMenuCmd::Cut) => menu_events.push(Event::Cut),
                 Some(EditorMenuCmd::Copy) => menu_events.push(Event::Copy),
                 Some(EditorMenuCmd::Paste) => {
+                    ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
+                }
+                Some(EditorMenuCmd::PasteTable) => {
+                    self.paste_as_table.set(Some(ui.ctx().input(|i| i.time)));
                     ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
                 }
                 None => {}

@@ -570,6 +570,11 @@ impl<'ast> MdEdit {
                     self.table_action(root, action, operations);
                 }
             }
+            Event::PasteGrid(grid) => {
+                if !self.renderer.readonly && !self.renderer.plaintext {
+                    self.paste_grid(root, &grid, operations);
+                }
+            }
         }
 
         response

@@ -89,7 +89,7 @@ fn resize_idempotence() {
 }
 #[test]
 fn drag_never_reveals() {
-    run(drag_never_reveals_check, Features::tier_a(), 1000);
+    run(drag_never_reveals_check, Features::all(), 1000);
 }
 
 // cursor hit-testing
@@ -733,13 +733,18 @@ pub(super) fn glyph_in_render_area_check_md(md: &str, width: f32) -> Result<(), 
         let ppi = r.ctx.pixels_per_point();
         for area in &r.text_areas {
             let left_pt = area.rect.left() / ppi;
+            // a scrolling table clips its text: what is clipped is not painted
+            let clip = (area.clip_rect.left() / ppi, area.clip_rect.right() / ppi);
             let buf = area.buffer.read().unwrap();
             for run in buf.layout_runs() {
                 for g in run.glyphs.iter() {
                     let gx_pt = (g.x + g.w) / ppi;
                     let g_left_pt = g.x / ppi;
-                    let screen_right = left_pt + gx_pt;
-                    let screen_left = left_pt + g_left_pt;
+                    let screen_right = (left_pt + gx_pt).min(clip.1);
+                    let screen_left = (left_pt + g_left_pt).max(clip.0);
+                    if screen_left >= screen_right {
+                        continue;
+                    }
                     if screen_right > width + EPS || screen_left < -EPS {
                         return Some("painted glyph strays outside render width");
                     }

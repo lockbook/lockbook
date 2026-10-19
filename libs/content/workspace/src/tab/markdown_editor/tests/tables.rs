@@ -258,6 +258,20 @@ fn cell_rects(editor: &TestEditor) -> Vec<Vec<egui::Rect>> {
         .collect()
 }
 
+fn paste(editor: &mut TestEditor, text: &str) {
+    let event = editor.editor.edit.paste_event(text.into());
+    editor.push(event.unwrap());
+    editor.enter_frame();
+}
+
+/// A paste after "Paste as table" was chosen.
+fn paste_as_table(editor: &mut TestEditor, text: &str) {
+    let edit = &editor.editor.edit;
+    let now = edit.renderer.ctx.input(|i| i.time);
+    edit.paste_as_table.set(Some(now));
+    paste(editor, text);
+}
+
 const EMPTY_CELL_ROW: &str =
     "|Use Case|Required Behavior|\n|-|-|\n|iOS end-of-line cursor placement||";
 
@@ -332,6 +346,35 @@ fn an_image_is_clamped_to_its_cell() {
         );
     }
     assert!(rects[1][3].right() <= r.width + rects[1][0].left() + 0.5);
+}
+
+#[test]
+fn paste_as_table_reads_comma_separated_text() {
+    for (csv, gives) in [
+        ("a,b\nc,d", "| a | b |\n| --- | --- |\n| c | d |"),
+        // quoted fields hold commas, quotes, and line breaks
+        (
+            "name,note\n\"Smith, J\",\"said \"\"hi\"\"\"\nx,\"two\nlines\"\n",
+            "| name | note |\n| --- | --- |\n| Smith, J | said \"hi\" |\n| x | two lines |",
+        ),
+        // a pipe is escaped; a short row is padded; a quote mid-field is text
+        ("a|b,c\nd", "| a\\|b | c |\n| --- | --- |\n| d |  |"),
+        ("5\" nail,x", "| 5\" nail | x |\n| --- | --- |"),
+        ("a\tb,c\nd\te", "| a | b,c |\n| --- | --- |\n| d | e |"),
+    ] {
+        let mut editor = TestEditor::new("");
+        paste_as_table(&mut editor, csv);
+        assert_eq!(editor.get_text(), gives, "{csv:?}");
+        table_ranges_check_md(gives).unwrap();
+    }
+
+    // the next paste is an ordinary one
+    let mut editor = TestEditor::new("x");
+    caret_at(&mut editor, 1);
+    paste_as_table(&mut editor, "a,b");
+    caret_at(&mut editor, 0);
+    paste(&mut editor, "c,d");
+    assert_eq!(editor.get_text(), "c,dx\n\n| a | b |\n| --- | --- |");
 }
 
 #[test]
