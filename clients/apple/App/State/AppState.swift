@@ -36,7 +36,29 @@ import SwiftWorkspace
 
     static let LB_LOC: String = {
         #if os(macOS)
-            NSHomeDirectory() + "/.lockbook"
+            do {
+                let fm = FileManager.default
+                guard let group = fm.containerURL(forSecurityApplicationGroupIdentifier: "39ZS78S25U.app.lockbook") else {
+                    throw CocoaError(.fileWriteNoPermission)
+                }
+                #if DEBUG
+                let location = group.appendingPathComponent("dev", isDirectory: true)
+                #else
+                let location = group.appendingPathComponent("data", isDirectory: true)
+                #endif
+                let legacy = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".lockbook", isDirectory: true)
+                // Run before opening the core. Existing CLI processes must be stopped before migration.
+                if !fm.fileExists(atPath: location.path) {
+                    if fm.fileExists(atPath: legacy.path) {
+                        try fm.moveItem(at: legacy, to: location)
+                    } else {
+                        try fm.createDirectory(at: location, withIntermediateDirectories: true)
+                    }
+                }
+                return location.path
+            } catch {
+                fatalError("Could not move Lockbook data to its shared container: \(error)")
+            }
         #else
             resolveIOSWritablePath()
         #endif
