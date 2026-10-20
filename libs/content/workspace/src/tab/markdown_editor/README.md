@@ -17,7 +17,7 @@ Content:
 - [rich-inlines](docs/rich-inlines.md) — images, chips, cards, fold `···`; stand-ins for source
 - [folding](docs/folding.md) — hide writing that is done; headings and lists
 - [reorder](docs/reorder.md) — drag a list item among its siblings
-- [links-images](docs/links-images.md) — file or web; wiki create; fetch privacy; attachments; embeds
+- [links-images](docs/links-images.md) — file or web; scope; picker, copy, paste; wiki create; fetch privacy; attachments; embeds
 
 Supporting features and polish: 
 - [chrome](docs/chrome.md) — toolbar, find, completions, menus
