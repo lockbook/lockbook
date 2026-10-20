@@ -74,6 +74,10 @@ fn found() -> &'static Database {
                 let _ = found.load_font_file(&path);
             }
         }
+        #[cfg(target_os = "ios")]
+        found.load_font_source(glyphon::fontdb::Source::Binary(std::sync::Arc::new(
+            lb_fonts::NOTO_SANS_SC_REGULAR,
+        )));
 
         // Swash can't draw Apple's `hvgl` outlines (as iOS 26's PingFang has), and
         // a face it shapes but can't draw leaves invisible text.
@@ -149,7 +153,18 @@ pub fn register_egui(fonts: &mut epaint::text::FontDefinitions, scale: f32) {
         let mut files: HashMap<&Path, &'static [u8]> = HashMap::new();
         families()
             .filter_map(|(face, _)| {
-                let Source::File(path) = &face.source else { return None };
+                let path = match &face.source {
+                    Source::File(path) => path,
+                    Source::Binary(data) => {
+                        let data: &'static _ = Box::leak(Box::new(data.clone()));
+                        return Some((
+                            face.post_script_name.clone(),
+                            (**data).as_ref(),
+                            face.index,
+                        ));
+                    }
+                    _ => return None,
+                };
                 let bytes = match files.get(path.as_path()) {
                     Some(bytes) => *bytes,
                     None => {
