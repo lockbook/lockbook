@@ -72,8 +72,7 @@ impl Ipc {
     }
 
     pub(crate) fn notify_peers(&self) {
-        // Sandboxed File Provider extensions can receive Darwin notifications,
-        // but cannot open Unix sockets beside a user-selected database.
+        // Wake the File Provider without keeping a background core open in the extension.
         #[cfg(target_os = "macos")]
         unsafe {
             notify_post(self.notification_name.as_ptr());

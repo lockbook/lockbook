@@ -27,26 +27,16 @@ final class FileProviderCore {
         if let data = try? Data(contentsOf: foldersURL), let saved = try? JSONDecoder().decode(Set<String>.self, from: data) {
             folders.formUnion(saved)
         }
-        let saved = cache.appendingPathComponent("\(domain.identifier.rawValue).bookmark")
-        var stale = false
-        let handoff = fm.containerURL(forSecurityApplicationGroupIdentifier: "39ZS78S25U.app.lockbook")
-            .flatMap { try? Data(contentsOf: $0.appendingPathComponent("\(domain.identifier.rawValue).bookmark")) }
-        let sharedLocation = handoff.flatMap { try? URL(resolvingBookmarkData: $0, bookmarkDataIsStale: &stale) }
-        if let bookmark = try? Data(contentsOf: saved),
-           let url = try? URL(resolvingBookmarkData: bookmark, options: [.withSecurityScope], bookmarkDataIsStale: &stale), !stale,
-           sharedLocation == nil || sharedLocation?.path == url.path {
-            location = url
-            _ = location.startAccessingSecurityScopedResource()
-        } else {
-            guard let sharedLocation else { throw NSFileProviderError(.notAuthenticated) }
-            location = sharedLocation
-            // Convert the app's implicit access grant into this extension's persistent grant.
-            let persistent = try location.bookmarkData(options: [.withSecurityScope])
-            try persistent.write(to: saved, options: .atomic)
+        guard let group = fm.containerURL(forSecurityApplicationGroupIdentifier: "39ZS78S25U.app.lockbook") else {
+            throw NSFileProviderError(.notAuthenticated)
         }
+        #if DEBUG
+        location = group.appendingPathComponent("dev", isDirectory: true)
+        #else
+        location = group.appendingPathComponent("data", isDirectory: true)
+        #endif
         guard fm.fileExists(atPath: location.appendingPathComponent("CoreV5").path),
               let root = UUID(uuidString: domain.identifier.rawValue) else {
-            location.stopAccessingSecurityScopedResource()
             throw NSFileProviderError(.notAuthenticated)
         }
         self.root = root
@@ -54,14 +44,12 @@ final class FileProviderCore {
         if initialized.err != nil {
             let error = Self.error(initialized.err!)
             lb_free_init(initialized)
-            location.stopAccessingSecurityScopedResource()
             throw error
         }
         let result = lb_get_root(initialized.lb)
         defer { lb_free_file_res(result) }
         guard result.err == nil, UUID(uuid: result.file.id.bytes) == root else {
             lb_free_init(initialized)
-            location.stopAccessingSecurityScopedResource()
             throw NSFileProviderError(.notAuthenticated)
         }
         core = initialized
@@ -75,7 +63,6 @@ final class FileProviderCore {
             try? data.write(to: foldersURL, options: .atomic)
         }
         lb_free_init(core)
-        location.stopAccessingSecurityScopedResource()
     }
 
     func uuid(_ id: NSFileProviderItemIdentifier) throws -> UUID {
