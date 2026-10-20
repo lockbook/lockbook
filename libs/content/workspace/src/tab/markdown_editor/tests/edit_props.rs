@@ -3,7 +3,7 @@
 //! [`TestEditor`].
 
 use super::super::input::{Advance, Bound, Event, Increment, Location, Region};
-use super::super::table::{RowBounds, TableAction};
+use super::super::table::{RowBounds, TableAction, TableSelection};
 use super::super::widget::toolbar::MarkdownToolbarAction as ToolbarAction;
 use super::doc_gen::{self, Features, ScriptFeatures, WhitespaceFeatures, gen_doc};
 use super::harness::TestEditor;
@@ -253,6 +253,10 @@ fn table_row_move_round_trip() {
 #[test]
 fn table_tab_round_trip() {
     run_tables(table_tab_round_trip_check, 1000);
+}
+#[test]
+fn table_copy_rendered_pastes_as_cells() {
+    run_tables(table_copy_rendered_pastes_as_cells_check, 1000);
 }
 #[test]
 fn table_survives_edits() {
@@ -1343,6 +1347,53 @@ fn table_row_move_round_trip_check(md: &str, choices: &[usize]) -> Result<(), St
     use_table_tool(&mut ws, if down { MoveRowUp } else { MoveRowDown });
     if ws.get_text() != md {
         return Err(format!("moved there and back gave\n{:?}", ws.get_text()));
+    }
+    Ok(())
+}
+
+/// Property: whole cells or rows copied rendered have an HTML cell per cell
+/// selected, and a plain line per row with a tab between its cells.
+fn table_copy_rendered_pastes_as_cells_check(md: &str, choices: &[usize]) -> Result<(), String> {
+    use crate::tab::ExtendedOutput as _;
+    let Some((mut ws, table, row, column)) = in_table_cell(md, choices) else { return Ok(()) };
+    let bounds = &ws.editor.edit.renderer.bounds.tables[table];
+    let columns = bounds.columns();
+    let row2 = choices[3] % bounds.rows.len();
+    let column2 = choices[4] % bounds.rows[row2].cells.len();
+    if (row, column) == (row2, column2) {
+        return Ok(());
+    }
+    let from = bounds.rows[row].cells[column].content.start();
+    let to = bounds.rows[row2].cells[column2].content.end();
+    table_event(&mut ws, Event::Select { region: (from, to).into() });
+
+    // what the editor made of it: cells of one row, or whole rows
+    let r = &ws.editor.edit.renderer;
+    let selection = r.buffer.current.selection;
+    let (rows, width) = match r.table_selection(selection) {
+        Some(TableSelection::Cells { columns, .. }) => (1, columns.1 - columns.0 + 1),
+        Some(TableSelection::Rows { rows, .. }) => (rows.1 - rows.0 + 1, columns),
+        _ => return Err(format!("{selection:?} took no whole cells of\n{md:?}")),
+    };
+    table_event(&mut ws, Event::CopyRendered);
+    let copied = ws
+        .editor
+        .edit
+        .renderer
+        .ctx
+        .pop_copied_rendered()
+        .ok_or("nothing copied")?;
+    let cell_tags = ["<td>", "<td ", "<th>", "<th "];
+    let html_cells: usize = cell_tags
+        .iter()
+        .map(|tag| copied.html.matches(tag).count())
+        .sum();
+    if html_cells != rows * width {
+        return Err(format!("{html_cells} HTML cells for {rows}×{width}:\n{}", copied.html));
+    }
+    let lines: Vec<&str> = copied.plain.split('\n').collect();
+    if lines.len() != rows || lines.iter().any(|line| line.split('\t').count() != width) {
+        return Err(format!("plain {:?} is not {rows}×{width}", copied.plain));
     }
     Ok(())
 }

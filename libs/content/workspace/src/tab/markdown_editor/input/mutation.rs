@@ -506,8 +506,29 @@ impl<'ast> MdEdit {
                 if self.renderer.buffer[range].starts_with('\n') {
                     range.0 += 1;
                 }
-                let plain = self.renderer.rendered_text(root, range);
-                let html = self.renderer.rendered_html(range);
+                // cells or rows of a table paste as cells
+                let (plain, html) = match self.renderer.table_selection_grid() {
+                    Some((table, grid)) => {
+                        let mut rows = Vec::new();
+                        for row in &grid {
+                            let mut cells = Vec::new();
+                            for &cell in row {
+                                cells.push(match cell.is_empty() {
+                                    true => String::new(),
+                                    false => {
+                                        self.renderer.rendered_text(root, cell).replace('\t', " ")
+                                    }
+                                });
+                            }
+                            rows.push(cells.join("\t"));
+                        }
+                        (rows.join("\n"), self.renderer.rendered_html_of(&table))
+                    }
+                    None => (
+                        self.renderer.rendered_text(root, range),
+                        self.renderer.rendered_html(range),
+                    ),
+                };
                 ctx.set_copied_rendered(CopiedRendered { plain, html });
             }
             Event::ToggleDebug => {

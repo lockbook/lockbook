@@ -28,9 +28,13 @@ impl<'ast> MdRender {
     /// A single paragraph comes unwrapped so it pastes inline, not as a block
     /// of its own.
     pub fn rendered_html(&self, range: (Grapheme, Grapheme)) -> String {
+        self.rendered_html_of(&self.buffer[range])
+    }
+
+    pub fn rendered_html_of(&self, markdown: &str) -> String {
         let mut options = Self::comrak_options();
         options.parse.smart = false; // the plain flavor and the screen show the source characters
-        let html = comrak::markdown_to_html(&self.buffer[range], &options);
+        let html = comrak::markdown_to_html(markdown, &options);
         match html
             .strip_prefix("<p>")
             .and_then(|h| h.strip_suffix("</p>\n"))
@@ -75,8 +79,11 @@ impl<'ast> MdRender {
         let node = self.block_at_line(block, line_idx);
         let byte_of = |g| self.offset_to_byte(g).0;
 
+        // a table's rows are cells: an item's marker and indent stay off them
+        let in_table = matches!(node.data.borrow().value, NodeValue::TableRow(_));
         let mut markers: Vec<_> = node
             .ancestors()
+            .filter(|_| !in_table)
             .filter(|a| {
                 matches!(a.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
             })
@@ -111,12 +118,19 @@ impl<'ast> MdRender {
                 byte_of,
             )?,
             NodeValue::HtmlBlock(_) => self.buffer[node_line.trim(&clip)].to_string(),
+            // a cell the row lacks is blank at the row's end: a short row
+            // pastes as wide as the others
             NodeValue::TableRow(_) => node
                 .children()
-                .filter(|cell| self.node_range(cell).intersects(&clip, false))
+                .filter(|cell| {
+                    let range = self.node_range(cell);
+                    range.intersects(&clip, false)
+                        || (self.table_cell_autocompleted(cell) && range.start() <= clip.end())
+                })
                 .map(|cell| {
                     self.layout_table_cell(cell)
                         .visible_in(self.node_range(cell).trim(&clip), byte_of)
+                        .replace('\t', " ") // a tab in a cell would be a cell boundary
                 })
                 .collect::<Vec<_>>()
                 .join("\t"),
