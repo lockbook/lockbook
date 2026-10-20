@@ -1,8 +1,9 @@
-use std::fs::{self, DirBuilder, File};
+use std::fs::{self, DirBuilder};
 use std::io::{self, ErrorKind};
-use std::os::unix::fs::{DirBuilderExt, FileTypeExt, OpenOptionsExt};
+use std::os::unix::fs::{DirBuilderExt, FileTypeExt};
 use std::os::unix::net::UnixDatagram;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use db_rs::View;
 use tokio::net::UnixDatagram as AsyncUnixDatagram;
@@ -27,7 +28,10 @@ impl Ipc {
             .recursive(true)
             .create(&directory)?;
         let (path, socket) = if listen {
-            let mut index = 0u64;
+            let mut index = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(io::Error::other)?
+                .as_millis();
             loop {
                 let path = directory.join(index.to_string());
                 match UnixDatagram::bind(&path) {
@@ -53,19 +57,6 @@ impl Ipc {
         Ok(ipc)
     }
 
-    fn lock_directory(directory: &std::path::Path) -> io::Result<File> {
-        // Never unlink this file: every process must lock the same inode.
-        let lock = File::options()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .mode(0o600)
-            .open(directory.join("lock"))?;
-        lock.lock()?;
-        Ok(lock)
-    }
-
     pub(crate) fn notify_peers(&self) {
         if let Err(error) = self.send() {
             warn!(?error, "could not notify other database instances");
@@ -87,16 +78,7 @@ impl Ipc {
                 Err(error) if error.kind() == ErrorKind::WouldBlock => {}
                 Err(error) if error.kind() == ErrorKind::NotFound => {}
                 Err(error) if error.kind() == ErrorKind::ConnectionRefused => {
-                    // Serialize cleaners and recheck: another cleaner may have
-                    // removed the old socket and allocation reused its name.
-                    let _lock = Self::lock_directory(&self.directory)?;
-                    if self
-                        .socket
-                        .send_to(&[1], &path)
-                        .is_err_and(|error| error.kind() == ErrorKind::ConnectionRefused)
-                    {
-                        let _ = fs::remove_file(&path);
-                    }
+                    let _ = fs::remove_file(&path);
                 }
                 Err(error) => warn!(?error, ?path, "could not wake database peer"),
             }
