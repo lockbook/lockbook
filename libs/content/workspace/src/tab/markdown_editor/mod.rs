@@ -2243,6 +2243,9 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .unwrap()
             .push("phosphor".to_owned());
     }
+
+    #[cfg(not(target_family = "wasm"))]
+    crate::font::cjk::register_egui(fonts, base_scale);
 }
 
 /// Headless `Context` with the same fonts as production, including Phosphor.

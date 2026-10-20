@@ -11,8 +11,9 @@ const ASCII_WORDS: &[&str] = &["foo", "bar", "baz", "qux", "hello", "world"];
 /// script that crashed the editor on ad-hoc input.
 const HINDI_WORDS: &[&str] = &["नमस्ते", "धन्यवाद", "कैसे", "है", "क्या"];
 
-/// CJK. Wide characters with no inter-word spaces.
-const CJK_WORDS: &[&str] = &["你好", "谢谢", "中文", "日本語"];
+/// CJK. Wide characters with no inter-word spaces; kana and Hangul fall
+/// back to different system fonts than Han.
+const CJK_WORDS: &[&str] = &["你好", "谢谢", "中文", "日本語", "ひらがな", "カタカナ", "한국어"];
 
 /// Arabic. Right-to-left, joining behavior, combining marks.
 const ARABIC_WORDS: &[&str] = &["مرحبا", "شكرا", "كيف", "حال"];
