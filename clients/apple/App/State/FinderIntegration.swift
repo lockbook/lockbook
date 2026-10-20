@@ -19,22 +19,10 @@ import SwiftWorkspace
             DispatchQueue.main.async {
                 self.enabled = domains.contains { $0.identifier == domain.identifier }
                 if self.enabled {
-                    // Refresh the handoff bookmark on each app launch (including after a reboot).
-                    do { try self.shareLocation(for: domain) }
-                    catch { self.report(error) }
                     NSFileProviderManager(for: domain)?.signalEnumerator(for: .workingSet) { _ in }
                 }
             }
         }
-    }
-
-    private func shareLocation(for domain: NSFileProviderDomain) throws {
-        guard let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "39ZS78S25U.app.lockbook") else {
-            throw CocoaError(.fileWriteNoPermission)
-        }
-        let location = URL(fileURLWithPath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? AppState.LB_LOC)
-        let bookmark = try location.bookmarkData(options: [])
-        try bookmark.write(to: group.appendingPathComponent("\(domain.identifier.rawValue).bookmark"), options: .atomic)
     }
 
     func setEnabled(_ value: Bool, completion: (() -> Void)? = nil) {
@@ -48,8 +36,11 @@ import SwiftWorkspace
             }
         }
         if value {
-            do { try shareLocation(for: domain) }
-            catch { complete(error); return }
+            guard ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] == nil else {
+                complete(NSError(domain: NSCocoaErrorDomain, code: NSFeatureUnsupportedError,
+                                 userInfo: [NSLocalizedDescriptionKey: "Finder integration requires the default shared data location."]))
+                return
+            }
             NSFileProviderManager.add(domain, completionHandler: complete)
         } else {
             NSFileProviderManager.getDomainsWithCompletionHandler { domains, error in
