@@ -54,8 +54,9 @@ pub struct LinkCompletions {
     /// The search term range in the document (the query text only, excluding
     /// brackets/syntax). Set when active so show_text() can highlight it.
     pub search_term_range: Option<(Grapheme, Grapheme)>,
-    /// Suppressed query string — cleared automatically when the query changes.
-    suppressed: Option<String>,
+    /// The buffer state (`Snapshot::seq`) and query Escape dismissed the
+    /// popup in; an edit brings it back (seq alone repeats after an undo).
+    suppressed: Option<(usize, String)>,
     /// The files the note could link to in this mode, with what ranking
     /// them takes. Rebuilt when the file tree, the note, or the mode changes.
     candidates: Vec<Candidate>,
@@ -87,19 +88,26 @@ impl LinkCompletions {
         let dest = matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest);
         let qr = query_range(buffer, range, mode);
         let query = &buffer[qr];
-        if self.suppressed.as_deref() == Some(query) {
+        if self.is_suppressed(buffer, query) {
             return;
         }
         // `[` is the markdown-link opener (`[title](path)`), but an empty
         // query is also a footnote (`[^`), a checkbox (`- [`), the first
         // keystroke of `[[`, or a pause before typing a label. Wait for a
-        // character. `[[` and `](` still open on empty.
-        if mode == CompletionMode::Link && query.is_empty() {
+        // character, unless the whole empty link is there, as the toolbar
+        // writes it. `[[` and `](` still open on empty.
+        let fresh = match mode {
+            CompletionMode::Link => &buffer[range] == "[]()",
+            CompletionMode::ImageLink => &buffer[range] == "![]()",
+            _ => false,
+        };
+        if mode == CompletionMode::Link && query.is_empty() && !fresh {
             return;
         }
         // `- [` is far more likely a task item than a link: while the bracket
         // content could still be a checkbox, hold the popup.
         if mode == CompletionMode::Link
+            && !fresh
             && (query.is_empty() || query == " " || query.eq_ignore_ascii_case("x"))
             && follows_list_marker(buffer, range.0)
         {
@@ -123,7 +131,7 @@ impl LinkCompletions {
             // being inside complete syntax is the destination context
             CompletionMode::LinkDest | CompletionMode::ImageLinkDest => false,
         };
-        if complete {
+        if complete && !fresh {
             // cursor navigated into existing syntax
             return;
         }
@@ -159,7 +167,7 @@ impl LinkCompletions {
         let Some(((bracket_start, replace_end), mode)) = detect_any(buffer) else { return };
         let qr = query_range(buffer, (bracket_start, replace_end), mode);
         let query = buffer[qr].to_string();
-        if self.suppressed.as_deref() == Some(query.as_str()) {
+        if self.is_suppressed(buffer, &query) {
             return;
         }
 
@@ -172,7 +180,7 @@ impl LinkCompletions {
         self.selected = self.selected.min(results.len() - 1);
 
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
-            self.suppressed = Some(query);
+            self.suppressed = Some((buffer.current.seq, query));
             return;
         }
 
@@ -235,6 +243,12 @@ impl LinkCompletions {
                 return;
             }
         }
+    }
+
+    fn is_suppressed(&self, buffer: &Buffer, query: &str) -> bool {
+        self.suppressed
+            .as_ref()
+            .is_some_and(|(seq, q)| *seq == buffer.current.seq && q == query)
     }
 
     /// Push the replacement event for the current query and reset popup state.
@@ -833,7 +847,10 @@ impl MdEdit {
         let qr = query_range(&self.renderer.buffer, (bracket_start, replace_end), mode);
         let query = self.renderer.buffer[qr].to_string();
 
-        if self.link_completions.suppressed.as_deref() == Some(query.as_str()) {
+        if self
+            .link_completions
+            .is_suppressed(&self.renderer.buffer, &query)
+        {
             return;
         }
 

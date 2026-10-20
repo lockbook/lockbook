@@ -96,6 +96,7 @@ class MarkdownToolbarView(
             ),
             ToolbarAction(MarkdownToolbarAction.TaskList, "Task list", R.drawable.ic_md_checklist_24, ToolbarCategory.Lists),
             ToolbarAction(MarkdownToolbarAction.Link, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments),
+            ToolbarAction(MarkdownToolbarAction.Image, "Image", R.drawable.ic_outline_image_24, ToolbarCategory.Attachments),
             ToolbarAction(null, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments, false),
             ToolbarAction(
                 MarkdownToolbarAction.Indent,

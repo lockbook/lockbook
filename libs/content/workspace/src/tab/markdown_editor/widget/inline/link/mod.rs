@@ -467,24 +467,36 @@ impl<'ast> MdRender {
         }
     }
 
+    /// Whether [`Self::selection_open_target`] is an image, for the platform
+    /// edit menu's wording.
+    pub fn selection_target_is_image(&mut self) -> bool {
+        self.selection_target().is_some_and(|(_, _, image)| image)
+    }
+
     /// What to copy ([`Self::link_to_copy`]) for the first link-like node
     /// whose source range intersects the current selection — gates and feeds
     /// the platform edit menu's "Open Link" / "Copy Link".
     pub fn selection_open_target(&mut self) -> Option<String> {
+        let (url, wikilink, _) = self.selection_target()?;
+        Some(self.link_to_copy(&url, wikilink))
+    }
+
+    /// The first link-like node whose source range intersects the selection:
+    /// its destination, and whether it is a wikilink or an image.
+    fn selection_target(&mut self) -> Option<(String, bool, bool)> {
         let arena = Arena::new();
         let root = self.reparse(&arena);
         let selection = self.buffer.current.selection;
-        for node in root.descendants() {
-            let (url, wikilink) = match &node.data.borrow().value {
-                NodeValue::Link(l) | NodeValue::Image(l) => (l.url.clone(), false),
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
-                _ => continue,
+        root.descendants().find_map(|node| {
+            let target = match &node.data.borrow().value {
+                NodeValue::Link(l) => (l.url.clone(), false, false),
+                NodeValue::Image(l) => (l.url.clone(), false, true),
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                _ => return None,
             };
-            if !url.is_empty() && self.node_range(node).intersects(&selection, true) {
-                return Some(self.link_to_copy(&url, wikilink));
-            }
-        }
-        None
+            (!target.0.is_empty() && self.node_range(node).intersects(&selection, true))
+                .then_some(target)
+        })
     }
 
     /// Open every link/image in the current selection (reparses first); the iOS

@@ -47,6 +47,7 @@ pub enum MarkdownToolbarAction {
     BulletedList,
     TaskList,
     Link,
+    Image,
     Indent,
     Outdent,
 }
@@ -127,6 +128,7 @@ impl<'ast> Editor {
             (MarkdownToolbarAction::Subscript, NodeValue::Subscript),
             (MarkdownToolbarAction::Superscript, NodeValue::Superscript),
             (MarkdownToolbarAction::Link, NodeValue::Link(Default::default())),
+            (MarkdownToolbarAction::Image, NodeValue::Image(Default::default())),
         ];
         for (action, style) in styles {
             if self.edit.inline_styled(root, selection, &style) {
@@ -224,6 +226,7 @@ impl<'ast> Editor {
                 ..Default::default()
             }),
             MarkdownToolbarAction::Link => NodeValue::Link(Default::default()),
+            MarkdownToolbarAction::Image => NodeValue::Image(Default::default()),
             MarkdownToolbarAction::Indent => return Event::Indent { deindent: false },
             MarkdownToolbarAction::Outdent => return Event::Indent { deindent: true },
         };
@@ -509,6 +512,9 @@ impl<'ast> Editor {
                     let mut any_media = false;
                     if persistence.link || toolbar_is_default {
                         self.style(phosphor::LINK, NodeValue::Link(Default::default()), root, ui)
+                            .map(|e| events.push(e));
+                        ui.add_space(5.);
+                        self.style(phosphor::IMAGE, NodeValue::Image(Default::default()), root, ui)
                             .map(|e| events.push(e));
                         any_media = true;
                     }

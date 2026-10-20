@@ -1391,17 +1391,20 @@ impl<'ast> MdEdit {
 
     fn insert_tail(&self, offset: Grapheme, style: NodeValue, operations: &mut Vec<Operation>) {
         let text = style.node_type().tail().to_string();
-        if let NodeValue::Link(link) = style {
+        if let NodeValue::Link(link) | NodeValue::Image(link) = style {
             let NodeLink { url, .. } = *link;
 
             operations.push(Operation::Replace(Replace {
                 range: offset.to_range(),
                 text: text[..2].into(),
             }));
+            // with nothing selected the cursor stays in the label, where
+            // typing a name offers the file; a selection is the label
+            // already, so the cursor goes to the destination
             let url_empty = url.is_empty();
-            if url_empty {
+            if url_empty && !self.renderer.buffer.current.selection.is_empty() {
                 operations.push(Operation::Select(offset.to_range()));
-            } else {
+            } else if !url_empty {
                 operations
                     .push(Operation::Replace(Replace { range: offset.to_range(), text: url }));
             }

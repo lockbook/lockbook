@@ -1357,7 +1357,8 @@
             if let target = selection_open_target(wsHandle) {
                 let url = String(cString: target)
                 free_text(target)
-                items.append(UIAction(title: "Open Link", image: UIImage(systemName: "arrow.up.forward.app")) { [weak self] _ in
+                let open = selection_target_is_image(wsHandle) ? "Open Image" : "Open Link"
+                items.append(UIAction(title: open, image: UIImage(systemName: "arrow.up.forward.app")) { [weak self] _ in
                     open_selection_links(wsHandle)
                     self?.mtkView.requestFrame()
                 })

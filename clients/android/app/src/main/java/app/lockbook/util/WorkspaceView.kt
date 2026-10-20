@@ -775,8 +775,9 @@ class WorkspaceView(
             // link (or wikilink/image) in the selection → offer open + copy
             openTarget = Workspace.selectionOpenTarget(wgpuObj)
             if (openTarget != null) {
+                val open = if (Workspace.selectionTargetIsImage(wgpuObj)) "Open Image" else "Open Link"
                 menu
-                    .add(Menu.NONE, OPEN_LINK_MENU_ID, 0, "Open Link")
+                    .add(Menu.NONE, OPEN_LINK_MENU_ID, 0, open)
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
 
                 menu
