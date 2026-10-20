@@ -170,6 +170,9 @@ fn show_open<T: Clone>(
     resp: &Response, t: &Theme, open: bool, build: impl FnOnce(&mut Entries<T>),
 ) -> Option<T> {
     let ctx = &resp.ctx;
+    if !open && !is_open(resp) {
+        return None;
+    }
 
     let mut menu = Entries::new();
     build(&mut menu);
