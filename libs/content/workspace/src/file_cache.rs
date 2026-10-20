@@ -473,38 +473,70 @@ pub trait FilesExt {
 
     /// The documents `title` names equally well in `scope`: one when it
     /// resolves, several when it is ambiguous.
+    ///
+    /// A title with folders in it (`design/Plan`) is a path from the note's
+    /// folder, else names a document whose folders end with it, anywhere in
+    /// the scope. One that leads with `/` is a path from the scope's top.
+    /// The spaces around a segment don't count.
     fn wikilink_nearest_in(&self, title: &str, note: Uuid, scope: Uuid) -> Vec<Uuid> {
         let Some(from) = self.get_by_id(note).map(|f| f.parent) else { return vec![] };
-        if let Some((dir, last)) = title.rsplit_once('/') {
-            let Some(dir) = self.walk_in_scope(scope, from, dir) else { return vec![] };
-            let docs: Vec<&File> = self
-                .children(dir.id)
-                .into_iter()
-                .filter(|f| f.is_document())
-                .collect();
-            return match docs.iter().find(|f| f.name.eq_ignore_ascii_case(last)) {
-                Some(f) => vec![f.id],
-                None => docs
-                    .iter()
-                    .filter(|f| wiki_title(&f.name).eq_ignore_ascii_case(last))
-                    .map(|f| f.id)
-                    .collect(),
-            };
-        }
-
-        let candidates: Vec<&File> = self
-            .iter_files()
-            .filter(|f| f.is_document())
-            .filter(|f| title_matches(&f.name, title))
-            // the top's name is the placer's choice, so only files under it match
-            .filter(|f| f.id != scope && self.in_scope(scope, f.id))
+        let (dir, last) = title.rsplit_once('/').unwrap_or(("", title));
+        let last = last.trim();
+        let dirs: Vec<&str> = dir
+            .split('/')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
             .collect();
+        // the top's name is the placer's choice, so only files under it match
+        let in_scope = |f: &&File| f.is_document() && f.id != scope && self.in_scope(scope, f.id);
+        // names first: the scope check walks ancestors
+        let named = |f: &&File| title_matches(&f.name, last) && in_scope(f);
+        // `dirs` walked from `start` without leaving the scope, case aside
+        let walked = |start: Uuid| {
+            let mut current = start;
+            for dir in &dirs {
+                current = match *dir {
+                    "." => current,
+                    ".." if current == scope => return vec![],
+                    ".." => match self.get_by_id(current) {
+                        Some(folder) => folder.parent,
+                        None => return vec![],
+                    },
+                    name => {
+                        let folder = |f: &&File| f.is_folder() && f.name.eq_ignore_ascii_case(name);
+                        match self.children(current).into_iter().find(folder) {
+                            Some(folder) => folder.id,
+                            None => return vec![],
+                        }
+                    }
+                };
+            }
+            self.children(current).into_iter().filter(named).collect()
+        };
+        let trailing = || {
+            self.iter_files()
+                .filter(named)
+                .filter(|f| self.trails(scope, f, &dirs))
+                .collect()
+        };
+        let candidates: Vec<&File> = if title.starts_with('/') {
+            walked(scope)
+        } else if dirs.iter().any(|s| matches!(*s, "." | "..")) {
+            walked(from)
+        } else if dirs.is_empty() {
+            trailing()
+        } else {
+            match walked(from) {
+                found if !found.is_empty() => found,
+                _ => trailing(),
+            }
+        };
 
         // Exact full-name matches outrank stem-only matches.
         let exact: Vec<&File> = candidates
             .iter()
             .copied()
-            .filter(|f| f.name.eq_ignore_ascii_case(title))
+            .filter(|f| f.name.eq_ignore_ascii_case(last))
             .collect();
         let pool = if exact.is_empty() { candidates } else { exact };
 
@@ -520,6 +552,110 @@ pub trait FilesExt {
             .filter(|f| distance(f) == nearest)
             .map(|f| f.id)
             .collect()
+    }
+
+    /// Whether the folders above `file`, strictly inside `scope`, end with
+    /// `dirs`.
+    fn trails(&self, scope: Uuid, file: &File, dirs: &[&str]) -> bool {
+        let mut current = file;
+        for dir in dirs.iter().rev() {
+            if current.id == scope {
+                return false;
+            }
+            let Some(folder) = self.get_by_id(current.parent) else { return false };
+            if folder.id == scope || !folder.name.eq_ignore_ascii_case(dir) {
+                return false;
+            }
+            current = folder;
+        }
+        true
+    }
+
+    /// Folders between a document and the folder a link is written in: up
+    /// from `from` to their common ancestor, then down to `id`'s folder.
+    fn folder_distance(&self, from: Uuid, id: Uuid) -> usize {
+        let chain = |start: Uuid| {
+            let mut chain = vec![start];
+            chain.extend(self.ancestors(start));
+            chain
+        };
+        let from_chain = chain(from);
+        let to_chain = chain(self.get_by_id(id).map(|f| f.parent).unwrap_or(id));
+        for (down, folder) in to_chain.iter().enumerate() {
+            if let Some(up) = from_chain.iter().position(|f| f == folder) {
+                return up + down;
+            }
+        }
+        from_chain.len() + to_chain.len()
+    }
+
+    /// The destination a link in `note` to `target` is written with: a
+    /// relative path inside the note's scope. None outside it, where only an
+    /// id link reaches.
+    fn link_destination(&self, target: Uuid, note: Uuid) -> Option<String> {
+        let scope = self.scope_top(note);
+        let from = self.get_by_id(note).map(|f| f.parent).unwrap_or(note);
+        if !self.in_scope(scope, from) || !self.in_scope(scope, target) {
+            return None;
+        }
+        let path = encode_link_path(&relative_path(&self.path(from), &self.path(target)));
+        // `Re: plan.md` would read as a URL
+        Some(if has_scheme(&path) { format!("./{path}") } else { path })
+    }
+
+    /// The shortest wikilink title that means `target` anywhere in `note`'s
+    /// scope: its title, else with enough folders in front, else its full
+    /// name likewise. A document whose every trailing path also ends a
+    /// deeper one's gets its whole path from the scope's top. None outside
+    /// the scope.
+    fn wikilink_title(&self, target: Uuid, note: Uuid) -> Option<String> {
+        self.wikilink_title_in(target, self.scope_top(note))
+    }
+
+    /// [`Self::wikilink_title`] with `scope` standing in for the note's own:
+    /// the reader's whole tree ([`Self::tree_root`]) for a title that will
+    /// resolve past the scope.
+    fn wikilink_title_in(&self, target: Uuid, scope: Uuid) -> Option<String> {
+        let file = self.get_by_id(target)?;
+        if target == scope || !self.in_scope(scope, target) {
+            return None;
+        }
+        // folders above the document, nearest first, up to the scope's top
+        let mut dirs: Vec<&str> = vec![];
+        let mut current = file;
+        while let Some(parent) = self.get_by_id(current.parent) {
+            if parent.id == scope {
+                break;
+            }
+            dirs.push(&parent.name);
+            current = parent;
+        }
+        let unique = |last: &str, dirs: &[&str]| {
+            let mut path: Vec<&str> = dirs.iter().rev().copied().collect();
+            let matches = self
+                .iter_files()
+                .filter(|f| f.is_document() && title_matches(&f.name, last))
+                .filter(|f| {
+                    f.id != scope && self.in_scope(scope, f.id) && self.trails(scope, f, &path)
+                })
+                .count();
+            path.push(last);
+            (matches == 1).then(|| escape_wiki_title(&path.join("/")))
+        };
+        let (title, name) = (wiki_title(&file.name), file.name.as_str());
+        [title, name]
+            .into_iter()
+            .flat_map(|last| (0..=dirs.len()).map(move |n| (last, n)))
+            .find_map(|(last, n)| unique(last, &dirs[..n]))
+            .or_else(|| {
+                let beside = self.children(file.parent);
+                let titles = beside
+                    .iter()
+                    .filter(|f| f.is_document() && title_matches(&f.name, title));
+                let last = if titles.count() == 1 { title } else { name };
+                let dirs = dirs.iter().rev().map(|d| format!("{d}/"));
+                Some(escape_wiki_title(&format!("/{}{last}", dirs.collect::<String>())))
+            })
     }
 
     fn ancestors(&self, id: Uuid) -> Vec<Uuid> {
@@ -666,6 +802,45 @@ pub fn wiki_title(name: &str) -> &str {
 /// [`wiki_title`]. Case-insensitive.
 pub fn title_matches(name: &str, title: &str) -> bool {
     name.eq_ignore_ascii_case(title) || wiki_title(name).eq_ignore_ascii_case(title)
+}
+
+/// A wikilink title as it is written: `[`, `]`, and `|` would end it or
+/// split it, so they are escaped.
+pub(crate) fn escape_wiki_title(title: &str) -> String {
+    let mut out = String::with_capacity(title.len());
+    for c in title.chars() {
+        if matches!(c, '[' | ']' | '|' | '\\') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Percent-encodes characters that would end or change a CommonMark bare
+/// link destination, or be read back as an escape or a fragment.
+pub fn encode_link_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for c in path.chars() {
+        match c {
+            ' ' => out.push_str("%20"),
+            '(' => out.push_str("%28"),
+            ')' => out.push_str("%29"),
+            '#' => out.push_str("%23"),
+            '%' => out.push_str("%25"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Whether `url` leads with a URL scheme (`https:`, `mailto:`, `obsidian:`…).
+fn has_scheme(url: &str) -> bool {
+    let scheme = url.split_once(':').map_or("", |(scheme, _)| scheme);
+    scheme.starts_with(|c: char| c.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c))
 }
 
 /// The file an id link names: `lb://<uuid>`, or the external URL
@@ -871,6 +1046,47 @@ pub(crate) mod tests {
     fn by_path_missing() {
         let files = tree();
         assert!(files.by_path("/notes/nonexistent.md").is_none());
+    }
+
+    /// A title with folders in it is walked from the note's folder, else
+    /// names a document whose folders end with them, nearest first; `/` leads
+    /// from the scope's top.
+    #[test]
+    fn path_titles_are_trailing_paths() {
+        use crate::test_utils::files::{at, cache, tree};
+        let files = tree(
+            "alice",
+            &[
+                "/Plan.md",
+                "/project/ @bob",
+                "/project/notes.md",
+                "/project/design/Plan.md",
+                "/project/design/sub/notes.md",
+                "/project/research/Plan.md",
+                "/project/research/old/Plan.md",
+            ],
+        );
+        let note = at(&files, "/project/notes.md");
+        let deep = at(&files, "/project/design/sub/notes.md");
+        let cache = cache(files);
+        let design = at(&cache, "/project/design/Plan.md");
+        let research = at(&cache, "/project/research/Plan.md");
+        let old = at(&cache, "/project/research/old/Plan.md");
+        let resolve = |title: &str, from| cache.resolve_wikilink(title, from);
+
+        assert_eq!(resolve("Plan", note), None); // a tie
+        assert_eq!(resolve("design/Plan", deep), Some(design));
+        assert_eq!(resolve("research/Plan", note), Some(research)); // nearer than old/
+        assert_eq!(resolve("old/Plan", note), Some(old));
+        assert_eq!(resolve("research/old/Plan", deep), Some(old));
+        assert_eq!(resolve("/design/Plan", deep), Some(design));
+        assert_eq!(resolve("../Plan", deep), Some(design));
+        assert_eq!(resolve("./Plan", deep), None);
+        // the top has no name, and `/` is the scope's top: these miss the
+        // scope and reach the reader's own files instead
+        let locate = |title: &str, from| cache.locate_wikilink(title, from);
+        assert_eq!(locate("project/design/Plan", deep), Some((design, Reach::Reader)));
+        assert_eq!(locate("/Plan", deep), Some((at(&cache, "/Plan.md"), Reach::Reader)));
     }
 
     #[test]
