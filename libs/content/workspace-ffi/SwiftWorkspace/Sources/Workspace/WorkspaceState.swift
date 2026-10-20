@@ -15,6 +15,7 @@ import Observation
 
     public var openCamera: Bool = false
     public var openSearch: Bool = false
+    public var showSidebar: Bool = false
 
     public var mobileToolbarShown: Bool = false
 

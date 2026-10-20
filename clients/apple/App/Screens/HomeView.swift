@@ -72,6 +72,7 @@ struct HomeView: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .sidebarToggle)
+                    .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
                 #else
                     .background {
                         DetailWidthReader { detailWidth = $0 }
@@ -85,9 +86,17 @@ struct HomeView: View {
                     }
 
                     #if os(iOS)
-                        if horizontalSizeClass == .regular,
-                           homeState.splitViewVisibility != .all,
-                           !keyboardVisible
+                        if horizontalSizeClass == .compact {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button {
+                                    homeState.compactColumn = .sidebar
+                                } label: {
+                                    Image(systemName: "sidebar.left")
+                                }
+                            }
+                        } else if horizontalSizeClass == .regular,
+                                  homeState.splitViewVisibility != .all,
+                                  !keyboardVisible
                         {
                             ToolbarItem(placement: .topBarLeading) {
                                 Button {
@@ -227,6 +236,11 @@ struct HomeView: View {
                 guard openSearch else { return }
                 workspaceOutput.openSearch = false
                 searchEverywhere()
+            }
+            .onChange(of: workspaceOutput.showSidebar) { _, showSidebar in
+                guard showSidebar else { return }
+                workspaceOutput.showSidebar = false
+                homeState.compactColumn = .sidebar
             }
         #endif
         .onChange(of: AppState.lb.events.status, initial: true) { _, status in

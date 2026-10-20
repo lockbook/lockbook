@@ -145,7 +145,7 @@ import SwiftUI
         }
     }
 
-    public class iOSMTKInputManager: UIView {
+    public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
         public var mtkView: iOSMTK
 
         var currentWrapper: UIView?
@@ -172,11 +172,68 @@ import SwiftUI
                     equalTo: bottomAnchor
                 ),
             ])
+
+            historySwipe.addTarget(self, action: #selector(handleHistorySwipe))
+            historySwipe.allowedTouchTypes = [UITouch.TouchType.direct.rawValue as NSNumber]
+            historySwipe.maximumNumberOfTouches = 1
+            historySwipe.delegate = self
+            addGestureRecognizer(historySwipe)
         }
 
         @available(*, unavailable)
         required init?(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
+        }
+
+        /// At compact width, swiping in from the left edge goes back in the tab's
+        /// history (to the sidebar once there is none) and from the right goes forward.
+        private let historySwipe = UIPanGestureRecognizer()
+        private var historySwipeEdge: UIRectEdge = []
+
+        override public func gestureRecognizerShouldBegin(
+            _ gestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            guard gestureRecognizer === historySwipe else {
+                return super.gestureRecognizerShouldBegin(gestureRecognizer)
+            }
+            guard traitCollection.horizontalSizeClass == .compact else { return false }
+
+            let velocity = historySwipe.velocity(in: self)
+            let startX = historySwipe.location(in: self).x - historySwipe.translation(in: self).x
+            guard abs(velocity.x) > abs(velocity.y) else { return false }
+            if startX < 24, velocity.x > 0 {
+                historySwipeEdge = .left
+            } else if startX > bounds.width - 24, velocity.x < 0,
+                      mtkView.workspaceInput?.canNavForward() == true
+            {
+                historySwipeEdge = .right
+            } else {
+                return false
+            }
+            return true
+        }
+
+        /// A selection handle at the edge is dragged, not swiped. Off a handle,
+        /// that drag fails at touch-down, so the swipe does not wait.
+        public func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            gestureRecognizer === historySwipe && otherGestureRecognizer.isRangeAdjustment
+        }
+
+        @objc private func handleHistorySwipe() {
+            guard historySwipe.state == .ended else { return }
+            let travel = historySwipe.translation(in: self).x * (historySwipeEdge == .left ? 1 : -1)
+            guard travel > 60 else { return }
+
+            if historySwipeEdge == .right {
+                mtkView.workspaceInput?.navForward()
+            } else if mtkView.workspaceInput?.canNavBack() == true {
+                mtkView.workspaceInput?.navBack()
+            } else {
+                mtkView.workspaceOutput?.showSidebar = true
+            }
         }
 
         public func updateCurrentTab(newCurrentTab: WorkspaceTab) {
