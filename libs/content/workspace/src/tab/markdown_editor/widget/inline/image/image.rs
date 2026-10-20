@@ -214,7 +214,13 @@ impl<'ast> MdEdit {
         };
 
         let node_range = self.renderer.node_range(node);
-        let tap = if self.renderer.readonly {
+        // an image hidden past the note's scope shows on a tap; shown, the
+        // picture says nothing
+        let is_image = matches!(node.data.borrow().value, NodeValue::Image(_));
+        let withheld = is_image && self.renderer.embeds.withheld(url);
+        let tap = if withheld {
+            Event::LoadImage { url: url.to_string() }
+        } else if self.renderer.readonly {
             Event::OpenLink { url: url.to_string(), wikilink: false }
         } else {
             Event::Select { region: node_range.into() }
@@ -222,13 +228,17 @@ impl<'ast> MdEdit {
         self.renderer
             .touch_consume_interaction(ui.id().with(salt), TouchTarget::Tap(tap));
 
-        if open && response.hovered() {
+        if (open || withheld) && response.hovered() {
             ui.ctx()
                 .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
-        if let NodeValue::Link(_) = node.data.borrow().value {
+        if !is_image || !self.renderer.embeds.is_loaded(url) {
             let state = || self.renderer.link_state_for_url(url);
             self.renderer.show_link_tip(ui.ctx(), &response, state);
+        }
+        if withheld && response.clicked() {
+            self.renderer.embeds.load_anyway(url);
+            return;
         }
         if response.clicked() {
             if open {

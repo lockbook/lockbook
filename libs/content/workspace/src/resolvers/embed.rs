@@ -20,6 +20,15 @@ pub trait EmbedResolver {
 
     /// Increment this to signal when any return value could change.
     fn seq(&self) -> u64;
+
+    /// Whether `url` waits for the reader to ask before it shows: it reaches
+    /// a file past the note's scope, as a yellow link does.
+    fn withheld(&self, _url: &str) -> bool {
+        false
+    }
+
+    /// The reader asked to see a withheld `url`.
+    fn load_anyway(&self, _url: &str) {}
 }
 
 impl EmbedResolver for () {

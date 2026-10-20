@@ -17,8 +17,9 @@ use super::render_props::{
 
 // ── renderer ──
 
-/// An image out of the note's scope never starts a load: the cache is
-/// shared by every note and the image viewer, which must still open it.
+/// An image past the note's scope waits, and never starts a load, until
+/// the reader asks to see it: the cache is shared by every note and the
+/// image viewer, which must still open it. One naming nothing is broken.
 #[test]
 fn out_of_scope_embed_leaves_image_cache_alone() {
     use crate::file_cache::tests::alice;
@@ -44,8 +45,19 @@ fn out_of_scope_embed_leaves_image_cache_alone() {
 
     let url = format!("lb://{private}");
     embed.prefetch(&url);
+    assert!(embed.withheld(&url));
     assert!(!embed.is_loaded(&url));
     assert!(!images.has_state(&url));
+
+    images.show_anyway(note, &url);
+    assert!(!embed.withheld(&url));
+    embed.prefetch(&url);
+    assert!(images.has_state(&url));
+
+    let unknown = format!("lb://{}", Uuid::from_u128(99));
+    assert!(images.broken(&unknown, note) && !embed.withheld(&unknown));
+    embed.prefetch(&unknown);
+    assert!(!images.has_state(&unknown));
 }
 
 /// Image fragments allocate exactly the image's logical size — no
