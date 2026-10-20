@@ -148,6 +148,14 @@ impl<'ast> MdRender {
                         self.text_format_syntax(),
                     );
                 }
+            } else {
+                // Captured `#`s still get a cursor position, so a line
+                // selection or drag on the captured heading includes them.
+                layout.push_override(
+                    (indentation.start(), prefix_range.end()),
+                    "",
+                    self.text_format_syntax(),
+                );
             }
             if self.infix_range(node).is_some() {
                 self.layout_inline_children(&mut layout, node, node_line);
