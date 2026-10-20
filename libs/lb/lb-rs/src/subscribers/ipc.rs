@@ -3,12 +3,12 @@ use std::io::{self, ErrorKind};
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt};
 use std::os::unix::net::UnixDatagram;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use db_rs::View;
 use tokio::net::UnixDatagram as AsyncUnixDatagram;
 use tokio::runtime::Handle;
 use tokio::task;
-use uuid::Uuid;
 
 use crate::io::CoreDb;
 use crate::model::errors::Unexpected;
@@ -27,10 +27,30 @@ impl Ipc {
             .mode(0o700)
             .recursive(true)
             .create(&directory)?;
-        let path = listen.then(|| directory.join(format!("{}.sock", Uuid::new_v4().simple())));
-        let socket = match &path {
-            Some(path) => UnixDatagram::bind(path)?,
-            None => UnixDatagram::unbound()?,
+        let (path, socket) = if listen {
+            let mut index = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(io::Error::other)?
+                .as_millis();
+            loop {
+                let path = directory.join(index.to_string());
+                match UnixDatagram::bind(&path) {
+                    Ok(bound) => break (Some(path), bound),
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            ErrorKind::AddrInUse | ErrorKind::AlreadyExists
+                        ) =>
+                    {
+                        index = index
+                            .checked_add(1)
+                            .ok_or_else(|| io::Error::other("no available IPC socket names"))?;
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        } else {
+            (None, UnixDatagram::unbound()?)
         };
         let ipc = Self { directory, path, socket };
         ipc.socket.set_nonblocking(true)?;
@@ -58,7 +78,6 @@ impl Ipc {
                 Err(error) if error.kind() == ErrorKind::WouldBlock => {}
                 Err(error) if error.kind() == ErrorKind::NotFound => {}
                 Err(error) if error.kind() == ErrorKind::ConnectionRefused => {
-                    // Socket names are unique per instance, so a dead peer's name is never reused.
                     let _ = fs::remove_file(&path);
                 }
                 Err(error) => warn!(?error, ?path, "could not wake database peer"),
