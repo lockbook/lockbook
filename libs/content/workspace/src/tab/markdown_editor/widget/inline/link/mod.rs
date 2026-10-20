@@ -438,21 +438,50 @@ impl<'ast> MdRender {
         self.link_resolver.wikilink_state(url)
     }
 
-    /// URL (or wikilink target) of the first link-like node whose source range
-    /// intersects the current selection — gates and feeds the platform edit
-    /// menu's "Open Link" / "Copy Link".
+    /// The external URL of file `id`, which means the file wherever it is
+    /// pasted.
+    pub fn external_url(&self, id: Uuid) -> String {
+        let origin = self
+            .open_origin
+            .as_deref()
+            .unwrap_or("https://app.lockbook.net");
+        format!("{origin}/open/{id}")
+    }
+
+    /// What copying a link puts on the clipboard. A link to a file copies as
+    /// the file's external URL, any `#fragment` kept: the one form that means
+    /// the same file wherever it is pasted. Anything else copies as written.
+    pub fn link_to_copy(&self, url: &str, wikilink: bool) -> String {
+        let file = if wikilink {
+            self.resolve_wikilink(url)
+        } else {
+            match self.resolve_link(url) {
+                Some(ResolvedLink::File(id)) => Some(id),
+                _ => None,
+            }
+        };
+        let Some(id) = file else { return url.into() };
+        match url.split_once('#') {
+            Some((_, fragment)) => format!("{}#{fragment}", self.external_url(id)),
+            None => self.external_url(id),
+        }
+    }
+
+    /// What to copy ([`Self::link_to_copy`]) for the first link-like node
+    /// whose source range intersects the current selection — gates and feeds
+    /// the platform edit menu's "Open Link" / "Copy Link".
     pub fn selection_open_target(&mut self) -> Option<String> {
         let arena = Arena::new();
         let root = self.reparse(&arena);
         let selection = self.buffer.current.selection;
         for node in root.descendants() {
-            let url = match &node.data.borrow().value {
-                NodeValue::Link(l) | NodeValue::Image(l) => l.url.clone(),
-                NodeValue::WikiLink(nwl) => nwl.url.clone(),
+            let (url, wikilink) = match &node.data.borrow().value {
+                NodeValue::Link(l) | NodeValue::Image(l) => (l.url.clone(), false),
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
                 _ => continue,
             };
             if !url.is_empty() && self.node_range(node).intersects(&selection, true) {
-                return Some(url);
+                return Some(self.link_to_copy(&url, wikilink));
             }
         }
         None

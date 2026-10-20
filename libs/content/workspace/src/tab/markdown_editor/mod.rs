@@ -118,6 +118,9 @@ pub struct MdRender {
     pub dark_mode: bool,
     pub ext: String,
     pub touch_mode: bool,
+    /// Where this account's external file links point (`…/open/<id>`);
+    /// `app.lockbook.net` when unknown.
+    pub open_origin: Option<String>,
     /// Set only while painting the floating drag-reorder card, so chrome
     /// that shouldn't travel with it (the fold button) can opt out.
     pub painting_drag_float: bool,
@@ -505,6 +508,7 @@ impl MdRender {
             dark_mode,
             ext: "md".into(),
             touch_mode,
+            open_origin: None,
             painting_drag_float: false,
             buffer: "".into(),
             bounds: Default::default(),
@@ -589,6 +593,7 @@ impl MdRender {
             dark_mode: false,
             ext: "md".into(),
             touch_mode: false,
+            open_origin: None,
             painting_drag_float: false,
             bounds: Default::default(),
             buffer: md.into(),
@@ -751,6 +756,7 @@ impl Editor {
             dark_mode,
             ext,
             touch_mode,
+            open_origin: open_origin.clone(),
             painting_drag_float: false,
 
             bounds: Default::default(),

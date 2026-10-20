@@ -1,3 +1,8 @@
+use crate::file_cache::{FilesExt as _, link_id};
+use crate::show::DocType;
+use crate::tab::markdown_editor::widget::link_completions::{
+    detect_destination, detect_link, detect_wikilink,
+};
 use crate::tab::markdown_editor::{self, MdEdit};
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeLink, NodeList, NodeValue};
 use egui::{self, Key, Modifiers};
@@ -24,6 +29,32 @@ impl From<Modifiers> for Advance {
 }
 
 const PAGE_LINES: usize = 50;
+
+impl MdEdit {
+    /// For pasted text that is an id link (`lb://`, or a file's external URL)
+    /// to a document here: the destination this note would link to it with,
+    /// any `#fragment` kept, and the name to show.
+    fn pasted_file_link(&self, text: &str) -> Option<(String, String)> {
+        let url = text.trim();
+        let id = link_id(url).filter(|_| !url.contains(char::is_whitespace))?;
+        let files = self.renderer.files.read().unwrap();
+        let file = files.get_by_id(id).filter(|f| f.is_document())?;
+        let fragment = url.split_once('#').map_or("", |(_, fragment)| fragment);
+        let with_fragment = |link: String| match fragment {
+            "" => link,
+            fragment => format!("{link}#{fragment}"),
+        };
+        let destination = files
+            .link_destination(id, self.file_id)
+            .unwrap_or_else(|| self.renderer.external_url(id));
+        Some((
+            with_fragment(destination),
+            DocType::from_name(&file.name)
+                .display_name(&file.name)
+                .to_string(),
+        ))
+    }
+}
 
 impl<'ast> MdEdit {
     pub fn translate_egui_keyboard_event(
@@ -72,10 +103,51 @@ impl<'ast> MdEdit {
 
                 let text = text.replace('\u{a0}', " "); // parser does not interact well with non-breaking spaces
 
+                let selection = self.renderer.buffer.current.selection;
+                let around = |node: &&'ast AstNode<'ast>| {
+                    let range = self.renderer.node_range(node);
+                    range.intersects(&selection, false)
+                        || (selection.is_empty() && range.contains(selection.0, false, false))
+                };
+                let inside = |kind: fn(&NodeValue) -> bool| {
+                    root.descendants()
+                        .any(|node| kind(&node.data().value) && around(&node))
+                };
+                let in_wikilink = inside(|v| matches!(v, NodeValue::WikiLink(_)))
+                    || detect_wikilink(&self.renderer.buffer).is_some();
+                let in_link = inside(|v| matches!(v, NodeValue::Link(_) | NodeValue::Image(_)));
+                let in_code = inside(|v| matches!(v, NodeValue::Code(_) | NodeValue::CodeBlock(_)));
+
+                // a pasted link to a file here is written the way this note
+                // would link to it, where no link has been started by hand
+                let buffer = &self.renderer.buffer;
+                let own_link = in_code
+                    || in_wikilink
+                    || in_link
+                    || detect_link(buffer).is_some()
+                    || detect_destination(buffer).is_some();
+                let file_link = self.pasted_file_link(&text).filter(|_| !own_link);
+                if let Some((destination, name)) = file_link {
+                    if !selection.is_empty() {
+                        return Some(Event::ToggleStyle {
+                            region: Region::Selection,
+                            style: NodeValue::Link(
+                                NodeLink { url: destination, ..Default::default() }.into(),
+                            ),
+                        });
+                    }
+                    return Some(Event::Replace {
+                        region: Region::Selection,
+                        text: format!("[{name}]({destination})"),
+                        advance_cursor: true,
+                    });
+                }
+                let in_link = in_link || in_wikilink;
+
                 // with text selected, pasting a link turns selected text into a
-                // markdown link...
+                // markdown link, unless we're already in a link
                 let mut link_paste = false;
-                if !self.renderer.buffer.current.selection.is_empty() {
+                if !selection.is_empty() && !in_link {
                     // use comrak's auto-link detector
                     let arena = comrak::Arena::new();
                     let mut options = comrak::Options::default();
@@ -90,21 +162,6 @@ impl<'ast> MdEdit {
                                 break;
                             }
                         }
-                    }
-                }
-
-                // ...unless we're already in a link
-                for descendant in root.descendants() {
-                    if matches!(
-                        descendant.data().value,
-                        NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_)
-                    ) && self
-                        .renderer
-                        .node_range(descendant)
-                        .intersects(&self.renderer.buffer.current.selection, false)
-                    {
-                        link_paste = false;
-                        break;
                     }
                 }
 

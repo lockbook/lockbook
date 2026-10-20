@@ -286,7 +286,7 @@ fn detect_any(buffer: &Buffer) -> Option<((Grapheme, Grapheme), CompletionMode)>
 /// the cursor, plus whether it's an image link. The range spans the whole
 /// link (through the closing `)` when present) so a picked result replaces
 /// it wholesale, keeping the display text (#4893).
-fn detect_destination(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool)> {
+pub(crate) fn detect_destination(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool)> {
     let selection = buffer.current.selection;
     if selection.0 != selection.1 {
         return None;
@@ -422,7 +422,7 @@ fn follows_list_marker(buffer: &Buffer, bracket: Grapheme) -> bool {
 }
 
 /// Returns the range of a `[[...]]` wikilink token under the cursor.
-fn detect_wikilink(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
+pub(crate) fn detect_wikilink(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
     let selection = buffer.current.selection;
     if selection.0 != selection.1 {
         return None;
@@ -476,7 +476,7 @@ fn detect_wikilink(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
 /// plus whether it's an image link. The cursor must be in the display-text field
 /// (between `[` and `]`); if `](...)` already exists it's included in the range
 /// so the whole link is replaced when a result is picked.
-fn detect_link(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool)> {
+pub(crate) fn detect_link(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool)> {
     let selection = buffer.current.selection;
     if selection.0 != selection.1 {
         return None;
