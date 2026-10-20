@@ -658,6 +658,41 @@ pub trait FilesExt {
             })
     }
 
+    /// Where the note an unmatched wikilink title names would be created: an
+    /// existing folder, then the names to create under it, the document last.
+    /// A path title is walked from the note's folder (`/` from the scope's
+    /// top). None for a title that names no file, or when the note's folder
+    /// is outside its scope.
+    fn wikilink_placement(&self, title: &str, note: Uuid) -> Option<(Uuid, Vec<String>)> {
+        let from = self.get_by_id(note)?.parent;
+        let scope = self.scope_top(note);
+        let mut names: Vec<String> = title
+            .strip_prefix('/')
+            .unwrap_or(title)
+            .split('/')
+            .map(|s| s.trim().to_string())
+            .collect();
+        if !self.in_scope(scope, from)
+            || names.iter().any(|s| s.is_empty() || s == "." || s == "..")
+        {
+            return None;
+        }
+        let last = names.last_mut()?;
+        if !has_extension(last) {
+            last.push_str(".md");
+        }
+
+        let mut current = if title.starts_with('/') { scope } else { from };
+        while names.len() > 1 {
+            let children = self.children(current);
+            let existing = |f: &&File| f.is_folder() && f.name.eq_ignore_ascii_case(&names[0]);
+            let Some(folder) = children.into_iter().find(existing) else { break };
+            current = folder.id;
+            names.remove(0);
+        }
+        Some((current, names))
+    }
+
     fn ancestors(&self, id: Uuid) -> Vec<Uuid> {
         let mut ancestors = vec![];
         let mut current = id;
@@ -785,6 +820,16 @@ pub fn strip_ext(name: &str) -> &str {
         Some(i) if i > 0 && i + 1 < name.len() => &name[..i],
         _ => name,
     }
+}
+
+/// Whether a name a wikilink would create ends in the extension of a kind of
+/// file made empty and then written in. `Node.js`, `v1.2 notes`, and
+/// `Mr. Smith` are titles of notes.
+fn has_extension(name: &str) -> bool {
+    let ext = name.rsplit_once('.').map_or("", |(_, ext)| ext);
+    ["md", "svg", "txt"]
+        .iter()
+        .any(|e| ext.eq_ignore_ascii_case(e))
 }
 
 /// The title a file answers to in a wikilink, as in Obsidian: a note's name
@@ -1087,6 +1132,53 @@ pub(crate) mod tests {
         let locate = |title: &str, from| cache.locate_wikilink(title, from);
         assert_eq!(locate("project/design/Plan", deep), Some((design, Reach::Reader)));
         assert_eq!(locate("/Plan", deep), Some((at(&cache, "/Plan.md"), Reach::Reader)));
+    }
+
+    #[test]
+    fn unmatched_wikilinks_have_a_place() {
+        use crate::test_utils::files::{at, cache, tree};
+        let files = cache(tree(
+            "alice",
+            &[
+                "/project/ @bob",
+                "/project/plan.md",
+                "/project/design/plan.md",
+                "/project/research/",
+            ],
+        ));
+        let id = |path: &str| at(&files, path);
+        let note = id("/project/plan.md");
+        // where opening the link makes its note, which the link then reaches
+        let place = |title: &str, note: Uuid| {
+            let (mut parent, names) = files.wikilink_placement(title, note)?;
+            let place = format!("{}{}", files.path(parent), names.join("/"));
+            let rows: Vec<File> = files.all_files().cloned().collect();
+            let mut files = FileCache::from_owned_and_shared(rows[0].clone(), rows, []);
+            for (i, name) in names.iter().enumerate() {
+                let file_type =
+                    if i + 1 == names.len() { FileType::Document } else { FileType::Folder };
+                let made = Uuid::from_u128(100 + i as u128);
+                files.insert_created_file(File {
+                    owner: "alice".into(),
+                    ..file(made, parent, name, file_type)
+                });
+                parent = made;
+            }
+            assert_eq!(files.resolve_wikilink(title, note), Some(parent), "{title}");
+            Some(place)
+        };
+
+        assert_eq!(place("map.svg", note).unwrap(), "/project/map.svg");
+        assert_eq!(place("v1.2 notes", note).unwrap(), "/project/v1.2 notes.md");
+        assert_eq!(place("Node.js", note).unwrap(), "/project/Node.js.md");
+        assert_eq!(place("design/drafts/Ideas", note).unwrap(), "/project/design/drafts/Ideas.md");
+        assert_eq!(place("research / Ideas", note).unwrap(), "/project/research/Ideas.md");
+        // `/` is the top of the share
+        let deep = id("/project/design/plan.md");
+        assert_eq!(place("/Design/Ideas", deep).unwrap(), "/project/design/Ideas.md");
+        assert_eq!(place("design/", note), None);
+        assert_eq!(place("../Ideas", note), None);
+        assert_eq!(place("..", note), None);
     }
 
     #[test]

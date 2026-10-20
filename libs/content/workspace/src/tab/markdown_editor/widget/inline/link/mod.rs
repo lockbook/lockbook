@@ -46,6 +46,7 @@ impl<'ast> MdRender {
             LinkState::Normal => theme.fg().blue,
             LinkState::Warning { .. } => theme.fg().yellow,
             LinkState::Broken { .. } => theme.fg().red,
+            LinkState::Placeholder { .. } => theme.fg().cyan,
         };
         Format { color, underline: true, ..parent_text_format }
     }
@@ -237,7 +238,10 @@ impl<'ast> MdRender {
             crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |_| {});
             return;
         }
-        let (LinkState::Warning { message } | LinkState::Broken { message }) = state() else {
+        let (LinkState::Warning { message }
+        | LinkState::Broken { message }
+        | LinkState::Placeholder { message }) = state()
+        else {
             return;
         };
         let mut lines = message.lines();
@@ -389,9 +393,13 @@ impl<'ast> MdRender {
     }
 
     /// Opens the file a wikilink names, behind a confirmation when it means
-    /// different files to different readers.
+    /// different files to different readers. A title nothing matches creates
+    /// the note where the resolver has a place for it.
     pub fn open_wikilink(&self, title: &str, ctx: &egui::Context, new_tab: bool) {
         let Some(file_id) = self.resolve_wikilink(title) else {
+            if let Some((parent, names)) = self.link_resolver.wikilink_placement(title) {
+                return ctx.create_note(parent, names);
+            }
             let shown = format!("[[{title}]]");
             return self.explain_unopenable(&shown, self.link_state_for_wikilink(title), ctx);
         };

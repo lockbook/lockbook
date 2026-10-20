@@ -732,6 +732,10 @@ pub trait ExtendedOutput {
     /// Sheets requested together show one after another.
     fn show_link_sheet(&self, sheet: LinkSheet);
     fn pop_link_sheets(&self) -> Vec<LinkSheet>;
+    /// Create `names` under `parent` — folders, then a document last — and
+    /// open the document.
+    fn create_note(&self, parent: Uuid, names: Vec<String>);
+    fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)>;
 }
 
 /// A sheet about a link the reader tried to open: why it may open differently
@@ -816,6 +820,23 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| {
             m.data
                 .remove_temp::<Vec<LinkSheet>>(Id::new("link_sheets"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn create_note(&self, parent: Uuid, names: Vec<String>) {
+        self.memory_mut(|m| {
+            let mut notes: Vec<(Uuid, Vec<String>)> =
+                m.data.get_temp(Id::new("create_notes")).unwrap_or_default();
+            notes.push((parent, names));
+            m.data.insert_temp(Id::new("create_notes"), notes);
+        })
+    }
+
+    fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<(Uuid, Vec<String>)>>(Id::new("create_notes"))
                 .unwrap_or_default()
         })
     }
