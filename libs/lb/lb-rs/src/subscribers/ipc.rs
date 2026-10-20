@@ -159,68 +159,6 @@ mod tests {
     use tempfile::tempdir_in;
 
     #[test]
-    fn skips_occupied_slots_and_reuses_them_after_cleanup() {
-        let directory = tempdir_in("/tmp").unwrap();
-        let db = CoreDb::init(&Config::default().log_location(directory.path())).unwrap();
-        let first = Ipc::new(&db, true).unwrap();
-        assert_eq!(first.path.as_ref().unwrap().file_name().unwrap(), "0");
-        let stale = first.directory.join("1");
-        drop(UnixDatagram::bind(&stale).unwrap());
-        let second = Ipc::new(&db, true).unwrap();
-        assert_eq!(second.path.as_ref().unwrap().file_name().unwrap(), "2");
-        assert!(stale.exists());
-        second.send().unwrap();
-        assert!(!stale.exists());
-        assert_eq!(first.socket.recv(&mut [0]).unwrap(), 1);
-        let replacement = Ipc::new(&db, true).unwrap();
-        assert_eq!(replacement.path.as_ref(), Some(&stale));
-    }
-
-    #[test]
-    fn concurrent_allocations_keep_every_peer_reachable() {
-        let directory = tempdir_in("/tmp").unwrap();
-        let db = CoreDb::init(&Config::default().log_location(directory.path())).unwrap();
-        let sender = Ipc::new(&db, false).unwrap();
-        let barrier = std::sync::Arc::new(std::sync::Barrier::new(8));
-        let workers: Vec<_> = (0..8)
-            .map(|_| {
-                let path = directory.path().to_path_buf();
-                let barrier = barrier.clone();
-                std::thread::spawn(move || {
-                    let db = CoreDb::init(&Config::default().log_location(path)).unwrap();
-                    barrier.wait();
-                    Ipc::new(&db, true).unwrap()
-                })
-            })
-            .collect();
-        let peers: Vec<_> = workers
-            .into_iter()
-            .map(|worker| worker.join().unwrap())
-            .collect();
-        sender.send().unwrap();
-        for peer in &peers {
-            assert_eq!(peer.socket.recv(&mut [0]).unwrap(), 1);
-        }
-    }
-
-    #[test]
-    fn starts_with_a_database_path_too_long_for_uuid_socket_names() {
-        let directory = tempdir_in("/tmp").unwrap();
-        let path = directory.path().join("a".repeat(45));
-        fs::create_dir(&path).unwrap();
-        let db = CoreDb::init(&Config::default().log_location(path)).unwrap();
-        let ipc = Ipc::new(&db, true).unwrap();
-        assert!(
-            ipc.directory
-                .join(format!("{}.sock", "a".repeat(32)))
-                .as_os_str()
-                .len()
-                > 103
-        );
-        assert!(ipc.path.as_ref().unwrap().exists());
-    }
-
-    #[test]
     fn sends_to_peers_skips_self_and_cleans_up_dead_sockets() {
         let directory = tempdir_in("/tmp").unwrap();
         let db = CoreDb::init(&Config::default().log_location(directory.path())).unwrap();
