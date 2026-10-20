@@ -38,12 +38,24 @@ fn order(first: usize) -> Vec<&'static str> {
         .collect()
 }
 
+/// The user's preferred languages, from a host that knows them better than
+/// `sys-locale`: on Android it reads only the system's first language, not
+/// the list or the app's own choice.
+static PREFERRED_LANGUAGES: OnceLock<Vec<String>> = OnceLock::new();
+
+/// Call before the first font system is built.
+pub fn set_preferred_languages(languages: Vec<String>) {
+    let _ = PREFERRED_LANGUAGES.set(languages);
+}
+
 /// Han is unified across languages, so its glyph forms follow the first
 /// CJK language the user prefers (Simplified Chinese when there is none).
 fn han_group() -> usize {
-    sys_locale::get_locales()
-        .find_map(|l| locale_group(&l))
-        .unwrap_or(SC_I)
+    let group = match PREFERRED_LANGUAGES.get() {
+        Some(languages) => languages.iter().find_map(|l| locale_group(l)),
+        None => sys_locale::get_locales().find_map(|l| locale_group(&l)),
+    };
+    group.unwrap_or(SC_I)
 }
 
 fn locale_group(locale: &str) -> Option<usize> {
