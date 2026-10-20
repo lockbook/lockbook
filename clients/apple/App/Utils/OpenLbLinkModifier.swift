@@ -120,7 +120,7 @@ struct OpenLbLinkModifier: ViewModifier {
 
                 switch file {
                 case let .success(file):
-                    workspaceInput.openFile(id: file.id)
+                    workspaceInput.openFileInItsTab(id: file.id)
                     homeState.compactColumn = .detail
                 case .failure:
                     if case let .failure(err) = syncResult {

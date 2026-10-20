@@ -22,6 +22,11 @@ import Observation
     public init() {}
 }
 
+private enum PendingOpen {
+    case file(UUID, newTab: Bool)
+    case inItsTab(UUID)
+}
+
 @Observable public class WorkspaceInputState {
     @ObservationIgnored public var coreHandle: UnsafeMutableRawPointer?
     @ObservationIgnored public var wsHandle: UnsafeMutableRawPointer? {
@@ -33,14 +38,17 @@ import Observation
             guard !pendingOpens.isEmpty else { return }
             let queued = pendingOpens
             pendingOpens = []
-            for id in queued {
-                openFile(id: id)
+            for open in queued {
+                switch open {
+                case let .file(id, newTab): openFile(id: id, newTab: newTab)
+                case let .inItsTab(id): openFileInItsTab(id: id)
+                }
             }
         }
     }
 
     @ObservationIgnored private var nativeSidebarOpen = false
-    @ObservationIgnored private var pendingOpens: [UUID] = []
+    @ObservationIgnored private var pendingOpens: [PendingOpen] = []
     @ObservationIgnored private var desktopTabPolicy = false
 
     @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
@@ -82,7 +90,7 @@ import Observation
             pendingFocusDoc = id
         }
         guard let wsHandle else {
-            pendingOpens.append(id)
+            pendingOpens.append(.file(id, newTab: newTab))
             return
         }
 
@@ -92,6 +100,20 @@ import Observation
         redraw.send(())
         //        Will crash iOS, something with caret rects. Looks rust related
         //        focus.send(())
+    }
+
+    /// Activates the tab showing `id`, or opens it in a new one.
+    public func openFileInItsTab(id: UUID) {
+        guard wsHandle != nil else {
+            pendingOpens.append(.inItsTab(id))
+            return
+        }
+
+        if let tab = getTabs().first(where: { $0.destFile == id }) {
+            activateTab(id: tab.id)
+        } else {
+            openFile(id: id, newTab: true)
+        }
     }
 
     public func navigateToFile(id: UUID) {
