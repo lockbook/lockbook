@@ -14,7 +14,10 @@
 
 use comrak::Arena;
 use egui::os::OperatingSystem;
-use egui::{Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, ViewportCommand};
+use egui::{
+    Context, EventFilter, Id, ImeEvent, Key, Pos2, Rect, Sense, Stroke, Ui, UiBuilder,
+    ViewportCommand,
+};
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
@@ -23,11 +26,11 @@ use crate::tab::markdown_editor::ScrollTarget;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
-use super::MdEdit;
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, TouchReorder};
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
+use super::{ImeMarked, MdEdit};
 
 #[derive(Clone)]
 enum EditorMenuCmd {
@@ -69,8 +72,15 @@ impl MdEdit {
             None => buffer::Response::default(),
         };
 
+        if focused {
+            self.defer_input_after_ime(ctx);
+        } else {
+            self.renderer.ime_marked = None;
+            self.deferred_input.clear();
+        }
+
         let arena = Arena::new();
-        let root = self.renderer.reparse(&arena);
+        let mut root = self.renderer.reparse(&arena);
 
         // Completion popups: update active state, then give them first dibs on
         // Up/Down/Enter/Cmd+num via `consume_key` so this function's keyboard
@@ -128,6 +138,24 @@ impl MdEdit {
             };
             let key_events: Vec<egui::Event> = ctx.input(|r| r.filtered_events(&filter));
             for e in key_events {
+                if let egui::Event::Ime(ime) = e {
+                    if self.renderer.readonly {
+                        continue;
+                    }
+                    // the keys before it land first
+                    self.renderer.buffer.queue(std::mem::take(&mut ops));
+                    let resp = self.renderer.buffer.update();
+                    if resp.text_updated {
+                        self.renderer.bump_text_seq();
+                    }
+                    direct_resp |= resp;
+                    direct_resp |= self.apply_ime(ime);
+                    root = self.renderer.reparse(&arena);
+                    continue;
+                }
+                if self.ime_marked_range().is_some() && ime_owns(&e) {
+                    continue;
+                }
                 if let Some(edit_event) = self.translate_egui_keyboard_event(e, root) {
                     undo_redo |= matches!(edit_event, Event::Undo | Event::Redo);
                     direct_resp |= self.calc_operations(ctx, root, edit_event, &mut ops);
@@ -176,6 +204,106 @@ impl MdEdit {
         }
 
         buf_resp
+    }
+
+    /// Desktop IME composition: the preedit sits in the buffer as the marked
+    /// range, which each update and the commit replace, undoing as one edit.
+    fn apply_ime(&mut self, ime: ImeEvent) -> buffer::Response {
+        let (text, marked) = match ime {
+            ImeEvent::Preedit(t) | ImeEvent::Commit(t) if t == "\n" || t == "\r" => {
+                return buffer::Response::default();
+            }
+            ImeEvent::Preedit(t) => (t, true),
+            ImeEvent::Commit(t) => (t, false),
+            // a cancelled composition drops its preedit
+            ImeEvent::Disabled => (String::new(), false),
+            ImeEvent::Enabled => return buffer::Response::default(),
+        };
+        let composing = self.ime_marked_range();
+        let region = match composing {
+            Some(range) => Region::from(range),
+            None if text.is_empty() => return buffer::Response::default(),
+            None => Region::Selection,
+        };
+        let sel = self.renderer.buffer.current.selection;
+        let start = composing.map_or(sel.0.min(sel.1), |range| range.0);
+        let event = Event::Replace { region, text, advance_cursor: true };
+        let resp = self.apply_platform(event, true);
+
+        let buffer = &self.renderer.buffer;
+        let range = (start, buffer.current.selection.1);
+        self.renderer.ime_marked = (marked && range.1 > range.0).then(|| ImeMarked {
+            range,
+            text: buffer[range].to_string(),
+            seq: buffer.current.seq,
+        });
+        resp
+    }
+
+    /// Leaves this frame's input through its first IME edit, ahead of any
+    /// input deferred from the frame before; the rest waits a frame.
+    fn defer_input_after_ime(&mut self, ctx: &Context) {
+        let mut events = std::mem::take(&mut self.deferred_input);
+        ctx.input_mut(|i| {
+            events.append(&mut i.events);
+            // winit on macOS clears the preedit just before committing; the
+            // commit replaces it instead, so the composition stays one edit
+            let commits =
+                |e: Option<&egui::Event>| matches!(e, Some(egui::Event::Ime(ImeEvent::Commit(_))));
+            let mut n = 0;
+            while n < events.len() {
+                if matches!(events[n], egui::Event::Ime(ImeEvent::Disabled))
+                    && commits(events.get(n + 1))
+                {
+                    events.remove(n);
+                } else {
+                    n += 1;
+                }
+            }
+            let edit = events
+                .iter()
+                .position(|e| matches!(e, egui::Event::Ime(ime) if *ime != ImeEvent::Enabled));
+            let later = edit.map(|n| events.split_off(n + 1)).unwrap_or_default();
+            let (keyboard, other): (Vec<_>, Vec<_>) = later.into_iter().partition(|e| {
+                matches!(
+                    e,
+                    egui::Event::Key { .. }
+                        | egui::Event::Text(_)
+                        | egui::Event::Ime(_)
+                        | egui::Event::Paste(_)
+                        | egui::Event::Copy
+                        | egui::Event::Cut
+                )
+            });
+            events.extend(other);
+            i.events = events;
+            self.deferred_input = keyboard;
+        });
+        if !self.deferred_input.is_empty() {
+            ctx.request_repaint();
+        }
+    }
+
+    /// The composition's range, mapped through any edits since it was
+    /// written; dropped (its text left as typed) once an edit touched it.
+    fn ime_marked_range(&mut self) -> Option<(Grapheme, Grapheme)> {
+        let renderer = &mut self.renderer;
+        let marked = renderer.ime_marked.as_mut()?;
+        let buffer = &renderer.buffer;
+        let mut range = marked.range;
+        let intact = marked.seq <= buffer.current.seq
+            && buffer.transform_range(marked.seq, &mut range)
+            && range.1 <= buffer.current.segs.last_cursor_position()
+            && buffer[range] == marked.text;
+        if intact {
+            marked.range = range;
+            marked.seq = buffer.current.seq;
+            Some(range)
+        } else {
+            renderer.ime_marked = None;
+            self.ime_reset = true;
+            None
+        }
     }
 
     /// Apply an edit from a platform text system (UIKit) now, outside the
@@ -901,11 +1029,14 @@ impl MdEdit {
             let blink = focused.then(|| now - self.cursor_last_interact.unwrap_or(now));
             self.show_offset(ui, selection.1, theme.bright.get_color(theme.prefs().primary), blink);
             if focused {
-                if let Some([top, bot]) = self.cursor_line(selection.1) {
-                    let cursor_rect = Rect::from_min_max(top, bot);
-                    ui.output_mut(|o| {
-                        o.ime = Some(egui::output::IMEOutput { rect, cursor_rect });
-                    });
+                // egui-winit disallows the IME without this, discarding a
+                // composition whose caret is off screen
+                let cursor = self
+                    .cursor_line(selection.1)
+                    .map(|[t, b]| Rect::from_min_max(t, b));
+                let cursor_rect = cursor.unwrap_or(rect);
+                if !std::mem::take(&mut self.ime_reset) {
+                    ui.output_mut(|o| o.ime = Some(egui::output::IMEOutput { rect, cursor_rect }));
                 }
             }
         }
@@ -1070,4 +1201,20 @@ impl MdEdit {
 
         Some(Pos2 { x: (start_line[1].x + end_line[1].x) / 2., y: anchor_y })
     }
+}
+
+/// Keys an IME takes while it composes; shortcuts pass.
+fn ime_owns(event: &egui::Event) -> bool {
+    let egui::Event::Key { key, repeat, modifiers, .. } = event else { return false };
+    let edits = matches!(
+        key,
+        Key::Backspace
+            | Key::Delete
+            | Key::Enter
+            | Key::ArrowUp
+            | Key::ArrowDown
+            | Key::ArrowLeft
+            | Key::ArrowRight
+    );
+    !modifiers.command && !modifiers.ctrl && (*repeat || edits)
 }
