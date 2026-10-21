@@ -7,7 +7,8 @@ final class FileProviderItem: NSObject, NSFileProviderItem, Codable {
     let parent: String
     let name: String
     let folder: Bool
-    let modified: UInt64
+    var modified: UInt64
+    var modifiedDate: Date?
     var contentVersion: Data
     var size: Int?
     var writable: Bool
@@ -29,9 +30,9 @@ final class FileProviderItem: NSObject, NSFileProviderItem, Codable {
     var contentType: UTType { folder ? .folder : UTType(filenameExtension: (name as NSString).pathExtension) ?? .data }
     var documentSize: NSNumber? { size.map(NSNumber.init(value:)) }
     var contentPolicy: NSFileProviderContentPolicy { .downloadLazily }
-    var contentModificationDate: Date? { Date(timeIntervalSince1970: Double(modified) / 1000) }
+    var contentModificationDate: Date? { modifiedDate ?? Date(timeIntervalSince1970: Double(modified) / 1000) }
     var itemVersion: NSFileProviderItemVersion {
-        let metadata = Data("\(parent)\u{0}\(name)\u{0}\(modified)\u{0}\(writable)\u{0}\(size ?? 0)\u{0}\(contentPolicy.rawValue)".utf8)
+        let metadata = Data("\(parent)\u{0}\(name)\u{0}\(contentModificationDate!.timeIntervalSince1970)\u{0}\(writable)\u{0}\(size ?? 0)\u{0}\(contentPolicy.rawValue)".utf8)
         return NSFileProviderItemVersion(contentVersion: contentVersion, metadataVersion: Data(SHA256.hash(data: metadata)))
     }
     var capabilities: NSFileProviderItemCapabilities {
