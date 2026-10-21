@@ -285,6 +285,11 @@ pub struct MdEdit {
     /// tells the platform's input method to discard it too.
     pub ime_reset: bool,
 
+    /// The text of a composition the caret left, which the input method may
+    /// still send before it lets go; ignored until it sends something else,
+    /// the editor gets input of its own, or loses focus.
+    pub ime_abandoned: Option<String>,
+
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
     pub pending_scroll: Option<ScrollTarget>,
@@ -353,6 +358,7 @@ impl MdEdit {
             pending_block_move: None,
             deferred_input: Vec::new(),
             ime_reset: false,
+            ime_abandoned: None,
             pending_scroll: None,
             single_line_scroll: 0.0,
             overflow_scroll: 0.0,
@@ -841,6 +847,7 @@ impl Editor {
                 pending_block_move: None,
                 deferred_input: Vec::new(),
                 ime_reset: false,
+                ime_abandoned: None,
                 pending_scroll: None,
                 single_line_scroll: 0.0,
                 overflow_scroll: 0.0,

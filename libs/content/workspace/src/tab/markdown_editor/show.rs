@@ -76,6 +76,7 @@ impl MdEdit {
             self.defer_input_after_ime(ctx);
         } else {
             self.renderer.ime_marked = None;
+            self.ime_abandoned = None;
             self.deferred_input.clear();
         }
 
@@ -156,6 +157,10 @@ impl MdEdit {
                 if self.ime_marked_range().is_some() && ime_owns(&e) {
                     continue;
                 }
+                // input of its own means the input method let go of what it abandoned
+                if matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Text(_)) {
+                    self.ime_abandoned = None;
+                }
                 if let Some(edit_event) = self.translate_egui_keyboard_event(e, root) {
                     undo_redo |= matches!(edit_event, Event::Undo | Event::Redo);
                     direct_resp |= self.calc_operations(ctx, root, edit_event, &mut ops);
@@ -219,6 +224,17 @@ impl MdEdit {
             _ => return buffer::Response::default(),
         };
         let composing = self.ime_marked_range();
+        // an interrupted input method may resend the composition the caret
+        // left before clearing it; ignoring both keeps its text as typed and
+        // the caret where it went
+        if let Some(abandoned) = self.ime_abandoned.take() {
+            if text.is_empty() || text == abandoned {
+                if marked && !text.is_empty() {
+                    self.ime_abandoned = Some(abandoned);
+                }
+                return buffer::Response::default();
+            }
+        }
         let region = match composing {
             Some(range) => Region::from(range),
             None if text.is_empty() => return buffer::Response::default(),
@@ -284,7 +300,8 @@ impl MdEdit {
     }
 
     /// The composition's range, mapped through any edits since it was
-    /// written; dropped (its text left as typed) once an edit touched it.
+    /// written; dropped (its text left as typed) once an edit touched it or
+    /// the caret left its end.
     fn ime_marked_range(&mut self) -> Option<(Grapheme, Grapheme)> {
         let renderer = &mut self.renderer;
         let marked = renderer.ime_marked.as_mut()?;
@@ -294,11 +311,15 @@ impl MdEdit {
             && buffer.transform_range(marked.seq, &mut range)
             && range.1 <= buffer.current.segs.last_cursor_position()
             && buffer[range] == marked.text;
-        if intact {
+        let caret_left = buffer.current.selection != (range.1, range.1);
+        if intact && !caret_left {
             marked.range = range;
             marked.seq = buffer.current.seq;
             Some(range)
         } else {
+            if intact {
+                self.ime_abandoned = Some(marked.text.clone());
+            }
             renderer.ime_marked = None;
             self.ime_reset = true;
             None
@@ -959,7 +980,12 @@ impl MdEdit {
                 // iOS handles cursor placement via virtual-keyboard FFI
                 if !cfg!(target_os = "ios") {
                     if let Some(region) = region_opt {
-                        ui.memory_mut(|m| m.request_focus(id));
+                        // requesting focus interrupts the input method, which on X11
+                        // resets it (fcitx5 back to English); a composition the click
+                        // leaves interrupts it anyway (see `ime_marked_range`)
+                        if !ui.memory(|m| m.has_focus(id)) {
+                            ui.memory_mut(|m| m.request_focus(id));
+                        }
                         self.calc_operations(ui.ctx(), root, Event::Select { region }, &mut ops);
                     }
                 }
@@ -1034,6 +1060,11 @@ impl MdEdit {
                     .cursor_line(selection.1)
                     .map(|[t, b]| Rect::from_min_max(t, b));
                 let cursor_rect = cursor.unwrap_or(rect);
+                // a composition this frame's click left ends now, so the input
+                // method lets go of it before the next key reaches it
+                if self.renderer.ime_marked.is_some() && self.ime_marked_range().is_none() {
+                    ui.ctx().request_repaint();
+                }
                 if !std::mem::take(&mut self.ime_reset) {
                     ui.output_mut(|o| {
                         o.ime = Some(egui::output::IMEOutput {

@@ -2542,3 +2542,67 @@ fn down_arrow_into_folded_tail_stops_at_visible_end() {
     assert!(!fold.conceals(landed), "landed inside folded contents at {}", landed.0);
     assert_eq!(landed, fold.contents.start(), "doc: {doc:?}");
 }
+
+/// Clicking away mid-composition ends it with its text as typed and the
+/// caret where clicked, through what fcitx5 on Wayland sends after the
+/// click interrupts it: the composition again, then an empty preedit.
+#[test]
+fn click_away_mid_composition_keeps_its_text_and_the_click() {
+    use egui::{Event as Egui, ImeEvent};
+    let preedit =
+        |text: &str| Egui::Ime(ImeEvent::Preedit { text: text.into(), active_range_chars: None });
+    let at = |offset: usize| Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(offset)),
+            end: Location::Grapheme(Grapheme(offset)),
+        },
+    };
+
+    let mut ws = TestEditor::new("hello world\n");
+    ws.push(at(11));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("zh")]);
+    ws.enter_frame_with_input(vec![preedit("zhong")]);
+    assert_eq!(ws.get_text(), "hello worldzhong\n");
+
+    ws.push(at(5));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("zhong"), preedit("zhong")]);
+    ws.enter_frame_with_input(vec![]);
+    ws.enter_frame_with_input(vec![preedit("")]);
+    ws.enter_frame_with_input(vec![]);
+
+    let renderer = &ws.editor.edit.renderer;
+    assert_eq!(ws.get_text(), "hello worldzhong\n");
+    assert_eq!(renderer.buffer.current.selection, (Grapheme(5), Grapheme(5)));
+    assert!(renderer.ime_marked.is_none());
+
+    // the next composition starts at the caret
+    ws.enter_frame_with_input(vec![preedit("n")]);
+    assert_eq!(ws.get_text(), "hellon worldzhong\n");
+}
+
+/// What a click away abandons is ignored only until the editor gets input of
+/// its own: a later composition with the same text still commits.
+#[test]
+fn abandoned_composition_text_commits_after_typing() {
+    use egui::{Event as Egui, ImeEvent};
+    let preedit =
+        |text: &str| Egui::Ime(ImeEvent::Preedit { text: text.into(), active_range_chars: None });
+    let at = |offset: usize| Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(offset)),
+            end: Location::Grapheme(Grapheme(offset)),
+        },
+    };
+
+    let mut ws = TestEditor::new("ab\n");
+    ws.push(at(2));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("n")]);
+    ws.push(at(0));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![Egui::Text("x".into())]);
+    ws.enter_frame_with_input(vec![Egui::Ime(ImeEvent::Commit("n".into()))]);
+    assert_eq!(ws.get_text(), "xnabn\n");
+}
