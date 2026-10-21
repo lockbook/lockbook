@@ -395,7 +395,7 @@ impl<'a> GlyphonLabel<'a> {
                             if is_emoji_grapheme(g) {
                                 (g, emoji.clone())
                             } else {
-                                (g, attrs.clone())
+                                (g, crate::font::track(attrs.clone(), g, font_size))
                             }
                         })
                     }),

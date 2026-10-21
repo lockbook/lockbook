@@ -35,7 +35,9 @@ pub fn measure_sized(ui: &Ui, name: &str, font_size: f32, line_height: f32, max_
     if max_w.is_finite() && max_w < 1.0e20 {
         label = label.text_overflow(TextOverflow::EndEllipsis);
     }
-    label.measure(ui).x
+    // Whole points of slack: a slot laid out to exactly this width can come
+    // out a hair narrower after float drift, which ellipsizes the name.
+    label.measure(ui).x.ceil()
 }
 
 /// Paint a file name left-aligned in `slot` (full height = line box).

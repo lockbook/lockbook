@@ -799,6 +799,7 @@ impl MdRender {
             .unwrap();
 
         let ppi = self.ctx.pixels_per_point();
+        let points = font_size;
         let font_size = font_size * ppi;
         let line_height = line_height * ppi;
         let width = width * ppi;
@@ -850,7 +851,14 @@ impl MdRender {
                     | 0x1F000.. // supplementary multilingual plane: core emoji blocks
                     )
                 });
-                (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
+                (
+                    g,
+                    if is_emoji {
+                        emoji_attrs.clone()
+                    } else {
+                        crate::font::track(attrs.clone(), g, points)
+                    },
+                )
             });
             b.set_rich_text(spans, &attrs, glyphon::Shaping::Advanced, None);
             b.set_wrap(wrap_mode);

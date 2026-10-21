@@ -927,11 +927,13 @@ fn shape_chunk(
                 &glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla")),
             );
             let text = text.to_string();
+            let points =
+                row_height * if format.superscript || format.subscript { 0.75 } else { 1. };
             let spans = text.graphemes(true).map(|g| {
                 if shape_as_emoji(&format.family, g) {
                     (g, emoji_attrs.as_attrs())
                 } else {
-                    (g, attrs.as_attrs())
+                    (g, crate::font::track(attrs.as_attrs(), g, points))
                 }
             });
             b.set_rich_text(spans, &attrs.as_attrs(), glyphon::Shaping::Advanced, None);

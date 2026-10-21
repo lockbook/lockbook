@@ -513,12 +513,7 @@ impl<'a> GlyphonTextEdit<'a> {
                     Metrics::new(self.font_size * ppi, line_height * ppi),
                 );
                 buf.set_size(Some(f32::MAX), None);
-                buf.set_text(
-                    paint_str,
-                    &Attrs::new().family(Family::SansSerif),
-                    Shaping::Advanced,
-                    None,
-                );
+                set_sans_text(&mut buf, paint_str, self.font_size);
                 buf.shape_until_scroll(&mut fs, false);
                 buf
             },
@@ -649,12 +644,7 @@ impl<'a> GlyphonTextEdit<'a> {
                                 Metrics::new(self.font_size * ppi, line_height * ppi),
                             );
                             buf.set_size(Some(visible_width * ppi), None);
-                            buf.set_text(
-                                hint,
-                                &Attrs::new().family(Family::SansSerif),
-                                Shaping::Advanced,
-                                None,
-                            );
+                            set_sans_text(&mut buf, hint, self.font_size);
                             buf.shape_until_scroll(&mut fs, false);
                             buf
                         },
@@ -702,12 +692,7 @@ impl<'a> GlyphonTextEdit<'a> {
                                 Metrics::new(self.font_size * ppi, line_height * ppi),
                             );
                             buf.set_size(Some(f32::MAX), None);
-                            buf.set_text(
-                                suffix,
-                                &Attrs::new().family(Family::SansSerif),
-                                Shaping::Advanced,
-                                None,
-                            );
+                            set_sans_text(&mut buf, suffix, self.font_size);
                             buf.shape_until_scroll(&mut fs, false);
                             buf
                         },
@@ -870,6 +855,16 @@ fn hit_test_buffer(buffer: &glyphon::Buffer, x: f32, _y: f32) -> usize {
         }
     }
     0
+}
+
+/// Sets `text` in the system sans, spaced as [`crate::font::track`] spaces it.
+fn set_sans_text(buf: &mut glyphon::Buffer, text: &str, points: f32) {
+    use unicode_segmentation::UnicodeSegmentation as _;
+    let attrs = Attrs::new().family(Family::SansSerif);
+    let spans = text
+        .graphemes(true)
+        .map(|g| (g, crate::font::track(attrs.clone(), g, points)));
+    buf.set_rich_text(spans, &attrs, Shaping::Advanced, None);
 }
 
 #[cfg(test)]

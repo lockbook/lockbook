@@ -73,6 +73,50 @@ pub fn text_fonts() -> TextFonts {
     }
 }
 
+/// Spaces what the system sans draws at `points` as SF's text optical sizes
+/// would: the editor can't select optical size, so it gets SF's display cut,
+/// which is tighter below 28pt.
+pub fn track<'a>(attrs: glyphon::Attrs<'a>, grapheme: &str, points: f32) -> glyphon::Attrs<'a> {
+    use unicode_script::UnicodeScript as _;
+    if !cfg!(target_vendor = "apple") || attrs.family != glyphon::Family::SansSerif {
+        return attrs;
+    }
+    let drawn_by_sans = grapheme.chars().all(|c| {
+        (c as u32) < 0x2E80
+            && matches!(
+                c.script(),
+                Script::Latin
+                    | Script::Greek
+                    | Script::Cyrillic
+                    | Script::Common
+                    | Script::Inherited
+            )
+    });
+    if drawn_by_sans { attrs.letter_spacing(sf_text_spacing(points)) } else { attrs }
+}
+
+/// How much wider SF's text cut sets than its display cut, in em, by size.
+fn sf_text_spacing(points: f32) -> f32 {
+    const MEASURED: [(f32, f32); 7] = [
+        (17., 0.0606),
+        (19., 0.0551),
+        (20., 0.0463),
+        (22., 0.0287),
+        (24., 0.011),
+        (26., 0.0055),
+        (28., 0.),
+    ];
+    let (first, last) = (MEASURED[0], MEASURED[MEASURED.len() - 1]);
+    if points <= first.0 {
+        return first.1;
+    }
+    MEASURED
+        .windows(2)
+        .find(|w| points <= w[1].0)
+        .map(|w| w[0].1 + (w[1].1 - w[0].1) * (points - w[0].0) / (w[1].0 - w[0].0))
+        .unwrap_or(last.1)
+}
+
 /// The platform's fallback lists, with the scripts the system draws pointed
 /// at the faces [`load`] registered.
 pub struct Fallback {
