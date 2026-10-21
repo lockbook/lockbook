@@ -1,6 +1,7 @@
 //! The system's fonts. Apple platforms and Android draw text, symbols, and
 //! every script with them; Windows draws text and every script with them, with
-//! the bundled Noto behind; elsewhere only CJK comes from the system.
+//! the bundled Noto behind; Linux draws whatever the bundled fonts lack with
+//! those its fallback lists name; elsewhere only CJK comes from the system.
 
 use epaint::text::Blob;
 use glyphon::fontdb::{Database, FaceInfo, Source, Style};
@@ -14,6 +15,9 @@ pub fn found() -> &'static Database {
     static FOUND: OnceLock<Database> = OnceLock::new();
     FOUND.get_or_init(|| {
         let mut found = Database::new();
+        // fontconfig's directories, wherever the distribution puts them
+        #[cfg(all(unix, not(any(target_vendor = "apple", target_os = "android"))))]
+        found.load_system_fonts();
         for path in candidates() {
             if path.is_dir() {
                 found.load_fonts_dir(&path);
@@ -71,8 +75,95 @@ pub fn mono_family() -> Option<&'static str> {
     first_present(MONO)
 }
 
-/// Appends the system's text, script, and symbol faces after everything in `db`.
+/// Appends the system's faces after everything in `db`: on Linux those its
+/// fallback lists name, for whatever the bundled fonts lack; elsewhere text,
+/// script, and symbol faces.
 pub fn load(db: &mut Database) {
+    #[cfg(all(unix, not(any(target_vendor = "apple", target_os = "android"))))]
+    load_fallbacks(db);
+    #[cfg(not(all(unix, not(any(target_vendor = "apple", target_os = "android")))))]
+    load_families(db);
+}
+
+/// Loads the families cosmic-text's Linux lists name, so a font system reads
+/// a few dozen faces rather than every one installed.
+#[cfg(all(unix, not(any(target_vendor = "apple", target_os = "android"))))]
+fn load_fallbacks(db: &mut Database) {
+    use glyphon::cosmic_text::{Fallback, PlatformFallback};
+    use glyphon::fontdb::Weight;
+
+    let family = |f: &FaceInfo| f.families[0].0.clone();
+    let platform = &PlatformFallback;
+    let scripts = FALLBACK_SCRIPTS
+        .iter()
+        .flat_map(|&script| platform.script_fallback(script, ""));
+    let names = scripts.chain(platform.common_fallback()).copied();
+    for name in names {
+        // bundled already, or drawn in color Swash can't
+        if name == "Noto Color Emoji" || db.faces().any(|f| family(f) == name) {
+            continue;
+        }
+        // monospaced faces would join the monospace fallback, which takes any
+        // that covers a word ahead of the bundled script fonts
+        for face in faces(name).filter(|f| !f.monospaced) {
+            db.push_face_info(shared(face));
+        }
+    }
+
+    // fallback takes only faces of the weight asked for, so bold text
+    // reaches those without a bold face through a bold copy
+    let bold: Vec<String> = db
+        .faces()
+        .filter(|f| f.weight == Weight::BOLD)
+        .map(family)
+        .collect();
+    let copies: Vec<FaceInfo> = db
+        .faces()
+        .filter(|f| SYMBOLS.contains(&family(f).as_str()) && !bold.contains(&family(f)))
+        .cloned()
+        .collect();
+    for mut face in copies {
+        face.weight = Weight::BOLD;
+        db.push_face_info(face);
+    }
+}
+
+/// The scripts whose Linux fallback fonts are loaded. Han, kana, and Hangul
+/// are [`super::cjk`]'s.
+#[cfg(all(unix, not(any(target_vendor = "apple", target_os = "android"))))]
+const FALLBACK_SCRIPTS: &[Script] = &[
+    Script::Adlam,
+    Script::Arabic,
+    Script::Armenian,
+    Script::Bengali,
+    Script::Cherokee,
+    Script::Devanagari,
+    Script::Ethiopic,
+    Script::Georgian,
+    Script::Gujarati,
+    Script::Gurmukhi,
+    Script::Hebrew,
+    Script::Javanese,
+    Script::Kannada,
+    Script::Khmer,
+    Script::Lao,
+    Script::Malayalam,
+    Script::Mongolian,
+    Script::Myanmar,
+    Script::Oriya,
+    Script::Sinhala,
+    Script::Syriac,
+    Script::Tamil,
+    Script::Telugu,
+    Script::Thaana,
+    Script::Thai,
+    Script::Tibetan,
+    Script::Tifinagh,
+    Script::Vai,
+];
+
+#[cfg(not(all(unix, not(any(target_vendor = "apple", target_os = "android")))))]
+fn load_families(db: &mut Database) {
     let (sans, mono) = (sans_family(), mono_family());
     if let Some(sans) = sans {
         db.set_sans_serif_family(sans);
@@ -97,7 +188,7 @@ pub fn load(db: &mut Database) {
         if !loaded.contains(&family) {
             loaded.push(family);
             for face in faces(family) {
-                db.push_face_info(face.clone());
+                db.push_face_info(shared(face));
             }
         }
     }
@@ -130,6 +221,16 @@ pub fn nearest(family: &str, weight: u16, style: Style) -> Option<&'static FaceI
             .min_by_key(|f| f.weight.0.abs_diff(weight))
     };
     in_style(style).or_else(|| in_style(Style::Normal))
+}
+
+/// `face` with its file mapped once and shared: the fallback reads every face
+/// in a font system with each new style, and would otherwise reopen each file.
+pub fn shared(face: &FaceInfo) -> FaceInfo {
+    let mut face = face.clone();
+    if let (Source::File(path), Some(data)) = (&face.source, face_data(&face)) {
+        face.source = Source::SharedFile(path.clone(), data);
+    }
+    face
 }
 
 /// A face's bytes, shared and mapped rather than read, so only the glyphs
@@ -288,7 +389,12 @@ const LAST_RESORT: &[&str] = &[];
 
 #[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
 const SCRIPTS: &[(Script, &[&str])] = &[];
-#[cfg(not(any(target_vendor = "apple", target_os = "android")))]
+/// The bundled text and emoji faces, ahead of the system's for what a
+/// script's fonts lack, as before the system's were loaded: DejaVu Sans
+/// would take symbols Noto Sans Mono draws, and draw emoji in monochrome.
+#[cfg(all(unix, not(any(target_vendor = "apple", target_os = "android"))))]
+const SYMBOLS: &[&str] = &["Noto Sans", "Noto Sans Mono", "Twemoji Mozilla"];
+#[cfg(not(unix))]
 const SYMBOLS: &[&str] = &[];
 
 #[cfg(target_os = "macos")]
@@ -370,44 +476,12 @@ fn candidates() -> Vec<PathBuf> {
     .collect()
 }
 
-/// CJK only: the bundled Noto covers everything else.
-#[cfg(all(unix, not(any(target_vendor = "apple", target_os = "android"))))]
-fn candidates() -> Vec<PathBuf> {
-    let mut dirs: Vec<PathBuf> = vec!["/usr/share/fonts".into(), "/usr/local/share/fonts".into()];
-    if let Ok(home) = std::env::var("HOME") {
-        dirs.push(PathBuf::from(&home).join(".local/share/fonts"));
-        dirs.push(PathBuf::from(&home).join(".fonts"));
-    }
-
-    let mut paths = vec![];
-    while let Some(dir) = dirs.pop() {
-        for path in read_dir(dir) {
-            let name = path.file_name().unwrap_or_default().to_string_lossy();
-            let cjk = name.contains("CJK")
-                || ["NotoSansSC", "NotoSansTC", "NotoSansHK", "NotoSansJP", "NotoSansKR"]
-                    .iter()
-                    .any(|p| name.starts_with(p))
-                || name.starts_with("wqy")
-                || name.starts_with("DroidSansFallback");
-            if path.is_dir() {
-                dirs.push(path);
-            } else if cjk {
-                paths.push(path);
-            }
-        }
-    }
-    paths
-}
-
-#[cfg(not(any(unix, target_os = "windows")))]
+#[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
 fn candidates() -> Vec<PathBuf> {
     vec![]
 }
 
-#[cfg(any(
-    target_os = "macos",
-    all(unix, not(any(target_vendor = "apple", target_os = "android")))
-))]
+#[cfg(target_os = "macos")]
 fn read_dir(dir: PathBuf) -> impl Iterator<Item = PathBuf> {
     std::fs::read_dir(dir)
         .into_iter()

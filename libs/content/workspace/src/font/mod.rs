@@ -201,12 +201,15 @@ mod tests {
         ─ │ ┌ ┐ └ ┘ ½ ² ³ Ωμέγα Жизнь café 😀 👍🏽 🎉 \
         مرحبا שלום नमस्ते বাংলা ગુજરાતી ਪੰਜਾਬੀ ಕನ್ನಡ മലയാളം မြန်မာ தமிழ் తెలుగు สวัสดี";
 
-    /// What the bundled fonts lack: they carry no symbol font. System CJK
-    /// fonts cover some of these on some machines, so a gap may not show.
+    /// A word in scripts only Linux's system fonts draw, where it has them.
+    const SYSTEM_SCRIPTS: &str = "Հայերեն አማርኛ ქართული ភាសាខ្មែរ ລາວ සිංහල བོད་ཡིག";
+
+    /// What the bundled fonts lack: they carry no symbol font. Linux draws
+    /// these with the system's fonts where it has them.
     #[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
     const KNOWN_GAPS: &str = "⌘⌥⇧⌃⎋⏎⌫⇥✓✗★☆∑";
-    #[cfg(any(target_vendor = "apple", target_os = "android", target_os = "windows"))]
-    const KNOWN_GAPS: &str = "";
+
+    const LINUX: bool = cfg!(all(unix, not(any(target_vendor = "apple", target_os = "android"))));
 
     fn tofu(fs: &mut FontSystem, text: &str, attrs: Attrs) -> BTreeSet<char> {
         let mut buf = Buffer::new(fs, Metrics::new(16., 20.));
@@ -229,18 +232,44 @@ mod tests {
     #[cfg(not(target_os = "windows"))]
     const WINDOWS_DRAWS: &str = "";
 
+    /// The characters of `text` no face in `fs` draws.
+    #[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
+    fn undrawable(fs: &FontSystem, text: &str) -> BTreeSet<char> {
+        let mut missing: BTreeSet<char> = text.chars().filter(|c| !c.is_whitespace()).collect();
+        let db = fs.db();
+        for face in db.faces() {
+            db.with_face_data(face.id, |data, index| {
+                if let Ok(face) = ttf_parser::Face::parse(data, index) {
+                    missing.retain(|&c| face.glyph_index(c).is_none());
+                }
+            });
+        }
+        missing
+    }
+
     #[test]
     fn everyday_characters_render() {
         let mut fs = crate::widgets::glyphon_render::new_font_system();
-        let known: BTreeSet<char> = KNOWN_GAPS.chars().collect();
-        let text = format!("{MUST_RENDER} {WINDOWS_DRAWS}");
+        let text = if LINUX {
+            format!("{MUST_RENDER} {SYSTEM_SCRIPTS}")
+        } else {
+            format!("{MUST_RENDER} {WINDOWS_DRAWS}")
+        };
+        // what only the system's fonts draw may be missing where it lacks them
+        #[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
+        let allowed = if LINUX {
+            undrawable(&fs, &format!("{KNOWN_GAPS} {SYSTEM_SCRIPTS}"))
+        } else {
+            KNOWN_GAPS.chars().collect()
+        };
+        #[cfg(any(target_vendor = "apple", target_os = "android", target_os = "windows"))]
+        let allowed = BTreeSet::new();
         for (name, attrs) in [
             ("sans", Attrs::new().family(Family::SansSerif)),
             ("bold", Attrs::new().family(Family::SansSerif).weight(Weight::BOLD)),
             ("mono", Attrs::new().family(Family::Monospace)),
         ] {
-            let missing = tofu(&mut fs, &text, attrs);
-            let new: String = missing.difference(&known).collect();
+            let new: String = tofu(&mut fs, &text, attrs).difference(&allowed).collect();
             assert!(new.is_empty(), "{name} renders tofu for {new}");
         }
     }

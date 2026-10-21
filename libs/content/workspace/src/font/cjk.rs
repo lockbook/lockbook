@@ -1,16 +1,35 @@
 //! CJK fonts come from the OS: they are tens of megabytes each, and every
-//! platform but Linux ships them. Missing files leave CJK as tofu, as before.
+//! platform but Linux ships them. Missing ones leave CJK as tofu, as before.
 
 use super::system;
 use glyphon::fontdb::{Database, FaceInfo, Language, Style, Weight};
 use std::sync::OnceLock;
 
-const SC: &[&str] =
-    &["PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei"];
-const TC: &[&str] = &["PingFang TC", "Noto Sans CJK TC", "Noto Sans TC", "Microsoft JhengHei"];
-const HK: &[&str] = &["PingFang HK", "Noto Sans CJK HK", "Noto Sans HK"];
-const JA: &[&str] = &["Hiragino Sans", "Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic"];
-const KO: &[&str] = &["Apple SD Gothic Neo", "Noto Sans CJK KR", "Noto Sans KR", "Malgun Gothic"];
+const SC: &[&str] = &[
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Noto Sans CJK SC",
+    "Noto Sans SC",
+    "Source Han Sans SC",
+    "Microsoft YaHei",
+];
+const TC: &[&str] = &[
+    "PingFang TC",
+    "Noto Sans CJK TC",
+    "Noto Sans TC",
+    "Source Han Sans TC",
+    "Microsoft JhengHei",
+];
+const HK: &[&str] = &["PingFang HK", "Noto Sans CJK HK", "Noto Sans HK", "Source Han Sans HC"];
+const JA: &[&str] =
+    &["Hiragino Sans", "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans", "Yu Gothic"];
+const KO: &[&str] = &[
+    "Apple SD Gothic Neo",
+    "Noto Sans CJK KR",
+    "Noto Sans KR",
+    "Source Han Sans K",
+    "Malgun Gothic",
+];
 const OTHER: &[&str] = &["WenQuanYi Micro Hei", "WenQuanYi Zen Hei", "Droid Sans Fallback"];
 
 const GROUPS: [&[&str]; 5] = [SC, TC, HK, JA, KO];
@@ -106,7 +125,7 @@ fn families() -> impl Iterator<Item = (&'static FaceInfo, &'static FaceInfo)> {
 pub fn load(db: &mut Database) {
     for (regular, bold) in families() {
         for (face, weight) in [(regular, Weight::NORMAL), (bold, Weight::BOLD)] {
-            let mut info = face.clone();
+            let mut info = system::shared(face);
             info.weight = weight;
             if weight == Weight::BOLD {
                 info.families
