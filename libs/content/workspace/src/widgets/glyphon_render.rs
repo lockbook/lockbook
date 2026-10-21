@@ -33,8 +33,7 @@ pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
 pub fn new_font_system() -> FontSystem {
     let mut db = fontdb::Database::new();
     crate::font::load(&mut db);
-    crate::font::cjk::load(&mut db);
-    let fallback = crate::font::cjk::Fallback::default();
+    let fallback = crate::font::Fallback::default();
     FontSystem::new_with_locale_and_db_and_fallback("en-US".into(), db, fallback)
 }
 

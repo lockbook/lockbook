@@ -2061,24 +2061,8 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    let (sans, mono, bold, italic, base_scale) = if cfg!(target_vendor = "apple") {
-        (
-            lb_fonts::SF_PRO_TEXT_REGULAR,
-            lb_fonts::SF_MONO_REGULAR,
-            lb_fonts::SF_PRO_TEXT_BOLD,
-            lb_fonts::SF_PRO_TEXT_ITALIC,
-            0.9,
-        )
-    } else {
-        (
-            lb_fonts::NOTO_SANS_REGULAR,
-            lb_fonts::NOTO_SANS_MONO_REGULAR,
-            lb_fonts::NOTO_SANS_BOLD,
-            lb_fonts::NOTO_SANS_ITALIC,
-            1.,
-        )
-    };
-
+    let text = crate::font::text_fonts();
+    let base_scale = text.scale;
     let mono_scale = 0.9 * base_scale;
     let mono_y_offset_factor = 0.1;
 
@@ -2087,109 +2071,38 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     let super_scale = 3. / 4.;
     let sub_scale = 3. / 4.;
 
-    fonts.font_data.insert(
-        "sans".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(sans)
-        }
-        .into(),
-    );
-    fonts.font_data.insert("mono".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: mono_y_offset_factor,
-                scale: mono_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
-    fonts.font_data.insert(
-        "bold".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(bold)
-        }
-        .into(),
-    );
-    fonts.font_data.insert(
-        "italic".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(italic)
-        }
-        .into(),
-    );
-
-    fonts.font_data.insert("sans_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor,
-                scale: super_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(sans)
-        }
-        .into()
-    });
-    fonts.font_data.insert("bold_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor,
-                scale: super_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(bold)
-        }
-        .into()
-    });
-    fonts.font_data.insert("mono_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor + mono_y_offset_factor,
-                scale: super_scale * mono_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
-
-    fonts.font_data.insert("sans_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor,
-                scale: sub_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(sans)
-        }
-        .into()
-    });
-    fonts.font_data.insert("bold_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor,
-                scale: sub_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(bold)
-        }
-        .into()
-    });
-    fonts.font_data.insert("mono_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor + mono_y_offset_factor,
-                scale: sub_scale * mono_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
+    let tweaked = |font: &FontData, scale: f32, y_offset_factor: f32| {
+        let mut font = font.clone();
+        font.tweak.scale = scale;
+        font.tweak.y_offset_factor = y_offset_factor;
+        Arc::new(font)
+    };
+    for (name, font, scale, y_offset_factor) in [
+        ("sans", &text.sans, base_scale, 0.),
+        ("bold", &text.bold, base_scale, 0.),
+        ("italic", &text.italic, base_scale, 0.),
+        ("mono", &text.mono, mono_scale, mono_y_offset_factor),
+        ("sans_super", &text.sans, super_scale * base_scale, super_y_offset_factor),
+        ("bold_super", &text.bold, super_scale * base_scale, super_y_offset_factor),
+        (
+            "mono_super",
+            &text.mono,
+            super_scale * mono_scale,
+            super_y_offset_factor + mono_y_offset_factor,
+        ),
+        ("sans_sub", &text.sans, sub_scale * base_scale, sub_y_offset_factor),
+        ("bold_sub", &text.bold, sub_scale * base_scale, sub_y_offset_factor),
+        (
+            "mono_sub",
+            &text.mono,
+            sub_scale * mono_scale,
+            sub_y_offset_factor + mono_y_offset_factor,
+        ),
+    ] {
+        fonts
+            .font_data
+            .insert(name.into(), tweaked(font, scale, y_offset_factor));
+    }
 
     fonts.font_data.insert("icons".into(), {
         FontData {
@@ -2265,7 +2178,6 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .push("phosphor".to_owned());
     }
 
-    #[cfg(not(target_family = "wasm"))]
     crate::font::cjk::register_egui(fonts, base_scale);
 }
 
