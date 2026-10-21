@@ -129,9 +129,9 @@
             }
         }
 
-        /// The software keyboard is up: first responder without a hardware keyboard.
+        /// The software keyboard is up: first responder, and no hardware keyboard keeps it away.
         var isSoftwareKeyboardUp: Bool {
-            isFirstResponder && GCKeyboard.coalesced == nil
+            isFirstResponder && mtkView.softwareKeyboardInUse
         }
 
         @available(*, unavailable)
@@ -233,7 +233,7 @@
             }
 
             if let wsHandle {
-                update_virtual_keyboard(wsHandle, isFirstResponder && GCKeyboard.coalesced == nil)
+                update_virtual_keyboard(wsHandle, isSoftwareKeyboardUp)
             }
         }
 

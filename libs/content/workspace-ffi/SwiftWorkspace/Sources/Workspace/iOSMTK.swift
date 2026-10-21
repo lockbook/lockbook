@@ -389,6 +389,7 @@
             }
 
             dark_mode(wsHandle, mtkView.isDarkMode())
+            set_software_keyboard_in_use(wsHandle, mtkView.softwareKeyboardInUse)
             syncAccentColor(mtkView)
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
@@ -700,6 +701,11 @@
                 name: UIApplication.didBecomeActiveNotification,
                 object: nil
             )
+            for name in [Notification.Name.GCKeyboardDidConnect, .GCKeyboardDidDisconnect] {
+                NotificationCenter.default.addObserver(
+                    self, selector: #selector(hardwareKeyboardChanged), name: name, object: nil
+                )
+            }
             NotificationCenter.default.addObserver(
                 self,
                 selector: #selector(appDidEnterBackground),
@@ -710,6 +716,11 @@
 
         @objc private func appDidBecomeActive() {
             self.isPaused = false
+        }
+
+        /// The editor's layout follows the hardware keyboard; redraw when one comes or goes.
+        @objc private func hardwareKeyboardChanged() {
+            DispatchQueue.main.async { self.requestFrame() }
         }
 
         @objc private func appDidEnterBackground() {
@@ -1157,6 +1168,13 @@
 
         func isDarkMode() -> Bool {
             traitCollection.userInterfaceStyle != .light
+        }
+
+        /// A hardware keyboard keeps the software one away unless it comes up
+        /// anyway, covering more than the shortcuts bar would.
+        var softwareKeyboardInUse: Bool {
+            let covered = bounds.maxY - keyboardLayoutGuide.layoutFrame.minY
+            return GCKeyboard.coalesced == nil || covered > 150
         }
 
         deinit {

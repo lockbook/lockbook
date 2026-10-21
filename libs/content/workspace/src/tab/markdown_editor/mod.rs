@@ -235,8 +235,8 @@ pub struct MdEdit {
     pub cursor: CursorState,
     pub event: EventState,
 
-    /// Phone-sized layout (phone or iPad compact mode). The toolbar docks to
-    /// the bottom above the virtual keyboard, for example.
+    /// Touch typing through the software keyboard: the toolbar docks above it
+    /// and shortcut hints hide. Set each frame from the workspace.
     pub phone_mode: bool,
 
     /// Transient drag selection — `Some` while a drag is in progress; the
@@ -424,7 +424,6 @@ pub struct MdResources {
 pub struct MdConfig {
     pub readonly: bool,
     pub ext: String,
-    pub tablet_or_desktop: bool,
 }
 
 pub struct MdLayout {
@@ -729,12 +728,11 @@ impl Editor {
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
         let MdResources { ctx, core, persistence, files, link_resolver, embeds } = res;
-        let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
+        let MdConfig { readonly, ext } = cfg;
         let plaintext = ext.to_lowercase() != "md";
 
         let dark_mode = ctx.style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
-        let phone_mode = touch_mode && !tablet_or_desktop;
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
         let client: HttpClient = Default::default();
@@ -807,7 +805,7 @@ impl Editor {
         Self {
             edit: MdEdit {
                 renderer,
-                phone_mode,
+                phone_mode: touch_mode,
                 cursor: Default::default(),
                 event: Default::default(),
                 in_progress_selection: None,
@@ -884,7 +882,7 @@ impl Editor {
                 embeds: Box::new(()),
                 files,
             },
-            MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
+            MdConfig { readonly: false, ext: String::new() },
         )
     }
 
@@ -1160,7 +1158,7 @@ impl Editor {
                     editor_shown
                 } else {
                     // no menu toggle in this layout; clear in case the menu was
-                    // open when an iPad left split view (it disables the buttons)
+                    // open when a hardware keyboard was attached (it disables the buttons)
                     self.toolbar.menu_open = false;
 
                     if !cfg!(target_os = "android")

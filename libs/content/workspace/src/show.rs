@@ -238,11 +238,11 @@ impl Workspace {
             return;
         }
 
-        let show_tabs = self.show_tabs;
+        let software_keyboard = self.software_keyboard_in_use;
         if let Some(tab) = self.current_tab_mut() {
-            // entering/leaving iPad split view toggles this while a doc is open
+            // attaching or detaching a hardware keyboard toggles this while a doc is open
             if let Some(md) = tab.markdown_mut() {
-                md.edit.phone_mode = md.edit.renderer.touch_mode && !show_tabs;
+                md.edit.phone_mode = md.edit.renderer.touch_mode && software_keyboard;
             }
 
             let resp = tab.show(ui);
