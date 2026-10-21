@@ -229,7 +229,7 @@ impl ImageViewer {
 
         let response = ui.interact(
             available.intersect(image_rect),
-            ui.id().with("image_viewer_image"),
+            ui.scope_id().with("image_viewer_image"),
             egui::Sense::click(),
         );
 

@@ -109,7 +109,7 @@ impl TestEditor {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, size);
-        let _ = ctx.run(RawInput { screen_rect: Some(screen_rect), ..Default::default() }, |ctx| {
+        ctx.run_pass(RawInput { screen_rect: Some(screen_rect), ..Default::default() }, |ctx| {
             ctx.set_lb_theme(Theme::default(Mode::Dark));
             crate::register_font_system(ctx);
             if focused {
@@ -120,10 +120,14 @@ impl TestEditor {
             for event in &pending {
                 ctx.push_markdown_event(event.clone());
             }
-            egui::CentralPanel::default().show(ctx, |ui| {
-                self.editor.show(ui);
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    self.editor.show(ui);
+                })
             });
-        });
+        })
+        .textures_delta
+        .clear();
     }
 
     pub fn get_text(&self) -> &str {
@@ -136,7 +140,7 @@ impl TestEditor {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, SCREEN_SIZE);
-        let _ = ctx.run(
+        ctx.run_pass(
             RawInput { screen_rect: Some(screen_rect), events, ..Default::default() },
             |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
@@ -144,11 +148,15 @@ impl TestEditor {
                 for event in &pending {
                     ctx.push_markdown_event(event.clone());
                 }
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.editor.show(ui);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        self.editor.show(ui);
+                    })
                 });
             },
-        );
+        )
+        .textures_delta
+        .clear();
     }
 
     pub fn has_focus(&self, id: egui::Id) -> bool {

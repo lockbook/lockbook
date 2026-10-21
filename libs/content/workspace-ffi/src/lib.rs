@@ -44,7 +44,7 @@ impl WgpuWorkspace<'_> {
         if cfg!(target_os = "android") || cfg!(target_os = "ios") {
             self.renderer
                 .context
-                .style_mut(|s| s.visuals.panel_fill = s.visuals.extreme_bg_color);
+                .global_style_mut(|s| s.visuals.panel_fill = s.visuals.extreme_bg_color);
         }
 
         let keyboard_height =
@@ -54,23 +54,31 @@ impl WgpuWorkspace<'_> {
         // the chat composer drops its nav-bar padding while the keyboard is up.
         self.renderer.context.memory_mut(|m| {
             m.data
-                .insert_temp(egui::Id::new("ws_keyboard_height"), keyboard_height)
+                .insert_temp(egui::Id::unique("ws_keyboard_height"), keyboard_height)
         });
 
-        let workspace_frame =
-            egui::Frame::default().fill(self.renderer.context.style().visuals.extreme_bg_color);
+        let workspace_frame = egui::Frame::default().fill(
+            self.renderer
+                .context
+                .global_style()
+                .visuals
+                .extreme_bg_color,
+        );
 
-        let workspace_response = egui::CentralPanel::default()
-            .frame(workspace_frame)
-            .show(&self.renderer.context, |ui| {
-                let mut rect = ui.max_rect();
-                rect.max.y -= keyboard_height;
-                ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
-                    self.workspace.show(ui)
+        let ctx = self.renderer.context.clone();
+        let workspace_response = ctx.root_ui(|root| {
+            egui::CentralPanel::default()
+                .frame(workspace_frame)
+                .show(root, |ui| {
+                    let mut rect = ui.max_rect();
+                    rect.max.y -= keyboard_height;
+                    ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                        self.workspace.show(ui)
+                    })
+                    .inner
                 })
                 .inner
-            })
-            .inner;
+        });
 
         let prepared = self.renderer.prepare_frame();
         let response = Response::new(

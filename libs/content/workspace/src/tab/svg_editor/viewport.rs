@@ -106,7 +106,7 @@ pub fn zoom_percentage_to_transform(
     Transform::identity()
         .post_scale(zoom_delta, zoom_delta)
         .post_translate(
-            (1.0 - zoom_delta) * ui.ctx().screen_rect().center().x,
-            (1.0 - zoom_delta) * ui.ctx().screen_rect().center().y,
+            (1.0 - zoom_delta) * ui.ctx().content_rect().center().x,
+            (1.0 - zoom_delta) * ui.ctx().content_rect().center().y,
         )
 }

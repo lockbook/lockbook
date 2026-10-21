@@ -144,9 +144,11 @@ impl MdEdit {
             Pos2::new(max_x, cursor_bot.y + 2. * radius),
         )
         .expand(hit_pad);
-        let id =
-            ui.id()
-                .with(if is_start { "selection_handle_start" } else { "selection_handle_end" });
+        let id = ui.scope_id().with(if is_start {
+            "selection_handle_start"
+        } else {
+            "selection_handle_end"
+        });
         let response = ui.interact(hit_rect, id, Sense::drag());
 
         if response.drag_stopped() {

@@ -66,6 +66,7 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
                 round_to_pixels: None,
                 blur_width: 0.,
                 brush: None,
+                angle: 0.0,
             },
         );
 

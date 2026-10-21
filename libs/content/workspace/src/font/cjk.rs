@@ -156,7 +156,6 @@ const BOLD_ALIAS: &str = ".lockbook CJK bold";
 pub fn register_egui(fonts: &mut epaint::text::FontDefinitions, scale: f32) {
     use epaint::text::{FontData, FontFamily, FontTweak};
     use glyphon::fontdb::Source;
-    use std::borrow::Cow;
     use std::collections::HashMap;
     use std::path::Path;
 
@@ -195,7 +194,7 @@ pub fn register_egui(fonts: &mut epaint::text::FontDefinitions, scale: f32) {
 
     for (name, bytes, index) in mapped {
         let data = FontData {
-            font: Cow::Borrowed(bytes),
+            font: std::sync::Arc::new(*bytes),
             index: *index,
             tweak: FontTweak { scale, ..Default::default() },
         };

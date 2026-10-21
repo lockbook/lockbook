@@ -1812,14 +1812,17 @@ fn masked_plaintext_mdedit_renders_glyphs() {
     let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(300., 30.));
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
     let frame = |edit: &mut MdEdit| {
-        let _ =
-            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
-                ctx.set_lb_theme(Theme::default(Mode::Dark));
-                crate::register_font_system(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    edit.show(ui, rect, egui::Id::new("key_field"));
-                });
+        ctx.run_pass(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+            ctx.set_lb_theme(Theme::default(Mode::Dark));
+            crate::register_font_system(ctx);
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    edit.show(ui, rect, egui::Id::unique("key_field"));
+                })
             });
+        })
+        .textures_delta
+        .clear();
     };
     frame(&mut edit);
 
@@ -1875,14 +1878,17 @@ fn bounded_composer_scrolls_cursor_into_view() {
     let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(600., 140.));
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
     let frame = |edit: &mut MdEdit| {
-        let _ =
-            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
-                ctx.set_lb_theme(Theme::default(Mode::Dark));
-                crate::register_font_system(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    edit.show(ui, rect, egui::Id::new("composer"));
-                });
+        ctx.run_pass(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+            ctx.set_lb_theme(Theme::default(Mode::Dark));
+            crate::register_font_system(ctx);
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    edit.show(ui, rect, egui::Id::unique("composer"));
+                })
             });
+        })
+        .textures_delta
+        .clear();
     };
 
     let end = {
@@ -2293,18 +2299,22 @@ fn phone_toolbar_never_pushed_off_screen() {
     let frames_run = std::cell::Cell::new(0u32);
     let frame = |editor: &mut super::super::Editor, events: Vec<egui::Event>| -> (f32, f32) {
         let mut content = (f32::NAN, f32::NAN);
-        let _ = ctx.run(
+        ctx.run_pass(
             egui::RawInput { screen_rect: Some(screen), events, ..Default::default() },
             |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
                 editor.focus(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    editor.show(ui);
-                    content = (ui.min_rect().max.y, ui.max_rect().max.y);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        editor.show(ui);
+                        content = (ui.min_rect().max.y, ui.max_rect().max.y);
+                    })
                 });
             },
-        );
+        )
+        .textures_delta
+        .clear();
         // The layout-level signal: embed painting (which runs for off-screen
         // neighbor rows) must never drag the toolbar allocation off screen.
         // The first frames lay out before fonts/virtualization settle.
@@ -2358,6 +2368,8 @@ fn phone_toolbar_never_pushed_off_screen() {
                     unit: egui::MouseWheelUnit::Point,
                     delta: egui::vec2(0.0, -40.0),
                     modifiers: Default::default(),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
                 },
             ],
         );
@@ -2387,6 +2399,8 @@ fn phone_toolbar_never_pushed_off_screen() {
                     unit: egui::MouseWheelUnit::Point,
                     delta: egui::vec2(0.0, 35.0),
                     modifiers: Default::default(),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
                 },
             ],
         );

@@ -517,7 +517,7 @@ impl MdRender {
     pub fn empty(ctx: Context) -> Self {
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
-        let dark_mode = ctx.style().visuals.dark_mode;
+        let dark_mode = ctx.global_style().visuals.dark_mode;
         let ws_seq = crate::seq::ws_seq(&ctx);
         Self {
             ctx,
@@ -754,7 +754,7 @@ impl Editor {
         let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
         let plaintext = ext.to_lowercase() != "md";
 
-        let dark_mode = ctx.style().visuals.dark_mode;
+        let dark_mode = ctx.global_style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let phone_mode = touch_mode && !tablet_or_desktop;
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
@@ -914,7 +914,7 @@ impl Editor {
     }
 
     pub fn id(&self) -> Id {
-        Id::new(self.edit.file_id).with(self.id_salt)
+        Id::unique(self.edit.file_id).with(self.id_salt)
     }
 
     /// Last disk hmac adopted with the displayed buffer.
@@ -1117,7 +1117,7 @@ impl Editor {
                     let toolbar_height = if cfg!(target_os = "android") {
                         ui.ctx()
                             .memory(|m| {
-                                m.data.get_temp::<f32>(Id::new(
+                                m.data.get_temp::<f32>(Id::unique(
                                     "android_native_markdown_toolbar_height",
                                 ))
                             })
@@ -2081,7 +2081,6 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
 
     let mono_scale = 0.9 * base_scale;
     let mono_y_offset_factor = 0.1;
-    let mono_baseline_offset_factor = -0.1;
 
     let super_y_offset_factor = -1. / 4.;
     let sub_y_offset_factor = 1. / 4.;
@@ -2101,7 +2100,6 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             tweak: FontTweak {
                 y_offset_factor: mono_y_offset_factor,
                 scale: mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
                 ..Default::default()
             },
             ..FontData::from_static(mono)
@@ -2152,7 +2150,6 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             tweak: FontTweak {
                 y_offset_factor: super_y_offset_factor + mono_y_offset_factor,
                 scale: super_scale * mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
                 ..Default::default()
             },
             ..FontData::from_static(mono)
@@ -2187,7 +2184,6 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             tweak: FontTweak {
                 y_offset_factor: sub_y_offset_factor + mono_y_offset_factor,
                 scale: sub_scale * mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
                 ..Default::default()
             },
             ..FontData::from_static(mono)
@@ -2325,16 +2321,20 @@ mod test {
         fn enter_frame(&mut self) {
             let ctx = self.editor.edit.renderer.ctx.clone();
             let pending = std::mem::take(&mut self.pending);
-            let _ = ctx.run(RawInput::default(), |ctx| {
+            ctx.run_pass(RawInput::default(), |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
                 for event in &pending {
                     ctx.push_markdown_event(event.clone());
                 }
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.editor.show(ui);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        self.editor.show(ui);
+                    })
                 });
-            });
+            })
+            .textures_delta
+            .clear();
         }
 
         fn get_text(&self) -> &str {

@@ -134,7 +134,7 @@ fn layout_truncate(ui: &Ui, label: &str, max_w: f32) -> std::sync::Arc<egui::Gal
             ..Default::default()
         },
     );
-    ui.fonts(|f| f.layout_job(job))
+    ui.fonts_mut(|f| f.layout_job(job))
 }
 
 /// Layout-box vertical mid in `slot` (no mesh_bounds — #21).

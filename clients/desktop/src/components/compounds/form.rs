@@ -62,7 +62,7 @@ pub mod metrics {
 
 fn form_row_seq_id(ui: &Ui) -> Id {
     // Shared with [`form_group`] so the counter resets per plate.
-    ui.id().with("form_row_seq")
+    ui.scope_id().with("form_row_seq")
 }
 
 /// One [`Space::Xs`] between rows (F2-visible). Skipped for the first row so
@@ -201,7 +201,7 @@ fn layout_form_text(
         ..Default::default()
     };
     job.append(text, 0.0, TextFormat { font_id, color, ..Default::default() });
-    ui.fonts(|f| f.layout_job(job))
+    ui.fonts_mut(|f| f.layout_job(job))
 }
 
 fn form_row_inner(

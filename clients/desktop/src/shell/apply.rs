@@ -218,7 +218,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 err: None,
             });
             ctx.data_mut(|d| {
-                d.insert_temp(egui::Id::new("shell_share_need_focus"), true);
+                d.insert_temp(egui::Id::unique("shell_share_need_focus"), true);
                 d.remove::<String>(share_verify_inflight_key());
                 d.remove::<Vec<ShareNetDone>>(share_verify_done_key());
             });
@@ -345,7 +345,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 });
                 // Fresh expand + scroll-to-selected for this move session.
                 ctx.data_mut(|d| {
-                    d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new((
+                    d.remove::<std::collections::HashSet<Uuid>>(egui::Id::unique((
                         "shell_folder_pick_exp",
                         "shell_move",
                     )));
@@ -390,7 +390,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 }
             }
             app.modal = Some(Modal::Rename { id, name: stem, ext });
-            ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_rename_need_focus"), true));
+            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_rename_need_focus"), true));
         }
         A::ConfirmRename => {
             if let Some(Modal::Rename { id, name, ext }) = app.modal.take() {
@@ -427,7 +427,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 .ready()
                 .map(|r| r.workspace.files.read().unwrap().root().id);
             ctx.data_mut(|d| {
-                d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new((
+                d.remove::<std::collections::HashSet<Uuid>>(egui::Id::unique((
                     "shell_folder_pick_exp",
                     "shell_accept",
                 )));
@@ -492,7 +492,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             match m {
                 OnboardMode::Create => {
                     ctx.data_mut(|d| {
-                        d.insert_temp(egui::Id::new("onboard_uname_need_focus"), true)
+                        d.insert_temp(egui::Id::unique("onboard_uname_need_focus"), true)
                     });
                 }
                 OnboardMode::Import => {
@@ -657,7 +657,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 done: None,
             };
             app.phrase_cache = None;
-            ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_upgrade_need_focus"), true));
+            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_upgrade_need_focus"), true));
         }
         A::UpgradeBack => {
             match &app.account_panel {
@@ -714,7 +714,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::DeleteAccount { typed: String::new() };
             app.phrase_cache = None;
-            ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_delete_account_need_focus"), true));
+            ctx.data_mut(|d| {
+                d.insert_temp(egui::Id::unique("shell_delete_account_need_focus"), true)
+            });
         }
         A::ConfirmDeleteAccount => {
             let username = app
@@ -897,10 +899,10 @@ fn open_create_sheet(
     });
     // Focus name field + select-all; clear height lock + folder wizard state.
     ctx.data_mut(|d| {
-        d.insert_temp(egui::Id::new("shell_create_need_focus"), true);
-        d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new("shell_create_folder_exp"));
+        d.insert_temp(egui::Id::unique("shell_create_need_focus"), true);
+        d.remove::<std::collections::HashSet<Uuid>>(egui::Id::unique("shell_create_folder_exp"));
         d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_create_folder_tree"));
-        d.remove::<f32>(egui::Id::new("shell_create_inner_h"));
+        d.remove::<f32>(egui::Id::unique("shell_create_inner_h"));
     });
 }
 
@@ -1326,7 +1328,7 @@ fn import_pick(app: &mut ShellApp, ctx: &Context) {
 fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBuf>) {
     let dest = app.session.ready().map(dest_folder_for_import);
     ctx.data_mut(|d| {
-        d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new((
+        d.remove::<std::collections::HashSet<Uuid>>(egui::Id::unique((
             "shell_folder_pick_exp",
             "shell_import_parent",
         )));

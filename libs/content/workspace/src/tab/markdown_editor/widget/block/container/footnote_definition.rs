@@ -36,7 +36,7 @@ impl<'ast> MdRender {
                     ..Default::default()
                 },
             );
-            let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
+            let galley = ui.fonts_mut(|fonts| fonts.layout_job(layout_job));
             ui.painter()
                 .galley(annotation_space.left_top(), galley, Default::default());
         }

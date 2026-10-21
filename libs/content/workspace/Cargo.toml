@@ -18,13 +18,13 @@ comrak = { version = "0.50", default-features = false, features = [
     "shortcodes",
 ] }
 emojis = "0.8.0"
-egui = { version = "0.32.3", features = ["serde"] }
-egui_animation = "0.9.0"
+egui = { version = "0.37.0", features = ["serde"] }
+egui_animation = "0.14.0"
 egui_wgpu_renderer = { path = "../egui_wgpu_renderer" }
-epaint = { version = "0.32", features = ["color-hex"] }
+epaint = { version = "0.37", features = ["color-hex"] }
 futures = "0.3.30"
 glam = "0.22.0"
-glyphon = "0.9.0"
+glyphon = "0.12.0"
 hayro = "0.4.0"
 # Annoyingly egui depends on a version match here for feature toggling reasons
 image = "0.25.9"

@@ -26,6 +26,7 @@ struct AppState {
     clipboard: arboard::Clipboard,
     pending_paste: bool,
     last_pointer_pos: Pos2,
+    modifiers: winit::keyboard::ModifiersState,
     close_requested: bool,
     next_repaint: Option<Instant>,
 }
@@ -115,6 +116,7 @@ impl ApplicationHandler<UserEvent> for App {
             clipboard,
             pending_paste: false,
             last_pointer_pos: Pos2::ZERO,
+            modifiers: Default::default(),
             close_requested: false,
             next_repaint: None,
         });
@@ -128,6 +130,9 @@ impl ApplicationHandler<UserEvent> for App {
 
         if let WindowEvent::CursorMoved { position, .. } = &event {
             state.last_pointer_pos = Pos2::new(position.x as f32, position.y as f32);
+        }
+        if let WindowEvent::ModifiersChanged(modifiers) = &event {
+            state.modifiers = modifiers.state();
         }
 
         if let WindowEvent::DroppedFile(path) = &event {
@@ -144,7 +149,7 @@ impl ApplicationHandler<UserEvent> for App {
 
         // Host owns paste (text + images/files). Skip forwarding Cmd+V /
         // Key::Paste to egui-winit so it does not also emit Event::Paste.
-        if is_paste_shortcut(&state.egui_winit, &event) {
+        if is_paste_shortcut(state.modifiers, &event) {
             state.pending_paste = true;
             state.window.request_redraw();
         } else {
@@ -319,8 +324,7 @@ impl AppState {
             .handle_platform_output(&self.window, platform);
 
         // Titlebar / shell chrome issues ViewportCommands (min/max/close/drag/resize).
-        let mut actions: egui::ahash::HashSet<egui_winit::ActionRequested> =
-            egui::ahash::HashSet::default();
+        let mut actions: Vec<egui_winit::ActionRequested> = Vec::new();
         let mut info = egui::ViewportInfo::default();
         if let Some(vp) = viewport.values().next() {
             egui_winit::process_viewport_commands(
@@ -332,7 +336,10 @@ impl AppState {
             );
         }
 
-        if actions.contains(&egui_winit::ActionRequested::Paste) {
+        if actions
+            .iter()
+            .any(|a| matches!(a, egui_winit::ActionRequested::Paste))
+        {
             self.handle_paste();
         }
 
@@ -422,14 +429,16 @@ impl AppState {
     }
 }
 
-fn is_paste_shortcut(egui_winit: &egui_winit::State, event: &WindowEvent) -> bool {
+fn is_paste_shortcut(modifiers: winit::keyboard::ModifiersState, event: &WindowEvent) -> bool {
     let WindowEvent::KeyboardInput { event, .. } = event else {
         return false;
     };
     if event.state != ElementState::Pressed {
         return false;
     }
-    if !egui_winit.egui_input().modifiers.command {
+    let command =
+        if cfg!(target_os = "macos") { modifiers.super_key() } else { modifiers.control_key() };
+    if !command {
         return false;
     }
     match &event.logical_key {
@@ -442,7 +451,9 @@ fn is_paste_shortcut(egui_winit: &egui_winit::State, event: &WindowEvent) -> boo
 fn init_app(window: Arc<Window>) -> WgpuLockbook<'static> {
     // Safety: window is kept alive in Arc for lifetime of app
     let renderer = unsafe {
-        RendererState::from_surface(wgpu::SurfaceTargetUnsafe::from_window(&window).unwrap())
+        RendererState::from_surface(
+            wgpu::SurfaceTargetUnsafe::from_display_and_window(&window, &window).unwrap(),
+        )
     };
 
     init_with_renderer(renderer)

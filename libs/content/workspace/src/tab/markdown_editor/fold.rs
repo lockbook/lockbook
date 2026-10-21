@@ -35,7 +35,7 @@ pub const FOLD_CHIP_TEXT: &str = phosphor::DOTS_THREE;
 /// Click-target id for a fold's chip. Keyed by tag range so layout and
 /// interaction handling derive the same id without the AST node.
 fn fold_chip_id_salt(tag: (Grapheme, Grapheme)) -> egui::Id {
-    egui::Id::new(("md_fold_chip", tag.start().0, tag.end().0))
+    egui::Id::unique(("md_fold_chip", tag.start().0, tag.end().0))
 }
 
 // ─── fold bounds ─────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ impl<'ast> MdRender {
         if !self.interactive {
             return;
         }
-        let parent_base = ui.id();
+        let parent_base = ui.scope_id();
         for i in 0..self.bounds.folds.len() {
             let fold = self.bounds.folds[i];
             let id = parent_base.with(fold_chip_id_salt(fold.tag));

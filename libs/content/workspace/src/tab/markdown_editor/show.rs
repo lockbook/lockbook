@@ -210,14 +210,13 @@ impl MdEdit {
     /// range, which each update and the commit replace, undoing as one edit.
     fn apply_ime(&mut self, ime: ImeEvent) -> buffer::Response {
         let (text, marked) = match ime {
-            ImeEvent::Preedit(t) | ImeEvent::Commit(t) if t == "\n" || t == "\r" => {
+            ImeEvent::Preedit { text: t, .. } | ImeEvent::Commit(t) if t == "\n" || t == "\r" => {
                 return buffer::Response::default();
             }
-            ImeEvent::Preedit(t) => (t, true),
+            // an empty preedit is a cancelled composition, which drops it
+            ImeEvent::Preedit { text, .. } => (text, true),
             ImeEvent::Commit(t) => (t, false),
-            // a cancelled composition drops its preedit
-            ImeEvent::Disabled => (String::new(), false),
-            ImeEvent::Enabled => return buffer::Response::default(),
+            _ => return buffer::Response::default(),
         };
         let composing = self.ime_marked_range();
         let region = match composing {
@@ -252,7 +251,7 @@ impl MdEdit {
                 |e: Option<&egui::Event>| matches!(e, Some(egui::Event::Ime(ImeEvent::Commit(_))));
             let mut n = 0;
             while n < events.len() {
-                if matches!(events[n], egui::Event::Ime(ImeEvent::Disabled))
+                if matches!(&events[n], egui::Event::Ime(ImeEvent::Preedit { text, .. }) if text.is_empty())
                     && commits(events.get(n + 1))
                 {
                     events.remove(n);
@@ -262,7 +261,7 @@ impl MdEdit {
             }
             let edit = events
                 .iter()
-                .position(|e| matches!(e, egui::Event::Ime(ime) if *ime != ImeEvent::Enabled));
+                .position(|e| matches!(e, egui::Event::Ime(_)));
             let later = edit.map(|n| events.split_off(n + 1)).unwrap_or_default();
             let (keyboard, other): (Vec<_>, Vec<_>) = later.into_iter().partition(|e| {
                 matches!(
@@ -1036,7 +1035,14 @@ impl MdEdit {
                     .map(|[t, b]| Rect::from_min_max(t, b));
                 let cursor_rect = cursor.unwrap_or(rect);
                 if !std::mem::take(&mut self.ime_reset) {
-                    ui.output_mut(|o| o.ime = Some(egui::output::IMEOutput { rect, cursor_rect }));
+                    ui.output_mut(|o| {
+                        o.ime = Some(egui::output::IMEOutput {
+                            purpose: Default::default(),
+                            rect,
+                            cursor_rect,
+                            should_interrupt_composition: false,
+                        })
+                    });
                 }
             }
         }

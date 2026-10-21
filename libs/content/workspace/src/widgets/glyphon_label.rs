@@ -374,14 +374,13 @@ impl<'a> GlyphonLabel<'a> {
                 let mut fs = font_system.lock().unwrap();
                 let mut buf =
                     Buffer::new(&mut fs, Metrics::new(font_size * ppi, line_height * ppi));
-                buf.set_size(&mut fs, Some(max_width * ppi), None);
+                buf.set_size(Some(max_width * ppi), None);
 
                 let base = Attrs::new().family(Family::SansSerif);
                 let emoji = Attrs::new().family(Family::Name("Twemoji Mozilla"));
                 // Route emoji graphemes to the color font; the rest keep the
                 // span's own attrs. Mirrors the editor's `shape_chunk`.
                 buf.set_rich_text(
-                    &mut fs,
                     spans.iter().flat_map(|&(text, style)| {
                         let mut attrs = if style.bold {
                             base.clone().weight(Weight::BOLD)

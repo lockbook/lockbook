@@ -75,7 +75,7 @@ impl<'ast> MdRender {
     fn card_metrics(&self, block_width: f32, meta: &LinkMeta) -> CardMetrics {
         let box_w = self.card_box_width(block_width);
 
-        let text_color = self.ctx.style().visuals.text_color();
+        let text_color = self.ctx.global_style().visuals.text_color();
         let muted = text_color.gamma_multiply(0.6);
         let galley =
             |text: &str, size: f32, color: Color32, rows: usize, wrap_w: f32| -> Arc<Galley> {
@@ -86,7 +86,7 @@ impl<'ast> MdRender {
                 job.wrap.max_width = wrap_w.max(0.0);
                 job.wrap.max_rows = rows;
                 job.wrap.overflow_character = Some('…');
-                self.ctx.fonts(|f| f.layout_job(job))
+                self.ctx.fonts_mut(|f| f.layout_job(job))
             };
 
         // Layout size only (declared og:image dims, else persisted
@@ -177,7 +177,7 @@ impl<'ast> MdRender {
     }
 
     pub fn card_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
-        egui::Id::new(("md_link_card", node_range))
+        egui::Id::unique(("md_link_card", node_range))
     }
 
     /// Emit a card embed for a qualifying link; `false` (caller renders the

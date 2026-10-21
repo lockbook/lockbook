@@ -31,7 +31,7 @@ pub fn apply(style: &mut egui::Style) {
 }
 
 pub fn init(ctx: &egui::Context) {
-    let mut style = (*ctx.style()).clone();
+    let mut style = (*ctx.global_style()).clone();
     apply(&mut style);
-    ctx.set_style(style);
+    ctx.set_global_style(style);
 }

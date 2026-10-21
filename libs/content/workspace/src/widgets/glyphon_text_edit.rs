@@ -512,12 +512,12 @@ impl<'a> GlyphonTextEdit<'a> {
                     &mut fs,
                     Metrics::new(self.font_size * ppi, line_height * ppi),
                 );
-                buf.set_size(&mut fs, Some(f32::MAX), None);
+                buf.set_size(Some(f32::MAX), None);
                 buf.set_text(
-                    &mut fs,
                     paint_str,
                     &Attrs::new().family(Family::SansSerif),
                     Shaping::Advanced,
+                    None,
                 );
                 buf.shape_until_scroll(&mut fs, false);
                 buf
@@ -584,6 +584,8 @@ impl<'a> GlyphonTextEdit<'a> {
                 (rect.min.x + cursor_x - state.singleline_offset).clamp(rect.min.x, rect.max.x);
             ui.output_mut(|o| {
                 o.ime = Some(egui::output::IMEOutput {
+                    purpose: Default::default(),
+                    should_interrupt_composition: false,
                     rect,
                     cursor_rect: Rect::from_min_max(
                         egui::pos2(cx, rect.min.y),
@@ -646,12 +648,12 @@ impl<'a> GlyphonTextEdit<'a> {
                                 &mut fs,
                                 Metrics::new(self.font_size * ppi, line_height * ppi),
                             );
-                            buf.set_size(&mut fs, Some(visible_width * ppi), None);
+                            buf.set_size(Some(visible_width * ppi), None);
                             buf.set_text(
-                                &mut fs,
                                 hint,
                                 &Attrs::new().family(Family::SansSerif),
                                 Shaping::Advanced,
+                                None,
                             );
                             buf.shape_until_scroll(&mut fs, false);
                             buf
@@ -699,12 +701,12 @@ impl<'a> GlyphonTextEdit<'a> {
                                 &mut fs,
                                 Metrics::new(self.font_size * ppi, line_height * ppi),
                             );
-                            buf.set_size(&mut fs, Some(f32::MAX), None);
+                            buf.set_size(Some(f32::MAX), None);
                             buf.set_text(
-                                &mut fs,
                                 suffix,
                                 &Attrs::new().family(Family::SansSerif),
                                 Shaping::Advanced,
+                                None,
                             );
                             buf.shape_until_scroll(&mut fs, false);
                             buf
