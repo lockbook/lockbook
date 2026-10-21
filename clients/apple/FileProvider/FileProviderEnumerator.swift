@@ -5,6 +5,7 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
     let provider: FileProviderExtension
     let container: NSFileProviderItemIdentifier
     private var baseline: [FileProviderItem]?
+    private let queue = DispatchQueue(label: "app.lockbook.file-provider.enumerator")
 
     init(provider: FileProviderExtension, container: NSFileProviderItemIdentifier) {
         self.provider = provider
@@ -15,23 +16,21 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
 
     private func items(_ core: FileProviderCore) throws -> [FileProviderItem] {
         if container == .trashContainer { return [] }
+        if container != .rootContainer && container != .workingSet {
+            let item = try core.item(container)
+            if !item.folder { return [item] }
+        }
         return try core.items(in: container == .workingSet ? nil : container)
             .filter { $0.itemIdentifier != .rootContainer }
     }
 
-    // Keep the full metadata snapshot to distinguish deletion from a file whose
-    // folder hasn't been browsed. Don't publish files until their sizes are known.
-    private func visible(_ items: [FileProviderItem]) -> [FileProviderItem] {
-        items.filter { $0.folder || $0.size != nil }
-    }
-
     func enumerateItems(for observer: NSFileProviderEnumerationObserver, startingAt page: NSFileProviderPage) {
-        provider.queue.async {
+        queue.async {
             do {
-                let items = try self.items(FileProviderCore(domain: self.provider.domain))
+                let items = try self.items(self.provider.core())
                 self.baseline = items
                 if self.container != .workingSet { self.provider.signalChanges() }
-                observer.didEnumerate(self.visible(items))
+                observer.didEnumerate(items)
                 observer.finishEnumerating(upTo: nil)
             } catch { observer.finishEnumeratingWithError(error) }
         }
@@ -60,27 +59,27 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
     }
 
     func currentSyncAnchor(completionHandler: @escaping (NSFileProviderSyncAnchor?) -> Void) {
-        provider.queue.async {
+        queue.async {
             do {
-                let items = try self.baseline ?? self.items(FileProviderCore(domain: self.provider.domain))
+                let items = try self.baseline ?? self.items(self.provider.core())
                 completionHandler(try self.save(items))
             } catch { completionHandler(nil) }
         }
     }
 
     func enumerateChanges(for observer: NSFileProviderChangeObserver, from anchor: NSFileProviderSyncAnchor) {
-        provider.queue.async {
+        queue.async {
             do {
                 guard let name = String(data: anchor.rawValue, encoding: .utf8), name.count == 64, name.allSatisfy({ $0.isHexDigit }),
                       let data = try? Data(contentsOf: self.snapshots.appendingPathComponent(name)),
                       let previous = try? JSONDecoder().decode([FileProviderItem].self, from: data) else {
                     throw NSFileProviderError(.syncAnchorExpired)
                 }
-                let items = try self.items(FileProviderCore(domain: self.provider.domain))
+                let items = try self.items(self.provider.core())
                 let old = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
                 let ids = Set(items.map(\.id))
                 observer.didDeleteItems(withIdentifiers: previous.filter { !ids.contains($0.id) }.map(\.itemIdentifier))
-                observer.didUpdate(self.visible(items).filter { old[$0.id]?.itemVersion != $0.itemVersion })
+                observer.didUpdate(items.filter { old[$0.id]?.itemVersion != $0.itemVersion })
                 observer.finishEnumeratingChanges(upTo: try self.save(items), moreComing: false)
             } catch { observer.finishEnumeratingWithError(error) }
         }

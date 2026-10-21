@@ -6,7 +6,8 @@ import OSLog
 final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     let domain: NSFileProviderDomain
     let manager: NSFileProviderManager
-    let queue = DispatchQueue(label: "app.lockbook.file-provider")
+    private let queue = DispatchQueue(label: "app.lockbook.file-provider.notifications")
+    private let cache = FileProviderCache()
     private var changeToken = NOTIFY_TOKEN_INVALID
     private var invalidated = false
     private var syncTimer: DispatchSourceTimer?
@@ -21,7 +22,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         syncTimer.setEventHandler { [weak self] in
             guard let self else { return }
             self.queue.async { self.observeChanges() }
-            guard let core = try? FileProviderCore(domain: self.domain) else { return }
+            guard let core = try? self.core() else { return }
             lb_free_err(lb_sync(core.core.lb))
             self.signalChanges()
         }
@@ -48,7 +49,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     private func observeChanges() {
         guard !invalidated, changeToken == NOTIFY_TOKEN_INVALID else { return }
         do {
-            let core = try FileProviderCore(domain: domain)
+            let core = try core()
             let name = lb_change_notification_name(core.core.lb)
             defer { lb_free_str(name) }
             let status = notify_register_dispatch(name, &changeToken, queue) { [weak self] _ in
@@ -71,13 +72,17 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         manager.signalEnumerator(for: .workingSet) { _ in }
     }
 
+    func core() throws -> FileProviderCore {
+        try FileProviderCore(domain: domain, cache: cache)
+    }
+
     func perform<T>(_ work: @escaping (FileProviderCore) throws -> T,
                     completion: @escaping (Result<T, Error>) -> Void) -> Progress {
         let progress = Progress(totalUnitCount: 1)
-        queue.async {
+        DispatchQueue.global(qos: .userInitiated).async {
             let result = Result {
                 guard !progress.isCancelled else { throw CocoaError(.userCancelled) }
-                return try work(FileProviderCore(domain: self.domain))
+                return try work(self.core())
             }
             progress.completedUnitCount = 1
             completion(result)
@@ -99,7 +104,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                        request: NSFileProviderRequest,
                        completionHandler: @escaping (URL?, NSFileProviderItem?, Error?) -> Void) -> Progress {
         perform({ core in
-            let item = try core.item(identifier)
+            let item = try core.item(identifier, loadSize: false)
             let data = try core.read(item)
             if let version, version.contentVersion != item.contentVersion {
                 throw NSFileProviderError(.versionNoLongerAvailable)
@@ -126,12 +131,15 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             let data = try contents.map { try Data(contentsOf: $0) }
             // A crash/reimport can replay creation. Reuse only an identical item.
             if options.contains(.mayAlreadyExist),
-               let existing = try core.items(in: template.parentItemIdentifier).first(where: {
+               let existing = try core.items(in: template.parentItemIdentifier, loadSizes: false).first(where: {
                    $0.filename == template.filename && $0.folder == folder
                }), try folder || core.read(existing) == (data ?? Data()) {
+                core.cache.update(existing, date: template.contentModificationDate ?? nil)
                 return existing
             }
-            return try core.create(name: template.filename, parent: template.parentItemIdentifier, folder: folder, data: data)
+            let created = try core.create(name: template.filename, parent: template.parentItemIdentifier, folder: folder, data: data)
+            core.cache.update(created, date: template.contentModificationDate ?? nil)
+            return created
         }) {
             switch $0 {
             case .success(let item): self.signalChanges(); completionHandler(item, [], false, nil)
@@ -146,8 +154,9 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                     completionHandler: @escaping (NSFileProviderItem?, NSFileProviderItemFields, Bool, Error?) -> Void) -> Progress {
         perform({ core in
             let uuid = LbUuid(bytes: try core.uuid(item.itemIdentifier).uuid)
+            _ = try core.item(item.itemIdentifier, loadSize: false)
             if !changedFields.intersection([.filename, .parentItemIdentifier]).isEmpty,
-               let collision = try core.items(in: item.parentItemIdentifier).first(where: {
+               let collision = try core.items(in: item.parentItemIdentifier, loadSizes: false).first(where: {
                    $0.itemIdentifier != item.itemIdentifier && $0.filename == item.filename
                }) {
                 throw NSError.fileProviderErrorForCollision(with: collision)
@@ -167,7 +176,11 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                 defer { lb_free_err(error) }
                 try core.check(error)
             }
-            return try core.item(item.itemIdentifier)
+            let updated = try core.item(item.itemIdentifier)
+            if changedFields.contains(.contentModificationDate) || changedFields.contains(.contents) {
+                core.cache.update(updated, date: item.contentModificationDate ?? nil)
+            }
+            return updated
         }) {
             switch $0 {
             case .success(let updated):
@@ -183,7 +196,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                     options: NSFileProviderDeleteItemOptions, request: NSFileProviderRequest,
                     completionHandler: @escaping (Error?) -> Void) -> Progress {
         perform({ core in
-            if !options.contains(.recursive), try core.items().contains(where: { $0.parentItemIdentifier == identifier && $0.itemIdentifier != identifier }) {
+            if !options.contains(.recursive), try core.items(loadSizes: false).contains(where: { $0.parentItemIdentifier == identifier && $0.itemIdentifier != identifier }) {
                 throw NSFileProviderError(.directoryNotEmpty)
             }
             let error = lb_delete_file(core.core.lb, LbUuid(bytes: try core.uuid(identifier).uuid))
