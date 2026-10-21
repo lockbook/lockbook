@@ -818,15 +818,6 @@ pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn show_hide_tabs(obj: *mut c_void, show: bool) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    obj.workspace.show_tabs = show;
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
 pub unsafe extern "C" fn set_software_keyboard_in_use(obj: *mut c_void, in_use: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 

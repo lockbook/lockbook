@@ -882,7 +882,7 @@
                 Unmanaged.passUnretained(layer).toOpaque()
             )
             claimedPersistence = true
-            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
 
             if let wsHandle {
