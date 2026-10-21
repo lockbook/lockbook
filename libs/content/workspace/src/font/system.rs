@@ -1,5 +1,6 @@
 //! The system's fonts. Apple platforms and Android draw text, symbols, and
-//! every script with them; elsewhere only CJK comes from the system.
+//! every script with them; Windows draws text and every script with them, with
+//! the bundled Noto behind; elsewhere only CJK comes from the system.
 
 use epaint::text::Blob;
 use glyphon::fontdb::{Database, FaceInfo, Source, Style};
@@ -60,20 +61,39 @@ fn first_present(families: &[&'static str]) -> Option<&'static str> {
         .find(|family| faces(family).next().is_some())
 }
 
-/// The system's text and monospace families, where it supplies them.
-pub fn ui_families() -> Option<(&'static str, &'static str)> {
-    Some((first_present(SANS)?, first_present(MONO)?))
+/// The system's text family, where it supplies one.
+pub fn sans_family() -> Option<&'static str> {
+    first_present(SANS)
+}
+
+/// The system's monospace family, where it supplies one.
+pub fn mono_family() -> Option<&'static str> {
+    first_present(MONO)
 }
 
 /// Appends the system's text, script, and symbol faces after everything in `db`.
 pub fn load(db: &mut Database) {
-    let Some((sans, mono)) = ui_families() else { return };
-    db.set_sans_serif_family(sans);
-    db.set_monospace_family(mono);
+    let (sans, mono) = (sans_family(), mono_family());
+    if let Some(sans) = sans {
+        db.set_sans_serif_family(sans);
+    }
+    if let Some(mono) = mono {
+        db.set_monospace_family(mono);
+    }
 
-    let scripts = SCRIPTS.iter().flat_map(|(_, families)| families.iter());
+    // The last resort ahead of the script faces, so where no list names a
+    // font, it wins the remaining faces; the script lists reach theirs anyway.
+    let scripts = SCRIPTS
+        .iter()
+        .flat_map(|(_, families)| families.iter().copied());
+    let families = sans
+        .into_iter()
+        .chain(mono)
+        .chain(LAST_RESORT.iter().copied())
+        .chain(scripts)
+        .chain(SYMBOLS.iter().copied());
     let mut loaded = vec![];
-    for &family in [sans, mono].iter().chain(scripts).chain(SYMBOLS) {
+    for family in families {
         if !loaded.contains(&family) {
             loaded.push(family);
             for face in faces(family) {
@@ -94,6 +114,12 @@ pub fn script_families(script: Script) -> Option<&'static [&'static str]> {
 /// Families to try for any character the script lists miss.
 pub fn symbol_families() -> &'static [&'static str] {
     SYMBOLS
+}
+
+/// Families loaded but kept out of every fallback list, so they draw only
+/// what the bundled fonts, emoji included, lack.
+pub fn last_resort_families() -> &'static [&'static str] {
+    LAST_RESORT
 }
 
 /// The face of `family` nearest `weight` in `style`, falling back to normal.
@@ -145,9 +171,15 @@ const SANS: &[&str] = &["Roboto"];
 #[cfg(target_os = "android")]
 const MONO: &[&str] = &["Droid Sans Mono"];
 
-#[cfg(not(any(target_vendor = "apple", target_os = "android")))]
+// Segoe UI over Segoe UI Variable, which has no italic
+#[cfg(target_os = "windows")]
+const SANS: &[&str] = &["Segoe UI"];
+#[cfg(target_os = "windows")]
+const MONO: &[&str] = &["Cascadia Mono", "Consolas"];
+
+#[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
 const SANS: &[&str] = &[];
-#[cfg(not(any(target_vendor = "apple", target_os = "android")))]
+#[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
 const MONO: &[&str] = &[];
 
 /// What the system draws each script with. Han, kana, and Hangul are [`super::cjk`]'s.
@@ -211,7 +243,50 @@ const SCRIPTS: &[(Script, &[&str])] = &[
 #[cfg(target_os = "android")]
 const SYMBOLS: &[&str] = &["Noto Sans Symbols"];
 
-#[cfg(not(any(target_vendor = "apple", target_os = "android")))]
+/// The bundled Noto follows each system font, for systems stripped of it.
+#[cfg(target_os = "windows")]
+const SCRIPTS: &[(Script, &[&str])] = &[
+    (Script::Adlam, &["Ebrima"]),
+    (Script::Arabic, &["Segoe UI", "Noto Sans Arabic"]),
+    (Script::Armenian, &["Segoe UI", "Sylfaen"]),
+    (Script::Bengali, &["Nirmala UI", "Noto Sans Bengali"]),
+    (Script::Canadian_Aboriginal, &["Gadugi"]),
+    (Script::Cherokee, &["Gadugi"]),
+    (Script::Devanagari, &["Nirmala UI", "Noto Sans Devanagari"]),
+    (Script::Ethiopic, &["Ebrima"]),
+    (Script::Georgian, &["Segoe UI", "Sylfaen"]),
+    (Script::Gujarati, &["Nirmala UI", "Noto Sans Gujarati"]),
+    (Script::Gurmukhi, &["Nirmala UI", "Noto Sans Gurmukhi"]),
+    (Script::Hebrew, &["Segoe UI", "Noto Sans Hebrew"]),
+    (Script::Javanese, &["Javanese Text"]),
+    (Script::Kannada, &["Nirmala UI", "Noto Sans Kannada"]),
+    (Script::Khmer, &["Leelawadee UI"]),
+    (Script::Lao, &["Leelawadee UI"]),
+    (Script::Malayalam, &["Nirmala UI", "Noto Sans Malayalam"]),
+    (Script::Mongolian, &["Mongolian Baiti"]),
+    (Script::Myanmar, &["Myanmar Text", "Noto Sans Myanmar"]),
+    (Script::Nko, &["Ebrima"]),
+    (Script::Oriya, &["Nirmala UI"]),
+    (Script::Sinhala, &["Nirmala UI"]),
+    (Script::Syriac, &["Segoe UI Historic"]),
+    (Script::Tamil, &["Nirmala UI", "Noto Sans Tamil"]),
+    (Script::Telugu, &["Nirmala UI", "Noto Sans Telugu"]),
+    (Script::Thaana, &["MV Boli"]),
+    (Script::Thai, &["Leelawadee UI", "Noto Sans Thai"]),
+    (Script::Tibetan, &["Microsoft Himalaya"]),
+    (Script::Tifinagh, &["Ebrima"]),
+    (Script::Vai, &["Ebrima"]),
+    (Script::Yi, &["Microsoft Yi Baiti"]),
+];
+
+// Segoe UI Symbol has monochrome forms of many emoji; behind Twemoji, it only
+// fills the symbols Twemoji lacks.
+#[cfg(target_os = "windows")]
+const LAST_RESORT: &[&str] = &["Segoe UI Symbol"];
+#[cfg(not(target_os = "windows"))]
+const LAST_RESORT: &[&str] = &[];
+
+#[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
 const SCRIPTS: &[(Script, &[&str])] = &[];
 #[cfg(not(any(target_vendor = "apple", target_os = "android")))]
 const SYMBOLS: &[&str] = &[];
@@ -260,6 +335,35 @@ fn candidates() -> Vec<PathBuf> {
         "YuGothB.ttc",
         "malgun.ttf",
         "malgunbd.ttf",
+        "segoeui.ttf",
+        "segoeuib.ttf",
+        "segoeuii.ttf",
+        "segoeuiz.ttf",
+        "CascadiaMono.ttf",
+        "consola.ttf",
+        "consolab.ttf",
+        "consolai.ttf",
+        "consolaz.ttf",
+        "ebrima.ttf",
+        "ebrimabd.ttf",
+        "gadugi.ttf",
+        "gadugib.ttf",
+        "himalaya.ttf",
+        "javatext.ttf",
+        "LeelawUI.ttf",
+        "LeelaUIb.ttf",
+        "mmrtext.ttf",
+        "mmrtextb.ttf",
+        "monbaiti.ttf",
+        "msyi.ttf",
+        "mvboli.ttf",
+        "Nirmala.ttc",
+        // Windows 10's Nirmala UI, before it became a collection
+        "Nirmala.ttf",
+        "NirmalaB.ttf",
+        "seguihis.ttf",
+        "seguisym.ttf",
+        "sylfaen.ttf",
     ]
     .into_iter()
     .map(|f| fonts.join(f))

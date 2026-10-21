@@ -857,13 +857,19 @@ fn hit_test_buffer(buffer: &glyphon::Buffer, x: f32, _y: f32) -> usize {
     0
 }
 
-/// Sets `text` in the system sans, spaced as [`crate::font::track`] spaces it.
+/// Sets `text` in the system sans, spaced as [`crate::font::track`] spaces it,
+/// with emoji in the color font as labels draw them.
 fn set_sans_text(buf: &mut glyphon::Buffer, text: &str, points: f32) {
     use unicode_segmentation::UnicodeSegmentation as _;
     let attrs = Attrs::new().family(Family::SansSerif);
-    let spans = text
-        .graphemes(true)
-        .map(|g| (g, crate::font::track(attrs.clone(), g, points)));
+    let emoji = Attrs::new().family(Family::Name("Twemoji Mozilla"));
+    let spans = text.graphemes(true).map(|g| {
+        if crate::widgets::glyphon_label::is_emoji_grapheme(g) {
+            (g, emoji.clone())
+        } else {
+            (g, crate::font::track(attrs.clone(), g, points))
+        }
+    });
     buf.set_rich_text(spans, &attrs, Shaping::Advanced, None);
 }
 

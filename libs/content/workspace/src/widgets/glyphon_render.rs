@@ -29,7 +29,7 @@ pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
     font_system
 }
 
-/// Bundled fonts, then the system's CJK fonts.
+/// Bundled fonts, then the system's.
 pub fn new_font_system() -> FontSystem {
     let mut db = fontdb::Database::new();
     crate::font::load(&mut db);

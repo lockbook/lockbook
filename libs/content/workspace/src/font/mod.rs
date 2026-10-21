@@ -36,41 +36,58 @@ pub struct TextFonts {
 
 #[cfg(any(target_vendor = "apple", target_os = "android"))]
 pub fn text_fonts() -> TextFonts {
-    use epaint::text::{FontTweak, VariationCoords};
-    use glyphon::fontdb::Style;
-
-    let (sans, mono) = system::ui_families().expect("system text fonts");
-    let font = |family: &str, weight: u16, style: Style| {
-        let face = system::nearest(family, weight, style).expect("system text face");
-        let mut coords = VariationCoords::new([(b"wght", weight as f32)]);
-        if style == Style::Italic && face.style != Style::Italic {
-            coords.push(b"ital", 1.);
-        }
-        // SF's text optical size, as its static Text cut had
-        if cfg!(target_vendor = "apple") {
-            coords.push(b"opsz", 17.);
-        }
-        let data = system::face_data(face).expect("system text font data");
-        FontData::from_blob(data, face.index).tweak(FontTweak { coords, ..Default::default() })
-    };
+    let [sans, bold, italic] = system_sans().expect("system text fonts");
     TextFonts {
-        sans: font(sans, 400, Style::Normal),
-        bold: font(sans, 700, Style::Normal),
-        italic: font(sans, 400, Style::Italic),
-        mono: font(mono, 400, Style::Normal),
+        sans,
+        bold,
+        italic,
+        mono: system_mono().expect("system monospace font"),
         scale: if cfg!(target_vendor = "apple") { 0.9 } else { 1. },
     }
 }
 
+/// The system's text fonts where it has them, else the bundled Noto.
 #[cfg(not(any(target_vendor = "apple", target_os = "android")))]
 pub fn text_fonts() -> TextFonts {
-    TextFonts {
-        sans: FontData::from_static(lb_fonts::NOTO_SANS_REGULAR),
-        bold: FontData::from_static(lb_fonts::NOTO_SANS_BOLD),
-        italic: FontData::from_static(lb_fonts::NOTO_SANS_ITALIC),
-        mono: FontData::from_static(lb_fonts::NOTO_SANS_MONO_REGULAR),
-        scale: 1.,
+    let [sans, bold, italic] = system_sans().unwrap_or_else(|| {
+        [lb_fonts::NOTO_SANS_REGULAR, lb_fonts::NOTO_SANS_BOLD, lb_fonts::NOTO_SANS_ITALIC]
+            .map(FontData::from_static)
+    });
+    let mono =
+        system_mono().unwrap_or_else(|| FontData::from_static(lb_fonts::NOTO_SANS_MONO_REGULAR));
+    TextFonts { sans, bold, italic, mono, scale: 1. }
+}
+
+/// The system sans's regular, bold, and italic.
+fn system_sans() -> Option<[FontData; 3]> {
+    use glyphon::fontdb::Style;
+    let sans = system::sans_family()?;
+    Some([
+        system_font(sans, 400, Style::Normal)?,
+        system_font(sans, 700, Style::Normal)?,
+        system_font(sans, 400, Style::Italic)?,
+    ])
+}
+
+fn system_mono() -> Option<FontData> {
+    system_font(system::mono_family()?, 400, glyphon::fontdb::Style::Normal)
+}
+
+fn system_font(family: &str, weight: u16, style: glyphon::fontdb::Style) -> Option<FontData> {
+    use epaint::text::{FontTweak, VariationCoords};
+    use glyphon::fontdb::Style;
+
+    let face = system::nearest(family, weight, style)?;
+    let mut coords = VariationCoords::new([(b"wght", weight as f32)]);
+    if style == Style::Italic && face.style != Style::Italic {
+        coords.push(b"ital", 1.);
     }
+    // SF's text optical size, as its static Text cut had
+    if cfg!(target_vendor = "apple") {
+        coords.push(b"opsz", 17.);
+    }
+    let data = system::face_data(face)?;
+    Some(FontData::from_blob(data, face.index).tweak(FontTweak { coords, ..Default::default() }))
 }
 
 /// Spaces what the system sans draws at `points` as SF's text optical sizes
@@ -131,8 +148,11 @@ pub struct Fallback {
 impl Default for Fallback {
     fn default() -> Self {
         let platform = PlatformFallback;
-        let common =
-            [system::symbol_families(), cosmic_text::Fallback::common_fallback(&platform)].concat();
+        let common = [system::symbol_families(), cosmic_text::Fallback::common_fallback(&platform)]
+            .concat()
+            .into_iter()
+            .filter(|f| !system::last_resort_families().contains(f))
+            .collect();
         let mut forbidden = cosmic_text::Fallback::forbidden_fallback(&platform).to_vec();
         forbidden.push(cjk::BOLD_ALIAS);
         Self {
@@ -183,14 +203,14 @@ mod tests {
 
     /// What the bundled fonts lack: they carry no symbol font. System CJK
     /// fonts cover some of these on some machines, so a gap may not show.
-    #[cfg(not(any(target_vendor = "apple", target_os = "android")))]
+    #[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
     const KNOWN_GAPS: &str = "⌘⌥⇧⌃⎋⏎⌫⇥✓✗★☆∑";
-    #[cfg(any(target_vendor = "apple", target_os = "android"))]
+    #[cfg(any(target_vendor = "apple", target_os = "android", target_os = "windows"))]
     const KNOWN_GAPS: &str = "";
 
-    fn tofu(fs: &mut FontSystem, attrs: Attrs) -> BTreeSet<char> {
+    fn tofu(fs: &mut FontSystem, text: &str, attrs: Attrs) -> BTreeSet<char> {
         let mut buf = Buffer::new(fs, Metrics::new(16., 20.));
-        buf.set_text(MUST_RENDER, &attrs, Shaping::Advanced, None);
+        buf.set_text(text, &attrs, Shaping::Advanced, None);
         buf.shape_until_scroll(fs, false);
         buf.layout_runs()
             .flat_map(|run| {
@@ -202,16 +222,24 @@ mod tests {
             .collect()
     }
 
+    /// Scripts and symbols the bundled fonts lack, which Windows ships fonts for.
+    #[cfg(target_os = "windows")]
+    const WINDOWS_DRAWS: &str = "ភាសាខ្មែរ ລາວ ქართული Հայերեն አማርኛ සිංහල བོད་ཡིག \
+        ↵ ⌦ ⇤ ⇪ ⌤ ⎇ ⇞ ⇟ ✘ ☐ ☒ ✦ ✧ ✪ ⟹ ➜ ➔ ↻ ↺ ✎ ⋯ ⋮ ⚑ ⚐ ⌀";
+    #[cfg(not(target_os = "windows"))]
+    const WINDOWS_DRAWS: &str = "";
+
     #[test]
     fn everyday_characters_render() {
         let mut fs = crate::widgets::glyphon_render::new_font_system();
         let known: BTreeSet<char> = KNOWN_GAPS.chars().collect();
+        let text = format!("{MUST_RENDER} {WINDOWS_DRAWS}");
         for (name, attrs) in [
             ("sans", Attrs::new().family(Family::SansSerif)),
             ("bold", Attrs::new().family(Family::SansSerif).weight(Weight::BOLD)),
             ("mono", Attrs::new().family(Family::Monospace)),
         ] {
-            let missing = tofu(&mut fs, attrs);
+            let missing = tofu(&mut fs, &text, attrs);
             let new: String = missing.difference(&known).collect();
             assert!(new.is_empty(), "{name} renders tofu for {new}");
         }
