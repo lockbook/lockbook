@@ -220,7 +220,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 ..Default::default()
             },
         );
-        let msg_g = ui.fonts(|f| f.layout_job(job));
+        let msg_g = ui.fonts_mut(|f| f.layout_job(job));
         ui.painter()
             .galley(pos2(x, cy - msg_g.size().y / 2.0), msg_g, t.neutral_fg_secondary());
     }
@@ -235,7 +235,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     );
 
     // Manual paint sync button so we can rotate the glyph while spinning.
-    let sync_id = ui.id().with("footer_sync");
+    let sync_id = ui.scope_id().with("footer_sync");
     let sync_resp = ui.interact(sync_rect, sync_id, crate::components::sense_click());
     let sync_hover =
         ui.ctx()
@@ -300,7 +300,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         pos2(footer_left, footer_top),
         pos2(passive_right.max(footer_left + Space::Xl.pts()), footer_bot),
     );
-    let hit = ui.interact(passive_rect, ui.id().with("sync_footer_passive"), Sense::hover());
+    let hit = ui.interact(passive_rect, ui.scope_id().with("sync_footer_passive"), Sense::hover());
     let gap = Space::Xs.pts();
     let frame_pad_x = Space::Sm.pts();
     let content_w = (footer_rect.width() - 2.0 * gap - 2.0 * frame_pad_x).max(Space::Xl.pts());

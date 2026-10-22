@@ -57,7 +57,7 @@ pub(crate) fn page_account(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &m
         // Copy · Reveal · Show QR. Detail = never-share (link-previews pattern).
         form_row_detail(ui, t, "Account key", "Never share — grants anyone full access.", |ui| {
             if Button::quiet(t, "Copy")
-                .copy_feedback("shell_copy_phrase")
+                .copy_feedback(egui::Id::unique("shell_copy_phrase"))
                 .show(ui)
                 .clicked()
             {
@@ -213,9 +213,9 @@ fn page_account_delete(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
         );
     }
     ui.add(Spacer::new(Space::Xs));
-    let edit_id = Id::new("shell_delete_account_field").with("edit");
+    let edit_id = Id::unique("shell_delete_account_field").with("edit");
     let need_focus = ui.ctx().data(|d| {
-        d.get_temp::<bool>(Id::new("shell_delete_account_need_focus"))
+        d.get_temp::<bool>(Id::unique("shell_delete_account_need_focus"))
             .unwrap_or(false)
     });
     let can_commit = {
@@ -224,13 +224,13 @@ fn page_account_delete(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
         };
         let _ = Field::new(t, typed)
             .hint("Username")
-            .id("shell_delete_account_field")
+            .id(egui::Id::unique("shell_delete_account_field"))
             .show(ui);
         if need_focus {
             ui.memory_mut(|m| m.request_focus(edit_id));
             if ui.memory(|m| m.has_focus(edit_id)) {
                 ui.ctx().data_mut(|d| {
-                    d.insert_temp(Id::new("shell_delete_account_need_focus"), false);
+                    d.insert_temp(Id::unique("shell_delete_account_need_focus"), false);
                 });
             }
         }
@@ -273,7 +273,7 @@ fn page_account_upgrade(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut 
             );
             ui.add(Spacer::new(Space::Md));
             let need_focus = ui.ctx().data(|d| {
-                d.get_temp::<bool>(Id::new("shell_upgrade_need_focus"))
+                d.get_temp::<bool>(Id::unique("shell_upgrade_need_focus"))
                     .unwrap_or(false)
             });
             {
@@ -287,7 +287,7 @@ fn page_account_upgrade(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut 
                 let c0 = cvc.clone();
                 let _ = Field::new(t, number)
                     .hint("Card number")
-                    .id("upgrade_number")
+                    .id(egui::Id::unique("upgrade_number"))
                     .rewrite(|s, c, a| {
                         let formatted = format_card_number(s);
                         let nc = map_digit_cursor(s, c, &formatted);
@@ -296,9 +296,9 @@ fn page_account_upgrade(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut 
                     })
                     .show(ui);
                 if need_focus {
-                    ui.memory_mut(|m| m.request_focus(Id::new("upgrade_number").with("edit")));
+                    ui.memory_mut(|m| m.request_focus(Id::unique("upgrade_number").with("edit")));
                     ui.ctx().data_mut(|d| {
-                        d.insert_temp(Id::new("shell_upgrade_need_focus"), false);
+                        d.insert_temp(Id::unique("shell_upgrade_need_focus"), false);
                     });
                 }
                 ui.add(Spacer::new(Space::Sm));
@@ -311,7 +311,7 @@ fn page_account_upgrade(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut 
                     let _ = Field::new(t, exp)
                         .hint("MM/YY")
                         .width(w)
-                        .id("upgrade_exp")
+                        .id(egui::Id::unique("upgrade_exp"))
                         .rewrite(|s, c, a| {
                             let formatted = format_card_exp(s);
                             let nc = map_digit_cursor(s, c, &formatted);
@@ -324,7 +324,7 @@ fn page_account_upgrade(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut 
                         .hint("CVC")
                         .width(w)
                         .password(true)
-                        .id("upgrade_cvc")
+                        .id(egui::Id::unique("upgrade_cvc"))
                         .rewrite(|s, c, a| {
                             let formatted = format_card_cvc(s);
                             let nc = map_digit_cursor(s, c, &formatted);
@@ -562,8 +562,8 @@ fn page_account_qr(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
 fn paint_account_qr_image(ui: &mut Ui, png: &[u8], side: f32) {
     #[derive(Clone)]
     struct QrTex(egui::TextureHandle);
-    let tex_key = Id::new("shell_account_qr_texture");
-    let len_key = Id::new("shell_account_qr_texture_len");
+    let tex_key = Id::unique("shell_account_qr_texture");
+    let len_key = Id::unique("shell_account_qr_texture_len");
     let cached_len = ui.ctx().data(|d| d.get_temp::<usize>(len_key));
     let reuse =
         cached_len == Some(png.len()) && ui.ctx().data(|d| d.get_temp::<QrTex>(tex_key).is_some());

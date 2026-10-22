@@ -174,7 +174,7 @@ impl<'ast> MdRender {
     /// [`Self::link_interaction_id_salt`] so the collapsed-image and
     /// revealed-link handlers don't collide.
     pub fn image_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
-        egui::Id::new(("md_image", node_range))
+        egui::Id::unique(("md_image", node_range))
     }
 
     /// Recompute [`super::super::super::bounds::Bounds::images`] — the source
@@ -216,7 +216,11 @@ impl<'ast> MdEdit {
         &mut self, root: &'ast AstNode<'ast>, node: &'ast AstNode<'ast>, ui: &egui::Ui,
         id: egui::Id, ops: &mut Vec<Operation>, url: &str, salt: egui::Id, open: bool,
     ) {
-        let response = match self.renderer.interaction_responses.get(&ui.id().with(salt)) {
+        let response = match self
+            .renderer
+            .interaction_responses
+            .get(&ui.scope_id().with(salt))
+        {
             Some(r) => r.clone(), // clone to release the `renderer` borrow
             None => return,
         };
@@ -228,7 +232,7 @@ impl<'ast> MdEdit {
             Event::Select { region: node_range.into() }
         };
         self.renderer
-            .touch_consume_interaction(ui.id().with(salt), TouchTarget::Tap(tap));
+            .touch_consume_interaction(ui.scope_id().with(salt), TouchTarget::Tap(tap));
 
         if open && response.hovered() {
             ui.ctx()

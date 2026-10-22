@@ -1,6 +1,6 @@
 [package]
 name = "workspace"
-version = "26.10.16"
+version = "26.10.23"
 edition = "2021"
 
 [lib]
@@ -18,13 +18,13 @@ comrak = { version = "0.57", default-features = false, features = [
     "shortcodes",
 ] }
 emojis = "0.9.0"
-egui = { version = "0.32.3", features = ["serde"] }
-egui_animation = "0.9.0"
+egui = { version = "0.37.0", features = ["serde"] }
+egui_animation = "0.14.0"
 egui_wgpu_renderer = { path = "../egui_wgpu_renderer" }
-epaint = { version = "0.32", features = ["color-hex"] }
+epaint = { version = "0.37", features = ["color-hex"] }
 futures = "0.3.30"
 glam = "0.22.0"
-glyphon = "0.9.0"
+glyphon = "0.12.0"
 hayro = "0.4.0"
 # Annoyingly egui depends on a version match here for feature toggling reasons
 image = "0.25.9"
@@ -36,6 +36,7 @@ linkify = "0.10.0"
 lyon = "1.0.1"
 rand = "0.8.5"
 unicode-linebreak = "0.1"
+unicode-script = "0.5"
 rayon = "1.10.0"
 regex = "1.10.6"
 resvg = "0.41.0"
@@ -43,6 +44,7 @@ scraper = "0.14"
 serde = { version = "1.0.171", features = ["derive"] }
 serde_json = "1.0.82"
 similar = "2.6.0"
+sys-locale = "0.3"
 content_inspector = "0.2"
 syntect-assets = { default-features = false, version = "0.23", features = [
     "regex-fancy",
@@ -51,6 +53,7 @@ syntect = { default-features = false, version = "5.0", features = [
     "default-fancy",
 ] }
 time = "0.3.20"
+ttf-parser = "0.20"
 tracing = "0.1.5"
 unicode-segmentation = "1.10.0"
 url = "2.2"
@@ -66,6 +69,7 @@ reqwest = { version = "0.11.1", default-features = false, features = [
 ] }
 tokio = { version = "1.0", features = ["full"] }
 num_cpus = "1.15"
+memmap2 = "0.9"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 wasm-bindgen-futures = "0.4.50"

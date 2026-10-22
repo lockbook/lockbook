@@ -74,11 +74,11 @@ pub(crate) struct ShareNetDone {
 }
 
 pub(crate) fn share_verify_done_key() -> egui::Id {
-    egui::Id::new("shell_share_verify_done")
+    egui::Id::unique("shell_share_verify_done")
 }
 
 pub(crate) fn share_verify_inflight_key() -> egui::Id {
-    egui::Id::new("shell_share_verify_inflight")
+    egui::Id::unique("shell_share_verify_inflight")
 }
 
 /// Apply finished network checks (call from paint / apply each frame).
@@ -272,7 +272,7 @@ pub(crate) fn share_stage_field(app: &mut ShellApp, ctx: &Context) {
         lookup_for.clear();
         *err = None;
     }
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_share_need_focus"), true));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_share_need_focus"), true));
 }
 
 /// Debounced field verify. Local hits are free; network runs on a worker thread.
@@ -439,7 +439,7 @@ pub(crate) fn share_invite(app: &mut ShellApp, ctx: &Context) {
         };
     }
 
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_share_need_focus"), true));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_share_need_focus"), true));
 }
 
 #[cfg(test)]

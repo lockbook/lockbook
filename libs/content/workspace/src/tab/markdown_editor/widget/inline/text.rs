@@ -2,7 +2,7 @@ use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt};
 
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> MdRender {
@@ -51,19 +51,32 @@ impl<'ast> MdRender {
         if range.is_empty() {
             return;
         }
-        if let Some(search_range) = self.search_range {
-            let start = search_range.0.max(range.0);
-            let end = search_range.1.min(range.1);
-            if start < end {
+        // `scoped`: underline rules are drawn from a style scope
+        let highlight = if let Some(marked) = &self.ime_marked {
+            Some((marked.range, Format { underline: true, ..format.clone() }, true))
+        } else {
+            self.search_range.map(|r| {
                 let theme = self.ctx.get_lb_theme();
                 let accent = theme.fg().get_color(theme.prefs().primary);
-                let accent_format = Format { color: accent, ..format.clone() };
+                (r, Format { color: accent, ..format.clone() }, false)
+            })
+        };
+        if let Some((highlight_range, highlight_format, scoped)) = highlight {
+            let start = highlight_range.0.max(range.0);
+            let end = highlight_range.1.min(range.1);
+            if start < end {
                 if range.0 < start {
                     let r = (range.0, start);
                     layout.push_source(r, &self.buffer[r], format.clone());
                 }
                 let r = (start, end);
-                layout.push_source(r, &self.buffer[r], accent_format);
+                if scoped {
+                    layout.style_open(StyleInfo::new(highlight_format.clone(), r));
+                }
+                layout.push_source(r, &self.buffer[r], highlight_format);
+                if scoped {
+                    layout.style_close();
+                }
                 if end < range.1 {
                     let r = (end, range.1);
                     layout.push_source(r, &self.buffer[r], format);

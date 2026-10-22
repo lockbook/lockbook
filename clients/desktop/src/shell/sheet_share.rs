@@ -25,8 +25,8 @@ pub(crate) fn show_share(
     };
 
     let subject = super::sheets::file_name(app, id);
-    let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_share"));
-    if sheet_dim(ctx, Id::new("shell_share_dim"), layer) {
+    let layer = egui::LayerId::new(Order::Foreground, Id::unique("shell_share"));
+    if sheet_dim(ctx, Id::unique("shell_share_dim"), layer) {
         queue.push(A::CloseModal);
     }
 
@@ -39,9 +39,9 @@ pub(crate) fn show_share(
     };
     let mut mode_buf = mode_buf_init;
     let staged = staged_snap;
-    let edit_id = Id::new("shell_share_field").with("edit");
+    let edit_id = Id::unique("shell_share_field").with("edit");
     let need_focus = ctx.data(|d| {
-        d.get_temp::<bool>(Id::new("shell_share_need_focus"))
+        d.get_temp::<bool>(Id::unique("shell_share_need_focus"))
             .unwrap_or(false)
     });
 
@@ -53,8 +53,8 @@ pub(crate) fn show_share(
     };
     if super::sheets::debounce_query(
         ctx,
-        Id::new("shell_share_verify_due"),
-        Id::new("shell_share_verify_q"),
+        Id::unique("shell_share_verify_due"),
+        Id::unique("shell_share_verify_q"),
         &q_for_debounce,
         &lookup_for,
     ) {
@@ -83,7 +83,7 @@ pub(crate) fn show_share(
     // Five full PersonRows: measure pitch, then lock the viewport (empty slots OK).
     const ACCESS_VISIBLE: f32 = 5.0;
 
-    Area::new(Id::new("shell_share"))
+    Area::new(Id::unique("shell_share"))
         .order(Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {
@@ -102,7 +102,7 @@ pub(crate) fn show_share(
                 );
                 ui.add(Spacer::new(Space::Xs));
                 let access_list_h = ACCESS_VISIBLE * person_row_height(ui, true);
-                fixed_height_list(ui, t, Id::new("shell_share_access"), access_list_h, |ui| {
+                fixed_height_list(ui, t, Id::unique("shell_share_access"), access_list_h, |ui| {
                     if access.is_empty() {
                         ui.label(
                             TypeRole::Body
@@ -182,7 +182,7 @@ pub(crate) fn show_share(
                         .leading(lead_icon)
                         .leading_ink(lead_ink)
                         .clearable(true)
-                        .id("shell_share_field");
+                        .id(egui::Id::unique("shell_share_field"));
                     if let Some(suffix) = ghost_suffix {
                         field = field.completion_suffix(suffix);
                     }
@@ -194,7 +194,7 @@ pub(crate) fn show_share(
                         ui.memory_mut(|m| m.request_focus(edit_id));
                         if ui.memory(|m| m.has_focus(edit_id)) {
                             ui.ctx().data_mut(|d| {
-                                d.insert_temp(Id::new("shell_share_need_focus"), false);
+                                d.insert_temp(Id::unique("shell_share_need_focus"), false);
                             });
                         }
                     }

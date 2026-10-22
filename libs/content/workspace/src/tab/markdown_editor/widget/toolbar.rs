@@ -253,7 +253,7 @@ fn show_table_picker(
     let grid_size = Vec2::new(columns as f32 * step - gap, rows as f32 * step - gap);
     let mut chosen = None;
     let mut grid_rect = None;
-    let area = egui::Area::new(egui::Id::new("md_table_picker"))
+    let area = egui::Area::new(egui::Id::unique("md_table_picker"))
         .order(egui::Order::Foreground)
         .pivot(if above { egui::Align2::LEFT_BOTTOM } else { egui::Align2::LEFT_TOP })
         .fixed_pos(if above {

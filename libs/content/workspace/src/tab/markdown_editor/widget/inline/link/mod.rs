@@ -112,13 +112,13 @@ impl<'ast> MdRender {
     /// Shared by producer + consumer so `ui.id().with(salt)` resolves
     /// to the same id on both sides.
     pub fn link_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
-        egui::Id::new(("md_link", node_range))
+        egui::Id::unique(("md_link", node_range))
     }
 
     /// Click-target id for a link rendered as a capsule preview; distinct from
     /// the plain-link salt so its embed-style tap handling doesn't collide.
     pub fn link_capsule_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
-        egui::Id::new(("md_link_capsule", node_range))
+        egui::Id::unique(("md_link_capsule", node_range))
     }
 
     /// Emit a link as a circumfix. For autolinks with a fetched title,
@@ -540,7 +540,7 @@ impl<'ast> MdRender {
     /// click instead selects the link and pops the menu
     /// ([`MdEdit::handle_link_menu_taps`]).
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
-        let parent_base = ui.id();
+        let parent_base = ui.scope_id();
         for node in root.descendants() {
             let (url, is_wikilink) = match &node.data.borrow().value {
                 NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
@@ -961,7 +961,7 @@ impl<'ast> MdEdit {
         if !self.renderer.touch_mode || self.renderer.readonly {
             return;
         }
-        let parent_base = ui.id();
+        let parent_base = ui.scope_id();
         for node in root.descendants() {
             match &node.data.borrow().value {
                 NodeValue::Link(_) | NodeValue::WikiLink(_) => {}

@@ -827,6 +827,15 @@ pub unsafe extern "C" fn show_hide_tabs(obj: *mut c_void, show: bool) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+pub unsafe extern "C" fn set_software_keyboard_in_use(obj: *mut c_void, in_use: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    obj.workspace.software_keyboard_in_use = in_use;
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
 pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
@@ -856,7 +865,7 @@ pub unsafe extern "C" fn ios_key_event(
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
 
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 
     let Some(key) = UIKeys::from(key_code) else { return };
 

@@ -76,13 +76,13 @@ pub fn is_forbidden_move_dest(files: &impl FilesExt, moving: &[Uuid], dest: Uuid
 
 /// Temp flag: one-shot scroll-to-selected for a folder picker (`id_salt`).
 pub fn folder_tree_scroll_key(id_salt: &str) -> Id {
-    Id::new(("shell_folder_scroll", id_salt))
+    Id::unique(("shell_folder_scroll", id_salt))
 }
 
 /// After collapsing an elevated sticky folder, pin scroll so the row keeps its
 /// screen y (`folder`, sticky `vy` in viewport space).
 fn folder_tree_collapse_scroll_key(id_salt: &str) -> Id {
-    Id::new(("shell_folder_collapse_scroll", id_salt))
+    Id::unique(("shell_folder_collapse_scroll", id_salt))
 }
 
 /// Sticky expandable **folder** tree for create / move / import / search pickers.
@@ -123,7 +123,7 @@ pub fn show_folder_tree(
     let collapse_pin = ui
         .ctx()
         .data_mut(|d| d.remove_temp::<(Uuid, f32)>(collapse_key));
-    let scroll_id = Id::new(("folder_tree_scroll", id_salt));
+    let scroll_id = Id::unique(("folder_tree_scroll", id_salt));
     let mut picked = None;
     with_overlay_scroll(ui, scroll_id, |ui| {
         let mut scroll = ScrollArea::vertical()
@@ -172,7 +172,7 @@ pub fn show_folder_tree(
                 },
             );
         });
-        ((), out.state.offset.y, out.id)
+        ((), out.state.clamped_offset().y, out.id)
     });
     picked
 }
@@ -221,12 +221,12 @@ pub fn show_folder_sheet(
     use super::typography::TypeRole;
 
     let mut out = FolderSheetOut::default();
-    let layer = egui::LayerId::new(egui::Order::Foreground, Id::new(id_salt));
-    if sheet_dim(ctx, Id::new((id_salt, "dim")), layer) {
+    let layer = egui::LayerId::new(egui::Order::Foreground, Id::unique(id_salt));
+    if sheet_dim(ctx, Id::unique((id_salt, "dim")), layer) {
         out.dismiss = true;
     }
 
-    egui::Area::new(Id::new(id_salt))
+    egui::Area::new(Id::unique(id_salt))
         .order(egui::Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {
@@ -302,7 +302,7 @@ fn paint_folder_pick_row(
     let icon = if is_root { phosphor::HOUSE } else { row_type_icon(&name, true, open) };
     let is_sel = selected == Some(row.id) && !forbidden;
     let id = ui
-        .id()
+        .scope_id()
         .with(id_salt)
         .with("folder_pick_row")
         .with(row.id)

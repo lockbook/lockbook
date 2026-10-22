@@ -961,9 +961,9 @@ fn shape_chunk(
         cache.lock().unwrap().get_or_shape(key, move || {
             let mut guard = fs.lock().unwrap();
             let mut b = glyphon::Buffer::new(&mut guard, glyphon::Metrics::new(metric, metric));
-            b.set_size(&mut guard, Some(w), None);
-            b.set_wrap(&mut guard, glyphon::Wrap::None);
-            b.set_tab_width(&mut guard, 4);
+            b.set_size(Some(w), None);
+            b.set_wrap(glyphon::Wrap::None);
+            b.set_tab_width(4);
             let attrs = format_to_attrs(&format, metric);
             // Per-grapheme: route emoji to Twemoji Mozilla so VS-16
             // (or SMP) codepoints render in color. Without this, e.g.
@@ -973,14 +973,17 @@ fn shape_chunk(
                 &glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla")),
             );
             let text = text.to_string();
+            let points =
+                row_height * if format.superscript || format.subscript { 0.75 } else { 1. };
             let spans = text.graphemes(true).map(|g| {
                 if shape_as_emoji(&format.family, g) {
                     (g, emoji_attrs.as_attrs())
                 } else {
-                    (g, attrs.as_attrs())
+                    (g, crate::font::track(attrs.as_attrs(), g, points))
                 }
             });
-            b.set_rich_text(&mut guard, spans, &attrs.as_attrs(), glyphon::Shaping::Advanced, None);
+            b.set_rich_text(spans, &attrs.as_attrs(), glyphon::Shaping::Advanced, None);
+            b.shape_until_scroll(&mut guard, false);
             b
         })
     };
@@ -2123,7 +2126,7 @@ impl MdRender {
             std::collections::HashMap::new();
         let mut per_parent_rects: std::collections::HashMap<egui::Id, Vec<Rect>> =
             std::collections::HashMap::new();
-        let parent_base = ui.id();
+        let parent_base = ui.scope_id();
         for (i, f) in self.fragments.iter().enumerate() {
             let Some((salt, sense)) = f.interaction else {
                 continue;
@@ -2402,9 +2405,9 @@ mod tests {
 
     #[test]
     fn hover_scope_never_hides_enclosing_click() {
-        let spoiler = (egui::Id::new("spoiler"), egui::Sense::click());
-        let link_tip = (egui::Id::new("link"), egui::Sense::hover());
-        let link_click = (egui::Id::new("link"), egui::Sense::click());
+        let spoiler = (egui::Id::unique("spoiler"), egui::Sense::click());
+        let link_tip = (egui::Id::unique("link"), egui::Sense::hover());
+        let link_click = (egui::Id::unique("link"), egui::Sense::click());
         assert_eq!(super::active_interaction(&[spoiler, link_tip]), Some(spoiler));
         assert_eq!(super::active_interaction(&[spoiler, link_click]), Some(link_click));
         assert_eq!(super::active_interaction(&[link_tip]), Some(link_tip));

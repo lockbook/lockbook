@@ -115,8 +115,9 @@ impl TestEditor {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, size);
-        let out =
-            ctx.run(RawInput { screen_rect: Some(screen_rect), ..Default::default() }, |ctx| {
+        let mut out = ctx.run_pass(
+            RawInput { screen_rect: Some(screen_rect), ..Default::default() },
+            |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
                 if focused {
@@ -127,10 +128,14 @@ impl TestEditor {
                 for event in &pending {
                     ctx.push_markdown_event(event.clone());
                 }
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.editor.show(ui);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        self.editor.show(ui);
+                    })
                 });
-            });
+            },
+        );
+        out.textures_delta.clear();
         self.copied = out
             .platform_output
             .commands
@@ -151,7 +156,7 @@ impl TestEditor {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, SCREEN_SIZE);
-        let _ = ctx.run(
+        ctx.run_pass(
             RawInput { screen_rect: Some(screen_rect), events, ..Default::default() },
             |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
@@ -159,11 +164,15 @@ impl TestEditor {
                 for event in &pending {
                     ctx.push_markdown_event(event.clone());
                 }
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.editor.show(ui);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        self.editor.show(ui);
+                    })
                 });
             },
-        );
+        )
+        .textures_delta
+        .clear();
     }
 
     pub fn has_focus(&self, id: egui::Id) -> bool {
@@ -282,6 +291,6 @@ fn build_editor(core: Lb, md: &str, ext: &str, embeds: Box<dyn EmbedResolver>) -
             embeds,
             files,
         },
-        MdConfig { readonly: false, ext: ext.to_string(), tablet_or_desktop: true },
+        MdConfig { readonly: false, ext: ext.to_string() },
     )
 }

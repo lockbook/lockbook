@@ -156,7 +156,7 @@ impl Eraser {
         let old_layer = eraser_ctx.painter.layer_id();
         eraser_ctx.painter.set_layer_id(egui::LayerId {
             order: egui::Order::Foreground,
-            id: "eraser_overlay".into(),
+            id: egui::Id::unique("eraser_overlay"),
         });
 
         self.draw_eraser_cursor(eraser_ctx.painter, pos);

@@ -229,5 +229,5 @@ fn layout_truncate(
         0.0,
         TextFormat { font_id: font.clone(), color: Color32::PLACEHOLDER, ..Default::default() },
     );
-    ui.fonts(|f| f.layout_job(job))
+    ui.fonts_mut(|f| f.layout_job(job))
 }
