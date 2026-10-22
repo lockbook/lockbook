@@ -145,30 +145,38 @@ fn bench_render_warm() {
         r.set_width(width);
         let ctx = r.ctx.clone();
         // First render: cold, populates caches. Untimed.
-        let _ = ctx.run(RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                let arena = comrak::Arena::new();
-                let root = r.reparse(&arena);
-                let height = r.height(root);
-                let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
-                ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                    r.show_block(ui, root, Pos2::ZERO);
-                });
+        ctx.run_pass(RawInput::default(), |ctx| {
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    let arena = comrak::Arena::new();
+                    let root = r.reparse(&arena);
+                    let height = r.height(root);
+                    let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+                        r.show_block(ui, root, Pos2::ZERO);
+                    });
+                })
             });
-        });
+        })
+        .textures_delta
+        .clear();
         // Second render: warm (no input changes, all caches hit).
         let start = Instant::now();
-        let _ = ctx.run(RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                let arena = comrak::Arena::new();
-                let root = r.reparse(&arena);
-                let height = r.height(root);
-                let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
-                ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                    r.show_block(ui, root, Pos2::ZERO);
-                });
+        ctx.run_pass(RawInput::default(), |ctx| {
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    let arena = comrak::Arena::new();
+                    let root = r.reparse(&arena);
+                    let height = r.height(root);
+                    let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+                        r.show_block(ui, root, Pos2::ZERO);
+                    });
+                })
             });
-        });
+        })
+        .textures_delta
+        .clear();
         start.elapsed().as_secs_f64() * 1000.0
     }
 
@@ -229,17 +237,21 @@ fn bench_render_cold() {
         r.set_width(width);
         let ctx = r.ctx.clone();
         let start = Instant::now();
-        let _ = ctx.run(RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                let arena = comrak::Arena::new();
-                let root = r.reparse(&arena);
-                let height = r.height(root);
-                let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
-                ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                    r.show_block(ui, root, Pos2::ZERO);
-                });
+        ctx.run_pass(RawInput::default(), |ctx| {
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    let arena = comrak::Arena::new();
+                    let root = r.reparse(&arena);
+                    let height = r.height(root);
+                    let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+                        r.show_block(ui, root, Pos2::ZERO);
+                    });
+                })
             });
-        });
+        })
+        .textures_delta
+        .clear();
         start.elapsed().as_secs_f64() * 1000.0
     }
 
@@ -317,26 +329,31 @@ fn bench_scroll_warm_at_offsets() {
     ) {
         let ctx = r.ctx.clone();
         let canvas_rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, vh));
-        let _ = ctx.run(RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                let arena = Arena::new();
-                let root = r.reparse(&arena);
-                ui.scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
-                    ui.set_clip_rect(canvas_rect);
-                    let visible = {
-                        let content = DocScrollContent::new(r, root, vh / 2.0);
-                        let off = Offset::new(DocRowId::Block(block_idx), 0.0);
-                        scroll.set_offset(&content, off);
-                        scroll.show(ui, &content).visible
-                    };
-                    let blocks: Vec<_> = root.children().collect();
-                    for vrow in &visible {
-                        let top_left = Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
-                        paint_row(ui, r, root, &blocks, &vrow.id, top_left, 0.0);
-                    }
-                });
+        ctx.run_pass(RawInput::default(), |ctx| {
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    let arena = Arena::new();
+                    let root = r.reparse(&arena);
+                    ui.scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
+                        ui.set_clip_rect(canvas_rect);
+                        let visible = {
+                            let content = DocScrollContent::new(r, root, vh / 2.0);
+                            let off = Offset::new(DocRowId::Block(block_idx), 0.0);
+                            scroll.set_offset(&content, off);
+                            scroll.show(ui, &content).visible
+                        };
+                        let blocks: Vec<_> = root.children().collect();
+                        for vrow in &visible {
+                            let top_left =
+                                Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
+                            paint_row(ui, r, root, &blocks, &vrow.id, top_left, 0.0);
+                        }
+                    });
+                })
             });
-        });
+        })
+        .textures_delta
+        .clear();
     }
 
     let bench = |label: &str, md: &str, n_blocks: usize| {
@@ -409,32 +426,37 @@ fn bench_scroll_cold_at_offsets() {
         let canvas_rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, vh));
 
         let start = Instant::now();
-        let _ = ctx.run(RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                let arena = Arena::new();
-                let root = r.reparse(&arena);
-                ui.scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
-                    ui.set_clip_rect(canvas_rect);
+        ctx.run_pass(RawInput::default(), |ctx| {
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    let arena = Arena::new();
+                    let root = r.reparse(&arena);
+                    ui.scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
+                        ui.set_clip_rect(canvas_rect);
 
-                    // Phase 1: scroll math + restore persisted offset
-                    // with an immutable renderer borrow.
-                    let visible = {
-                        let content = DocScrollContent::new(&r, root, vh / 2.0);
-                        let off = Offset::new(DocRowId::Block(block_idx), 0.0);
-                        scroll.set_offset(&content, off);
-                        scroll.show(ui, &content).visible
-                    };
+                        // Phase 1: scroll math + restore persisted offset
+                        // with an immutable renderer borrow.
+                        let visible = {
+                            let content = DocScrollContent::new(&r, root, vh / 2.0);
+                            let off = Offset::new(DocRowId::Block(block_idx), 0.0);
+                            scroll.set_offset(&content, off);
+                            scroll.show(ui, &content).visible
+                        };
 
-                    // Phase 2: paint visible rows with a mutable
-                    // renderer borrow.
-                    let blocks: Vec<_> = root.children().collect();
-                    for vrow in &visible {
-                        let top_left = Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
-                        paint_row(ui, &mut r, root, &blocks, &vrow.id, top_left, 0.0);
-                    }
-                });
+                        // Phase 2: paint visible rows with a mutable
+                        // renderer borrow.
+                        let blocks: Vec<_> = root.children().collect();
+                        for vrow in &visible {
+                            let top_left =
+                                Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
+                            paint_row(ui, &mut r, root, &blocks, &vrow.id, top_left, 0.0);
+                        }
+                    });
+                })
             });
-        });
+        })
+        .textures_delta
+        .clear();
         start.elapsed().as_secs_f64() * 1000.0
     }
 

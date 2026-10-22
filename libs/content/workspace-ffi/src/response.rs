@@ -1,5 +1,5 @@
 use egui::{
-    Context, CursorIcon, OutputCommand, PlatformOutput, ViewportCommand, ViewportIdMap,
+    Context, CursorIcon, OrderedViewportIdMap, OutputCommand, PlatformOutput, ViewportCommand,
     ViewportOutput,
 };
 use workspace_rs::tab::{ContextMenuTarget, ExtendedOutput};
@@ -23,12 +23,13 @@ pub struct Response {
     pub window_title: Option<String>,
     pub request_paste: bool,
     pub context_menu: Option<(egui::Pos2, ContextMenuTarget)>,
+    pub ime_cursor: Option<egui::Rect>,
 }
 
 impl Response {
     pub fn new(
-        context: &Context, platform: &PlatformOutput, viewport: &ViewportIdMap<ViewportOutput>,
-        workspace: workspace_rs::Response,
+        context: &Context, platform: &PlatformOutput,
+        viewport: &OrderedViewportIdMap<ViewportOutput>, workspace: workspace_rs::Response,
     ) -> Self {
         let mut redraw_in = None;
         let mut window_title = None;
@@ -80,6 +81,10 @@ impl Response {
             window_title,
             request_paste,
             context_menu: context.pop_context_menu(),
+            // in view points, as the host's text input client reports them
+            ime_cursor: platform
+                .ime
+                .map(|ime| ime.cursor_rect * context.zoom_factor()),
         }
     }
 }

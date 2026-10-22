@@ -36,7 +36,7 @@ impl<'ast> MdRender {
     /// `node_range`).
     pub fn spoiler_interaction_id_salt(node: &AstNode<'_>) -> egui::Id {
         let sp = node.data.borrow().sourcepos;
-        egui::Id::new(("md_spoiler", sp.start.line, sp.start.column, sp.end.line, sp.end.column))
+        egui::Id::unique(("md_spoiler", sp.start.line, sp.start.column, sp.end.line, sp.end.column))
     }
 
     pub fn layout_spoilered_text(
@@ -54,7 +54,7 @@ impl<'ast> MdRender {
     /// A click or a tap on a spoiler chip toggles its reveal.
     /// Must run after `interact_fragments`.
     pub fn handle_spoiler_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
-        let parent_base = ui.id();
+        let parent_base = ui.scope_id();
         for node in root.descendants() {
             if !matches!(node.data.borrow().value, NodeValue::SpoileredText) {
                 continue;

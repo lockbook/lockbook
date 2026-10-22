@@ -140,11 +140,10 @@ thread_local! {
 fn cached_font_system() -> Arc<Mutex<glyphon::FontSystem>> {
     FONT_SYSTEM.with(|cell| {
         cell.get_or_init(|| {
-            let mut db = glyphon::fontdb::Database::new();
-            crate::font::load(&mut db);
-            db.set_sans_serif_family("Noto Sans");
-            db.set_monospace_family("Noto Sans Mono");
-            Arc::new(Mutex::new(glyphon::FontSystem::new_with_locale_and_db("en-US".into(), db)))
+            let mut fs = crate::widgets::glyphon_render::new_font_system();
+            fs.db_mut().set_sans_serif_family("Noto Sans");
+            fs.db_mut().set_monospace_family("Noto Sans Mono");
+            Arc::new(Mutex::new(fs))
         })
         .clone()
     })
@@ -188,26 +187,30 @@ pub(super) fn render_frame<T>(
     // `Option` and taken on the single frame the body runs.
     let mut f = Some(f);
     let mut out = None;
-    let _ = ctx.run(RawInput::default(), |ctx| {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            r.dark_mode = ui.style().visuals.dark_mode;
-            r.set_width(width);
-            if let Some(sel) = selection {
-                r.buffer.current.selection = sel;
-            }
-            let arena = Arena::new();
-            let root = r.reparse(&arena);
-            let height = r.height(root);
-            let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
-            r.fragments.clear();
-            r.bounds.wrap_lines.clear();
-            r.text_areas.clear();
-            ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                r.show_block(ui, root, Pos2::ZERO);
-            });
-            out = Some((f.take().expect("render_frame body runs once"))(r));
+    ctx.run_pass(RawInput::default(), |ctx| {
+        ctx.root_ui(|ui| {
+            egui::CentralPanel::default().show(ui, |ui| {
+                r.dark_mode = ui.style().visuals.dark_mode;
+                r.set_width(width);
+                if let Some(sel) = selection {
+                    r.buffer.current.selection = sel;
+                }
+                let arena = Arena::new();
+                let root = r.reparse(&arena);
+                let height = r.height(root);
+                let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
+                r.fragments.clear();
+                r.bounds.wrap_lines.clear();
+                r.text_areas.clear();
+                ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+                    r.show_block(ui, root, Pos2::ZERO);
+                });
+                out = Some((f.take().expect("render_frame body runs once"))(r));
+            })
         });
-    });
+    })
+    .textures_delta
+    .clear();
     out.expect("CentralPanel body runs synchronously")
 }
 

@@ -38,7 +38,7 @@ impl<'ast> MdRender {
             );
             let border_radius = 2.0;
 
-            let checkbox_id = ui.id().with(self.node_range(node));
+            let checkbox_id = ui.scope_id().with(self.node_range(node));
 
             // allocate a slightly larger clickable space that makes the checkbox
             // easier to tap without overflowing the annotation space horizontally
@@ -57,7 +57,7 @@ impl<'ast> MdRender {
                 Sense::click_and_drag()
             };
             let checkbox_response =
-            // ui.id().with() instead of Id::new() so two views of the same document
+            // ui.scope_id().with() instead of Id::unique() so two views of the same document
             // get distinct checkbox IDs
             ui.interact(clickable_space, checkbox_id, sense);
             let check_offset = self.check_offset(node);

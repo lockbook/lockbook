@@ -125,7 +125,7 @@ impl SearchExecutor for PathSearch {
 
         let highlight = self.selected;
         let t = ui.ctx().get_lb_theme();
-        with_overlay_scroll(ui, Id::new("search_path_scroll"), |ui| {
+        with_overlay_scroll(ui, Id::unique("search_path_scroll"), |ui| {
             let out = egui::ScrollArea::vertical()
                 .id_salt("search_path_rows")
                 .auto_shrink([false, false])
@@ -157,7 +157,7 @@ impl SearchExecutor for PathSearch {
                         }
                     }
                 });
-            ((), out.state.offset.y, out.id)
+            ((), out.state.clamped_offset().y, out.id)
         });
 
         if let Some(i) = clicked {
@@ -283,7 +283,7 @@ impl PathSearch {
             .subtitle(parent_crumbs(&row.parent_path))
             .selected(selected)
             .trail_reserve(trail)
-            .show(ui, Id::new("search_row").with(row.id));
+            .show(ui, Id::unique("search_row").with(row.id));
         if index < 9 {
             paint_row_shortcut(ui, &t, resp.rect, index + 1);
         }

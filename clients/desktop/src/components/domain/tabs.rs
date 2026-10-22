@@ -38,7 +38,7 @@ const TAB_EDGE_BAND: f32 = 28.0;
 const TAB_EDGE_SPEED: f32 = 900.0;
 
 fn tab_edge_scroll_id() -> Id {
-    Id::new("shell_tab_edge_scroll_x")
+    Id::unique("shell_tab_edge_scroll_x")
 }
 
 /// Typed so tab reorder never collides with tree file DnD payloads.
@@ -77,7 +77,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         .unwrap_or_default();
     let tab_count = tabs.len();
 
-    let sidebar_w = ui.max_rect().left() - ui.ctx().screen_rect().left();
+    let sidebar_w = ui.max_rect().left() - ui.ctx().content_rect().left();
     let left = tab_left_inset(sidebar_w);
     let right = tab_right_inset();
     let bar_w = ui_width(ui);
@@ -165,7 +165,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                         let dt = ui.input(|i| i.unstable_dt).clamp(1.0 / 240.0, 0.05);
                         let max_off = (out.content_size.x - scroll_w).max(0.0);
                         if max_off > 0.5 {
-                            let mut off = out.state.offset.x;
+                            let mut off = out.state.clamped_offset().x;
                             let mut moved = false;
                             if pointer.x < clip.left() + TAB_EDGE_BAND {
                                 let depth = ((clip.left() + TAB_EDGE_BAND - pointer.x)
@@ -180,7 +180,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                                 off = (off + TAB_EDGE_SPEED * depth * dt).min(max_off);
                                 moved = true;
                             }
-                            if moved && (off - out.state.offset.x).abs() > 0.25 {
+                            if moved && (off - out.state.clamped_offset().x).abs() > 0.25 {
                                 ui.ctx()
                                     .data_mut(|d| d.insert_temp(tab_edge_scroll_id(), off));
                                 ui.ctx().request_repaint();
@@ -324,7 +324,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
     let w = measure_tab_w(ui, name);
     let h = HEADER_H;
     let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
-    let id = ui.id().with("shell_tab").with(index);
+    let id = ui.scope_id().with("shell_tab").with(index);
     let resp = ui.interact(rect, id, Sense::click_and_drag());
 
     // No hover wash / ink while any drag is live (tab reorder or tree DnD).
@@ -384,7 +384,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             pos2(body.right() - TAB_PAD_X - CLOSE_SLOT / 2.0, cy),
             vec2(CLOSE_SLOT, CLOSE_SLOT),
         );
-        let close_id = ui.id().with("shell_tab_close").with(index);
+        let close_id = ui.scope_id().with("shell_tab_close").with(index);
         let close_resp = ui
             .interact(close_rect, close_id, Sense::click())
             .on_hover_cursor(CursorIcon::PointingHand);
@@ -434,7 +434,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
                 ui.scope_builder(
                     UiBuilder::new().layer_id(egui::LayerId::new(
                         egui::Order::Foreground,
-                        Id::new("shell_tab_reorder_drop"),
+                        Id::unique("shell_tab_reorder_drop"),
                     )),
                     |ui| {
                         ui.painter().vline(x, chrome.y_range(), stroke);
@@ -490,7 +490,7 @@ mod tests {
     use super::*;
     use crate::components::{ThemeExt, install};
     use crate::shell::ShellApp;
-    use egui::{CentralPanel, Context, FullOutput, Pos2, RawInput, Rect, Vec2};
+    use egui::{CentralPanel, Context, Pos2, RawInput, Rect, Vec2};
 
     #[test]
     fn empty_strip_still_claims_titleband() {
@@ -500,20 +500,26 @@ mod tests {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1200.0, 800.0))),
             ..Default::default()
         };
-        let FullOutput { .. } = ctx.run(input.clone(), |ctx| {
+        ctx.run_pass(input.clone(), |ctx| {
             install(ctx);
-        });
+        })
+        .textures_delta
+        .clear();
         let mut claimed_h = 0.0_f32;
-        let FullOutput { .. } = ctx.run(input, |ctx| {
+        ctx.run_pass(input, |ctx| {
             install(ctx);
             let t = ctx.get_lb_theme();
-            CentralPanel::default().show(ctx, |ui| {
-                let top = ui.max_rect().top();
-                let mut queue = Vec::new();
-                assert!(show(&mut app, ui, &t, &mut queue));
-                claimed_h = ui.cursor().top() - top;
+            ctx.root_ui(|ui| {
+                CentralPanel::default().show(ui, |ui| {
+                    let top = ui.max_rect().top();
+                    let mut queue = Vec::new();
+                    assert!(show(&mut app, ui, &t, &mut queue));
+                    claimed_h = ui.cursor().top() - top;
+                })
             });
-        });
+        })
+        .textures_delta
+        .clear();
         assert!(
             (claimed_h - HEADER_H).abs() < 0.5,
             "empty strip claimed {claimed_h:.1}, want HEADER_H={HEADER_H:.1}"

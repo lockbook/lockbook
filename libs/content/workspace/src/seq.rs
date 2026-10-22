@@ -17,7 +17,7 @@ use egui::{Context, Id};
 /// returned `Arc` at construction; bumps are `arc.fetch_add(1, Relaxed)`.
 pub fn ws_seq(ctx: &Context) -> Arc<AtomicU64> {
     ctx.data_mut(|d| {
-        d.get_temp_mut_or_insert_with(Id::new("ws_seq"), || Arc::new(AtomicU64::new(1)))
+        d.get_temp_mut_or_insert_with(Id::unique("ws_seq"), || Arc::new(AtomicU64::new(1)))
             .clone()
     })
 }

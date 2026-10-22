@@ -63,8 +63,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setNativeMarkdownTo
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.renderer.context.memory_mut(|m| {
-        m.data
-            .insert_temp(egui::Id::new("android_native_markdown_toolbar_height"), height.max(0.0))
+        m.data.insert_temp(
+            egui::Id::unique("android_native_markdown_toolbar_height"),
+            height.max(0.0),
+        )
     });
 }
 
@@ -237,7 +239,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
         command: false,
     };
 
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 
     let Some(key) = AndroidKeys::from(key_code) else { return };
 

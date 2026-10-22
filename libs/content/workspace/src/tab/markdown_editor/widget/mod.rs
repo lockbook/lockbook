@@ -80,6 +80,16 @@ impl<'ast> MdRender {
             // block which would cause the cursor to be shown indented; we trim
             // trailing blank lines.
             NodeValue::Item(_) | NodeValue::TaskItem(_) => {
+                // comrak ends an item at its last line with non-blank content,
+                // dropping a trailing content-less child line (an empty `> `).
+                // Raw sourcepos: a child's `node_range` recurses into this one.
+                for child in node.children() {
+                    let child = child.data.borrow();
+                    if utils::NodeValueExt::is_container_block(&child.value) {
+                        range.1 = range.1.max(self.sourcepos_to_range(child.sourcepos).1);
+                    }
+                }
+
                 let node_lines = self.range_lines(range);
                 let mut last_nonempty_line_idx = node_lines.start();
                 for line_idx in node_lines.iter() {

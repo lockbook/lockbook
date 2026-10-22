@@ -66,6 +66,7 @@ impl From<crate::Response> for AndroidResponse {
             virtual_keyboard_shown,
             window_title: _,
             request_paste: _,
+            ime_cursor: _,
             context_menu,
         } = value;
 

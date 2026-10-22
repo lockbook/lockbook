@@ -54,6 +54,7 @@ enum class MarkdownToolbarAction {
     NumberedList,
     BulletedList,
     TaskList,
+    Quote,
     Link,
     Indent,
     Outdent,
@@ -76,6 +77,9 @@ object Workspace {
     }
 
     external fun initWSOffloaded(surface: Surface, core: Long, theme: Any): Long
+
+    // comma-separated BCP 47 tags, before the first initWS
+    external fun setPreferredLanguages(tags: String)
     external fun setTheme(rustObj: Long, theme: Any)
     external fun defaultTheme(isDark: Boolean): Any
 

@@ -643,22 +643,29 @@ impl<'ast> MdEdit {
                                 }
                             }
                         } else {
-                            // remove target prefix regardless (will often be empty / supports replacements)
+                            // a block of the target style's kind gives up its prefix
+                            // (type change / unapply); a list's marker lives on its item
                             // todo: space between selected nodes?
-                            let target_node = if node.is_container_block() {
-                                node
-                            } else {
-                                node.parent().unwrap()
-                            };
-                            for line_idx in self.renderer.node_lines(node).iter() {
-                                let line = self.renderer.bounds.source_lines[line_idx];
+                            let target_node = kind_ancestor(node, &style).map(|ancestor| {
+                                if matches!(ancestor.node_type(), NodeValue::List(_)) {
+                                    node.ancestors()
+                                        .find(|n| n.parent().is_some_and(|p| p.same_node(ancestor)))
+                                        .unwrap_or(ancestor)
+                                } else {
+                                    ancestor
+                                }
+                            });
+                            if let Some(target_node) = target_node {
+                                for line_idx in self.renderer.node_lines(node).iter() {
+                                    let line = self.renderer.bounds.source_lines[line_idx];
 
-                                let prefix = self.renderer.line_own_prefix(target_node, line);
+                                    let prefix = self.renderer.line_own_prefix(target_node, line);
 
-                                operations.push(Operation::Replace(Replace {
-                                    range: prefix,
-                                    text: "".into(),
-                                }));
+                                    operations.push(Operation::Replace(Replace {
+                                        range: prefix,
+                                        text: "".into(),
+                                    }));
+                                }
                             }
 
                             if !unapply {
@@ -676,11 +683,20 @@ impl<'ast> MdEdit {
                                         continue;
                                     }
 
-                                    let range = self
-                                        .renderer
-                                        .line_ancestors_prefix(node, line)
-                                        .end()
-                                        .into_range();
+                                    // where the prefix came out, else just inside
+                                    // the deepest container
+                                    let range = match target_node {
+                                        Some(target) => {
+                                            self.renderer.line_own_prefix(target, line).start()
+                                        }
+                                        None if node.is_container_block() => {
+                                            self.renderer.line_own_prefix(node, line).end()
+                                        }
+                                        None => {
+                                            self.renderer.line_ancestors_prefix(node, line).end()
+                                        }
+                                    }
+                                    .into_range();
                                     let text = match style {
                                         NodeValue::Heading(_) => unreachable!(),
                                         NodeValue::BlockQuote => "> ",
@@ -841,22 +857,10 @@ impl<'ast> MdEdit {
             if self.renderer.selected_block(node) {
                 any_selected_blocks = true;
 
-                // Walk up the ancestor chain: the selected block (a leaf
-                // like Paragraph, or its immediate container) may sit
-                // several levels below the structural container that
-                // bears the toggled style. `* foo` has `List > Item >
-                // Paragraph` — the bullet style lives on `List`, two
-                // levels above the selected Paragraph.
-                let mut maybe = if node.is_container_block() { Some(node) } else { node.parent() };
-                while let Some(ancestor) = maybe {
-                    let ancestor_type = ancestor.node_type();
-                    if std::mem::discriminant(&ancestor_type) == std::mem::discriminant(style) {
-                        if &ancestor_type == style {
-                            unapply = true;
-                        }
-                        break;
+                if let Some(ancestor) = kind_ancestor(node, style) {
+                    if &ancestor.node_type() == style {
+                        unapply = true;
                     }
-                    maybe = ancestor.parent();
                 }
             }
         }
@@ -1205,6 +1209,22 @@ pub fn distance(coord: f32, range: Rangef) -> f32 {
     } else {
         (coord - range.min).abs().min((coord - range.max).abs())
     }
+}
+
+/// Nearest container at or above `node` of `style`'s kind: the list for
+/// any list style, the quote for a quote. A leaf's walk starts at its
+/// parent; `* foo` is `List > Item > Paragraph`, bullet style on `List`.
+fn kind_ancestor<'ast>(
+    node: &'ast AstNode<'ast>, style: &NodeValue,
+) -> Option<&'ast AstNode<'ast>> {
+    let mut maybe = if node.is_container_block() { Some(node) } else { node.parent() };
+    while let Some(ancestor) = maybe {
+        if std::mem::discriminant(&ancestor.node_type()) == std::mem::discriminant(style) {
+            return Some(ancestor);
+        }
+        maybe = ancestor.parent();
+    }
+    None
 }
 
 /// Buffer edit that deindents `line` past `ancestor`, or `None`.

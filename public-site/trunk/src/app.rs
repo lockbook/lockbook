@@ -103,7 +103,8 @@ impl LbWebApp {
 
 impl eframe::App for LbWebApp {
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = &root.ctx().clone();
         let mode = page_mode();
         if mode != self.mode {
             self.mode = mode;
@@ -115,7 +116,7 @@ impl eframe::App for LbWebApp {
         let paper = ctx.get_lb_theme().neutral_bg();
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(paper))
-            .show(ctx, |ui| {
+            .show(root, |ui| {
                 if self.editor.is_none() && self.initial_screen == InitialScreen::Editor {
                     let files = Arc::new(std::sync::RwLock::new(
                         workspace_rs::file_cache::FileCache::empty(),

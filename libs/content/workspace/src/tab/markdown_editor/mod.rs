@@ -111,6 +111,15 @@ pub enum TouchTarget {
     Popup,
 }
 
+/// A desktop IME composition in the buffer: where it sits, its text, and
+/// the buffer seq that placement is current for.
+#[derive(Clone, Debug)]
+pub struct ImeMarked {
+    pub range: (Grapheme, Grapheme),
+    pub text: String,
+    pub seq: usize,
+}
+
 pub struct MdRender {
     // context
     pub ctx: Context,
@@ -193,6 +202,7 @@ pub struct MdRender {
     pub reveal_seq: u64, // includes selection and find matches
 
     pub search_range: Option<(Grapheme, Grapheme)>, // drawn in accent color for completions
+    pub ime_marked: Option<ImeMarked>,              // desktop IME composition, drawn underlined
 
     // capabilities
     pub embeds: Box<dyn EmbedResolver>,
@@ -267,6 +277,19 @@ pub struct MdEdit {
     /// geometry. Set on drag release (which runs post-render).
     pub pending_block_move: Option<((Grapheme, Grapheme), Grapheme)>,
 
+    /// Keyboard input after a frame's first IME edit, replayed next frame so
+    /// it acts on the edit's result (completions take keys ahead of the IME).
+    pub deferred_input: Vec<egui::Event>,
+
+    /// A composition was dropped this frame; withholding the IME output
+    /// tells the platform's input method to discard it too.
+    pub ime_reset: bool,
+
+    /// The text of a composition the caret left, which the input method may
+    /// still send before it lets go; ignored until it sends something else,
+    /// the editor gets input of its own, or loses focus.
+    pub ime_abandoned: Option<String>,
+
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
     pub pending_scroll: Option<ScrollTarget>,
@@ -333,6 +356,9 @@ impl MdEdit {
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
             pending_block_move: None,
+            deferred_input: Vec::new(),
+            ime_reset: false,
+            ime_abandoned: None,
             pending_scroll: None,
             single_line_scroll: 0.0,
             overflow_scroll: 0.0,
@@ -496,7 +522,7 @@ impl MdRender {
     pub fn empty(ctx: Context) -> Self {
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
-        let dark_mode = ctx.style().visuals.dark_mode;
+        let dark_mode = ctx.global_style().visuals.dark_mode;
         let ws_seq = crate::seq::ws_seq(&ctx);
         Self {
             ctx,
@@ -535,6 +561,7 @@ impl MdRender {
             reveal_seq: 0,
             text_seq: 0,
             search_range: None,
+            ime_marked: None,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
@@ -604,6 +631,7 @@ impl MdRender {
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
+            ime_marked: None,
             disable_images: false,
             contact_linked_sites: false,
             in_progress_selection: None,
@@ -731,7 +759,7 @@ impl Editor {
         let MdConfig { readonly, ext } = cfg;
         let plaintext = ext.to_lowercase() != "md";
 
-        let dark_mode = ctx.style().visuals.dark_mode;
+        let dark_mode = ctx.global_style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
@@ -778,6 +806,7 @@ impl Editor {
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
+            ime_marked: None,
             disable_images: false,
             contact_linked_sites: false,
 
@@ -814,6 +843,9 @@ impl Editor {
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
                 pending_block_move: None,
+                deferred_input: Vec::new(),
+                ime_reset: false,
+                ime_abandoned: None,
                 pending_scroll: None,
                 single_line_scroll: 0.0,
                 overflow_scroll: 0.0,
@@ -887,7 +919,7 @@ impl Editor {
     }
 
     pub fn id(&self) -> Id {
-        Id::new(self.edit.file_id).with(self.id_salt)
+        Id::unique(self.edit.file_id).with(self.id_salt)
     }
 
     /// Last disk hmac adopted with the displayed buffer.
@@ -1090,7 +1122,7 @@ impl Editor {
                     let toolbar_height = if cfg!(target_os = "android") {
                         ui.ctx()
                             .memory(|m| {
-                                m.data.get_temp::<f32>(Id::new(
+                                m.data.get_temp::<f32>(Id::unique(
                                     "android_native_markdown_toolbar_height",
                                 ))
                             })
@@ -2034,139 +2066,48 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    let (sans, mono, bold, italic, base_scale) = if cfg!(target_vendor = "apple") {
-        (
-            lb_fonts::SF_PRO_TEXT_REGULAR,
-            lb_fonts::SF_MONO_REGULAR,
-            lb_fonts::SF_PRO_TEXT_BOLD,
-            lb_fonts::SF_PRO_TEXT_ITALIC,
-            0.9,
-        )
-    } else {
-        (
-            lb_fonts::NOTO_SANS_REGULAR,
-            lb_fonts::NOTO_SANS_MONO_REGULAR,
-            lb_fonts::NOTO_SANS_BOLD,
-            lb_fonts::NOTO_SANS_ITALIC,
-            1.,
-        )
-    };
-
+    let text = crate::font::text_fonts();
+    let base_scale = text.scale;
     let mono_scale = 0.9 * base_scale;
     let mono_y_offset_factor = 0.1;
-    let mono_baseline_offset_factor = -0.1;
 
     let super_y_offset_factor = -1. / 4.;
     let sub_y_offset_factor = 1. / 4.;
     let super_scale = 3. / 4.;
     let sub_scale = 3. / 4.;
 
-    fonts.font_data.insert(
-        "sans".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(sans)
-        }
-        .into(),
-    );
-    fonts.font_data.insert("mono".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: mono_y_offset_factor,
-                scale: mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
-    fonts.font_data.insert(
-        "bold".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(bold)
-        }
-        .into(),
-    );
-    fonts.font_data.insert(
-        "italic".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(italic)
-        }
-        .into(),
-    );
-
-    fonts.font_data.insert("sans_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor,
-                scale: super_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(sans)
-        }
-        .into()
-    });
-    fonts.font_data.insert("bold_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor,
-                scale: super_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(bold)
-        }
-        .into()
-    });
-    fonts.font_data.insert("mono_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor + mono_y_offset_factor,
-                scale: super_scale * mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
-
-    fonts.font_data.insert("sans_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor,
-                scale: sub_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(sans)
-        }
-        .into()
-    });
-    fonts.font_data.insert("bold_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor,
-                scale: sub_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(bold)
-        }
-        .into()
-    });
-    fonts.font_data.insert("mono_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor + mono_y_offset_factor,
-                scale: sub_scale * mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
+    let tweaked = |font: &FontData, scale: f32, y_offset_factor: f32| {
+        let mut font = font.clone();
+        font.tweak.scale = scale;
+        font.tweak.y_offset_factor = y_offset_factor;
+        Arc::new(font)
+    };
+    for (name, font, scale, y_offset_factor) in [
+        ("sans", &text.sans, base_scale, 0.),
+        ("bold", &text.bold, base_scale, 0.),
+        ("italic", &text.italic, base_scale, 0.),
+        ("mono", &text.mono, mono_scale, mono_y_offset_factor),
+        ("sans_super", &text.sans, super_scale * base_scale, super_y_offset_factor),
+        ("bold_super", &text.bold, super_scale * base_scale, super_y_offset_factor),
+        (
+            "mono_super",
+            &text.mono,
+            super_scale * mono_scale,
+            super_y_offset_factor + mono_y_offset_factor,
+        ),
+        ("sans_sub", &text.sans, sub_scale * base_scale, sub_y_offset_factor),
+        ("bold_sub", &text.bold, sub_scale * base_scale, sub_y_offset_factor),
+        (
+            "mono_sub",
+            &text.mono,
+            sub_scale * mono_scale,
+            sub_y_offset_factor + mono_y_offset_factor,
+        ),
+    ] {
+        fonts
+            .font_data
+            .insert(name.into(), tweaked(font, scale, y_offset_factor));
+    }
 
     fonts.font_data.insert("icons".into(), {
         FontData {
@@ -2241,6 +2182,8 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .unwrap()
             .push("phosphor".to_owned());
     }
+
+    crate::font::cjk::register_egui(fonts, base_scale);
 }
 
 /// Headless `Context` with the same fonts as production, including Phosphor.
@@ -2295,16 +2238,20 @@ mod test {
         fn enter_frame(&mut self) {
             let ctx = self.editor.edit.renderer.ctx.clone();
             let pending = std::mem::take(&mut self.pending);
-            let _ = ctx.run(RawInput::default(), |ctx| {
+            ctx.run_pass(RawInput::default(), |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
                 for event in &pending {
                     ctx.push_markdown_event(event.clone());
                 }
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.editor.show(ui);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        self.editor.show(ui);
+                    })
                 });
-            });
+            })
+            .textures_delta
+            .clear();
         }
 
         fn get_text(&self) -> &str {
