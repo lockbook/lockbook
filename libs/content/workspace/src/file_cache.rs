@@ -216,6 +216,7 @@ impl FileCache {
                 .or_insert(file_modified);
             *ancestor_modified = (*ancestor_modified).max(file_modified);
         }
+        self.notes.tree_changed();
     }
 }
 
