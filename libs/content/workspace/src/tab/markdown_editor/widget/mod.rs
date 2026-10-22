@@ -535,15 +535,20 @@ pub(crate) fn completion_popup_size(content_w: f32, n: usize) -> Vec2 {
 }
 
 pub(crate) fn completion_row_rects(popup: Rect, n: usize) -> Vec<Rect> {
-    let pad = completion_plate_pad();
-    let h = completion_row_h();
-    let inner = popup.shrink(pad);
-    (0..n)
-        .map(|i| {
-            Rect::from_min_size(
-                egui::pos2(inner.left(), inner.top() + i as f32 * h),
-                egui::vec2(inner.width(), h),
-            )
+    completion_line_rects(popup, &vec![completion_row_h(); n])
+}
+
+/// [`completion_row_rects`] for lines of uneven heights, top to bottom.
+pub(crate) fn completion_line_rects(popup: Rect, heights: &[f32]) -> Vec<Rect> {
+    let inner = popup.shrink(completion_plate_pad());
+    let mut top = inner.top();
+    heights
+        .iter()
+        .map(|h| {
+            let rect =
+                Rect::from_min_size(egui::pos2(inner.left(), top), egui::vec2(inner.width(), *h));
+            top += h;
+            rect
         })
         .collect()
 }

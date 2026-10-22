@@ -265,7 +265,10 @@ impl Workspace {
         let ctx = ctx.clone();
 
         #[cfg(not(target_family = "wasm"))]
-        spawn!(lb_bg_worker(ctx, core, ws_tx));
+        {
+            crate::note_index::NoteIndex::keep(ws.files.clone(), core.clone(), ctx.clone());
+            spawn!(lb_bg_worker(ctx, core, ws_tx));
+        }
 
         ws
     }
@@ -1124,13 +1127,23 @@ impl Workspace {
         self.closed_tabs.iter().rev().map(|c| &c.slot).collect()
     }
 
+    /// Puts `cache` in place of the file cache, keeping the headings of the
+    /// notes it still has.
+    fn replace_files(&self, mut cache: FileCache) {
+        let mut files = self.files.write().unwrap();
+        let mut notes = std::mem::take(&mut files.notes);
+        notes.retain_in(&cache);
+        cache.notes = notes;
+        *files = cache;
+    }
+
     pub fn process_bg_tasks(&mut self) {
         loop {
             match self.ws_rx.try_recv() {
                 Ok(WsUpdates::FileCacheComputed(file_cache)) => {
                     let file_cache = file_cache.unwrap();
                     self.landing_page.update_recent_files(&file_cache);
-                    *self.files.write().unwrap() = file_cache;
+                    self.replace_files(file_cache);
                     self.out.file_cache_updated = true;
 
                     for tab in self.tabs.values_mut() {
@@ -1306,7 +1319,7 @@ impl Workspace {
                     continue;
                 };
                 let link = crate::tab::imported_image_link(&cache, file_id, &file);
-                *self.files.write().unwrap() = cache;
+                self.replace_files(cache);
                 match link {
                     Ok(link) => {
                         self.ctx

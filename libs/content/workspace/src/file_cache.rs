@@ -14,6 +14,8 @@ use lb_rs::model::file_metadata::FileType;
 use tracing::instrument;
 use urlencoding::decode;
 
+use crate::note_index::NoteIndex;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolvedLink {
     File(Uuid),
@@ -52,6 +54,8 @@ pub struct FileCache {
     /// Max last_modified across all files. Used as a cache invalidation key
     /// by link completions — changes whenever the file tree changes.
     pub last_modified: u64,
+    /// The notes' headings, carried from one cache to the next.
+    pub notes: NoteIndex,
 }
 
 /// Folders first, then name. Parent+name is unique so `id` is not in the key.
@@ -93,6 +97,7 @@ impl FileCache {
             shared_roots: vec![],
             rows: vec![root],
             by_id: [(root_id, 0)].into_iter().collect(),
+            notes: Default::default(),
         }
     }
 
@@ -123,6 +128,7 @@ impl FileCache {
             size_bytes_recursive: uuid_map(),
             last_modified_recursive: uuid_map(),
             last_modified,
+            notes: Default::default(),
         }
     }
 

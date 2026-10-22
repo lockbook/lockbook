@@ -35,7 +35,9 @@ pub use chrome::{
     tab_icon,
 };
 pub use color::{FG_HOVER, FG_PRESS, Theme, ThemeExt};
-pub use file_row::{crumb_label, ellipsize_path, home_crumb, parent_crumbs, path_crumbs};
+pub use file_row::{
+    crumb_label, ellipsize_path, ellipsize_path_tail, home_crumb, parent_crumbs, path_crumbs,
+};
 pub use interact::{
     canvas_selected_fills, interact_fill, interact_fill_response, quiet_canvas_fills,
     quiet_secondary_fills, sense_click,

@@ -348,6 +348,8 @@ pub mod phosphor {
     pub const TEXT_OUTDENT: &str = "\u{ea1c}";
     /// Nested lines — document outline (`ph-list`).
     pub const LIST: &str = "\u{e2f0}";
+    /// `#` — a note's headings in the link picker (`ph-hash`).
+    pub const HASH: &str = "\u{e2a2}";
     pub const LIST_BULLETS: &str = "\u{e2f2}";
     pub const LIST_NUMBERS: &str = "\u{e2f6}";
     pub const CHECK_SQUARE: &str = "\u{e186}";
