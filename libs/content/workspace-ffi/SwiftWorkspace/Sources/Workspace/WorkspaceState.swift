@@ -32,14 +32,14 @@ import Observation
             guard !pendingOpens.isEmpty else { return }
             let queued = pendingOpens
             pendingOpens = []
-            for id in queued {
-                openFile(id: id)
+            for (id, heading) in queued {
+                openFile(id: id, heading: heading)
             }
         }
     }
 
     @ObservationIgnored private var nativeSidebarOpen = false
-    @ObservationIgnored private var pendingOpens: [UUID] = []
+    @ObservationIgnored private var pendingOpens: [(UUID, String?)] = []
     @ObservationIgnored private var desktopTabPolicy = false
 
     @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
@@ -81,7 +81,7 @@ import Observation
             pendingFocusDoc = id
         }
         guard let wsHandle else {
-            pendingOpens.append(id)
+            pendingOpens.append((id, nil))
             return
         }
 
@@ -91,6 +91,22 @@ import Observation
         redraw.send(())
         //        Will crash iOS, something with caret rects. Looks rust related
         //        focus.send(())
+    }
+
+    /// Opens a file at the heading a link's `#fragment` names.
+    public func openFile(id: UUID, heading: String?) {
+        guard let heading, !heading.isEmpty else {
+            openFile(id: id)
+            return
+        }
+        guard let wsHandle else {
+            pendingOpens.append((id, heading))
+            return
+        }
+
+        no_folder_selected(wsHandle)
+        open_file_at_heading(wsHandle, CUuid(_0: id.uuid), heading, false)
+        redraw.send(())
     }
 
     public func navigateToFile(id: UUID) {

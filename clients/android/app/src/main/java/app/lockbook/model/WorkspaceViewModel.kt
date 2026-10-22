@@ -117,6 +117,8 @@ data class OpenFileRequest(
     val id: String,
     val newFile: Boolean,
     val presentation: OpenFilePresentation,
+    /** The heading a link's `#fragment` names, to open at. */
+    val heading: String? = null,
 )
 
 enum class OpenFilePresentation {

@@ -69,6 +69,18 @@ pub extern "C" fn open_file_at(
         .open_file_at_range(id, range_start..range_end, new_tab);
 }
 
+/// Opens a file at the heading a link's `#fragment` names.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn open_file_at_heading(
+    obj: *mut c_void, id: CUuid, heading: *const c_char, new_tab: bool,
+) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let heading = CStr::from_ptr(heading).to_string_lossy().into_owned();
+    obj.workspace
+        .open_file_at_heading(id.into(), heading, new_tab);
+}
+
 #[no_mangle]
 pub extern "C" fn navigate_to_file(obj: *mut c_void, id: CUuid) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };

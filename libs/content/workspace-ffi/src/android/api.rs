@@ -561,6 +561,19 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     get_current_tab(obj)
 }
 
+/// Opens a file from an `open/` URL at the heading its `#fragment` names.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDocAtHeading(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, jheading: JString,
+) -> jint {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let heading: String = env.get_string(&jheading).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+    obj.workspace.open_file_at_heading(id, heading, false);
+    get_current_tab(obj)
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_activateDoc(
     mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,

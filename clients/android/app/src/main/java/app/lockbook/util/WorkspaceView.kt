@@ -54,7 +54,7 @@ class WorkspaceView(
     private var surface: Surface? = null
 
     // The fragment may request a file before SurfaceView creates its native workspace.
-    private var deferredOpenDoc: Pair<String, Boolean>? = null
+    private var deferredOpenDoc: Triple<String, Boolean, String?>? = null
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
@@ -269,9 +269,9 @@ class WorkspaceView(
 
         requestFocus()
 
-        deferredOpenDoc?.let { (id, newFile) ->
+        deferredOpenDoc?.let { (id, newFile, heading) ->
             deferredOpenDoc = null
-            openDoc(id, newFile)
+            openDoc(id, newFile, heading)
         }
     }
 
@@ -524,14 +524,19 @@ class WorkspaceView(
     fun openDoc(
         id: String,
         newFile: Boolean,
+        heading: String? = null,
     ) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
-            deferredOpenDoc = id to newFile
+            deferredOpenDoc = Triple(id, newFile, heading)
             return
         }
 
         deferredOpenDoc = null
-        Workspace.openDoc(wgpuObj, id, newFile)
+        if (heading.isNullOrEmpty()) {
+            Workspace.openDoc(wgpuObj, id, newFile)
+        } else {
+            Workspace.openDocAtHeading(wgpuObj, id, heading)
+        }
         invalidate()
 
         return

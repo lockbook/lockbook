@@ -110,6 +110,7 @@ object Workspace {
 
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
     external fun openDoc(rustObj: Long, id: String, newFile: Boolean) : Int
+    external fun openDocAtHeading(rustObj: Long, id: String, heading: String) : Int
     external fun activateDoc(rustObj: Long, id: String) : Int
 
     external fun createDocAt(rustObj: Long, isDrawing: Boolean, parent: String)

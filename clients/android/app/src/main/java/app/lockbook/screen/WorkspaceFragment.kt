@@ -162,7 +162,7 @@ class WorkspaceFragment : Fragment() {
             pendingTabSwitchUiState = null
 
             model.isFileTreeSyncedToCurrentTab = true
-            workspaceWrapper.workspaceView.openDoc(request.id, request.newFile)
+            workspaceWrapper.workspaceView.openDoc(request.id, request.newFile, request.heading)
 
             when (request.presentation) {
                 OpenFilePresentation.Preserve -> {

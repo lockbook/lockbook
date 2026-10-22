@@ -373,14 +373,16 @@ class MainScreenActivity : AppCompatActivity() {
             }
         }
 
-        launchFileId?.let(::openLinkedFile)
+        launchFileId?.let { openLinkedFile(it, intent.dataString?.let(OpenLinkParser::heading)) }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.action == Intent.ACTION_VIEW) {
-            parseOpenLink(intent, coldStart = false)?.let(::openLinkedFile)
+            parseOpenLink(intent, coldStart = false)?.let {
+                openLinkedFile(it, intent.dataString?.let(OpenLinkParser::heading))
+            }
         }
     }
 
@@ -408,13 +410,17 @@ class MainScreenActivity : AppCompatActivity() {
         return fileId
     }
 
-    private fun openLinkedFile(fileId: String) {
+    private fun openLinkedFile(
+        fileId: String,
+        heading: String?,
+    ) {
         if (fileTreeViewModel.fileModel.idsAndFiles.containsKey(fileId)) {
             workspaceModel.openFile(
                 OpenFileRequest(
                     id = fileId,
                     newFile = false,
                     presentation = OpenFilePresentation.ShowDetail,
+                    heading = heading,
                 ),
             )
             mainScreenModel.navigate(MainNavigationAction.FocusDetail)
