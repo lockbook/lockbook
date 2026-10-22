@@ -231,7 +231,13 @@ impl Workspace {
         }
 
         let software_keyboard = self.software_keyboard_in_use;
+        // iOS sets the tab policy from the size class and Android never does; compact
+        // has no room for a page sidebar
+        let compact = !self.desktop_tab_policy;
         if let Some(tab) = self.current_tab_mut() {
+            if let Some(pdf) = tab.pdf_mut() {
+                pdf.compact = compact;
+            }
             // attaching or detaching a hardware keyboard toggles this while a doc is open
             if let Some(md) = tab.markdown_mut() {
                 md.edit.phone_mode = md.edit.renderer.touch_mode && software_keyboard;
