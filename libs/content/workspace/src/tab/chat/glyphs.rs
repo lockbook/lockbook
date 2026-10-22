@@ -57,8 +57,7 @@ impl Glyphs {
 /// White-with-alpha mask from the SVG's coverage; color comes from the tint.
 fn rasterize(bytes: &[u8], px: u32) -> ColorImage {
     let fallible = || -> Option<ColorImage> {
-        let tree =
-            resvg::usvg::Tree::from_data(bytes, &Default::default(), &Default::default()).ok()?;
+        let tree = resvg::usvg::Tree::from_data(bytes, &Default::default()).ok()?;
         let size = tree.size();
         let scale = px as f32 / size.width().max(size.height());
         let mut pixmap = resvg::tiny_skia::Pixmap::new(px, px)?;
