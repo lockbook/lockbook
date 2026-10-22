@@ -31,6 +31,7 @@ import app.lockbook.R
 import app.lockbook.databinding.SheetShareFileBinding
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.screen.UpdateFilesUI
+import app.lockbook.util.harmonizedIdentityColors
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -45,7 +46,6 @@ import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.LbError.LbEC
 import timber.log.Timber
-import java.util.Locale
 
 class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
     private var _binding: SheetShareFileBinding? = null
@@ -180,16 +180,13 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         val availableWidth =
             (binding.shareFileAccessPeople.width - addButtonWidth - avatarSpacing).coerceAtLeast(minLabelWidth)
         val labelWidth = (availableWidth / sharedUsernames.size).coerceIn(minLabelWidth, maxLabelWidth)
-        val primaryColor = MaterialColors.getColor(binding.root, androidx.appcompat.R.attr.colorPrimary)
         val backgroundColors =
             intArrayOf(
                 MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorSurface),
                 MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorSurfaceContainerLow),
             )
         sharedUsernames.forEachIndexed { index, username ->
-            val colorIndex = Math.floorMod(username.lowercase(Locale.ROOT).hashCode(), 8)
-            val seedColor = Color.HSVToColor(floatArrayOf(colorIndex * 45f, 0.65f, 0.8f))
-            val colorRoles = MaterialColors.getColorRoles(requireContext(), MaterialColors.harmonize(seedColor, primaryColor))
+            val colorRoles = harmonizedIdentityColors(requireContext(), username)
             val avatarColor = colorRoles.accentContainer
             val initialColor = colorRoles.onAccentContainer
             val labelColor = readableUsernameColor(colorRoles.accent, backgroundColors)

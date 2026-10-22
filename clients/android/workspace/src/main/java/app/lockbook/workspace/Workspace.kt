@@ -97,6 +97,7 @@ object Workspace {
     external fun queueFileForEditorImport(rustObj: Long, path: String, name: String): Boolean
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
     external fun setBottomInset(rustObj: Long, inset: Int)
+    external fun setSafeInsets(rustObj: Long, top: Int, right: Int, bottom: Int, left: Int)
 
     external fun unfocusTitle(rustObj: Long)
     external fun willConsumeTouches(rustObj: Long, x: Float, y: Float): Boolean
@@ -120,6 +121,7 @@ object Workspace {
     external fun closeDoc(rustObj: Long, id: String)
     external fun closeSession(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
+    external fun closeCurrentTabToWelcome(rustObj: Long): Boolean
     external fun back(rustObj: Long): Boolean
     external fun forward(rustObj: Long): Boolean
     external fun canForward(rustObj: Long): Boolean
@@ -133,6 +135,7 @@ object Workspace {
     // text input
     external fun setSelection(rustObj: Long, start: Int, end: Int)
     external fun getSelection(rustObj: Long): JTextRange
+    external fun markdownCursorUtf16Native(text: String, cursor: Int): Int
     external fun getTextLength(rustObj: Long): Int
     external fun clear(rustObj: Long)
     external fun replace(rustObj: Long, start: Int, end: Int, text: String)

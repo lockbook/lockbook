@@ -364,3 +364,20 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setBottomInset(
 
     obj.renderer.bottom_inset = Some(inset as u32);
 }
+
+/// Insets are physical Android pixels; reserve controls without resizing document content.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSafeInsets(
+    _env: JNIEnv, _: JClass, obj: jlong, top: jint, right: jint, bottom: jint, left: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let scale = obj.renderer.screen.pixels_per_point;
+    workspace_rs::safe_area::ControlInsets {
+        top: top.max(0) as f32 / scale,
+        right: right.max(0) as f32 / scale,
+        bottom: bottom.max(0) as f32 / scale,
+        left: left.max(0) as f32 / scale,
+    }
+    .set(&obj.workspace.ctx);
+    obj.workspace.ctx.request_repaint();
+}

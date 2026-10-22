@@ -36,27 +36,23 @@ class WorkspaceViewModel : ViewModel() {
     val finishedAction: LiveData<FinishedAction>
         get() = _finishedAction
 
-    val _hideToolbar = SingleMutableLiveData<Float>()
-    val hideToolbar: LiveData<Float>
-        get() = _hideToolbar
-
     var tabs = emptyDataSourceTyped<OpenTab>()
+
+    private val _openTabCount = MutableLiveData(0)
+    val openTabCount: LiveData<Int>
+        get() = _openTabCount
+
+    internal fun updateOpenTabCount(count: Int) {
+        if (_openTabCount.value != count) _openTabCount.value = count
+    }
 
     val _keyboardVisible = MutableLiveData<Boolean>()
     val keyboardVisible: LiveData<Boolean>
         get() = _keyboardVisible
 
-    val _nativeMarkdownToolbarVisible = MutableLiveData(false)
-    val nativeMarkdownToolbarVisible: LiveData<Boolean>
-        get() = _nativeMarkdownToolbarVisible
-
     val _showKeyboard = MutableLiveData<Boolean>()
     val showKeyboard: LiveData<Boolean>
         get() = _showKeyboard
-
-    val _tabListExpanded = MutableLiveData(false)
-    val tabListExpanded: LiveData<Boolean>
-        get() = _tabListExpanded
 
     val _bottomInset = MutableLiveData<Int>()
     val bottomInset: LiveData<Int>
@@ -73,7 +69,7 @@ class WorkspaceViewModel : ViewModel() {
     /** Holds staged files until the workspace copies their bytes into a paste event. */
     private val pendingAttachments = ArrayDeque<StagedAttachment>()
 
-    /** request workspace view to navigate within tab history **/
+    /** Go back within the tab, then close it to Welcome, then return Home. */
     private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
     val workspaceBackRequested: LiveData<Unit>
         get() = _workspaceBackRequested

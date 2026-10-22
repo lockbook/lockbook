@@ -1,3 +1,4 @@
+pub mod document_preview;
 pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;
@@ -6,6 +7,7 @@ pub mod landing;
 pub mod mind_map;
 pub mod output;
 pub mod resolvers;
+pub mod safe_area;
 pub mod search;
 pub mod seq;
 pub mod show;

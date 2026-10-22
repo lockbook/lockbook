@@ -1,206 +1,106 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:fitsSystemWindows="true"
-    >
-    <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/app_bar_layout"
-        android:layout_width="match_parent"
-        android:elevation="0dp"
-        app:elevation="0dp"
-        android:translationZ="4dp"
-        android:layout_height="wrap_content">
-
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/workspace_toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            app:menu="@menu/menu_text_editor"
-            app:elevation="0dp"
-            android:elevation="0dp"
-            />
-
-    </com.google.android.material.appbar.AppBarLayout>
-
-    <LinearLayout
-        android:id="@+id/standard_bottom_sheet"
-        android:background="?attr/colorSurface"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:orientation="vertical"
-        android:translationZ="4dp"
-        >
-
-        <androidx.constraintlayout.widget.ConstraintLayout
-            android:id="@+id/collapsed_bottom_sheet_content"
-            android:layout_width="match_parent"
-            android:layout_height="64dp">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/expand_list"
-                style="@style/Widget.Material3.Button.IconButton.Filled"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="?android:listPreferredItemPaddingStart"
-                android:contentDescription="@string/expand_tabs_list"
-                app:icon="@drawable/ic_outline_menu_24"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                app:shapeAppearanceOverlay="@style/ButtonGroupStartShape" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/search_ws_compact"
-                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:layout_marginEnd="4dp"
-                android:contentDescription="@string/search"
-                android:insetLeft="0dp"
-                app:icon="@drawable/ic_round_search_24"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toEndOf="@+id/expand_list"
-                app:layout_constraintTop_toTopOf="parent"
-                app:shapeAppearanceOverlay="@style/ButtonGroupMiddleShape" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/create_ws_compact"
-                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
-                android:layout_marginEnd="?android:listPreferredItemPaddingEnd"
-                android:contentDescription="@string/create"
-                android:insetLeft="0dp"
-                app:icon="@drawable/ic_baseline_add_24"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toEndOf="@+id/search_ws_compact"
-                app:layout_constraintTop_toTopOf="parent"
-                app:shapeAppearanceOverlay="@style/ButtonGroupEndShape" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/compact_tabs_list"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:insetRight="0dp"
-                android:orientation="horizontal"
-                android:overScrollMode="never"
-                android:scrollbars="none"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toEndOf="@+id/create_ws_compact"
-                app:layout_constraintTop_toTopOf="parent" />
-
-        </androidx.constraintlayout.widget.ConstraintLayout>
-
-        <LinearLayout
-            android:id="@+id/expanded_bottom_sheet_content"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <HorizontalScrollView
-                android:layout_width="match_parent"
-                android:layout_height="64dp"
-                android:fillViewport="false"
-                android:overScrollMode="never"
-                android:scrollbars="none">
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingStart="?android:listPreferredItemPaddingStart"
-                    android:paddingEnd="?android:listPreferredItemPaddingEnd">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/collapse_list"
-                        style="@style/Widget.Material3.Button.IconButton.Filled"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="8dp"
-                        android:insetLeft="0dp"
-                        android:insetRight="0dp"
-                        android:contentDescription="@string/collapse_tabs_list"
-                        app:icon="@drawable/ic_outline_menu_24"
-                        app:shapeAppearanceOverlay="@style/ButtonGroupStartShape" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/search_ws"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="8dp"
-                        android:insetLeft="0dp"
-                        android:insetRight="0dp"
-                        android:text="@string/search"
-                        app:icon="@drawable/ic_round_search_24"
-                        app:shapeAppearanceOverlay="@style/ButtonGroupMiddleShape" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/create_ws"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="8dp"
-                        android:insetLeft="0dp"
-                        android:insetRight="0dp"
-                        android:text="@string/create"
-                        app:icon="@drawable/ic_baseline_add_24"
-                        app:shapeAppearanceOverlay="@style/ButtonGroupMiddleShape" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/close_all_tabs"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="8dp"
-                        android:insetLeft="0dp"
-                        android:insetRight="0dp"
-                        android:text="@string/close_all_tabs"
-                        app:shapeAppearanceOverlay="@style/ButtonGroupMiddleShape" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/forward_ws"
-                        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:contentDescription="@string/workspace_forward"
-                        android:insetLeft="0dp"
-                        android:insetRight="0dp"
-                        app:icon="@drawable/ic_baseline_arrow_forward_24"
-                        app:shapeAppearanceOverlay="@style/ButtonGroupEndShape" />
-
-                </LinearLayout>
-            </HorizontalScrollView>
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/expanded_tabs_list"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:orientation="vertical"
-                android:scrollbars="vertical"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
-
-        </LinearLayout>
-
-    </LinearLayout>
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:fitsSystemWindows="true">
 
     <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
         android:id="@+id/workspace_root"
-        >
-    </androidx.constraintlayout.widget.ConstraintLayout>
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
 
+    <include
+        android:id="@+id/workspace_empty"
+        layout="@layout/workspace_empty"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+    <com.google.android.material.floatingtoolbar.FloatingToolbarLayout
+        android:id="@+id/workspace_toolbar"
+        style="@style/Widget.Material3.FloatingToolbar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:elevation="6dp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintWidth_max="560dp"
+        app:marginBottomSystemWindowInsets="false"
+        app:marginLeftSystemWindowInsets="false"
+        app:marginRightSystemWindowInsets="false">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:baselineAligned="false"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- Measure the title at its content width; weight lets it shrink when the toolbar reaches its width limit. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/document_name"
+                style="@style/Widget.Material3.FloatingToolbar.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:checkable="false"
+                android:ellipsize="end"
+                android:gravity="start|center_vertical"
+                android:maxLines="1"
+                android:minWidth="128dp"
+                android:textAllCaps="false"
+                app:icon="@drawable/ic_baseline_arrow_down_24"
+                app:iconGravity="textStart"
+                app:iconPadding="6dp"
+                app:iconSize="18dp"
+                tools:ignore="InefficientWeight" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/search_ws"
+                style="@style/Widget.Material3.FloatingToolbar.IconButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/search"
+                app:icon="@drawable/ic_round_search_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/restore_split"
+                style="@style/Widget.Material3.FloatingToolbar.IconButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/show_list_and_details"
+                app:icon="@drawable/ic_baseline_view_sidebar_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/switch_tabs"
+                style="@style/Widget.Material3.FloatingToolbar.IconButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/workspace_switch_tabs"
+                app:icon="@drawable/ic_outline_menu_24" />
+        </LinearLayout>
+    </com.google.android.material.floatingtoolbar.FloatingToolbarLayout>
+
+    <include
+        android:id="@+id/workspace_document_actions"
+        layout="@layout/file_selection_bottom_bar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>

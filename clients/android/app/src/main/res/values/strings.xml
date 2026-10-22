@@ -328,8 +328,6 @@
     <string name="home_navbar_item">Home</string>
     <string name="shared_navbar_item">Shared</string>
 
-    <string name="expand_tabs_list">View more info about your tabs</string>
-    <string name="collapse_tabs_list">Show fewer tabs controls</string>
     <string name="workspace_forward">Go forward in workspace</string>
     <string name="close_tab">Close a tab</string>
     <string name="close_all_tabs">Clear tabs</string>
@@ -345,4 +343,28 @@
         <item>@string/share_mode_write</item>
     </array>
 
+    <string name="workspace_switch_tabs">Switch tabs</string>
+    <string name="workspace_open_tabs_count">OPEN TABS (%1$d)</string>
+    <string name="workspace_document_actions">Actions for %1$s</string>
+    <string name="quick_capture_hint">What’s on your mind? Start typing…</string>
+    <string name="workspace_continue_heading">Jump back in</string>
+    <string name="workspace_starter_documents">Start with an idea</string>
+    <string name="workspace_create_starter">Create note</string>
+    <string name="workspace_blank_note_preview">Start writing…</string>
+    <string name="workspace_cover_options">Cover options for %1$s</string>
+    <string name="workspace_choose_cover">Choose cover image</string>
+    <string name="workspace_remove_cover">Remove cover image</string>
+    <string name="workspace_cover_error">Couldn’t update the cover image. Please try again.</string>
+    <string name="starter_todo">To-do list</string>
+    <string name="starter_todo_file">todo.md</string>
+    <string name="starter_todo_content"># To-do list\n\n- [ ] First task\n- [ ] Next task\n</string>
+    <string name="starter_gym">Gym log</string>
+    <string name="starter_gym_file">gym.md</string>
+    <string name="starter_gym_content"># Gym log\n\n## Workout\n\n- Exercise:\n- Sets and reps:\n- Weight:\n\n## Notes\n\n</string>
+    <string name="starter_journal">Daily journal</string>
+    <string name="starter_journal_file">journal.md</string>
+    <string name="starter_journal_content"># Daily journal\n\n## What’s on my mind?\n\n\n## One thing to remember\n\n</string>
+    <string name="starter_project">Project notes</string>
+    <string name="starter_project_file">project.md</string>
+    <string name="starter_project_content"># Project notes\n\n## Goal\n\n\n## Next steps\n\n- [ ] First step\n\n## Ideas\n\n</string>
 </resources>

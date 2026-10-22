@@ -26,6 +26,7 @@ import android.widget.OverScroller
 import android.widget.Toast
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.content.FileProvider
+import androidx.core.graphics.Insets
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
@@ -56,6 +57,7 @@ class WorkspaceView(
 
     // The fragment may request a file before SurfaceView creates its native workspace.
     private var deferredOpenDoc: Pair<String, Boolean>? = null
+    private var safeInsets = Insets.NONE
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
@@ -265,6 +267,7 @@ class WorkspaceView(
                 Lb.lb,
                 workspaceTheme,
             )
+        publishSafeInsets()
         setWillNotDraw(false)
 
         isFocusable = true
@@ -276,6 +279,7 @@ class WorkspaceView(
             deferredOpenDoc = null
             openDoc(id, newFile)
         }
+        publishOpenTabCount()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -307,6 +311,7 @@ class WorkspaceView(
             holder.surface,
             context.resources.displayMetrics.scaledDensity,
         )
+        publishSafeInsets()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -318,6 +323,19 @@ class WorkspaceView(
         handler?.removeCallbacks(redrawTask)
         ioScope.cancel()
         super.onDetachedFromWindow()
+    }
+
+    fun setSafeInsets(insets: Insets) {
+        if (safeInsets == insets) return
+        safeInsets = insets
+        publishSafeInsets()
+        invalidate()
+    }
+
+    private fun publishSafeInsets() {
+        if (wgpuObj != Long.MAX_VALUE && surface != null) {
+            Workspace.setSafeInsets(wgpuObj, safeInsets.top, safeInsets.right, safeInsets.bottom, safeInsets.left)
+        }
     }
 
     fun setBottomInset(inset: Int) {
@@ -409,6 +427,7 @@ class WorkspaceView(
 
         val currentTab =
             if (response.tabsChanged || !response.selectedFile.isNullUUID()) {
+                publishOpenTabCount()
                 Workspace.currentTab(wgpuObj).toModelTab()
             } else {
                 null
@@ -535,6 +554,7 @@ class WorkspaceView(
 
         deferredOpenDoc = null
         Workspace.openDoc(wgpuObj, id, newFile)
+        publishOpenTabCount()
         invalidate()
 
         return
@@ -546,7 +566,17 @@ class WorkspaceView(
         }
 
         Workspace.activateDoc(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
+    }
+
+    fun closeCurrentTabToWelcome(): Boolean {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) return false
+        if (!Workspace.closeCurrentTabToWelcome(wgpuObj)) return false
+        publishOpenTabCount()
+        model._currentTab.value = Workspace.currentTab(wgpuObj).toModelTab()
+        invalidate()
+        return true
     }
 
     fun back(): Boolean {
@@ -603,12 +633,17 @@ class WorkspaceView(
         return Workspace.getTabs(wgpuObj)
     }
 
+    private fun publishOpenTabCount() {
+        model.updateOpenTabCount(getTabs().size)
+    }
+
     fun closeDoc(id: String) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return
         }
 
         Workspace.closeDoc(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
     }
 
@@ -618,6 +653,7 @@ class WorkspaceView(
         }
 
         Workspace.closeSession(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
     }
 
@@ -627,6 +663,7 @@ class WorkspaceView(
         }
 
         Workspace.closeAllTabs(wgpuObj)
+        publishOpenTabCount()
     }
 
     fun fileRenamed(

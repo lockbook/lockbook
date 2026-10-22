@@ -326,6 +326,7 @@ impl PdfViewer {
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
+        let controls = crate::safe_area::controls_rect(ui);
         let sidebar_is_visible = match &mut self.sidebar {
             Some(s) => s.is_visible,
             None => false,
@@ -336,42 +337,35 @@ impl PdfViewer {
 
         let centered_rect = egui::Rect {
             min: egui::pos2(
-                ui.available_rect_before_wrap().left()
-                    + ((ui.available_rect_before_wrap().width()
+                controls.left()
+                    + ((controls.width()
                         - if sidebar_is_visible { SIDEBAR_WIDTH } else { 0.0 }
                         - zoom_controls_width)
                         / 2.0),
-                ui.available_rect_before_wrap().top(),
+                controls.top(),
             ),
             max: egui::pos2(
-                ui.available_rect_before_wrap().left()
-                    + ((ui.available_rect_before_wrap().width()
+                controls.left()
+                    + ((controls.width()
                         - if sidebar_is_visible { SIDEBAR_WIDTH } else { 0.0 }
                         - zoom_controls_width)
                         / 2.0)
                     + zoom_controls_width,
-                ui.available_rect_before_wrap().top() + zoom_controls_height,
+                controls.top() + zoom_controls_height,
             ),
         };
 
         let end_of_line_rect = egui::Rect {
-            min: egui::pos2(
-                ui.available_rect_before_wrap().right() - 50.0,
-                ui.available_rect_before_wrap().top(),
-            ),
-            max: egui::pos2(
-                ui.available_rect_before_wrap().right(),
-                ui.available_rect_before_wrap().top() + zoom_controls_height,
-            ),
+            min: egui::pos2(controls.right() - 50.0, controls.top()),
+            max: egui::pos2(controls.right(), controls.top() + zoom_controls_height),
         };
 
         if self.worker_busy.load(Ordering::Relaxed) {
             let spinner_size = 14.0;
             let spinner_rect = egui::Rect::from_min_size(
                 egui::pos2(
-                    ui.available_rect_before_wrap().left() + 16.0,
-                    ui.available_rect_before_wrap().top()
-                        + (zoom_controls_height - spinner_size) / 2.0,
+                    controls.left() + 16.0,
+                    controls.top() + (zoom_controls_height - spinner_size) / 2.0,
                 ),
                 Vec2::splat(spinner_size),
             );
