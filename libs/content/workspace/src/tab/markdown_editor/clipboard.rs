@@ -4,7 +4,15 @@
 use comrak::nodes::{AstNode, NodeCodeBlock, NodeHeading, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
+use std::sync::OnceLock;
+
+use base64::Engine as _;
+use base64::prelude::BASE64_STANDARD;
+use regex::Regex;
+
 use crate::tab::markdown_editor::MdRender;
+use crate::widgets::diagram_cache::diagram_theme;
+use crate::widgets::image_cache::encode_png;
 
 impl<'ast> MdRender {
     /// `range` as drawn with nothing revealed: inline syntax, heading
@@ -34,7 +42,7 @@ impl<'ast> MdRender {
     pub fn rendered_html_of(&self, markdown: &str) -> String {
         let mut options = Self::comrak_options();
         options.parse.smart = false; // the plain flavor and the screen show the source characters
-        let html = comrak::markdown_to_html(markdown, &options);
+        let html = self.diagrams_as_images(comrak::markdown_to_html(markdown, &options));
         match html
             .strip_prefix("<p>")
             .and_then(|h| h.strip_suffix("</p>\n"))
@@ -42,6 +50,37 @@ impl<'ast> MdRender {
             Some(inner) if !inner.contains("<p>") => inner.to_string(),
             _ => html,
         }
+    }
+
+    /// Diagrams paste as their picture; ones that don't draw stay code.
+    fn diagrams_as_images(&self, html: String) -> String {
+        static DIAGRAM: OnceLock<Regex> = OnceLock::new();
+        let diagram = DIAGRAM.get_or_init(|| {
+            Regex::new(r#"(?s)<pre><code class="language-mermaid">(.*?)</code></pre>"#).unwrap()
+        });
+        let theme = diagram_theme(&self.ctx);
+        diagram
+            .replace_all(&html, |caps: &regex::Captures| {
+                let source = caps[1]
+                    .replace("&lt;", "<")
+                    .replace("&gt;", ">")
+                    .replace("&quot;", "\"")
+                    .replace("&amp;", "&");
+                let source = source.trim_end_matches('\n');
+                let picture = self
+                    .diagrams
+                    .image(source, &theme)
+                    .and_then(|(image, size)| Some((encode_png(&image).ok()?, size)));
+                match picture {
+                    Some((png, size)) => format!(
+                        r#"<img src="data:image/png;base64,{}" width="{}" alt="diagram">"#,
+                        BASE64_STANDARD.encode(png),
+                        size.x.round()
+                    ),
+                    None => caps[0].to_string(),
+                }
+            })
+            .into_owned()
     }
 
     fn rendered_text_unrevealed(

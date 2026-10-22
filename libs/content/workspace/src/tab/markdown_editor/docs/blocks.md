@@ -20,7 +20,7 @@ Inside a fence, code should behave more like a code editor on a best-effort basi
 ## Diagrams
 A closed ```` ```mermaid ```` fence draws as its diagram, the format GitHub, GitLab, and Obsidian render, so notes stay portable. Collapsed, the fence is one atom like an image ([rich-inlines](rich-inlines.md)): a tap selects it, Edit puts the caret in its source, and a backspace selects it before deleting it. With the caret inside, the source shows as code with the last render that worked below it, so the picture holds while you type; an error shows above that picture. An unclosed fence stays code, since it runs to the end of the note.
 
-Diagrams render off the UI thread, measured and drawn with the app's own fonts and colored from the theme. Copy Image puts the picture on the clipboard.
+Diagrams render off the UI thread, measured and drawn with the app's own fonts and colored from the theme. Copy Image puts the picture on the clipboard, and Copy Rendered pastes it as an image.
 
 ## Tables
 A table is a grid, cell-by-cell like a spreadsheet. The caret lives in cells and steps from one to the next, never onto a pipe, a cell's padding, or the delimiter row; Tab and Return navigate like Excel and extend the table at its end. A selection takes whole cells or whole rows once it leaves a cell ([selection](selection.md)), and no edit joins two cells or leaves a row that is not a row.
