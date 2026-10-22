@@ -300,7 +300,7 @@ impl MdEdit {
         self.post_render(ui, rect, id, pre);
         self.draw_dragged_overlay(ui, root);
         if overflow > 0.0 {
-            self.show_overflow_scrollbar(ui, rect, id, height, overflow);
+            self.show_overflow_scrollbar(ui, rect, id, height);
         }
 
         // Keep the cursor inside the rect: fragments (and so `cursor_line`)
@@ -359,54 +359,15 @@ impl MdEdit {
 
     /// Overlay scrollbar on the right edge of an overflowing bounded field.
     /// Same grab semantics as the document bar; paint/fade matches Files.
-    fn show_overflow_scrollbar(
-        &mut self, ui: &mut Ui, rect: Rect, id: Id, height: f32, overflow: f32,
-    ) {
-        use crate::style::overlay_scroll;
-        const MIN_THUMB: f32 = 12.0;
-        let track = Rect::from_min_max(
-            Pos2::new(
-                rect.max.x - overlay_scroll::BAR_WIDTH - overlay_scroll::BAR_INSET,
-                rect.min.y,
-            ),
-            Pos2::new(rect.max.x - overlay_scroll::BAR_INSET, rect.max.y),
+    fn show_overflow_scrollbar(&mut self, ui: &mut Ui, rect: Rect, id: Id, height: f32) {
+        crate::style::overlay_scroll::scroller_bar(
+            ui,
+            id.with("overflow"),
+            rect,
+            height,
+            &mut self.overflow_scroll,
+            false,
         );
-        let thumb_h = (track.height() * rect.height() / height).max(MIN_THUMB);
-        let movable = track.height() - thumb_h;
-        let thumb_at = |scroll: f32| {
-            Rect::from_min_size(
-                Pos2::new(track.min.x, track.min.y + movable * (scroll / overflow)),
-                egui::Vec2::new(track.width(), thumb_h),
-            )
-        };
-
-        // Same as the document bar: no hit while hidden, so a faded thumb
-        // cannot jump-scroll or steal composer drags.
-        let overlay_id = id.with("overflow_overlay");
-        let bar_live = overlay_scroll::is_shown(ui, overlay_id);
-        if bar_live {
-            let resp = ui.interact(track, id.with("overflow_scrollbar"), Sense::click_and_drag());
-            if movable > 0.0 {
-                if let Some(pos) = resp.interact_pointer_pos() {
-                    let on_thumb = thumb_at(self.overflow_scroll).contains(pos);
-                    if (resp.drag_started() || resp.clicked()) && !on_thumb {
-                        let target = (pos.y - track.min.y - thumb_h / 2.0).clamp(0.0, movable);
-                        self.overflow_scroll = target / movable * overflow;
-                    } else if resp.dragged() && !resp.drag_started() {
-                        self.overflow_scroll = (self.overflow_scroll
-                            + resp.drag_delta().y / movable * overflow)
-                            .clamp(0.0, overflow);
-                    }
-                    ui.ctx().request_repaint();
-                }
-            }
-            let bar_held = resp.hovered() || resp.dragged() || resp.is_pointer_button_down_on();
-            if overlay_scroll::tick(ui, overlay_id, self.overflow_scroll, bar_held) {
-                overlay_scroll::paint(ui, track, thumb_at(self.overflow_scroll), bar_held);
-            }
-        } else if overlay_scroll::tick(ui, overlay_id, self.overflow_scroll, false) {
-            overlay_scroll::paint(ui, track, thumb_at(self.overflow_scroll), false);
-        }
     }
 
     /// Consume the marker's [`BlockDragAction`] for the frame and, on

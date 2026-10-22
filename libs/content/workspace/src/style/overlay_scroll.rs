@@ -6,6 +6,7 @@
 //!
 //! egui [`ScrollArea`]: wrap with [`with_overlay_scroll`].
 //! Custom bars (affine markdown): [`tick`] + [`paint`].
+//! A scroller that keeps its own offset in points: [`scroller_bar`].
 
 use std::time::Duration;
 
@@ -161,6 +162,13 @@ pub fn note_offset(ui: &Ui, id: Id, offset_y: f32) {
     });
 }
 
+/// Takes `offset_y` as where the scroller is without revealing the bar, for
+/// a scroll the program made rather than the user.
+pub fn note_offset_quietly(ui: &Ui, id: Id, offset_y: f32) {
+    ui.ctx()
+        .data_mut(|d| d.get_temp_mut_or_default::<State>(id).last_offset_y = offset_y);
+}
+
 pub fn note_bar_interaction(ui: &Ui, id: Id, bar_held: bool) {
     let now = ui.input(|i| i.time);
     let left = ui.ctx().data_mut(|d| {
@@ -229,4 +237,54 @@ pub fn with_overlay_scroll<R>(ui: &mut Ui, id: Id, f: impl FnOnce(&mut Ui) -> (R
         result
     })
     .inner
+}
+
+/// The bar for a scroller that keeps its own `scroll` (points from the top)
+/// over `content` points shown in `view`: paints it at the right edge, and a
+/// click or drag on it moves `scroll`. Takes no hits while hidden, so a faded
+/// thumb can't jump the scroll or steal a drag. `quiet` when only the program
+/// moved `scroll` this frame, which leaves the bar as it was.
+pub fn scroller_bar(ui: &mut Ui, id: Id, view: Rect, content: f32, scroll: &mut f32, quiet: bool) {
+    const MIN_THUMB: f32 = 12.0;
+    let overflow = (content - view.height()).max(0.0);
+    if overflow <= 0.0 {
+        return;
+    }
+    let track = Rect::from_min_max(
+        egui::pos2(view.max.x - BAR_WIDTH - BAR_INSET, view.min.y),
+        egui::pos2(view.max.x - BAR_INSET, view.max.y),
+    );
+    let thumb_h = (track.height() * view.height() / content).max(MIN_THUMB);
+    let movable = track.height() - thumb_h;
+    let thumb_at = |scroll: f32| {
+        Rect::from_min_size(
+            egui::pos2(track.min.x, track.min.y + movable * (scroll / overflow)),
+            egui::vec2(track.width(), thumb_h),
+        )
+    };
+    let overlay_id = id.with("overlay");
+    let mut held = false;
+    if is_shown(ui, overlay_id) {
+        let resp = ui.interact(track, id.with("bar"), egui::Sense::click_and_drag());
+        if movable > 0.0 {
+            if let Some(pos) = resp.interact_pointer_pos() {
+                let on_thumb = thumb_at(*scroll).contains(pos);
+                if (resp.drag_started() || resp.clicked()) && !on_thumb {
+                    let target = (pos.y - track.min.y - thumb_h / 2.0).clamp(0.0, movable);
+                    *scroll = target / movable * overflow;
+                } else if resp.dragged() && !resp.drag_started() {
+                    *scroll =
+                        (*scroll + resp.drag_delta().y / movable * overflow).clamp(0.0, overflow);
+                }
+                ui.ctx().request_repaint();
+            }
+        }
+        held = resp.hovered() || resp.dragged() || resp.is_pointer_button_down_on();
+    }
+    if quiet {
+        note_offset_quietly(ui, overlay_id, *scroll);
+    }
+    if tick(ui, overlay_id, *scroll, held) {
+        paint(ui, track, thumb_at(*scroll), held);
+    }
 }

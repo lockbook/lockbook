@@ -1216,6 +1216,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         let bar_id = self.id_salt.with("scrollbar");
 
         self.state.handle(rows, Action::Resize(rect.height()));
+        let before_input = self.state.stored_offset();
 
         // `scrollable_approx` is a function of (rows, viewport_height,
         // slope_band), independent of the current offset, so this
@@ -1351,6 +1352,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             }
         }
 
+        let user_scrolled = self.state.stored_offset() != before_input;
         let visible = self.state.visible(rows);
         warm_around_visible(rows, &visible, rect.height());
 
@@ -1359,13 +1361,22 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             let bar_held = bar_response
                 .as_ref()
                 .is_some_and(|r| r.hovered() || r.dragged() || r.is_pointer_button_down_on());
+            // the bar shows for the user's scrolling, not a reveal's
+            if !user_scrolled {
+                overlay_scroll::note_offset_quietly(ui, overlay_id, bar.thumb_approx);
+            }
             if overlay_scroll::tick(ui, overlay_id, bar.thumb_approx, bar_held) {
                 overlay_scroll::paint(ui, bar.track, bar.thumb, bar_held);
             }
         }
 
         self.last_scrollbar = bar_live.then_some(bar_geom);
-        ShowResponse { response, visible, scrollbar_grab: bar_live.then_some(bar_interact_rect) }
+        ShowResponse {
+            response,
+            visible,
+            scrollbar_grab: bar_live.then_some(bar_interact_rect),
+            user_scrolled,
+        }
     }
 }
 
@@ -1385,6 +1396,8 @@ pub struct ShowResponse<Id> {
     /// virtual keyboard). `None` when the document fits the viewport and
     /// the scrollbar is hidden.
     pub scrollbar_grab: Option<Rect>,
+    /// The user scrolled this frame: wheel, drag, fling, or scrollbar.
+    pub user_scrolled: bool,
 }
 
 /// Returned by [`AffineScrollArea::begin`]; pass to `finish` after
