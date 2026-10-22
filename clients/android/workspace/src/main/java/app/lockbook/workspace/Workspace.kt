@@ -54,6 +54,7 @@ enum class MarkdownToolbarAction {
     NumberedList,
     BulletedList,
     TaskList,
+    Quote,
     Link,
     Indent,
     Outdent,
