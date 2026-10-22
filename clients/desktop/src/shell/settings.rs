@@ -405,8 +405,8 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
         if form_toggle_detail(
             ui,
             t,
-            "Fetch link previews",
-            "Contacting linked sites reveals your IP and that you opened the note.",
+            "Load web images and link previews",
+            "Contacting a site reveals your IP and that you opened the note. While off, click an image to load it.",
             &mut previews,
         )
         .changed()

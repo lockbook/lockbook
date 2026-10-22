@@ -17,11 +17,12 @@ use super::render_props::{
 
 // ── renderer ──
 
-/// An image past the note's scope waits, and never starts a load, until
-/// the reader asks to see it: the cache is shared by every note and the
-/// image viewer, which must still open it. One naming nothing is broken.
+/// An image past the note's scope, or from the web while sites may not be
+/// contacted, waits, and never starts a load, until the reader asks to see
+/// it: the cache is shared by every note and the image viewer, which must
+/// still open it. One naming nothing is broken.
 #[test]
-fn out_of_scope_embed_leaves_image_cache_alone() {
+fn withheld_embeds_leave_image_cache_alone() {
     use crate::file_cache::tests::alice;
     use crate::resolvers::EmbedResolver as _;
     use crate::resolvers::image_embed::ImageEmbedResolver;
@@ -58,6 +59,13 @@ fn out_of_scope_embed_leaves_image_cache_alone() {
     assert!(images.broken(&unknown, note) && !embed.withheld(&unknown));
     embed.prefetch(&unknown);
     assert!(!images.has_state(&unknown));
+
+    // a web image waits until asked for, or until sites may be contacted
+    let web = "https://example.com/pixel.png";
+    embed.prefetch(web);
+    assert!(embed.withheld(web) && !images.has_state(web));
+    images.show_anyway(note, web);
+    assert!(!embed.withheld(web));
 }
 
 /// Image fragments allocate exactly the image's logical size — no
@@ -78,8 +86,9 @@ fn inline_image_advance_matches_rendered_width() {
     ctx.set_pixels_per_point(2.0);
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
-    let persistence =
+    let mut persistence =
         WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    persistence.set_contact_linked_sites(true);
     let image_cache =
         ImageCache::new(ctx.clone(), client, lb.clone(), files.clone(), persistence.clone());
     let image_cache_handle = image_cache.clone();

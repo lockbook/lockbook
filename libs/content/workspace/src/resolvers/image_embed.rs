@@ -58,8 +58,12 @@ impl EmbedResolver for ImageEmbedResolver {
         let theme = ui.ctx().get_lb_theme();
         if self.images.withheld(url, self.file_id) {
             let touch = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-            let caption = if touch { "Tap to show" } else { "Click to show" };
-            show_hidden(ui, rect, rounding, caption);
+            let tap = if touch { "Tap" } else { "Click" };
+            if self.images.off_the_web(url) {
+                show_hidden(ui, rect, rounding, &format!("{tap} to load"), Hidden::Web);
+            } else {
+                show_hidden(ui, rect, rounding, &format!("{tap} to show"), Hidden::Reader);
+            }
             return;
         }
         if self.images.broken(url, self.file_id) {
@@ -157,9 +161,18 @@ fn show_placeholder(ui: &mut Ui, rect: Rect, icon: Icon, caption: &str, dot: Opt
 /// Radius of the state dot in a placeholder's corner.
 const DOT: f32 = 3.0;
 
-/// A hidden image, as a spoiler chip: filled, an eye-slash, the caption,
-/// and the yellow dot of a file that differs by reader.
-fn show_hidden(ui: &mut Ui, rect: Rect, rounding: CornerRadius, caption: &str) {
+/// Why an image is hidden.
+#[derive(PartialEq)]
+enum Hidden {
+    /// A file that differs by reader.
+    Reader,
+    /// A web image, not fetched until asked.
+    Web,
+}
+
+/// A hidden image, as a spoiler chip: filled, a glyph, the caption, and for
+/// a file that differs by reader, the yellow dot. A web image shows a globe.
+fn show_hidden(ui: &mut Ui, rect: Rect, rounding: CornerRadius, caption: &str, why: Hidden) {
     let theme = ui.ctx().get_lb_theme();
     let ink = theme.neutral_fg_secondary();
     let painter = ui.painter().with_clip_rect(rect);
@@ -168,7 +181,10 @@ fn show_hidden(ui: &mut Ui, rect: Rect, rounding: CornerRadius, caption: &str) {
     painter.text(
         rect.center() - Vec2::new(0.0, glyph * 0.4),
         Align2::CENTER_CENTER,
-        crate::style::phosphor::EYE_SLASH,
+        match why {
+            Hidden::Reader => crate::style::phosphor::EYE_SLASH,
+            Hidden::Web => crate::style::phosphor::GLOBE,
+        },
         crate::style::phosphor_font_id(glyph),
         ink,
     );
@@ -179,6 +195,8 @@ fn show_hidden(ui: &mut Ui, rect: Rect, rounding: CornerRadius, caption: &str) {
         FontId::proportional(TypeRole::Mono.size()),
         ink,
     );
-    let inset = DOT + crate::style::Space::Xs.pts();
-    painter.circle_filled(rect.right_top() + Vec2::new(-inset, inset), DOT, theme.fg().yellow);
+    if why == Hidden::Reader {
+        let inset = DOT + crate::style::Space::Xs.pts();
+        painter.circle_filled(rect.right_top() + Vec2::new(-inset, inset), DOT, theme.fg().yellow);
+    }
 }
