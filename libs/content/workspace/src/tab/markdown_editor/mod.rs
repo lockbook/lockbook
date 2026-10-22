@@ -51,7 +51,7 @@ pub fn syntax_set() -> &'static SyntaxSet {
 
 pub fn syntax_theme() -> &'static Theme {
     SYNTAX_THEME.get_or_init(|| {
-        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
+        let theme_bytes = &include_bytes!("assets/placeholders.tmTheme")[..];
         let cursor = Cursor::new(theme_bytes);
         let mut buffer = BufReader::new(cursor);
         ThemeSet::load_from_reader(&mut buffer).unwrap()
