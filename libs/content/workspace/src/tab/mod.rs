@@ -730,6 +730,10 @@ pub trait ExtendedOutput {
     /// to type over).
     fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool);
     fn pop_open_ranges(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)>;
+    /// Follow a link from where it's written: open note `id` landing on
+    /// `byte_range`, as a heading link lands.
+    fn open_link_at(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool);
+    fn pop_link_ats(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)>;
     /// Explain a link in a sheet, opening its file if the reader confirms.
     /// Sheets requested together show one after another.
     fn show_link_sheet(&self, sheet: LinkSheet);
@@ -811,6 +815,25 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| {
             m.data
                 .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::new("open_ranges"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn open_link_at(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool) {
+        self.memory_mut(|m| {
+            let mut ats: Vec<(Uuid, std::ops::Range<usize>, bool)> = m
+                .data
+                .get_temp(Id::new("open_link_ats"))
+                .unwrap_or_default();
+            ats.push((id, byte_range, new_tab));
+            m.data.insert_temp(Id::new("open_link_ats"), ats);
+        })
+    }
+
+    fn pop_link_ats(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::new("open_link_ats"))
                 .unwrap_or_default()
         })
     }

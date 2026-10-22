@@ -149,6 +149,8 @@ enum Reveal {
     Range(std::ops::Range<usize>),
     /// Pin the heading this `#fragment` names to the top.
     Heading(String),
+    /// Land on these bytes as on a heading: a link followed from a backlink.
+    Text(std::ops::Range<usize>),
 }
 
 impl Workspace {
@@ -890,6 +892,17 @@ impl Workspace {
         }
     }
 
+    /// Opens note `id` landing on the link at `byte_range`, as a heading
+    /// link lands. In place unless `in_new_tab`, so Back returns.
+    pub fn open_link_at(&mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool) {
+        if in_new_tab {
+            self.open_file(id, true, true);
+        } else {
+            self.navigate_to(Destination::File(id));
+        }
+        self.pending_reveal = Some((id, Reveal::Text(byte_range)));
+    }
+
     /// Opens a file from outside the app (an `open/` URL) at the heading its
     /// `#fragment` names.
     pub fn open_file_at_heading(&mut self, id: Uuid, heading: String, in_new_tab: bool) {
@@ -909,6 +922,7 @@ impl Workspace {
                 match reveal {
                     Reveal::Range(range) => md.open_navigate(range),
                     Reveal::Heading(heading) => md.open_at_heading(&heading),
+                    Reveal::Text(range) => md.open_at_text(range),
                 }
                 self.pending_reveal = None;
             }

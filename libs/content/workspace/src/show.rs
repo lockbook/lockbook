@@ -168,6 +168,9 @@ impl Workspace {
                         self.navigate_to_range(id, range);
                     }
                 }
+                for (id, range, new_tab) in ui.ctx().pop_link_ats() {
+                    self.open_link_at(id, range, new_tab);
+                }
                 for (parent, names) in ui.ctx().pop_create_notes() {
                     self.create_note_at(parent, &names);
                 }
