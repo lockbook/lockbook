@@ -23,6 +23,7 @@ pub struct Response {
     pub window_title: Option<String>,
     pub request_paste: bool,
     pub context_menu: Option<(egui::Pos2, ContextMenuTarget)>,
+    pub ime_cursor: Option<egui::Rect>,
 }
 
 impl Response {
@@ -80,6 +81,10 @@ impl Response {
             window_title,
             request_paste,
             context_menu: context.pop_context_menu(),
+            // in view points, as the host's text input client reports them
+            ime_cursor: platform
+                .ime
+                .map(|ime| ime.cursor_rect * context.zoom_factor()),
         }
     }
 }

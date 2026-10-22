@@ -100,3 +100,31 @@ pub unsafe extern "C" fn set_tab_strip_height(obj: *mut c_void, height: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.workspace.tab_strip_min_height = height;
 }
+
+/// The input method's in-progress composition, replacing the previous one.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ime_preedit(obj: *mut c_void, text: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let text = CStr::from_ptr(text).to_string_lossy().into_owned();
+    obj.renderer
+        .raw_input
+        .events
+        .push(Event::Ime(egui::ImeEvent::Preedit(text)));
+}
+
+/// The input method's final text, replacing the composition if there is one.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ime_commit(obj: *mut c_void, text: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let text = CStr::from_ptr(text).to_string_lossy().into_owned();
+    obj.renderer
+        .raw_input
+        .events
+        .push(Event::Ime(egui::ImeEvent::Commit(text)));
+}

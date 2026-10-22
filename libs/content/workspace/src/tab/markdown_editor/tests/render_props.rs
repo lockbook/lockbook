@@ -140,11 +140,10 @@ thread_local! {
 fn cached_font_system() -> Arc<Mutex<glyphon::FontSystem>> {
     FONT_SYSTEM.with(|cell| {
         cell.get_or_init(|| {
-            let mut db = glyphon::fontdb::Database::new();
-            crate::font::load(&mut db);
-            db.set_sans_serif_family("Noto Sans");
-            db.set_monospace_family("Noto Sans Mono");
-            Arc::new(Mutex::new(glyphon::FontSystem::new_with_locale_and_db("en-US".into(), db)))
+            let mut fs = crate::widgets::glyphon_render::new_font_system();
+            fs.db_mut().set_sans_serif_family("Noto Sans");
+            fs.db_mut().set_monospace_family("Noto Sans Mono");
+            Arc::new(Mutex::new(fs))
         })
         .clone()
     })

@@ -111,6 +111,15 @@ pub enum TouchTarget {
     Popup,
 }
 
+/// A desktop IME composition in the buffer: where it sits, its text, and
+/// the buffer seq that placement is current for.
+#[derive(Clone, Debug)]
+pub struct ImeMarked {
+    pub range: (Grapheme, Grapheme),
+    pub text: String,
+    pub seq: usize,
+}
+
 pub struct MdRender {
     // context
     pub ctx: Context,
@@ -193,6 +202,7 @@ pub struct MdRender {
     pub reveal_seq: u64, // includes selection and find matches
 
     pub search_range: Option<(Grapheme, Grapheme)>, // drawn in accent color for completions
+    pub ime_marked: Option<ImeMarked>,              // desktop IME composition, drawn underlined
 
     // capabilities
     pub embeds: Box<dyn EmbedResolver>,
@@ -267,6 +277,14 @@ pub struct MdEdit {
     /// geometry. Set on drag release (which runs post-render).
     pub pending_block_move: Option<((Grapheme, Grapheme), Grapheme)>,
 
+    /// Keyboard input after a frame's first IME edit, replayed next frame so
+    /// it acts on the edit's result (completions take keys ahead of the IME).
+    pub deferred_input: Vec<egui::Event>,
+
+    /// A composition was dropped this frame; withholding the IME output
+    /// tells the platform's input method to discard it too.
+    pub ime_reset: bool,
+
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
     pub pending_scroll: Option<ScrollTarget>,
@@ -333,6 +351,8 @@ impl MdEdit {
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
             pending_block_move: None,
+            deferred_input: Vec::new(),
+            ime_reset: false,
             pending_scroll: None,
             single_line_scroll: 0.0,
             overflow_scroll: 0.0,
@@ -536,6 +556,7 @@ impl MdRender {
             reveal_seq: 0,
             text_seq: 0,
             search_range: None,
+            ime_marked: None,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
@@ -605,6 +626,7 @@ impl MdRender {
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
+            ime_marked: None,
             disable_images: false,
             contact_linked_sites: false,
             in_progress_selection: None,
@@ -780,6 +802,7 @@ impl Editor {
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
+            ime_marked: None,
             disable_images: false,
             contact_linked_sites: false,
 
@@ -816,6 +839,8 @@ impl Editor {
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
                 pending_block_move: None,
+                deferred_input: Vec::new(),
+                ime_reset: false,
                 pending_scroll: None,
                 single_line_scroll: 0.0,
                 overflow_scroll: 0.0,
@@ -2243,6 +2268,9 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .unwrap()
             .push("phosphor".to_owned());
     }
+
+    #[cfg(not(target_family = "wasm"))]
+    crate::font::cjk::register_egui(fonts, base_scale);
 }
 
 /// Headless `Context` with the same fonts as production, including Phosphor.

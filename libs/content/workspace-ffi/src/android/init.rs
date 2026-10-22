@@ -78,6 +78,15 @@ impl HasWindowHandle for NativeWindow {
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setPreferredLanguages(
+    mut env: JNIEnv, _: JClass, tags: JString,
+) {
+    let Ok(tags) = env.get_string(&tags) else { return };
+    let tags: String = tags.into();
+    workspace_rs::font::cjk::set_preferred_languages(tags.split(',').map(str::to_owned).collect());
+}
+
+#[no_mangle]
 pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWSOffloaded(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, theme: JObject,
 ) -> jlong {

@@ -193,7 +193,177 @@ fn shift_tab_strips_one_bq() {
     run_quotes(shift_tab_strips_one_bq_check, 1000);
 }
 
+// IME composition
+#[test]
+fn ime_composition_matches_replace() {
+    run_all(ime_composition_matches_replace_check, 1000);
+}
+
 // ═══════════════════════════ implementations ═══════════════════════════
+
+/// What an IME shows while composing: romanization, syllables, and
+/// candidates, always whole graphemes.
+fn preedit_text(src: &mut ByteSource) -> String {
+    const COMPOSING: &[&str] = &["n", "ni", "ni h", "ni hao", "かな", "ㅎ", "한", "你", "你好", ""];
+    match src.bias(&[6, 2]) {
+        0 => COMPOSING[src.draw(COMPOSING.len())].to_string(),
+        _ => doc_gen::gen_word_f(src, &Features::all()),
+    }
+}
+
+/// One frame of input, then frames until the editor has replayed any input
+/// it deferred.
+fn settled_frame(ws: &mut TestEditor, events: Vec<egui::Event>) {
+    ws.enter_frame_with_input(events);
+    while !ws.editor.edit.deferred_input.is_empty() {
+        ws.enter_frame_with_input(vec![]);
+    }
+}
+
+/// A keystroke that reaches the editor beside an IME's events in one frame.
+fn plain_key(src: &mut ByteSource) -> Vec<egui::Event> {
+    use egui::Key;
+    let command = egui::Modifiers::COMMAND;
+    match src.draw(5) {
+        0 => vec![egui::Event::Text(typed_char_with(src, &Features::all()))],
+        1 => super::harness::key_press(Key::Backspace, Default::default()),
+        2 => super::harness::key_press(Key::Enter, Default::default()),
+        3 => super::harness::key_press(Key::ArrowRight, command),
+        _ => super::harness::key_press(Key::ArrowDown, Default::default()),
+    }
+}
+
+/// Composing then committing leaves the same text and selection as one
+/// plain replacement of the selection with the commit (cancelling: with
+/// nothing), keystrokes in the same frame landing in order; while
+/// composing, the marked range holds the latest preedit, even past edits
+/// it doesn't make; one undo reverts a whole composition.
+fn ime_composition_matches_replace_check(buf: &[u8]) -> Result<(), String> {
+    use egui::{Event as Egui, ImeEvent, Key};
+
+    let mut src = ByteSource::new(buf);
+    let initial = gen_doc(&mut src, &Features::all());
+    let lb = super::harness::build_lb();
+    let mut ime = TestEditor::with_lb(lb.clone(), &initial);
+    let mut twin = TestEditor::with_lb(lb, &initial);
+    let len = cursor_and_len(&ime).1;
+    let select = Event::Select { region: region(&mut src, len) };
+    for ws in [&mut ime, &mut twin] {
+        ws.push(select.clone());
+        ws.enter_frame();
+    }
+
+    let state = |ws: &TestEditor| {
+        let buffer = &ws.editor.edit.renderer.buffer.current;
+        (buffer.text.clone(), buffer.selection)
+    };
+    // after an edit mid-composition the twin no longer applies
+    let mut diverged = false;
+    for composition in 0..1 + src.draw(3) {
+        let before = state(&ime);
+        let mut touched = false;
+        let mut events = vec![];
+        let keys_before = if src.draw(3) == 0 { plain_key(&mut src) } else { vec![] };
+        if !keys_before.is_empty() {
+            twin.enter_frame_with_input(keys_before.clone());
+        }
+        events.extend(keys_before.iter().cloned());
+        events.push(Egui::Ime(ImeEvent::Enabled));
+        for _ in 0..1 + src.draw(4) {
+            // the IME owns these keys while composing
+            if ime.editor.edit.renderer.ime_marked.is_some() && src.draw(3) == 0 {
+                let key = [Key::Backspace, Key::Delete, Key::Enter, Key::ArrowLeft][src.draw(4)];
+                events.extend(super::harness::key_press(key, Default::default()));
+            }
+            if src.draw(8) == 0 {
+                diverged = true;
+                match src.draw(2) {
+                    0 => ime.push(Event::Undo),
+                    _ => events.push(Egui::Text("x".into())),
+                }
+            }
+            let text = preedit_text(&mut src);
+            touched |= !text.is_empty();
+            events.push(Egui::Ime(ImeEvent::Preedit(text.clone())));
+            settled_frame(&mut ime, std::mem::take(&mut events));
+
+            let r = &ime.editor.edit.renderer;
+            let sel = r.buffer.current.selection;
+            match &r.ime_marked {
+                Some(m) if r.buffer[m.range] == text && sel == (m.range.1, m.range.1) => {}
+                None if text.is_empty() => {}
+                marked => {
+                    return Err(format!(
+                        "composition {composition}: preedit {text:?} but marked {marked:?}, \
+                         selection {sel:?}"
+                    ));
+                }
+            }
+        }
+
+        // as winit sends them: bare, macOS, Windows, empty, cancelled
+        let word = doc_gen::gen_word_f(&mut src, &Features::all());
+        let (commit, replacement) = match src.bias(&[2, 2, 2, 1, 1]) {
+            0 => (vec![ImeEvent::Commit(word.clone())], word),
+            1 => (vec![ImeEvent::Disabled, ImeEvent::Commit(word.clone())], word),
+            2 => (vec![ImeEvent::Commit(word.clone()), ImeEvent::Disabled], word),
+            3 => (vec![ImeEvent::Commit(String::new())], String::new()),
+            _ => (vec![ImeEvent::Disabled], String::new()),
+        };
+        touched |= !replacement.is_empty();
+        let keys_after = if src.draw(3) == 0 { plain_key(&mut src) } else { vec![] };
+        let mut last = commit.into_iter().map(Egui::Ime).collect::<Vec<_>>();
+        last.extend(keys_after.iter().cloned());
+        settled_frame(&mut ime, last);
+        if touched {
+            twin.push(Event::Replace {
+                region: Region::Selection,
+                text: replacement,
+                advance_cursor: true,
+            });
+        }
+        twin.enter_frame();
+        if !keys_after.is_empty() {
+            twin.enter_frame_with_input(keys_after.clone());
+        }
+
+        if ime.editor.edit.renderer.ime_marked.is_some() {
+            return Err(format!("composition {composition}: still marked after it ended"));
+        }
+        if !diverged && state(&ime) != state(&twin) {
+            return Err(format!(
+                "composition {composition}: composed {:?} but replacing gives {:?}",
+                state(&ime),
+                state(&twin)
+            ));
+        }
+
+        // undo grouping is clean only on a history holding just this composition
+        if composition == 0
+            && !diverged
+            && touched
+            && keys_before.is_empty()
+            && keys_after.is_empty()
+        {
+            let after = state(&ime);
+            ime.push(Event::Undo);
+            ime.enter_frame();
+            if state(&ime).0 != before.0 {
+                return Err(format!(
+                    "one undo after the composition gives {:?}, not {:?}",
+                    state(&ime).0,
+                    before.0
+                ));
+            }
+            ime.push(Event::Redo);
+            ime.enter_frame();
+            if state(&ime).0 != after.0 {
+                return Err(format!("redo gives {:?}, not {:?}", state(&ime).0, after.0));
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Picks an offset in `[0, doc_len_chars]` (end inclusive so generators
 /// can target the cursor-after-EOF boundary). Two-byte draw so long
