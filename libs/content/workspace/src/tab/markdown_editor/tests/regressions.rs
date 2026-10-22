@@ -86,7 +86,7 @@ fn inline_image_advance_matches_rendered_width() {
             embeds: embed,
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
+        super::super::MdConfig { readonly: false, ext: "md".to_string() },
     );
     let mut ws = super::harness::TestEditor::from_editor(editor);
 
@@ -1253,7 +1253,7 @@ fn image_load_layout_consistent() {
             embeds: embed,
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
+        super::super::MdConfig { readonly: false, ext: "md".to_string() },
     );
     let mut ws = TestEditor::from_editor(editor);
 
@@ -2313,7 +2313,7 @@ fn phone_toolbar_never_pushed_off_screen() {
             embeds: Box::new(embeds.clone()),
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: false },
+        super::super::MdConfig { readonly: false, ext: "md".into() },
     );
     assert!(editor.edit.renderer.touch_mode, "touch mode");
     assert!(editor.edit.phone_mode, "phone mode");

@@ -114,6 +114,9 @@ pub struct Workspace {
     pub lb_rx: events::Receiver<Event>,
 
     pub show_tabs: bool, // draw the egui tab strip
+    /// Touch hosts type through the software keyboard. iOS clears this while
+    /// a hardware keyboard keeps the software one away.
+    pub software_keyboard_in_use: bool,
     /// Activate-if-open / honor open-in-new-tab. Independent of `show_tabs`
     /// so Apple can keep its own strip while using desktop policy.
     pub desktop_tab_policy: bool,
@@ -201,6 +204,7 @@ impl Workspace {
             core: core.clone(),
 
             show_tabs,
+            software_keyboard_in_use: true,
             desktop_tab_policy: show_tabs,
             tab_strip_left_inset: 0.0,
             tab_strip_min_height: 0.0,
@@ -1440,11 +1444,7 @@ impl Workspace {
                                                 id,
                                             )),
                                         },
-                                        MdConfig {
-                                            readonly: tab.read_only,
-                                            ext: ext.clone(),
-                                            tablet_or_desktop: show_tabs,
-                                        },
+                                        MdConfig { readonly: tab.read_only, ext: ext.clone() },
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();

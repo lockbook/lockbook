@@ -141,7 +141,7 @@ impl eframe::App for LbWebApp {
                             link_resolver: Box::new(()),
                             embeds: Box::new(ImageEmbedResolver::new(images, file_id)),
                         },
-                        MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: true },
+                        MdConfig { readonly: false, ext: "md".into() },
                     ));
                 }
 

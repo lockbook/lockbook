@@ -267,6 +267,6 @@ fn build_editor(core: Lb, md: &str, ext: &str, embeds: Box<dyn EmbedResolver>) -
             embeds,
             files,
         },
-        MdConfig { readonly: false, ext: ext.to_string(), tablet_or_desktop: true },
+        MdConfig { readonly: false, ext: ext.to_string() },
     )
 }
