@@ -734,6 +734,8 @@ class WorkspaceView(
         const val REFRESH_PREVIEW_MENU_ID = 0x00E0170D
         const val COPY_HEADING_LINK_MENU_ID = 0x00E0170F
         const val COPY_RENDERED_MENU_ID = 0x00E0170E
+        const val COPY_IMAGE_MENU_ID = 0x00E01710
+        const val OPEN_DIAGRAM_MENU_ID = 0x00E01711
     }
 
     inner class FloatingTextEditorContextMenu(
@@ -879,12 +881,24 @@ class WorkspaceView(
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
 
+            if (forAtom && Workspace.selectionHasDiagram(wgpuObj)) {
+                menu
+                    .add(Menu.NONE, OPEN_DIAGRAM_MENU_ID, 0, "Open")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+
             if (forAtom) {
                 // select the URL inside the atom, revealing its source —
                 // the only touch path in, since mobile has no arrow keys
                 menu
                     .add(Menu.NONE, EDIT_ATOM_MENU_ID, 0, "Edit")
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+
+                if (Workspace.selectionHasPicture(wgpuObj)) {
+                    menu
+                        .add(Menu.NONE, COPY_IMAGE_MENU_ID, 0, "Copy Image")
+                        .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+                }
 
                 if (openTarget != null) {
                     menu
@@ -959,6 +973,17 @@ class WorkspaceView(
                                     as ClipboardManager
                             ).setPrimaryClip(ClipData.newPlainText("", it))
                         }
+                    }
+
+                    OPEN_DIAGRAM_MENU_ID -> {
+                        Workspace.openSelectedDiagram(wgpuObj)
+                        invalidate()
+                    }
+
+                    COPY_IMAGE_MENU_ID -> {
+                        Workspace.copyImage(wgpuObj)
+                        // the frame that processes the copy fills `response.copiedImage`
+                        invalidate()
                     }
 
                     COPY_RENDERED_MENU_ID -> {
