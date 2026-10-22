@@ -36,6 +36,15 @@ data class AndroidResponse(
     val selectionUpdated: Boolean,
     val textUpdated: Boolean,
     val failureMessage: String,
+    val scrollUpdated: Boolean,
+    val hasTextInteractionRect: Boolean,
+    val textInteractionMinX: Float,
+    val textInteractionMinY: Float,
+    val textInteractionMaxX: Float,
+    val textInteractionMaxY: Float,
+    val hasMagnifier: Boolean,
+    val magnifierX: Float,
+    val magnifierY: Float,
 )
 
 @Serializable
@@ -164,6 +173,8 @@ object Workspace {
     external fun append(rustObj: Long, text: String)
     external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
 
+    external fun cursorRectAt(rustObj: Long, pos: Int): JRect
+
 
     external fun getAllText(rustObj: Long): String
 
@@ -202,6 +213,14 @@ data class NativeWorkspaceTab(
 data class JTextRange(val none: Boolean, val start: Int, val end: Int) {
     fun isEmpty(): Boolean = none || end - start == 0
 }
+
+data class JRect(
+    val none: Boolean,
+    val minX: Float,
+    val minY: Float,
+    val maxX: Float,
+    val maxY: Float,
+)
 
 
 const val NULL_UUID = "00000000-0000-0000-0000-000000000000"

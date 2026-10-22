@@ -3,12 +3,16 @@ package app.lockbook.util
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Matrix
+import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
 import android.text.Editable
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.CursorAnchorInfo
+import android.view.inputmethod.EditorBoundsInfo
 import android.view.inputmethod.ExtractedText
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
@@ -23,7 +27,6 @@ import kotlinx.coroutines.withContext
 data class CursorMonitorStatus(
     var monitor: Boolean = false,
     var editorBounds: Boolean = false,
-    var characterBounds: Boolean = false,
     var insertionMarker: Boolean = false,
 )
 
@@ -94,6 +97,15 @@ class WorkspaceTextInputConnection(
             wsEditable.composingEnd,
         )
         selectionUpdatePending = false
+        if (cursorMonitorStatus.monitor) {
+            updateCursorAnchorInfo()
+        }
+    }
+
+    fun onEditorGeometryChanged() {
+        if (cursorMonitorStatus.monitor) {
+            updateCursorAnchorInfo()
+        }
     }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
@@ -218,33 +230,49 @@ class WorkspaceTextInputConnection(
         val isImmediate = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0
         val isMonitor = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR) != 0
 
-        if (isImmediate) {
-            notifySelectionUpdated()
+        if (!isImmediate && !isMonitor) {
+            cursorMonitorStatus = CursorMonitorStatus()
+            return true
+        }
+
+        var editorBounds = false
+        var insertionMarker = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            editorBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_EDITOR_BOUNDS) != 0
+            if ((cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_CHARACTER_BOUNDS) != 0) {
+                return false
+            }
+            insertionMarker = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_INSERTION_MARKER) != 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val unsupportedFilters =
+                    InputConnection.CURSOR_UPDATE_FILTER_VISIBLE_LINE_BOUNDS or
+                        InputConnection.CURSOR_UPDATE_FILTER_TEXT_APPEARANCE
+                if ((cursorUpdateMode and unsupportedFilters) != 0) {
+                    return false
+                }
+            }
+        }
+        val anyFilter = editorBounds || insertionMarker
+        // No filter bits: send everything we can (legacy IMEs).
+        if (!anyFilter) {
+            editorBounds = true
+            insertionMarker = true
         }
 
         if (isMonitor) {
-            val newMonitorStatus = CursorMonitorStatus(true)
+            cursorMonitorStatus =
+                CursorMonitorStatus(
+                    monitor = true,
+                    editorBounds = editorBounds,
+                    insertionMarker = insertionMarker,
+                )
+        }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val editorBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_EDITOR_BOUNDS) != 0
-                val characterBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_CHARACTER_BOUNDS) != 0
-                val insertionMarker = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_INSERTION_MARKER) != 0
-
-                if (editorBounds || characterBounds || insertionMarker) {
-                    return false
-                }
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    val lineBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_VISIBLE_LINE_BOUNDS) != 0
-                    val textAppearance = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_TEXT_APPEARANCE) != 0
-
-                    if (lineBounds || textAppearance) {
-                        return false
-                    }
-                }
-            }
-
-            cursorMonitorStatus = newMonitorStatus
+        if (isImmediate || isMonitor) {
+            updateCursorAnchorInfo(
+                editorBounds = editorBounds,
+                insertionMarker = insertionMarker,
+            )
         }
 
         return true
@@ -286,4 +314,96 @@ class WorkspaceTextInputConnection(
     }
 
     override fun getEditable(): Editable = wsEditable
+
+    private fun updateCursorAnchorInfo() {
+        updateCursorAnchorInfo(
+            editorBounds = cursorMonitorStatus.editorBounds,
+            insertionMarker = cursorMonitorStatus.insertionMarker,
+        )
+    }
+
+    @SuppressLint("NewApi")
+    private fun updateCursorAnchorInfo(
+        editorBounds: Boolean,
+        insertionMarker: Boolean,
+    ) {
+        if (WorkspaceView.wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        val selection = wsEditable.getSelection()
+        val builder = CursorAnchorInfo.Builder()
+        builder.setSelectionRange(utf16Offset(selection.start), utf16Offset(selection.end))
+
+        val matrix = Matrix()
+        val loc = IntArray(2)
+        textInputWrapper.getLocationOnScreen(loc)
+        matrix.postTranslate(loc[0].toFloat(), loc[1].toFloat())
+        builder.setMatrix(matrix)
+
+        if (insertionMarker) {
+            val caret = Workspace.cursorRectAt(WorkspaceView.wgpuObj, selection.end)
+            if (!caret.none) {
+                val (left, top) = eguiToWrapperLocal(caret.minX, caret.minY)
+                val bottom = eguiToWrapperLocal(caret.maxX, caret.maxY).second
+                builder.setInsertionMarkerLocation(
+                    left,
+                    top,
+                    bottom,
+                    bottom,
+                    cursorAnchorFlags(left, top, left, bottom),
+                )
+            }
+        }
+
+        if (editorBounds && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val bounds =
+                RectF(
+                    0f,
+                    0f,
+                    textInputWrapper.width.toFloat(),
+                    textInputWrapper.height.toFloat(),
+                )
+            builder.setEditorBoundsInfo(
+                EditorBoundsInfo
+                    .Builder()
+                    .setEditorBounds(bounds)
+                    .setHandwritingBounds(bounds)
+                    .build(),
+            )
+        }
+
+        getInputMethodManager().updateCursorAnchorInfo(textInputWrapper, builder.build())
+    }
+
+    private fun utf16Offset(grapheme: Int): Int =
+        Workspace.getTextInRange(WorkspaceView.wgpuObj, 0, grapheme.coerceAtLeast(0)).length
+
+    private fun eguiToWrapperLocal(
+        x: Float,
+        y: Float,
+    ): Pair<Float, Float> {
+        val density = textInputWrapper.resources.displayMetrics.scaledDensity
+        return x * density - textInputWrapper.left to y * density - textInputWrapper.top
+    }
+
+    private fun cursorAnchorFlags(
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+    ): Int {
+        val w = textInputWrapper.width.toFloat()
+        val h = textInputWrapper.height.toFloat()
+        val visible = right > 0f && left < w && bottom > 0f && top < h
+        val invisible = left < 0f || right > w || top < 0f || bottom > h
+        var flags = 0
+        if (visible) {
+            flags = flags or CursorAnchorInfo.FLAG_HAS_VISIBLE_REGION
+        }
+        if (invisible) {
+            flags = flags or CursorAnchorInfo.FLAG_HAS_INVISIBLE_REGION
+        }
+        return flags
+    }
 }
