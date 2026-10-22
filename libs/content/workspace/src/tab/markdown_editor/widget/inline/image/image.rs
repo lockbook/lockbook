@@ -9,6 +9,7 @@ use crate::file_cache::ResolvedLink;
 use crate::style::ThemeExt;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
+use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
 use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
@@ -192,6 +193,7 @@ impl<'ast> MdRender {
         }
         images.sort_unstable();
         self.bounds.images = images;
+        self.calc_diagram_bounds(root);
     }
 }
 
@@ -285,6 +287,9 @@ impl<'ast> MdEdit {
                 Some(LinkMenuAction::Copy) => {
                     ui.ctx().copy_text(self.renderer.link_to_copy(url, false))
                 }
+                Some(LinkMenuAction::CopyImage) => {
+                    self.renderer.copy_picture(Picture::Image(url.to_string()))
+                }
                 Some(LinkMenuAction::Refresh) => self.renderer.refresh_link_meta(url),
                 Some(LinkMenuAction::Edit) => {
                     let (select, force_reveal) = self.atom_edit_selection(node);
@@ -359,11 +364,23 @@ impl<'ast> MdEdit {
         let Some(offset) = self.renderer.selection_offset() else {
             return false;
         };
-        for &img in &self.renderer.bounds.images {
-            if self.renderer.range_revealed_interior(img) {
+        let r = &self.renderer;
+        let last = r.buffer.current.segs.last_cursor_position();
+        let newline = |at: Grapheme| at < last && r.buffer[(at, at + 1)] == *"\n";
+        // a diagram is a block: the newline beside it is against it too
+        let diagrams = r
+            .collapsed_diagrams()
+            .map(|d| (d, newline(d.end()), d.start() > 0 && newline(d.start() - 1)));
+        let images = r.bounds.images.iter().map(|&img| (img, false, false));
+        for (img, newline_after, newline_before) in images.chain(diagrams) {
+            if r.range_revealed_interior(img) {
                 continue;
             }
-            let against = if backwards { offset == img.end() } else { offset == img.start() };
+            let against = if backwards {
+                offset == img.end() || newline_after && offset == img.end() + 1
+            } else {
+                offset == img.start() || newline_before && offset + 1 == img.start()
+            };
             if against {
                 operations.push(Operation::Select(img));
                 return true;

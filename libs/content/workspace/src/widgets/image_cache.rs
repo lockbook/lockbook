@@ -230,6 +230,55 @@ impl ImageCache {
         Ok(ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()))
     }
 
+    /// Put the image at `url` on the clipboard once it's read and decoded,
+    /// off the UI thread.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn copy_image(&self, url: &str, from_file_id: Uuid) {
+        let url = url.to_string();
+        let (ctx, client, core) = (self.ctx.clone(), self.client.clone(), self.core.clone());
+        let lb_id = match self.files.read().unwrap().resolve_link(&url, from_file_id) {
+            Some(ResolvedLink::File(id)) => Some(id),
+            _ => None,
+        };
+        spawn!({
+            let read = || -> Result<ColorImage, String> {
+                let bytes = match lb_id {
+                    Some(id) => core.read_document(id, false).map_err(|e| e.to_string())?,
+                    None if url.starts_with("http://") || url.starts_with("https://") => {
+                        download_image(&client, &url)?
+                    }
+                    None => return Err(format!("image not found: {url}")),
+                };
+                let is_svg = match lb_id {
+                    Some(id) => core
+                        .get_file_by_id(id)
+                        .map_err(|e| e.to_string())?
+                        .name
+                        .ends_with(".svg"),
+                    None => url.ends_with(".svg") || bytes_look_like_svg(&bytes),
+                };
+                let bytes = if is_svg {
+                    rasterize_svg(&bytes, lb_id.is_some(), 2048.0, 1.0)?
+                } else {
+                    bytes
+                };
+                let image = decode_with_orientation(&bytes)?;
+                let size = [image.width() as usize, image.height() as usize];
+                Ok(ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()))
+            };
+            match read() {
+                Ok(image) => {
+                    ctx.copy_image(image);
+                    ctx.request_repaint();
+                }
+                Err(err) => tracing::warn!("couldn't copy image: {err}"),
+            }
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn copy_image(&self, _url: &str, _from_file_id: Uuid) {}
+
     /// Whether `url`'s texture is decoded and ready to paint this session — the
     /// real `Loaded` state, not just persisted dims (which outlive the texture).
     pub fn is_loaded(&self, url: &str) -> bool {

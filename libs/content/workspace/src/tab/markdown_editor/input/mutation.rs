@@ -607,7 +607,9 @@ impl<'ast> MdEdit {
             }
             Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
             Event::EnterAtom => {
-                if !self.enter_at_image(root, operations) {
+                if !self.enter_at_diagram(root, operations)
+                    && !self.enter_at_image(root, operations)
+                {
                     self.enter_at_link(root, operations);
                 }
             }
