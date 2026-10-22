@@ -100,11 +100,6 @@ final class FileProviderCore {
     }
 
     func read(_ item: FileProviderItem) throws -> Data {
-        if let data = cache.contents.object(forKey: cache.key(item.id, item.contentVersion)) {
-            item.size = data.length
-            cache.update(item)
-            return data as Data
-        }
         var version = LbDocumentVersion()
         let result = lb_read_document_versioned(core.lb, LbUuid(bytes: try uuid(item.itemIdentifier).uuid), &version)
         defer { lb_free_doc_res(result) }
@@ -122,7 +117,6 @@ final class FileProviderCore {
         item.size = Int(result.len)
         let data = Data(bytes: result.doc, count: Int(result.len))
         cache.update(item)
-        cache.store(data, id: item.id, version: item.contentVersion)
         return data
     }
 
@@ -139,7 +133,6 @@ final class FileProviderCore {
         }
         defer { lb_free_err(result.err) }
         try check(result.err)
-        cache.store(data, id: identifier(uuid), version: Self.data(result.version))
         let updated = try item(id, loadSize: false)
         if updated.contentVersion == Self.data(result.version) {
             updated.size = data.count
@@ -205,16 +198,6 @@ final class FileProviderCache {
     }
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
-    let contents = NSCache<NSString, NSData>()
-
-    init() { contents.totalCostLimit = 64 * 1024 * 1024 }
-
-    func key(_ id: String, _ version: Data) -> NSString { "\(id):\(version.base64EncodedString())" as NSString }
-
-    func store(_ data: Data, id: String, version: Data) {
-        guard data.count <= contents.totalCostLimit else { return }
-        contents.setObject(data as NSData, forKey: key(id, version), cost: data.count)
-    }
 
     func update(_ item: FileProviderItem, date: Date? = nil) {
         lock.withLock {
