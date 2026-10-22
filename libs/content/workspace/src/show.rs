@@ -11,7 +11,6 @@ use crate::file_cache::{FilesExt as _, link_id};
 use crate::output::Response;
 use crate::search::SearchType;
 use crate::tab::{ExtendedOutput as _, image_viewer};
-use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
 use crate::theme::visuals;
 use crate::widgets::GlyphonLabel;
@@ -616,19 +615,6 @@ impl DocType {
                 Self::Code
             }
             _ => Self::Unknown,
-        }
-    }
-
-    pub fn to_icon(&self) -> Icon {
-        match self {
-            DocType::Markdown => Icon::DOC_MD,
-            DocType::PlainText => Icon::DOC_TEXT,
-            DocType::SVG => Icon::DRAW,
-            DocType::Image => Icon::IMAGE,
-            DocType::Code => Icon::CODE,
-            DocType::PDF => Icon::DOC_PDF,
-            DocType::Chat => Icon::CHAT,
-            _ => Icon::DOC_UNKNOWN,
         }
     }
 

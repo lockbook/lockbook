@@ -19,47 +19,27 @@ const fn ic(c: &'static str) -> Icon {
 // make duplicates clear in the code
 // don't leave dead code behind
 impl Icon {
-    pub const ARROW_LEFT: Self = ic("\u{f060}"); // 
-    pub const ARROW_RIGHT: Self = ic("\u{f061}"); // 
     pub const BRING_TO_BACK: Self = ic("\u{f0600}"); // 󰘀
     pub const BRING_TO_FRONT: Self = ic("\u{f0601}"); // 󰘁
     pub const BRUSH: Self = ic("\u{f1a0d}"); // 󰃣
-    pub const CHAT: Self = ic("\u{f27a}"); // nf-fa-message
-    pub const CHECK_CIRCLE: Self = ic("\u{f05e0}"); // 󰗠
     pub const CIRCLE: Self = ic("\u{eabc}"); // 
     pub const CHEVRON_LEFT: Self = ic("\u{f0141}"); // 󰅁
     pub const CHEVRON_RIGHT: Self = ic("\u{f0142}"); // 󰅂
     pub const CHEVRON_UP: Self = ic("\u{f0143}"); // 󰅃
     pub const CHEVRON_DOWN: Self = ic("\u{f0140}"); // 󰅀
-    pub const CLOSE: Self = ic("\u{f0156}"); // 󰅖
-    pub const CODE: Self = ic("\u{f0174}"); // 󰅴
     pub const CONTENT_COPY: Self = ic("\u{f018f}"); // 󰆏
     pub const CONTENT_CUT: Self = ic("\u{f0190}"); // 󰆐
-    pub const DOC_UNKNOWN: Self = ic("\u{f039a}"); // 󰎚
-    pub const DOC_TEXT: Self = ic("\u{f15c}"); // 
-    pub const DOC_MD: Self = ic("\u{f48a}"); // 
-    pub const DOC_PDF: Self = ic("\u{e67d}"); // 
     pub const DONE: Self = ic("\u{f012c}"); // 󰄬
     pub const DOTS_HORIZONTAL: Self = ic("\u{f01d8}"); // 󰇘
-    pub const DRAW: Self = Self::BRUSH;
     pub const ERASER: Self = ic("\u{f01fe}"); // 󰙂
-    pub const FOLDER: Self = ic("\u{f024b}"); // 󰉋
     pub const FULLSCREEN: Self = ic("\u{f0293}"); // 󰊓
     pub const FULLSCREEN_EXIT: Self = ic("\u{f0294}"); // 󰊔
     pub const PENCIL: Self = ic("\u{f0cb6}"); // 󰲶
-    pub const TOGGLE_SIDEBAR: Self = ic("\u{ebf3}"); // 
     pub const HAND: Self = ic("\u{f01bf}"); // 
-    pub const IMAGE: Self = ic("\u{f02e9}"); // 󰋩
-    pub const NO_IMAGE: Self = ic("\u{F11D1}"); // 󱇑
     pub const OPEN_IN_NEW: Self = ic("\u{f03cc}"); // 󰏌
     pub const LOCK_OPEN: Self = ic("\u{f033f}"); // 󰌿
     pub const LOCK_CLOSED: Self = ic("\u{f033e}"); // 󰌾
-    pub const SAVE: Self = ic("\u{f0193}"); // 󰆓
-    pub const SCHEDULE: Self = ic("\u{f0954}"); // 󰥔
     pub const SEND: Self = ic("\u{f1d8}"); // nf-fa-send
-    pub const SEARCH: Self = ic("\u{e644}"); // 
-    pub const FILTER: Self = ic("\u{f0232}"); // 󰈲
-    pub const HOME: Self = ic("\u{f02dc}"); // 󰋜
     pub const SYNC: Self = ic("\u{f006a}"); // 󰁪
     pub const SHAPES: Self = ic("\u{f0832}"); // 󰠱
     pub const SYNC_PROBLEM: Self = ic("\u{f0026}"); // 󰀦
@@ -70,8 +50,6 @@ impl Icon {
     pub const BUG: Self = ic("\u{f00e4}"); // 󰃤
     pub const LINE: Self = ic("\u{f45b}"); // 
     pub const RECTANGLE: Self = ic("\u{f0e5e}"); // 󰹞
-    pub const FIT_WIDTH: Self = ic("\u{f0e74}"); // 󰹴
-    pub const FIT_HEIGHT: Self = ic("\u{f0e79}"); // 󰹹
 
     pub fn color(self, color: egui::Color32) -> Self {
         let mut this = self;
