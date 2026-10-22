@@ -327,6 +327,8 @@ pub struct MdEdit {
     pub scroll_area: AffineScrollArea<DocRowId>,
 
     cursor_last_interact: Option<f64>,
+    /// The user typed or moved the caret this frame.
+    pub caret_moved: bool,
 }
 
 impl MdEdit {
@@ -362,6 +364,7 @@ impl MdEdit {
             context_menu_heading: None,
             scroll_area: AffineScrollArea::new(file_id),
             cursor_last_interact: None,
+            caret_moved: false,
         }
     }
 }
@@ -375,6 +378,8 @@ pub struct Editor {
 
     // document identity
     pub id_salt: Id,
+    /// Shown as a search preview, which has no outline.
+    pub in_preview: bool,
     /// Version of the *displayed* buffer. Only written with the matching
     /// text via [`Self::apply_disk_version`] / [`Self::record_disk_save`].
     hmac: Option<DocumentHmac>,
@@ -382,6 +387,14 @@ pub struct Editor {
     /// The selection was moved between frames (a reveal); the next frame
     /// tells the platform, whose own caret would stay behind.
     selection_moved: bool,
+    /// The note can have an outline, headings or not, so native chrome
+    /// offers it.
+    pub outline_offered: bool,
+    /// The note's headings as the outline lists them, for the text at the
+    /// `text_seq` beside them.
+    outline_rows: Option<(u64, Vec<widget::outline::OutlineRow>)>,
+    /// Where the outline card stands this frame; None once it has faded out.
+    card: Option<widget::outline::CardPlace>,
     /// Where a heading link lands, at the top of the view. Its row is laid
     /// out with the frame's rows wherever it is, so the scroll is exact.
     landing: Option<Landing>,
@@ -390,6 +403,12 @@ pub struct Editor {
     painted_rows: Vec<(scroll_content::DocRowId, f32)>,
     /// The canvas those rows were painted in.
     painted_canvas: Rect,
+    /// The outline was opened while typing, so it marks the caret's section
+    /// even after the keyboard steps aside for it.
+    outline_from_typing: bool,
+    /// The user last typed or moved the caret rather than scrolled, so the
+    /// outline marks the caret's section while it is on screen.
+    outline_follows_caret: bool,
     /// The heading just landed on, washed briefly so the eye finds it.
     heading_flash: Option<((Grapheme, Grapheme), web_time::Instant)>,
 
@@ -407,6 +426,7 @@ pub struct Editor {
     // widgets moved onto MdEdit so a standalone composer inherits them)
     pub toolbar: Toolbar,
     pub find: Find,
+    pub outline: widget::outline::Outline,
 
     // misc
     /// Where the phone toolbar was allocated this frame — the layout-level
@@ -871,23 +891,31 @@ impl Editor {
                 context_menu_heading: None,
                 scroll_area: AffineScrollArea::new(file_id),
                 cursor_last_interact: None,
+                caret_moved: false,
             },
 
             core,
             persistence,
 
             id_salt: Id::NULL,
+            in_preview: false,
             hmac,
             initialized: Default::default(),
             selection_moved: false,
+            outline_offered: false,
+            outline_rows: None,
+            card: None,
             landing: None,
             painted_rows: Vec::new(),
             painted_canvas: Rect::NOTHING,
+            outline_from_typing: false,
+            outline_follows_caret: false,
             heading_flash: None,
             embeds_seq: 0,
             link_seq: 0,
 
             toolbar: Default::default(),
+            outline: Default::default(),
             find: Default::default(),
 
             // this is used to toggle the mobile toolbar
@@ -1530,22 +1558,73 @@ impl Editor {
                 let canvas_width = canvas_rect.width();
                 let layout_margin = self.edit.renderer.layout.margin;
 
-                // Content column width caps at `max_width`; the affine
-                // widget spans the full canvas so its scrollbar lands
-                // at the canvas right edge.
-                let max_width = self.edit.renderer.layout.max_width;
-                let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
-                self.edit.renderer.set_width(col_width);
-
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
+
+                // Content column width caps at `max_width`; the affine
+                // widget spans the full canvas so its scrollbar lands
+                // at the canvas right edge. A docked outline narrows the
+                // column, and the two center together as one block.
+                let max_width = self.edit.renderer.layout.max_width;
+                let r = &self.edit.renderer;
+                let sidecar = !r.touch_mode
+                    && !self.in_preview
+                    && !r.plaintext
+                    && r.interactive
+                    && self.persistence.get_sidecar_open();
+                // The card docks while the text beside it is wide enough: the
+                // text keeps the canvas's center while the card fits in the
+                // margin, then slides left, then narrows. Narrower, the card
+                // floats where it would have docked, over the full text.
+                let edge = crate::style::Space::Md.pts();
+                let side = SIDECAR_GAP + SIDECAR_W + edge;
+                let full_col = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
+                let docked_col = (canvas_width - layout_margin - side).min(max_width);
+                let docks = docked_col >= SIDECAR_MIN_TEXT;
+                // the column's left and width closed and open, and the
+                // motion between them; both ends follow the canvas
+                let closed = (((canvas_width - full_col) / 2.0).max(0.0), full_col);
+                let open = match docks {
+                    true => (
+                        ((canvas_width - docked_col) / 2.0)
+                            .min(canvas_width - side - docked_col)
+                            .max(layout_margin),
+                        docked_col,
+                    ),
+                    false => closed,
+                };
+                // `shown` fades the card; the text eases the same both
+                // ways, so a reversal starts where it is
+                let shown = ui.ctx().animate_bool_with_time(
+                    Id::new("md_sidecar_glide").with(self.edit.file_id),
+                    sidecar,
+                    widget::outline::MOTION_SECS,
+                );
+                let t = egui::emath::easing::quadratic_in_out(shown);
+                let col_width = egui::lerp(closed.1..=open.1, t);
+                self.edit.renderer.set_width(col_width);
 
                 // affine render: widget body spans the full canvas
                 // (scrollbar at canvas right); content centers within
                 // that body via `content_x`.
                 let touch_scroll = self.edit.renderer.touch_mode;
-                let content_x = canvas_rect.min.x
-                    + ((canvas_rect.width() - self.edit.renderer.width) / 2.0).max(0.0);
+                let content_x = canvas_rect.min.x + egui::lerp(closed.0..=open.0, t);
+                self.card = (shown > 0.0).then(|| {
+                    let width = SIDECAR_W.min(canvas_width - 2.0 * edge).max(0.0);
+                    let x = match docks {
+                        true => content_x + col_width + SIDECAR_GAP,
+                        false => canvas_rect.right() - edge - width,
+                    };
+                    widget::outline::CardPlace {
+                        area: Rect::from_min_size(
+                            Pos2::new(x, canvas_rect.top() + edge),
+                            Vec2::new(width, (canvas_rect.height() - 2.0 * edge).max(0.0)),
+                        ),
+                        floating: !docks,
+                        shown,
+                        open: sidecar,
+                    }
+                });
                 let pre = ui
                     .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
                         ui.set_clip_rect(canvas_rect);
@@ -1601,6 +1680,9 @@ impl Editor {
                                 canvas_rect.height(),
                             );
                             let resp = self.edit.scroll_area.finish(ui, begun, &content);
+                            if resp.user_scrolled {
+                                self.outline_follows_caret = false;
+                            }
 
                             let viewport_height = canvas_rect.height();
                             let mut neighbors: Vec<VisibleRow<scroll_content::DocRowId>> =
@@ -1803,6 +1885,7 @@ impl Editor {
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);
+                self.show_outline(ui, root, canvas_rect);
                 ui.advance_cursor_after_rect(canvas_rect);
             });
 
@@ -1924,6 +2007,91 @@ impl Editor {
             .reveal(&content, target_rect, Align::Center);
     }
 
+    /// Opens or closes the outline from native chrome: on touch, a sheet;
+    /// with a mouse, the card, remembered for every note.
+    pub fn toggle_outline(&mut self) {
+        if self.edit.renderer.touch_mode {
+            self.outline.toggle();
+        } else {
+            let open = self.persistence.get_sidecar_open();
+            self.persistence.set_sidecar_open(!open);
+        }
+    }
+
+    /// Whether the outline shows: the card or the sheet.
+    pub fn outline_open(&self) -> bool {
+        self.card.is_some_and(|c| c.open) || self.outline.is_open()
+    }
+
+    /// The outline, docked beside the text or opened over the note.
+    fn show_outline<'a>(&mut self, ui: &mut Ui, root: &'a AstNode<'a>, canvas: Rect) {
+        if std::mem::take(&mut self.edit.caret_moved) {
+            self.outline_follows_caret = true;
+        }
+        let r = &self.edit.renderer;
+        self.outline_offered = !r.plaintext && r.interactive && !self.in_preview;
+        if !self.outline_offered || self.card.is_none() && !self.outline.is_open() {
+            return;
+        }
+
+        // the caret's section while typing, else the one being read
+        let caret = r.buffer.current.selection.1;
+        let caret_shown = r.fragment_at_offset(caret).is_some_and(|f| {
+            !f.far && f.rect.bottom() > canvas.top() && f.rect.top() < canvas.bottom()
+        });
+        let mut typing = if r.touch_mode {
+            self.keyboard_visible
+        } else {
+            self.outline_follows_caret && caret_shown
+        };
+        if self.outline.is_opening() {
+            self.outline_from_typing = typing;
+            // the sheet stands where the keyboard is
+            if r.touch_mode && self.keyboard_visible {
+                crate::tab::ExtendedOutput::set_virtual_keyboard_shown(ui.ctx(), false);
+            }
+        }
+        if self.outline.is_open() {
+            typing = self.outline_from_typing;
+        }
+        let current = match typing {
+            true => self
+                .outline_rows(root)
+                .iter()
+                .rposition(|row| row.start <= caret),
+            false => self.scrolled_to_heading(root),
+        };
+        let (seq, rows) = self.outline_rows.take().unwrap_or_default();
+
+        let id = Id::new("md_outline").with(self.edit.file_id);
+        let (chosen, popup) = if self.edit.renderer.touch_mode {
+            self.outline
+                .show(ui.ctx(), id.with("sheet"), &rows, current)
+        } else {
+            let (chosen, rect, dismissed) =
+                self.outline
+                    .card(ui.ctx(), id.with("card"), self.card, canvas, &rows, current);
+            if dismissed {
+                self.persistence.set_sidecar_open(false);
+            }
+            (chosen, rect.filter(|_| self.card.is_some_and(|c| c.floating && c.open)))
+        };
+        self.outline_rows = Some((seq, rows));
+        if let Some(rect) = popup {
+            self.edit
+                .renderer
+                .touch_targets
+                .push((rect, TouchTarget::Popup));
+        }
+        if let Some(slug) = chosen {
+            self.open_at_heading(&slug);
+            // a reader who jumped didn't ask for the keyboard
+            if !self.edit.renderer.touch_mode || self.keyboard_visible {
+                self.focus(ui.ctx());
+            }
+        }
+    }
+
     pub fn open_navigate(&mut self, byte_range: std::ops::Range<usize>) {
         let segs = &self.edit.renderer.buffer.current.segs;
         let last = segs.last_cursor_position();
@@ -1990,6 +2158,39 @@ impl Editor {
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// The heading scrolled to, by its index among the note's headings: the
+    /// last at or above the [`reading_line`]. Opening at any heading of a
+    /// note that scrolls makes it the one scrolled to.
+    pub(crate) fn scrolled_to_heading<'a>(&mut self, root: &'a AstNode<'a>) -> Option<usize> {
+        let spans: Vec<_> = self.outline_rows(root).iter().map(|row| row.span).collect();
+        let r = &self.edit.renderer;
+        let rows =
+            scroll_content::DocScrollContent::for_frame(r, root, self.painted_canvas.height());
+        let line = reading_line(&self.edit.scroll_area.state, &rows)?;
+        scrolled_heading(&line, spans.len(), |i| self.heading_point(&rows, spans[i]))
+    }
+
+    /// The note's headings as the outline lists them, kept until the text
+    /// changes.
+    fn outline_rows<'a>(&mut self, root: &'a AstNode<'a>) -> &[widget::outline::OutlineRow] {
+        let seq = self.edit.renderer.text_seq;
+        if self.outline_rows.as_ref().is_none_or(|(at, _)| *at != seq) {
+            let r = &self.edit.renderer;
+            let rows = fragment::headings_in(root)
+                .into_iter()
+                .map(|(node, h)| widget::outline::OutlineRow {
+                    level: h.level,
+                    text: h.text,
+                    slug: h.slug,
+                    start: r.node_range(node).0,
+                    span: r.heading_span(node),
+                })
+                .collect();
+            self.outline_rows = Some((seq, rows));
+        }
+        self.outline_rows.as_ref().map_or(&[], |(_, rows)| rows)
+    }
+
     /// Where a heading's first line is in the note: its row, and the top of
     /// what's drawn of `heading` (its text's start to its end) in it. Hidden
     /// markup draws nothing, so the highest thing drawn over the range stands
@@ -2049,7 +2250,7 @@ impl Editor {
                     return;
                 }
                 let Some(point) = self.heading_point(&content, range) else { return };
-                heading_scroll(&content, point)
+                heading_scroll(&self.edit.scroll_area.state, &content, point)
             }
         };
         self.landing = None;
@@ -2107,6 +2308,12 @@ impl Editor {
 /// How long a heading landed on stays washed.
 const HEADING_FLASH_SECS: f32 = 0.9;
 
+/// The outline card's width, its gap from the text, and the narrowest text
+/// it docks beside; in narrower windows it floats over the text.
+const SIDECAR_W: f32 = 260.0;
+const SIDECAR_GAP: f32 = 24.0;
+const SIDECAR_MIN_TEXT: f32 = 560.0;
+
 /// Where a heading link lands.
 #[derive(Clone, Copy)]
 enum Landing {
@@ -2135,16 +2342,128 @@ fn landing_room() -> f32 {
 
 type DocOffset = Offset<scroll_content::DocRowId>;
 
-/// Room above the line a heading lands on: the landing room, plus the bars an Android
+/// Room above the reading line: the landing room, plus the bars an Android
 /// page runs under.
 fn reading_room(rows: &scroll_content::DocScrollContent<'_, '_>) -> f32 {
     landing_room() + android_top_overlay(rows)
 }
 
-/// The offset whose landing line falls on `target`: `room` above it.
-fn heading_scroll(rows: &scroll_content::DocScrollContent<'_, '_>, target: DocOffset) -> DocOffset {
-    crate::widgets::affine_scroll::offset_by(rows, target, -reading_room(rows))
+/// The reading line's slide over the last screen of scrolling, in a note
+/// that scrolls: `span` of scrolling before the bottom offset `max`, it
+/// walks down the view from `room` below its top to `tail`, where the note's
+/// last line rests at the bottom. It only walks down, so headings land in
+/// order.
+struct Slide {
+    max: DocOffset,
+    span: f32,
+    tail: f32,
+    room: f32,
 }
+
+impl Slide {
+    fn new(
+        state: &crate::widgets::affine_scroll::ScrollArea<scroll_content::DocRowId>,
+        rows: &scroll_content::DocScrollContent<'_, '_>, room: f32,
+    ) -> Option<Self> {
+        use crate::widgets::affine_scroll::Rows as _;
+        let screen = state.viewport_height;
+        let max = state.max_offset(rows)?;
+        let top = Offset::at_top_of(rows.first()?);
+        // the bound budgets the walk; a farther distance may still return
+        let range = state
+            .precise_distance(rows, &top, &max, screen)
+            .map_or(screen, |d| d.min(screen));
+        (range > 0.0).then_some(Self {
+            max,
+            span: range,
+            tail: (screen - rows.trailing_precise).max(room),
+            room,
+        })
+    }
+
+    /// How far below the view's top the line is, `r` short of the bottom.
+    fn line_y(&self, r: f32) -> f32 {
+        egui::lerp(self.room..=self.tail, 1.0 - (r / self.span).min(1.0))
+    }
+
+    /// The line's place relative to `max`, `r` short of the bottom. It
+    /// falls as `r` grows, so each place has one scroll.
+    fn line_from_max(&self, r: f32) -> f32 {
+        self.line_y(r) - r
+    }
+
+    /// How far short of the bottom the line's place is `t` relative to
+    /// `max`: [`Self::line_from_max`] inverted, within the slide.
+    fn short_of_bottom(&self, t: f32) -> f32 {
+        let pace = 1.0 + (self.tail - self.room) / self.span;
+        ((self.tail - t) / pace).clamp(0.0, self.span)
+    }
+}
+
+/// The reading line at the view's offset: `room` below its top, sliding over
+/// the last screen of scrolling down to the note's last line. A function of
+/// the rows, the offset, and the view's height alone; [`heading_scroll`] is
+/// its inverse, so a heading opened is the heading scrolled to.
+fn reading_line(
+    state: &crate::widgets::affine_scroll::ScrollArea<scroll_content::DocRowId>,
+    rows: &scroll_content::DocScrollContent<'_, '_>,
+) -> Option<DocOffset> {
+    use crate::widgets::affine_scroll::offset_by;
+    let room = reading_room(rows);
+    let off = state.offset(rows)?;
+    if let Some(slide) = Slide::new(state, rows, room) {
+        if let Some(r) = state
+            .precise_distance(rows, &off, &slide.max, slide.span)
+            .filter(|r| *r < slide.span)
+        {
+            let r = r.max(0.0);
+            return Some(offset_by(rows, slide.max.clone(), slide.line_from_max(r)));
+        }
+    }
+    Some(offset_by(rows, off, room))
+}
+
+/// The offset whose reading line falls on `target`: `room` above it, or
+/// near the end the scroll where the sliding line meets it.
+fn heading_scroll(
+    state: &crate::widgets::affine_scroll::ScrollArea<scroll_content::DocRowId>,
+    rows: &scroll_content::DocScrollContent<'_, '_>, target: DocOffset,
+) -> DocOffset {
+    use crate::widgets::affine_scroll::offset_by;
+    let room = reading_room(rows);
+    let above = offset_by(rows, target.clone(), -room);
+    let Some(slide) = Slide::new(state, rows, room) else { return above };
+    let Some(t) = state.precise_distance(rows, &slide.max, &target, state.viewport_height) else {
+        return above;
+    };
+    if t <= slide.line_from_max(slide.span) {
+        return above;
+    }
+    let r = slide.short_of_bottom(t);
+    offset_by(rows, slide.max, -r)
+}
+
+/// The heading scrolled to: the last of `count` headings whose line,
+/// `point(i)` in order down the note, is at or above the reading line `line`.
+fn scrolled_heading(
+    line: &DocOffset, count: usize, point: impl Fn(usize) -> Option<DocOffset>,
+) -> Option<usize> {
+    use scroll_content::DocRowId;
+    let order = |id: &DocRowId| match id {
+        DocRowId::Leading => 0,
+        DocRowId::Block(i) | DocRowId::Line(i) => i + 1,
+        DocRowId::Trailing => usize::MAX,
+    };
+    let at_or_above = |h: &DocOffset| match order(&h.anchor).cmp(&order(&line.anchor)) {
+        std::cmp::Ordering::Less => true,
+        std::cmp::Ordering::Equal => h.intra_precise <= line.intra_precise + 0.5,
+        std::cmp::Ordering::Greater => false,
+    };
+    let indices: Vec<usize> = (0..count).collect();
+    let above = indices.partition_point(|&i| point(i).is_some_and(|h| at_or_above(&h)));
+    above.checked_sub(1)
+}
+
 /// Build a [`Reveal`] spanning a Grapheme range — works for a single
 /// cursor (`(g, g)`), a multi-line selection, or a find match that
 /// crosses a wrap boundary. Each endpoint independently prefers a

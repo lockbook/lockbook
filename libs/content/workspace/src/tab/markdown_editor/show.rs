@@ -174,6 +174,7 @@ impl MdEdit {
 
         if buf_resp.text_updated || buf_resp.selection_user_moved {
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
+            self.caret_moved = true;
         }
 
         buf_resp
@@ -209,6 +210,7 @@ impl MdEdit {
         if reveal && (resp.text_updated || resp.selection_user_moved) {
             self.pending_scroll = Some(ScrollTarget::Cursor);
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
+            self.caret_moved = true;
         }
         ctx.request_repaint();
         resp
@@ -820,6 +822,7 @@ impl MdEdit {
         let pointer_resp = self.renderer.buffer.update();
         if pointer_resp.text_updated || pointer_resp.selection_user_moved {
             self.cursor_last_interact = Some(ui.ctx().input(|i| i.time));
+            self.caret_moved = true;
         }
         // Pointer only emits Select ops (no text change), so no re-parse
         // needed — but reveal must reflect the applied ops (and any

@@ -335,6 +335,36 @@ pub unsafe extern "C" fn selection_open_target(obj: *mut c_void) -> *const c_cha
     }
 }
 
+/// Whether the current note has an outline to offer in native chrome.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn outline_available(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_offered)
+}
+
+/// Whether the current note's outline is open, so floating chrome stands aside.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn outline_open(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_open())
+}
+
+/// Opens or closes the current note's outline from native chrome.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn toggle_outline(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    if let Some(md) = obj.workspace.current_tab_markdown_mut() {
+        md.toggle_outline();
+    }
+}
+
 /// A link to the heading on the caret's line, or null, for the edit menu's
 /// "Copy Heading Link". The returned string must be freed with `free_text`.
 /// # Safety

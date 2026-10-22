@@ -94,6 +94,15 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OpenFile(id) => open_documents(app, &[id], false),
         A::OpenFileNewTab(id) => open_documents(app, &[id], true),
         A::NavBack => nav_history(app, true),
+        A::ToggleSidecar => {
+            if let Some(md) = app
+                .session
+                .ready_mut()
+                .and_then(|r| r.workspace.current_tab_markdown_mut())
+            {
+                md.toggle_outline();
+            }
+        }
         A::NavForward => nav_history(app, false),
         A::OpenDocuments { ids, new_tab } => open_documents(app, &ids, new_tab),
         A::SelectTab(i) => {

@@ -102,6 +102,22 @@ struct HomeView: View {
 
                     #endif
 
+                    #if os(macOS)
+                        if openDocFile != nil {
+                            ToolbarItem(placement: sharePlacement) {
+                                Button {
+                                    workspaceInput.toggleOutline()
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                        .foregroundStyle(workspaceOutput.outlineOpen ? Color.accentColor : Color.primary)
+                                }
+                                .disabled(!workspaceOutput.outlineAvailable)
+                                .help("Outline")
+                                .accessibilityLabel("Outline")
+                            }
+                        }
+                    #endif
+
                     if let file = openDocFile, !keyboardObscuresToolbar {
                         ToolbarItem(placement: sharePlacement) {
                             Button {
@@ -158,6 +174,10 @@ struct HomeView: View {
                         if !hideFloatingButtons {
                             HStack {
                                 detailSearchButton
+
+                                if workspaceOutput.outlineAvailable {
+                                    detailOutlineButton
+                                }
 
                                 Spacer()
 
@@ -391,6 +411,7 @@ struct HomeView: View {
     #if os(iOS)
         private var hideFloatingButtons: Bool {
             keyboardVisible || workspaceOutput.mobileToolbarShown || chatOpen
+                || workspaceOutput.outlineOpen
         }
 
         @ViewBuilder
@@ -428,6 +449,20 @@ struct HomeView: View {
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
             .tint(.primary)
+        }
+
+        /// The note's headings, in a sheet from the bottom.
+        private var detailOutlineButton: some View {
+            Button {
+                workspaceInput.toggleOutline()
+            } label: {
+                Image(systemName: "list.bullet.indent")
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .tint(.primary)
+            .accessibilityLabel("Outline")
         }
 
         private var detailCreateButton: some View {

@@ -383,6 +383,15 @@ class WorkspaceView(
             Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
         }
 
+        val outline = Workspace.outlineAvailable(wgpuObj)
+        if (outline != model.outlineAvailable.value) {
+            model._outlineAvailable.value = outline
+        }
+        val outlineOpen = Workspace.outlineOpen(wgpuObj)
+        if (outlineOpen != model.outlineOpen.value) {
+            model._outlineOpen.value = outlineOpen
+        }
+
         if (response.urlOpened.isNotEmpty()) {
             try {
                 val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
@@ -540,6 +549,15 @@ class WorkspaceView(
         invalidate()
 
         return
+    }
+
+    fun toggleOutline() {
+        if (wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        Workspace.toggleOutline(wgpuObj)
+        invalidate()
     }
 
     fun activateDoc(id: String) {

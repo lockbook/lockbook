@@ -15,6 +15,10 @@ import Observation
 
     public var openCamera: Bool = false
     public var openSearch: Bool = false
+    /// The open note has headings: native chrome offers its outline.
+    public var outlineAvailable: Bool = false
+    /// The outline sheet is up: floating buttons would cover it.
+    public var outlineOpen: Bool = false
 
     public var mobileToolbarShown: Bool = false
 
@@ -175,6 +179,13 @@ import Observation
         show_search(wsHandle)
         redraw.send(())
         focus.send(())
+    }
+
+    public func toggleOutline() {
+        guard let wsHandle else { return }
+
+        toggle_outline(wsHandle)
+        redraw.send(())
     }
 
     public func showFindInDoc() {

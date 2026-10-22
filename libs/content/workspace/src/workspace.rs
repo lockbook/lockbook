@@ -1519,6 +1519,7 @@ impl Workspace {
                         if let Some(md) = tab.markdown_mut() {
                             md.initialized = true;
                             md.id_salt = egui::Id::new("search_preview");
+                            md.in_preview = true;
                         }
                         // A chat's first frame would focus its composer,
                         // stealing focus from the search query.
@@ -1959,6 +1960,9 @@ pub struct WsPresistentData {
     /// Where the next new search starts.
     #[serde(default)]
     last_search: SearchState,
+    /// The sidecar, the panel beside a note that holds its outline, is open.
+    #[serde(default)]
+    sidecar_open: bool,
 }
 
 impl Default for WsPresistentData {
@@ -1978,6 +1982,7 @@ impl Default for WsPresistentData {
             image_dims: HashMap::default(),
             contact_linked_sites: false,
             last_search: SearchState::default(),
+            sidecar_open: false,
         }
     }
 }
@@ -2131,6 +2136,20 @@ impl WsPersistentStore {
             return; // no-op guard: mobile pushes this from its per-frame draw
         }
         data_lock.contact_linked_sites = contact_linked_sites;
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn get_sidecar_open(&self) -> bool {
+        self.data.read().unwrap().sidecar_open
+    }
+
+    pub fn set_sidecar_open(&mut self, open: bool) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.sidecar_open == open {
+            return;
+        }
+        data_lock.sidecar_open = open;
         drop(data_lock);
         self.write_to_file();
     }

@@ -22,6 +22,8 @@ pub use metrics::{
     tab_right_inset, toolbar_cluster_w,
 };
 
+use metrics::sidecar_toggle_inset;
+
 #[cfg(not(target_os = "macos"))]
 use egui::Sense;
 use egui::{Area, Id, Order, Rect, pos2, vec2};
@@ -127,6 +129,7 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
     // Pane / history icons are workspace chrome — hide them on onboard.
     if app.product_open() {
         floating_toolbar(app, ctx, t, queue);
+        sidecar_toggle(app, ctx, t, queue);
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -295,6 +298,33 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
         });
 }
 
+/// The sidecar toggle at the titleband's right, before the window controls:
+/// the current note's outline, docked beside its text. Muted where there's
+/// no note to outline.
+fn sidecar_toggle(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+    let size = icon_size();
+    let y = HEADER_CENTER - size / 2.0;
+    let right = ctx.screen_rect().right() - sidecar_toggle_inset();
+    let rect = Rect::from_min_size(pos2(right - size, y), vec2(size, size));
+    block_window_drag(ctx, rect);
+    let (enabled, active) = app
+        .session
+        .ready()
+        .and_then(|r| r.workspace.current_tab_markdown())
+        .map(|md| (md.outline_offered, md.outline_open()))
+        .unwrap_or_default();
+    let ground = t.neutral_bg_secondary();
+    Area::new(Id::new("shell_sidecar_toggle"))
+        .order(Order::Foreground)
+        .fixed_pos(rect.min)
+        .show(ctx, |ui| {
+            let resp = titlebar_icon(ui, t, phosphor::INFO, active, enabled, ground, "Outline");
+            if enabled && resp.clicked() {
+                queue.push(A::ToggleSidecar);
+            }
+        });
+}
+
 /// Titleband icon: pane toggles (accent when selected) and back/forward
 /// (foreground when enabled; muted, no hover, when disabled).
 fn titlebar_icon(
@@ -405,10 +435,10 @@ fn window_resize_edges(ctx: &egui::Context) {
 
 #[cfg(all(test, not(target_os = "macos")))]
 mod tests {
-    use super::metrics::{caption_cluster_w, tab_right_inset};
+    use super::metrics::{caption_cluster_w, window_controls_inset};
 
     #[test]
     fn caption_inset_matches_cluster() {
-        assert!((tab_right_inset() - caption_cluster_w()).abs() < 0.01);
+        assert!((window_controls_inset() - caption_cluster_w()).abs() < 0.01);
     }
 }

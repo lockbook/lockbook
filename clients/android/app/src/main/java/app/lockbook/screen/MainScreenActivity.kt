@@ -329,6 +329,12 @@ class MainScreenActivity : AppCompatActivity() {
                         return
                     }
 
+                    // the outline sheet closes before anything navigates
+                    if (workspaceModel.outlineOpen.value == true) {
+                        workspaceModel.requestWorkspaceBack()
+                        return
+                    }
+
                     if (mainScreenModel.navigate(MainNavigationAction.Back)) {
                         return
                     }

@@ -63,6 +63,14 @@ fn toolbar_icon(
     ui: &mut Ui, t: &crate::style::Theme, icon: &'static str, applied: bool, menu_open: bool,
     tip: &str,
 ) -> bool {
+    toolbar_icon_at(ui, t, icon, applied, menu_open, tip).0
+}
+
+/// [`toolbar_icon`], and where it stands.
+fn toolbar_icon_at(
+    ui: &mut Ui, t: &crate::style::Theme, icon: &'static str, applied: bool, menu_open: bool,
+    tip: &str,
+) -> (bool, egui::Rect) {
     let r = icon_button_glyph(
         ui,
         t,
@@ -73,7 +81,7 @@ fn toolbar_icon(
         CHROME_BAND_GLYPH,
     );
     tip_text(ui.ctx(), &r, tip);
-    !menu_open && r.clicked()
+    (!menu_open && r.clicked(), r.rect)
 }
 
 pub struct Toolbar {
@@ -265,9 +273,10 @@ impl<'ast> Editor {
 
         let mut w = 2. * margin;
 
-        if is_ios && (persistence.search || is_default) {
-            w += group(1);
-        }
+        // search, then the outline on a phone, one group
+        let search = is_ios && (persistence.search || is_default);
+        let outline = is_ios && self.edit.phone_mode && self.outline_offered;
+        w += group(search as usize + outline as usize);
 
         w += group(count(&[persistence.undo, persistence.redo]));
         w += group(count(&[
@@ -330,7 +339,11 @@ impl<'ast> Editor {
 
                     let mut events = Vec::new();
 
-                    if is_ios && (persistence.search || toolbar_is_default) {
+                    // search, then the outline on a phone, one group as the
+                    // floating buttons are
+                    let search = is_ios && (persistence.search || toolbar_is_default);
+                    let outline = is_ios && self.edit.phone_mode && self.outline_offered;
+                    if search {
                         let find_open = self.find.term.is_some();
                         if toolbar_icon(ui, &t, phosphor::SEARCH, find_open, menu_open, "Search") {
                             if find_open {
@@ -341,6 +354,28 @@ impl<'ast> Editor {
                                 self.find.open_requested = true;
                             }
                         }
+                    }
+                    if outline {
+                        if search {
+                            ui.add_space(5.);
+                        }
+                        let (clicked, rect) = toolbar_icon_at(
+                            ui,
+                            &t,
+                            phosphor::LIST_DASHES,
+                            self.outline.is_open(),
+                            menu_open,
+                            "Outline",
+                        );
+                        if clicked {
+                            self.outline.toggle();
+                        }
+                        self.edit
+                            .renderer
+                            .touch_targets
+                            .push((rect, crate::tab::markdown_editor::TouchTarget::Popup));
+                    }
+                    if search || outline {
                         add_seperator(ui);
                     }
 

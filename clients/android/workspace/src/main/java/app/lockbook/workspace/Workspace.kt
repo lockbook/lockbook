@@ -155,6 +155,9 @@ object Workspace {
 
     external fun selectionTargetIsImage(rustObj: Long): Boolean
     external fun selectionHeadingLink(rustObj: Long): String?
+    external fun outlineAvailable(rustObj: Long): Boolean
+    external fun toggleOutline(rustObj: Long)
+    external fun outlineOpen(rustObj: Long): Boolean
     external fun openSelectionLinks(rustObj: Long)
     external fun refreshSelectionPreviews(rustObj: Long)
     external fun setContactLinkedSites(rustObj: Long, value: Boolean)

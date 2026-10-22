@@ -305,6 +305,39 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionOpenTarget
     }
 }
 
+/// Whether the current note has an outline to offer on the app bar.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_outlineAvailable(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_offered) as jboolean
+}
+
+/// Whether the current note's outline is open, so the bottom bar stands aside.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_outlineOpen(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_open()) as jboolean
+}
+
+/// Opens or closes the current note's outline from the app bar.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleOutline(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.current_tab_markdown_mut() {
+        md.toggle_outline();
+    }
+}
+
 /// A link to the heading on the caret's line, or null, for the edit menu's
 /// "Copy Heading Link".
 #[no_mangle]
