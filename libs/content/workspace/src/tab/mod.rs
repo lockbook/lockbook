@@ -11,7 +11,6 @@ use crate::tab::pdf_viewer::PdfViewer;
 
 use crate::tab::svg_editor::SVGEditor;
 use crate::task_manager::TaskManager;
-use crate::theme::icons::Icon;
 use crate::workspace::Workspace;
 
 use chrono::DateTime;
@@ -177,8 +176,7 @@ pub enum TabAction {
 }
 
 /// `in_new_tab` is the explicit menu/cmd-click request. `desktop_tab_policy`
-/// is activate-if-open / honor the open-in-new-tab setting. Distinct from
-/// drawing the egui tab strip (`Workspace::show_tabs`). Desktop with the
+/// is activate-if-open / honor the open-in-new-tab setting. Desktop with the
 /// setting off navigates in the current session so back still works.
 pub fn tab_action_for_open(
     dest_already_open: bool, in_new_tab: bool, desktop_tab_policy: bool, open_in_new_tab: bool,
@@ -626,62 +624,7 @@ pub enum ClipContent {
     NamedImage { name: String, data: Vec<u8> },
 }
 
-#[derive(PartialEq)]
-pub enum TabStatus {
-    Dirty,
-    LoadQueued,
-    LoadInProgress,
-    SaveQueued,
-    SaveInProgress,
-    Clean,
-}
-
-impl TabStatus {
-    pub fn icon(&self) -> Icon {
-        match self {
-            TabStatus::Dirty => Icon::CIRCLE,
-            TabStatus::LoadQueued => Icon::SCHEDULE,
-            TabStatus::LoadInProgress => Icon::SAVE,
-            TabStatus::SaveQueued => Icon::SCHEDULE,
-            TabStatus::SaveInProgress => Icon::SAVE,
-            TabStatus::Clean => Icon::CHECK_CIRCLE,
-        }
-    }
-
-    pub fn summary(&self) -> String {
-        match self {
-            TabStatus::Dirty => "Unsaved changes".to_string(),
-            TabStatus::LoadQueued => "Queued for loading".to_string(),
-            TabStatus::LoadInProgress => "Loading".to_string(),
-            TabStatus::SaveQueued => "Queued for saving".to_string(),
-            TabStatus::SaveInProgress => "Saving".to_string(),
-            TabStatus::Clean => "Saved".to_string(),
-        }
-    }
-}
-
 impl Workspace {
-    pub fn tab_status(&self, i: usize) -> TabStatus {
-        let tab = self.tab_strip.get(i).and_then(|s| self.tabs.get(&s.id));
-        if let Some(tab) = tab {
-            if let Some(id) = tab.id() {
-                if self.tasks.load_in_progress(id) {
-                    return TabStatus::LoadInProgress;
-                } else if self.tasks.save_in_progress(id) {
-                    return TabStatus::SaveInProgress;
-                } else if self.tasks.load_queued(id) {
-                    return TabStatus::LoadQueued;
-                } else if self.tasks.save_queued(id) {
-                    return TabStatus::SaveQueued;
-                }
-            }
-            if tab.is_dirty(&self.tasks) {
-                return TabStatus::Dirty;
-            }
-        }
-        TabStatus::Clean // can't get any cleaner than nonexistent!
-    }
-
     pub fn tab_title(&self, tab: &Tab) -> String {
         let files_arc = std::sync::Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();

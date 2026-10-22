@@ -113,15 +113,11 @@ pub struct Workspace {
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
 
-    pub show_tabs: bool, // draw the egui tab strip
     /// Touch hosts type through the software keyboard. iOS clears this while
     /// a hardware keyboard keeps the software one away.
     pub software_keyboard_in_use: bool,
-    /// Activate-if-open / honor open-in-new-tab. Independent of `show_tabs`
-    /// so Apple can keep its own strip while using desktop policy.
+    /// Activate-if-open / honor open-in-new-tab.
     pub desktop_tab_policy: bool,
-    pub tab_strip_left_inset: f32,
-    pub tab_strip_min_height: f32,
     pub sidebar_open: bool,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
@@ -164,8 +160,7 @@ impl Workspace {
 impl Workspace {
     #[instrument(name = "Workspace::new", level = "trace", skip_all)]
     pub fn new(
-        core: &Lb, ctx: &Context, show_tabs: bool, persist: bool,
-        file_cache: Option<Arc<RwLock<FileCache>>>,
+        core: &Lb, ctx: &Context, persist: bool, file_cache: Option<Arc<RwLock<FileCache>>>,
     ) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
@@ -203,11 +198,8 @@ impl Workspace {
             ctx: ctx.clone(),
             core: core.clone(),
 
-            show_tabs,
             software_keyboard_in_use: true,
-            desktop_tab_policy: show_tabs,
-            tab_strip_left_inset: 0.0,
-            tab_strip_min_height: 0.0,
+            desktop_tab_policy: false,
             sidebar_open: false,
             focused_parent: Default::default(),
 
@@ -358,12 +350,6 @@ impl Workspace {
     #[instrument(level = "trace", skip_all)]
     pub fn create_tab(&mut self, dest: Destination, make_current: bool) {
         self.resume_session(Session::new(dest), make_current);
-    }
-
-    pub fn begin_tab_rename(&mut self, tab_id: SessionId, name: String) {
-        if let Some(tab) = self.tabs.get_mut(&tab_id) {
-            tab.rename = Some(name);
-        }
     }
 
     pub fn clear_tab_rename(&mut self, tab_id: SessionId) {
@@ -1311,7 +1297,6 @@ impl Workspace {
 
                 let ctx = self.ctx.clone();
                 let core = self.core.clone();
-                let show_tabs = self.show_tabs;
 
                 let tab_opt = if is_preview {
                     self.preview_pending
@@ -1366,7 +1351,6 @@ impl Workspace {
                         DocType::PDF => {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
                                 id, bytes, &ctx,
-                                !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         }
                         DocType::SVG => {

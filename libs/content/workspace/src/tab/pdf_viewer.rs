@@ -81,8 +81,6 @@ pub struct PdfViewer {
     viewport_adjustment: Option<Vec2>,
 
     sidebar: Option<SideBar>,
-
-    is_mobile_viewport: bool,
 }
 
 struct SideBar {
@@ -124,9 +122,11 @@ const ZOOM_STOP: f32 = 0.1;
 const SIDEBAR_WIDTH: f32 = 230.0;
 const SPACE_BETWEEN_PAGES: f32 = 10.0;
 const THUMBNAIL_SCALE: f32 = 0.15;
+/// The sidebar starts open when the pages keep at least this much width beside it.
+const MIN_PAGES_WIDTH: f32 = 480.0;
 
 impl PdfViewer {
-    pub fn new(id: Uuid, bytes: Vec<u8>, ctx: &egui::Context, is_mobile_viewport: bool) -> Self {
+    pub fn new(id: Uuid, bytes: Vec<u8>, ctx: &egui::Context) -> Self {
         let bytes: Arc<Vec<u8>> = Arc::new(bytes);
         let (request_tx, request_rx) = mpsc::channel::<WorkerRequest>();
         let (response_tx, response_rx) = mpsc::channel::<WorkerResponse>();
@@ -170,11 +170,10 @@ impl PdfViewer {
             current_viewport: Rect::ZERO,
             viewport_adjustment: Default::default(),
             render_area: Rect::ZERO,
-            is_mobile_viewport,
         }
     }
 
-    fn setup_sidebar(&mut self) {
+    fn setup_sidebar(&mut self, available_width: f32) {
         let inner_width = SIDEBAR_WIDTH - 50.0;
 
         let thumbnails = self
@@ -186,11 +185,12 @@ impl PdfViewer {
             })
             .collect();
 
-        self.sidebar = Some(SideBar { thumbnails, is_visible: true, scroll_target: 0 });
+        let is_visible = available_width >= SIDEBAR_WIDTH + MIN_PAGES_WIDTH;
+        self.sidebar = Some(SideBar { thumbnails, is_visible, scroll_target: 0 });
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
-        self.drain_responses();
+        self.drain_responses(ui.available_width());
 
         ui.painter().rect_filled(
             ui.available_rect_before_wrap(),
@@ -206,15 +206,13 @@ impl PdfViewer {
         self.show_pages(ui);
     }
 
-    fn drain_responses(&mut self) {
+    fn drain_responses(&mut self, available_width: f32) {
         while let Ok(resp) = self.response_rx.try_recv() {
             match resp {
                 WorkerResponse::Parsed { page_dimensions } => {
                     self.page_dimensions = page_dimensions;
                     self.compute_bounds();
-                    if !self.is_mobile_viewport {
-                        self.setup_sidebar();
-                    }
+                    self.setup_sidebar(available_width);
                 }
                 WorkerResponse::ParseFailed => {
                     self.parse_failed = true;
