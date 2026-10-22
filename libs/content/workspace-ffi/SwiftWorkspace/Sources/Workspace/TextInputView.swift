@@ -576,15 +576,16 @@
         var returnKeyType: UIReturnKeyType = .default
         var isSecureTextEntry = false
 
-        /// Traits follow the focused field: a masked secret and the find
-        /// field take no suggestions or autocorrect, a single line ends with
-        /// Done and find with Search; the note keeps the defaults.
+        /// Traits follow the focused field: a masked secret, the find field,
+        /// and code take no suggestions or autocorrect, a single line ends
+        /// with Done and find with Search; the rest of the note keeps the
+        /// defaults.
         func refreshTraits() {
             guard let wsHandle else { return }
             let traits = ios_text_traits(wsHandle)
             guard traits.valid else { return }
             let before = traitSummary
-            let plain = chromeFocused || traits.secure || traits.completions
+            let plain = chromeFocused || traits.secure || traits.completions || traits.code
             autocorrectionType = plain ? .no : .default
             spellCheckingType = plain ? .no : .default
             smartQuotesType = plain ? .no : .default

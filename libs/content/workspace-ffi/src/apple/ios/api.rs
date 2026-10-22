@@ -1216,6 +1216,7 @@ pub unsafe extern "C" fn ios_text_traits(obj: *mut c_void) -> CTextTraits {
             single_line: md.renderer.single_line,
             completions: md.emoji_completions.active || md.link_completions.active,
             send_on_return,
+            code: md.caret_in_code,
         },
         None => CTextTraits::default(),
     }

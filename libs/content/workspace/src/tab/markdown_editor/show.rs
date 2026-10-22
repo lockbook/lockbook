@@ -217,6 +217,20 @@ impl MdEdit {
             });
         }
 
+        let selection = self.renderer.buffer.current.selection;
+        if buf_resp.text_updated || self.caret_in_code_at != Some(selection) {
+            let root = self.renderer.reparse(&arena);
+            self.caret_in_code = root.descendants().any(|node| {
+                use comrak::nodes::NodeValue;
+                matches!(node.data.borrow().value, NodeValue::CodeBlock(_) | NodeValue::Code(_))
+                    && self
+                        .renderer
+                        .node_range(node)
+                        .contains(selection.1, true, true)
+            });
+            self.caret_in_code_at = Some(selection);
+        }
+
         self.sync_reveal_selection(ctx, id, prior_entered_atom);
         self.renderer.search_range = self
             .emoji_completions

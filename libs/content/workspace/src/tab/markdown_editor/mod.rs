@@ -329,6 +329,10 @@ pub struct MdEdit {
     /// The platform's own recognizer drives the reorder (see [`commands`]),
     /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
     pub touch_reorder_driven: bool,
+    /// The caret is in code, where a platform keyboard's smart punctuation
+    /// would rewrite what's typed (`-->` to an em dash).
+    pub caret_in_code: bool,
+    caret_in_code_at: Option<(Grapheme, Grapheme)>,
 
     /// A committed reorder `(drag, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
@@ -431,6 +435,8 @@ impl MdEdit {
             in_progress_block_drag: None,
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
+            caret_in_code: false,
+            caret_in_code_at: None,
             pending_block_move: None,
             deferred_input: Vec::new(),
             ime_reset: false,
@@ -1007,6 +1013,8 @@ impl Editor {
                 in_progress_block_drag: None,
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
+                caret_in_code: false,
+                caret_in_code_at: None,
                 pending_block_move: None,
                 deferred_input: Vec::new(),
                 ime_reset: false,
