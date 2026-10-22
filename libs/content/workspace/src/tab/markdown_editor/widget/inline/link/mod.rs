@@ -315,6 +315,12 @@ impl<'ast> MdRender {
             // Favicon over the leading em-space slot; a neutral link glyph
             // holds the slot while the texture loads — or forever, if it
             // never does — so the reserved space always reads as an icon.
+            // a scrolled table shows only some of a row
+            let row =
+                egui::Rect::from_x_y_ranges(egui::Rangef::EVERYTHING, chip_rects[0].y_range());
+            let showing = self.table_showing(row).unwrap_or(egui::Rect::NOTHING);
+            let row_clip = ui.clip_rect();
+            ui.set_clip_rect(row_clip.intersect(showing));
             if let Some(favicon_url) = self.capsule_favicon_url(&url) {
                 let chip = chip_rects[0];
                 let size = chip.height() * 0.7;
@@ -347,6 +353,7 @@ impl<'ast> MdRender {
                     );
                 }
             }
+            ui.set_clip_rect(row_clip);
 
             if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
@@ -362,8 +369,8 @@ impl<'ast> MdRender {
                         None => rows.push(*r),
                     }
                 }
-                for r in &rows {
-                    ui.painter().rect_filled(*r, 2.0, tint);
+                for r in rows.iter().filter_map(|r| self.table_showing(*r)) {
+                    ui.painter().rect_filled(r, 2.0, tint);
                 }
             }
         }

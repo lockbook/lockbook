@@ -257,6 +257,7 @@ impl Workspace {
             }
             self.out.text_interaction_rect = resp.text_interaction_rect;
             self.out.mobile_toolbar_shown = resp.mobile_toolbar_shown;
+            self.out.caret_covered = resp.caret_covered;
             if resp.scroll_updated {
                 self.out.markdown_editor_scroll_updated = true;
             }

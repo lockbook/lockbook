@@ -64,6 +64,8 @@ impl MdLabel {
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
         self.renderer.fragments.clear();
+        self.renderer.table_cell_boxes.clear();
+        self.renderer.table_header_slots.clear();
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
 

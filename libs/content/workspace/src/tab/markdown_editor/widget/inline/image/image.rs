@@ -123,9 +123,17 @@ impl<'ast> MdRender {
             .ancestors()
             .skip(1)
             .find(|a| a.data.borrow().value.is_leaf_block())?;
-        let width = self.width(block_ancestor);
+        let mut width = self.width(block_ancestor);
+        let in_cell = matches!(block_ancestor.data.borrow().value, NodeValue::TableCell);
+        if in_cell {
+            width = (width - 2.0 * self.layout.block_padding).max(0.0);
+        }
         let texture_size = self.embeds.size(&url);
-        let size = self.image_size(texture_size, width, self.image_dims(node));
+        let mut size = self.image_size(texture_size, width, self.image_dims(node));
+        // a size asked for by name fits the viewport; in a cell it fits the cell
+        if in_cell && size.x > width {
+            size *= width / size.x;
+        }
         (size.x > 0.0 && size.y > 0.0).then_some(size)
     }
 

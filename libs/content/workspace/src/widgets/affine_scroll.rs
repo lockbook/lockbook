@@ -1388,6 +1388,14 @@ pub struct AffineScrollAreaBegun {
     body_response: Response,
 }
 
+impl AffineScrollAreaBegun {
+    /// The body's response, for an embedder that may claim its drag (see
+    /// [`AffineScrollArea::suppress_body_drag`]).
+    pub fn body_response(&self) -> &Response {
+        &self.body_response
+    }
+}
+
 fn warm_around_visible<R: Rows>(rows: &R, visible: &[VisibleRow<R::RowId>], viewport_height: f32) {
     let Some(first) = visible.first() else {
         return;

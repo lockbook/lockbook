@@ -1051,6 +1051,45 @@ pub unsafe extern "C" fn ios_reorder_end(obj: *mut c_void, x: f32, y: f32, cance
     }
 }
 
+/// A horizontal pan began at a point: whether a table wider than the note
+/// is there to take it.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_table_pan_begin(obj: *mut c_void, x: f32, y: f32) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let pos = obj.renderer.pos_from_points(x, y);
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.table_pan_begin(pos))
+}
+
+/// The table pan moved `dx` points along the rows.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_table_pan(obj: *mut c_void, dx: f32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.table_pan_by(dx);
+    }
+}
+
+/// The table pan ended at `vx` points per second along the rows; the
+/// table coasts from it. Zero for a pan the platform cancelled.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_table_pan_end(obj: *mut c_void, vx: f32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.table_pan_end(vx);
+    }
+}
+
 /// A touch landed on the scrollbar at `y` points.
 ///
 /// # Safety

@@ -7,6 +7,7 @@ use lb_c::model::text::offset_types::Grapheme;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
+use workspace_rs::tab::markdown_editor::table::TableAction;
 use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
 
 use super::keyboard::AndroidKeys;
@@ -27,6 +28,21 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarStat
     env.new_string(serde_json::to_string(&state).expect("serialize toolbar state"))
         .expect("create toolbar state")
         .into_raw()
+}
+
+/// Inserts a table of `columns` columns and `rows` rows, its header one.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTable(
+    _env: JNIEnv, _: JClass, obj: jlong, columns: jint, rows: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let Some(editor) = obj.workspace.current_tab_markdown_mut() else { return };
+    if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
+        return;
+    }
+    let (columns, rows) = (columns.max(1) as usize, rows.max(1) as usize - 1);
+    let event = Event::Table(TableAction::Insert { columns, rows });
+    obj.renderer.context.push_markdown_event(event);
 }
 
 #[unsafe(no_mangle)]
@@ -52,7 +68,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarActi
         if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
             return;
         }
-        let event = editor.android_toolbar_action(action);
+        let event = editor.toolbar_action(action);
         obj.renderer.context.push_markdown_event(event);
     }
 }
