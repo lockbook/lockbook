@@ -317,7 +317,7 @@
 				CODE_SIGN_ENTITLEMENTS = Lockbook.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "macOS-Debug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261022.093306;
+				CURRENT_PROJECT_VERSION = 20261022.171430;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -337,7 +337,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 26.10.22;
+				MARKETING_VERSION = 26.10.23;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SystemConfiguration,
@@ -365,7 +365,7 @@
 				CODE_SIGN_ENTITLEMENTS = Lockbook.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "macOS-Development.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261022.093306;
+				CURRENT_PROJECT_VERSION = 20261022.171430;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -385,7 +385,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 26.10.22;
+				MARKETING_VERSION = 26.10.23;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SystemConfiguration,
@@ -413,7 +413,7 @@
 				CODE_SIGN_ENTITLEMENTS = Lockbook.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "macOS-Release.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261022.093306;
+				CURRENT_PROJECT_VERSION = 20261022.171430;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -433,7 +433,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 26.10.22;
+				MARKETING_VERSION = 26.10.23;
 				OTHER_LDFLAGS = (
 					"-framework",
 					SystemConfiguration,
@@ -457,7 +457,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261022.093306;
+				CURRENT_PROJECT_VERSION = 20261022.171430;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
@@ -469,7 +469,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 26.10.22;
+				MARKETING_VERSION = 26.10.23;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -491,7 +491,7 @@
 				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
 				CODE_SIGN_ENTITLEMENTS = PinnedDocumentsWidget/PinnedDocumentsWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261022.093306;
+				CURRENT_PROJECT_VERSION = 20261022.171430;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PinnedDocumentsWidget/Info.plist;
@@ -503,7 +503,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 26.10.22;
+				MARKETING_VERSION = 26.10.23;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.PinnedDocumentsWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -522,7 +522,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261022.093306;
+				CURRENT_PROJECT_VERSION = 20261022.171430;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
@@ -534,7 +534,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 26.10.22;
+				MARKETING_VERSION = 26.10.23;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -556,7 +556,7 @@
 				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
 				CODE_SIGN_ENTITLEMENTS = PinnedDocumentsWidget/PinnedDocumentsWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261022.093306;
+				CURRENT_PROJECT_VERSION = 20261022.171430;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PinnedDocumentsWidget/Info.plist;
@@ -568,7 +568,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 26.10.22;
+				MARKETING_VERSION = 26.10.23;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.PinnedDocumentsWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -587,7 +587,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261022.093306;
+				CURRENT_PROJECT_VERSION = 20261022.171430;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
@@ -599,7 +599,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 26.10.22;
+				MARKETING_VERSION = 26.10.23;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -621,7 +621,7 @@
 				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
 				CODE_SIGN_ENTITLEMENTS = PinnedDocumentsWidget/PinnedDocumentsWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261022.093306;
+				CURRENT_PROJECT_VERSION = 20261022.171430;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PinnedDocumentsWidget/Info.plist;
@@ -633,7 +633,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 26.10.22;
+				MARKETING_VERSION = 26.10.23;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.PinnedDocumentsWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
