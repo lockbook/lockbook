@@ -398,8 +398,7 @@ fn bytes_look_like_svg(bytes: &[u8]) -> bool {
 fn rasterize_svg(
     bytes: &[u8], is_lockbook_svg: bool, viewport_width: f32, pixels_per_point: f32,
 ) -> Result<Vec<u8>, String> {
-    let tree = usvg::Tree::from_data(bytes, &Default::default(), &Default::default())
-        .map_err(|e| e.to_string())?;
+    let tree = usvg::Tree::from_data(bytes, &Default::default()).map_err(|e| e.to_string())?;
 
     let (w, h, base_transform) = if is_lockbook_svg {
         // lockbook drawings don't have meaningful dimensions; use bounding box
