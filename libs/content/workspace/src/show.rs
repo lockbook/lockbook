@@ -34,6 +34,7 @@ impl Workspace {
             cache.lock().unwrap().begin_frame();
         }
         self.images.begin_frame();
+        crate::widgets::diagram_cache::DiagramCache::of(ui.ctx()).begin_frame();
         self.tabs.begin_frame();
         for slot in &self.tab_strip {
             self.tabs.promote(&slot.id);
@@ -90,6 +91,7 @@ impl Workspace {
             cache.lock().unwrap().end_frame();
         }
         self.images.end_frame();
+        crate::widgets::diagram_cache::DiagramCache::of(ui.ctx()).end_frame();
         self.tabs.end_frame();
 
         mem::take(&mut self.out)
