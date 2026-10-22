@@ -26,8 +26,13 @@ struct AppState {
     clipboard: arboard::Clipboard,
     pending_paste: bool,
     last_pointer_pos: Pos2,
+    modifiers: winit::keyboard::ModifiersState,
     close_requested: bool,
     next_repaint: Option<Instant>,
+    /// Whether the input method is mid-composition, by its last preedit.
+    composing: bool,
+    /// Where the input method was last told the caret is.
+    ime_rect: Option<egui::Rect>,
 }
 
 impl ApplicationHandler<UserEvent> for App {
@@ -115,8 +120,11 @@ impl ApplicationHandler<UserEvent> for App {
             clipboard,
             pending_paste: false,
             last_pointer_pos: Pos2::ZERO,
+            modifiers: Default::default(),
             close_requested: false,
             next_repaint: None,
+            composing: false,
+            ime_rect: None,
         });
     }
 
@@ -128,6 +136,9 @@ impl ApplicationHandler<UserEvent> for App {
 
         if let WindowEvent::CursorMoved { position, .. } = &event {
             state.last_pointer_pos = Pos2::new(position.x as f32, position.y as f32);
+        }
+        if let WindowEvent::ModifiersChanged(modifiers) = &event {
+            state.modifiers = modifiers.state();
         }
 
         if let WindowEvent::DroppedFile(path) = &event {
@@ -142,12 +153,23 @@ impl ApplicationHandler<UserEvent> for App {
                 });
         }
 
+        // fcitx5 on Wayland answers each caret report with an empty preedit,
+        // and egui-winit answers each event with a caret report, so passing
+        // them on outside a composition repaints every frame. They clear nothing.
+        let mut idle_preedit = false;
+        if let WindowEvent::Ime(ime) = &event {
+            let empty = matches!(ime, winit::event::Ime::Preedit(text, _) if text.is_empty());
+            idle_preedit = empty && !state.composing;
+            state.composing =
+                matches!(ime, winit::event::Ime::Preedit(text, _) if !text.is_empty());
+        }
+
         // Host owns paste (text + images/files). Skip forwarding Cmd+V /
         // Key::Paste to egui-winit so it does not also emit Event::Paste.
-        if is_paste_shortcut(&state.egui_winit, &event) {
+        if is_paste_shortcut(state.modifiers, &event) {
             state.pending_paste = true;
             state.window.request_redraw();
-        } else {
+        } else if !idle_preedit {
             let response = state.egui_winit.on_window_event(&state.window, &event);
 
             if response.repaint && !matches!(event, WindowEvent::RedrawRequested) {
@@ -315,12 +337,17 @@ impl AppState {
             !matches!(c, egui::OutputCommand::CopyText(_) | egui::OutputCommand::CopyImage(_))
         });
 
+        let ime_rect = platform.ime.as_ref().map(|ime| ime.cursor_rect);
         self.egui_winit
             .handle_platform_output(&self.window, platform);
+        #[cfg(target_os = "linux")]
+        if ime_rect.is_some() && ime_rect != self.ime_rect {
+            nudge_x11_ime(&self.window);
+        }
+        self.ime_rect = ime_rect;
 
         // Titlebar / shell chrome issues ViewportCommands (min/max/close/drag/resize).
-        let mut actions: egui::ahash::HashSet<egui_winit::ActionRequested> =
-            egui::ahash::HashSet::default();
+        let mut actions: Vec<egui_winit::ActionRequested> = Vec::new();
         let mut info = egui::ViewportInfo::default();
         if let Some(vp) = viewport.values().next() {
             egui_winit::process_viewport_commands(
@@ -332,7 +359,10 @@ impl AppState {
             );
         }
 
-        if actions.contains(&egui_winit::ActionRequested::Paste) {
+        if actions
+            .iter()
+            .any(|a| matches!(a, egui_winit::ActionRequested::Paste))
+        {
             self.handle_paste();
         }
 
@@ -422,14 +452,16 @@ impl AppState {
     }
 }
 
-fn is_paste_shortcut(egui_winit: &egui_winit::State, event: &WindowEvent) -> bool {
+fn is_paste_shortcut(modifiers: winit::keyboard::ModifiersState, event: &WindowEvent) -> bool {
     let WindowEvent::KeyboardInput { event, .. } = event else {
         return false;
     };
     if event.state != ElementState::Pressed {
         return false;
     }
-    if !egui_winit.egui_input().modifiers.command {
+    let command =
+        if cfg!(target_os = "macos") { modifiers.super_key() } else { modifiers.control_key() };
+    if !command {
         return false;
     }
     match &event.logical_key {
@@ -442,7 +474,9 @@ fn is_paste_shortcut(egui_winit: &egui_winit::State, event: &WindowEvent) -> boo
 fn init_app(window: Arc<Window>) -> WgpuLockbook<'static> {
     // Safety: window is kept alive in Arc for lifetime of app
     let renderer = unsafe {
-        RendererState::from_surface(wgpu::SurfaceTargetUnsafe::from_window(&window).unwrap())
+        RendererState::from_surface(
+            wgpu::SurfaceTargetUnsafe::from_display_and_window(&window, &window).unwrap(),
+        )
     };
 
     init_with_renderer(renderer)
@@ -539,6 +573,33 @@ fn set_macos_app_icon(rgba: &[u8], width: u32, height: u32) {
         app_icon.addRepresentation(&image_rep);
         app.setApplicationIconImage(Some(&app_icon));
     }
+}
+
+/// Workaround: winit 0.30 applies an IME caret move on X11 only while handling
+/// an X event, which a repaint isn't, so after a click the input method waits
+/// for the mouse to move. A no-op message to our own window is that event.
+/// Remove once winit applies IME requests without one.
+#[cfg(target_os = "linux")]
+fn nudge_x11_ime(window: &Window) {
+    use std::sync::OnceLock;
+    use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use x11rb::connection::Connection;
+    use x11rb::protocol::xproto::{AtomEnum, ClientMessageEvent, ConnectionExt, EventMask};
+    use x11rb::rust_connection::RustConnection;
+    static CONN: OnceLock<Option<RustConnection>> = OnceLock::new();
+
+    let Ok(handle) = window.window_handle() else { return };
+    let xwindow = match handle.as_raw() {
+        RawWindowHandle::Xlib(h) => h.window as u32,
+        RawWindowHandle::Xcb(h) => h.window.get(),
+        _ => return, // Wayland applies it right away
+    };
+    let Some(conn) = CONN.get_or_init(|| x11rb::connect(None).ok().map(|(conn, _)| conn)) else {
+        return;
+    };
+    let event = ClientMessageEvent::new(32, xwindow, AtomEnum::NONE, [0u32; 5]);
+    let _ = conn.send_event(false, xwindow, EventMask::NO_EVENT, event);
+    let _ = conn.flush();
 }
 
 #[cfg(target_os = "linux")]

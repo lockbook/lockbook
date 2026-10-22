@@ -1,5 +1,5 @@
 use egui::{
-    Context, CursorIcon, OutputCommand, PlatformOutput, ViewportCommand, ViewportIdMap,
+    Context, CursorIcon, OrderedViewportIdMap, OutputCommand, PlatformOutput, ViewportCommand,
     ViewportOutput,
 };
 use workspace_rs::tab::{ContextMenuTarget, ExtendedOutput};
@@ -28,8 +28,8 @@ pub struct Response {
 
 impl Response {
     pub fn new(
-        context: &Context, platform: &PlatformOutput, viewport: &ViewportIdMap<ViewportOutput>,
-        workspace: workspace_rs::Response,
+        context: &Context, platform: &PlatformOutput,
+        viewport: &OrderedViewportIdMap<ViewportOutput>, workspace: workspace_rs::Response,
     ) -> Self {
         let mut redraw_in = None;
         let mut window_title = None;

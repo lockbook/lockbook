@@ -228,9 +228,9 @@ pub unsafe extern "C" fn scroll_wheel(
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 
-    if obj.renderer.raw_input.modifiers.command || obj.renderer.raw_input.modifiers.ctrl {
+    if obj.renderer.modifiers.command || obj.renderer.modifiers.ctrl {
         let factor = (scroll_y / 50.).exp();
 
         obj.renderer.raw_input.events.push(Event::Zoom(factor))
@@ -238,7 +238,9 @@ pub unsafe extern "C" fn scroll_wheel(
         obj.renderer.raw_input.events.push(Event::MouseWheel {
             unit: MouseWheelUnit::Point,
             delta: vec2(scroll_x, scroll_y),
-            modifiers: obj.renderer.raw_input.modifiers,
+            modifiers: obj.renderer.modifiers,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
         });
     }
 }

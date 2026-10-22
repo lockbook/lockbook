@@ -242,7 +242,7 @@ impl ImageCache {
         // viewport width is used to scale SVG rasterization — use the screen
         // width as a reasonable upper bound since we load asynchronously
         // before we know the precise render width
-        let viewport_width = ctx.screen_rect().width();
+        let viewport_width = ctx.content_rect().width();
         let pixels_per_point = ctx.pixels_per_point();
 
         spawn!({

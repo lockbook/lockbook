@@ -124,7 +124,7 @@ impl IconButton {
 
         if let Some(tooltip) = &self.tooltip {
             ui.ctx()
-                .style_mut(|s| s.visuals.menu_corner_radius = egui::CornerRadius::same(2));
+                .global_style_mut(|s| s.visuals.menu_corner_radius = egui::CornerRadius::same(2));
             resp = resp.on_hover_ui(|ui| {
                 let text: WidgetText = (tooltip).into();
                 let text = text.clone().into_galley(

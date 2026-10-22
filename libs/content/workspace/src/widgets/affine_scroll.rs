@@ -1069,12 +1069,12 @@ pub struct AffineScrollArea<Id: Clone + Eq + std::fmt::Debug> {
 }
 
 impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
-    pub fn new(id_salt: impl Hash) -> Self {
+    pub fn new(id_salt: impl Hash + std::fmt::Debug) -> Self {
         Self {
             state: ScrollArea::default(),
             touch_scroll: false,
             suppress_body_drag: false,
-            id_salt: egui::Id::new(id_salt),
+            id_salt: egui::Id::unique(id_salt),
             momentum_cancel_press: false,
             gesture_pixels: 0.0,
             gesture_fling: None,

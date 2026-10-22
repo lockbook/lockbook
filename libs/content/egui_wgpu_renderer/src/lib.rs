@@ -4,8 +4,8 @@ use std::{
 };
 
 use egui::epaint::{ClippedPrimitive, ClippedShape};
-use egui::{PlatformOutput, TexturesDelta, ViewportIdMap, ViewportOutput};
-use egui_wgpu::{Renderer, ScreenDescriptor};
+use egui::{OrderedViewportIdMap, PlatformOutput, TexturesDelta, ViewportOutput};
+use egui_wgpu::{Renderer, RendererOptions, ScreenDescriptor};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
     Adapter, CompositeAlphaMode, Device, Instance, Queue, Surface, SurfaceTargetUnsafe,
@@ -26,6 +26,8 @@ pub struct RendererState<'w> {
 
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
+    /// The keyboard modifiers last reported by the host.
+    pub modifiers: egui::Modifiers,
     pub screen: ScreenDescriptor,
     pub bottom_inset: Option<u32>,
 
@@ -38,7 +40,7 @@ pub struct RendererState<'w> {
 
 pub struct PreparedFrame {
     pub platform_output: PlatformOutput,
-    pub viewport_output: ViewportIdMap<ViewportOutput>,
+    pub viewport_output: OrderedViewportIdMap<ViewportOutput>,
 
     pub textures_delta: TexturesDelta,
     pub shapes: Vec<ClippedShape>,
@@ -79,7 +81,11 @@ impl<'w> RendererState<'w> {
         let format = Self::text_format(&adapter, &surface);
         let screen = ScreenDescriptor { size_in_pixels: [1300, 800], pixels_per_point: 1.0 };
 
-        let renderer = Renderer::new(&device, format, None, 4, false);
+        let renderer = Renderer::new(
+            &device,
+            format,
+            RendererOptions { msaa_samples: 4, ..Default::default() },
+        );
 
         RendererState {
             screen,
@@ -103,6 +109,7 @@ impl<'w> RendererState<'w> {
             bottom_inset: None,
             context: Default::default(),
             raw_input: Default::default(),
+            modifiers: Default::default(),
             start_time: Instant::now(),
             frame_start: None,
             is_dev: false,
@@ -120,8 +127,17 @@ impl RendererState<'static> {
 
 impl<'w> RendererState<'w> {
     fn instance() -> wgpu::Instance {
-        let instance_desc = wgpu::InstanceDescriptor::from_env_or_default();
-        wgpu::Instance::new(&instance_desc)
+        wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env())
+    }
+
+    /// Records the host's modifiers, telling egui when they change.
+    pub fn set_modifiers(&mut self, modifiers: egui::Modifiers) {
+        if self.modifiers != modifiers {
+            self.modifiers = modifiers;
+            self.raw_input
+                .events
+                .push(egui::Event::ModifiersChanged(modifiers));
+        }
     }
 
     /// When true, frames that exceed `FRAME_BUDGET` will panic with a
@@ -178,7 +194,7 @@ impl<'w> RendererState<'w> {
         }
     }
 
-    pub fn end_frame(&mut self) -> (PlatformOutput, ViewportIdMap<ViewportOutput>) {
+    pub fn end_frame(&mut self) -> (PlatformOutput, OrderedViewportIdMap<ViewportOutput>) {
         let prepared = self.prepare_frame();
         let platform_output = prepared.platform_output.clone();
         let viewport_output = prepared.viewport_output.clone();
@@ -273,8 +289,9 @@ impl<'w> RendererState<'w> {
         let res = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
-                required_features: adapter.features(),
+                required_features: adapter.features() - wgpu::Features::all_experimental_mask(),
                 required_limits: adapter.limits(),
+                experimental_features: wgpu::ExperimentalFeatures::disabled(),
                 memory_hints: Default::default(),
                 trace: Default::default(),
             })
@@ -335,18 +352,30 @@ impl<'w> RenderBackend<'w> {
         self.configure_surface(size_in_pixels);
         let paint_jobs = tessellate(context, prepared.shapes, prepared.pixels_per_point);
 
+        // Applied even when the frame is dropped: later deltas build on these.
+        let mut textures = prepared.textures_delta;
+        for (id, image_deltas) in textures.set.drain() {
+            for image_delta in &image_deltas {
+                self.renderer
+                    .update_texture(&self.device, &self.queue, id, image_delta);
+            }
+        }
+
         let output_frame = match self.surface.get_current_texture() {
-            Ok(frame) => frame,
-            Err(wgpu::SurfaceError::Outdated) => {
+            wgpu::CurrentSurfaceTexture::Success(frame)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+            wgpu::CurrentSurfaceTexture::Outdated => {
                 // This error occurs when the app is minimized on Windows.
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
-                eprintln!("wgpu::SurfaceError::Outdated");
+                eprintln!("wgpu::CurrentSurfaceTexture::Outdated");
+                self.free_textures(textures);
                 return; // todo: could this be the source of a bug if some
                 // response has a default value of true or something
             }
-            Err(e) => {
-                eprintln!("Dropped frame with error: {e}");
+            other => {
+                eprintln!("Dropped frame: {other:?}");
+                self.free_textures(textures);
                 return;
             }
         };
@@ -358,10 +387,6 @@ impl<'w> RenderBackend<'w> {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
 
-        for (id, image_delta) in &prepared.textures_delta.set {
-            self.renderer
-                .update_texture(&self.device, &self.queue, *id, image_delta);
-        }
         self.renderer
             .update_buffers(&self.device, &self.queue, &mut encoder, &paint_jobs, &screen);
 
@@ -372,6 +397,7 @@ impl<'w> RenderBackend<'w> {
                 label: Some("egui_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: msaa_view,
+                    depth_slice: None,
                     resolve_target: Some(&output_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
@@ -381,6 +407,7 @@ impl<'w> RenderBackend<'w> {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             self.renderer
@@ -391,10 +418,14 @@ impl<'w> RenderBackend<'w> {
         self.queue.submit(iter::once(encoder.finish()));
 
         // Redraw egui
-        output_frame.present();
+        self.queue.present(output_frame);
 
-        for id in &prepared.textures_delta.free {
-            self.renderer.free_texture(id);
+        self.free_textures(textures);
+    }
+
+    fn free_textures(&mut self, mut textures: TexturesDelta) {
+        for id in textures.free.drain() {
+            self.renderer.free_texture(&id);
         }
     }
 
@@ -412,6 +443,7 @@ impl<'w> RenderBackend<'w> {
                 alpha_mode: RendererState::text_alpha(&self.adapter, &self.surface),
                 view_formats: vec![],
                 desired_maximum_frame_latency: 2,
+                color_space: Default::default(),
             };
             self.surface.configure(&self.device, &surface_config);
             self.surface_width = size_in_pixels[0];

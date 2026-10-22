@@ -454,7 +454,7 @@ impl<'ast> MdRender {
         // (off-screen neighbor rows would displace the mobile toolbar, #4892).
         let range = self.node_range(node);
         let id = ui
-            .id()
+            .scope_id()
             .with(("md_fold_btn", range.start().0, range.end().0));
         let resp = ui.interact(space, id, sense_click());
         if resp.hovered() {

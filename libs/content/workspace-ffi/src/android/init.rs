@@ -98,8 +98,9 @@ unsafe fn init_ws(
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
     let mut native_window = NativeWindow::new(&env, surface);
-    let mut renderer =
-        RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window).unwrap());
+    let mut renderer = RendererState::from_surface(
+        SurfaceTargetUnsafe::from_display_and_window(&native_window, &native_window).unwrap(),
+    );
     let font_system = workspace_rs::register_font_system(&renderer.context);
     let sample_count = renderer.backend().sample_count;
     let format =

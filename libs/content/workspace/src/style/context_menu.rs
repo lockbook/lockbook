@@ -47,10 +47,10 @@ fn open_nudge() -> Vec2 {
 }
 
 fn open_id() -> Id {
-    Id::new("lb_design_context_menu_open")
+    Id::unique("lb_design_context_menu_open")
 }
 fn area_id() -> Id {
-    Id::new("lb_design_context_menu_area")
+    Id::unique("lb_design_context_menu_area")
 }
 
 #[derive(Clone, Copy)]
@@ -224,7 +224,7 @@ fn show_open<T: Clone>(
                         ui,
                         t,
                         &menu.rows,
-                        Id::new(("lb_ctx_root", state.host)),
+                        Id::unique(("lb_ctx_root", state.host)),
                         content_w,
                         with_icons,
                     );

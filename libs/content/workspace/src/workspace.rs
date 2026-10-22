@@ -148,13 +148,13 @@ struct UserPresent(bool);
 impl Workspace {
     pub fn set_user_present(&self) {
         self.ctx.data_mut(|d| {
-            d.insert_temp(egui::Id::new("user_present"), UserPresent(self.core.user_active()))
+            d.insert_temp(egui::Id::unique("user_present"), UserPresent(self.core.user_active()))
         });
     }
 
     pub fn user_present(ctx: &Context) -> bool {
         ctx.data(|d| {
-            d.get_temp::<UserPresent>(egui::Id::new("user_present"))
+            d.get_temp::<UserPresent>(egui::Id::unique("user_present"))
                 .map(|p| p.0)
         })
         .unwrap_or(true)
@@ -1464,7 +1464,7 @@ impl Workspace {
                     if is_preview {
                         if let Some(md) = tab.markdown_mut() {
                             md.initialized = true;
-                            md.id_salt = egui::Id::new("search_preview");
+                            md.id_salt = egui::Id::unique("search_preview");
                         }
                         // A chat's first frame would focus its composer,
                         // stealing focus from the search query.

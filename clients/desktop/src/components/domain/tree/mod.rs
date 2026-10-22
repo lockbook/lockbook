@@ -74,11 +74,11 @@ impl Default for TreeScrollAnim {
 }
 
 fn tree_scroll_anim_id() -> Id {
-    Id::new("shell_tree_scroll_anim")
+    Id::unique("shell_tree_scroll_anim")
 }
 
 fn tree_scroll_last_y_id() -> Id {
-    Id::new("shell_tree_scroll_last_y")
+    Id::unique("shell_tree_scroll_last_y")
 }
 
 fn clear_tree_scroll_anim(ui: &Ui) {
@@ -140,15 +140,15 @@ struct DropHitRow {
 }
 
 fn drop_hit_list_id() -> Id {
-    Id::new("shell_tree_drop_hits")
+    Id::unique("shell_tree_drop_hits")
 }
 
 fn drop_dwell_id() -> Id {
-    Id::new("shell_tree_drop_dwell")
+    Id::unique("shell_tree_drop_dwell")
 }
 
 fn drop_edge_scroll_id() -> Id {
-    Id::new("shell_tree_edge_scroll_y")
+    Id::unique("shell_tree_edge_scroll_y")
 }
 
 fn drop_hit_begin(ui: &Ui) {
@@ -221,7 +221,7 @@ fn paint_drag_ghost(ui: &Ui, t: &Theme, files: &FileCache, ids: &[Uuid], pointer
     let label = if ids.len() > 1 { format!("{primary}  +{}", ids.len() - 1) } else { primary };
     let font = TypeRole::Body.font_id();
     let color = t.neutral_fg();
-    let galley = ui.fonts(|f| f.layout(label, font, color, 180.0));
+    let galley = ui.fonts_mut(|f| f.layout(label, font, color, 180.0));
     let pad_x = Space::Sm.pts();
     let pad_y = Space::Xs.pts();
     let size = galley.size() + vec2(pad_x * 2.0, pad_y * 2.0);
@@ -229,7 +229,7 @@ fn paint_drag_ghost(ui: &Ui, t: &Theme, files: &FileCache, ids: &[Uuid], pointer
     let rect = Rect::from_min_size(origin, size);
     let painter = ui
         .ctx()
-        .layer_painter(LayerId::new(Order::Tooltip, Id::new("shell_dnd_ghost")));
+        .layer_painter(LayerId::new(Order::Tooltip, Id::unique("shell_dnd_ghost")));
     let fill = t.neutral_bg_secondary();
     let fill = Color32::from_rgba_unmultiplied(fill.r(), fill.g(), fill.b(), 230);
     let r = Radius::Control.pts() as f32;
@@ -553,7 +553,7 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
 
     // Files tree: uniform single-line pitch (variable path ready for Shared).
     let geom = RowGeom::uniform(flat.len(), ROW_H);
-    let scroll_id = Id::new("shell_tree_scroll");
+    let scroll_id = Id::unique("shell_tree_scroll");
 
     // Residual band after pins: full parent width × height from cursor to max_rect.
     let band_w = crate::components::ui_width(ui);
@@ -572,7 +572,7 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
         .data(|d| d.get_temp::<f32>(tree_scroll_last_y_id()))
         .unwrap_or(0.0);
     // User wheel/trackpad owns the viewport — cancel programmatic anim.
-    let user_scroll = ui.input(|i| i.smooth_scroll_delta.y != 0.0 || i.raw_scroll_delta.y != 0.0);
+    let user_scroll = ui.input(|i| i.smooth_scroll_delta.y != 0.0);
 
     let mut scroll = ScrollArea::vertical()
         .id_salt("shell_tree_scroll")
@@ -746,8 +746,8 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
                 });
             // Feed next frame's animator / ensure-visible baseline.
             ui.ctx()
-                .data_mut(|d| d.insert_temp(tree_scroll_last_y_id(), out.state.offset.y));
-            ((), out.state.offset.y, out.id)
+                .data_mut(|d| d.insert_temp(tree_scroll_last_y_id(), out.state.clamped_offset().y));
+            ((), out.state.clamped_offset().y, out.id)
         });
     });
 }
@@ -798,7 +798,7 @@ fn paint_row(
 
     // Namespace elevated stickies so a pinned header and its off-screen twin
     // don't share hover/anim state; boundary-pushed stickies share in-flow id.
-    let id = ui.id().with("tree_row").with(row.id).with(elevated);
+    let id = ui.scope_id().with("tree_row").with(row.id).with(elevated);
     // Files nav: every row is interactive (folders expand, docs open, both drag).
     let chrome = TreeRowChrome::new(row.depth)
         .elevated(elevated)

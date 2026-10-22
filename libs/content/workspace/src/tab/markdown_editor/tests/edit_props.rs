@@ -268,7 +268,6 @@ fn ime_composition_matches_replace_check(buf: &[u8]) -> Result<(), String> {
             twin.enter_frame_with_input(keys_before.clone());
         }
         events.extend(keys_before.iter().cloned());
-        events.push(Egui::Ime(ImeEvent::Enabled));
         for _ in 0..1 + src.draw(4) {
             // the IME owns these keys while composing
             if ime.editor.edit.renderer.ime_marked.is_some() && src.draw(3) == 0 {
@@ -284,7 +283,7 @@ fn ime_composition_matches_replace_check(buf: &[u8]) -> Result<(), String> {
             }
             let text = preedit_text(&mut src);
             touched |= !text.is_empty();
-            events.push(Egui::Ime(ImeEvent::Preedit(text.clone())));
+            events.push(Egui::Ime(preedit(&text)));
             settled_frame(&mut ime, std::mem::take(&mut events));
 
             let r = &ime.editor.edit.renderer;
@@ -301,14 +300,14 @@ fn ime_composition_matches_replace_check(buf: &[u8]) -> Result<(), String> {
             }
         }
 
-        // as winit sends them: bare, macOS, Windows, empty, cancelled
+        // as egui-winit sends them: bare, macOS, Linux, Windows emptied, cancelled
         let word = doc_gen::gen_word_f(&mut src, &Features::all());
         let (commit, replacement) = match src.bias(&[2, 2, 2, 1, 1]) {
             0 => (vec![ImeEvent::Commit(word.clone())], word),
-            1 => (vec![ImeEvent::Disabled, ImeEvent::Commit(word.clone())], word),
-            2 => (vec![ImeEvent::Commit(word.clone()), ImeEvent::Disabled], word),
-            3 => (vec![ImeEvent::Commit(String::new())], String::new()),
-            _ => (vec![ImeEvent::Disabled], String::new()),
+            1 => (vec![preedit(""), ImeEvent::Commit(word.clone())], word),
+            2 => (vec![preedit(""), ImeEvent::Commit(word.clone()), preedit("")], word),
+            3 => (vec![preedit(""), ImeEvent::Commit(String::new())], String::new()),
+            _ => (vec![preedit("")], String::new()),
         };
         touched |= !replacement.is_empty();
         let keys_after = if src.draw(3) == 0 { plain_key(&mut src) } else { vec![] };
@@ -1986,4 +1985,8 @@ fn shift_tab_strips_one_bq_check(buf: &[u8]) -> Result<(), &'static str> {
         return Err("shift-tab on nested bq didn't remove exactly the innermost marker");
     }
     Ok(())
+}
+
+fn preedit(text: &str) -> egui::ImeEvent {
+    egui::ImeEvent::Preedit { text: text.into(), active_range_chars: None }
 }

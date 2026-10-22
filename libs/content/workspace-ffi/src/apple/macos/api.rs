@@ -23,7 +23,7 @@ pub unsafe extern "C" fn key_event(
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
 
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 
     let Some(key) = NSKeys::from(key_code) else { return };
 
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn modifier_event(
 ) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 }
 
 /// # Safety
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn ime_preedit(obj: *mut c_void, text: *const c_char) {
     obj.renderer
         .raw_input
         .events
-        .push(Event::Ime(egui::ImeEvent::Preedit(text)));
+        .push(Event::Ime(egui::ImeEvent::Preedit { text, active_range_chars: None }));
 }
 
 /// The input method's final text, replacing the composition if there is one.

@@ -865,7 +865,7 @@ pub unsafe extern "C" fn ios_key_event(
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
 
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 
     let Some(key) = UIKeys::from(key_code) else { return };
 

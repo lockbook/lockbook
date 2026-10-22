@@ -18,7 +18,7 @@ pub use host::run;
 
 pub const DEV_USERS: &[&str] = &["parth", "adam", "travis", "at"];
 
-use egui::{PlatformOutput, ViewportIdMap, ViewportOutput};
+use egui::{OrderedViewportIdMap, PlatformOutput, ViewportOutput};
 use egui_wgpu_renderer::{PreparedFrame, RendererState};
 use tracing::instrument;
 
@@ -33,7 +33,7 @@ pub struct WgpuLockbook<'window> {
 #[derive(Default)]
 pub struct Output {
     pub platform: PlatformOutput,
-    pub viewport: ViewportIdMap<ViewportOutput>,
+    pub viewport: OrderedViewportIdMap<ViewportOutput>,
 }
 
 impl WgpuLockbook<'_> {
