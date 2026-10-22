@@ -29,6 +29,9 @@ pub trait EmbedResolver {
 
     /// The reader asked to see a withheld `url`.
     fn load_anyway(&self, _url: &str) {}
+
+    /// Put the image at `url` on the clipboard, once its pixels are read.
+    fn copy_image(&self, _url: &str, _ctx: &egui::Context) {}
 }
 
 impl EmbedResolver for () {

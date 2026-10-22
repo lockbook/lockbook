@@ -46,10 +46,10 @@ impl MdEdit {
         }
     }
 
-    /// Takes a horizontal pan that began at `pos` for the table or code
-    /// block wider than the note there, if any: the platform then drives it
-    /// with [`Self::row_pan_by`]. False while a lifted item or row is
-    /// dragged.
+    /// Takes a horizontal pan that began at `pos` for the table, code block,
+    /// or diagram wider than the note there, if any: the platform then
+    /// drives it with [`Self::row_pan_by`]. False while a lifted item or row
+    /// is dragged.
     pub fn row_pan_begin(&mut self, pos: Pos2) -> bool {
         let dragging = self.in_progress_block_drag.is_some()
             || !matches!(self.touch_reorder, TouchReorder::Idle);

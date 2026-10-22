@@ -60,6 +60,8 @@ pub struct Bounds {
     /// navigation: the cursor steps past a whole image rather than into its
     /// `![alt](url)` source, and a backspace against one selects it.
     pub images: Vec<(Grapheme, Grapheme)>,
+    /// The fence of every diagram that can collapse to its picture.
+    pub diagrams: Vec<(Grapheme, Grapheme)>,
 
     /// Source range of each link, wikilink and image while source shows,
     /// sorted; empty when rendered. Each gets the click area its rendered
@@ -116,6 +118,7 @@ impl Default for Bounds {
             images: Vec::default(),
             source_links: Vec::default(),
             source_prose: Vec::default(),
+            diagrams: Vec::default(),
             tables: Vec::default(),
             code_blocks: Vec::default(),
         }

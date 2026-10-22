@@ -279,6 +279,48 @@ impl ImageCache {
         Ok((ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()), bytes))
     }
 
+    /// Put `key`'s image on the clipboard once it's read and decoded, off
+    /// the UI thread.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn copy_image(&self, key: &ImageKey) {
+        let key = key.clone();
+        let (ctx, client, core) = (self.ctx.clone(), self.client.clone(), self.core.clone());
+        spawn!({
+            let read = || -> Result<ColorImage, String> {
+                let (bytes, is_svg) = match &key {
+                    ImageKey::File(id) => {
+                        let bytes = core.read_document(*id, false).map_err(|e| e.to_string())?;
+                        let file = core.get_file_by_id(*id).map_err(|e| e.to_string())?;
+                        (bytes, file.name.ends_with(".svg"))
+                    }
+                    ImageKey::Web(url) => {
+                        let bytes = download_image(&client, url)?;
+                        let is_svg = url.ends_with(".svg") || bytes_look_like_svg(&bytes);
+                        (bytes, is_svg)
+                    }
+                };
+                let bytes = if is_svg {
+                    rasterize_svg(&bytes, matches!(key, ImageKey::File(_)), 2048.0, 1.0)?
+                } else {
+                    bytes
+                };
+                let image = decode_with_orientation(&bytes)?;
+                let size = [image.width() as usize, image.height() as usize];
+                Ok(ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()))
+            };
+            match read() {
+                Ok(image) => {
+                    ctx.copy_image(image);
+                    ctx.request_repaint();
+                }
+                Err(err) => tracing::warn!("couldn't copy image: {err}"),
+            }
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn copy_image(&self, _key: &ImageKey) {}
+
     /// Whether `key`'s texture is decoded and ready to paint this session — the
     /// real `Loaded` state, not just persisted dims (which outlive the texture).
     pub fn is_loaded(&self, key: &ImageKey) -> bool {
