@@ -620,6 +620,17 @@ impl<'ast> MdEdit {
                 self.renderer.open_dest(&url, wikilink, &ctx);
             }
             Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
+            Event::OpenDiagram => {
+                use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
+                if let Some(Picture::Diagram(source)) = self.renderer.selected_picture(root) {
+                    self.renderer.ctx.open_diagram(source);
+                }
+            }
+            Event::CopyImage => {
+                if let Some(picture) = self.renderer.selected_picture(root) {
+                    self.renderer.copy_picture(picture);
+                }
+            }
             Event::EnterAtom => {
                 if !self.enter_at_diagram(root, operations)
                     && !self.enter_at_image(root, operations)
