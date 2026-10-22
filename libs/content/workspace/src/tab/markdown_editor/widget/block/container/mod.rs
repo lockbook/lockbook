@@ -41,7 +41,8 @@ impl<'ast> MdRender {
     /// Returns the document offset ranges for which fragments must
     /// exist, covering the selection ± 1 source line so arrow-key
     /// navigation across the viewport edge has a fragment to land
-    /// on. Also includes the current find match.
+    /// on. Also includes the current find match and a heading being landed
+    /// on.
     pub fn fragment_required_ranges(
         &self, in_progress_selection: Option<(Grapheme, Grapheme)>,
         find_match: Option<(Grapheme, Grapheme)>,
@@ -57,6 +58,9 @@ impl<'ast> MdRender {
         }
         if let Some(preview_range) = self.preview_match {
             ranges.push(self.source_line_range(preview_range));
+        }
+        if let Some(at) = self.landing_heading {
+            ranges.push(self.source_line_range((at, at)));
         }
         // Keep the dragged item rendered even after auto-scroll parks its
         // source slot off-screen — the floating card and drop-gap both

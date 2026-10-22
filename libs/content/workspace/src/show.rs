@@ -11,7 +11,7 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 use web_time::{Duration, Instant};
 
-use crate::file_cache::{FilesExt as _, link_id};
+use crate::file_cache::{FilesExt as _, link_id, split_fragment};
 use crate::output::Response;
 use crate::search::SearchType;
 use crate::tab::{ExtendedOutput as _, TabStatus, image_viewer};
@@ -56,7 +56,7 @@ impl Workspace {
         self.process_task_updates();
         self.process_keys();
         self.process_clip_events();
-        self.apply_pending_open_range();
+        self.apply_pending_reveal();
 
         self.set_user_present();
 
@@ -138,7 +138,7 @@ impl Workspace {
                 // Links in notes open through their resolver; this catches the
                 // rest. An id link to a file here opens in the app, and `lb:`
                 // never reaches the OS.
-                let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
+                let mut open_ids: Vec<(Uuid, Option<String>, bool)> = Vec::new();
                 let files = Arc::clone(&self.files);
                 let files = files.read().unwrap();
                 ui.ctx().output_mut(|w| {
@@ -146,7 +146,8 @@ impl Workspace {
                         let egui::OutputCommand::OpenUrl(url) = c else { return true };
                         match link_id(&url.url) {
                             Some(id) if files.get_by_id(id).is_some_and(|f| f.is_document()) => {
-                                open_ids.push((id, url.new_tab));
+                                let heading = split_fragment(&url.url).1.map(String::from);
+                                open_ids.push((id, heading, url.new_tab));
                                 false
                             }
                             _ => !url.url.to_ascii_lowercase().starts_with("lb:"),
@@ -154,19 +155,11 @@ impl Workspace {
                     });
                 });
                 drop(files);
-                for (id, new_tab) in open_ids {
-                    if new_tab {
-                        self.open_file(id, true, true);
-                    } else {
-                        self.navigate_to(crate::tab::Destination::File(id));
-                    }
+                for (id, heading, new_tab) in open_ids {
+                    self.open_link(id, heading, new_tab);
                 }
-                for (id, new_tab) in ui.ctx().pop_open_files() {
-                    if new_tab {
-                        self.open_file(id, true, true);
-                    } else {
-                        self.navigate_to(crate::tab::Destination::File(id));
-                    }
+                for (id, heading, new_tab) in ui.ctx().pop_open_files() {
+                    self.open_link(id, heading, new_tab);
                 }
                 for (id, range, new_tab) in ui.ctx().pop_open_ranges() {
                     if new_tab {
@@ -220,11 +213,7 @@ impl Workspace {
         let Some(sheet) = self.link_sheets.front().cloned() else { return };
         let (open, close) = link_sheet_modal(ctx, &sheet, self.link_sheet_keys);
         if let Some((id, new_tab)) = sheet.open.filter(|_| open) {
-            if new_tab {
-                self.open_file(id, true, true);
-            } else {
-                self.navigate_to(crate::tab::Destination::File(id));
-            }
+            self.open_link(id, sheet.heading.clone(), new_tab);
         }
         if close {
             self.link_sheets.pop_front();

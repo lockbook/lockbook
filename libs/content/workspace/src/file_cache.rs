@@ -367,8 +367,9 @@ pub trait FilesExt {
     ///   scope ([`Self::scope_top`]); failing that, anywhere in the reader's
     ///   tree as [`Reach::Reader`].
     ///
-    /// Only documents resolve; folders are treated as broken. None for
-    /// anything else, web URLs included.
+    /// A `#heading` fragment rides along without changing what resolves, and
+    /// one alone is the note itself. Only documents resolve; folders are
+    /// treated as broken. None for anything else, web URLs included.
     fn locate_link(&self, url: &str, note: Uuid) -> Option<(Uuid, Reach)> {
         let scope = self.scope_top(note);
         self.locate_link_in(url, note, scope).or_else(|| {
@@ -384,6 +385,11 @@ pub trait FilesExt {
     /// [`Self::locate_link`] with `scope` standing in for the note's own.
     fn locate_link_in(&self, url: &str, note: Uuid, scope: Uuid) -> Option<(Uuid, Reach)> {
         let source = self.get_by_id(note)?;
+        let (url, fragment) = split_fragment(url);
+        if url.is_empty() {
+            // `#goals` is the note's own heading; an empty link is nothing yet
+            return fragment.map(|_| (note, Reach::Scope));
+        }
         if let Some(id) = link_id(url) {
             let file = self.get_by_id(id).filter(|f| f.is_document())?;
             // a note under no share has only one reader
@@ -391,9 +397,6 @@ pub trait FilesExt {
             let reach =
                 if unshared || self.in_scope(scope, id) { Reach::Scope } else { Reach::Reader };
             return Some((file.id, reach));
-        }
-        if url.starts_with('#') {
-            return None;
         }
 
         let (file, reach) = if url.starts_with('/') {
@@ -444,6 +447,10 @@ pub trait FilesExt {
     /// at all in the scope may match anywhere in the reader's tree, as
     /// [`Reach::Reader`].
     fn locate_wikilink(&self, title: &str, note: Uuid) -> Option<(Uuid, Reach)> {
+        let (whole, title) = (title, self.wiki_file_part(title));
+        if title.is_empty() {
+            return whole.contains('#').then_some((note, Reach::Scope));
+        }
         let scope = self.scope_top(note);
         if let Some(id) = self.resolve_wikilink_in(title, note, scope) {
             return Some((id, Reach::Scope));
@@ -463,6 +470,18 @@ pub trait FilesExt {
         (id != scope).then_some((id, Reach::Reader))
     }
 
+    /// A wikilink title's file part: the whole title when a document is named
+    /// it, `#` and all, else the part before its heading.
+    fn wiki_file_part<'a>(&self, title: &'a str) -> &'a str {
+        let (file, heading) = wiki_fragment(title);
+        let last = title.rsplit('/').next().unwrap_or(title).trim();
+        let named = |f: &File| f.is_document() && title_matches(&f.name, last);
+        match heading.is_some() && self.iter_files().any(named) {
+            true => title,
+            false => file,
+        }
+    }
+
     /// [`Self::resolve_wikilink`] with `scope` standing in for the note's own.
     fn resolve_wikilink_in(&self, title: &str, note: Uuid, scope: Uuid) -> Option<Uuid> {
         match self.wikilink_nearest_in(title, note, scope)[..] {
@@ -479,6 +498,7 @@ pub trait FilesExt {
     /// the scope. One that leads with `/` is a path from the scope's top.
     /// The spaces around a segment don't count.
     fn wikilink_nearest_in(&self, title: &str, note: Uuid, scope: Uuid) -> Vec<Uuid> {
+        let title = self.wiki_file_part(title);
         let Some(from) = self.get_by_id(note).map(|f| f.parent) else { return vec![] };
         let (dir, last) = title.rsplit_once('/').unwrap_or(("", title));
         let last = last.trim();
@@ -664,6 +684,7 @@ pub trait FilesExt {
     /// top). None for a title that names no file, or when the note's folder
     /// is outside its scope.
     fn wikilink_placement(&self, title: &str, note: Uuid) -> Option<(Uuid, Vec<String>)> {
+        let title = self.wiki_file_part(title);
         let from = self.get_by_id(note)?.parent;
         let scope = self.scope_top(note);
         let mut names: Vec<String> = title
@@ -904,14 +925,11 @@ pub fn link_id(url: &str) -> Option<Uuid> {
 }
 
 /// Whether an unresolved destination is a URL for the host to open: a
-/// `#fragment`, a `scheme://` URL other than Lockbook's own, or `mailto:`,
-/// `tel:`, or `sms:`. A bare `word:` is a file name (`Q3:plan.md`). An
+/// `scheme://` URL other than Lockbook's own, or `mailto:`, `tel:`, or
+/// `sms:`. A bare `word:` is a file name (`Q3:plan.md`). An
 /// external URL from `app.lockbook.net` names a file you can't see, so it
 /// isn't one.
 pub(crate) fn web_link(url: &str) -> bool {
-    if url.starts_with('#') {
-        return true;
-    }
     let Some((scheme, rest)) = url.split_once(':') else { return false };
     let is_scheme = scheme.starts_with(|c: char| c.is_ascii_alphabetic())
         && scheme
@@ -925,6 +943,25 @@ pub(crate) fn web_link(url: &str) -> bool {
         && (rest.starts_with("//") || opaque)
         && !scheme.eq_ignore_ascii_case("lb")
         && !official
+}
+
+/// A link destination's file part and its heading fragment. A web URL's
+/// `#` is the site's, so it stays on the URL.
+pub fn split_fragment(url: &str) -> (&str, Option<&str>) {
+    match url.split_once('#') {
+        Some((path, fragment)) if link_id(url).is_some() || !web_link(url) => {
+            (path, Some(fragment))
+        }
+        _ => (url, None),
+    }
+}
+
+/// A wikilink title's file part and its heading: `Plan#Next steps`.
+pub fn wiki_fragment(title: &str) -> (&str, Option<&str>) {
+    match title.split_once('#') {
+        Some((title, heading)) => (title, Some(heading)),
+        None => (title, None),
+    }
 }
 
 fn strip_prefix_ci<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
@@ -1286,6 +1323,39 @@ pub(crate) mod tests {
         );
     }
 
+    /// A heading fragment rides on any destination without changing what it
+    /// resolves to; alone, it is the note itself. A web URL keeps its own.
+    #[test]
+    fn fragments_ride_along() {
+        let (cache, [note, _, own_budget, _, project_budget, _]) = alice();
+        let id = format!("https://app.lockbook.net/open/{own_budget}#q3");
+        for (url, expected) in [
+            ("../Budget.md#q3", Some((project_budget, Reach::Scope))),
+            ("#intro", Some((note, Reach::Scope))),
+            (id.as_str(), Some((own_budget, Reach::Reader))),
+            ("missing.md#q3", None),
+        ] {
+            assert_eq!(cache.locate_link(url, note), expected, "{url}");
+        }
+        for (title, expected) in [
+            ("Budget#Q3 numbers", Some((project_budget, Reach::Scope))),
+            ("#Intro", Some((note, Reach::Scope))),
+            ("../../personal/Budget#Q3", Some((own_budget, Reach::Reader))),
+        ] {
+            assert_eq!(cache.locate_wikilink(title, note), expected, "{title}");
+        }
+        assert_eq!(split_fragment(&id), (&id[..id.len() - 3], Some("q3")));
+        assert_eq!(split_fragment("https://a.b/c#d"), ("https://a.b/c#d", None));
+
+        // a `#` in a name is the name's when a document goes by the whole title
+        use crate::test_utils::files::{at, tree};
+        let files = tree("alice", &["/C# notes.md", "/C.md"]);
+        let (notes, c) = (at(&files, "/C# notes.md"), at(&files, "/C.md"));
+        let cache = crate::test_utils::files::cache(files);
+        assert_eq!(cache.locate_wikilink("C# notes", c), Some((notes, Reach::Scope)));
+        assert_eq!(cache.locate_wikilink("C#Goals", notes), Some((c, Reach::Scope)));
+    }
+
     #[test]
     fn link_ids_and_web_links() {
         let id = Uuid::from_u128(42);
@@ -1305,7 +1375,7 @@ pub(crate) mod tests {
         assert!(web_link("tel:123"));
         assert!(web_link("file:///Users/me/a.txt"));
         assert!(!web_link("Q3:plan.md"));
-        assert!(web_link("#heading"));
+        assert!(!web_link("#heading"));
         assert!(web_link(&format!("http://localhost:8000/open/{id}")));
         assert!(!web_link(&format!("https://app.lockbook.net/open/{id}")));
         assert!(!web_link(&format!("lb://{id}")));

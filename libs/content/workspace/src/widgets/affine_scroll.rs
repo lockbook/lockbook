@@ -238,6 +238,12 @@ impl<Id> Offset<Id> {
     }
 }
 
+/// `off` moved `delta` precise points down the rows (up when negative),
+/// clamped at the document's edges.
+pub fn offset_by<R: Rows>(rows: &R, off: Offset<R::RowId>, delta: f32) -> Offset<R::RowId> {
+    affine::scroll_by(rows, off, delta)
+}
+
 // ============================================================================
 // Affine math (pure functions over Rows)
 // ============================================================================

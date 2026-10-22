@@ -61,6 +61,7 @@ pub fn syntax_theme() -> &'static Theme {
 pub mod bounds;
 pub mod commands;
 pub mod fold;
+pub mod fragment;
 pub mod input;
 pub mod md_label;
 mod scroll_content;
@@ -171,6 +172,10 @@ pub struct MdRender {
     /// Read-only search-preview highlight: the snippet range to reveal,
     /// scroll to, and box-highlight. Independent of the find feature.
     pub preview_match: Option<(Grapheme, Grapheme)>,
+    /// Where a heading being landed on starts: its line is laid out wherever
+    /// it is, for the landing to measure. Set each frame from the editor's
+    /// landing.
+    pub landing_heading: Option<Grapheme>,
     pub interactive: bool, // enables fold buttons
     pub readonly: bool,    // disables task checkboxes and saving
     pub plaintext: bool,   // render as source text, not parsed markdown
@@ -226,6 +231,8 @@ pub enum ScrollTarget {
     FindMatch,
     /// Read-only search-preview snippet (see [`MdRender::preview_match`]).
     Preview,
+    /// The caret's line at the top of the view, where a heading link lands.
+    Heading,
 }
 
 /// Editing primitive — an [`MdRender`] plus the interactive state needed to
@@ -364,6 +371,19 @@ pub struct Editor {
     /// text via [`Self::apply_disk_version`] / [`Self::record_disk_save`].
     hmac: Option<DocumentHmac>,
     pub initialized: bool,
+    /// The selection was moved between frames (a reveal); the next frame
+    /// tells the platform, whose own caret would stay behind.
+    selection_moved: bool,
+    /// Where a heading link lands, at the top of the view. Its row is laid
+    /// out with the frame's rows wherever it is, so the scroll is exact.
+    landing: Option<Landing>,
+    /// The rows painted this frame and their tops in the canvas, visible or
+    /// laid out off-screen.
+    painted_rows: Vec<(scroll_content::DocRowId, f32)>,
+    /// The canvas those rows were painted in.
+    painted_canvas: Rect,
+    /// The heading just landed on, washed briefly so the eye finds it.
+    heading_flash: Option<((Grapheme, Grapheme), web_time::Instant)>,
 
     // change detection
     pub unprocessed_scroll: Option<Instant>,
@@ -528,6 +548,7 @@ impl MdRender {
             find_current_match: None,
             platform_marked: None,
             preview_match: None,
+            landing_heading: None,
             interactive: false,
             readonly: true,
             plaintext: false,
@@ -617,6 +638,7 @@ impl MdRender {
             find_current_match: None,
             platform_marked: None,
             preview_match: None,
+            landing_heading: None,
             interactive: false,
             readonly: true,
             plaintext: false,
@@ -778,6 +800,7 @@ impl Editor {
             find_current_match: None,
             platform_marked: None,
             preview_match: None,
+            landing_heading: None,
             interactive: true,
             readonly,
             plaintext,
@@ -841,6 +864,11 @@ impl Editor {
             id_salt: Id::NULL,
             hmac,
             initialized: Default::default(),
+            selection_moved: false,
+            landing: None,
+            painted_rows: Vec::new(),
+            painted_canvas: Rect::NOTHING,
+            heading_flash: None,
             embeds_seq: 0,
             link_seq: 0,
 
@@ -1031,11 +1059,12 @@ impl Editor {
                 .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
             ui.ctx().request_repaint();
         }
-        resp.selection_updated = prior_selection
-            != self
-                .edit
-                .in_progress_selection
-                .unwrap_or(self.edit.renderer.buffer.current.selection);
+        resp.selection_updated = std::mem::take(&mut self.selection_moved)
+            || prior_selection
+                != self
+                    .edit
+                    .in_progress_selection
+                    .unwrap_or(self.edit.renderer.buffer.current.selection);
         // Loads completing (embeds, link meta) and atom enter/exit reflow
         // layout, moving the selection's rects without moving the selection.
         // Report as a scroll: iOS re-fetches geometry on either signal, but a
@@ -1547,6 +1576,7 @@ impl Editor {
                         // entries. The immutable `DocScrollContent`
                         // borrow is released here before phase 2's
                         // mutable renderer paint.
+                        self.edit.renderer.landing_heading = self.landing.and_then(Landing::start);
                         let (visible, neighbors, far, scrollbar_grab) = {
                             use crate::widgets::affine_scroll::{Offset, Rows as _, VisibleRow};
 
@@ -1621,7 +1651,8 @@ impl Editor {
                                 .in_progress_selection
                                 .unwrap_or(self.edit.renderer.buffer.current.selection);
                             let mut far: Vec<VisibleRow<scroll_content::DocRowId>> = Vec::new();
-                            for end in [selection.0, selection.1] {
+                            let landing = self.landing.and_then(Landing::start);
+                            for end in [selection.0, selection.1].into_iter().chain(landing) {
                                 let Some(row) = content.find_text_row(end) else { continue };
                                 let (Some(i), Some(first)) = (index(&row), band_first) else {
                                     continue;
@@ -1669,7 +1700,10 @@ impl Editor {
                         // the canvas — only to register fragments and
                         // wrap-line bounds for navigation.
                         let blocks: Vec<_> = root.children().collect();
+                        self.painted_rows.clear();
+                        self.painted_canvas = canvas_rect;
                         for vrow in visible.iter().chain(neighbors.iter()).chain(far.iter()) {
+                            self.painted_rows.push((vrow.id, vrow.top));
                             let top_left =
                                 Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
                             let from = self.edit.renderer.fragments.len();
@@ -1711,6 +1745,18 @@ impl Editor {
                             let theme = self.edit.renderer.ctx.get_lb_theme();
                             let color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
                             self.edit.show_range(ui, range, color);
+                        }
+
+                        if let Some((range, at)) = self.heading_flash {
+                            let t = at.elapsed().as_secs_f32() / HEADING_FLASH_SECS;
+                            if t < 1.0 {
+                                let theme = self.edit.renderer.ctx.get_lb_theme();
+                                let color = theme.accent().gamma_multiply(0.3 * (1.0 - t));
+                                self.edit.show_range(ui, range, color);
+                                ui.ctx().request_repaint();
+                            } else {
+                                self.heading_flash = None;
+                            }
                         }
 
                         if let Some(range) = self.edit.renderer.platform_marked {
@@ -1760,6 +1806,16 @@ impl Editor {
             if let Some(canvas_rect) = captured_canvas_rect {
                 self.scroll_to_preview(canvas_rect);
             }
+        }
+
+        if matches!(self.edit.pending_scroll, Some(ScrollTarget::Heading)) {
+            self.edit.pending_scroll = None;
+            if let Some(canvas_rect) = captured_canvas_rect {
+                self.scroll_to_heading(canvas_rect);
+            }
+        } else {
+            // another scroll took over before the landing's row was laid out
+            self.landing = None;
         }
     }
 
@@ -1858,18 +1914,129 @@ impl Editor {
         let end = segs
             .byte_to_char_ceil(Byte(byte_range.end))
             .clamp(0.into(), last);
+        self.select_from_outside((start, end));
+        self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+    }
 
+    /// Lands on the heading `fragment` names: its line near the top of the
+    /// view, washed for a moment, any fold hiding it opened. The caret goes
+    /// after its text, except while reading on touch, where that would
+    /// reveal its markup. A fragment that names nothing lands at the top, as
+    /// a browser does.
+    pub fn open_at_heading(&mut self, fragment: &str) {
+        let arena = Arena::new();
+        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        let Some((mut start, mut caret)) = self.find_heading(&arena, fragment) else {
+            self.landing = Some(Landing::Top);
+            return;
+        };
+        let reading = self.edit.renderer.touch_mode && !self.keyboard_visible;
+        let prior = self.edit.renderer.buffer.current.selection;
+        self.select_from_outside((caret, caret));
+        if !self.edit.renderer.plaintext && self.edit.unfold_at_selection(&arena).text_updated {
+            // the fold's tag came out before the heading
+            if let Some(found) = self.find_heading(&arena, fragment) {
+                (start, caret) = found;
+                self.select_from_outside((caret, caret));
+            }
+        } else if reading {
+            self.select_from_outside(prior);
+        }
+        self.landing = Some(Landing::Heading((start, caret)));
+        self.heading_flash = Some(((start, caret), web_time::Instant::now()));
+    }
+
+    /// The heading `fragment` names: where its text starts (its markup may
+    /// be hidden, with nothing laid out to scroll to) and where it ends.
+    fn find_heading<'a>(
+        &mut self, arena: &'a Arena<'a>, fragment: &str,
+    ) -> Option<(Grapheme, Grapheme)> {
+        let root = self.edit.renderer.reparse(arena);
+        let (nodes, headings): (Vec<_>, Vec<_>) = fragment::headings_in(root).into_iter().unzip();
+        let node = nodes[fragment::find_heading(&headings, fragment)?];
+        Some(self.edit.renderer.heading_span(node))
+    }
+
+    fn select_from_outside(&mut self, selection: (Grapheme, Grapheme)) {
+        self.selection_moved = true;
         self.edit
             .renderer
             .buffer
-            .queue(vec![lb_rs::model::text::operation_types::Operation::Select((start, end))]);
+            .queue(vec![lb_rs::model::text::operation_types::Operation::Select(selection)]);
         self.edit.renderer.buffer.update();
         self.edit.renderer.reveal_seq = self
             .edit
             .renderer
             .ws_seq
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+    }
+
+    /// Where a heading's first line is in the note: its row, and the top of
+    /// what's drawn of `heading` (its text's start to its end) in it. Hidden
+    /// markup draws nothing, so the highest thing drawn over the range stands
+    /// for the line. A row laid out this frame draws only what's in view, so a
+    /// heading in it not drawn is above the view if text in view follows it,
+    /// else below. A row not laid out stands at its top: wholly above or
+    /// below the view, it's never the one the reading line is in.
+    fn heading_point(
+        &self, rows: &scroll_content::DocScrollContent<'_, '_>, heading: (Grapheme, Grapheme),
+    ) -> Option<DocOffset> {
+        use crate::widgets::affine_scroll::Rows as _;
+        let (start, end) = heading;
+        let row = rows.find_text_row(start)?;
+        let Some(&(_, row_top)) = self.painted_rows.iter().find(|(id, _)| *id == row) else {
+            return Some(Offset::new(row, 0.0));
+        };
+        let view = self.painted_canvas;
+        let drawn = || self.edit.renderer.fragments.iter();
+        let top = drawn()
+            .filter(|f| f.source_range.0 <= end && f.source_range.1 >= start)
+            .map(|f| f.rect.top())
+            .reduce(f32::min);
+        let in_view = |f: &&widget::utils::wrap_layout::Fragment| {
+            !f.far && f.rect.bottom() > view.top() && f.rect.top() < view.bottom()
+        };
+        let intra = match top {
+            Some(top) => top - view.min.y - row_top,
+            None if drawn().filter(in_view).any(|f| f.source_range.0 > end) => 0.0,
+            None => rows.precise(&row),
+        };
+        Some(Offset::new(row, intra))
+    }
+
+    /// The landing's line on the reading line, with room above it so it
+    /// clears the chrome. Its row is laid out this frame wherever it is; a
+    /// landing set after that waits a frame rather than scroll by estimate.
+    fn scroll_to_heading(&mut self, canvas_rect: Rect) {
+        let Some(landing) = self.landing else { return };
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        let content = scroll_content::DocScrollContent::for_frame(
+            &self.edit.renderer,
+            root,
+            canvas_rect.height(),
+        );
+        let target = match landing {
+            Landing::Top => Offset::at_top_of(scroll_content::DocRowId::Leading),
+            Landing::Heading(range) => {
+                let at = range.0;
+                let Some(row) = content.find_text_row(at) else {
+                    self.landing = None;
+                    return;
+                };
+                if !self.painted_rows.iter().any(|(id, _)| *id == row) {
+                    self.edit.pending_scroll = Some(ScrollTarget::Heading);
+                    self.edit.renderer.ctx.request_repaint();
+                    return;
+                }
+                let Some(point) = self.heading_point(&content, range) else { return };
+                heading_scroll(&content, point)
+            }
+        };
+        self.landing = None;
+        self.edit
+            .scroll_area
+            .reveal(&content, Reveal::point_at(target), Align::Top);
     }
 
     pub fn preview_navigate(&mut self, byte_range: Option<std::ops::Range<usize>>) {
@@ -1918,6 +2085,47 @@ impl Editor {
     }
 }
 
+/// How long a heading landed on stays washed.
+const HEADING_FLASH_SECS: f32 = 0.9;
+
+/// Where a heading link lands.
+#[derive(Clone, Copy)]
+enum Landing {
+    /// The note's top, for a heading that isn't there.
+    Top,
+    /// The heading from its text's start to its end.
+    Heading((Grapheme, Grapheme)),
+}
+
+impl Landing {
+    /// Where a heading landed on starts.
+    fn start(self) -> Option<Grapheme> {
+        match self {
+            Landing::Top => None,
+            Landing::Heading((at, _)) => Some(at),
+        }
+    }
+}
+
+/// Room above a landed heading. Android's status and app bars cover more
+/// of the page's top than its leading pad reserves, so it takes more.
+fn landing_room() -> f32 {
+    use crate::style::Space;
+    if cfg!(target_os = "android") { Space::Xl.pts() + Space::Md.pts() } else { Space::Lg.pts() }
+}
+
+type DocOffset = Offset<scroll_content::DocRowId>;
+
+/// Room above the line a heading lands on: the landing room, plus the bars an Android
+/// page runs under.
+fn reading_room(rows: &scroll_content::DocScrollContent<'_, '_>) -> f32 {
+    landing_room() + android_top_overlay(rows)
+}
+
+/// The offset whose landing line falls on `target`: `room` above it.
+fn heading_scroll(rows: &scroll_content::DocScrollContent<'_, '_>, target: DocOffset) -> DocOffset {
+    crate::widgets::affine_scroll::offset_by(rows, target, -reading_room(rows))
+}
 /// Build a [`Reveal`] spanning a Grapheme range — works for a single
 /// cursor (`(g, g)`), a multi-line selection, or a find match that
 /// crosses a wrap boundary. Each endpoint independently prefers a

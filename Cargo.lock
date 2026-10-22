@@ -9693,6 +9693,7 @@ dependencies = [
  "tokio",
  "tracing",
  "unicode-linebreak",
+ "unicode-properties",
  "unicode-segmentation",
  "url 2.5.8",
  "urlencoding",

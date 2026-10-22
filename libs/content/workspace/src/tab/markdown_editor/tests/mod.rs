@@ -25,6 +25,7 @@ mod benches;
 mod block_drag;
 mod edit_props;
 mod folding;
+mod heading_links;
 mod ios_host;
 mod link_card;
 mod links;
