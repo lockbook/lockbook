@@ -12,7 +12,8 @@ use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::service::events::Event;
 
-use crate::file_cache::{FileCache, FilesExt, Reach};
+use crate::file_cache::{Change, FileCache, FilesExt, Reach};
+use crate::link_plan::Plan;
 use crate::links::{LinkKind, NoteLink, NoteText, read_note};
 use crate::tab::markdown_editor::fragment::Heading;
 
@@ -24,6 +25,8 @@ pub struct NoteIndex {
     version: AtomicU64,
     /// Every note has been read once.
     ready: AtomicBool,
+    /// The last change planned for, until the notes or the tree change.
+    pub(crate) planned: Mutex<Option<(Change, Arc<Plan>)>>,
 }
 
 /// What links reach, worked out on first ask: per note until it or the tree
@@ -71,6 +74,7 @@ impl NoteIndex {
 
     pub fn set_ready(&self) {
         self.ready.store(true, Ordering::Relaxed);
+        *self.planned.lock().unwrap() = None;
         self.version.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -80,6 +84,7 @@ impl NoteIndex {
         resolved.targets.remove(&id);
         resolved.inbound = None;
         drop(resolved);
+        *self.planned.lock().unwrap() = None;
         self.version.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -93,6 +98,7 @@ impl NoteIndex {
     /// Forgets what the links reached, which a change to the tree may move.
     pub fn tree_changed(&self) {
         *self.resolved.lock().unwrap() = Resolved::default();
+        *self.planned.lock().unwrap() = None;
         self.version.fetch_add(1, Ordering::Relaxed);
     }
 

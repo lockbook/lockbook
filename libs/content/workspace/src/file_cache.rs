@@ -220,6 +220,81 @@ impl FileCache {
     }
 }
 
+impl FileCache {
+    /// The tree as it would be after `change`, without the notes. Sizes and
+    /// times are carried over as they were.
+    pub fn after(&self, change: &Change) -> FileCache {
+        let gone: Vec<Uuid> = match change {
+            Change::Delete { ids } => ids
+                .iter()
+                .flat_map(|id| {
+                    let under: Vec<Uuid> = self.descendents(*id).iter().map(|f| f.id).collect();
+                    iter::once(*id).chain(under)
+                })
+                .collect(),
+            _ => vec![],
+        };
+        let created = match change {
+            Change::Create { parent, name } => Some(File {
+                id: Change::CREATED,
+                parent: *parent,
+                name: name.clone(),
+                file_type: FileType::Document,
+                last_modified: 0,
+                last_modified_by: self.root.owner.clone(),
+                owner: self.root.owner.clone(),
+                shares: vec![],
+                size_bytes: 0,
+            }),
+            _ => None,
+        };
+        let rows = self.rows.iter().filter(|f| !gone.contains(&f.id)).map(|f| {
+            let mut f = f.clone();
+            match change {
+                Change::Rename { id, name } if f.id == *id => f.name = name.clone(),
+                Change::Move { ids, to } if ids.contains(&f.id) => f.parent = *to,
+                _ => {}
+            }
+            f
+        });
+        let mut after = Self::from_rows(
+            self.root.clone(),
+            rows.chain(created).collect::<Vec<_>>(),
+            self.shared_roots.clone(),
+            self.suggested.clone(),
+        );
+        after.size_bytes_recursive = self.size_bytes_recursive.clone();
+        after.last_modified_recursive = self.last_modified_recursive.clone();
+        after
+    }
+}
+
+/// A change to the tree that links may need edits for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Change {
+    Rename {
+        id: Uuid,
+        name: String,
+    },
+    Move {
+        ids: Vec<Uuid>,
+        to: Uuid,
+    },
+    Delete {
+        ids: Vec<Uuid>,
+    },
+    /// A new document, which a wiki title may name.
+    Create {
+        parent: Uuid,
+        name: String,
+    },
+}
+
+impl Change {
+    /// The id a created document stands in with until it exists.
+    pub const CREATED: Uuid = Uuid::max();
+}
+
 impl Debug for FileCache {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("FileCache")

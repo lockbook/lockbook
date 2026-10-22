@@ -290,7 +290,7 @@ fn shared_folder(files: &impl FilesExt, note: Uuid) -> Option<&str> {
 /// Whether the reader can change the note: they own it or hold it with
 /// write. A placed share's folders above it are the reader's own, so only
 /// shares count there.
-fn can_edit(files: &impl FilesExt, note: Uuid) -> bool {
+pub(crate) fn can_edit(files: &impl FilesExt, note: Uuid) -> bool {
     let me = &files.root().owner;
     let owns = files.get_by_id(note).is_some_and(|f| f.owner == *me);
     owns || iter::once(note)

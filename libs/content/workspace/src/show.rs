@@ -11,7 +11,7 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 use web_time::{Duration, Instant};
 
-use crate::file_cache::{FilesExt as _, link_id, split_fragment};
+use crate::file_cache::{Change, FilesExt as _, link_id, split_fragment};
 use crate::output::Response;
 use crate::search::SearchType;
 use crate::tab::{ExtendedOutput as _, TabStatus, image_viewer};
@@ -372,7 +372,10 @@ impl Workspace {
                                                 self.clear_tab_rename(tab_id);
                                             }
                                             let id = dest.id();
-                                            self.rename_file((id, name.clone()), true);
+                                            // no sheet here to ask about links
+                                            let name = name.clone();
+                                            let change = Change::Rename { id, name };
+                                            self.make_change(change, false);
                                         }
                                         TabLabelResponse::Reordered { src, mut dst } => {
                                             let current = self.current_tab;

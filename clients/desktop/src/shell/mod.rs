@@ -18,6 +18,7 @@ pub mod settings;
 mod settings_account;
 mod sheet_create;
 mod sheet_folder;
+mod sheet_links;
 mod sheet_onboard;
 mod sheet_share;
 mod sheets;

@@ -398,6 +398,8 @@ pub enum Action {
     SetThemeMode(crate::components::ModePreference),
     SetThemeFamily(crate::components::ThemeFamily),
     SetPrefLinkPreviews(bool),
+    /// Renames and moves update the links they'd break, from now on.
+    SetPrefUpdateLinks(bool),
     SetPrefOpenInNewTab(bool),
     SetPrefSidebarUsage(bool),
 
@@ -513,6 +515,7 @@ impl Action {
             Self::SetThemeMode(_) => "SetThemeMode",
             Self::SetThemeFamily(_) => "SetThemeFamily",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
+            Self::SetPrefUpdateLinks(_) => "SetPrefUpdateLinks",
             Self::SetPrefOpenInNewTab(_) => "SetPrefOpenInNewTab",
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",
             Self::SetPrefAllowWayland(_) => "SetPrefAllowWayland",

@@ -17,7 +17,7 @@ use lb::Uuid;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use rfd::FileDialog;
-use workspace_rs::file_cache::FilesExt;
+use workspace_rs::file_cache::{Change, FilesExt};
 
 use super::ShellApp;
 use super::action::{
@@ -201,8 +201,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::ConfirmDelete => {
             if let Some(Modal::Delete { ids }) = app.modal.take() {
                 if let Some(r) = app.session.ready_mut() {
+                    r.workspace
+                        .make_change(Change::Delete { ids: ids.clone() }, false);
                     for id in &ids {
-                        r.workspace.delete_file(*id);
                         r.selected.remove(id);
                     }
                     if let Some(id) = r.workspace.current_tab_id() {
@@ -371,9 +372,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::ConfirmMove => {
             if let Some(Modal::Move { ids, dest }) = app.modal.take() {
                 if let (Some(d), Some(r)) = (dest, app.session.ready_mut()) {
-                    for id in &ids {
-                        r.workspace.move_file((*id, d));
-                    }
+                    let update = r.workspace.cfg.get_update_links();
+                    r.workspace.make_change(Change::Move { ids, to: d }, update);
                     r.expanded.insert(d);
                 }
             }
@@ -426,7 +426,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                         return;
                     }
                     // Core failure lands on workspace.failure_messages → toast in editor.
-                    r.workspace.rename_file((id, full), true);
+                    let update = r.workspace.cfg.get_update_links();
+                    r.workspace
+                        .make_change(Change::Rename { id, name: full }, update);
                 }
             }
         }
@@ -531,11 +533,21 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::TogglePinMany(ids) => toggle_pins(app, &ids),
         A::MoveInto { ids, parent } => {
             if let Some(r) = app.session.ready_mut() {
-                for id in &ids {
-                    if *id != parent {
-                        r.workspace.move_file((*id, parent));
-                    }
+                let ids: Vec<Uuid> = ids.into_iter().filter(|id| *id != parent).collect();
+                let change = Change::Move { ids: ids.clone(), to: parent };
+                // a drop that touches links asks first, in the move sheet
+                if !r.workspace.link_plan(&change).is_empty() {
+                    ctx.data_mut(|d| {
+                        d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new((
+                            "shell_folder_pick_exp",
+                            "shell_move",
+                        )));
+                        d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_move"));
+                    });
+                    app.modal = Some(Modal::Move { ids, dest: Some(parent) });
+                    return;
                 }
+                r.workspace.make_change(change, false);
                 r.expanded.insert(parent);
             }
         }
@@ -582,6 +594,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             let _ = app.settings.to_file();
         }
         // Workspace prefs: single store on `workspace.cfg`.
+        A::SetPrefUpdateLinks(v) => {
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.cfg.set_update_links(v);
+            }
+        }
         A::SetPrefLinkPreviews(v) => {
             if let Some(r) = app.session.ready_mut() {
                 r.workspace.cfg.set_contact_linked_sites(v);
@@ -910,6 +927,7 @@ fn open_create_sheet(
         d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new("shell_create_folder_exp"));
         d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_create_folder_tree"));
         d.remove::<f32>(egui::Id::new("shell_create_inner_h"));
+        d.remove::<f32>(egui::Id::new("shell_create_last_h"));
     });
 }
 
@@ -1047,22 +1065,13 @@ fn confirm_create(app: &mut ShellApp) {
         if create_name_taken(r, parent_id, &full_name) {
             Err("A file with that name already exists".into())
         } else {
-            let result = if is_folder {
-                r.workspace
-                    .core
-                    .create_file(&full_name, &parent_id, FileType::Folder)
-            } else {
-                r.workspace
-                    .core
-                    .create_file(&full_name, &parent_id, FileType::Document)
-            };
+            let file_type = if is_folder { FileType::Folder } else { FileType::Document };
+            let update = r.workspace.cfg.get_update_links();
+            let result = r
+                .workspace
+                .create_file_at(parent_id, &full_name, file_type, update);
             match result {
                 Ok(file) => {
-                    r.workspace
-                        .files
-                        .write()
-                        .unwrap()
-                        .insert_created_file(file.clone());
                     note_files_changed(r);
                     r.expanded.insert(parent_id);
                     r.select_only(file.id);

@@ -21,6 +21,16 @@ fn create_sheet_h_key() -> Id {
     Id::new("shell_create_inner_h")
 }
 
+/// The sheet's height before a re-measure.
+fn create_last_h_key() -> Id {
+    Id::new("shell_create_last_h")
+}
+
+/// The form's own height when the sheet's was locked.
+fn create_form_h_key() -> Id {
+    Id::new("shell_create_form_h")
+}
+
 /// Fixed footer band shared by form + location wizard (Md + control row).
 /// Summary sits in the body with Xl above it; Md groups copy with the actions.
 fn create_footer_band_h() -> f32 {
@@ -69,31 +79,26 @@ pub(crate) fn show_create(
         });
     }
 
-    // Relock height when the error line appears so it isn't clipped into the footer.
-    let has_err = matches!(
-        &app.modal,
-        Some(Modal::Create { error: Some(e), .. }) if !e.is_empty()
-    );
-    let err_key = Id::new("shell_create_inner_h_err");
-    let prev_err = ctx.data(|d| d.get_temp::<bool>(err_key)).unwrap_or(false);
-    if has_err != prev_err {
-        ctx.data_mut(|d| d.remove::<f32>(create_sheet_h_key()));
-    }
-    ctx.data_mut(|d| d.insert_temp(err_key, has_err));
-
     let locked_h = ctx.data(|d| d.get_temp::<f32>(create_sheet_h_key()));
 
     Area::new(Id::new("shell_create"))
         .order(Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {
-            sheet_panel_fixed(ui, t, CREATE_SHEET_W, locked_h.unwrap_or(280.0), |ui| {
+            // a re-measure keeps the last height for its frame
+            let last_h = ctx.data(|d| d.get_temp::<f32>(create_last_h_key()));
+            let plate_h = locked_h.or(last_h).unwrap_or(280.0);
+            sheet_panel_fixed(ui, t, CREATE_SHEET_W, plate_h, |ui| {
                 match locked_h {
                     None if !picking => {
                         // Measure pass: natural form (body + Md + footer).
                         let measured = ui
                             .scope(|ui| {
+                                let top = ui.cursor().min.y;
                                 create_form_body(app, ui, t, queue);
+                                let form_h = ui.cursor().min.y - top;
+                                ui.ctx()
+                                    .data_mut(|d| d.insert_temp(create_form_h_key(), form_h));
                                 ui.add(Spacer::new(Space::Md));
                                 create_form_footer(app, ui, t, queue);
                             })
@@ -110,6 +115,7 @@ pub(crate) fn show_create(
                         let foot_h = crate::components::control_height();
                         let body_h = (h - create_footer_band_h()).max(1.0);
 
+                        let mut form_h = None;
                         sheet_band(ui, body_h, |ui| {
                             if picking {
                                 create_location_body(
@@ -123,9 +129,24 @@ pub(crate) fn show_create(
                                     &mut expanded,
                                 );
                             } else {
+                                let top = ui.cursor().min.y;
                                 create_form_body(app, ui, t, queue);
+                                form_h = Some(ui.cursor().min.y - top);
                             }
                         });
+                        // the form grew or shrank (an error, the links line):
+                        // measure it again next frame
+                        let locked_form = ui.ctx().data(|d| d.get_temp::<f32>(create_form_h_key()));
+                        if form_h
+                            .zip(locked_form)
+                            .is_some_and(|(f, l)| (f - l).abs() > 0.5)
+                        {
+                            ui.ctx().data_mut(|d| {
+                                d.remove::<f32>(create_sheet_h_key());
+                                d.insert_temp(create_last_h_key(), h);
+                            });
+                            ui.ctx().request_repaint();
+                        }
                         ui.add(Spacer::new(Space::Md));
                         sheet_band(ui, foot_h, |ui| {
                             if picking {
@@ -339,6 +360,13 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
         _ => String::new(),
     };
     create_summary_line(ui, t, app, kind, name_snap.trim(), parent);
+    let name = name_snap.trim();
+    if let (Some(ext), false, Some(r)) = (kind.ext(), name.is_empty(), app.session.ready()) {
+        let name = if name.ends_with(ext) { name.to_owned() } else { format!("{name}{ext}") };
+        let parent = parent.unwrap_or_else(|| r.workspace.effective_focused_parent());
+        let change = workspace_rs::file_cache::Change::Create { parent, name };
+        super::sheet_links::show_link_plan(app, ui, t, queue, &change);
+    }
 
     if let Some(err) = error.as_deref().filter(|e| !e.is_empty()) {
         ui.add(Spacer::new(Space::Sm));

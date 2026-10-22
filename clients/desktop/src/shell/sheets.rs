@@ -2,7 +2,7 @@
 
 use egui::{Area, Id, Order};
 use lb::Uuid;
-use workspace_rs::file_cache::FilesExt;
+use workspace_rs::file_cache::{Change, FilesExt};
 
 use crate::components::{
     Button, Field, SheetFooterOpts, Space, Spacer, Theme, TypeRole, display_file_name, phosphor,
@@ -184,6 +184,8 @@ fn show_delete(
                     ui.add(Spacer::new(Space::Md));
                 }
                 paint_delete_parts(ui, t, &parts);
+                let change = Change::Delete { ids: ids.to_vec() };
+                super::sheet_links::show_link_plan(app, ui, t, queue, &change);
                 ui.add(Spacer::new(Space::Md));
                 let foot = sheet_footer(
                     ui,
@@ -516,6 +518,12 @@ fn show_rename(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut V
                 if let Some(err) = live_err.as_deref().filter(|e| !e.is_empty()) {
                     ui.add(Spacer::new(Space::Xs));
                     ui.label(TypeRole::Body.rich(err).color(t.danger()));
+                }
+                if can_commit {
+                    let name =
+                        super::apply::rename_join_name(name_snap.trim(), ext_snap.as_deref());
+                    let change = Change::Rename { id, name };
+                    super::sheet_links::show_link_plan(app, ui, t, queue, &change);
                 }
                 ui.add(Spacer::new(Space::Md));
                 let foot = sheet_footer(

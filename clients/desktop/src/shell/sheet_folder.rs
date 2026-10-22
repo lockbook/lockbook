@@ -1,6 +1,6 @@
 use egui::{Area, Id, Order};
 use lb::Uuid;
-use workspace_rs::file_cache::FilesExt;
+use workspace_rs::file_cache::{Change, FilesExt};
 
 use crate::components::{
     SheetFooterOpts, Space, Spacer, Theme, TypeRole, display_file_name, sheet_dim, sheet_footer,
@@ -510,7 +510,13 @@ fn folder_picker_sheet(
                 if show_summary {
                     ui.add(Spacer::new(Space::Xl));
                     match kind {
-                        FolderPickKind::Move => move_summary_line(ui, t, app, exclude, dest),
+                        FolderPickKind::Move => {
+                            move_summary_line(ui, t, app, exclude, dest);
+                            if let Some(to) = dest {
+                                let change = Change::Move { ids: exclude.to_vec(), to };
+                                super::sheet_links::show_link_plan(app, ui, t, queue, &change);
+                            }
+                        }
                         FolderPickKind::AcceptShare => {
                             dest_action_summary(ui, t, app, subject, "will be saved to", dest)
                         }
