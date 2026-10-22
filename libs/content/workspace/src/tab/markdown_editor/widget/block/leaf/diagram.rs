@@ -329,7 +329,44 @@ pub enum Picture {
     Diagram(String),
 }
 
-impl MdRender {
+impl<'ast> MdRender {
+    /// The collapsed image or diagram the selection exactly covers.
+    pub fn selected_picture(&self, root: &'ast AstNode<'ast>) -> Option<Picture> {
+        let selection = self.buffer.current.selection;
+        if selection.is_empty() || self.disable_images {
+            return None;
+        }
+        root.descendants().find_map(|node| {
+            if self.node_range(node) != selection {
+                return None;
+            }
+            match &node.data.borrow().value {
+                NodeValue::CodeBlock(ncb) if self.diagram_collapsed(node, ncb) => {
+                    Some(Picture::Diagram(self.diagram_source(node, ncb)))
+                }
+                NodeValue::Image(link) if !self.range_revealed_interior(selection) => {
+                    Some(Picture::Image(link.url.clone()))
+                }
+                _ => None,
+            }
+        })
+    }
+
+    /// Whether the platform edit menu offers "Open": the selection is a
+    /// collapsed diagram.
+    pub fn selection_has_diagram(&mut self) -> bool {
+        let arena = comrak::Arena::new();
+        let root = self.reparse(&arena);
+        matches!(self.selected_picture(root), Some(Picture::Diagram(_)))
+    }
+
+    /// Whether the platform edit menu offers "Copy Image".
+    pub fn selection_has_picture(&mut self) -> bool {
+        let arena = comrak::Arena::new();
+        let root = self.reparse(&arena);
+        self.selected_picture(root).is_some()
+    }
+
     /// Puts `picture`'s pixels on the clipboard, now or once an image loads.
     pub fn copy_picture(&self, picture: Picture) {
         match picture {

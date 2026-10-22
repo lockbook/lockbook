@@ -1354,11 +1354,18 @@
             menuVisible = false
         }
 
-        /// Open and Copy for a selected link; Edit and Refresh for an atom
-        /// (image, preview), which has no source on screen to select.
+        /// Open for a diagram; Open and Copy for a selected link; Edit for an
+        /// atom (image, diagram, preview), which has no source on screen to
+        /// select; Copy Image for a picture; Refresh for a link preview.
         private func editorMenuItems(atom: Bool) -> [UIMenuElement] {
             guard let wsHandle else { return [] }
             var items: [UIMenuElement] = []
+            if atom, selection_has_diagram(wsHandle) {
+                items.append(UIAction(title: "Open", image: UIImage(systemName: "arrow.up.left.and.arrow.down.right")) { [weak self] _ in
+                    open_selected_diagram(wsHandle)
+                    self?.mtkView.requestFrame()
+                })
+            }
             if atom {
                 items.append(UIAction(title: "Edit", image: UIImage(systemName: "pencil")) { [weak self] _ in
                     enter_selected_atom(wsHandle)
@@ -1366,7 +1373,14 @@
                     self?.mtkView.requestFrame()
                 })
             }
-            if let target = selection_open_target(wsHandle) {
+            if atom, selection_has_picture(wsHandle) {
+                items.append(UIAction(title: "Copy Image", image: UIImage(systemName: "photo")) { [weak self] _ in
+                    copy_image(wsHandle)
+                    self?.mtkView.requestFrame()
+                })
+            }
+            let target = selection_open_target(wsHandle)
+            if let target {
                 let url = String(cString: target)
                 free_text(target)
                 let open = selection_target_is_image(wsHandle) ? "Open Image" : "Open Link"
@@ -1385,7 +1399,7 @@
                     UIPasteboard.general.string = url
                 })
             }
-            if atom {
+            if atom, target != nil {
                 items.append(UIAction(title: "Refresh Preview", image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in
                     refresh_selection_previews(wsHandle)
                     self?.mtkView.requestFrame()
