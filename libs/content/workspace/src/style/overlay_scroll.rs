@@ -126,6 +126,8 @@ fn apply_egui_style(ui: &mut Ui, show: bool) {
         scroll.floating_width = BAR_WIDTH;
         scroll.bar_width = BAR_WIDTH;
         scroll.active_handle_opacity = THUMB_IDLE;
+        // touch has no hover once the finger lifts; keep the thumb through momentum
+        scroll.dormant_handle_opacity = THUMB_IDLE;
         scroll.active_background_opacity = 0.0;
         scroll.interact_handle_opacity = THUMB_INTERACT;
         scroll.interact_background_opacity = 0.0;
