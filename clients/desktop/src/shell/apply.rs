@@ -228,6 +228,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 err: None,
             });
             ctx.data_mut(|d| {
+                d.remove::<bool>(super::sheet_links::share_linked_id());
                 d.insert_temp(egui::Id::new("shell_share_need_focus"), true);
                 d.remove::<String>(share_verify_inflight_key());
                 d.remove::<Vec<ShareNetDone>>(share_verify_done_key());

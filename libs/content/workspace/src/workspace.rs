@@ -50,6 +50,7 @@ use crate::task_manager::{
 };
 use crate::widgets::image_cache::ImageCache;
 use crate::widgets::tab_cache::TabCache;
+use lb_rs::model::file::ShareMode;
 
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
@@ -1966,7 +1967,7 @@ impl Workspace {
                     .collect();
                 (!gone.is_empty()).then_some(Change::Delete { ids: gone })
             }
-            Change::Create { .. } => None,
+            Change::Share { .. } | Change::Create { .. } => None,
         };
         let Some(made) = made else { return };
         // planned against the tree before the change, which the cache still is
@@ -1982,6 +1983,36 @@ impl Workspace {
         after.notes = notes;
         *files = after;
         self.out.file_cache_updated = true;
+    }
+
+    /// Shares `id` with each of `users`, and if `share_linked`, also the
+    /// user's own files that links inside it reach past the scope the share
+    /// makes, linking to those by id so they open for the people too.
+    /// Returns the users it failed for, and why.
+    pub fn share_with(
+        &mut self, id: Uuid, users: &[String], mode: ShareMode, share_linked: bool,
+    ) -> Vec<(String, String)> {
+        let with = users.first().cloned().unwrap_or_default();
+        let plan = self.link_plan(&Change::Share { id, with, mode });
+        let mut failed = vec![];
+        let mut shared = vec![];
+        for user in users {
+            match self.core.share_file(id, user, mode) {
+                Ok(()) => shared.push(user),
+                Err(e) => failed.push((user.clone(), e.to_string())),
+            }
+        }
+        if share_linked && !shared.is_empty() {
+            for target in &plan.share_too {
+                for user in &shared {
+                    if let Err(e) = self.core.share_file(*target, user, mode) {
+                        warn!(?target, "failed to share a linked file: {e}");
+                    }
+                }
+            }
+            self.write_mends(&plan);
+        }
+        failed
     }
 
     /// Creates `name` under `parent`, and if `update_links`, makes the wiki

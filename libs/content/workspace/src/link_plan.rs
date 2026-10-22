@@ -22,7 +22,8 @@ use crate::resolvers::link::can_edit;
 pub struct Mend {
     pub note: Uuid,
     pub kind: LinkKind,
-    /// The destination as written now, and as it would be.
+    /// The destination as written now, and as it would be. An id link is
+    /// planned as `lb://` and written as the external URL.
     pub from: String,
     pub to: String,
 }
@@ -37,6 +38,9 @@ pub struct Plan {
     /// Made before every note was first read, so links in the unread ones
     /// aren't counted.
     pub checking: bool,
+    /// For a share: the files those links reach that the user owns and could
+    /// share too, which the mends then link to by id.
+    pub share_too: Vec<Uuid>,
 }
 
 impl Plan {
@@ -85,8 +89,11 @@ pub fn plan(files: &FileCache, change: &Change) -> Plan {
 
 fn changes(files: &FileCache, change: &Change) -> Plan {
     let after = files.after(change);
+    if let Change::Share { id, .. } = change {
+        return share_plan(files, &after, *id);
+    }
     let moved: Vec<Uuid> = match change {
-        Change::Rename { id, .. } => vec![*id],
+        Change::Rename { id, .. } | Change::Share { id, .. } => vec![*id],
         Change::Move { ids, .. } | Change::Delete { ids } => ids.clone(),
         Change::Create { .. } => vec![Change::CREATED],
     };
@@ -161,6 +168,42 @@ fn to_itself(link: &NoteLink) -> bool {
     }
 }
 
+/// What sharing `id` does to the links inside it, under the scope the share
+/// makes: those that open the same file for everyone now and won't then,
+/// and, for files the user owns, id links to share them by.
+fn share_plan(files: &FileCache, after: &FileCache, id: Uuid) -> Plan {
+    let mut inside: Vec<Uuid> = files.descendents(id).iter().map(|f| f.id).collect();
+    inside.push(id);
+    inside.sort_by_key(|id| files.path(*id));
+    let me = &files.root().owner;
+    let mut plan = Plan::default();
+    for note in inside {
+        let Some(text) = files.notes.note(note) else { continue };
+        for link in &text.links {
+            let Some((target, Reach::Scope)) = locate(files, note, link) else { continue };
+            if matches!(locate(after, note, link), Some((_, Reach::Scope))) {
+                continue;
+            }
+            plan.stuck.push(Backlink { note, link: link.clone() });
+            let owned = files.get_by_id(target).is_some_and(|f| f.owner == *me);
+            if !owned || link.kind == LinkKind::Wiki || !link.rewritable || !can_edit(files, note) {
+                continue;
+            }
+            if !plan.share_too.contains(&target) {
+                plan.share_too.push(target);
+            }
+            let fragment = split_fragment(&link.dest).1;
+            let to = match fragment {
+                Some(f) => format!("lb://{target}#{f}"),
+                None => format!("lb://{target}"),
+            };
+            plan.mends
+                .push(Mend { note, kind: link.kind, from: link.dest.clone(), to });
+        }
+    }
+    plan
+}
+
 /// Whether a wiki link's title could name a file called `name`.
 fn wiki_names(link: &NoteLink, name: &str) -> bool {
     let title = wiki_fragment(&link.dest).0;
@@ -223,11 +266,25 @@ pub fn write_mends(lb: &Lb, mends: &[Mend]) -> Vec<(Uuid, String)> {
 }
 
 fn write_note(lb: &Lb, note: Uuid, mends: &[&Mend]) -> LbResult<()> {
+    let mut written: Vec<Mend> = vec![];
+    for m in mends {
+        let to = match m.to.strip_prefix("lb://") {
+            Some(id) => {
+                let (id, fragment) = id.split_once('#').map_or((id, None), |(i, f)| (i, Some(f)));
+                let id = Uuid::parse_str(id).unwrap_or_default();
+                let url = lb.get_file_link_url(id)?;
+                fragment.map_or(url.clone(), |f| format!("{url}#{f}"))
+            }
+            None => m.to.clone(),
+        };
+        written.push(Mend { to, ..(*m).clone() });
+    }
+    let mends: Vec<&Mend> = written.iter().collect();
     // a write between our read and write sends us around again
     loop {
         let (hmac, bytes) = lb.read_document_with_hmac(note, false)?;
         let text = String::from_utf8_lossy(&bytes).into_owned();
-        let mended = mend_text(&text, mends);
+        let mended = mend_text(&text, &mends);
         if mended == text {
             return Ok(());
         }
@@ -256,6 +313,7 @@ mod tests {
     use super::*;
     use crate::links::read_note;
     use crate::test_utils::files::{at, cache, tree};
+    use lb_rs::model::file::ShareMode;
 
     /// A vault: `(path, text)` notes, plus files with no text.
     fn vault(notes: &[(&str, &str)], others: &[&str]) -> (FileCache, Vec<(Uuid, String)>) {
@@ -436,6 +494,32 @@ mod tests {
         let (plan, _) = accept_all(&files, &texts, &change);
         assert!(plan.mends.is_empty());
         assert_eq!(plan.stuck_notes(), [at(&files, "/log.md")]);
+    }
+
+    /// Sharing a folder: links out of it stop opening the same file for
+    /// everyone, and those to the sharer's own files can become id links.
+    #[test]
+    fn a_share_lists_links_leaving_it() {
+        let (files, texts) = vault(
+            &[
+                ("/project/plan.md", "[b](../budget.md#q4) [[budget]] [in](notes.md) [[notes]]"),
+                ("/project/notes.md", ""),
+                ("/budget.md", ""),
+            ],
+            &[],
+        );
+        let id = at(&files, "/project/");
+        let change = Change::Share { id, with: "bob".into(), mode: ShareMode::Read };
+        let plan = plan(&files, &change);
+        let stuck: Vec<&str> = plan.stuck.iter().map(|b| b.link.dest.as_str()).collect();
+        assert_eq!(stuck, ["../budget.md#q4", "budget"]);
+        assert_eq!(plan.share_too, [at(&files, "/budget.md")]);
+        let budget = at(&files, "/budget.md");
+        let mine: Vec<&Mend> = plan.mends.iter().collect();
+        assert_eq!(
+            mend_text(&texts[0].1, &mine),
+            format!("[b](lb://{budget}#q4) [[budget]] [in](notes.md) [[notes]]")
+        );
     }
 
     /// Until every note has been read, a plan says it may be missing links,

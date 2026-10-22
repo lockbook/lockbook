@@ -52,6 +52,59 @@ fn checking(ui: &mut egui::Ui, t: &Theme) {
     paragraph(ui, &line, t.neutral_fg_secondary());
 }
 
+/// Under a share's summary: the links inside what's shared that won't open
+/// for the people it's shared with, and a switch to share the files they
+/// reach too.
+pub(crate) fn show_share_check(
+    app: &ShellApp, ui: &mut egui::Ui, t: &Theme, id: Uuid, people: &[String],
+) {
+    let Some(r) = app.session.ready() else { return };
+    let with = people.first().cloned().unwrap_or_default();
+    let change = Change::Share { id, with, mode: lb::model::file::ShareMode::Read };
+    let plan = r.workspace.link_plan(&change);
+    if plan.checking {
+        checking(ui, t);
+    }
+    if plan.stuck.is_empty() {
+        return;
+    }
+    let files = r.workspace.files.read().unwrap();
+    let name = |id: Uuid| {
+        files
+            .get_by_id(id)
+            .map(|f| display_file_name(&f.name).to_owned())
+    };
+    let notes: Vec<String> = plan.stuck_notes().into_iter().filter_map(name).collect();
+    let mut spans = vec![(count(plan.stuck.len(), "link"), true), (" in ".into(), false)];
+    spans.extend(note_list(&notes));
+    spans.push((" won't open for ".into(), false));
+    spans.extend(name_list(people, "other person", "other people"));
+    spans.push((".".into(), false));
+    ui.add(Spacer::new(Space::Md));
+    paragraph(ui, &spans, t.neutral_fg());
+    if plan.share_too.is_empty() {
+        return;
+    }
+    let files_named: Vec<String> = plan.share_too.iter().filter_map(|id| name(*id)).collect();
+    let mut spans = vec![("Share ".into(), false)];
+    spans.extend(name_list(&files_named, "other file", "other files"));
+    spans.push((" too, and change ".into(), false));
+    spans.push((count(plan.mends.len(), "link"), true));
+    let them = if files_named.len() == 1 { "it" } else { "them" };
+    spans.push((format!(" to open {them}."), false));
+    ui.add(Spacer::new(Space::Md));
+    let key = share_linked_id();
+    let mut on = ui.ctx().data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
+    if switch_row(ui, t, &spans, &mut on) {
+        ui.ctx().data_mut(|d| d.insert_temp(key, on));
+    }
+}
+
+/// Where the share sheet keeps whether to share linked files too.
+pub(crate) fn share_linked_id() -> egui::Id {
+    egui::Id::new("shell_share_linked")
+}
+
 /// Update **3 links** in **log**, **roadmap**, and **2 other notes**.
 fn update_spans(plan: &Plan, notes: &[String]) -> Vec<(String, bool)> {
     let mut spans = vec![("Update ".into(), false), (count(plan.mends.len(), "link"), true)];

@@ -386,21 +386,22 @@ pub(crate) fn share_invite(app: &mut ShellApp, ctx: &Context) {
 
     let share_mode = if mode == 0 { ShareMode::Write } else { ShareMode::Read };
 
-    let mut ok: Vec<String> = Vec::new();
-    let mut fail: Vec<(String, String)> = Vec::new();
-    {
-        let Some(r) = app.session.ready_mut() else {
-            return;
-        };
-        for user in &targets {
-            match r.workspace.core.share_file(id, user, share_mode) {
-                Ok(()) => ok.push(user.clone()),
-                Err(e) => fail.push((user.clone(), e.to_string())),
-            }
-        }
-        if !ok.is_empty() {
-            r.refresh_status();
-        }
+    let Some(r) = app.session.ready_mut() else {
+        return;
+    };
+    let share_linked = ctx
+        .data(|d| d.get_temp::<bool>(super::sheet_links::share_linked_id()))
+        .unwrap_or(false);
+    let fail = r
+        .workspace
+        .share_with(id, &targets, share_mode, share_linked);
+    let ok: Vec<String> = targets
+        .iter()
+        .filter(|u| !fail.iter().any(|(f, _)| f == *u))
+        .cloned()
+        .collect();
+    if !ok.is_empty() {
+        r.refresh_status();
     }
 
     if let Some(Modal::Share { staged, query, lookup, lookup_for, err, .. }) = &mut app.modal {

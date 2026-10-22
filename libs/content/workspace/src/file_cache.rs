@@ -253,6 +253,13 @@ impl FileCache {
             match change {
                 Change::Rename { id, name } if f.id == *id => f.name = name.clone(),
                 Change::Move { ids, to } if ids.contains(&f.id) => f.parent = *to,
+                Change::Share { id, with, mode } if f.id == *id => {
+                    f.shares.push(lb_rs::model::file::Share {
+                        mode: *mode,
+                        shared_by: self.root.owner.clone(),
+                        shared_with: with.clone(),
+                    })
+                }
                 _ => {}
             }
             f
@@ -282,6 +289,11 @@ pub enum Change {
     },
     Delete {
         ids: Vec<Uuid>,
+    },
+    Share {
+        id: Uuid,
+        with: String,
+        mode: ShareMode,
     },
     /// A new document, which a wiki title may name.
     Create {
