@@ -62,6 +62,7 @@ import app.lockbook.util.VerticalTabItemHolder
 import app.lockbook.util.WorkspaceTextInputConnection
 import app.lockbook.util.WorkspaceView
 import app.lockbook.util.getIconResource
+import app.lockbook.workspace.NULL_UUID
 import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
@@ -562,17 +563,24 @@ class WorkspaceFragment : Fragment() {
         newTab: WorkspaceTab,
     ) {
         var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+        // a diagram opened from a note shows in the image viewer with no file of its own
+        val diagram = newTab.type == WorkspaceTabType.Image && newTab.id == NULL_UUID
 
-        if (isMissingTab(tabTitle, newTab)) {
+        if (!diagram && isMissingTab(tabTitle, newTab)) {
             filesListModel.fileModel.refreshFiles()
             tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
         }
 
-        if (isMissingTab(tabTitle, newTab)) {
+        if (!diagram && isMissingTab(tabTitle, newTab)) {
             return
         }
 
-        updateToolbarOnTabChange(newTab.type, tabTitle)
+        if (diagram) {
+            updateToolbarOnTabChange(WorkspaceTabType.Graph, null)
+            binding.workspaceToolbar.setTitle("Diagram")
+        } else {
+            updateToolbarOnTabChange(newTab.type, tabTitle)
+        }
 
         val openTabs =
             workspaceWrapper.workspaceView

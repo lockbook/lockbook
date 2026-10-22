@@ -151,6 +151,9 @@ impl Workspace {
                 for (id, heading, new_tab) in open_ids {
                     self.open_link(id, heading, new_tab);
                 }
+                if let Some(source) = ui.ctx().pop_open_diagram() {
+                    self.navigate_to(crate::tab::Destination::Diagram(source));
+                }
                 for (id, heading, new_tab) in ui.ctx().pop_open_files() {
                     self.open_link(id, heading, new_tab);
                 }

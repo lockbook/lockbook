@@ -345,6 +345,7 @@ impl MdRender {
 
 #[derive(Clone)]
 enum DiagramMenu {
+    Open,
     CopyImage,
     Copy,
     Edit,
@@ -400,7 +401,10 @@ impl<'ast> MdEdit {
                 ui.scope_id().with(salt),
                 TouchTarget::Tap(select.clone()),
             );
-            if response.clicked() {
+            if response.double_clicked() {
+                ui.ctx()
+                    .open_diagram(self.renderer.diagram_source(node, ncb));
+            } else if response.clicked() {
                 ui.memory_mut(|m| m.request_focus(id));
                 self.calc_operations(ui.ctx(), root, select, ops);
                 if self.renderer.touch_mode {
@@ -414,6 +418,7 @@ impl<'ast> MdEdit {
             let editable = !self.renderer.readonly;
             let theme = ui.ctx().get_lb_theme();
             let action = crate::style::context_menu::show(&response, &theme, |e| {
+                e.item(phosphor::ARROW_SQUARE_OUT, "Open", DiagramMenu::Open);
                 e.item(phosphor::IMAGE, "Copy Image", DiagramMenu::CopyImage);
                 e.item(phosphor::COPY, "Copy", DiagramMenu::Copy);
                 if editable {
@@ -421,6 +426,10 @@ impl<'ast> MdEdit {
                 }
             });
             match action {
+                Some(DiagramMenu::Open) => {
+                    ui.ctx()
+                        .open_diagram(self.renderer.diagram_source(node, ncb));
+                }
                 Some(DiagramMenu::CopyImage) => {
                     let source = self.renderer.diagram_source(node, ncb);
                     self.renderer.copy_picture(Picture::Diagram(source));
