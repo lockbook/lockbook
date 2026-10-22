@@ -102,9 +102,7 @@ struct ContentView: View {
         Group {
             if appState.isLoggedIn {
                 HomeView()
-                    #if os(macOS)
                     .onAppear { FinderIntegration.shared.refresh() }
-                    #endif
             } else {
                 OnboardingView()
             }

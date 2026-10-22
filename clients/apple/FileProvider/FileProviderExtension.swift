@@ -2,6 +2,9 @@ import Bridge
 import Darwin
 import FileProvider
 import OSLog
+#if os(iOS)
+import notify
+#endif
 
 final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     let domain: NSFileProviderDomain
@@ -11,7 +14,11 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     private let cache = FileProviderCache()
     private let coreLock = NSLock()
     private var sharedCore: FileProviderCore?
+    #if os(macOS)
     private var changeSource: DispatchSourceRead?
+    #else
+    private var changeToken = NOTIFY_TOKEN_INVALID
+    #endif
     private var invalidated = false
     private var syncTimer: DispatchSourceTimer?
 
@@ -38,19 +45,35 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         syncTimer = nil
         queue.async {
             self.invalidated = true
+            #if os(macOS)
             self.changeSource?.cancel()
             self.changeSource = nil
+            #else
+            if self.changeToken != NOTIFY_TOKEN_INVALID {
+                notify_cancel(self.changeToken)
+                self.changeToken = NOTIFY_TOKEN_INVALID
+            }
+            #endif
         }
     }
 
     deinit {
+        #if os(macOS)
         changeSource?.cancel()
+        #else
+        if changeToken != NOTIFY_TOKEN_INVALID { notify_cancel(changeToken) }
+        #endif
     }
 
     private func observeChanges() {
+        #if os(macOS)
         guard !invalidated, changeSource == nil else { return }
+        #else
+        guard !invalidated, changeToken == NOTIFY_TOKEN_INVALID else { return }
+        #endif
         do {
             let core = try core()
+            #if os(macOS)
             let url = core.ipcDirectory.appendingPathComponent("fp-\(UUID().uuidString.prefix(8))")
             var address = sockaddr_un()
             let path = Array(url.path.utf8CString)
@@ -87,6 +110,18 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             }
             changeSource = source
             source.resume()
+            #else
+            let name = lb_change_notification_name(core.core.lb)
+            defer { lb_free_str(name) }
+            let status = notify_register_dispatch(name, &changeToken, queue) { [weak self] _ in
+                guard let self, !self.invalidated else { return }
+                self.signalChanges()
+            }
+            guard status == NOTIFY_STATUS_OK else {
+                changeToken = NOTIFY_TOKEN_INVALID
+                throw CocoaError(.featureUnsupported)
+            }
+            #endif
             // Cover commits before registration, including during extension startup.
             signalChanges()
         } catch {
@@ -142,7 +177,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             let item = try core.item(identifier, loadSize: false)
             let data = try core.read(item)
             if let version, version.contentVersion != item.contentVersion {
-                throw NSFileProviderError(.versionNoLongerAvailable)
+                throw FileProviderCore.versionUnavailable
             }
             let url = try self.manager.temporaryDirectoryURL().appendingPathComponent(UUID().uuidString)
             try data.write(to: url)
