@@ -151,7 +151,14 @@ impl ImageViewer {
                 .x
                 + 2.0 * control_space::PAD_X.pts()
         };
-        let pct_w = text_w("000%");
+        let zoom_percentage = (self.master_transform.sx * 100.0).round();
+        let label = if self.master_transform.sx <= MIN_ZOOM_LEVEL {
+            "Max".to_string()
+        } else {
+            format!("{}%", zoom_percentage as i32)
+        };
+        // digits needn't be one width: room for the label as it reads
+        let pct_w = text_w("000%").max(text_w(&label));
 
         let zoom_size = egui::vec2(island::width(2.0 * hit + pct_w), island::height());
         if controls.width() < zoom_size.x || controls.height() < zoom_size.y {
@@ -163,7 +170,6 @@ impl ImageViewer {
         );
         self.islands.push(zoom_rect);
 
-        let zoom_percentage = (self.master_transform.sx * 100.0).round();
         let mut stop = None;
         island::island(ui, zoom_rect, |ui| {
             let can_zoom_out = zoom_percentage > ZOOM_STEP;
@@ -186,11 +192,6 @@ impl ImageViewer {
                 self.zoom_to(target, available.center());
             }
 
-            let label = if self.master_transform.sx <= MIN_ZOOM_LEVEL {
-                "Max".to_string()
-            } else {
-                format!("{}%", zoom_percentage as i32)
-            };
             let pct = Button::secondary(&t, label)
                 .min_width(pct_w)
                 .max_width(pct_w)
