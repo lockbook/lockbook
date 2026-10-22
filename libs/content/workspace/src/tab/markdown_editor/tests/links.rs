@@ -65,9 +65,14 @@ fn pasted_id_links_are_written_for_the_note() {
     assert_eq!(paste("see [it](", (9, 9), &sketch), format!("see [it]({sketch}"));
     assert_eq!(paste("see [it](x)", (7, 7), &sketch), format!("see [it{sketch}](x)"));
     assert_eq!(paste("see `at `", (8, 8), &sketch), format!("see `at {sketch}`"));
-    // a link to this note is a bare name
+    // a link to this note is a bare name; to one of its headings, just the
+    // heading, by its text
     let notes = format!("lb://{}", id("/project/notes.md"));
     assert_eq!(paste("see ", (4, 4), &notes), "see [notes](notes.md)");
+    assert_eq!(
+        paste("# Next steps\n\nsee ", (18, 18), &format!("{notes}#next-steps")),
+        "# Next steps\n\nsee [Next steps](#next-steps)"
+    );
     // links to anything else paste as they are
     let unknown = format!("lb://{}", Uuid::from_u128(99));
     assert_eq!(paste("see ", (4, 4), &unknown), format!("see {unknown}"));

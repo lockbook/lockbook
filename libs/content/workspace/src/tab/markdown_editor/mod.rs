@@ -125,6 +125,11 @@ pub struct MdRender {
     /// Set only while painting the floating drag-reorder card, so chrome
     /// that shouldn't travel with it (the fold button) can opt out.
     pub painting_drag_float: bool,
+    /// The slug of a heading whose link was asked for this frame; the
+    /// editor, which knows the note, puts the link on the clipboard.
+    pub heading_copy: Option<String>,
+    /// The heading whose link was just copied, for its check mark.
+    pub heading_copied: Option<((Grapheme, Grapheme), web_time::Instant)>,
 
     // document
     pub buffer: Buffer,
@@ -314,6 +319,8 @@ pub struct MdEdit {
     /// the click lands so the context menu's link section stays stable while
     /// the menu is open and the pointer moves.
     pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
+    /// The slug of the heading under the context menu, captured likewise.
+    pub context_menu_heading: Option<String>,
 
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
@@ -352,6 +359,7 @@ impl MdEdit {
             emoji_completions: Default::default(),
             link_completions: Default::default(),
             context_menu_link: None,
+            context_menu_heading: None,
             scroll_area: AffineScrollArea::new(file_id),
             cursor_last_interact: None,
         }
@@ -530,6 +538,8 @@ impl MdRender {
             touch_mode,
             open_origin: None,
             painting_drag_float: false,
+            heading_copy: None,
+            heading_copied: None,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
@@ -616,6 +626,8 @@ impl MdRender {
             touch_mode: false,
             open_origin: None,
             painting_drag_float: false,
+            heading_copy: None,
+            heading_copied: None,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
@@ -780,6 +792,8 @@ impl Editor {
             touch_mode,
             open_origin: open_origin.clone(),
             painting_drag_float: false,
+            heading_copy: None,
+            heading_copied: None,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -854,6 +868,7 @@ impl Editor {
                 emoji_completions: Default::default(),
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
+                context_menu_heading: None,
                 scroll_area: AffineScrollArea::new(file_id),
                 cursor_last_interact: None,
             },
@@ -1793,6 +1808,10 @@ impl Editor {
 
         self.find
             .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
+
+        if let Some(slug) = self.edit.renderer.heading_copy.take() {
+            ui.ctx().copy_text(self.edit.heading_link(&slug));
+        }
 
         if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
             self.edit.pending_scroll = None;

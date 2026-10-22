@@ -25,19 +25,6 @@ pub(crate) mod text;
 pub(crate) mod underline;
 pub(crate) mod wiki_link;
 
-#[derive(Default, Debug)]
-pub struct Response {
-    pub clicked: bool,
-    pub hovered: bool,
-}
-
-impl std::ops::BitOrAssign for Response {
-    fn bitor_assign(&mut self, rhs: Self) {
-        self.clicked |= rhs.clicked;
-        self.hovered |= rhs.hovered;
-    }
-}
-
 impl<'ast> MdRender {
     /// Returns the range between the start of the node and the start of its
     /// first child, if there is one.

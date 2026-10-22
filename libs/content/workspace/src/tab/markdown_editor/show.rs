@@ -32,6 +32,7 @@ use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
 #[derive(Clone)]
 enum EditorMenuCmd {
     Link(LinkMenuAction),
+    HeadingLink,
     Cut,
     Copy,
     Paste,
@@ -683,17 +684,25 @@ impl MdEdit {
             // Capture the link under the click when it lands, so the menu's
             // link section stays stable while the pointer moves over it.
             if response.secondary_clicked() {
-                self.context_menu_link = response
-                    .interact_pointer_pos()
-                    .and_then(|pos| self.link_target_at_pos(root, pos));
+                let pos = response.interact_pointer_pos();
+                self.context_menu_link = pos.and_then(|pos| self.link_target_at_pos(root, pos));
+                self.context_menu_heading = pos.and_then(|pos| {
+                    let offset = self.location_to_char_offset(Location::Pos(pos));
+                    self.renderer.heading_slug_at(root, offset)
+                });
             }
             let link_target = self.context_menu_link.clone();
+            let heading = self.context_menu_heading.clone();
             let readonly = self.renderer.readonly;
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
                 if let Some(link) = &link_target {
                     // plain links never render a preview — nothing to refresh
                     fill_link_menu(e, link.is_image, !readonly, false, EditorMenuCmd::Link);
+                    e.separator();
+                }
+                if heading.is_some() {
+                    e.item(phosphor::LINK, "Copy Heading Link", EditorMenuCmd::HeadingLink);
                     e.separator();
                 }
                 if !readonly {
@@ -706,6 +715,11 @@ impl MdEdit {
             });
             let mut menu_events: Vec<Event> = Vec::new();
             match chosen {
+                Some(EditorMenuCmd::HeadingLink) => {
+                    if let Some(slug) = &heading {
+                        ui.ctx().copy_text(self.heading_link(slug));
+                    }
+                }
                 Some(EditorMenuCmd::Link(action)) => {
                     if let Some(link) = &link_target {
                         match action {

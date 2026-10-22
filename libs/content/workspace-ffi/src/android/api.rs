@@ -305,6 +305,26 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionOpenTarget
     }
 }
 
+/// A link to the heading on the caret's line, or null, for the edit menu's
+/// "Copy Heading Link".
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionHeadingLink(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    match obj
+        .workspace
+        .current_tab_markdown_mut()
+        .and_then(|md| md.edit.selection_heading_link())
+    {
+        Some(url) => env
+            .new_string(url)
+            .expect("Couldn't create java string!")
+            .into_raw(),
+        None => std::ptr::null_mut(),
+    }
+}
+
 /// Whether the edit menu's link is an image, for its wording.
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionTargetIsImage(

@@ -653,6 +653,7 @@ class WorkspaceView(
         const val OPEN_LINK_MENU_ID = 0x00E0170B
         const val COPY_LINK_MENU_ID = 0x00E0170C
         const val REFRESH_PREVIEW_MENU_ID = 0x00E0170D
+        const val COPY_HEADING_LINK_MENU_ID = 0x00E0170E
     }
 
     inner class FloatingTextEditorContextMenu(
@@ -758,6 +759,7 @@ class WorkspaceView(
     ) : ActionMode.Callback {
         // URL under the selection when the menu was built; feeds "Copy Link"
         private var openTarget: String? = null
+        private var headingLink: String? = null
 
         override fun onCreateActionMode(
             mode: ActionMode?,
@@ -787,6 +789,13 @@ class WorkspaceView(
 
                 menu
                     .add(Menu.NONE, COPY_LINK_MENU_ID, 0, "Copy Link")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+
+            headingLink = Workspace.selectionHeadingLink(wgpuObj)
+            if (headingLink != null) {
+                menu
+                    .add(Menu.NONE, COPY_HEADING_LINK_MENU_ID, 0, "Copy Heading Link")
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
 
@@ -857,6 +866,15 @@ class WorkspaceView(
                     REFRESH_PREVIEW_MENU_ID -> {
                         Workspace.refreshSelectionPreviews(wgpuObj)
                         invalidate()
+                    }
+
+                    COPY_HEADING_LINK_MENU_ID -> {
+                        headingLink?.let {
+                            (
+                                context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                    as ClipboardManager
+                            ).setPrimaryClip(ClipData.newPlainText("", it))
+                        }
                     }
 
                     COPY_LINK_MENU_ID -> {

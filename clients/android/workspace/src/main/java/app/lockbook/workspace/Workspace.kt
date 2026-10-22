@@ -154,6 +154,7 @@ object Workspace {
     external fun selectionOpenTarget(rustObj: Long): String?
 
     external fun selectionTargetIsImage(rustObj: Long): Boolean
+    external fun selectionHeadingLink(rustObj: Long): String?
     external fun openSelectionLinks(rustObj: Long)
     external fun refreshSelectionPreviews(rustObj: Long)
     external fun setContactLinkedSites(rustObj: Long, value: Boolean)

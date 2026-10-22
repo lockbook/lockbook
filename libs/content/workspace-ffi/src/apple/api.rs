@@ -335,6 +335,24 @@ pub unsafe extern "C" fn selection_open_target(obj: *mut c_void) -> *const c_cha
     }
 }
 
+/// A link to the heading on the caret's line, or null, for the edit menu's
+/// "Copy Heading Link". The returned string must be freed with `free_text`.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn selection_heading_link(obj: *mut c_void) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    match obj
+        .workspace
+        .current_tab_markdown_mut()
+        .and_then(|md| md.edit.selection_heading_link())
+    {
+        Some(url) => CString::new(url)
+            .map(|s| s.into_raw() as *const c_char)
+            .unwrap_or(std::ptr::null()),
+        None => std::ptr::null(),
+    }
+}
+
 /// Whether the edit menu's link is an image, for its wording.
 /// # Safety
 #[no_mangle]

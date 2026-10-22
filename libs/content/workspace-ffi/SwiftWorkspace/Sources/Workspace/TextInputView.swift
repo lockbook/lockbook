@@ -1366,6 +1366,13 @@
                     UIPasteboard.general.string = url
                 })
             }
+            if let link = selection_heading_link(wsHandle) {
+                let url = String(cString: link)
+                free_text(link)
+                items.append(UIAction(title: "Copy Heading Link", image: UIImage(systemName: "link")) { _ in
+                    UIPasteboard.general.string = url
+                })
+            }
             if atom {
                 items.append(UIAction(title: "Refresh Preview", image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in
                     refresh_selection_previews(wsHandle)
