@@ -3,14 +3,18 @@ package app.lockbook.util
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Color
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.PopupWindow
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.edit
+import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.isVisible
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -41,9 +45,12 @@ class MarkdownToolbarView(
     ) {
         History("History"),
         TextStyle("Text style"),
-        Lists("Lists"),
+        Lists("Lists and quotes"),
         Attachments("Attachments"),
         Indentation("Indentation"),
+
+        /** The table set: shown in a table, and not the user's to arrange. */
+        Table("Table"),
     }
 
     private data class ToolbarAction(
@@ -62,7 +69,7 @@ class MarkdownToolbarView(
         val action: ToolbarAction? = null,
     )
 
-    private val categories = ToolbarCategory.values().toList()
+    private val categories = ToolbarCategory.values().filter { it != ToolbarCategory.Table }
     private val actions =
         listOf(
             ToolbarAction(MarkdownToolbarAction.Undo, "Undo", R.drawable.ic_md_undo_24, ToolbarCategory.History, false),
@@ -95,6 +102,8 @@ class MarkdownToolbarView(
                 ToolbarCategory.Lists,
             ),
             ToolbarAction(MarkdownToolbarAction.TaskList, "Task list", R.drawable.ic_md_checklist_24, ToolbarCategory.Lists),
+            ToolbarAction(MarkdownToolbarAction.Quote, "Quote", R.drawable.ic_md_format_quote_24, ToolbarCategory.Lists),
+            ToolbarAction(MarkdownToolbarAction.Table, "Table", R.drawable.ic_md_table_24, ToolbarCategory.Lists, false),
             ToolbarAction(MarkdownToolbarAction.Link, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments),
             ToolbarAction(null, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments, false),
             ToolbarAction(
@@ -110,6 +119,32 @@ class MarkdownToolbarView(
                 R.drawable.ic_md_format_indent_decrease_24,
                 ToolbarCategory.Indentation,
                 false,
+            ),
+        )
+
+    /** What stands in for the block styles while the selection is in a table. */
+    private val tableGroups =
+        listOf(
+            // a touch keyboard has no Tab
+            listOf(
+                tableAction(MarkdownToolbarAction.PreviousCell, "Previous cell", R.drawable.ic_md_keyboard_tab_back_24),
+                tableAction(MarkdownToolbarAction.NextCell, "Next cell", R.drawable.ic_md_keyboard_tab_24),
+                tableAction(MarkdownToolbarAction.NextRow, "Next row", R.drawable.ic_md_keyboard_return_24),
+            ),
+            listOf(
+                tableAction(MarkdownToolbarAction.RowAbove, "Insert row above", R.drawable.ic_md_row_above_24),
+                tableAction(MarkdownToolbarAction.RowBelow, "Insert row below", R.drawable.ic_md_row_below_24),
+                tableAction(MarkdownToolbarAction.ColumnLeft, "Insert column left", R.drawable.ic_md_column_left_24),
+                tableAction(MarkdownToolbarAction.ColumnRight, "Insert column right", R.drawable.ic_md_column_right_24),
+            ),
+            listOf(
+                tableAction(MarkdownToolbarAction.DeleteRow, "Delete row", R.drawable.ic_md_row_remove_24),
+                tableAction(MarkdownToolbarAction.DeleteColumn, "Delete column", R.drawable.ic_md_column_remove_24),
+            ),
+            listOf(
+                tableAction(MarkdownToolbarAction.AlignLeft, "Align left", R.drawable.ic_md_format_align_left_24, true),
+                tableAction(MarkdownToolbarAction.AlignCenter, "Align center", R.drawable.ic_md_format_align_center_24, true),
+                tableAction(MarkdownToolbarAction.AlignRight, "Align right", R.drawable.ic_md_format_align_right_24, true),
             ),
         )
     private val defaultActions =
@@ -131,6 +166,7 @@ class MarkdownToolbarView(
     private val buttons = mutableMapOf<ToolbarAction, MaterialButton>()
     private var orderedActions = mutableListOf<ToolbarAction>()
     private var enabledActions = mutableSetOf<ToolbarAction>()
+    private var inTable = false
 
     init {
         isVisible = false
@@ -138,6 +174,13 @@ class MarkdownToolbarView(
         loadPreferences()
         rebuild()
     }
+
+    private fun tableAction(
+        command: MarkdownToolbarAction,
+        label: String,
+        icon: Int,
+        checkable: Boolean = false,
+    ) = ToolbarAction(command, label, icon, ToolbarCategory.Table, checkable)
 
     private fun loadPreferences() {
         val savedSelection = prefs.getString(preferenceKey, null)
@@ -147,8 +190,10 @@ class MarkdownToolbarView(
             } else {
                 decodeActions(savedSelection).toMutableSet()
             }
-        val savedOrder = prefs.getString(orderKey, null)?.let(::decodeActions).orEmpty()
-        val completeOrder = (savedOrder + actions).distinct()
+        val savedOrder = prefs.getString(orderKey, null)?.let(::decodeActions)
+        // an action newer than the saved order starts as the defaults have it
+        if (savedOrder != null) enabledActions += defaultActions.filter { it !in savedOrder }
+        val completeOrder = (savedOrder.orEmpty() + actions).distinct()
         orderedActions =
             categories
                 .flatMap { category -> completeOrder.filter { it.category == category } }
@@ -176,8 +221,17 @@ class MarkdownToolbarView(
         val ptr = WorkspaceView.wgpuObj
         if (ptr == Long.MAX_VALUE || !editor.canForwardTouches()) return
         val state = Workspace.markdownToolbarState(ptr)
+        if (state.inTable != inTable) {
+            // rebuilding refreshes, by when the two agree
+            inTable = state.inTable
+            rebuild()
+            binding.actionScroll.scrollTo(0, 0)
+            return
+        }
         for ((action, control) in buttons) {
             val active = action.command in state.active
+            control.isEnabled = action.command !in state.disabled
+            control.alpha = if (control.isEnabled) 1f else 0.38f
             control.isChecked = active
             val color =
                 if (active) {
@@ -196,6 +250,9 @@ class MarkdownToolbarView(
                 )
             if (action.command == MarkdownToolbarAction.Heading) {
                 control.contentDescription = state.headingLevel?.let { "Heading level $it" } ?: action.label
+            }
+            if (action.command == MarkdownToolbarAction.DeleteRow) {
+                control.contentDescription = if (state.onHeader) "Delete table" else action.label
             }
         }
     }
@@ -217,6 +274,10 @@ class MarkdownToolbarView(
                 showPhotoMenu(anchor)
                 return@setOnClickListener
             }
+            if (action.command == MarkdownToolbarAction.Table) {
+                showTablePicker(anchor)
+                return@setOnClickListener
+            }
             val ptr = WorkspaceView.wgpuObj
             if (editor.canForwardTouches()) {
                 Workspace.markdownToolbarAction(ptr, action.command)
@@ -224,6 +285,31 @@ class MarkdownToolbarView(
                 editor.wrapperView?.requestFocus()
             }
         }
+    }
+
+    private fun showTablePicker(anchor: View) {
+        val picker = TableSizePickerView(context)
+        // not focusable: focus would take the keyboard, and the toolbar with it
+        val popup = PopupWindow(picker, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, false)
+        popup.isOutsideTouchable = true
+        popup.setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
+        popup.inputMethodMode = PopupWindow.INPUT_METHOD_NOT_NEEDED
+        popup.elevation = resources.displayMetrics.density * 8
+        picker.onCancel = { popup.dismiss() }
+        picker.onPick = { columns, rows ->
+            popup.dismiss()
+            val ptr = WorkspaceView.wgpuObj
+            if (editor.canForwardTouches()) {
+                Workspace.insertTable(ptr, columns, rows)
+                editor.invalidate()
+                editor.wrapperView?.requestFocus()
+            }
+        }
+        // over the button: under it is the keyboard
+        picker.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val at = IntArray(2).also(anchor::getLocationInWindow)
+        val gap = (8 * resources.displayMetrics.density).toInt()
+        popup.showAtLocation(anchor, Gravity.NO_GRAVITY, at[0], at[1] - picker.measuredHeight - gap)
     }
 
     private fun showPhotoMenu(anchor: View) {
@@ -246,17 +332,31 @@ class MarkdownToolbarView(
         binding.actionGroups.removeAllViews()
         buttons.clear()
         for (category in categories) {
-            val visibleActions = orderedActions.filter { it in enabledActions && it.category == category }
-            if (visibleActions.isEmpty()) continue
-            val group = connectedGroup()
-            for (action in visibleActions) {
-                val control = iconButton(group, action)
-                buttons[action] = control
-                group.addView(control)
+            // a table has no place for the block styles: the table set stands in for them
+            val blockStyles = category == ToolbarCategory.Lists || category == ToolbarCategory.Indentation
+            if (!(inTable && blockStyles)) {
+                addGroup(
+                    orderedActions.filter {
+                        it in enabledActions &&
+                            it.category == category &&
+                            !(inTable && it.command == MarkdownToolbarAction.Heading)
+                    },
+                )
             }
-            binding.actionGroups.addView(group)
+            if (inTable && category == ToolbarCategory.History) tableGroups.forEach(::addGroup)
         }
         refreshEditorState()
+    }
+
+    private fun addGroup(visibleActions: List<ToolbarAction>) {
+        if (visibleActions.isEmpty()) return
+        val group = connectedGroup()
+        for (action in visibleActions) {
+            val control = iconButton(group, action)
+            buttons[action] = control
+            group.addView(control)
+        }
+        binding.actionGroups.addView(group)
     }
 
     private fun showSettings() {

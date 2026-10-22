@@ -223,7 +223,7 @@ impl PdfViewer {
         let mut pages = host;
         let mut fit_width = host.width();
         if let Some(sidebar) = self.sidebar.as_ref().filter(|_| !self.compact) {
-            let id = Id::new("pdf_sidebar_open").with(self.id);
+            let id = Id::unique("pdf_sidebar_open").with(self.id);
             let shown = SIDEBAR_WIDTH * surface_motion(ui.ctx(), id, sidebar.is_visible).slide;
             if sidebar.is_visible {
                 fit_width -= SIDEBAR_WIDTH;
@@ -494,7 +494,7 @@ impl PdfViewer {
         let content_h = y - Space::Md.pts() + pad;
         let max_offset = (content_h - rect.height()).max(0.0);
 
-        let id = Id::new("pdf_sidebar").with(self.id);
+        let id = Id::unique("pdf_sidebar").with(self.id);
         let resp = ui.interact(clip, id, Sense::click_and_drag());
         let dt = ui.input(|i| i.stable_dt).min(0.1);
         let touch = ui.input(|i| i.any_touches());
@@ -658,9 +658,7 @@ impl PdfViewer {
 
         let t = ui.ctx().get_lb_theme();
         place_at(ui, rect, Layout::top_down(Align::Min), |ui| {
-            // egui lets scroll content paint a few points past its rect by default
-            ui.visuals_mut().clip_rect_margin = 0.0;
-            with_overlay_scroll(ui, Id::new("pdf_pages").with(self.id), |ui| {
+            with_overlay_scroll(ui, Id::unique("pdf_pages").with(self.id), |ui| {
                 // a rescale's anchor lands as an absolute offset the frame after,
                 // clamped against the new content size
                 let mut area = ScrollArea::both().animated(false);
@@ -752,7 +750,7 @@ impl PdfViewer {
                         .map(|t| t.0)
                         .unwrap_or_default();
                 });
-                ((), out.state.offset.y, out.id)
+                ((), out.state.clamped_offset().y, out.id)
             });
         });
     }

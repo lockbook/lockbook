@@ -65,8 +65,14 @@ impl<'ast> MdEdit {
         let mut response = buffer::Response::default();
         match event {
             Event::Select { region } => {
-                let range = self.region_to_range(region);
+                if self.table_select_edits(region, operations) {
+                    return response;
+                }
+                let range = self
+                    .extend_table_selection(region)
+                    .unwrap_or_else(|| self.region_to_range(region));
                 let range = self.renderer.snap_selection_out_of_fold_tags(range);
+                let range = self.renderer.snap_selection_into_table_cells(range);
                 operations.push(Operation::Select(range));
             }
             Event::Replace { region, text, advance_cursor } => {
@@ -75,6 +81,9 @@ impl<'ast> MdEdit {
                     // selecting a fold chip is just selecting a fold tag, but
                     // replacing it should delete folded content
                     range = self.renderer.grow_range_over_fold_contents(range);
+                }
+                if self.replace_in_table(range, &text, advance_cursor, operations) {
+                    return response;
                 }
                 operations.push(Operation::Replace(Replace { range, text }));
                 if advance_cursor {
@@ -92,6 +101,10 @@ impl<'ast> MdEdit {
                 response.open_camera = true;
             }
             Event::Newline { shift } => {
+                if self.newline_in_table(shift, operations) {
+                    return response;
+                }
+
                 // Enter after a `···` fold chip creates the new heading / list
                 // item after the hidden contents
                 let handled = !shift && self.newline_at_fold(root, operations);
@@ -205,6 +218,10 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                if self.delete_from_caret_at_table(region, operations) {
+                    return response;
+                }
+
                 // delete container block prefix
                 let mut handled = || {
                     // must be mostly vanilla backspace
@@ -256,6 +273,9 @@ impl<'ast> MdEdit {
                     }
 
                     let range = self.renderer.grow_delete_over_fold_tags(range);
+                    if self.delete_range_in_table(range, operations) {
+                        return response;
+                    }
                     operations.push(Operation::Replace(Replace { range, text: "".into() }));
                 }
 
@@ -263,6 +283,10 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Indent { deindent } => {
+                if self.indent_in_table(deindent, operations) {
+                    return response;
+                }
+
                 let selected_lines = self
                     .renderer
                     .bounds
@@ -455,9 +479,15 @@ impl<'ast> MdEdit {
                 // selecting a fold chip is just selecting a fold tag, but
                 // copying it should copy folded content
                 let range = self.renderer.grow_range_over_fold_contents(range);
+                let (range, text) = self
+                    .renderer
+                    .table_rows_clipboard()
+                    .unwrap_or_else(|| (range, self.renderer.buffer[range].into()));
 
-                ctx.copy_text(self.renderer.buffer[range].into());
-                operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                ctx.copy_text(text);
+                if !self.cut_range_in_table(range, operations) {
+                    operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                }
             }
             Event::Copy => {
                 let range = if !current_selection.is_empty() {
@@ -466,8 +496,12 @@ impl<'ast> MdEdit {
                     self.clipboard_current_line()
                 };
                 let range = self.renderer.grow_range_over_fold_contents(range);
+                let text = match self.renderer.table_rows_clipboard() {
+                    Some((_, text)) => text,
+                    None => self.renderer.buffer[range].into(),
+                };
 
-                ctx.copy_text(self.renderer.buffer[range].into());
+                ctx.copy_text(text);
             }
             Event::ToggleDebug => {
                 self.renderer.debug = !self.renderer.debug;
@@ -531,6 +565,16 @@ impl<'ast> MdEdit {
                     self.enter_at_link(root, operations);
                 }
             }
+            Event::Table(action) => {
+                if !self.renderer.readonly && !self.renderer.plaintext {
+                    self.table_action(root, action, operations);
+                }
+            }
+            Event::PasteGrid(grid) => {
+                if !self.renderer.readonly && !self.renderer.plaintext {
+                    self.paste_grid(root, &grid, operations);
+                }
+            }
         }
 
         response
@@ -571,7 +615,7 @@ impl<'ast> MdEdit {
 
                 let mut handled = false;
                 for node in root.descendants() {
-                    if self.renderer.selected_block(node) {
+                    if self.renderer.table_styled_whole(node) {
                         handled = true;
 
                         // apply heading to ATX heading: replace existing heading
@@ -643,22 +687,29 @@ impl<'ast> MdEdit {
                                 }
                             }
                         } else {
-                            // remove target prefix regardless (will often be empty / supports replacements)
+                            // a block of the target style's kind gives up its prefix
+                            // (type change / unapply); a list's marker lives on its item
                             // todo: space between selected nodes?
-                            let target_node = if node.is_container_block() {
-                                node
-                            } else {
-                                node.parent().unwrap()
-                            };
-                            for line_idx in self.renderer.node_lines(node).iter() {
-                                let line = self.renderer.bounds.source_lines[line_idx];
+                            let target_node = kind_ancestor(node, &style).map(|ancestor| {
+                                if matches!(ancestor.node_type(), NodeValue::List(_)) {
+                                    node.ancestors()
+                                        .find(|n| n.parent().is_some_and(|p| p.same_node(ancestor)))
+                                        .unwrap_or(ancestor)
+                                } else {
+                                    ancestor
+                                }
+                            });
+                            if let Some(target_node) = target_node {
+                                for line_idx in self.renderer.node_lines(node).iter() {
+                                    let line = self.renderer.bounds.source_lines[line_idx];
 
-                                let prefix = self.renderer.line_own_prefix(target_node, line);
+                                    let prefix = self.renderer.line_own_prefix(target_node, line);
 
-                                operations.push(Operation::Replace(Replace {
-                                    range: prefix,
-                                    text: "".into(),
-                                }));
+                                    operations.push(Operation::Replace(Replace {
+                                        range: prefix,
+                                        text: "".into(),
+                                    }));
+                                }
                             }
 
                             if !unapply {
@@ -676,11 +727,20 @@ impl<'ast> MdEdit {
                                         continue;
                                     }
 
-                                    let range = self
-                                        .renderer
-                                        .line_ancestors_prefix(node, line)
-                                        .end()
-                                        .into_range();
+                                    // where the prefix came out, else just inside
+                                    // the deepest container
+                                    let range = match target_node {
+                                        Some(target) => {
+                                            self.renderer.line_own_prefix(target, line).start()
+                                        }
+                                        None if node.is_container_block() => {
+                                            self.renderer.line_own_prefix(node, line).end()
+                                        }
+                                        None => {
+                                            self.renderer.line_ancestors_prefix(node, line).end()
+                                        }
+                                    }
+                                    .into_range();
                                     let text = match style {
                                         NodeValue::Heading(_) => unreachable!(),
                                         NodeValue::BlockQuote => "> ",
@@ -841,22 +901,10 @@ impl<'ast> MdEdit {
             if self.renderer.selected_block(node) {
                 any_selected_blocks = true;
 
-                // Walk up the ancestor chain: the selected block (a leaf
-                // like Paragraph, or its immediate container) may sit
-                // several levels below the structural container that
-                // bears the toggled style. `* foo` has `List > Item >
-                // Paragraph` — the bullet style lives on `List`, two
-                // levels above the selected Paragraph.
-                let mut maybe = if node.is_container_block() { Some(node) } else { node.parent() };
-                while let Some(ancestor) = maybe {
-                    let ancestor_type = ancestor.node_type();
-                    if std::mem::discriminant(&ancestor_type) == std::mem::discriminant(style) {
-                        if &ancestor_type == style {
-                            unapply = true;
-                        }
-                        break;
+                if let Some(ancestor) = kind_ancestor(node, style) {
+                    if &ancestor.node_type() == style {
+                        unapply = true;
                     }
-                    maybe = ancestor.parent();
                 }
             }
         }
@@ -1207,6 +1255,22 @@ pub fn distance(coord: f32, range: Rangef) -> f32 {
     }
 }
 
+/// Nearest container at or above `node` of `style`'s kind: the list for
+/// any list style, the quote for a quote. A leaf's walk starts at its
+/// parent; `* foo` is `List > Item > Paragraph`, bullet style on `List`.
+fn kind_ancestor<'ast>(
+    node: &'ast AstNode<'ast>, style: &NodeValue,
+) -> Option<&'ast AstNode<'ast>> {
+    let mut maybe = if node.is_container_block() { Some(node) } else { node.parent() };
+    while let Some(ancestor) = maybe {
+        if std::mem::discriminant(&ancestor.node_type()) == std::mem::discriminant(style) {
+            return Some(ancestor);
+        }
+        maybe = ancestor.parent();
+    }
+    None
+}
+
 /// Buffer edit that deindents `line` past `ancestor`, or `None`.
 /// Items/TaskItems/FootnoteDefinitions nest via whitespace: rewrite
 /// the indent run minus one level's columns (tabs expand to spaces).
@@ -1492,6 +1556,8 @@ impl NodeType for NodeValue {
             }
             NodeValue::Math(_) => NodeValue::Math(Default::default()),
             NodeValue::MultilineBlockQuote(_) => NodeValue::MultilineBlockQuote(Default::default()),
+            NodeValue::BlockDirective(_) => NodeValue::BlockDirective(Default::default()),
+            NodeValue::MultilineComment(_) => NodeValue::MultilineComment(Default::default()),
             NodeValue::Escaped => NodeValue::Escaped,
             NodeValue::WikiLink(_) => NodeValue::WikiLink(Default::default()),
             NodeValue::Underline => NodeValue::Underline,
@@ -1509,6 +1575,8 @@ impl NodeType for NodeValue {
                 }
                 .into(),
             ),
+            NodeValue::Insert => NodeValue::Insert,
+            NodeValue::CommentInline(_) => NodeValue::CommentInline(Default::default()),
             NodeValue::Subtext => NodeValue::Subtext,
         }
     }

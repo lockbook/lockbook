@@ -1,8 +1,11 @@
-//! Drag-to-reorder for list items. A per-frame [`BlockBox`] index is
-//! filled during the render DFS and read for hit-testing.
+//! Drag-to-reorder for list items, and for a table's body rows and its
+//! columns. A per-frame [`BlockBox`] index is filled during the render DFS
+//! and read for hit-testing.
 //!
-//! Reorder is sibling-only (same parent `List`); release rewrites the
-//! sibling run as a single text op via [`MdRender::plan_block_move`].
+//! Reorder is sibling-only (same parent `List`, or same table); release
+//! rewrites the sibling run as a single text op via
+//! [`MdRender::plan_block_move`], or moves the row or column via
+//! [`MdEdit::move_table_part`].
 
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{CursorIcon, Pos2, Rect, Ui, Vec2};
@@ -33,25 +36,40 @@ pub enum TouchReorder {
     Armed { last: Pos2 },
 }
 
+/// What a drag reorders.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DragUnit {
+    #[default]
+    Item,
+    /// A body row of a table.
+    Row,
+    /// A table's column, by index. It is dragged along the row.
+    Column(usize),
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct BlockBox {
     /// Item's source range (includes nested children).
     pub node_range: (Grapheme, Grapheme),
     pub rect: Rect,
-    /// Start of the parent `List`; two items are reorder siblings iff
-    /// their `parent_start` matches.
+    /// Start of the parent `List`, or of a row's table (see
+    /// [`MdRender::table_key`]); two units are reorder siblings iff their
+    /// `parent_start` matches.
     pub parent_start: Grapheme,
+    pub unit: DragUnit,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct BlockDrag {
-    /// Full dragged span — one item, or several selected siblings.
+    /// Full dragged span — one item, or several selected siblings; one
+    /// row; or a column's header cell.
     pub section_range: (Grapheme, Grapheme),
     pub grabbed: (Grapheme, Grapheme),
     pub parent_start: Grapheme,
     /// Pointer minus the section's top-left at grab time. Scroll-
     /// invariant, so `pointer - grab_offset` tracks the floating card.
     pub grab_offset: Vec2,
+    pub unit: DragUnit,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,7 +77,8 @@ pub struct DropGap {
     pub insert_offset: Grapheme,
     /// Gap index among siblings (0 = before first item).
     pub gap_index: usize,
-    pub y: i32,
+    /// Where the gap is along the drag: its y, or for a column its x.
+    pub at: i32,
 }
 
 impl<'ast> MdRender {
@@ -99,11 +118,11 @@ impl<'ast> MdRender {
     }
 
     pub fn push_block_box(
-        &mut self, node: &'ast AstNode<'ast>, rect: Rect, parent_start: Grapheme,
+        &mut self, node: &'ast AstNode<'ast>, rect: Rect, parent_start: Grapheme, unit: DragUnit,
     ) {
         let node_range = self.node_range(node);
         self.block_boxes
-            .push(BlockBox { node_range, rect, parent_start });
+            .push(BlockBox { node_range, rect, parent_start, unit });
     }
 
     /// Shared by `show_item` (marker rect) and `show_task_item`
@@ -115,13 +134,42 @@ impl<'ast> MdRender {
         if self.readonly || !self.interactive || !self.is_reorderable_item(node) {
             return;
         }
-        let pointer = ui.input(|i| i.pointer.latest_pos());
         let dragging_this = {
             let r = self.node_range(node);
             self.in_progress_block_drag.is_some_and(|d| {
-                d.section_range.start() <= r.start() && r.end() <= d.section_range.end()
+                d.unit == DragUnit::Item
+                    && d.section_range.start() <= r.start()
+                    && r.end() <= d.section_range.end()
             })
         };
+        let fallback = resp.rect.left_top();
+        self.handle_drag_resp(ui, resp, dragging_this, |r, origin| {
+            let parent_start = r.node_range(node.parent()?).start();
+            let section_range = r.drag_span(node);
+            // Anchor on the section's top-left so multi-item drags keep
+            // the grabbed item under the cursor. DFS top-to-bottom fill
+            // means every in-span box is indexed by now.
+            let span_top_left = r
+                .section_rect(section_range)
+                .map(|r| r.left_top())
+                .unwrap_or(fallback);
+            Some(BlockDrag {
+                section_range,
+                grabbed: r.node_range(node),
+                parent_start,
+                grab_offset: origin - span_top_left,
+                unit: DragUnit::Item,
+            })
+        });
+    }
+
+    /// Translates a drag handle's response into a drag action and sets the
+    /// cursor icon. `start` makes the drag from where the pointer went down.
+    pub fn handle_drag_resp(
+        &mut self, ui: &mut Ui, resp: &egui::Response, dragging_this: bool,
+        start: impl FnOnce(&Self, Pos2) -> Option<BlockDrag>,
+    ) {
+        let pointer = ui.input(|i| i.pointer.latest_pos());
         let active = resp.hovered() || dragging_this;
         if active {
             let grabbing = resp.dragged() || dragging_this;
@@ -130,24 +178,13 @@ impl<'ast> MdRender {
             });
         }
         if resp.drag_started() {
-            let origin = pointer.unwrap_or(resp.rect.center());
-            let Some(parent) = node.parent() else { return };
-            let parent_start = self.node_range(parent).start();
-            let section_range = self.drag_span(node);
-            // Anchor on the section's top-left so multi-item drags keep
-            // the grabbed item under the cursor. DFS top-to-bottom fill
-            // means every in-span box is indexed by now.
-            let span_top_left = self
-                .section_rect(section_range)
-                .map(|r| r.left_top())
-                .unwrap_or(resp.rect.left_top());
-            let grab_offset = origin - span_top_left;
-            self.block_drag_action = Some(BlockDragAction::Started(BlockDrag {
-                section_range,
-                grabbed: self.node_range(node),
-                parent_start,
-                grab_offset,
-            }));
+            // where the press began: the pointer has moved since
+            let origin = ui.input(|i| i.pointer.press_origin());
+            let origin = origin.or(pointer).unwrap_or(resp.rect.center());
+            if let Some(drag) = start(self, origin) {
+                self.block_drag_action = Some(BlockDragAction::Started(drag));
+                crate::style::context_menu::close(ui.ctx());
+            }
         } else if resp.drag_stopped() {
             if let Some(p) = pointer {
                 self.block_drag_action = Some(BlockDragAction::Released(p));
@@ -162,9 +199,14 @@ impl<'ast> MdRender {
     /// Single-item drag for the reorderable list item under `pos` — the
     /// touch long-press path. `None` if `pos` isn't over an item that has
     /// a reorder sibling. The innermost (smallest) box wins, so a press on
-    /// a nested item reorders it among its own siblings. Multi-select drag
-    /// stays desktop-only.
+    /// a nested item reorders it among its own siblings, and one on a
+    /// table's body row reorders the row. A table's header row stays where
+    /// it is: a press on one of its cells reorders the column. Multi-select
+    /// drag stays desktop-only.
     pub fn touch_reorder_target(&self, pos: Pos2) -> Option<BlockDrag> {
+        if let Some(header_cell) = self.table_header_cell_at(pos) {
+            return self.table_column_drag(header_cell, pos);
+        }
         let area = |b: &BlockBox| b.rect.width() * b.rect.height();
         let b = self
             .block_boxes
@@ -182,6 +224,7 @@ impl<'ast> MdRender {
             grabbed: b.node_range,
             parent_start: b.parent_start,
             grab_offset: pos - b.rect.left_top(),
+            unit: b.unit,
         })
     }
 
@@ -199,6 +242,9 @@ impl<'ast> MdRender {
     /// Drop gap nearest the dragged item's translated top within its
     /// sibling group. `None` if hovering the item's own slot (cancel).
     pub fn drop_gap_for(&self, drag: &BlockDrag, pointer: Pos2) -> Option<DropGap> {
+        if let DragUnit::Column(column) = drag.unit {
+            return self.table_column_drop_gap(drag, column, pointer);
+        }
         let mut units: Vec<BlockBox> = self
             .block_boxes
             .iter()
@@ -238,8 +284,10 @@ impl<'ast> MdRender {
             return None;
         }
 
-        // Indicator y sits in the visual middle of the inter-item gap.
-        let pad = self.layout.block_spacing / 2.0;
+        // Indicator y sits in the visual middle of the inter-item gap. A
+        // table's rows have no gap between them.
+        let spacing = if drag.unit == DragUnit::Row { 0.0 } else { self.layout.block_spacing };
+        let pad = spacing / 2.0;
         let prev = to.checked_sub(1).map(|i| others[i]);
         let next = others.get(to).copied();
         let y = match (prev, next) {
@@ -256,7 +304,7 @@ impl<'ast> MdRender {
             .iter()
             .filter(|u| u.node_range.start() < insert_offset)
             .count();
-        Some(DropGap { insert_offset, gap_index, y: y as i32 })
+        Some(DropGap { insert_offset, gap_index, at: y as i32 })
     }
 }
 

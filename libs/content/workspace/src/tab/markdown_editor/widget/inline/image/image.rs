@@ -123,9 +123,17 @@ impl<'ast> MdRender {
             .ancestors()
             .skip(1)
             .find(|a| a.data.borrow().value.is_leaf_block())?;
-        let width = self.width(block_ancestor);
+        let mut width = self.width(block_ancestor);
+        let in_cell = matches!(block_ancestor.data.borrow().value, NodeValue::TableCell);
+        if in_cell {
+            width = (width - 2.0 * self.layout.block_padding).max(0.0);
+        }
         let texture_size = self.embeds.size(&url);
-        let size = self.image_size(texture_size, width, self.image_dims(node));
+        let mut size = self.image_size(texture_size, width, self.image_dims(node));
+        // a size asked for by name fits the viewport; in a cell it fits the cell
+        if in_cell && size.x > width {
+            size *= width / size.x;
+        }
         (size.x > 0.0 && size.y > 0.0).then_some(size)
     }
 
@@ -166,7 +174,7 @@ impl<'ast> MdRender {
     /// [`Self::link_interaction_id_salt`] so the collapsed-image and
     /// revealed-link handlers don't collide.
     pub fn image_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
-        egui::Id::new(("md_image", node_range))
+        egui::Id::unique(("md_image", node_range))
     }
 
     /// Recompute [`super::super::super::bounds::Bounds::images`] — the source
@@ -208,7 +216,11 @@ impl<'ast> MdEdit {
         &mut self, root: &'ast AstNode<'ast>, node: &'ast AstNode<'ast>, ui: &egui::Ui,
         id: egui::Id, ops: &mut Vec<Operation>, url: &str, salt: egui::Id, open: bool,
     ) {
-        let response = match self.renderer.interaction_responses.get(&ui.id().with(salt)) {
+        let response = match self
+            .renderer
+            .interaction_responses
+            .get(&ui.scope_id().with(salt))
+        {
             Some(r) => r.clone(), // clone to release the `renderer` borrow
             None => return,
         };
@@ -220,7 +232,7 @@ impl<'ast> MdEdit {
             Event::Select { region: node_range.into() }
         };
         self.renderer
-            .touch_consume_interaction(ui.id().with(salt), TouchTarget::Tap(tap));
+            .touch_consume_interaction(ui.scope_id().with(salt), TouchTarget::Tap(tap));
 
         if open && response.hovered() {
             ui.ctx()

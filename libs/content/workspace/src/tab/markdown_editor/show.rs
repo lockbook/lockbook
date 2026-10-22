@@ -14,7 +14,10 @@
 
 use comrak::Arena;
 use egui::os::OperatingSystem;
-use egui::{Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, ViewportCommand};
+use egui::{
+    Context, EventFilter, Id, ImeEvent, Key, Pos2, Rect, Sense, Stroke, Ui, UiBuilder,
+    ViewportCommand,
+};
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
@@ -23,11 +26,11 @@ use crate::tab::markdown_editor::ScrollTarget;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
-use super::MdEdit;
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
-use super::widget::block::drag::{BlockBox, BlockDragAction, TouchReorder};
+use super::widget::block::drag::{BlockBox, BlockDragAction, DragUnit, TouchReorder};
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
+use super::{ImeMarked, MdEdit, MdRender};
 
 #[derive(Clone)]
 enum EditorMenuCmd {
@@ -35,6 +38,7 @@ enum EditorMenuCmd {
     Cut,
     Copy,
     Paste,
+    PasteTable,
 }
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
@@ -65,12 +69,23 @@ impl MdEdit {
 
         // Deferred block reorder
         let move_resp = match self.pending_block_move.take() {
-            Some((section_range, insert_offset)) => self.move_block(section_range, insert_offset),
+            Some((drag, insert_offset)) => match drag.unit {
+                DragUnit::Item => self.move_block(drag.section_range, insert_offset),
+                DragUnit::Row | DragUnit::Column(_) => self.move_table_part(drag, insert_offset),
+            },
             None => buffer::Response::default(),
         };
 
+        if focused {
+            self.defer_input_after_ime(ctx);
+        } else {
+            self.renderer.ime_marked = None;
+            self.ime_abandoned = None;
+            self.deferred_input.clear();
+        }
+
         let arena = Arena::new();
-        let root = self.renderer.reparse(&arena);
+        let mut root = self.renderer.reparse(&arena);
 
         // Completion popups: update active state, then give them first dibs on
         // Up/Down/Enter/Cmd+num via `consume_key` so this function's keyboard
@@ -128,11 +143,43 @@ impl MdEdit {
             };
             let key_events: Vec<egui::Event> = ctx.input(|r| r.filtered_events(&filter));
             for e in key_events {
+                if let egui::Event::Ime(ime) = e {
+                    if self.renderer.readonly {
+                        continue;
+                    }
+                    // the keys before it land first
+                    self.renderer.buffer.queue(std::mem::take(&mut ops));
+                    let resp = self.renderer.buffer.update();
+                    if resp.text_updated {
+                        self.renderer.bump_text_seq();
+                    }
+                    direct_resp |= resp;
+                    direct_resp |= self.apply_ime(ime);
+                    root = self.renderer.reparse(&arena);
+                    continue;
+                }
+                if self.ime_marked_range().is_some() && ime_owns(&e) {
+                    continue;
+                }
+                // input of its own means the input method let go of what it abandoned
+                if matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Text(_)) {
+                    self.ime_abandoned = None;
+                }
                 if let Some(edit_event) = self.translate_egui_keyboard_event(e, root) {
                     undo_redo |= matches!(edit_event, Event::Undo | Event::Redo);
                     direct_resp |= self.calc_operations(ctx, root, edit_event, &mut ops);
                 }
             }
+        }
+
+        // a key puts a handle's menu away; a click does so on its own
+        let typed = ctx.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Text(_)))
+        });
+        if typed {
+            crate::style::context_menu::close(ctx);
         }
 
         self.renderer.buffer.queue(ops);
@@ -147,6 +194,7 @@ impl MdEdit {
 
         let edited = buf_resp.text_updated || buf_resp.selection_user_moved;
         buf_resp |= self.unfold_after_edit(&arena, edited, undo_redo);
+        buf_resp |= self.rehome_table_caret(undo_redo);
 
         // An entered atom stays revealed only while the selection remains
         // within it; the range is re-resolved against the (possibly edited)
@@ -174,8 +222,124 @@ impl MdEdit {
         if buf_resp.text_updated || buf_resp.selection_user_moved {
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
         }
+        self.renderer.caret_moved |= buf_resp.selection_user_moved;
 
         buf_resp
+    }
+
+    /// Desktop IME composition: the preedit sits in the buffer as the marked
+    /// range, which each update and the commit replace, undoing as one edit.
+    fn apply_ime(&mut self, ime: ImeEvent) -> buffer::Response {
+        let (text, marked) = match ime {
+            ImeEvent::Preedit { text: t, .. } | ImeEvent::Commit(t) if t == "\n" || t == "\r" => {
+                return buffer::Response::default();
+            }
+            // an empty preedit is a cancelled composition, which drops it
+            ImeEvent::Preedit { text, .. } => (text, true),
+            ImeEvent::Commit(t) => (t, false),
+            _ => return buffer::Response::default(),
+        };
+        let composing = self.ime_marked_range();
+        // an interrupted input method may resend the composition the caret
+        // left before clearing it; ignoring both keeps its text as typed and
+        // the caret where it went
+        if let Some(abandoned) = self.ime_abandoned.take() {
+            if text.is_empty() || text == abandoned {
+                if marked && !text.is_empty() {
+                    self.ime_abandoned = Some(abandoned);
+                }
+                return buffer::Response::default();
+            }
+        }
+        let region = match composing {
+            Some(range) => Region::from(range),
+            None if text.is_empty() => return buffer::Response::default(),
+            None => Region::Selection,
+        };
+        let sel = self.renderer.buffer.current.selection;
+        let start = composing.map_or(sel.0.min(sel.1), |range| range.0);
+        let event = Event::Replace { region, text, advance_cursor: true };
+        let resp = self.apply_platform(event, true);
+
+        let buffer = &self.renderer.buffer;
+        let range = (start, buffer.current.selection.1);
+        self.renderer.ime_marked = (marked && range.1 > range.0).then(|| ImeMarked {
+            range,
+            text: buffer[range].to_string(),
+            seq: buffer.current.seq,
+        });
+        resp
+    }
+
+    /// Leaves this frame's input through its first IME edit, ahead of any
+    /// input deferred from the frame before; the rest waits a frame.
+    fn defer_input_after_ime(&mut self, ctx: &Context) {
+        let mut events = std::mem::take(&mut self.deferred_input);
+        ctx.input_mut(|i| {
+            events.append(&mut i.events);
+            // winit on macOS clears the preedit just before committing; the
+            // commit replaces it instead, so the composition stays one edit
+            let commits =
+                |e: Option<&egui::Event>| matches!(e, Some(egui::Event::Ime(ImeEvent::Commit(_))));
+            let mut n = 0;
+            while n < events.len() {
+                if matches!(&events[n], egui::Event::Ime(ImeEvent::Preedit { text, .. }) if text.is_empty())
+                    && commits(events.get(n + 1))
+                {
+                    events.remove(n);
+                } else {
+                    n += 1;
+                }
+            }
+            let edit = events
+                .iter()
+                .position(|e| matches!(e, egui::Event::Ime(_)));
+            let later = edit.map(|n| events.split_off(n + 1)).unwrap_or_default();
+            let (keyboard, other): (Vec<_>, Vec<_>) = later.into_iter().partition(|e| {
+                matches!(
+                    e,
+                    egui::Event::Key { .. }
+                        | egui::Event::Text(_)
+                        | egui::Event::Ime(_)
+                        | egui::Event::Paste(_)
+                        | egui::Event::Copy
+                        | egui::Event::Cut
+                )
+            });
+            events.extend(other);
+            i.events = events;
+            self.deferred_input = keyboard;
+        });
+        if !self.deferred_input.is_empty() {
+            ctx.request_repaint();
+        }
+    }
+
+    /// The composition's range, mapped through any edits since it was
+    /// written; dropped (its text left as typed) once an edit touched it or
+    /// the caret left its end.
+    fn ime_marked_range(&mut self) -> Option<(Grapheme, Grapheme)> {
+        let renderer = &mut self.renderer;
+        let marked = renderer.ime_marked.as_mut()?;
+        let buffer = &renderer.buffer;
+        let mut range = marked.range;
+        let intact = marked.seq <= buffer.current.seq
+            && buffer.transform_range(marked.seq, &mut range)
+            && range.1 <= buffer.current.segs.last_cursor_position()
+            && buffer[range] == marked.text;
+        let caret_left = buffer.current.selection != (range.1, range.1);
+        if intact && !caret_left {
+            marked.range = range;
+            marked.seq = buffer.current.seq;
+            Some(range)
+        } else {
+            if intact {
+                self.ime_abandoned = Some(marked.text.clone());
+            }
+            renderer.ime_marked = None;
+            self.ime_reset = true;
+            None
+        }
     }
 
     /// Apply an edit from a platform text system (UIKit) now, outside the
@@ -205,9 +369,11 @@ impl MdEdit {
         // applied here, before that frame sees anything to unfold for.
         let edited = resp.text_updated || resp.selection_user_moved;
         resp |= self.unfold_after_edit(&arena, edited, undo_redo);
+        resp |= self.rehome_table_caret(undo_redo);
         if reveal && (resp.text_updated || resp.selection_user_moved) {
             self.pending_scroll = Some(ScrollTarget::Cursor);
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
+            self.renderer.caret_moved |= resp.selection_user_moved;
         }
         ctx.request_repaint();
         resp
@@ -277,10 +443,13 @@ impl MdEdit {
 
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
+        self.renderer.table_cell_boxes.clear();
+        self.renderer.table_header_slots.clear();
         self.renderer.in_progress_block_drag = self.in_progress_block_drag;
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
+        self.renderer.table_fades.clear();
         self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
@@ -442,7 +611,7 @@ impl MdEdit {
                 if let Some(drag) = self.in_progress_block_drag.take() {
                     if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
                         // deferred move (applied next frame in `handle_input`)
-                        self.pending_block_move = Some((drag.section_range, gap.insert_offset));
+                        self.pending_block_move = Some((drag, gap.insert_offset));
                         ui.ctx().request_repaint();
                     }
                 }
@@ -497,8 +666,13 @@ impl MdEdit {
     ) {
         let Some(drag) = self.in_progress_block_drag else { return };
         let Some(p) = self.drag_pointer(ui) else { return };
+        if let DragUnit::Column(column) = drag.unit {
+            return self.draw_dragged_column(ui, root, drag, column, p);
+        }
         let theme = self.renderer.ctx.get_lb_theme();
         let primary = theme.bg().get_color(theme.prefs().primary);
+        // a table's rows touch: nothing of one reaches past its rect
+        let is_row = drag.unit == DragUnit::Row;
 
         // Drop-gap indicator: soft capsule with a hollow leading dot.
         if let Some(gap) = self.renderer.drop_gap_for(&drag, p) {
@@ -513,7 +687,7 @@ impl MdEdit {
             if x0 <= x1 {
                 // Start in the gutter so the dot isn't hidden by markers.
                 let x0 = x0 - self.renderer.layout.indent;
-                let y = gap.y as f32;
+                let y = gap.at as f32;
                 let dot = 4.0;
                 let half = 1.25;
                 let painter = ui.painter();
@@ -538,7 +712,7 @@ impl MdEdit {
         let Some(src_rect) = self.renderer.section_rect(drag.section_range) else { return };
         // Vertical pad covers content that overflows the section rect
         // (taller cursor row, code/spoiler outlines).
-        let vpad = self.renderer.layout.block_spacing / 2.0;
+        let vpad = if is_row { 0.0 } else { self.renderer.layout.block_spacing / 2.0 };
         let card_rect = src_rect.expand2(egui::Vec2::new(0.0, vpad));
         let hole = src_rect.expand2(egui::Vec2::new(0.0, vpad));
 
@@ -569,11 +743,7 @@ impl MdEdit {
             egui::epaint::StrokeKind::Inside,
         );
 
-        // Re-draw the span translated; submit a second callback above
-        // the main text. Discard the fragments/block_boxes the float
-        // produces — keeping them would corrupt hit-testing.
-        let frag_len = self.renderer.fragments.len();
-        let box_len = self.renderer.block_boxes.len();
+        // Re-draw the span translated.
         let section = drag.section_range;
         // Top-most items in the span; descendants paint via `show_block`.
         let in_span: Vec<BlockBox> = self
@@ -596,17 +766,35 @@ impl MdEdit {
             })
             .map(|b| (b.rect, b.node_range))
             .collect();
-        self.renderer.painting_drag_float = true;
-        ui.push_id("md_block_drag_float", |ui| {
+        // a row shows what its table showed of it, scrolled as the table is
+        let scrolled = self.renderer.table_scrolled(drag.parent_start);
+        let scrolled = egui::Vec2::new(if is_row { scrolled } else { 0.0 }, 0.0);
+        self.paint_drag_float(ui, root, |r, ui| {
+            let mut row_ui = ui.new_child(UiBuilder::new().max_rect(card));
+            row_ui.set_clip_rect(card.intersect(ui.clip_rect()));
+            let ui = if is_row { &mut row_ui } else { ui };
             for (rect, nr) in &constituents {
-                if let Some(node) = root
-                    .descendants()
-                    .find(|n| self.renderer.node_range(n) == *nr)
-                {
-                    self.renderer.show_block(ui, node, rect.min + offset);
+                if let Some(node) = root.descendants().find(|n| r.node_range(n) == *nr) {
+                    r.show_block(ui, node, rect.min + offset - scrolled);
                 }
             }
         });
+    }
+
+    /// Paints what `float` draws — part of the document, again, where it
+    /// is dragged to — as a second callback above the main text. Discards
+    /// the fragments and boxes it leaves: keeping them would corrupt
+    /// hit-testing.
+    pub(crate) fn paint_drag_float<'a>(
+        &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>,
+        float: impl FnOnce(&mut MdRender, &mut Ui),
+    ) {
+        let frag_len = self.renderer.fragments.len();
+        let box_len = self.renderer.block_boxes.len();
+        let cell_box_len = self.renderer.table_cell_boxes.len();
+        let header_slot_len = self.renderer.table_header_slots.len();
+        self.renderer.painting_drag_float = true;
+        ui.push_id("md_block_drag_float", |ui| float(&mut self.renderer, ui));
         self.renderer.painting_drag_float = false;
         // Favicons paint in a separate pass over `fragments`; the float's
         // capsules live in `fragments[frag_len..]`, so re-run that pass
@@ -617,6 +805,8 @@ impl MdEdit {
         let floating_deco = std::mem::take(&mut self.renderer.deco_lines);
         self.renderer.fragments.truncate(frag_len);
         self.renderer.block_boxes.truncate(box_len);
+        self.renderer.table_cell_boxes.truncate(cell_box_len);
+        self.renderer.table_header_slots.truncate(header_slot_len);
 
         if !floating_text.is_empty() {
             ui.painter()
@@ -688,7 +878,7 @@ impl MdEdit {
                     .and_then(|pos| self.link_target_at_pos(root, pos));
             }
             let link_target = self.context_menu_link.clone();
-            let readonly = self.renderer.readonly;
+            let (readonly, plaintext) = (self.renderer.readonly, self.renderer.plaintext);
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
                 if let Some(link) = &link_target {
@@ -702,6 +892,9 @@ impl MdEdit {
                 e.item(phosphor::COPY, "Copy", EditorMenuCmd::Copy);
                 if !readonly {
                     e.item(phosphor::CLIPBOARD_TEXT, "Paste", EditorMenuCmd::Paste);
+                }
+                if !readonly && !plaintext {
+                    e.item(phosphor::TABLE, "Paste as table", EditorMenuCmd::PasteTable);
                 }
             });
             let mut menu_events: Vec<Event> = Vec::new();
@@ -732,9 +925,17 @@ impl MdEdit {
                         }
                     }
                 }
-                Some(EditorMenuCmd::Cut) => menu_events.push(Event::Cut),
+                // an edit, which is the next input pass's to make
+                Some(EditorMenuCmd::Cut) => {
+                    self.event.internal_events.push(Event::Cut);
+                    ui.ctx().request_repaint();
+                }
                 Some(EditorMenuCmd::Copy) => menu_events.push(Event::Copy),
                 Some(EditorMenuCmd::Paste) => {
+                    ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
+                }
+                Some(EditorMenuCmd::PasteTable) => {
+                    self.paste_as_table.set(Some(ui.ctx().input(|i| i.time)));
                     ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
                 }
                 None => {}
@@ -832,8 +1033,25 @@ impl MdEdit {
                 // iOS handles cursor placement via virtual-keyboard FFI
                 if !cfg!(target_os = "ios") {
                     if let Some(region) = region_opt {
-                        ui.memory_mut(|m| m.request_focus(id));
-                        self.calc_operations(ui.ctx(), root, Event::Select { region }, &mut ops);
+                        // requesting focus interrupts the input method, which on X11
+                        // resets it (fcitx5 back to English); a composition the click
+                        // leaves interrupts it anyway (see `ime_marked_range`)
+                        if !ui.memory(|m| m.has_focus(id)) {
+                            ui.memory_mut(|m| m.request_focus(id));
+                        }
+                        // a click that edits — on a cell its row lacks, or below
+                        // a trailing table — is the next input pass's to make
+                        if self.table_select_edits(region, &mut Vec::new()) {
+                            self.event.internal_events.push(Event::Select { region });
+                            ui.ctx().request_repaint();
+                        } else {
+                            self.calc_operations(
+                                ui.ctx(),
+                                root,
+                                Event::Select { region },
+                                &mut ops,
+                            );
+                        }
                     }
                 }
             }
@@ -844,13 +1062,16 @@ impl MdEdit {
         if pointer_resp.text_updated || pointer_resp.selection_user_moved {
             self.cursor_last_interact = Some(ui.ctx().input(|i| i.time));
         }
+        self.renderer.caret_moved |= pointer_resp.selection_user_moved;
         // Pointer only emits Select ops (no text change), so no re-parse
         // needed — but reveal must reflect the applied ops (and any
         // `entered_atom` a menu "Edit" set) in this frame's paint: iOS
         // queries geometry as soon as the change is reported.
         self.sync_reveal_selection(ui.ctx(), id, prior_entered_atom);
 
-        self.renderer.in_progress_selection = self.in_progress_selection;
+        self.renderer.in_progress_selection = self
+            .in_progress_selection
+            .map(|selection| self.renderer.snap_selection_into_table_cells(selection));
 
         // Reserved before block content so the highlight sits behind it;
         // see the `selection_shape` field.
@@ -876,6 +1097,7 @@ impl MdEdit {
         // cursor / selection — iOS draws natively
         if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {
             let selection = self
+                .renderer
                 .in_progress_selection
                 .unwrap_or(self.renderer.buffer.current.selection);
             let theme = self.renderer.ctx.get_lb_theme();
@@ -884,13 +1106,21 @@ impl MdEdit {
             // Fill the reserved slot so the highlight paints behind the
             // markers (drawn during block render); the cursor stays on top.
             let sel_color = color.lerp_to_gamma(theme.neutral_bg(), 0.7);
-            let shapes: Vec<egui::Shape> = self
-                .range_rects(selection)
-                .into_iter()
-                .map(|r| egui::Shape::rect_filled(r, 2.0, sel_color))
-                .collect();
+            let mut rects = self.range_rects(selection);
+            rects.extend(self.renderer.table_cell_rects_taken_whole(selection));
+            let highlight = |rects: &mut dyn Iterator<Item = Rect>| {
+                egui::Shape::Vec(
+                    rects
+                        .map(|r| egui::Shape::rect_filled(r, 2.0, sel_color))
+                        .collect(),
+                )
+            };
             ui.painter()
-                .set(pre.selection_shape, egui::Shape::Vec(shapes));
+                .set(pre.selection_shape, highlight(&mut rects.iter().copied()));
+            for (slot, row) in std::mem::take(&mut self.renderer.table_header_slots) {
+                let in_row = &mut rects.iter().copied().filter(|r| row.intersects(*r));
+                ui.painter().set(slot, highlight(in_row));
+            }
 
             let now = ui.ctx().input(|i| i.time);
             if self.in_progress_selection.is_some()
@@ -901,15 +1131,31 @@ impl MdEdit {
             let blink = focused.then(|| now - self.cursor_last_interact.unwrap_or(now));
             self.show_offset(ui, selection.1, theme.bright.get_color(theme.prefs().primary), blink);
             if focused {
-                if let Some([top, bot]) = self.cursor_line(selection.1) {
-                    let cursor_rect = Rect::from_min_max(top, bot);
+                // egui-winit disallows the IME without this, discarding a
+                // composition whose caret is off screen
+                let cursor = self
+                    .cursor_line(selection.1)
+                    .map(|[t, b]| Rect::from_min_max(t, b));
+                let cursor_rect = cursor.unwrap_or(rect);
+                // a composition this frame's click left ends now, so the input
+                // method lets go of it before the next key reaches it
+                if self.renderer.ime_marked.is_some() && self.ime_marked_range().is_none() {
+                    ui.ctx().request_repaint();
+                }
+                if !std::mem::take(&mut self.ime_reset) {
                     ui.output_mut(|o| {
-                        o.ime = Some(egui::output::IMEOutput { rect, cursor_rect });
+                        o.ime = Some(egui::output::IMEOutput {
+                            purpose: Default::default(),
+                            rect,
+                            cursor_rect,
+                            should_interrupt_composition: false,
+                        })
                     });
                 }
             }
         }
 
+        self.renderer.caret_moved = false;
         // FindMatch is consumed by the caller (it owns find state).
         if matches!(self.pending_scroll, Some(ScrollTarget::Cursor)) {
             self.pending_scroll = None;
@@ -948,6 +1194,10 @@ impl MdEdit {
                 ));
         }
 
+        // a scrolled table's rows fade out at an edge, text and all
+        for (rect, left, right) in std::mem::take(&mut self.renderer.table_fades) {
+            fade_x(ui.painter(), rect, left, right);
+        }
         // strikethroughs and underlines painted on top of text
         for deco in std::mem::take(&mut self.renderer.deco_lines) {
             ui.painter()
@@ -1070,4 +1320,34 @@ impl MdEdit {
 
         Some(Pos2 { x: (start_line[1].x + end_line[1].x) / 2., y: anchor_y })
     }
+}
+
+/// Keys an IME takes while it composes; shortcuts pass.
+fn ime_owns(event: &egui::Event) -> bool {
+    let egui::Event::Key { key, repeat, modifiers, .. } = event else { return false };
+    let edits = matches!(
+        key,
+        Key::Backspace
+            | Key::Delete
+            | Key::Enter
+            | Key::ArrowUp
+            | Key::ArrowDown
+            | Key::ArrowLeft
+            | Key::ArrowRight
+    );
+    !modifiers.command && !modifiers.ctrl && (*repeat || edits)
+}
+
+/// Paints `rect` from `left` at its left edge to `right` at its right.
+pub(crate) fn fade_x(
+    painter: &egui::Painter, rect: Rect, left: egui::Color32, right: egui::Color32,
+) {
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(rect.left_top(), left);
+    mesh.colored_vertex(rect.right_top(), right);
+    mesh.colored_vertex(rect.left_bottom(), left);
+    mesh.colored_vertex(rect.right_bottom(), right);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(1, 2, 3);
+    painter.add(egui::Shape::mesh(mesh));
 }

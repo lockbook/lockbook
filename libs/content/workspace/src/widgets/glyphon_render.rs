@@ -20,15 +20,21 @@ pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
         return font_system;
     }
 
-    let mut db = fontdb::Database::new();
-    crate::font::load(&mut db);
-    let font_system = Arc::new(Mutex::new(FontSystem::new_with_locale_and_db("en-US".into(), db)));
+    let font_system = Arc::new(Mutex::new(new_font_system()));
     ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, Arc::clone(&font_system)));
 
     let glyphon_cache = Arc::new(Mutex::new(GlyphonCache::new()));
     ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, glyphon_cache));
 
     font_system
+}
+
+/// Bundled fonts, then the system's.
+pub fn new_font_system() -> FontSystem {
+    let mut db = fontdb::Database::new();
+    crate::font::load(&mut db);
+    let fallback = crate::font::Fallback::default();
+    FontSystem::new_with_locale_and_db_and_fallback("en-US".into(), db, fallback)
 }
 
 pub fn register_render_callback_resources(

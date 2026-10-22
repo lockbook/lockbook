@@ -10,7 +10,7 @@ Return **inserts the next thing** — a new list item, another quoted line, and 
 With a **single caret**, backspace generally peels **one nesting layer** — a whole prefix at a time (the bullet, the `>`, one level), innermost-first. With a **range**, delete that range — the smart behaviors are reserved for a caret (empty selection).
 
 ## Tab and NBSP
-Tab **indents / nests** (and Shift+Tab outdents).
+Tab **indents / nests** (and Shift+Tab outdents). In a table it moves to the next cell ([blocks](blocks.md)).
 
 Tab characters made the editor unstable — GFM treats a tab as a variable number of spaces depending on column, and we had a stream of visually confusing bugs — so they are disabled. We would like to support them; “no `\t` in the file” is a workaround.
 
@@ -18,6 +18,8 @@ Tab characters made the editor unstable — GFM treats a tab as a variable numbe
 
 ## Copy/Paste
 Copying to clipboard takes the **source characters** you selected. With an empty selection, it takes the current source line.
+
+A grid pastes as one. Tab-separated lines paste as a table, and comma-separated text does through **Paste as table**; pasted into a table, a grid fills cells rightward and downward from the caret's, and the table grows to hold it. Anything else pasted into a cell stays in the cell: a pipe is escaped and a line break becomes a space.
 
 Target feature set:
 - Copy as **plain text** — drop the styling punctuation.

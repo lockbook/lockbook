@@ -58,13 +58,8 @@ impl<'ast> MdRender {
                 layout.push_override(prefix.start().into_range(), "", self.text_format_syntax());
             }
         }
-        if !infix.is_empty() {
-            layout.push_source(
-                infix,
-                &self.buffer[infix],
-                self.text_format_code(node.parent().unwrap()),
-            );
-        }
+        let code = self.text_format_code(node.parent().unwrap());
+        self.layout_source(layout, node, infix, code, false);
         if !postfix.is_empty() {
             if reveal {
                 layout.push_source(postfix, &self.buffer[postfix], self.text_format_syntax());

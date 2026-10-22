@@ -110,11 +110,11 @@ impl Workspace {
         if let Some(last_touch_event) = self.last_touch_event {
             if Instant::now() - last_touch_event > Duration::from_secs(5) {
                 self.ctx
-                    .style_mut(|style| style.interaction.tooltip_delay = 0.0);
+                    .global_style_mut(|style| style.interaction.tooltip_delay = 0.0);
                 self.last_touch_event = None;
             } else {
                 self.ctx
-                    .style_mut(|style| style.interaction.tooltip_delay = f32::MAX);
+                    .global_style_mut(|style| style.interaction.tooltip_delay = f32::MAX);
             }
         }
     }
@@ -254,6 +254,7 @@ impl Workspace {
             }
             self.out.text_interaction_rect = resp.text_interaction_rect;
             self.out.mobile_toolbar_shown = resp.mobile_toolbar_shown;
+            self.out.caret_covered = resp.caret_covered;
             if resp.scroll_updated {
                 self.out.markdown_editor_scroll_updated = true;
             }
@@ -660,16 +661,16 @@ pub(crate) fn link_sheet_modal(
     use crate::style::{Button, FileRow, Space, Spacer, TypeRole, parent_crumbs, with_pad_fit};
 
     let t = ctx.get_lb_theme();
-    let screen = ctx.screen_rect();
+    let screen = ctx.content_rect();
     let touch = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
     let compact = touch || screen.width() < 520.0;
     let pad = Space::Md.pts();
     let width = if compact { (screen.width() - pad * 4.0).min(480.0) } else { 320.0 };
     let button_h = if touch { control_height() * 1.4 } else { control_height() };
-    let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("link_sheet"));
+    let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("link_sheet"));
 
     let mut dismissed = false;
-    egui::Area::new(egui::Id::new("link_sheet_dim"))
+    egui::Area::new(egui::Id::unique("link_sheet_dim"))
         .order(egui::Order::Middle)
         .fixed_pos(screen.min)
         .fade_in(false)

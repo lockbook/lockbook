@@ -421,6 +421,7 @@ impl Tab {
                         resp.scroll_updated = md_resp.scroll_updated;
                         resp.text_interaction_rect = md_resp.text_interaction_rect;
                         resp.mobile_toolbar_shown = md_resp.mobile_toolbar_shown;
+                        resp.caret_covered = md_resp.caret_covered;
                     }
                     TabContent::Image(img) => img.show(ui),
                     TabContent::Pdf(pdf) => pdf.show(ui),
@@ -568,6 +569,7 @@ pub struct Response {
     pub open_camera: bool,
     pub text_interaction_rect: Option<egui::Rect>,
     pub mobile_toolbar_shown: bool,
+    pub caret_covered: bool,
     pub open_file: Option<Uuid>,
 }
 
@@ -701,71 +703,78 @@ impl ExtendedOutput for egui::Context {
     fn set_virtual_keyboard_shown(&self, enabled: bool) {
         self.memory_mut(|m| {
             m.data
-                .insert_temp(Id::new("virtual_keyboard_shown"), enabled);
+                .insert_temp(Id::unique("virtual_keyboard_shown"), enabled);
         })
     }
 
     fn pop_virtual_keyboard_shown(&self) -> Option<bool> {
-        self.memory_mut(|m| m.data.remove_temp(Id::new("virtual_keyboard_shown")))
+        self.memory_mut(|m| m.data.remove_temp(Id::unique("virtual_keyboard_shown")))
     }
 
     fn set_context_menu(&self, pos: egui::Pos2, target: ContextMenuTarget) {
         self.memory_mut(|m| {
-            m.data.insert_temp(Id::new("context_menu"), (pos, target));
+            m.data
+                .insert_temp(Id::unique("context_menu"), (pos, target));
         })
     }
 
     fn pop_context_menu(&self) -> Option<(egui::Pos2, ContextMenuTarget)> {
-        self.memory_mut(|m| m.data.remove_temp(Id::new("context_menu")))
+        self.memory_mut(|m| m.data.remove_temp(Id::unique("context_menu")))
     }
 
     fn open_file(&self, id: Uuid, new_tab: bool) {
         self.memory_mut(|m| {
-            let mut files: Vec<(Uuid, bool)> =
-                m.data.get_temp(Id::new("open_files")).unwrap_or_default();
+            let mut files: Vec<(Uuid, bool)> = m
+                .data
+                .get_temp(Id::unique("open_files"))
+                .unwrap_or_default();
             files.push((id, new_tab));
-            m.data.insert_temp(Id::new("open_files"), files);
+            m.data.insert_temp(Id::unique("open_files"), files);
         })
     }
 
     fn pop_open_files(&self) -> Vec<(Uuid, bool)> {
         self.memory_mut(|m| {
             m.data
-                .remove_temp::<Vec<(Uuid, bool)>>(Id::new("open_files"))
+                .remove_temp::<Vec<(Uuid, bool)>>(Id::unique("open_files"))
                 .unwrap_or_default()
         })
     }
 
     fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool) {
         self.memory_mut(|m| {
-            let mut ranges: Vec<(Uuid, std::ops::Range<usize>, bool)> =
-                m.data.get_temp(Id::new("open_ranges")).unwrap_or_default();
+            let mut ranges: Vec<(Uuid, std::ops::Range<usize>, bool)> = m
+                .data
+                .get_temp(Id::unique("open_ranges"))
+                .unwrap_or_default();
             ranges.push((id, byte_range, new_tab));
-            m.data.insert_temp(Id::new("open_ranges"), ranges);
+            m.data.insert_temp(Id::unique("open_ranges"), ranges);
         })
     }
 
     fn pop_open_ranges(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)> {
         self.memory_mut(|m| {
             m.data
-                .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::new("open_ranges"))
+                .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::unique("open_ranges"))
                 .unwrap_or_default()
         })
     }
 
     fn show_link_sheet(&self, sheet: LinkSheet) {
         self.memory_mut(|m| {
-            let mut sheets: Vec<LinkSheet> =
-                m.data.get_temp(Id::new("link_sheets")).unwrap_or_default();
+            let mut sheets: Vec<LinkSheet> = m
+                .data
+                .get_temp(Id::unique("link_sheets"))
+                .unwrap_or_default();
             sheets.push(sheet);
-            m.data.insert_temp(Id::new("link_sheets"), sheets);
+            m.data.insert_temp(Id::unique("link_sheets"), sheets);
         })
     }
 
     fn pop_link_sheets(&self) -> Vec<LinkSheet> {
         self.memory_mut(|m| {
             m.data
-                .remove_temp::<Vec<LinkSheet>>(Id::new("link_sheets"))
+                .remove_temp::<Vec<LinkSheet>>(Id::unique("link_sheets"))
                 .unwrap_or_default()
         })
     }
@@ -785,10 +794,10 @@ impl ExtendedInput for egui::Context {
         self.memory_mut(|m| {
             let mut events: Vec<Event> = m
                 .data
-                .get_temp(Id::new("custom_events"))
+                .get_temp(Id::unique("custom_events"))
                 .unwrap_or_default();
             events.push(event);
-            m.data.insert_temp(Id::new("custom_events"), events);
+            m.data.insert_temp(Id::unique("custom_events"), events);
         })
     }
 
@@ -800,10 +809,10 @@ impl ExtendedInput for egui::Context {
         self.memory_mut(|m| {
             let events: Vec<Event> = m
                 .data
-                .get_temp(Id::new("custom_events"))
+                .get_temp(Id::unique("custom_events"))
                 .unwrap_or_default();
             m.data
-                .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
+                .insert_temp(Id::unique("custom_events"), Vec::<Event>::new());
             events
         })
     }
@@ -812,7 +821,7 @@ impl ExtendedInput for egui::Context {
         self.memory_mut(|m| {
             let all: Vec<Event> = m
                 .data
-                .get_temp(Id::new("custom_events"))
+                .get_temp(Id::unique("custom_events"))
                 .unwrap_or_default();
             let mut matching = Vec::new();
             let mut rest = Vec::new();
@@ -823,7 +832,7 @@ impl ExtendedInput for egui::Context {
                     rest.push(event);
                 }
             }
-            m.data.insert_temp(Id::new("custom_events"), rest);
+            m.data.insert_temp(Id::unique("custom_events"), rest);
             matching
         })
     }
@@ -832,7 +841,7 @@ impl ExtendedInput for egui::Context {
         self.memory_mut(|m| {
             let events: Vec<Event> = m
                 .data
-                .get_temp(Id::new("custom_events"))
+                .get_temp(Id::unique("custom_events"))
                 .unwrap_or_default();
             events
         })
@@ -841,7 +850,7 @@ impl ExtendedInput for egui::Context {
     fn drain(&self) {
         self.memory_mut(|m| {
             m.data
-                .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
+                .insert_temp(Id::unique("custom_events"), Vec::<Event>::new());
         });
     }
 }

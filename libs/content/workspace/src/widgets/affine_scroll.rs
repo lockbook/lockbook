@@ -1069,12 +1069,12 @@ pub struct AffineScrollArea<Id: Clone + Eq + std::fmt::Debug> {
 }
 
 impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
-    pub fn new(id_salt: impl Hash) -> Self {
+    pub fn new(id_salt: impl Hash + std::fmt::Debug) -> Self {
         Self {
             state: ScrollArea::default(),
             touch_scroll: false,
             suppress_body_drag: false,
-            id_salt: egui::Id::new(id_salt),
+            id_salt: egui::Id::unique(id_salt),
             momentum_cancel_press: false,
             gesture_pixels: 0.0,
             gesture_fling: None,
@@ -1386,6 +1386,14 @@ pub struct ShowResponse<Id> {
 pub struct AffineScrollAreaBegun {
     rect: Rect,
     body_response: Response,
+}
+
+impl AffineScrollAreaBegun {
+    /// The body's response, for an embedder that may claim its drag (see
+    /// [`AffineScrollArea::suppress_body_drag`]).
+    pub fn body_response(&self) -> &Response {
+        &self.body_response
+    }
 }
 
 fn warm_around_visible<R: Rows>(rows: &R, visible: &[VisibleRow<R::RowId>], viewport_height: f32) {

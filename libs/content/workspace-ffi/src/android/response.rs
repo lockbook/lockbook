@@ -51,6 +51,7 @@ impl From<crate::Response> for AndroidResponse {
                     markdown_editor_scroll_updated: _,
                     text_interaction_rect: _,
                     mobile_toolbar_shown: _,
+                    caret_covered: _,
                     tabs_changed,
                     failure_messages,
                     selected_folder_changed: _,
@@ -66,6 +67,7 @@ impl From<crate::Response> for AndroidResponse {
             virtual_keyboard_shown,
             window_title: _,
             request_paste: _,
+            ime_cursor: _,
             context_menu,
         } = value;
 

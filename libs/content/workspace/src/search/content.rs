@@ -303,7 +303,7 @@ impl SearchExecutor for ContentSearch {
             .filter(|&i| i < flat.len());
         let t = ui.ctx().get_lb_theme();
 
-        with_overlay_scroll(ui, Id::new("search_content_scroll"), |ui| {
+        with_overlay_scroll(ui, Id::unique("search_content_scroll"), |ui| {
             let out = egui::ScrollArea::vertical()
                 .id_salt("search_content_rows")
                 .auto_shrink([false, false])
@@ -383,7 +383,7 @@ impl SearchExecutor for ContentSearch {
                         }
                     }
                 });
-            ((), out.state.offset.y, out.id)
+            ((), out.state.clamped_offset().y, out.id)
         });
 
         let mut activated = None;
@@ -486,7 +486,7 @@ impl ContentSearch {
             .subtitle(parent_crumbs(&result.parent_path))
             .highlighted(selected)
             .trail_reserve(sc_w)
-            .show(ui, Id::new("content_file").with(result.id));
+            .show(ui, Id::unique("content_file").with(result.id));
         if ordinal < 9 {
             path::paint_row_shortcut(ui, &t, resp.rect, ordinal + 1);
         }
@@ -502,7 +502,7 @@ impl ContentSearch {
             .continuation(true)
             .caption_spans(spans)
             .highlighted(selected)
-            .show(ui, Id::new("content_snip").with(result.id).with(hi))
+            .show(ui, Id::unique("content_snip").with(result.id).with(hi))
     }
 
     fn show_toggle_row(
@@ -515,7 +515,7 @@ impl ContentSearch {
             .muted(true)
             .centered(true)
             .highlighted(selected)
-            .show(ui, Id::new("content_show_more").with(result.id))
+            .show(ui, Id::unique("content_show_more").with(result.id))
     }
 
     fn show_empty_state(&self, ui: &mut Ui, scope_name: &str, center: bool) -> bool {
