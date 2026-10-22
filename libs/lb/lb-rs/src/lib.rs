@@ -41,7 +41,7 @@ pub struct Lb {
     pub events: EventSubs,
     pub status: StatusUpdater,
     pub syncer: Syncer,
-    #[cfg(all(unix, not(target_os = "ios")))]
+    #[cfg(unix)]
     pub(crate) ipc: Arc<Ipc>,
 }
 
@@ -55,7 +55,7 @@ impl Lb {
             .map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
         let keychain = Keychain::from(db.schema.account.as_ref());
         let db = Arc::new(RwLock::new(db));
-        #[cfg(all(unix, not(target_os = "ios")))]
+        #[cfg(unix)]
         let ipc = Arc::new(Ipc::new(&*db.read().await, config.background_work)?);
         let client = Network { client_type: config.client_type, ..Network::default() };
 
@@ -76,11 +76,11 @@ impl Lb {
             status,
             user_last_seen,
             user_wake,
-            #[cfg(all(unix, not(target_os = "ios")))]
+            #[cfg(unix)]
             ipc,
         };
 
-        #[cfg(all(unix, not(target_os = "ios")))]
+        #[cfg(unix)]
         result.setup_ipc().await?;
 
         #[cfg(not(target_family = "wasm"))]
@@ -100,7 +100,7 @@ pub fn get_code_version() -> &'static str {
 pub static DEFAULT_API_LOCATION: &str = "https://app.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[cfg(all(unix, not(target_os = "ios")))]
+#[cfg(unix)]
 use crate::subscribers::ipc::Ipc;
 use crate::subscribers::syncer::Syncer;
 

@@ -107,7 +107,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             let item = try core.item(identifier, loadSize: false)
             let data = try core.read(item)
             if let version, version.contentVersion != item.contentVersion {
-                throw NSFileProviderError(.versionNoLongerAvailable)
+                throw FileProviderCore.versionUnavailable
             }
             let url = try self.manager.temporaryDirectoryURL().appendingPathComponent(UUID().uuidString)
             try data.write(to: url)
