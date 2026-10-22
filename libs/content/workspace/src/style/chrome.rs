@@ -491,11 +491,20 @@ pub fn loading_indicator(ui: &mut Ui) {
     let t = ui.ctx().get_lb_theme();
     ui.ctx().request_repaint();
     let angle = (ui.input(|i| i.time) * std::f64::consts::TAU) as f32;
-    let g = ui.painter().layout_no_wrap(
-        phosphor::SPINNER_GAP.into(),
-        phosphor_ui_font_id(),
-        t.accent(),
-    );
+    centered_status(ui, phosphor::SPINNER_GAP, "Loading…", t.accent(), angle);
+}
+
+/// Centered muted Phosphor mark + caption (failed loads, empty states).
+pub fn message_indicator(ui: &mut Ui, icon: &'static str, caption: &str) {
+    let t = ui.ctx().get_lb_theme();
+    centered_status(ui, icon, caption, t.neutral_fg_secondary(), 0.0);
+}
+
+fn centered_status(ui: &mut Ui, icon: &'static str, caption: &str, ink: Color32, angle: f32) {
+    let t = ui.ctx().get_lb_theme();
+    let g = ui
+        .painter()
+        .layout_no_wrap(icon.into(), phosphor_ui_font_id(), ink);
     let gap = Space::Xs.pts();
     let cap_h = TypeRole::Body.line_height();
     let content_h = g.size().y + gap + cap_h;
@@ -508,15 +517,11 @@ pub fn loading_indicator(ui: &mut Ui) {
     super::layout::place_at(ui, block, Layout::top_down(Align::Center), |ui| {
         let (icon_rect, _) = ui.allocate_exact_size(g.size(), Sense::hover());
         ui.painter().add(
-            egui::epaint::TextShape::new(icon_rect.min, g, t.accent())
+            egui::epaint::TextShape::new(icon_rect.min, g, ink)
                 .with_angle_and_anchor(angle, Align2::CENTER_CENTER),
         );
         ui.add_space(gap);
-        ui.label(
-            TypeRole::Body
-                .rich("Loading…")
-                .color(t.neutral_fg_secondary()),
-        );
+        ui.label(TypeRole::Body.rich(caption).color(t.neutral_fg_secondary()));
     });
     let _ = ui.allocate_rect(rect, Sense::hover());
 }

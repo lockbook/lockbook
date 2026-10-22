@@ -11,7 +11,6 @@ use crate::file_cache::{FilesExt as _, link_id};
 use crate::output::Response;
 use crate::search::SearchType;
 use crate::tab::{ExtendedOutput as _, image_viewer};
-use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
 use crate::theme::visuals;
 use crate::widgets::GlyphonLabel;
@@ -231,7 +230,13 @@ impl Workspace {
         }
 
         let software_keyboard = self.software_keyboard_in_use;
+        // iOS sets the tab policy from the size class and Android never does; compact
+        // has no room for a page sidebar
+        let compact = !self.desktop_tab_policy;
         if let Some(tab) = self.current_tab_mut() {
+            if let Some(pdf) = tab.pdf_mut() {
+                pdf.compact = compact;
+            }
             // attaching or detaching a hardware keyboard toggles this while a doc is open
             if let Some(md) = tab.markdown_mut() {
                 md.edit.phone_mode = md.edit.renderer.touch_mode && software_keyboard;
@@ -611,19 +616,6 @@ impl DocType {
                 Self::Code
             }
             _ => Self::Unknown,
-        }
-    }
-
-    pub fn to_icon(&self) -> Icon {
-        match self {
-            DocType::Markdown => Icon::DOC_MD,
-            DocType::PlainText => Icon::DOC_TEXT,
-            DocType::SVG => Icon::DRAW,
-            DocType::Image => Icon::IMAGE,
-            DocType::Code => Icon::CODE,
-            DocType::PDF => Icon::DOC_PDF,
-            DocType::Chat => Icon::CHAT,
-            _ => Icon::DOC_UNKNOWN,
         }
     }
 

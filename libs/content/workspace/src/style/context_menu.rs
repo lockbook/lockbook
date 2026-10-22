@@ -79,6 +79,12 @@ impl<T> Entries<T> {
             .push(Row::Item { icon: Some(icon), label: label.into(), danger: false, value });
     }
 
+    /// A row with no icon; a menu of only these drops the icon column.
+    pub fn item_plain(&mut self, label: impl Into<String>, value: T) {
+        self.rows
+            .push(Row::Item { icon: None, label: label.into(), danger: false, value });
+    }
+
     pub fn item_danger(&mut self, icon: &'static str, label: impl Into<String>, value: T) {
         self.rows
             .push(Row::Item { icon: Some(icon), label: label.into(), danger: true, value });
@@ -169,6 +175,11 @@ pub fn close(ctx: &egui::Context) {
 /// True when this response is the host of the open menu.
 pub fn is_open(resp: &Response) -> bool {
     is_open_id(&resp.ctx, resp.id)
+}
+
+/// True while any menu is open (a canvas host stops panning under it).
+pub fn is_any_open(ctx: &egui::Context) -> bool {
+    ctx.memory(|m| m.data.get_temp::<OpenState>(open_id()).is_some())
 }
 
 /// True when `id` is the host of the open menu.

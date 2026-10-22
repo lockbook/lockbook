@@ -283,6 +283,13 @@ impl Tab {
         }
     }
 
+    pub fn pdf_mut(&mut self) -> Option<&mut PdfViewer> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Pdf(pdf)) => Some(pdf),
+            _ => None,
+        }
+    }
+
     pub fn image_viewer(&self) -> Option<&ImageViewer> {
         match &self.content {
             ContentState::Open(TabContent::Image(img)) => Some(img),
