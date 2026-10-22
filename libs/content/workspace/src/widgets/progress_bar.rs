@@ -37,6 +37,7 @@ impl ProgressBar {
                 round_to_pixels: None,
                 blur_width: 0.,
                 brush: None,
+                angle: 0.0,
             });
 
             let width = rect.max.x - rect.min.x;
@@ -53,6 +54,7 @@ impl ProgressBar {
                 round_to_pixels: None,
                 blur_width: 0.,
                 brush: None,
+                angle: 0.0,
             });
         }
 

@@ -220,7 +220,7 @@ impl InputController {
     pub fn process(
         &mut self, ui: &mut egui::Ui, layout: &LayoutContext,
     ) -> Vec<InputControllerEvent> {
-        let points_per_page = ui.input(|r| r.screen_rect().height());
+        let points_per_page = ui.input(|r| r.content_rect().height());
         let scroll_units = ui.ctx().options(|o| ScrollUnits {
             points_per_line: o.input_options.line_scroll_speed,
             points_per_page,
@@ -420,7 +420,7 @@ impl InputController {
                 None
             }
             egui::Event::PointerGone => None,
-            egui::Event::MouseWheel { unit, delta, modifiers } => {
+            egui::Event::MouseWheel { unit, delta, modifiers, .. } => {
                 if !self.can_viewport_change(self.mouse_hover_pos, ctx) {
                     return None;
                 }
@@ -662,14 +662,14 @@ impl InputController {
 
             ctx.painter.set_layer_id(egui::LayerId {
                 order: egui::Order::Middle, // todo: check if this is right
-                id: "pen_overlay".into(),
+                id: egui::Id::unique("pen_overlay"),
             });
 
             let elpased = Instant::now() - self.tool_hover_pos.1;
             let target_opacity = if elpased > Duration::from_millis(300) { 0.0 } else { 1.0 };
 
             let opacity = ui.ctx().animate_value_with_time(
-                egui::Id::new("tool_hover_indicator_ui"),
+                egui::Id::unique("tool_hover_indicator_ui"),
                 target_opacity,
                 0.3,
             );
@@ -851,6 +851,8 @@ mod tests {
             unit: egui::MouseWheelUnit::Line,
             delta,
             modifiers: egui::Modifiers::NONE,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
         }
     }
 

@@ -52,7 +52,7 @@ impl<'ast> MdRender {
         // Desktop drag handle (bullet/number is non-interactive). On touch
         // the body must own the press instead, so a pan scrolls and a hold
         // arms a reorder (see `MdEdit::detect_touch_reorder`).
-        let drag_id = ui.id().with(("item_drag", self.node_range(node)));
+        let drag_id = ui.scope_id().with(("item_drag", self.node_range(node)));
         let sense = if self.touch_mode { egui::Sense::hover() } else { egui::Sense::drag() };
         let drag_resp = ui.interact(annotation_space, drag_id, sense);
         self.handle_item_drag_resp(ui, node, &drag_resp);

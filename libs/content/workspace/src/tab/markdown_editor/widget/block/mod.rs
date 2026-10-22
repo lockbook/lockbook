@@ -6,9 +6,9 @@ use unicode_segmentation::UnicodeSegmentation as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _};
+use std::collections::HashMap;
 
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::fold::FOLD_TAG;
@@ -831,6 +831,7 @@ impl MdRender {
             .unwrap();
 
         let ppi = self.ctx.pixels_per_point();
+        let points = font_size;
         let font_size = font_size * ppi;
         let line_height = line_height * ppi;
         let width = width * ppi;
@@ -865,11 +866,12 @@ impl MdRender {
                 .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
                 .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
             let metrics = glyphon::Metrics::new(font_size, line_height);
-            let mut b = glyphon::Buffer::new(&mut fs.lock().unwrap(), metrics);
-            b.set_size(&mut fs.lock().unwrap(), Some(width), None);
+            let mut fs = fs.lock().unwrap();
+            let mut b = glyphon::Buffer::new(&mut fs, metrics);
+            b.set_size(Some(width), None);
             // Default cosmic-text tab stop is 8 char-widths; 4 reads
             // closer to a code-editor tab.
-            b.set_tab_width(&mut fs.lock().unwrap(), 4);
+            b.set_tab_width(4);
             let emoji_attrs =
                 glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
             let text = text.to_string();
@@ -881,16 +883,18 @@ impl MdRender {
                     | 0x1F000.. // supplementary multilingual plane: core emoji blocks
                     )
                 });
-                (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
+                (
+                    g,
+                    if is_emoji {
+                        emoji_attrs.clone()
+                    } else {
+                        crate::font::track(attrs.clone(), g, points)
+                    },
+                )
             });
-            b.set_rich_text(
-                &mut fs.lock().unwrap(),
-                spans,
-                &attrs,
-                glyphon::Shaping::Advanced,
-                None,
-            );
-            b.set_wrap(&mut fs.lock().unwrap(), wrap_mode);
+            b.set_rich_text(spans, &attrs, glyphon::Shaping::Advanced, None);
+            b.set_wrap(wrap_mode);
+            b.shape_until_scroll(&mut fs, false);
             b
         })
     }

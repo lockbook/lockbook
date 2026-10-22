@@ -117,7 +117,11 @@ impl TabCache {
     /// replacing an already-open sibling.
     pub fn find_for_load_mut(&mut self, id: Uuid, target: Option<SessionId>) -> Option<&mut Tab> {
         if let Some(sid) = target {
-            return self.get_any_mut(&sid);
+            // The session may have moved on (e.g. replaced) since the load
+            // was queued; its content must not land under another dest.
+            return self
+                .get_any_mut(&sid)
+                .filter(|t| t.destination.backing_file() == Some(id));
         }
         let is_loading_file = |t: &Tab| {
             t.destination.backing_file() == Some(id)

@@ -153,19 +153,19 @@ fn show_delete(
 ) {
     // Expand state lives in temp memory (keyed by selection) so folders can
     // open without a Modal field / Action for every click.
-    let exp_id = Id::new("shell_delete_expanded").with(ids);
+    let exp_id = Id::unique("shell_delete_expanded").with(ids);
     let mut expanded: std::collections::HashSet<Uuid> =
         ctx.data(|d| d.get_temp(exp_id)).unwrap_or_default();
 
     let parts = delete_parts(app, ids);
     let remove_only = parts.owned.is_empty() && !parts.shares.is_empty();
 
-    let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_delete"));
-    if sheet_dim(ctx, Id::new("shell_delete_dim"), layer) {
+    let layer = egui::LayerId::new(Order::Foreground, Id::unique("shell_delete"));
+    if sheet_dim(ctx, Id::unique("shell_delete_dim"), layer) {
         queue.push(A::CloseModal);
     }
 
-    Area::new(Id::new("shell_delete"))
+    Area::new(Id::unique("shell_delete"))
         .order(Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {
@@ -456,14 +456,14 @@ pub(crate) fn delete_is_strict_ancestor(
 }
 
 fn show_rename(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
-    let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_rename"));
-    if sheet_dim(ctx, Id::new("shell_rename_dim"), layer) {
+    let layer = egui::LayerId::new(Order::Foreground, Id::unique("shell_rename"));
+    if sheet_dim(ctx, Id::unique("shell_rename_dim"), layer) {
         queue.push(A::CloseModal);
     }
     // Must match Field::id("shell_rename_field") → host.with("edit").
-    let edit_id = Id::new("shell_rename_field").with("edit");
+    let edit_id = Id::unique("shell_rename_field").with("edit");
     let need_focus = ctx.data(|d| {
-        d.get_temp::<bool>(Id::new("shell_rename_need_focus"))
+        d.get_temp::<bool>(Id::unique("shell_rename_need_focus"))
             .unwrap_or(false)
     });
 
@@ -473,7 +473,7 @@ fn show_rename(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut V
     };
     let ext = ext_owned.as_deref();
 
-    Area::new(Id::new("shell_rename"))
+    Area::new(Id::unique("shell_rename"))
         .order(Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {
@@ -489,7 +489,7 @@ fn show_rename(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut V
                     };
                     let mut field = Field::new(t, name)
                         .hint("Name")
-                        .id("shell_rename_field")
+                        .id(egui::Id::unique("shell_rename_field"))
                         .select_all_on_focus(true);
                     if let Some(e) = ext.filter(|e| !e.is_empty()) {
                         field = field.trailing_static(e);
@@ -499,7 +499,7 @@ fn show_rename(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut V
                         ui.memory_mut(|m| m.request_focus(edit_id));
                         if ui.memory(|m| m.has_focus(edit_id)) {
                             ui.ctx().data_mut(|d| {
-                                d.insert_temp(Id::new("shell_rename_need_focus"), false);
+                                d.insert_temp(Id::unique("shell_rename_need_focus"), false);
                             });
                         }
                     }
@@ -538,8 +538,8 @@ fn show_rename(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut V
 }
 
 fn show_help(ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
-    let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_help"));
-    if sheet_dim(ctx, Id::new("shell_help_dim"), layer) {
+    let layer = egui::LayerId::new(Order::Foreground, Id::unique("shell_help"));
+    if sheet_dim(ctx, Id::unique("shell_help_dim"), layer) {
         queue.push(A::CloseModal);
     }
 
@@ -553,7 +553,7 @@ fn show_help(ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
         ("⌘\\", "Toggle sidebar"),
     ];
 
-    Area::new(Id::new("shell_help"))
+    Area::new(Id::unique("shell_help"))
         .order(Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {

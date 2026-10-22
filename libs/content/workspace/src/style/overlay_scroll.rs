@@ -52,7 +52,7 @@ impl Default for State {
 
 fn separator_dragging(ui: &Ui) -> bool {
     ui.ctx().data(|d| {
-        d.get_temp::<bool>(Id::new(SIDEBAR_RESIZING_LATCH))
+        d.get_temp::<bool>(Id::unique(SIDEBAR_RESIZING_LATCH))
             .unwrap_or(false)
     })
 }

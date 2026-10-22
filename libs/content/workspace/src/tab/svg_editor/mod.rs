@@ -175,7 +175,7 @@ impl SVGEditor {
             viewport_settings.left_locked = settings.left_locked;
             viewport_settings.right_locked = settings.right_locked;
             viewport_settings.top_locked = settings.top_locked;
-            viewport_settings.bounded_rect = Some(ctx.available_rect());
+            viewport_settings.bounded_rect = Some(ctx.content_rect());
         }
 
         if read_only {
@@ -193,7 +193,7 @@ impl SVGEditor {
             last_render: Instant::now(),
             painter: egui::Painter::new(
                 ctx.to_owned(),
-                egui::LayerId::new(egui::Order::Background, "canvas_painter".into()),
+                egui::LayerId::new(egui::Order::Background, egui::Id::unique("canvas_painter")),
                 egui::Rect::NOTHING,
             ),
             input_ctx: InputContext::default(),
@@ -290,7 +290,7 @@ impl SVGEditor {
         ui.scope_builder(
             UiBuilder::new().layer_id(egui::LayerId {
                 order: egui::Order::Middle,
-                id: egui::Id::from("canvas_ui_overlay"),
+                id: egui::Id::unique("canvas_ui_overlay"),
             }),
             |ui| {
                 let mut ui = ui.new_child(

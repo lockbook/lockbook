@@ -20,6 +20,16 @@
         var redrawDeadline: DispatchTime?
 
         var lastCursor: NSCursor = .arrow
+
+        /// The input method's composition, while there is one.
+        var imeMarked: String?
+        /// The keystroke the input method is handling, whether it took it,
+        /// and whether it passed the key on as well.
+        var imeKeyEvent: NSEvent?
+        var imeHandled = false
+        var imePassKey = false
+        /// The caret, in view points from the top left, for the candidate window.
+        var imeCursor: NSRect = .zero
         var cursorHidden: Bool = false
 
         var lastAccentColors: UInt64 = 0
@@ -38,6 +48,10 @@
         }
 
         func modifiersChanged(event: NSEvent) -> NSEvent {
+            // input methods toggle languages on a bare Shift
+            if window?.firstResponder === self, imeMarked != nil || imeCursor.height > 0 {
+                _ = inputContext?.handleEvent(event)
+            }
             modifier_event(wsHandle, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
             setNeedsDisplay(frame)
             return event
@@ -201,6 +215,7 @@
         }
 
         override public func mouseDown(with event: NSEvent) {
+            endComposition()
             let local = viewCoordinates(event)
             mouse_button(wsHandle, Float(local.x), Float(local.y), true, true, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
             setNeedsDisplay(frame)
@@ -213,6 +228,7 @@
         }
 
         override public func rightMouseDown(with event: NSEvent) {
+            endComposition()
             let local = viewCoordinates(event)
             mouse_button(wsHandle, Float(local.x), Float(local.y), true, false, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
             setNeedsDisplay(frame)
@@ -239,7 +255,44 @@
         }
 
         override public func keyDown(with event: NSEvent) {
+            // While text input is live the input method sees keystrokes
+            // first; what it doesn't take (plain text, arrows, delete,
+            // return) goes the usual way. Repeats skip it, so a held key
+            // repeats rather than opening the accent menu.
+            let composing = imeMarked != nil
+            let flags = event.modifierFlags
+            let routed = composing
+                ? !flags.contains(.command)
+                : imeCursor.height > 0 && !event.isARepeat && flags.isDisjoint(with: [.command, .control])
+            if composing && !routed {
+                endComposition()
+            }
+            if routed, let inputContext {
+                imeKeyEvent = event
+                imeHandled = false
+                imePassKey = false
+                let consumed = inputContext.handleEvent(event)
+                imeKeyEvent = nil
+                if (imeHandled || (composing && consumed)) && !imePassKey {
+                    setNeedsDisplay(frame)
+                    return
+                }
+            }
             sendKeyEvent(event, true)
+        }
+
+        /// Keeps a composition as typed before a shortcut or click acts, as
+        /// AppKit's text views do.
+        func endComposition() {
+            guard imeMarked != nil else { return }
+            unmarkText()
+            inputContext?.discardMarkedText()
+        }
+
+        // The input method passes a key on, even after the same keystroke
+        // committed text (Korean: a syllable, then the space or return).
+        override public func doCommand(by _: Selector) {
+            if imeKeyEvent != nil { imePassKey = true }
         }
 
         override public func keyUp(with event: NSEvent) {
@@ -247,6 +300,9 @@
         }
 
         override public func performKeyEquivalent(with event: NSEvent) -> Bool {
+            if event.modifierFlags.contains(.command) {
+                endComposition()
+            }
             // Let system handle their shortcuts first
             if super.performKeyEquivalent(with: event) {
                 return true
@@ -459,6 +515,18 @@
 
             let output = macos_frame(wsHandle)
 
+            let c = output.ime_cursor
+            let imeRect = NSRect(x: CGFloat(c.min_x), y: CGFloat(c.min_y), width: CGFloat(c.max_x - c.min_x), height: CGFloat(c.max_y - c.min_y))
+            if imeRect.height == 0, imeMarked != nil {
+                // the editor dropped the composition, or lost focus
+                imeMarked = nil
+                inputContext?.discardMarkedText()
+            }
+            if imeRect != imeCursor {
+                imeCursor = imeRect
+                if imeMarked != nil { inputContext?.invalidateCharacterCoordinates() }
+            }
+
             if output.tabs_changed {
                 workspaceOutput?.tabCount = Int(tab_count(wsHandle))
             }
@@ -591,24 +659,50 @@
 
 
 extension MacMTK: NSTextInputClient {
-    // Called by the macOS Character Viewer (fn key) and other text input services.
     public func insertText(_ string: Any, replacementRange _: NSRange) {
         let text: String
         if let attr = string as? NSAttributedString { text = attr.string }
         else if let str = string as? String { text = str }
         else { return }
-        clipboard_paste(wsHandle, text)
+        let ownCharacter = imeKeyEvent?.characters == text && !imeHandled
+        if imeMarked != nil || (imeKeyEvent != nil && !ownCharacter) {
+            // A composition ends (a keystroke, or a click on a candidate),
+            // or the keystroke already went to the input method.
+            ime_commit(wsHandle, text)
+            imeMarked = nil
+            if imeKeyEvent != nil { imeHandled = true }
+        } else if imeKeyEvent != nil {
+            // A keystroke's own character takes the key path.
+            return
+        } else {
+            // The Character Viewer (fn key) and other text input services.
+            clipboard_paste(wsHandle, text)
+        }
         setNeedsDisplay(self.frame)
     }
-    public func setMarkedText(_ string: Any, selectedRange _: NSRange, replacementRange _: NSRange) {}
-    public func unmarkText() {}
+    public func setMarkedText(_ string: Any, selectedRange _: NSRange, replacementRange _: NSRange) {
+        let text = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
+        ime_preedit(wsHandle, text)
+        imeMarked = text.isEmpty ? nil : text
+        imeHandled = true
+        setNeedsDisplay(self.frame)
+    }
+    public func unmarkText() {
+        if let imeMarked { ime_commit(wsHandle, imeMarked) }
+        imeMarked = nil
+    }
     public func selectedRange() -> NSRange { NSRange(location: NSNotFound, length: 0) }
-    public func markedRange() -> NSRange { NSRange(location: NSNotFound, length: 0) }
-    public func hasMarkedText() -> Bool { false }
+    public func markedRange() -> NSRange {
+        NSRange(location: imeMarked == nil ? NSNotFound : 0, length: imeMarked?.utf16.count ?? 0)
+    }
+    public func hasMarkedText() -> Bool { imeMarked != nil }
     public func attributedSubstring(forProposedRange _: NSRange, actualRange _: NSRangePointer?) -> NSAttributedString? { nil }
     public func validAttributesForMarkedText() -> [NSAttributedString.Key] { [] }
     public func firstRect(forCharacterRange _: NSRange, actualRange _: NSRangePointer?) -> NSRect {
-        window?.convertToScreen(frame) ?? .zero
+        guard let window else { return .zero }
+        guard imeCursor.height > 0 else { return window.convertToScreen(frame) }
+        let rect = NSRect(x: imeCursor.minX, y: frame.height - imeCursor.maxY, width: imeCursor.width, height: imeCursor.height)
+        return window.convertToScreen(convert(rect, to: nil))
     }
     public func characterIndex(for _: NSPoint) -> Int { NSNotFound }
 }

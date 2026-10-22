@@ -86,7 +86,7 @@ fn inline_image_advance_matches_rendered_width() {
             embeds: embed,
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
+        super::super::MdConfig { readonly: false, ext: "md".to_string() },
     );
     let mut ws = super::harness::TestEditor::from_editor(editor);
 
@@ -1253,7 +1253,7 @@ fn image_load_layout_consistent() {
             embeds: embed,
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
+        super::super::MdConfig { readonly: false, ext: "md".to_string() },
     );
     let mut ws = TestEditor::from_editor(editor);
 
@@ -1890,14 +1890,17 @@ fn masked_plaintext_mdedit_renders_glyphs() {
     let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(300., 30.));
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
     let frame = |edit: &mut MdEdit| {
-        let _ =
-            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
-                ctx.set_lb_theme(Theme::default(Mode::Dark));
-                crate::register_font_system(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    edit.show(ui, rect, egui::Id::new("key_field"));
-                });
+        ctx.run_pass(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+            ctx.set_lb_theme(Theme::default(Mode::Dark));
+            crate::register_font_system(ctx);
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    edit.show(ui, rect, egui::Id::unique("key_field"));
+                })
             });
+        })
+        .textures_delta
+        .clear();
     };
     frame(&mut edit);
 
@@ -1953,14 +1956,17 @@ fn bounded_composer_scrolls_cursor_into_view() {
     let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(600., 140.));
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
     let frame = |edit: &mut MdEdit| {
-        let _ =
-            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
-                ctx.set_lb_theme(Theme::default(Mode::Dark));
-                crate::register_font_system(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    edit.show(ui, rect, egui::Id::new("composer"));
-                });
+        ctx.run_pass(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+            ctx.set_lb_theme(Theme::default(Mode::Dark));
+            crate::register_font_system(ctx);
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    edit.show(ui, rect, egui::Id::unique("composer"));
+                })
             });
+        })
+        .textures_delta
+        .clear();
     };
 
     let end = {
@@ -2313,7 +2319,7 @@ fn phone_toolbar_never_pushed_off_screen() {
             embeds: Box::new(embeds.clone()),
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: false },
+        super::super::MdConfig { readonly: false, ext: "md".into() },
     );
     assert!(editor.edit.renderer.touch_mode, "touch mode");
     assert!(editor.edit.phone_mode, "phone mode");
@@ -2371,18 +2377,22 @@ fn phone_toolbar_never_pushed_off_screen() {
     let frames_run = std::cell::Cell::new(0u32);
     let frame = |editor: &mut super::super::Editor, events: Vec<egui::Event>| -> (f32, f32) {
         let mut content = (f32::NAN, f32::NAN);
-        let _ = ctx.run(
+        ctx.run_pass(
             egui::RawInput { screen_rect: Some(screen), events, ..Default::default() },
             |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
                 editor.focus(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    editor.show(ui);
-                    content = (ui.min_rect().max.y, ui.max_rect().max.y);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        editor.show(ui);
+                        content = (ui.min_rect().max.y, ui.max_rect().max.y);
+                    })
                 });
             },
-        );
+        )
+        .textures_delta
+        .clear();
         // The layout-level signal: embed painting (which runs for off-screen
         // neighbor rows) must never drag the toolbar allocation off screen.
         // The first frames lay out before fonts/virtualization settle.
@@ -2436,6 +2446,8 @@ fn phone_toolbar_never_pushed_off_screen() {
                     unit: egui::MouseWheelUnit::Point,
                     delta: egui::vec2(0.0, -40.0),
                     modifiers: Default::default(),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
                 },
             ],
         );
@@ -2465,6 +2477,8 @@ fn phone_toolbar_never_pushed_off_screen() {
                     unit: egui::MouseWheelUnit::Point,
                     delta: egui::vec2(0.0, 35.0),
                     modifiers: Default::default(),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
                 },
             ],
         );
@@ -2605,4 +2619,68 @@ fn down_arrow_into_folded_tail_stops_at_visible_end() {
     let fold = &ws.editor.edit.renderer.bounds.folds[0];
     assert!(!fold.conceals(landed), "landed inside folded contents at {}", landed.0);
     assert_eq!(landed, fold.contents.start(), "doc: {doc:?}");
+}
+
+/// Clicking away mid-composition ends it with its text as typed and the
+/// caret where clicked, through what fcitx5 on Wayland sends after the
+/// click interrupts it: the composition again, then an empty preedit.
+#[test]
+fn click_away_mid_composition_keeps_its_text_and_the_click() {
+    use egui::{Event as Egui, ImeEvent};
+    let preedit =
+        |text: &str| Egui::Ime(ImeEvent::Preedit { text: text.into(), active_range_chars: None });
+    let at = |offset: usize| Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(offset)),
+            end: Location::Grapheme(Grapheme(offset)),
+        },
+    };
+
+    let mut ws = TestEditor::new("hello world\n");
+    ws.push(at(11));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("zh")]);
+    ws.enter_frame_with_input(vec![preedit("zhong")]);
+    assert_eq!(ws.get_text(), "hello worldzhong\n");
+
+    ws.push(at(5));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("zhong"), preedit("zhong")]);
+    ws.enter_frame_with_input(vec![]);
+    ws.enter_frame_with_input(vec![preedit("")]);
+    ws.enter_frame_with_input(vec![]);
+
+    let renderer = &ws.editor.edit.renderer;
+    assert_eq!(ws.get_text(), "hello worldzhong\n");
+    assert_eq!(renderer.buffer.current.selection, (Grapheme(5), Grapheme(5)));
+    assert!(renderer.ime_marked.is_none());
+
+    // the next composition starts at the caret
+    ws.enter_frame_with_input(vec![preedit("n")]);
+    assert_eq!(ws.get_text(), "hellon worldzhong\n");
+}
+
+/// What a click away abandons is ignored only until the editor gets input of
+/// its own: a later composition with the same text still commits.
+#[test]
+fn abandoned_composition_text_commits_after_typing() {
+    use egui::{Event as Egui, ImeEvent};
+    let preedit =
+        |text: &str| Egui::Ime(ImeEvent::Preedit { text: text.into(), active_range_chars: None });
+    let at = |offset: usize| Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(offset)),
+            end: Location::Grapheme(Grapheme(offset)),
+        },
+    };
+
+    let mut ws = TestEditor::new("ab\n");
+    ws.push(at(2));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("n")]);
+    ws.push(at(0));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![Egui::Text("x".into())]);
+    ws.enter_frame_with_input(vec![Egui::Ime(ImeEvent::Commit("n".into()))]);
+    assert_eq!(ws.get_text(), "xnabn\n");
 }

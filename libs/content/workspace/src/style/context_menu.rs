@@ -47,10 +47,10 @@ fn open_nudge() -> Vec2 {
 }
 
 fn open_id() -> Id {
-    Id::new("lb_design_context_menu_open")
+    Id::unique("lb_design_context_menu_open")
 }
 fn area_id() -> Id {
-    Id::new("lb_design_context_menu_area")
+    Id::unique("lb_design_context_menu_area")
 }
 
 #[derive(Clone, Copy)]
@@ -186,6 +186,9 @@ fn show_open<T: Clone>(
     resp: &Response, t: &Theme, open: bool, build: impl FnOnce(&mut Entries<T>),
 ) -> Option<T> {
     let ctx = &resp.ctx;
+    if !open && !is_open(resp) {
+        return None;
+    }
 
     let mut menu = Entries::new();
     build(&mut menu);
@@ -237,7 +240,7 @@ fn show_open<T: Clone>(
                         ui,
                         t,
                         &menu.rows,
-                        Id::new(("lb_ctx_root", state.host)),
+                        Id::unique(("lb_ctx_root", state.host)),
                         content_w,
                         with_icons,
                     );

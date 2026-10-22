@@ -46,16 +46,16 @@ struct ColumnHandle {
 /// press turns into a drag, only this keeps a handle the pointer has left.
 fn held_handle(ui: &Ui) -> Option<Id> {
     let pressed = ui.input(|i| i.pointer.press_start_time())?;
-    let (id, at): (Id, f64) = ui.data(|d| d.get_temp(Id::new("table_handle_held")))?;
+    let (id, at): (Id, f64) = ui.data(|d| d.get_temp(Id::unique("table_handle_held")))?;
     (at == pressed).then_some(id)
 }
 
 fn row_handle_id(line: Grapheme) -> Id {
-    Id::new(("table_row_handle", line))
+    Id::unique(("table_row_handle", line))
 }
 
 fn column_handle_id(table: Grapheme, column: usize) -> Id {
-    Id::new(("table_column_handle", table, column))
+    Id::unique(("table_column_handle", table, column))
 }
 
 impl MdRender {
@@ -383,7 +383,7 @@ impl MdRender {
         }
         let pressed = ui.input(|i| i.pointer.press_start_time());
         if let Some(pressed) = pressed.filter(|_| resp.is_pointer_button_down_on()) {
-            ui.data_mut(|d| d.insert_temp(Id::new("table_handle_held"), (id, pressed)));
+            ui.data_mut(|d| d.insert_temp(Id::unique("table_handle_held"), (id, pressed)));
         }
         // the drag's overlay stands where the handle would
         if dragging {

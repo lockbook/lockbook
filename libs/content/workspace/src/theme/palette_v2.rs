@@ -657,12 +657,12 @@ pub trait ThemeExt {
 
 impl ThemeExt for egui::Context {
     fn set_lb_theme(&self, t: Theme) {
-        self.memory_mut(|m| m.data.insert_temp(Id::new("theme"), t));
+        self.memory_mut(|m| m.data.insert_temp(Id::unique("theme"), t));
         self.set_visuals(t.base_visuals());
     }
 
     fn get_lb_theme(&self) -> Theme {
-        self.memory_mut(|m| m.data.get_temp(Id::new("theme")))
+        self.memory_mut(|m| m.data.get_temp(Id::unique("theme")))
             .unwrap()
     }
 }

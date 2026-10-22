@@ -520,7 +520,7 @@ impl InputControllerTool for Selection {
         ui.scope_builder(
             UiBuilder::new().layer_id(egui::LayerId {
                 order: egui::Order::Background,
-                id: "selection_overlay".into(),
+                id: egui::Id::unique("selection_overlay"),
             }),
             |ui| {
                 ui.set_clip_rect(selection_ctx.viewport_settings.working_rect);
@@ -703,7 +703,7 @@ impl Selection {
         ui.scope_builder(
             UiBuilder::new().layer_id(egui::LayerId {
                 order: egui::Order::Foreground,
-                id: "selection_tooltip".into(),
+                id: egui::Id::unique("selection_tooltip"),
             }),
             |ui| {
                 let res = ui.scope_builder(UiBuilder::new().max_rect(tooltip_rect), |ui| {

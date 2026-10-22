@@ -28,6 +28,15 @@ impl From<Vec<u8>> for CBytes {
     }
 }
 
+/// Zero-sized when nothing takes IME input.
+#[repr(C)]
+pub struct CImeRect {
+    pub min_x: f32,
+    pub min_y: f32,
+    pub max_x: f32,
+    pub max_y: f32,
+}
+
 #[repr(C)]
 pub struct MacOSResponse {
     // platform response
@@ -38,6 +47,7 @@ pub struct MacOSResponse {
     pub urls_opened: CUrls,
     pub cursor: CCursorIcon,
     pub request_paste: bool,
+    pub ime_cursor: CImeRect,
 
     // widget response
     pub selected_file: CUuid,
@@ -83,6 +93,7 @@ impl From<crate::Response> for MacOSResponse {
             window_title: _,
             request_paste,
             context_menu: _,
+            ime_cursor,
         } = value;
 
         let doc_created = match file_created {
@@ -114,6 +125,14 @@ impl From<crate::Response> for MacOSResponse {
             urls_opened,
             cursor: cursor.into(),
             request_paste,
+            ime_cursor: ime_cursor
+                .map(|r| CImeRect {
+                    min_x: r.min.x,
+                    min_y: r.min.y,
+                    max_x: r.max.x,
+                    max_y: r.max.y,
+                })
+                .unwrap_or(CImeRect { min_x: 0., min_y: 0., max_x: 0., max_y: 0. }),
             selected_folder_changed,
         }
     }

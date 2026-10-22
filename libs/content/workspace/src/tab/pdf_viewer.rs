@@ -11,8 +11,8 @@ use std::{
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use egui::{
-    Align, CentralPanel, ColorImage, Context, Event, Image, ImageSource, Key, Modifiers, Pos2,
-    Rect, ScrollArea, SidePanel, TextureHandle, Ui, UiBuilder, Vec2, load::SizedTexture,
+    Align, CentralPanel, ColorImage, Context, Event, Image, ImageSource, Key, Modifiers, Panel,
+    Pos2, Rect, ScrollArea, TextureHandle, Ui, UiBuilder, Vec2, load::SizedTexture,
 };
 use hayro::{InterpreterSettings, Pdf, RenderSettings};
 use lb_rs::Uuid;
@@ -463,17 +463,17 @@ impl PdfViewer {
     }
 
     fn show_sidebar(&mut self, ui: &mut egui::Ui) {
-        let (is_visible, thumbnails) = match &self.sidebar {
+        let (mut is_visible, thumbnails) = match &self.sidebar {
             Some(s) => (s.is_visible, s.thumbnails.clone()),
             None => return,
         };
 
         let sidebar_margin = 50.0;
 
-        SidePanel::right("pdf_sidebar")
+        Panel::right("pdf_sidebar")
             .resizable(false)
             .show_separator_line(false)
-            .show_animated_inside(ui, is_visible, |ui| {
+            .show_collapsible(ui, &mut is_visible, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     egui::Frame::default()
                         .inner_margin(sidebar_margin)
@@ -526,7 +526,7 @@ impl PdfViewer {
         self.render_area = ui.available_rect_before_wrap();
 
         if self.page_bounds.is_empty() {
-            CentralPanel::default().show_inside(ui, |ui| {
+            CentralPanel::default().show(ui, |ui| {
                 ui.centered_and_justified(|ui| {
                     if self.parse_failed {
                         ui.label("Failed to load PDF");
@@ -538,7 +538,7 @@ impl PdfViewer {
             return;
         }
 
-        CentralPanel::default().show_inside(ui, |ui| {
+        CentralPanel::default().show(ui, |ui| {
             ScrollArea::both()
                 .animated(false)
                 .show_viewport(ui, |ui, viewport| {

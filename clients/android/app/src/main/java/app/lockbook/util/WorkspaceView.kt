@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
+import android.os.LocaleList
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
@@ -256,6 +257,8 @@ class WorkspaceView(
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val workspaceTheme = WorkspaceThemeHelper.materialTheme(context, darkMode)
 
+        // includes the app's own language choice, which the system property misses
+        Workspace.setPreferredLanguages(LocaleList.getDefault().toLanguageTags())
         wgpuObj =
             Workspace.initWSOffloaded(
                 surface!!,
