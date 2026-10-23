@@ -212,6 +212,7 @@ class WorkspaceView(
             this,
             motionEventPredictor,
         )
+    val keyboardPull = KeyboardPull(this)
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -482,6 +483,7 @@ class WorkspaceView(
                 updateMagnifier(response, density)
 
                 response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
+                keyboardPull.selecting = response.hasMagnifier
 
                 if (response.hasEditMenu && contextMenu == null) {
                     val actionModeCallback =
