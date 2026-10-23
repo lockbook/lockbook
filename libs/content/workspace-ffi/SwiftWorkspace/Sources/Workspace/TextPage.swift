@@ -237,6 +237,12 @@
                 let dy = pan.translation(in: self).y
                 pan.setTranslation(.zero, in: self)
                 ios_scroll(wsHandle, Float(dy))
+                // A drag down into the keyboard puts it away, as in Notes.
+                if dy > 0, text.isSoftwareKeyboardUp,
+                   pan.location(in: mtkView).y >= mtkView.keyboardLayoutGuide.layoutFrame.minY
+                {
+                    text.resignFirstResponder()
+                }
                 mtkView.requestFrame()
             case .ended:
                 let dy = pan.translation(in: self).y

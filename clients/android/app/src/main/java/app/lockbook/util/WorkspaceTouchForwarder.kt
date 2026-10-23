@@ -60,6 +60,7 @@ class WorkspaceTouchForwarder(
         if (!workspaceView.canForwardTouches()) {
             return
         }
+        workspaceView.keyboardPull.touch(event)
 
         val action = event.actionMasked
 
