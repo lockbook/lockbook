@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 use std::iter;
+use std::sync::OnceLock;
 
 use db_rs::hasher::UuidIdentityHasherBuilder;
 use lb_rs::Uuid;
@@ -56,6 +57,8 @@ pub struct FileCache {
     pub last_modified: u64,
     /// The notes' headings, carried from one cache to the next.
     pub notes: NoteIndex,
+    /// Documents by the titles they answer to, lowercased; built on first use.
+    titles: OnceLock<HashMap<String, Vec<u32>>>,
 }
 
 /// Folders first, then name. Parent+name is unique so `id` is not in the key.
@@ -98,6 +101,7 @@ impl FileCache {
             rows: vec![root],
             by_id: [(root_id, 0)].into_iter().collect(),
             notes: Default::default(),
+            titles: Default::default(),
         }
     }
 
@@ -129,6 +133,7 @@ impl FileCache {
             last_modified_recursive: uuid_map(),
             last_modified,
             notes: Default::default(),
+            titles: Default::default(),
         }
     }
 
@@ -216,6 +221,7 @@ impl FileCache {
                 .or_insert(file_modified);
             *ancestor_modified = (*ancestor_modified).max(file_modified);
         }
+        self.titles = Default::default();
         self.notes.tree_changed();
     }
 }
@@ -321,6 +327,13 @@ pub trait FilesExt {
     fn get_by_id(&self, id: Uuid) -> Option<&File>;
     fn children(&self, id: Uuid) -> Vec<&File>;
     fn iter_files(&self) -> impl Iterator<Item = &File>;
+
+    /// The documents a wikilink title's last segment names ([`title_matches`]).
+    fn named(&self, title: &str) -> Vec<&File> {
+        self.iter_files()
+            .filter(|f| f.is_document() && title_matches(&f.name, title))
+            .collect()
+    }
 
     fn siblings(&self, id: Uuid) -> Vec<&File> {
         let parent = self.get_by_id(id).unwrap().parent;
@@ -551,11 +564,7 @@ pub trait FilesExt {
         }
         let in_scope = |f: &File| f.id != scope && self.in_scope(scope, f.id);
         let extent = self.tree_root(note);
-        if extent == scope
-            || (!title.contains('/')
-                && self
-                    .iter_files()
-                    .any(|f| f.is_document() && title_matches(&f.name, title) && in_scope(f)))
+        if extent == scope || (!title.contains('/') && self.named(title).into_iter().any(in_scope))
         {
             return None;
         }
@@ -569,8 +578,7 @@ pub trait FilesExt {
     fn wiki_file_part<'a>(&self, title: &'a str) -> &'a str {
         let (file, heading) = wiki_fragment(title);
         let last = title.rsplit('/').next().unwrap_or(title).trim();
-        let named = |f: &File| f.is_document() && title_matches(&f.name, last);
-        match heading.is_some() && self.iter_files().any(named) {
+        match heading.is_some() && !self.named(last).is_empty() {
             true => title,
             false => file,
         }
@@ -628,9 +636,9 @@ pub trait FilesExt {
             self.children(current).into_iter().filter(named).collect()
         };
         let trailing = || {
-            self.iter_files()
-                .filter(named)
-                .filter(|f| self.trails(scope, f, &dirs))
+            self.named(last)
+                .into_iter()
+                .filter(|f| in_scope(f) && self.trails(scope, f, &dirs))
                 .collect()
         };
         let candidates: Vec<&File> = if title.starts_with('/') {
@@ -747,8 +755,8 @@ pub trait FilesExt {
         let unique = |last: &str, dirs: &[&str]| {
             let mut path: Vec<&str> = dirs.iter().rev().copied().collect();
             let matches = self
-                .iter_files()
-                .filter(|f| f.is_document() && title_matches(&f.name, last))
+                .named(last)
+                .into_iter()
                 .filter(|f| {
                     f.id != scope && self.in_scope(scope, f.id) && self.trails(scope, f, &path)
                 })
@@ -928,6 +936,33 @@ impl FilesExt for FileCache {
 
     fn iter_files(&self) -> impl Iterator<Item = &File> {
         self.all_files()
+    }
+
+    fn named(&self, title: &str) -> Vec<&File> {
+        let titles = self.titles.get_or_init(|| {
+            let mut titles: HashMap<String, Vec<u32>> = HashMap::new();
+            for (i, f) in self
+                .rows
+                .iter()
+                .enumerate()
+                .filter(|(_, f)| f.is_document())
+            {
+                let name = f.name.to_ascii_lowercase();
+                if wiki_title(&name) != name {
+                    titles
+                        .entry(wiki_title(&name).into())
+                        .or_default()
+                        .push(i as u32);
+                }
+                titles.entry(name).or_default().push(i as u32);
+            }
+            titles
+        });
+        let rows = titles.get(&title.to_ascii_lowercase());
+        rows.into_iter()
+            .flatten()
+            .map(|&i| &self.rows[i as usize])
+            .collect()
     }
 }
 
