@@ -15,7 +15,7 @@ use std::path::Path;
 use std::env;
 
 #[cfg(not(target_family = "wasm"))]
-use chrono::{Local, TimeZone};
+use chrono::{DateTime, Local, TimeZone};
 
 #[cfg(not(target_family = "wasm"))]
 use crate::get_code_version;
@@ -107,24 +107,13 @@ impl Lb {
         Ok(panics)
     }
 
-    /// returns true if we have crashed within the last 5 seconds
+    /// When we last crashed, to the second, if a panic log survives.
     #[cfg(not(target_family = "wasm"))]
-    pub async fn recent_panic(&self) -> LbResult<bool> {
+    pub async fn recent_panic(&self) -> LbResult<Option<DateTime<Local>>> {
         let panics = self.collect_panics(false).await?;
-        for panic in panics {
-            let timestamp_local_time = Local
-                .from_local_datetime(&panic.time)
-                .single()
-                .unwrap_or_default();
-
-            let seconds_ago = (Local::now() - timestamp_local_time).abs().num_seconds();
-
-            if seconds_ago <= 5 {
-                return Ok(true);
-            }
-        }
-
-        Ok(false)
+        Ok(panics
+            .first()
+            .and_then(|panic| Local.from_local_datetime(&panic.time).single()))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

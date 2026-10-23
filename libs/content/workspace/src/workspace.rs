@@ -181,7 +181,10 @@ impl Workspace {
         let files = file_cache.unwrap_or_else(|| {
             Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")))
         });
-        let recent_crash = core.recent_panic().unwrap_or(true);
+        let recent_crash = match core.recent_panic() {
+            Ok(t) => t.is_some_and(|t| (Local::now() - t).num_seconds().abs() <= 5),
+            Err(_) => true,
+        };
         let cfg = WsPersistentStore::new(recent_crash, writeable_path, persist);
         let http = HttpClient::default();
         let images =
