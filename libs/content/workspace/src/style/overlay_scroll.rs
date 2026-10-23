@@ -6,7 +6,8 @@
 //!
 //! egui [`ScrollArea`]: wrap with [`with_overlay_scroll`].
 //! Custom bars (affine markdown): [`tick`] + [`paint`].
-//! A scroller that keeps its own offset in points: [`scroller_bar`].
+//! A scroller that keeps its own offset in points: [`scroller_bar`], or
+//! [`scroller_bar_x`] sideways.
 
 use std::time::Duration;
 
@@ -247,22 +248,54 @@ pub fn with_overlay_scroll<R>(ui: &mut Ui, id: Id, f: impl FnOnce(&mut Ui) -> (R
 /// thumb can't jump the scroll or steal a drag. `quiet` when only the program
 /// moved `scroll` this frame, which leaves the bar as it was.
 pub fn scroller_bar(ui: &mut Ui, id: Id, view: Rect, content: f32, scroll: &mut f32, quiet: bool) {
+    axis_bar(ui, id, view, content, scroll, quiet, true);
+}
+
+/// [`scroller_bar`] for a scroller that runs sideways, `scroll` points from
+/// the left: the bar lies along the bottom edge.
+pub fn scroller_bar_x(
+    ui: &mut Ui, id: Id, view: Rect, content: f32, scroll: &mut f32, quiet: bool,
+) {
+    axis_bar(ui, id, view, content, scroll, quiet, false);
+}
+
+fn axis_bar(
+    ui: &mut Ui, id: Id, view: Rect, content: f32, scroll: &mut f32, quiet: bool, vertical: bool,
+) {
     const MIN_THUMB: f32 = 12.0;
-    let overflow = (content - view.height()).max(0.0);
+    let along = |v: egui::Vec2| if vertical { v.y } else { v.x };
+    let shown = along(view.size());
+    let overflow = (content - shown).max(0.0);
     if overflow <= 0.0 {
         return;
     }
-    let track = Rect::from_min_max(
-        egui::pos2(view.max.x - BAR_WIDTH - BAR_INSET, view.min.y),
-        egui::pos2(view.max.x - BAR_INSET, view.max.y),
-    );
-    let thumb_h = (track.height() * view.height() / content).max(MIN_THUMB);
-    let movable = track.height() - thumb_h;
-    let thumb_at = |scroll: f32| {
-        Rect::from_min_size(
-            egui::pos2(track.min.x, track.min.y + movable * (scroll / overflow)),
-            egui::vec2(track.width(), thumb_h),
+    let track = if vertical {
+        Rect::from_min_max(
+            egui::pos2(view.max.x - BAR_WIDTH - BAR_INSET, view.min.y),
+            egui::pos2(view.max.x - BAR_INSET, view.max.y),
         )
+    } else {
+        Rect::from_min_max(
+            egui::pos2(view.min.x, view.max.y - BAR_WIDTH - BAR_INSET),
+            egui::pos2(view.max.x, view.max.y - BAR_INSET),
+        )
+    };
+    let length = along(track.size());
+    let thumb_len = (length * shown / content).max(MIN_THUMB);
+    let movable = length - thumb_len;
+    let thumb_at = |scroll: f32| {
+        let at = movable * (scroll / overflow);
+        if vertical {
+            Rect::from_min_size(
+                egui::pos2(track.min.x, track.min.y + at),
+                egui::vec2(track.width(), thumb_len),
+            )
+        } else {
+            Rect::from_min_size(
+                egui::pos2(track.min.x + at, track.min.y),
+                egui::vec2(thumb_len, track.height()),
+            )
+        }
     };
     let overlay_id = id.with("overlay");
     let mut held = false;
@@ -272,11 +305,11 @@ pub fn scroller_bar(ui: &mut Ui, id: Id, view: Rect, content: f32, scroll: &mut 
             if let Some(pos) = resp.interact_pointer_pos() {
                 let on_thumb = thumb_at(*scroll).contains(pos);
                 if (resp.drag_started() || resp.clicked()) && !on_thumb {
-                    let target = (pos.y - track.min.y - thumb_h / 2.0).clamp(0.0, movable);
+                    let target = (along(pos - track.min) - thumb_len / 2.0).clamp(0.0, movable);
                     *scroll = target / movable * overflow;
                 } else if resp.dragged() && !resp.drag_started() {
-                    *scroll =
-                        (*scroll + resp.drag_delta().y / movable * overflow).clamp(0.0, overflow);
+                    *scroll = (*scroll + along(resp.drag_delta()) / movable * overflow)
+                        .clamp(0.0, overflow);
                 }
                 ui.ctx().request_repaint();
             }

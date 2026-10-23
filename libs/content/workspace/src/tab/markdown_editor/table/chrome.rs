@@ -16,6 +16,7 @@ use super::structure::ColumnEdit;
 use super::{CellBounds, TableAction, TableCellBox};
 use crate::style::{context_menu, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::input::Event;
+use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::block::drag::{BlockDrag, DragUnit, DropGap};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::theme::palette_v2::ThemeExt as _;
@@ -120,16 +121,7 @@ impl MdRender {
     /// How far that table is scrolled along its rows.
     pub fn table_scrolled(&self, key: Grapheme) -> f32 {
         let table = self.table_ordinal(key);
-        let scroll = table.and_then(|table| self.table_scrolls.get(&table));
-        scroll.map_or(0.0, |scroll| scroll.offset)
-    }
-
-    /// The table wider than the note that shows at `pos`, by its place
-    /// among the tables.
-    pub fn scrolling_table_at(&self, pos: Pos2) -> Option<usize> {
-        let key = self.table_key(self.table_cell_box_at(pos)?.row)?;
-        let table = self.table_ordinal(key)?;
-        self.table_scrolls.contains_key(&table).then_some(table)
+        table.map_or(0.0, |table| self.row_scrolled(RowScroller::Table(table)))
     }
 
     /// The header cell painted under `pos`, as its table and column.
@@ -406,53 +398,6 @@ impl MdRender {
 }
 
 impl MdEdit {
-    /// Gives a touch drag on the note's body to the table wider than the
-    /// note it began on, if it sets out along the rows: the table pans and
-    /// the page stays where it is. One that sets out down the rows is the
-    /// page's, as anywhere. True while the drag is not the page's.
-    pub fn pan_table(&mut self, ui: &Ui, body: &egui::Response) -> bool {
-        const SLOP: f32 = 6.0;
-        let (origin, pos, delta) =
-            ui.input(|i| (i.pointer.press_origin(), i.pointer.interact_pos(), i.pointer.delta()));
-        // a touch the platform cancels ends with no release: the pointer is
-        // gone and the body is dragged still, through the next press
-        let (pressed, gone) = ui.input(|i| (i.pointer.any_pressed(), !i.pointer.has_pointer()));
-        if body.drag_started() || (pressed && body.dragged()) {
-            let table = origin.and_then(|origin| self.renderer.scrolling_table_at(origin));
-            self.table_pan = table.map(|table| (table, None));
-            if let Some(scroll) =
-                table.and_then(|table| self.renderer.table_scrolls.get_mut(&table))
-            {
-                (scroll.velocity, scroll.tracked) = (0.0, 0.0);
-            }
-        } else if gone || !body.dragged() || self.in_progress_block_drag.is_some() {
-            // a finger lifted mid-motion leaves the table coasting
-            if let Some((table, Some(true))) = self.table_pan.take() {
-                if let Some(scroll) = self.renderer.table_scrolls.get_mut(&table) {
-                    scroll.velocity = if gone { 0.0 } else { scroll.tracked };
-                }
-            }
-            self.table_pan = None;
-        }
-        let Some((table, along)) = &mut self.table_pan else { return false };
-        if along.is_none() {
-            let moved = origin
-                .zip(pos)
-                .map_or(Vec2::ZERO, |(origin, pos)| pos - origin);
-            if moved.length() < SLOP {
-                return true;
-            }
-            *along = Some(moved.x.abs() > moved.y.abs());
-        }
-        let scroll = self.renderer.table_scrolls.get_mut(table);
-        if let (Some(true), Some(scroll)) = (*along, scroll) {
-            scroll.offset -= delta.x;
-            let dt = ui.input(|i| i.stable_dt).max(0.001);
-            scroll.tracked = 0.6 * scroll.tracked - 0.4 * delta.x / dt;
-        }
-        *along == Some(true)
-    }
-
     /// Carries out a dropped table drag: moves the row or column `drag`
     /// holds to the gap at `insert_offset`. The selection is left where
     /// the edit puts it.

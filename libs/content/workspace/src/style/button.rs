@@ -38,7 +38,7 @@ enum Tone {
 }
 
 /// How long a copy control shows the check instead of its label.
-const COPY_FEEDBACK_SECS: f64 = 1.2;
+pub const COPY_FEEDBACK_SECS: f64 = 1.2;
 
 pub struct Button<'a> {
     tokens: &'a Theme,

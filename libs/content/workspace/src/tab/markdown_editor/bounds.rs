@@ -63,6 +63,9 @@ pub struct Bounds {
 
     /// One entry per table, in document order.
     pub tables: Vec<TableBounds>,
+
+    /// Where each block drawn as code starts, in document order.
+    pub code_blocks: Vec<Grapheme>,
 }
 
 /// Tag + hidden-contents ranges of one actively folded section. Both act
@@ -103,6 +106,7 @@ impl Default for Bounds {
             folds: Vec::default(),
             images: Vec::default(),
             tables: Vec::default(),
+            code_blocks: Vec::default(),
         }
     }
 }

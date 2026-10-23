@@ -2201,7 +2201,7 @@ impl MdRender {
     /// `self.fragments` is empty.
     ///
     /// A point in a table cell resolves within that cell, however near a
-    /// neighbor's text is.
+    /// neighbor's text is. What a scrolled code block hides is out of reach.
     pub fn closest_fragment_at_pos(&self, pos: Pos2) -> Option<usize> {
         if self.fragments.is_empty() {
             return None;
@@ -2220,7 +2220,8 @@ impl MdRender {
             if cell.is_some_and(|cell| !in_cell(f, &cell)) {
                 continue;
             }
-            if f.rect.contains(pos) {
+            let rect = self.row_reachable(f.source_range, f.rect);
+            if rect.contains(pos) {
                 return Some(i);
             }
             let (rtop, rbottom) = row_span[i];
@@ -2233,13 +2234,15 @@ impl MdRender {
             if f.far && y_dist > 0.0 {
                 continue;
             }
-            let x_dist = if f.rect.x_range().contains(pos.x) {
+            let x_dist = if rect.x_range().contains(pos.x) {
                 0.0
             } else {
-                (pos.x - f.rect.left())
+                (pos.x - rect.left())
                     .abs()
-                    .min((pos.x - f.rect.right()).abs())
+                    .min((pos.x - rect.right()).abs())
             };
+            // at an equal distance, what shows wins over what is hidden
+            let x_dist = if rect != f.rect && rect.width() == 0.0 { x_dist + 0.5 } else { x_dist };
             let dist = (y_dist, x_dist);
             let prefer = dist == closest_dist
                 && (f.source_range.start() == f.source_range.end()

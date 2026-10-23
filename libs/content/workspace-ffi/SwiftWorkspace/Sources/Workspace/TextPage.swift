@@ -16,7 +16,7 @@
         private(set) var text: TextInputView!
         private(set) var taps: TapLayer!
         let scrollPan = UIPanGestureRecognizer()
-        let tablePan = UIPanGestureRecognizer()
+        let rowPan = UIPanGestureRecognizer()
         let coastStop = CoastStopRecognizer()
         private var observedDrags: [UIGestureRecognizer] = []
 
@@ -60,12 +60,12 @@
             scrollPan.delegate = self
             addGestureRecognizer(scrollPan)
 
-            // A pan along the rows of a table wider than the note pans the table.
-            tablePan.addTarget(self, action: #selector(handleTablePan(_:)))
-            tablePan.allowedScrollTypesMask = .all
-            tablePan.allowedTouchTypes = scrollPan.allowedTouchTypes
-            tablePan.delegate = self
-            addGestureRecognizer(tablePan)
+            // A pan along the rows of a table or code block wider than the note pans it.
+            rowPan.addTarget(self, action: #selector(handleRowPan(_:)))
+            rowPan.allowedScrollTypesMask = .all
+            rowPan.allowedTouchTypes = scrollPan.allowedTouchTypes
+            rowPan.delegate = self
+            addGestureRecognizer(rowPan)
 
             coastStop.stopCoast = { [weak self] in
                 guard let self, let wsHandle = self.wsHandle else { return false }
@@ -250,22 +250,22 @@
             }
         }
 
-        @objc private func handleTablePan(_ pan: UIPanGestureRecognizer) {
+        @objc private func handleRowPan(_ pan: UIPanGestureRecognizer) {
             guard let wsHandle else { return }
             switch pan.state {
             case .began, .changed:
                 let dx = pan.translation(in: self).x
                 pan.setTranslation(.zero, in: self)
-                ios_table_pan(wsHandle, Float(dx))
+                ios_row_pan(wsHandle, Float(dx))
                 mtkView.requestFrame()
             case .ended:
                 let dx = pan.translation(in: self).x
                 pan.setTranslation(.zero, in: self)
-                ios_table_pan(wsHandle, Float(dx))
-                ios_table_pan_end(wsHandle, Float(pan.velocity(in: self).x))
+                ios_row_pan(wsHandle, Float(dx))
+                ios_row_pan_end(wsHandle, Float(pan.velocity(in: self).x))
                 mtkView.requestFrame()
             case .cancelled, .failed:
-                ios_table_pan_end(wsHandle, 0)
+                ios_row_pan_end(wsHandle, 0)
                 mtkView.requestFrame()
             default:
                 break
@@ -277,12 +277,12 @@
                 let velocity = scrollPan.velocity(in: self)
                 return abs(velocity.y) > abs(velocity.x)
             }
-            if gestureRecognizer === tablePan {
+            if gestureRecognizer === rowPan {
                 guard let wsHandle else { return false }
-                let velocity = tablePan.velocity(in: self)
+                let velocity = rowPan.velocity(in: self)
                 guard abs(velocity.x) > abs(velocity.y) else { return false }
-                let p = convert(tablePan.location(in: self), to: mtkView)
-                return ios_table_pan_begin(wsHandle, Float(p.x), Float(p.y))
+                let p = convert(rowPan.location(in: self), to: mtkView)
+                return ios_row_pan_begin(wsHandle, Float(p.x), Float(p.y))
             }
             if isInteractiveContentPop(gestureRecognizer) {
                 return false
@@ -298,7 +298,7 @@
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            (gestureRecognizer === scrollPan || gestureRecognizer === tablePan)
+            (gestureRecognizer === scrollPan || gestureRecognizer === rowPan)
                 && otherGestureRecognizer.isRangeAdjustment
         }
 
@@ -314,7 +314,7 @@
                 return true
             }
             if gestureRecognizer === coastStop {
-                return otherGestureRecognizer === scrollPan || otherGestureRecognizer === tablePan
+                return otherGestureRecognizer === scrollPan || otherGestureRecognizer === rowPan
                     || otherGestureRecognizer === scrollbar
                     || otherGestureRecognizer.isRangeAdjustment || otherGestureRecognizer.isSelectionDrag
             }

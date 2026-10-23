@@ -106,6 +106,7 @@ pub enum Event {
     Cut,
     Copy,
     CopyRendered, // the selection as drawn, as plain text and HTML
+    CopyCode { node: (Grapheme, Grapheme) }, // the code of the code block whose range this is
     ToggleDebug,
     IncrementBaseFontSize,
     DecrementBaseFontSize,

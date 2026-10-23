@@ -454,7 +454,7 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
-        self.renderer.table_fades.clear();
+        self.renderer.clear_row_scroll_frame();
         self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
@@ -1225,9 +1225,12 @@ impl MdEdit {
                 ));
         }
 
-        // a scrolled table's rows fade out at an edge, text and all
-        for (rect, left, right) in std::mem::take(&mut self.renderer.table_fades) {
-            fade_x(ui.painter(), rect, left, right);
+        // a scrolled block's rows fade out at an edge, text and all
+        for (rect, left, right) in std::mem::take(&mut self.renderer.edge_fades) {
+            crate::style::paint_fade(ui.painter(), rect, left, right, false);
+        }
+        for button in std::mem::take(&mut self.renderer.copy_buttons) {
+            button.paint(ui);
         }
         // strikethroughs and underlines painted on top of text
         for deco in std::mem::take(&mut self.renderer.deco_lines) {
@@ -1373,18 +1376,4 @@ fn ime_owns(event: &egui::Event) -> bool {
             | Key::ArrowRight
     );
     !modifiers.command && !modifiers.ctrl && (*repeat || edits)
-}
-
-/// Paints `rect` from `left` at its left edge to `right` at its right.
-pub(crate) fn fade_x(
-    painter: &egui::Painter, rect: Rect, left: egui::Color32, right: egui::Color32,
-) {
-    let mut mesh = egui::Mesh::default();
-    mesh.colored_vertex(rect.left_top(), left);
-    mesh.colored_vertex(rect.right_top(), right);
-    mesh.colored_vertex(rect.left_bottom(), left);
-    mesh.colored_vertex(rect.right_bottom(), right);
-    mesh.add_triangle(0, 1, 2);
-    mesh.add_triangle(1, 2, 3);
-    painter.add(egui::Shape::mesh(mesh));
 }
