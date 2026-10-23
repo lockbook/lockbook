@@ -60,6 +60,17 @@ pub unsafe extern "C" fn modifier_event(
 
 /// # Safety
 #[no_mangle]
+pub unsafe extern "C" fn window_focused(obj: *mut c_void, focused: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.renderer.raw_input.focused = focused;
+    obj.renderer
+        .raw_input
+        .events
+        .push(Event::WindowFocused(focused));
+}
+
+/// # Safety
+#[no_mangle]
 pub unsafe extern "C" fn mouse_button(
     obj: *mut c_void, x: f32, y: f32, pressed: bool, primary: bool, shift: bool, ctrl: bool,
     option: bool, command: bool,

@@ -38,6 +38,8 @@
         var screenChangeObserver: NSObjectProtocol?
         var accentChangeObserver: NSObjectProtocol?
         var appActiveObserver: NSObjectProtocol?
+        var keyWindowObservers: [NSObjectProtocol] = []
+        var windowKey: Bool?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
@@ -91,6 +93,8 @@
                 NotificationCenter.default.removeObserver(screenChangeObserver)
                 self.screenChangeObserver = nil
             }
+            keyWindowObservers.forEach(NotificationCenter.default.removeObserver)
+            keyWindowObservers = []
 
             if let window {
                 screenChangeObserver = NotificationCenter.default.addObserver(
@@ -99,6 +103,13 @@
                     queue: .main
                 ) { [weak self] _ in
                     self?.updatePreferredFrameRate()
+                }
+                // draw() reports the change
+                keyWindowObservers = [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification].map {
+                    NotificationCenter.default.addObserver(forName: $0, object: window, queue: .main) { [weak self] _ in
+                        guard let self else { return }
+                        setNeedsDisplay(frame)
+                    }
                 }
             }
         }
@@ -472,6 +483,11 @@
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
             set_scale(wsHandle, scale)
+            let key = window?.isKeyWindow ?? false
+            if key != windowKey {
+                windowKey = key
+                window_focused(wsHandle, key)
+            }
 
             let output = macos_frame(wsHandle)
 
@@ -614,6 +630,7 @@
             if let screenChangeObserver {
                 NotificationCenter.default.removeObserver(screenChangeObserver)
             }
+            keyWindowObservers.forEach(NotificationCenter.default.removeObserver)
 
             if let accentChangeObserver {
                 NotificationCenter.default.removeObserver(accentChangeObserver)
