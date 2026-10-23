@@ -27,12 +27,13 @@ pub struct LinkMeta {
 /// name/favicon. Returns `None` only when no usable title can be found.
 pub fn extract_link_meta(html: &str, base_url: &str) -> Option<LinkMeta> {
     let doc = Html::parse_document(html);
-    let title = extract_title(&doc)?;
+    let site_name = meta_content(&doc, "meta[property='og:site_name']");
+    let host = host_of(base_url);
+    let title = without_site(&extract_title(&doc)?, [site_name.as_deref(), host.as_deref()]);
     Some(LinkMeta {
         title,
         description: extract_description(&doc),
-        site_name: meta_content(&doc, "meta[property='og:site_name']")
-            .or_else(|| host_of(base_url)),
+        site_name: site_name.or(host),
         thumbnail_url: meta_content(&doc, "meta[property='og:image'], meta[name='twitter:image']")
             .and_then(|u| resolve_url(base_url, &u)),
         thumbnail_width: meta_u32(&doc, "meta[property='og:image:width']"),
@@ -55,6 +56,31 @@ fn extract_title(doc: &Html) -> Option<String> {
             .map(|t| t.trim().to_string())
             .filter(|t| !t.is_empty())
     })
+}
+
+/// `title` without a trailing " | Site" or " - Site" that names the site
+/// itself: four words at most, one of them in the site's name or host.
+fn without_site(title: &str, site: [Option<&str>; 2]) -> String {
+    let words = |text: &str| -> Vec<String> {
+        text.to_lowercase()
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .map(String::from)
+            .collect()
+    };
+    let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+    let known: Vec<String> = site.into_iter().flatten().flat_map(words).collect();
+    let last_sep = [" | ", " - ", " · ", " — ", " – "]
+        .into_iter()
+        .filter_map(|sep| title.rfind(sep).map(|at| (at, sep.len())))
+        .max();
+    if let Some((at, len)) = last_sep {
+        let (head, tail) = (title[..at].trim_end(), words(&title[at + len..]));
+        if !head.is_empty() && tail.len() <= 4 && tail.iter().any(|w| known.contains(w)) {
+            return head.to_string();
+        }
+    }
+    title
 }
 
 /// og:description → twitter:description → `meta[name=description]`.
@@ -112,6 +138,79 @@ fn resolve_url(base: &str, href: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Titles from a census of real notes' links, with the site and host each
+    /// page reported.
+    #[test]
+    fn site_names_come_off_titles() {
+        let cases = [
+            (
+                "Conflict-free replicated data type - Wikipedia",
+                "Wikipedia",
+                "en.wikipedia.org",
+                "Conflict-free replicated data type",
+            ),
+            ("MTKView | Apple Developer Documentation", "", "developer.apple.com", "MTKView"),
+            (
+                "Meet TextKit 2 - WWDC21 - Videos - Apple Developer",
+                "",
+                "developer.apple.com",
+                "Meet TextKit 2 - WWDC21 - Videos",
+            ),
+            (
+                "Create a customer | Stripe API Reference",
+                "",
+                "docs.stripe.com",
+                "Create a customer",
+            ),
+            (
+                "Ownership and data flow in GPUI - Zed Blog",
+                "",
+                "zed.dev",
+                "Ownership and data flow in GPUI",
+            ),
+            // a space and a non-breaking space on each side of each bar
+            (
+                "About Android App Bundles \u{a0}|\u{a0} Other Play guides \u{a0}|\u{a0} Android Developers",
+                "",
+                "developer.android.com",
+                "About Android App Bundles | Other Play guides",
+            ),
+            // the last separator decides, not the first kind tried
+            (
+                "Signature Sweatpants | Soft Jogger Sweatpants | Comfrt",
+                "Comfrt",
+                "comfrt.com",
+                "Signature Sweatpants | Soft Jogger Sweatpants",
+            ),
+            // the page's subject, not its site, even though the path names it
+            ("AUR (en) - lockbook", "", "aur.archlinux.org", "AUR (en) - lockbook"),
+            // a tagline names nothing about the site
+            (
+                "Discord - Group Chat That’s All Fun & Games",
+                "Discord",
+                "discord.com",
+                "Discord - Group Chat That’s All Fun & Games",
+            ),
+            (
+                "Obsidian - Sharpen your thinking",
+                "",
+                "obsidian.md",
+                "Obsidian - Sharpen your thinking",
+            ),
+            (
+                "Scrolling Feels Sluggish With Long Notes · Issue #5188 · lockbook/lockbook",
+                "GitHub",
+                "github.com",
+                "Scrolling Feels Sluggish With Long Notes · Issue #5188 · lockbook/lockbook",
+            ),
+            ("GitHub", "GitHub", "github.com", "GitHub"),
+        ];
+        for (title, site, host, want) in cases {
+            let site = Some(site).filter(|s| !s.is_empty());
+            assert_eq!(without_site(title, [site, Some(host)]), want, "{title}");
+        }
+    }
 
     const BASE: &str = "https://example.com/article";
 

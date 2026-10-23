@@ -8,7 +8,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
-use crate::link_preview::{LinkMeta, Preview};
+use crate::link_preview::{self, LinkMeta, Preview};
 use crate::show::DocType;
 use crate::style::{TypeRole, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::TouchTarget;
@@ -20,11 +20,6 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, St
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
 use crate::theme::palette_v2::ThemeExt as _;
-
-enum DestinationTitle {
-    Ready(String),
-    Absent,
-}
 
 pub use crate::resolvers::LinkState;
 use crate::resolvers::rich_spans;
@@ -148,10 +143,7 @@ impl<'ast> MdRender {
 
         let trimmed = node_range.trim(&range);
         let title = if is_auto && !revealed && !trimmed.is_empty() {
-            match self.get_link_title(&url) {
-                DestinationTitle::Ready(t) => Some(t),
-                DestinationTitle::Absent => None,
-            }
+            self.get_link_title(&url)
         } else {
             None
         };
@@ -649,13 +641,13 @@ impl<'ast> MdRender {
         }
     }
 
-    /// The title an autolink swaps in for its URL — a thin view over
-    /// [`Self::get_link_meta`].
-    fn get_link_title(&self, url: &str) -> DestinationTitle {
+    /// The text an autolink shows in place of its URL: a file's name, what a
+    /// known site's URL says it is, or the page's title once fetched.
+    fn get_link_title(&self, url: &str) -> Option<String> {
         match self.get_link_meta(url) {
-            LinkMetaLookup::Internal(title) => DestinationTitle::Ready(title),
-            LinkMetaLookup::Loaded(meta) => DestinationTitle::Ready(meta.title),
-            LinkMetaLookup::Loading | LinkMetaLookup::Unavailable => DestinationTitle::Absent,
+            LinkMetaLookup::Internal(title) => Some(title),
+            LinkMetaLookup::Loaded(meta) => Some(link_preview::label(url).unwrap_or(meta.title)),
+            LinkMetaLookup::Loading | LinkMetaLookup::Unavailable => link_preview::label(url),
         }
     }
 

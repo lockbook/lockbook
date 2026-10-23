@@ -2,8 +2,10 @@
 //! run of the app and shared by every tab. Nothing is written to disk.
 
 mod page;
+mod providers;
 
 pub use page::{LinkMeta, extract_link_meta, is_junk_meta};
+pub use providers::label;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
