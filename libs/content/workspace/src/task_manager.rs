@@ -306,13 +306,21 @@ impl TaskManager {
             if tasks.load_or_save_in_progress(id) {
                 continue;
             }
+            if tasks
+                .completed_saves
+                .iter()
+                .any(|completed_save| completed_save.request.id == id)
+            {
+                // a load that reads a save's content before the save is recorded re-applies the user's edits
+                continue;
+            }
             ids_to_load.push(id);
         }
 
         let mut ids_to_save = Vec::new();
         for queued_save in &tasks.queued_saves {
             let id = queued_save.request.id;
-            if tasks.load_or_save_in_progress(id) {
+            if tasks.load_or_save_in_progress(id) || ids_to_load.contains(&id) {
                 continue;
             }
             if tasks
