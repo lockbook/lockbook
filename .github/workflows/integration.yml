@@ -22,7 +22,7 @@ jobs:
     - name: Check Workspace Clippy
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci clippy"
     - name: Run Server
-      run: cargo run -p lbdev -- ci start-server
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci start-server"
     - name: Run Rust Tests
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci rust-tests"
     - name: Run Android Lint
@@ -40,4 +40,4 @@ jobs:
       run: nix-shell -p openssl pkg-config glib gobject-introspection gdk-pixbuf gtk3 --command "cargo run -p lbdev -- ci assert-no-udeps"
     - name: Cleanup
       if: always()
-      run: cargo run -p lbdev -- ci kill-server
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci kill-server"
