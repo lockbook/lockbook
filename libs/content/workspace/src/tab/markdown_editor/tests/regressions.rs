@@ -26,7 +26,7 @@ fn withheld_embeds_leave_image_cache_alone() {
     use crate::file_cache::tests::alice;
     use crate::resolvers::EmbedResolver as _;
     use crate::resolvers::image_embed::ImageEmbedResolver;
-    use crate::widgets::image_cache::ImageCache;
+    use crate::widgets::image_cache::{ImageCache, ImageKey};
     use crate::workspace::WsPersistentStore;
     use lb_rs::Uuid;
     use std::sync::{Arc, RwLock};
@@ -45,27 +45,78 @@ fn withheld_embeds_leave_image_cache_alone() {
     let embed = ImageEmbedResolver::new(images.clone(), note);
 
     let url = format!("lb://{private}");
+    let key = ImageKey::File(private);
     embed.prefetch(&url);
     assert!(embed.withheld(&url));
     assert!(!embed.is_loaded(&url));
-    assert!(!images.has_state(&url));
+    assert!(!images.has_state(&key));
 
-    images.show_anyway(note, &url);
+    embed.load_anyway(&url);
     assert!(!embed.withheld(&url));
     embed.prefetch(&url);
-    assert!(images.has_state(&url));
+    assert!(images.has_state(&key));
 
-    let unknown = format!("lb://{}", Uuid::from_u128(99));
-    assert!(images.broken(&unknown, note) && !embed.withheld(&unknown));
-    embed.prefetch(&unknown);
-    assert!(!images.has_state(&unknown));
+    let unknown = Uuid::from_u128(99);
+    embed.prefetch(&format!("lb://{unknown}"));
+    assert!(!embed.withheld(&format!("lb://{unknown}")));
+    assert!(!images.has_state(&ImageKey::File(unknown)));
 
     // a web image waits until asked for, or until sites may be contacted
     let web = "https://example.com/pixel.png";
     embed.prefetch(web);
-    assert!(embed.withheld(web) && !images.has_state(web));
-    images.show_anyway(note, web);
+    assert!(embed.withheld(web) && !images.has_state(&ImageKey::Web(web.into())));
+    embed.load_anyway(web);
     assert!(!embed.withheld(web));
+}
+
+/// Two notes in different folders that write the same relative image show
+/// each their own file, though the cache is shared.
+#[test]
+fn same_image_path_in_two_folders_shows_two_files() {
+    use crate::file_cache::FileCache;
+    use crate::resolvers::EmbedResolver as _;
+    use crate::resolvers::image_embed::ImageEmbedResolver;
+    use crate::widgets::image_cache::{ImageCache, ImageKey};
+    use crate::workspace::WsPersistentStore;
+    use lb_rs::Uuid;
+    use lb_rs::model::file::File;
+    use lb_rs::model::file_metadata::FileType;
+    use std::sync::{Arc, RwLock};
+
+    let [root, a, b, note_a, note_b, photo_a, photo_b] = [1, 2, 3, 4, 5, 6, 7].map(Uuid::from_u128);
+    let file = |id, parent, name: &str, file_type| File {
+        id,
+        parent,
+        name: name.into(),
+        file_type,
+        last_modified: 0,
+        last_modified_by: Default::default(),
+        owner: Default::default(),
+        shares: vec![],
+        size_bytes: 0,
+    };
+    let files = [
+        file(root, root, "root", FileType::Folder),
+        file(a, root, "a", FileType::Folder),
+        file(b, root, "b", FileType::Folder),
+        file(note_a, a, "note.md", FileType::Document),
+        file(note_b, b, "note.md", FileType::Document),
+        file(photo_a, a, "photo.png", FileType::Document),
+        file(photo_b, b, "photo.png", FileType::Document),
+    ];
+    let files = FileCache::from_owned_and_shared(files[0].clone(), files, []);
+    let images = ImageCache::new(
+        crate::tab::markdown_editor::test_egui_ctx(),
+        super::super::HttpClient::default(),
+        super::harness::build_lb(),
+        Arc::new(RwLock::new(files)),
+        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true),
+    );
+
+    ImageEmbedResolver::new(images.clone(), note_a).prefetch("photo.png");
+    ImageEmbedResolver::new(images.clone(), note_b).prefetch("photo.png");
+    assert!(images.has_state(&ImageKey::File(photo_a)));
+    assert!(images.has_state(&ImageKey::File(photo_b)));
 }
 
 /// Image fragments allocate exactly the image's logical size — no
@@ -74,7 +125,7 @@ fn withheld_embeds_leave_image_cache_alone() {
 fn inline_image_advance_matches_rendered_width() {
     use crate::file_cache::FileCache;
     use crate::resolvers::image_embed::ImageEmbedResolver;
-    use crate::widgets::image_cache::ImageCache;
+    use crate::widgets::image_cache::{ImageCache, ImageKey};
     use crate::workspace::WsPersistentStore;
     use egui::{Color32, ColorImage, ImageData, TextureOptions};
     use lb_rs::Uuid;
@@ -119,7 +170,7 @@ fn inline_image_advance_matches_rendered_width() {
             .write()
             .alloc("placehold_test".into(), image, TextureOptions::default())
     };
-    image_cache_handle.complete_load(url, Ok(texture_id));
+    image_cache_handle.complete_load(&ImageKey::Web(url.into()), Ok(texture_id));
 
     // Cursor off both images so they collapse rather than revealing.
     ws.push(Event::Select {
@@ -1270,7 +1321,7 @@ fn image_load_layout_consistent() {
 
     use crate::file_cache::FileCache;
     use crate::resolvers::image_embed::ImageEmbedResolver;
-    use crate::widgets::image_cache::ImageCache;
+    use crate::widgets::image_cache::{ImageCache, ImageKey};
     use crate::workspace::WsPersistentStore;
 
     let lb = super::harness::build_lb();
@@ -1318,7 +1369,7 @@ fn image_load_layout_consistent() {
             .alloc("test_image".into(), image, TextureOptions::default());
         id
     };
-    image_cache_handle.complete_load(url, Ok(texture_id));
+    image_cache_handle.complete_load(&ImageKey::Web(url.into()), Ok(texture_id));
 
     // Two frames: first triggers `embeds_updated` and clears the cache;
     // the second renders against the (potentially stale) populated cache.

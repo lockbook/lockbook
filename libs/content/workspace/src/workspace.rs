@@ -1373,8 +1373,8 @@ impl Workspace {
                         }
                     };
 
-                // Refresh before the markdown event lands: the image cache's
-                // URL→id lookup caches a sticky failure if the file is absent.
+                // Refresh before the markdown event lands, so the link it
+                // writes finds the imported file.
                 let Ok(cache) = FileCache::new(&self.core) else {
                     self.out
                         .failure_messages
