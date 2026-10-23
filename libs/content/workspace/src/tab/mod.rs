@@ -802,8 +802,10 @@ impl ExtendedOutput for egui::Context {
 
     fn create_note(&self, parent: Uuid, names: Vec<String>) {
         self.memory_mut(|m| {
-            let mut notes: Vec<(Uuid, Vec<String>)> =
-                m.data.get_temp(Id::unique("create_notes")).unwrap_or_default();
+            let mut notes: Vec<(Uuid, Vec<String>)> = m
+                .data
+                .get_temp(Id::unique("create_notes"))
+                .unwrap_or_default();
             notes.push((parent, names));
             m.data.insert_temp(Id::unique("create_notes"), notes);
         })
