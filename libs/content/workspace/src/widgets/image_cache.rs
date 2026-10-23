@@ -157,9 +157,7 @@ impl ImageCache {
     /// Real texture dimensions for `url`, if known.
     pub fn dims(&self, url: &str) -> Option<Vec2> {
         self.persistence
-            .image_dims()
-            .get(url)
-            .copied()
+            .image_dims(url)
             .map(|[w, h]| Vec2::new(w, h))
     }
 

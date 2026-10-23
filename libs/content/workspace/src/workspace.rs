@@ -2398,8 +2398,8 @@ impl WsPersistentStore {
         self.write_to_file();
     }
 
-    pub fn image_dims(&self) -> HashMap<String, [f32; 2]> {
-        self.data.read().unwrap().image_dims.clone()
+    pub fn image_dims(&self, url: &str) -> Option<[f32; 2]> {
+        self.data.read().unwrap().image_dims.get(url).copied()
     }
 
     pub fn merge_image_dims(&self, new_dims: HashMap<String, [f32; 2]>) {
