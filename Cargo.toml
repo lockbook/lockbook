@@ -38,3 +38,8 @@ debug = true
 # see https://bevy-cheatbook.github.io/pitfalls/performance.html
 [profile.dev.package."*"]
 opt-level = 3
+
+# the server's Stripe client is ~5 MB of generated code: optimizing it took
+# most of a test build, and nothing a test or dev run does waits on it
+[profile.dev.package.async-stripe]
+opt-level = 0
