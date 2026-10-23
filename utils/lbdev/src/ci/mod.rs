@@ -29,6 +29,8 @@ pub fn run_server_detached() -> CliResult<()> {
     dotenvy::from_path(local_env_path()).unwrap();
 
     let server_log = File::create(server_log()).unwrap();
+    // the build's output too, so a failed or slow build shows in the log
+    let err = Stdio::from(server_log.try_clone().unwrap());
     let out = Stdio::from(server_log);
     let port = env::var("SERVER_PORT").unwrap();
     let build_info_address = &build_info_address(&port);
@@ -36,7 +38,7 @@ pub fn run_server_detached() -> CliResult<()> {
     let mut run_result = Command::new("cargo")
         .args(["run", "-p", "lockbook-server", "--release"])
         .current_dir(root())
-        .stderr(Stdio::null())
+        .stderr(err)
         .stdout(out)
         .spawn()
         .unwrap();
