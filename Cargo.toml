@@ -43,3 +43,8 @@ opt-level = 3
 # opt-level 0 makes about 3x slower; dev builds keep their fast rebuilds
 [profile.test]
 opt-level = 1
+
+# the server's Stripe client is ~5 MB of generated code: optimizing it took
+# most of a test build, and nothing a test or dev run does waits on it
+[profile.dev.package.async-stripe]
+opt-level = 0
