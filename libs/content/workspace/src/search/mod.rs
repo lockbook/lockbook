@@ -810,7 +810,7 @@ impl Workspace {
                         if pending_loading && elapsed >= LOAD_DELAY_SECS {
                             crate::style::loading_indicator(ui);
                         } else if let Some(tab) = self.preview.as_mut() {
-                            let resp = tab.show(ui);
+                            let resp = self.open_guard.show(tab, |tab| tab.show(ui));
                             if let Some(id) = resp.open_anyway {
                                 self.open_anyway(id, None);
                             }

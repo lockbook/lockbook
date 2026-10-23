@@ -224,6 +224,9 @@ pub struct Tab {
 
     /// Transient tab-title edit. Not part of the session.
     pub rename: Option<String>,
+
+    /// Content hasn't been drawn since it opened; see [`crate::open_guard`].
+    pub first_draw: bool,
 }
 
 impl Tab {

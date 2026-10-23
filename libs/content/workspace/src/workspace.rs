@@ -25,7 +25,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{Change, FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::link_plan::Plan;
-use crate::open_guard;
+use crate::open_guard::{self, OpenGuard};
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
@@ -113,6 +113,9 @@ pub struct Workspace {
     // Resources & configuration
     pub cfg: WsPersistentStore,
     pub ctx: Context,
+    pub(crate) open_guard: OpenGuard,
+    /// The open the previous launch never finished; that document is refused this session.
+    interrupted: Option<open_guard::Interrupted>,
     /// Refused documents the user opened anyway this session.
     opened_anyway: Vec<Uuid>,
 
@@ -184,11 +187,12 @@ impl Workspace {
         let files = file_cache.unwrap_or_else(|| {
             Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")))
         });
-        let recent_crash = match core.recent_panic() {
-            Ok(t) => t.is_some_and(|t| (Local::now() - t).num_seconds().abs() <= 5),
-            Err(_) => true,
+        let (recent_crash, last_panic) = match core.recent_panic() {
+            Ok(t) => (t.is_some_and(|t| (Local::now() - t).num_seconds().abs() <= 5), t),
+            Err(_) => (true, None),
         };
         let cfg = WsPersistentStore::new(recent_crash, writeable_path, persist);
+        let (open_guard, interrupted) = OpenGuard::new(writeable_dir, persist, last_panic);
         let http = HttpClient::default();
         let images =
             ImageCache::new(ctx.clone(), http, core.clone(), Arc::clone(&files), cfg.clone());
@@ -215,6 +219,8 @@ impl Workspace {
 
             cfg,
             ctx: ctx.clone(),
+            open_guard,
+            interrupted,
             opened_anyway: Vec::new(),
             core: core.clone(),
 
@@ -310,7 +316,9 @@ impl Workspace {
         let mut needs_load = false;
         let content = match dest {
             Destination::File(id) => {
-                if self.is_image(*id) {
+                if let Some(interrupted) = self.interrupted.as_ref().filter(|i| i.id == *id) {
+                    ContentState::Failed(TabFailure::Refused(interrupted.refusal()))
+                } else if self.is_image(*id) {
                     self.image_content(*id)
                 } else {
                     needs_load = true;
@@ -345,6 +353,7 @@ impl Workspace {
                 last_saved: now,
                 read_only: false,
                 rename: None,
+                first_draw: true,
             },
         );
         if needs_load {
@@ -384,6 +393,7 @@ impl Workspace {
     /// Reloads a refused document without its refusal; `target` is `None` for the preview.
     pub(crate) fn open_anyway(&mut self, id: Uuid, target: Option<SessionId>) {
         self.opened_anyway.push(id);
+        self.interrupted.take_if(|i| i.id == id);
         let tab = match target {
             Some(sid) => self.tabs.get_mut(&sid),
             None => self.preview.as_mut(),
@@ -435,6 +445,7 @@ impl Workspace {
             last_saved: now,
             read_only: true,
             rename: None,
+            first_draw: true,
         });
         self.tasks.queue_load(LoadRequest {
             id,
@@ -1439,10 +1450,16 @@ impl Workspace {
                     ) && content_inspector::inspect(&bytes).is_text();
                     // a reload keeps the open editor and its unsaved edits, so it isn't refused
                     let reload = !tab_created && matches!(tab.content, ContentState::Open(_));
-                    let refusal = if reload || self.opened_anyway.contains(&id) || !is_text {
+                    let refusal = if reload || self.opened_anyway.contains(&id) {
                         None
-                    } else {
+                    } else if let Some(interrupted) =
+                        self.interrupted.as_ref().filter(|i| i.id == id)
+                    {
+                        Some(interrupted.refusal())
+                    } else if is_text {
                         open_guard::text_refusal(&bytes, doc_type == DocType::Markdown)
+                    } else {
+                        None
                     };
                     if let Some(refusal) = refusal {
                         warn!(%id, ?refusal, "refusing to open");
@@ -1451,6 +1468,7 @@ impl Workspace {
                         continue;
                     }
 
+                    self.open_guard.enter(id);
                     match doc_type {
                         DocType::Image => {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
@@ -1552,6 +1570,8 @@ impl Workspace {
                             )));
                         }
                     };
+                    self.open_guard.exit();
+                    tab.first_draw = true;
 
                     if is_preview {
                         if let Some(md) = tab.markdown_mut() {

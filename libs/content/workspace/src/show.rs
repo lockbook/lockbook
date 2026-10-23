@@ -238,7 +238,7 @@ impl Workspace {
                 md.edit.phone_mode = md.edit.renderer.touch_mode && software_keyboard;
             }
 
-            let resp = tab.show(ui);
+            let resp = self.open_guard.show(tab, |tab| tab.show(ui));
             if let Some(id) = resp.open_anyway {
                 self.open_anyway(id, session);
             }

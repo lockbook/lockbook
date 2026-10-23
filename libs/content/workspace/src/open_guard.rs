@@ -1,11 +1,21 @@
-//! Refuses documents that would hang the app: [`text_refusal`] turns away
-//! text the editor can't lay out at an interactive frame rate.
+//! Refuses documents that would hang the app.
+//!
+//! Two layers: [`text_refusal`] turns away text the editor can't lay out at an
+//! interactive frame rate, and [`OpenGuard`] marks each open on disk so a
+//! launch after a hang doesn't reopen the file that caused it.
 
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use chrono::{DateTime, Local, TimeDelta};
 use egui::text::LayoutJob;
 use egui::{Align, Layout, Rect, Ui, pos2, vec2};
+use lb_rs::Uuid;
 use lb_rs::model::usage::bytes_to_human;
+use tracing::warn;
 
 use crate::style::{Button, Space, Spacer, ThemeExt as _, TypeRole, control_height, phosphor};
+use crate::tab::{ContentState, Tab};
 
 /// Editor frame time grows ~60ms per MB of ordinary text.
 const MAX_TEXT_BYTES: usize = 1_000_000;
@@ -106,6 +116,28 @@ fn starts_block(line: &[u8], trimmed: &[u8]) -> bool {
         || digits > 0 && matches!(trimmed.get(digits), Some(b'.' | b')'))
 }
 
+/// The document the previous launch never finished opening.
+#[derive(Debug, PartialEq)]
+pub struct Interrupted {
+    pub id: Uuid,
+    /// A panic was logged after the open began; otherwise the app hung or was killed.
+    pub crashed: bool,
+}
+
+impl Interrupted {
+    pub fn refusal(&self) -> Refusal {
+        let (title, detail) = if self.crashed {
+            ("Lockbook crashed", "Last time we tried opening this file, it didn't go so well.")
+        } else {
+            (
+                "Lockbook stopped responding",
+                "Last time we started opening this file, we never finished.",
+            )
+        };
+        Refusal { title, detail: detail.into() }
+    }
+}
+
 fn thousands(n: usize) -> String {
     let digits = n.to_string();
     let mut out = String::new();
@@ -157,6 +189,68 @@ pub fn show_refusal(ui: &mut Ui, refusal: &Refusal) -> bool {
     clicked
 }
 
+/// Writes the id of the document being opened to a marker file for the
+/// duration of the open, so the marker outlives a hang the user force-quits.
+pub struct OpenGuard {
+    marker: Option<PathBuf>,
+}
+
+impl OpenGuard {
+    /// Returns the guard and the open a previous launch never finished, if any.
+    pub fn new(
+        writeable_dir: &Path, enabled: bool, last_panic: Option<DateTime<Local>>,
+    ) -> (Self, Option<Interrupted>) {
+        if !enabled {
+            return (Self { marker: None }, None);
+        }
+        let marker = writeable_dir.join("ws_opening");
+        let started = fs::metadata(&marker)
+            .and_then(|m| m.modified())
+            .ok()
+            .map(DateTime::<Local>::from);
+        let interrupted = fs::read_to_string(&marker)
+            .ok()
+            .and_then(|id| Uuid::parse_str(id.trim()).ok())
+            .map(|id| Interrupted {
+                id,
+                // panic times are truncated to the second
+                crashed: last_panic
+                    .zip(started)
+                    .is_some_and(|(panic, started)| panic + TimeDelta::seconds(1) >= started),
+            });
+        if let Some(interrupted) = &interrupted {
+            warn!(?interrupted, "previous launch never finished opening a document");
+            let _ = fs::remove_file(&marker);
+        }
+        (Self { marker: Some(marker) }, interrupted)
+    }
+
+    pub fn enter(&self, id: Uuid) {
+        if let Some(marker) = &self.marker {
+            let _ = fs::write(marker, id.to_string());
+        }
+    }
+
+    pub fn exit(&self) {
+        if let Some(marker) = &self.marker {
+            let _ = fs::remove_file(marker);
+        }
+    }
+
+    /// Shows `tab`, holding the marker through the first frame of its content.
+    pub fn show<R>(&self, tab: &mut Tab, show: impl FnOnce(&mut Tab) -> R) -> R {
+        let watched = tab.first_draw && matches!(tab.content, ContentState::Open(_));
+        let Some(id) = tab.id().filter(|_| watched) else {
+            return show(tab);
+        };
+        self.enter(id);
+        let result = show(tab);
+        self.exit();
+        tab.first_draw = false;
+        result
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,5 +292,31 @@ mod tests {
         // a shorter fence inside a longer one doesn't close it
         let nested = format!("````\n```\n{}````\n", lines("", 1500));
         assert_eq!(refused(&nested), None);
+    }
+
+    #[test]
+    fn marker_survives_a_hang() {
+        let dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        fs::create_dir_all(&dir).unwrap();
+        let launch = |last_panic| OpenGuard::new(&dir, true, last_panic).1;
+        let (guard, interrupted) = OpenGuard::new(&dir, true, None);
+        assert_eq!(interrupted, None);
+
+        let id = Uuid::new_v4();
+        guard.enter(id);
+        guard.exit();
+        assert_eq!(launch(None), None);
+
+        // force-quit mid-open, after an older panic
+        let before = Local::now() - TimeDelta::seconds(60);
+        guard.enter(id);
+        assert_eq!(launch(Some(before)), Some(Interrupted { id, crashed: false }));
+        assert_eq!(launch(None), None);
+
+        // panic mid-open, logged within the same second
+        guard.enter(id);
+        let panic = Local::now() - TimeDelta::milliseconds(900);
+        assert_eq!(launch(Some(panic)), Some(Interrupted { id, crashed: true }));
+        fs::remove_dir_all(&dir).unwrap();
     }
 }
