@@ -6,8 +6,8 @@ use epaint::RectShape;
 use lb_rs::Uuid;
 
 use crate::resolvers::EmbedResolver;
-use crate::style::TypeRole;
-use crate::theme::icons::Icon;
+use crate::style::chrome::phosphor;
+use crate::style::{TypeRole, phosphor_font_id};
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::image_cache::{ImageCache, ImageState};
 
@@ -71,14 +71,14 @@ impl EmbedResolver for ImageEmbedResolver {
                 .next()
                 .unwrap_or(name);
             let name = urlencoding::decode(name).map_or(name.into(), |n| n.into_owned());
-            show_placeholder(ui, rect, Icon::NO_IMAGE, &name, Some(theme.fg().red));
+            show_placeholder(ui, rect, phosphor::IMAGE_BROKEN, &name, Some(theme.fg().red));
             return;
         }
         let state = self.images.get_or_load(url, self.file_id, false);
         let image_state = state.lock().unwrap().deref().clone();
         match image_state {
             ImageState::Loading => {
-                show_placeholder(ui, rect, Icon::IMAGE, "Loading image...", None);
+                show_placeholder(ui, rect, phosphor::IMAGE, "Loading image…", None);
             }
             ImageState::Loaded(texture_id) => {
                 // Paint only — interaction (open vs. select) is driven by the
@@ -93,7 +93,7 @@ impl EmbedResolver for ImageEmbedResolver {
                     ));
             }
             ImageState::Failed(message) => {
-                show_placeholder(ui, rect, Icon::NO_IMAGE, &message, None);
+                show_placeholder(ui, rect, phosphor::IMAGE_BROKEN, &message, None);
             }
         }
     }
@@ -112,27 +112,23 @@ impl EmbedResolver for ImageEmbedResolver {
 /// A quiet box: hairline frame, icon and caption in secondary ink. `dot`
 /// marks one that waits or names nothing, in the color its link draws in,
 /// as the completion picker marks files past the scope.
-fn show_placeholder(ui: &mut Ui, rect: Rect, icon: Icon, caption: &str, dot: Option<Color32>) {
+fn show_placeholder(
+    ui: &mut Ui, rect: Rect, icon: &'static str, caption: &str, dot: Option<Color32>,
+) {
     let theme = ui.ctx().get_lb_theme();
     let color = theme.neutral_fg_secondary();
     // Clip so a tiny thumbnail's icon/caption can't spill over the card or text.
     let painter = ui.painter().with_clip_rect(rect);
 
     let icon_size = (rect.width().min(rect.height()) * 0.6).clamp(10.0, 48.0);
-    painter.text(
-        rect.center(),
-        Align2::CENTER_CENTER,
-        icon.icon,
-        FontId { size: icon_size, family: egui::FontFamily::Monospace },
-        color,
-    );
+    painter.text(rect.center(), Align2::CENTER_CENTER, icon, phosphor_font_id(icon_size), color);
     // Caption only where it fits; otherwise the icon alone.
     let font = FontId::proportional(TypeRole::Mono.size());
-    let fits = ui.fonts(|f| {
-        f.layout_no_wrap(caption.into(), font.clone(), color)
-            .size()
-            .x
-    }) <= rect.width() - 12.0;
+    let fits = painter
+        .layout_no_wrap(caption.into(), font.clone(), color)
+        .size()
+        .x
+        <= rect.width() - 12.0;
     if fits && rect.height() >= 64.0 {
         painter.text(
             rect.center_bottom() - Vec2::new(0.0, 8.0),

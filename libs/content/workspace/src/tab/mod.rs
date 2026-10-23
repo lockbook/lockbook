@@ -11,7 +11,6 @@ use crate::tab::pdf_viewer::PdfViewer;
 
 use crate::tab::svg_editor::SVGEditor;
 use crate::task_manager::TaskManager;
-use crate::theme::icons::Icon;
 use crate::workspace::Workspace;
 
 use chrono::DateTime;
@@ -177,8 +176,7 @@ pub enum TabAction {
 }
 
 /// `in_new_tab` is the explicit menu/cmd-click request. `desktop_tab_policy`
-/// is activate-if-open / honor the open-in-new-tab setting. Distinct from
-/// drawing the egui tab strip (`Workspace::show_tabs`). Desktop with the
+/// is activate-if-open / honor the open-in-new-tab setting. Desktop with the
 /// setting off navigates in the current session so back still works.
 pub fn tab_action_for_open(
     dest_already_open: bool, in_new_tab: bool, desktop_tab_policy: bool, open_in_new_tab: bool,
@@ -281,6 +279,13 @@ impl Tab {
     pub fn markdown_mut(&mut self) -> Option<&mut Markdown> {
         match &mut self.content {
             ContentState::Open(TabContent::Markdown(md)) => Some(md),
+            _ => None,
+        }
+    }
+
+    pub fn pdf_mut(&mut self) -> Option<&mut PdfViewer> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Pdf(pdf)) => Some(pdf),
             _ => None,
         }
     }
@@ -416,6 +421,7 @@ impl Tab {
                         resp.scroll_updated = md_resp.scroll_updated;
                         resp.text_interaction_rect = md_resp.text_interaction_rect;
                         resp.mobile_toolbar_shown = md_resp.mobile_toolbar_shown;
+                        resp.caret_covered = md_resp.caret_covered;
                     }
                     TabContent::Image(img) => img.show(ui),
                     TabContent::Pdf(pdf) => pdf.show(ui),
@@ -563,6 +569,7 @@ pub struct Response {
     pub open_camera: bool,
     pub text_interaction_rect: Option<egui::Rect>,
     pub mobile_toolbar_shown: bool,
+    pub caret_covered: bool,
     pub open_file: Option<Uuid>,
 }
 
@@ -624,62 +631,7 @@ pub enum ClipContent {
     NamedImage { name: String, data: Vec<u8> },
 }
 
-#[derive(PartialEq)]
-pub enum TabStatus {
-    Dirty,
-    LoadQueued,
-    LoadInProgress,
-    SaveQueued,
-    SaveInProgress,
-    Clean,
-}
-
-impl TabStatus {
-    pub fn icon(&self) -> Icon {
-        match self {
-            TabStatus::Dirty => Icon::CIRCLE,
-            TabStatus::LoadQueued => Icon::SCHEDULE,
-            TabStatus::LoadInProgress => Icon::SAVE,
-            TabStatus::SaveQueued => Icon::SCHEDULE,
-            TabStatus::SaveInProgress => Icon::SAVE,
-            TabStatus::Clean => Icon::CHECK_CIRCLE,
-        }
-    }
-
-    pub fn summary(&self) -> String {
-        match self {
-            TabStatus::Dirty => "Unsaved changes".to_string(),
-            TabStatus::LoadQueued => "Queued for loading".to_string(),
-            TabStatus::LoadInProgress => "Loading".to_string(),
-            TabStatus::SaveQueued => "Queued for saving".to_string(),
-            TabStatus::SaveInProgress => "Saving".to_string(),
-            TabStatus::Clean => "Saved".to_string(),
-        }
-    }
-}
-
 impl Workspace {
-    pub fn tab_status(&self, i: usize) -> TabStatus {
-        let tab = self.tab_strip.get(i).and_then(|s| self.tabs.get(&s.id));
-        if let Some(tab) = tab {
-            if let Some(id) = tab.id() {
-                if self.tasks.load_in_progress(id) {
-                    return TabStatus::LoadInProgress;
-                } else if self.tasks.save_in_progress(id) {
-                    return TabStatus::SaveInProgress;
-                } else if self.tasks.load_queued(id) {
-                    return TabStatus::LoadQueued;
-                } else if self.tasks.save_queued(id) {
-                    return TabStatus::SaveQueued;
-                }
-            }
-            if tab.is_dirty(&self.tasks) {
-                return TabStatus::Dirty;
-            }
-        }
-        TabStatus::Clean // can't get any cleaner than nonexistent!
-    }
-
     pub fn tab_title(&self, tab: &Tab) -> String {
         let files_arc = std::sync::Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
@@ -738,6 +690,15 @@ pub trait ExtendedOutput {
     /// open the document.
     fn create_note(&self, parent: Uuid, names: Vec<String>);
     fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)>;
+    /// A rendered copy; hosts put both flavors on the clipboard at once.
+    fn set_copied_rendered(&self, copied: CopiedRendered);
+    fn pop_copied_rendered(&self) -> Option<CopiedRendered>;
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct CopiedRendered {
+    pub plain: String,
+    pub html: String,
 }
 
 /// A sheet about a link the reader tried to open: why it may open differently
@@ -756,25 +717,34 @@ pub struct LinkSheet {
 }
 
 impl ExtendedOutput for egui::Context {
+    fn set_copied_rendered(&self, copied: CopiedRendered) {
+        self.memory_mut(|m| m.data.insert_temp(Id::unique("copied_rendered"), copied));
+    }
+
+    fn pop_copied_rendered(&self) -> Option<CopiedRendered> {
+        self.memory_mut(|m| m.data.remove_temp(Id::unique("copied_rendered")))
+    }
+
     fn set_virtual_keyboard_shown(&self, enabled: bool) {
         self.memory_mut(|m| {
             m.data
-                .insert_temp(Id::new("virtual_keyboard_shown"), enabled);
+                .insert_temp(Id::unique("virtual_keyboard_shown"), enabled);
         })
     }
 
     fn pop_virtual_keyboard_shown(&self) -> Option<bool> {
-        self.memory_mut(|m| m.data.remove_temp(Id::new("virtual_keyboard_shown")))
+        self.memory_mut(|m| m.data.remove_temp(Id::unique("virtual_keyboard_shown")))
     }
 
     fn set_context_menu(&self, pos: egui::Pos2, target: ContextMenuTarget) {
         self.memory_mut(|m| {
-            m.data.insert_temp(Id::new("context_menu"), (pos, target));
+            m.data
+                .insert_temp(Id::unique("context_menu"), (pos, target));
         })
     }
 
     fn pop_context_menu(&self) -> Option<(egui::Pos2, ContextMenuTarget)> {
-        self.memory_mut(|m| m.data.remove_temp(Id::new("context_menu")))
+        self.memory_mut(|m| m.data.remove_temp(Id::unique("context_menu")))
     }
 
     fn open_file(&self, id: Uuid, new_tab: bool) {
@@ -783,68 +753,76 @@ impl ExtendedOutput for egui::Context {
 
     fn open_link(&self, id: Uuid, heading: Option<String>, new_tab: bool) {
         self.memory_mut(|m| {
-            let mut files: Vec<(Uuid, Option<String>, bool)> =
-                m.data.get_temp(Id::new("open_files")).unwrap_or_default();
+            let mut files: Vec<(Uuid, Option<String>, bool)> = m
+                .data
+                .get_temp(Id::unique("open_files"))
+                .unwrap_or_default();
             files.push((id, heading, new_tab));
-            m.data.insert_temp(Id::new("open_files"), files);
+            m.data.insert_temp(Id::unique("open_files"), files);
         })
     }
 
     fn pop_open_files(&self) -> Vec<(Uuid, Option<String>, bool)> {
         self.memory_mut(|m| {
             m.data
-                .remove_temp::<Vec<(Uuid, Option<String>, bool)>>(Id::new("open_files"))
+                .remove_temp::<Vec<(Uuid, Option<String>, bool)>>(Id::unique("open_files"))
                 .unwrap_or_default()
         })
     }
 
     fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool) {
         self.memory_mut(|m| {
-            let mut ranges: Vec<(Uuid, std::ops::Range<usize>, bool)> =
-                m.data.get_temp(Id::new("open_ranges")).unwrap_or_default();
+            let mut ranges: Vec<(Uuid, std::ops::Range<usize>, bool)> = m
+                .data
+                .get_temp(Id::unique("open_ranges"))
+                .unwrap_or_default();
             ranges.push((id, byte_range, new_tab));
-            m.data.insert_temp(Id::new("open_ranges"), ranges);
+            m.data.insert_temp(Id::unique("open_ranges"), ranges);
         })
     }
 
     fn pop_open_ranges(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)> {
         self.memory_mut(|m| {
             m.data
-                .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::new("open_ranges"))
+                .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::unique("open_ranges"))
                 .unwrap_or_default()
         })
     }
 
     fn show_link_sheet(&self, sheet: LinkSheet) {
         self.memory_mut(|m| {
-            let mut sheets: Vec<LinkSheet> =
-                m.data.get_temp(Id::new("link_sheets")).unwrap_or_default();
+            let mut sheets: Vec<LinkSheet> = m
+                .data
+                .get_temp(Id::unique("link_sheets"))
+                .unwrap_or_default();
             sheets.push(sheet);
-            m.data.insert_temp(Id::new("link_sheets"), sheets);
+            m.data.insert_temp(Id::unique("link_sheets"), sheets);
         })
     }
 
     fn pop_link_sheets(&self) -> Vec<LinkSheet> {
         self.memory_mut(|m| {
             m.data
-                .remove_temp::<Vec<LinkSheet>>(Id::new("link_sheets"))
+                .remove_temp::<Vec<LinkSheet>>(Id::unique("link_sheets"))
                 .unwrap_or_default()
         })
     }
 
     fn create_note(&self, parent: Uuid, names: Vec<String>) {
         self.memory_mut(|m| {
-            let mut notes: Vec<(Uuid, Vec<String>)> =
-                m.data.get_temp(Id::new("create_notes")).unwrap_or_default();
+            let mut notes: Vec<(Uuid, Vec<String>)> = m
+                .data
+                .get_temp(Id::unique("create_notes"))
+                .unwrap_or_default();
             notes.push((parent, names));
-            m.data.insert_temp(Id::new("create_notes"), notes);
+            m.data.insert_temp(Id::unique("create_notes"), notes);
         })
     }
 
     fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)> {
         self.memory_mut(|m| {
             m.data
-                .remove_temp::<Vec<(Uuid, Vec<String>)>>(Id::new("create_notes"))
+                .remove_temp::<Vec<(Uuid, Vec<String>)>>(Id::unique("create_notes"))
                 .unwrap_or_default()
         })
     }
@@ -864,10 +842,10 @@ impl ExtendedInput for egui::Context {
         self.memory_mut(|m| {
             let mut events: Vec<Event> = m
                 .data
-                .get_temp(Id::new("custom_events"))
+                .get_temp(Id::unique("custom_events"))
                 .unwrap_or_default();
             events.push(event);
-            m.data.insert_temp(Id::new("custom_events"), events);
+            m.data.insert_temp(Id::unique("custom_events"), events);
         })
     }
 
@@ -879,10 +857,10 @@ impl ExtendedInput for egui::Context {
         self.memory_mut(|m| {
             let events: Vec<Event> = m
                 .data
-                .get_temp(Id::new("custom_events"))
+                .get_temp(Id::unique("custom_events"))
                 .unwrap_or_default();
             m.data
-                .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
+                .insert_temp(Id::unique("custom_events"), Vec::<Event>::new());
             events
         })
     }
@@ -891,7 +869,7 @@ impl ExtendedInput for egui::Context {
         self.memory_mut(|m| {
             let all: Vec<Event> = m
                 .data
-                .get_temp(Id::new("custom_events"))
+                .get_temp(Id::unique("custom_events"))
                 .unwrap_or_default();
             let mut matching = Vec::new();
             let mut rest = Vec::new();
@@ -902,7 +880,7 @@ impl ExtendedInput for egui::Context {
                     rest.push(event);
                 }
             }
-            m.data.insert_temp(Id::new("custom_events"), rest);
+            m.data.insert_temp(Id::unique("custom_events"), rest);
             matching
         })
     }
@@ -911,7 +889,7 @@ impl ExtendedInput for egui::Context {
         self.memory_mut(|m| {
             let events: Vec<Event> = m
                 .data
-                .get_temp(Id::new("custom_events"))
+                .get_temp(Id::unique("custom_events"))
                 .unwrap_or_default();
             events
         })
@@ -920,7 +898,7 @@ impl ExtendedInput for egui::Context {
     fn drain(&self) {
         self.memory_mut(|m| {
             m.data
-                .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
+                .insert_temp(Id::unique("custom_events"), Vec::<Event>::new());
         });
     }
 }

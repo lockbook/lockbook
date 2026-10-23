@@ -11,6 +11,7 @@ use lb_rs::model::text::offset_types::{
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
+use crate::tab::markdown_editor::widget::block::drag::DragUnit;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     Fragment, FragmentContent, FragmentInset,
@@ -150,7 +151,7 @@ impl<'ast> MdRender {
                         egui::Vec2::new(self.width(child), child_height),
                     );
                     let parent_start = self.node_range(node).start();
-                    self.push_block_box(child, block_rect, parent_start);
+                    self.push_block_box(child, block_rect, parent_start, DragUnit::Item);
                 }
             } else {
                 let in_buffer = top_left.y + child_height > viewport.min.y - buffer
@@ -236,6 +237,8 @@ impl<'ast> MdRender {
 
             // container_block
             NodeValue::Alert(_) => self.own_prefix_len_alert(node, line),
+            NodeValue::BlockDirective(_) => unimplemented!("extension disabled"),
+            NodeValue::MultilineComment(_) => unimplemented!("extension disabled"),
             NodeValue::BlockQuote => self.own_prefix_len_block_quote(node, line),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -257,6 +260,8 @@ impl<'ast> MdRender {
             | NodeValue::FootnoteReference(_)
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Insert
+            | NodeValue::CommentInline(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -371,6 +376,8 @@ impl<'ast> MdRender {
 
             // container_block
             NodeValue::Alert(_) => self.buffer[own_prefix].into(),
+            NodeValue::BlockDirective(_) => unimplemented!("extension disabled"),
+            NodeValue::MultilineComment(_) => unimplemented!("extension disabled"),
             NodeValue::BlockQuote => self.buffer[own_prefix].into(),
             NodeValue::DescriptionItem(_) => {
                 unimplemented!("extension disabled")
@@ -412,6 +419,8 @@ impl<'ast> MdRender {
             | NodeValue::FootnoteReference(_)
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Insert
+            | NodeValue::CommentInline(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -501,6 +510,8 @@ impl<'ast> MdRender {
 
             // container_block
             NodeValue::Alert(_) => result += &self.buffer[own_prefix],
+            NodeValue::BlockDirective(_) => unimplemented!("extension disabled"),
+            NodeValue::MultilineComment(_) => unimplemented!("extension disabled"),
             NodeValue::BlockQuote => result += &self.buffer[own_prefix],
             NodeValue::DescriptionItem(_) => {
                 unimplemented!("extension disabled")
@@ -542,6 +553,8 @@ impl<'ast> MdRender {
             | NodeValue::FootnoteReference(_)
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Insert
+            | NodeValue::CommentInline(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)

@@ -20,6 +20,7 @@ import java.math.BigInteger
 data class AndroidResponse(
     val redrawIn: Long,
     val copiedText: String,
+    val copiedHtml: String,
     val copiedImage: ByteArray,
     val hasURLOpened: Boolean,
     val urlOpened: String,
@@ -54,16 +55,37 @@ enum class MarkdownToolbarAction {
     NumberedList,
     BulletedList,
     TaskList,
+    Quote,
     Link,
     Image,
     Indent,
     Outdent,
+    Table,
+    PreviousCell,
+    NextCell,
+    NextRow,
+    RowAbove,
+    RowBelow,
+    ColumnLeft,
+    ColumnRight,
+    DeleteRow,
+    DeleteColumn,
+    MoveRowUp,
+    MoveRowDown,
+    MoveColumnLeft,
+    MoveColumnRight,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
 }
 
 @Serializable
 data class MarkdownToolbarState(
     val active: Set<MarkdownToolbarAction>,
     val headingLevel: Int? = null,
+    val inTable: Boolean = false,
+    val disabled: Set<MarkdownToolbarAction> = emptySet(),
+    val onHeader: Boolean = false,
 )
 
 object Workspace {
@@ -77,6 +99,9 @@ object Workspace {
     }
 
     external fun initWSOffloaded(surface: Surface, core: Long, theme: Any): Long
+
+    // comma-separated BCP 47 tags, before the first initWS
+    external fun setPreferredLanguages(tags: String)
     external fun setTheme(rustObj: Long, theme: Any)
     external fun defaultTheme(isDark: Boolean): Any
 
@@ -90,6 +115,7 @@ object Workspace {
     fun markdownToolbarAction(rustObj: Long, action: MarkdownToolbarAction) {
         markdownToolbarActionNative(rustObj, Json.encodeToString(action))
     }
+    external fun insertTable(rustObj: Long, columns: Int, rows: Int)
     external fun setNativeMarkdownToolbarHeight(rustObj: Long, height: Float)
     external fun queueFileForEditorImport(rustObj: Long, path: String, name: String): Boolean
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
@@ -146,6 +172,7 @@ object Workspace {
     external fun clipboardCut(rustObj: Long)
     external fun clipboardCopy(rustObj: Long)
     external fun copyImage(rustObj: Long)
+    external fun copyRendered(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
     external fun clipboardSendImage(rustObj: Long, content: ByteArray, isPaste: Boolean)
     external fun isPenOnlyDraw(rustObj: Long) : Boolean

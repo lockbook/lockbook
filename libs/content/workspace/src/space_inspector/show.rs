@@ -174,7 +174,8 @@ impl SpaceInspector {
 
         // Top buttons
         ui.scope_builder(
-            UiBuilder::new().layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }),
+            UiBuilder::new()
+                .layer_id(LayerId { order: egui::Order::Foreground, id: Id::unique(1) }),
             |ui| {
                 let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
                 ui.scope_builder(UiBuilder::new().max_rect(top_left_rect), |ui| {
@@ -234,7 +235,7 @@ impl SpaceInspector {
 
         // Hover interaction
 
-        let response = ui.interact(root_draw_anchor, Id::new(-1), Sense::hover());
+        let response = ui.interact(root_draw_anchor, Id::unique(-1), Sense::hover());
 
         response.on_hover_text(
             "Name:\n".to_owned()
@@ -456,7 +457,7 @@ impl SpaceInspector {
                     + "\nSize:\n"
                     + &display_size;
 
-                let response = ui.interact(paint_rect, Id::new(i), Sense::click());
+                let response = ui.interact(paint_rect, Id::unique(i), Sense::click());
 
                 if response.clicked() && item_filerow.file.is_folder() {
                     changed_focused_folder = Some(item.id);

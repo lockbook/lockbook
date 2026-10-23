@@ -240,9 +240,9 @@ pub unsafe extern "C" fn scroll_wheel(
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 
-    if obj.renderer.raw_input.modifiers.command || obj.renderer.raw_input.modifiers.ctrl {
+    if obj.renderer.modifiers.command || obj.renderer.modifiers.ctrl {
         let factor = (scroll_y / 50.).exp();
 
         obj.renderer.raw_input.events.push(Event::Zoom(factor))
@@ -250,7 +250,9 @@ pub unsafe extern "C" fn scroll_wheel(
         obj.renderer.raw_input.events.push(Event::MouseWheel {
             unit: MouseWheelUnit::Point,
             delta: vec2(scroll_x, scroll_y),
-            modifiers: obj.renderer.raw_input.modifiers,
+            modifiers: obj.renderer.modifiers,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
         });
     }
 }
@@ -391,6 +393,17 @@ pub unsafe extern "C" fn selection_target_is_image(obj: *mut c_void) -> bool {
     obj.workspace
         .focused_mdedit_mut()
         .is_some_and(|md| md.renderer.selection_target_is_image())
+}
+
+/// Edit-menu "Copy Rendered": the selection as drawn, as plain text and
+/// HTML, delivered through the next response's `copied_text` / `copied_html`.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn copy_rendered(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.renderer
+        .context
+        .push_markdown_event(workspace_rs::tab::markdown_editor::input::Event::CopyRendered);
 }
 
 /// # Safety

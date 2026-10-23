@@ -1174,7 +1174,7 @@ impl MdEdit {
         let mut size = completion_popup_size(popup_width - completion_chrome_w(), results.len());
         size.y += headers.len() as f32 * header_h;
         let popup_rect =
-            completion_popup_rect(cursor_top, cursor_bot, size, ui.ctx().screen_rect());
+            completion_popup_rect(cursor_top, cursor_bot, size, ui.ctx().content_rect());
         self.renderer
             .touch_targets
             .push((popup_rect, TouchTarget::Popup));
@@ -1223,7 +1223,7 @@ impl MdEdit {
         for (idx, result) in results.iter().enumerate() {
             let resp = ui.interact(
                 row_rects[idx],
-                Id::new("link_item").with((result.id, idx)),
+                Id::unique("link_item").with((result.id, idx)),
                 Sense::click(),
             );
             if resp.hovered() {
@@ -1241,7 +1241,7 @@ impl MdEdit {
             }
             let row = row_rects[idx];
             let rect = Rect::from_min_max(Pos2::new(row.right() - slot_w, row.top()), row.max);
-            let id = Id::new("link_item_headings").with((result.id, idx));
+            let id = Id::unique("link_item_headings").with((result.id, idx));
             let resp = ui.interact(rect, id, Sense::click());
             crate::style::tip_text(ui.ctx(), &resp, "Headings");
             if resp.hovered() {

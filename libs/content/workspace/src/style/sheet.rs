@@ -26,7 +26,7 @@ const DIM_ALPHA: u8 = 40;
 /// `sheet_layer` (dismiss). Draw the sheet as a **sibling** Foreground area —
 /// never nested inside this Area.
 pub fn sheet_dim(ctx: &egui::Context, dim_id: Id, sheet_layer: egui::LayerId) -> bool {
-    let screen = ctx.screen_rect();
+    let screen = ctx.content_rect();
     let mut outside = false;
     Area::new(dim_id)
         .order(egui::Order::Middle)
@@ -274,7 +274,7 @@ pub fn sheet_footer(
             let clicked = if let Some(fid) = opts.copy_feedback {
                 Button::quiet(t, primary_label)
                     .enabled(opts.primary_enabled)
-                    .copy_feedback(fid)
+                    .copy_feedback(egui::Id::unique(fid))
                     .height(row_h)
                     .max_width(primary_max)
                     .show(ui)

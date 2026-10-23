@@ -103,7 +103,7 @@ impl Outline {
         &mut self, ctx: &egui::Context, id: Id, rows: &[OutlineRow], current: Option<usize>,
     ) -> (Option<String>, Rect, bool) {
         let t = ctx.get_lb_theme();
-        let screen = ctx.screen_rect();
+        let screen = ctx.content_rect();
         let layer = egui::LayerId::new(Order::Foreground, id);
         let mut dismissed = sheet_dim(ctx, id.with("dim"), layer) && !self.sheet_opening;
         let (margin, pad, header) = (Space::Md.pts(), Space::Sm.pts(), control_height());
@@ -387,7 +387,7 @@ fn measure<'a>(
                 break_anywhere: false,
                 overflow_character: Some('…'),
             };
-            let galley = ctx.fonts(|f| f.layout_job(job));
+            let galley = ctx.fonts_mut(|f| f.layout_job(job));
             let min_h = if touch { TOUCH_ROW_H } else { control_height() };
             let height = min_h.max(galley.size().y + 2.0 * Space::Xs.pts());
             tops.push(top);
@@ -402,7 +402,7 @@ fn measure<'a>(
 fn empty_state(ctx: &egui::Context, width: f32) -> Arc<Galley> {
     let t = ctx.get_lb_theme();
     let text_w = (width - 2.0 * Space::Sm.pts()).max(1.0);
-    ctx.fonts(|f| {
+    ctx.fonts_mut(|f| {
         f.layout(
             "No headings yet. Start a line with # to add one.".into(),
             TypeRole::Body.font_id(),

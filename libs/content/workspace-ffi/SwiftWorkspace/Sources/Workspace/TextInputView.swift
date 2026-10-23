@@ -40,6 +40,7 @@
         }
         /// The editor's find or replace field has focus, per the frame output.
         private var chromeFocused = false
+        private var caretCovered = false
         /// Characters of a composition (a swipe-typed word) sent to that
         /// field so far; a revision deletes them first.
         private var chromeMarkedLength = 0
@@ -129,9 +130,9 @@
             }
         }
 
-        /// The software keyboard is up: first responder without a hardware keyboard.
+        /// The software keyboard is up: first responder, and no hardware keyboard keeps it away.
         var isSoftwareKeyboardUp: Bool {
-            isFirstResponder && GCKeyboard.coalesced == nil
+            isFirstResponder && mtkView.softwareKeyboardInUse
         }
 
         @available(*, unavailable)
@@ -171,7 +172,7 @@
             // Focus from code leaves the caret hidden until a tap (FB12622609);
             // Runestone activates the display the same way.
             if result {
-                selectionDisplay?.isActivated = !chromeFocused
+                selectionDisplay?.isActivated = !chromeFocused && !caretCovered
             }
             return result
         }
@@ -207,8 +208,13 @@
             if output.chrome_text_focused != chromeFocused {
                 chromeFocused = output.chrome_text_focused
                 chromeMarkedLength = 0
-                selectionDisplay?.isActivated = !chromeFocused
+                selectionDisplay?.isActivated = !chromeFocused && !caretCovered
                 refreshTraits()
+            }
+            // the editor's popups paint under UIKit's caret: it hides while one covers it
+            if output.caret_covered != caretCovered {
+                caretCovered = output.caret_covered
+                selectionDisplay?.isActivated = !chromeFocused && !caretCovered
             }
             if output.text_updated {
                 marked = nil
@@ -233,7 +239,7 @@
             }
 
             if let wsHandle {
-                update_virtual_keyboard(wsHandle, isFirstResponder && GCKeyboard.coalesced == nil)
+                update_virtual_keyboard(wsHandle, isSoftwareKeyboardUp)
             }
         }
 
@@ -481,6 +487,8 @@
                     .keyboardA, .keyboardC, .keyboardV, .keyboardX, .keyboardZ, .keyboardW, .keyboardO,
                 ]
                 if mods.contains(.command), !mods.contains(.control) {
+                    // Cmd+Shift+C / X are the editor's (copy rendered, strikethrough)
+                    if mods.contains(.shift), [.keyboardC, .keyboardX].contains(key.keyCode) { return true }
                     if system.contains(key.keyCode) { return false }
                     if key.keyCode == .keyboardF, mods.contains(.shift) { return false }
                 }
@@ -999,10 +1007,14 @@
             menuVisible = false
             commitPendingSelection()
             guard let wsHandle else { return }
-            if let image = UIPasteboard.general.image {
+            // a spreadsheet copies cells as text and as a picture of them: the
+            // text is the paste. A line beside an image names the image.
+            let text = UIPasteboard.general.string ?? UIPasteboard.general.url?.absoluteString
+            let cells = text.map { $0.contains("\t") || $0.contains("\n") } ?? false
+            if let image = UIPasteboard.general.image, !cells {
                 mtkView.importContent(.image(image), isPaste: true)
                 mtkView.requestFrame()
-            } else if let text = UIPasteboard.general.string ?? UIPasteboard.general.url?.absoluteString {
+            } else if let text {
                 inputDelegate?.selectionWillChange(self)
                 text.withCString { paste_text(wsHandle, $0) }
                 layoutNow()
@@ -1306,7 +1318,7 @@
         func editMenu(for _: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
             uikitMenuAsked = true
             menuVisible = true
-            return UIMenu(children: editorMenuItems(atom: false) + suggestedActions.withoutUndo)
+            return UIMenu(children: editorMenuItems(atom: false) + standardMenuItems(suggestedActions))
         }
 
         /// The menu for a tapped link or image.
@@ -1314,7 +1326,7 @@
             _: UIEditMenuInteraction, menuFor _: UIEditMenuConfiguration,
             suggestedActions: [UIMenuElement]
         ) -> UIMenu? {
-            UIMenu(children: editorMenuItems(atom: menuForAtom) + suggestedActions.withoutUndo)
+            UIMenu(children: editorMenuItems(atom: menuForAtom) + standardMenuItems(suggestedActions))
         }
 
         /// Clear of the selection, so the menu does not cover what it acts on.
@@ -1380,6 +1392,30 @@
                 })
             }
             return items
+        }
+
+        /// The system's Cut / Copy / Paste group, with "Copy Rendered" right
+        /// after it while there is a selection.
+        private func standardMenuItems(_ suggested: [UIMenuElement]) -> [UIMenuElement] {
+            let standard = suggested.withoutUndo
+            guard let wsHandle, let range = selectedTextRange, !range.isEmpty else { return standard }
+            let copyRendered = UIAction(title: "Copy Rendered", image: UIImage(systemName: "textformat")) { [weak self] _ in
+                copy_rendered(wsHandle)
+                self?.mtkView.requestFrame()
+            }
+            let group = standard.firstIndex { $0.contains(action: NSSelectorFromString("copy:")) }
+            var items = standard
+            items.insert(copyRendered, at: group.map { $0 + 1 } ?? items.count)
+            return items
+        }
+    }
+
+    extension UIMenuElement {
+        /// Whether this is the command with `action` or a menu containing it.
+        func contains(action: Selector) -> Bool {
+            if let command = self as? UICommand { return command.action == action }
+            if let menu = self as? UIMenu { return menu.children.contains { $0.contains(action: action) } }
+            return false
         }
     }
 

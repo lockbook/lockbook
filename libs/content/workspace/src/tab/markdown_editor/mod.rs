@@ -59,6 +59,7 @@ pub fn syntax_theme() -> &'static Theme {
 }
 
 pub mod bounds;
+mod clipboard;
 pub mod commands;
 pub mod fold;
 pub mod fragment;
@@ -66,6 +67,7 @@ pub mod input;
 pub mod md_label;
 mod scroll_content;
 pub mod show;
+pub mod table;
 pub mod text_units;
 mod theme;
 pub(crate) mod widget;
@@ -98,6 +100,9 @@ pub struct Response {
     pub text_interaction_rect: Option<egui::Rect>,
 
     pub mobile_toolbar_shown: bool,
+    /// A popup is painted over the caret: a platform that draws its own
+    /// caret above the editor hides it.
+    pub caret_covered: bool,
 }
 
 /// A region painted this frame that a platform deciding touches itself
@@ -110,6 +115,15 @@ pub enum TouchTarget {
     Scrollbar,
     /// A popup egui handles itself.
     Popup,
+}
+
+/// A desktop IME composition in the buffer: where it sits, its text, and
+/// the buffer seq that placement is current for.
+#[derive(Clone, Debug)]
+pub struct ImeMarked {
+    pub range: (Grapheme, Grapheme),
+    pub text: String,
+    pub seq: usize,
 }
 
 pub struct MdRender {
@@ -130,6 +144,9 @@ pub struct MdRender {
     pub heading_copy: Option<String>,
     /// The heading whose link was just copied, for its check mark.
     pub heading_copied: Option<((Grapheme, Grapheme), web_time::Instant)>,
+    /// The user moved the selection since the last frame was painted: a
+    /// table wider than the note scrolls to show its end.
+    pub caret_moved: bool,
 
     // document
     pub buffer: Buffer,
@@ -143,6 +160,9 @@ pub struct MdRender {
     pub text_areas: Vec<TextBufferArea>,
     /// Strikethroughs and underlines painted on top of text
     pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
+    /// Edge fades of scrolled tables `(rect, left color, right color)`,
+    /// painted over the text.
+    pub table_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
     pub render_events: Vec<input::Event>,
     /// Touch targets painted this frame.
     pub touch_targets: Vec<(Rect, TouchTarget)>,
@@ -150,6 +170,15 @@ pub struct MdRender {
     /// render DFS. Cleared each frame (mirrors `fragments`); read for
     /// pointer hit-testing and drop-gap math by drag-to-reorder.
     pub block_boxes: Vec<widget::block::drag::BlockBox>,
+    /// Per-frame geometry index of every table cell, cleared and read like
+    /// `block_boxes`: a pointer in a cell resolves to that cell.
+    pub table_cell_boxes: Vec<table::TableCellBox>,
+    /// A painter slot above each header row's background, with the row's
+    /// rect: the selection's highlight there would paint under it.
+    pub table_header_slots: Vec<(egui::layers::ShapeIdx, Rect)>,
+    /// How far each table too wide for the note is scrolled, by its index
+    /// in [`bounds::Bounds::tables`].
+    pub table_scrolls: HashMap<usize, table::TableScroll>,
     /// Drag action emitted by a list marker this frame, drained by
     /// `MdEdit::show` to update / commit the in-progress block drag
     /// (mirrors how `render_events` carries buffer edits out of render).
@@ -206,6 +235,7 @@ pub struct MdRender {
     pub reveal_seq: u64, // includes selection and find matches
 
     pub search_range: Option<(Grapheme, Grapheme)>, // drawn in accent color for completions
+    pub ime_marked: Option<ImeMarked>,              // desktop IME composition, drawn underlined
 
     // capabilities
     pub embeds: Box<dyn EmbedResolver>,
@@ -250,8 +280,8 @@ pub struct MdEdit {
     pub cursor: CursorState,
     pub event: EventState,
 
-    /// Phone-sized layout (phone or iPad compact mode). The toolbar docks to
-    /// the bottom above the virtual keyboard, for example.
+    /// Touch typing through the software keyboard: the toolbar docks above it
+    /// and shortcut hints hide. Set each frame from the workspace.
     pub phone_mode: bool,
 
     /// Transient drag selection — `Some` while a drag is in progress; the
@@ -276,11 +306,24 @@ pub struct MdEdit {
     /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
     pub touch_reorder_driven: bool,
 
-    /// A committed reorder `(section_range, insert_offset)`, applied at the
+    /// A committed reorder `(drag, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
     /// new layout is then current before the platform refetches selection
     /// geometry. Set on drag release (which runs post-render).
-    pub pending_block_move: Option<((Grapheme, Grapheme), Grapheme)>,
+    pub pending_block_move: Option<(widget::block::drag::BlockDrag, Grapheme)>,
+
+    /// Keyboard input after a frame's first IME edit, replayed next frame so
+    /// it acts on the edit's result (completions take keys ahead of the IME).
+    pub deferred_input: Vec<egui::Event>,
+
+    /// A composition was dropped this frame; withholding the IME output
+    /// tells the platform's input method to discard it too.
+    pub ime_reset: bool,
+
+    /// The text of a composition the caret left, which the input method may
+    /// still send before it lets go; ignored until it sends something else,
+    /// the editor gets input of its own, or loses focus.
+    pub ime_abandoned: Option<String>,
 
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
@@ -322,6 +365,18 @@ pub struct MdEdit {
     /// The slug of the heading under the context menu, captured likewise.
     pub context_menu_heading: Option<String>,
 
+    /// When "Paste as table" was last chosen: the paste it requested from
+    /// the platform, which arrives as any other does, is to be a table.
+    pub paste_as_table: std::cell::Cell<Option<f64>>,
+
+    /// A touch drag that began on a table wider than the note: the table,
+    /// by its place among the tables, and once the drag has set out,
+    /// whether along the rows. See [`MdEdit::pan_table`].
+    pub table_pan: Option<(usize, Option<bool>)>,
+    /// A table wider than the note that the platform's own pan recognizer
+    /// is panning, by its place among the tables (see [`commands`]).
+    pub platform_table_pan: Option<usize>,
+
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
@@ -352,6 +407,9 @@ impl MdEdit {
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
             pending_block_move: None,
+            deferred_input: Vec::new(),
+            ime_reset: false,
+            ime_abandoned: None,
             pending_scroll: None,
             single_line_scroll: 0.0,
             overflow_scroll: 0.0,
@@ -362,6 +420,9 @@ impl MdEdit {
             link_completions: Default::default(),
             context_menu_link: None,
             context_menu_heading: None,
+            paste_as_table: Default::default(),
+            table_pan: None,
+            platform_table_pan: None,
             scroll_area: AffineScrollArea::new(file_id),
             cursor_last_interact: None,
             caret_moved: false,
@@ -475,7 +536,6 @@ pub struct MdResources {
 pub struct MdConfig {
     pub readonly: bool,
     pub ext: String,
-    pub tablet_or_desktop: bool,
 }
 
 pub struct MdLayout {
@@ -548,7 +608,7 @@ impl MdRender {
     pub fn empty(ctx: Context) -> Self {
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
-        let dark_mode = ctx.style().visuals.dark_mode;
+        let dark_mode = ctx.global_style().visuals.dark_mode;
         let ws_seq = crate::seq::ws_seq(&ctx);
         Self {
             ctx,
@@ -560,14 +620,19 @@ impl MdRender {
             painting_drag_float: false,
             heading_copy: None,
             heading_copied: None,
+            caret_moved: false,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
             fragments: Vec::new(),
             block_boxes: Vec::new(),
+            table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
+            table_scrolls: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
+            table_fades: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -591,6 +656,7 @@ impl MdRender {
             reveal_seq: 0,
             text_seq: 0,
             search_range: None,
+            ime_marked: None,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
@@ -648,13 +714,18 @@ impl MdRender {
             painting_drag_float: false,
             heading_copy: None,
             heading_copied: None,
+            caret_moved: false,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
             block_boxes: Vec::new(),
+            table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
+            table_scrolls: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
+            table_fades: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -663,6 +734,7 @@ impl MdRender {
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
+            ime_marked: None,
             disable_images: false,
             contact_linked_sites: false,
             in_progress_selection: None,
@@ -729,6 +801,7 @@ impl MdRender {
             self.calc_source_lines();
             self.calc_fold_bounds(root);
             self.calc_atom_bounds(root);
+            self.calc_table_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
             // from compute_bounds_block_pre_spacing) queries
             // hidden_by_fold, which now expects every node already
@@ -762,7 +835,7 @@ impl MdRender {
         options.extension.footnotes = false;
         options.extension.front_matter_delimiter = Some("---".to_string());
         options.extension.greentext = false;
-        options.extension.header_ids = None; // intended for HTML renderers
+        options.extension.header_id_prefix = None; // intended for HTML renderers
         options.extension.highlight = true;
         options.extension.math_code = true; // rendered as code for now
         options.extension.math_dollars = true; // rendered as code for now
@@ -773,7 +846,6 @@ impl MdRender {
         options.extension.subscript = true;
         options.extension.superscript = true;
         options.extension.table = true;
-        options.extension.tagfilter = false; // intended for HTML renderers
         options.extension.tasklist = true;
         options.extension.underline = true;
         options.extension.wikilinks_title_after_pipe = true; // matches obsidian
@@ -788,12 +860,11 @@ impl Editor {
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
         let MdResources { ctx, core, persistence, files, link_resolver, embeds } = res;
-        let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
+        let MdConfig { readonly, ext } = cfg;
         let plaintext = ext.to_lowercase() != "md";
 
-        let dark_mode = ctx.style().visuals.dark_mode;
+        let dark_mode = ctx.global_style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
-        let phone_mode = touch_mode && !tablet_or_desktop;
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
         let client: HttpClient = Default::default();
@@ -814,15 +885,20 @@ impl Editor {
             painting_drag_float: false,
             heading_copy: None,
             heading_copied: None,
+            caret_moved: false,
 
             bounds: Default::default(),
             buffer: md.into(),
 
             fragments: Vec::new(),
             block_boxes: Vec::new(),
+            table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
+            table_scrolls: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
+            table_fades: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -843,6 +919,7 @@ impl Editor {
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
+            ime_marked: None,
             disable_images: false,
             contact_linked_sites: false,
 
@@ -870,7 +947,7 @@ impl Editor {
         Self {
             edit: MdEdit {
                 renderer,
-                phone_mode,
+                phone_mode: touch_mode,
                 cursor: Default::default(),
                 event: Default::default(),
                 in_progress_selection: None,
@@ -879,6 +956,9 @@ impl Editor {
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
                 pending_block_move: None,
+                deferred_input: Vec::new(),
+                ime_reset: false,
+                ime_abandoned: None,
                 pending_scroll: None,
                 single_line_scroll: 0.0,
                 overflow_scroll: 0.0,
@@ -889,6 +969,9 @@ impl Editor {
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
                 context_menu_heading: None,
+                paste_as_table: Default::default(),
+                table_pan: None,
+                platform_table_pan: None,
                 scroll_area: AffineScrollArea::new(file_id),
                 cursor_last_interact: None,
                 caret_moved: false,
@@ -961,12 +1044,12 @@ impl Editor {
                 embeds: Box::new(()),
                 files,
             },
-            MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
+            MdConfig { readonly: false, ext: String::new() },
         )
     }
 
     pub fn id(&self) -> Id {
-        Id::new(self.edit.file_id).with(self.id_salt)
+        Id::unique(self.edit.file_id).with(self.id_salt)
     }
 
     /// Last disk hmac adopted with the displayed buffer.
@@ -1170,7 +1253,7 @@ impl Editor {
                     let toolbar_height = if cfg!(target_os = "android") {
                         ui.ctx()
                             .memory(|m| {
-                                m.data.get_temp::<f32>(Id::new(
+                                m.data.get_temp::<f32>(Id::unique(
                                     "android_native_markdown_toolbar_height",
                                 ))
                             })
@@ -1238,7 +1321,7 @@ impl Editor {
                     editor_shown
                 } else {
                     // no menu toggle in this layout; clear in case the menu was
-                    // open when an iPad left split view (it disables the buttons)
+                    // open when a hardware keyboard was attached (it disables the buttons)
                     self.toolbar.menu_open = false;
 
                     if !cfg!(target_os = "android")
@@ -1596,7 +1679,7 @@ impl Editor {
                 // `shown` fades the card; the text eases the same both
                 // ways, so a reversal starts where it is
                 let shown = ui.ctx().animate_bool_with_time(
-                    Id::new("md_sidecar_glide").with(self.edit.file_id),
+                    Id::unique("md_sidecar_glide").with(self.edit.file_id),
                     sidecar,
                     widget::outline::MOTION_SECS,
                 );
@@ -1649,16 +1732,22 @@ impl Editor {
                         // the body's drag (so taps reach it) but below
                         // the scrollbar (so taps on the bar don't).
                         let begun = self.edit.scroll_area.begin(ui);
+                        if self.edit.pan_table(ui, begun.body_response()) {
+                            self.edit.scroll_area.suppress_body_drag = true;
+                        }
 
                         let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
                         self.edit.renderer.fragments.clear();
                         self.edit.renderer.block_boxes.clear();
+                        self.edit.renderer.table_cell_boxes.clear();
+                        self.edit.renderer.table_header_slots.clear();
                         self.edit.renderer.in_progress_block_drag =
                             self.edit.in_progress_block_drag;
                         self.edit.renderer.bounds.wrap_lines.clear();
                         self.edit.renderer.text_areas.clear();
                         self.edit.renderer.deco_lines.clear();
+                        self.edit.renderer.table_fades.clear();
 
                         // Phase 1: drive scroll math + scrollbar, and
                         // pick up to one viewport's worth of rows above
@@ -2063,7 +2152,7 @@ impl Editor {
         };
         let (seq, rows) = self.outline_rows.take().unwrap_or_default();
 
-        let id = Id::new("md_outline").with(self.edit.file_id);
+        let id = Id::unique("md_outline").with(self.edit.file_id);
         let (chosen, popup) = if self.edit.renderer.touch_mode {
             self.outline
                 .show(ui.ctx(), id.with("sheet"), &rows, current)
@@ -2588,139 +2677,48 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    let (sans, mono, bold, italic, base_scale) = if cfg!(target_vendor = "apple") {
-        (
-            lb_fonts::SF_PRO_TEXT_REGULAR,
-            lb_fonts::SF_MONO_REGULAR,
-            lb_fonts::SF_PRO_TEXT_BOLD,
-            lb_fonts::SF_PRO_TEXT_ITALIC,
-            0.9,
-        )
-    } else {
-        (
-            lb_fonts::NOTO_SANS_REGULAR,
-            lb_fonts::NOTO_SANS_MONO_REGULAR,
-            lb_fonts::NOTO_SANS_BOLD,
-            lb_fonts::NOTO_SANS_ITALIC,
-            1.,
-        )
-    };
-
+    let text = crate::font::text_fonts();
+    let base_scale = text.scale;
     let mono_scale = 0.9 * base_scale;
     let mono_y_offset_factor = 0.1;
-    let mono_baseline_offset_factor = -0.1;
 
     let super_y_offset_factor = -1. / 4.;
     let sub_y_offset_factor = 1. / 4.;
     let super_scale = 3. / 4.;
     let sub_scale = 3. / 4.;
 
-    fonts.font_data.insert(
-        "sans".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(sans)
-        }
-        .into(),
-    );
-    fonts.font_data.insert("mono".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: mono_y_offset_factor,
-                scale: mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
-    fonts.font_data.insert(
-        "bold".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(bold)
-        }
-        .into(),
-    );
-    fonts.font_data.insert(
-        "italic".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(italic)
-        }
-        .into(),
-    );
-
-    fonts.font_data.insert("sans_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor,
-                scale: super_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(sans)
-        }
-        .into()
-    });
-    fonts.font_data.insert("bold_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor,
-                scale: super_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(bold)
-        }
-        .into()
-    });
-    fonts.font_data.insert("mono_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor + mono_y_offset_factor,
-                scale: super_scale * mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
-
-    fonts.font_data.insert("sans_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor,
-                scale: sub_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(sans)
-        }
-        .into()
-    });
-    fonts.font_data.insert("bold_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor,
-                scale: sub_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(bold)
-        }
-        .into()
-    });
-    fonts.font_data.insert("mono_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor + mono_y_offset_factor,
-                scale: sub_scale * mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
+    let tweaked = |font: &FontData, scale: f32, y_offset_factor: f32| {
+        let mut font = font.clone();
+        font.tweak.scale = scale;
+        font.tweak.y_offset_factor = y_offset_factor;
+        Arc::new(font)
+    };
+    for (name, font, scale, y_offset_factor) in [
+        ("sans", &text.sans, base_scale, 0.),
+        ("bold", &text.bold, base_scale, 0.),
+        ("italic", &text.italic, base_scale, 0.),
+        ("mono", &text.mono, mono_scale, mono_y_offset_factor),
+        ("sans_super", &text.sans, super_scale * base_scale, super_y_offset_factor),
+        ("bold_super", &text.bold, super_scale * base_scale, super_y_offset_factor),
+        (
+            "mono_super",
+            &text.mono,
+            super_scale * mono_scale,
+            super_y_offset_factor + mono_y_offset_factor,
+        ),
+        ("sans_sub", &text.sans, sub_scale * base_scale, sub_y_offset_factor),
+        ("bold_sub", &text.bold, sub_scale * base_scale, sub_y_offset_factor),
+        (
+            "mono_sub",
+            &text.mono,
+            sub_scale * mono_scale,
+            sub_y_offset_factor + mono_y_offset_factor,
+        ),
+    ] {
+        fonts
+            .font_data
+            .insert(name.into(), tweaked(font, scale, y_offset_factor));
+    }
 
     fonts.font_data.insert("icons".into(), {
         FontData {
@@ -2795,6 +2793,8 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .unwrap()
             .push("phosphor".to_owned());
     }
+
+    crate::font::cjk::register_egui(fonts, base_scale);
 }
 
 /// Headless `Context` with the same fonts as production, including Phosphor.
@@ -2849,16 +2849,20 @@ mod test {
         fn enter_frame(&mut self) {
             let ctx = self.editor.edit.renderer.ctx.clone();
             let pending = std::mem::take(&mut self.pending);
-            let _ = ctx.run(RawInput::default(), |ctx| {
+            ctx.run_pass(RawInput::default(), |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
                 for event in &pending {
                     ctx.push_markdown_event(event.clone());
                 }
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.editor.show(ui);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        self.editor.show(ui);
+                    })
                 });
-            });
+            })
+            .textures_delta
+            .clear();
         }
 
         fn get_text(&self) -> &str {

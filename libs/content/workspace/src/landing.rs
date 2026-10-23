@@ -56,7 +56,7 @@ fn italic_body() -> FontId {
 }
 
 fn recent_row_id(id: Uuid) -> Id {
-    Id::new("landing_recent").with(id)
+    Id::unique("landing_recent").with(id)
 }
 
 impl LandingPage {
@@ -87,7 +87,7 @@ impl Workspace {
         let ctx = ui.ctx().clone();
         ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-        let motion_id = Id::new("landing_recents");
+        let motion_id = Id::unique("landing_recents");
         let want_recents = !self.sidebar_open && !self.landing_page.recent_files.is_empty();
         // The sidebar may have toggled while tabs were showing; don't animate that.
         if self.landing_page_first_frame {
@@ -295,7 +295,7 @@ fn paint_row_icon(ui: &Ui, glyph: &str, color: Color32, x: f32, cy: f32) -> f32 
 fn command_row(
     ui: &mut Ui, t: &Theme, icon: &'static str, label: &str, sc: Shortcut,
 ) -> egui::Response {
-    let (rect, resp) = row_plate(ui, t, Id::new("landing_cmd").with(label));
+    let (rect, resp) = row_plate(ui, t, Id::unique("landing_cmd").with(label));
     let pad = control_space::PAD_X.pts();
     let icon_gap = control_space::ICON_GAP.pts();
     let ink = t.neutral_fg();

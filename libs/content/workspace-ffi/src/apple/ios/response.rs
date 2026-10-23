@@ -11,6 +11,7 @@ pub struct IOSResponse {
     // platform response
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
+    pub copied_html: *mut c_char,
     pub copied_image: CBytes,
     pub urls_opened: CUrls,
     pub open_camera: bool,
@@ -35,6 +36,8 @@ pub struct IOSResponse {
     pub text_interaction_rect: CRect,
 
     pub mobile_toolbar_shown: bool,
+    /// A popup is painted over the caret: the host's caret hides under it.
+    pub caret_covered: bool,
 
     /// The editor's find or replace field has focus: keystrokes are its,
     /// and the document's selection UI hides.
@@ -66,6 +69,7 @@ impl From<crate::Response> for IOSResponse {
                     markdown_editor_scroll_updated: _,
                     text_interaction_rect,
                     mobile_toolbar_shown,
+                    caret_covered,
                     tabs_changed,
                     failure_messages: _,
                     selected_folder_changed,
@@ -75,12 +79,14 @@ impl From<crate::Response> for IOSResponse {
                 },
             redraw_in,
             copied_text,
+            copied_html,
             copied_image,
             urls_opened,
             cursor: _,
             virtual_keyboard_shown,
             window_title: _,
             request_paste: _,
+            ime_cursor: _,
             context_menu,
         } = value;
 
@@ -106,6 +112,7 @@ impl From<crate::Response> for IOSResponse {
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text: CString::new(copied_text).unwrap().into_raw(),
+            copied_html: CString::new(copied_html).unwrap().into_raw(),
             copied_image: copied_image.into(),
             urls_opened,
             open_camera,
@@ -117,6 +124,7 @@ impl From<crate::Response> for IOSResponse {
             virtual_keyboard_shown: virtual_keyboard_shown.unwrap_or_default(),
             selected_folder_changed,
             mobile_toolbar_shown,
+            caret_covered,
             chrome_text_focused: false,
             has_text_interaction_rect: text_interaction_rect.is_some(),
             text_interaction_rect: text_interaction_rect
