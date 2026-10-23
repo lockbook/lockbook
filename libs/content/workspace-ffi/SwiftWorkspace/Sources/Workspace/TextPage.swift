@@ -60,7 +60,7 @@
             scrollPan.delegate = self
             addGestureRecognizer(scrollPan)
 
-            // A pan along the rows of a table wider than the note pans it.
+            // A pan along the rows of a table or code block wider than the note pans it.
             rowPan.addTarget(self, action: #selector(handleRowPan(_:)))
             rowPan.allowedScrollTypesMask = .all
             rowPan.allowedTouchTypes = scrollPan.allowedTouchTypes

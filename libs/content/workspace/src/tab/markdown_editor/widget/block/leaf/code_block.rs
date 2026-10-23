@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
+use egui::{Color32, Pos2, Rangef, Rect, Stroke, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
@@ -11,10 +11,33 @@ use syntect::highlighting::Style;
 use comrak::nodes::NodeValue;
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Layout};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{
+    FontFamily, Format, Layout, Row, WrapUnitLayout,
+};
 
 use crate::theme::palette_v2::{ThemeExt as _, translucent_over};
+
+/// Code lines in the editor are laid out this wide: they never wrap.
+const UNBOUNDED: f32 = 100_000.0;
+
+/// A line of a code block as laid out to paint, `top` its top edge.
+struct CodeRow {
+    line: (Grapheme, Grapheme),
+    top: f32,
+    layout: WrapUnitLayout,
+    /// Code scrolls with the block; a revealed fence stays where it is.
+    scrolls: bool,
+}
+
+/// How far right a laid-out row reaches.
+fn row_right(row: &Row) -> f32 {
+    row.fragments
+        .iter()
+        .map(|frag| frag.rect.right())
+        .fold(0., f32::max)
+}
 
 /// Language tokens whose bundled syntect grammar panics inside
 /// `highlight_line` — fancy-regex can't compile features the
@@ -135,34 +158,17 @@ impl<'ast> MdRender {
     }
 
     pub fn show_fenced_code_block(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock,
     ) {
-        let mut width = self.width(node);
+        let width = self.width(node);
         let height = self.height_fenced_code_block(node, node_code_block);
+        let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+        let inner_width = width - 2. * self.layout.block_padding;
         let row_height = self.layout.row_height;
 
-        let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        let theme = self.ctx.get_lb_theme();
-        if let Some(code) = theme.code_variant() {
-            let fill = translucent_over(code.background, theme.neutral_bg(), 0.5);
-            ui.painter().rect_filled(rect, 2., fill);
-        }
-        ui.painter().rect_stroke(
-            rect,
-            2.,
-            Stroke::new(1_f32, theme.neutral_bg_tertiary()),
-            egui::epaint::StrokeKind::Inside,
-        );
-
-        width -= 2. * self.layout.block_padding;
-        // Container gutter columns sit at the code block's outer left (the
-        // deepest container's content origin), not inside the padded box.
-        let content_left = top_left.x;
-        top_left.x += self.layout.block_padding;
-        top_left.y += self.layout.block_padding;
-        top_left.y -= self.layout.row_spacing; // makes spacing logic simpler
-
+        let mut rows = Vec::new();
+        let mut y = top_left.y + self.layout.block_padding - self.layout.row_spacing; // makes spacing logic simpler
         let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
@@ -177,37 +183,24 @@ impl<'ast> MdRender {
 
             if is_opening_fence || is_closing_fence {
                 if reveal {
-                    top_left.y += self.layout.row_spacing;
-                    let fence_layout = self.compute_section_layout_new(
+                    y += self.layout.row_spacing;
+                    let layout = self.compute_section_layout_new(
                         node_line,
-                        width,
+                        inner_width,
                         row_height,
                         self.text_format_syntax(),
                     );
-                    let h = fence_layout.height;
-                    self.show_wrap_layout(ui, top_left, &fence_layout);
-                    self.show_block_line_prefixes(
-                        ui,
-                        node,
-                        line,
-                        Pos2::new(content_left, top_left.y),
-                        row_height,
-                    );
-                    top_left.y += h;
+                    y += layout.height;
+                    rows.push(CodeRow { line, top: y - layout.height, layout, scrolls: false });
                 }
             } else {
-                top_left.y += self.layout.row_spacing;
-                self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
-                self.show_block_line_prefixes(
-                    ui,
-                    node,
-                    line,
-                    Pos2::new(content_left, top_left.y),
-                    row_height,
-                );
-                top_left.y += self.height_code_block_line(node, node_code_block, line, false);
+                y += self.layout.row_spacing;
+                let layout = self.code_row_layout(node, node_code_block, line, false);
+                y += layout.height;
+                rows.push(CodeRow { line, top: y - layout.height, layout, scrolls: true });
             }
         }
+        self.show_code_rows(ui, node, rect, rows);
     }
 
     fn reveal_fenced_code_block(
@@ -239,7 +232,6 @@ impl<'ast> MdRender {
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, synthetic: bool,
     ) -> f32 {
         let mut result = 0.;
-        let width = self.width(node) - 2. * self.layout.block_padding;
         let row_height = self.layout.row_height;
 
         let reveal = self.reveal_indented_code_block(node, synthetic);
@@ -252,7 +244,7 @@ impl<'ast> MdRender {
                 let node_line = self.node_line(node, line);
                 let l = self.compute_section_layout_new(
                     node_line,
-                    width,
+                    self.code_width(node),
                     row_height,
                     self.text_format_syntax(),
                 );
@@ -273,18 +265,47 @@ impl<'ast> MdRender {
     // just used for syntax highlighting when rendering unsupported node types
     // like html blocks as code
     pub fn show_indented_code_block(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock, synthetic: bool,
     ) {
         let width = self.width(node);
-        let inner_width = width - 2. * self.layout.block_padding;
         let row_height = self.layout.row_height;
         let height = self.height_indented_code_block(node, node_code_block, synthetic);
-
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+
+        let mut rows = Vec::new();
+        let mut y = top_left.y + self.layout.block_padding;
+        let reveal = self.reveal_indented_code_block(node, synthetic);
+        for line_idx in self.node_lines(node).iter() {
+            let line = self.bounds.source_lines[line_idx];
+            let layout = if reveal {
+                let node_line = self.node_line(node, line);
+                self.compute_section_layout_new(
+                    node_line,
+                    self.code_width(node),
+                    row_height,
+                    self.text_format_syntax(),
+                )
+            } else {
+                self.code_row_layout(node, node_code_block, line, synthetic)
+            };
+            let h = layout.height;
+            rows.push(CodeRow { line, top: y, layout, scrolls: true });
+            y += h + self.layout.row_spacing;
+        }
+        self.show_code_rows(ui, node, rect, rows);
+    }
+
+    /// Paints a code block's box and its rows. Code does not wrap: a block
+    /// whose code is wider than the box scrolls along its rows.
+    fn show_code_rows(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, rect: Rect, rows: Vec<CodeRow>,
+    ) {
         let theme = self.ctx.get_lb_theme();
-        if let Some(code) = theme.code_variant() {
-            let fill = translucent_over(code.background, theme.neutral_bg(), 0.5);
+        let fill = theme
+            .code_variant()
+            .map(|code| translucent_over(code.background, theme.neutral_bg(), 0.5));
+        if let Some(fill) = fill {
             ui.painter().rect_filled(rect, 2., fill);
         }
         ui.painter().rect_stroke(
@@ -294,50 +315,111 @@ impl<'ast> MdRender {
             egui::epaint::StrokeKind::Inside,
         );
 
-        // Container gutter columns sit at the code block's outer left (the
-        // deepest container's content origin), not inside the padded box.
-        let content_left = top_left.x;
-        top_left.x += self.layout.block_padding;
-        top_left.y += self.layout.block_padding;
+        let padding = self.layout.block_padding;
+        let row_height = self.layout.row_height;
+        let text_left = rect.left() + padding;
+        let shown = rect.width() - 2. * padding;
+        let content = rows
+            .iter()
+            .filter(|row| row.scrolls)
+            .map(|row| row.layout.rows.iter().map(row_right).fold(0., f32::max))
+            .fold(0., f32::max);
+        let start = self.node_range(node).start();
+        let ordinal = self.bounds.code_blocks.binary_search(&start);
+        let key = RowScroller::Code(ordinal.unwrap_or_else(|ordinal| ordinal));
+        let scrolls = content > shown + 0.5;
+        let scroll = if scrolls && self.painting_drag_float {
+            self.row_scrolled(key)
+        } else if scrolls {
+            self.row_scrollers
+                .push((rect.intersect(ui.clip_rect()), key));
+            let viewport = Rect::from_x_y_ranges(text_left..=text_left + shown, rect.y_range());
+            self.row_scroll(ui, key, viewport, content, |r, at, _| {
+                let row = rows
+                    .iter()
+                    .find(|row| row.scrolls && row.layout.source_range.contains(at, true, true))?;
+                let x = row
+                    .layout
+                    .rows
+                    .iter()
+                    .flat_map(|row| &row.fragments)
+                    .find(|frag| frag.source_range.contains(at, true, true))
+                    .map_or(0., |frag| r.fragment_x(frag, at));
+                Some(Rangef::new(x - row_height, x + row_height))
+            })
+        } else {
+            self.row_scrolls.remove(&key);
+            0.
+        };
 
-        let reveal = self.reveal_indented_code_block(node, synthetic);
-        let first_line_idx = self.node_first_line_idx(node);
-        let last_line_idx = self.node_last_line_idx(node);
-        for line_idx in first_line_idx..=last_line_idx {
-            let line = self.bounds.source_lines[line_idx];
-
-            if reveal {
-                let node_line = self.node_line(node, line);
-                let l = self.compute_section_layout_new(
-                    node_line,
-                    inner_width,
-                    row_height,
-                    self.text_format_syntax(),
-                );
-                let h = l.height;
-                self.show_wrap_layout(ui, top_left, &l);
-                self.show_block_line_prefixes(
-                    ui,
-                    node,
-                    line,
-                    Pos2::new(content_left, top_left.y),
-                    row_height,
-                );
-                top_left.y += h;
+        // code scrolls inside the border, which stays put over the fades
+        let inside = rect.shrink(1.);
+        let clip = inside.x_range().intersection(ui.clip_rect().x_range());
+        let clip = Rect::from_x_y_ranges(clip, ui.clip_rect().y_range());
+        let mut clipped = ui.new_child(UiBuilder::new().max_rect(rect));
+        clipped.set_clip_rect(clip);
+        for row in &rows {
+            let top_left = Pos2::new(text_left, row.top);
+            if row.scrolls && scrolls {
+                self.show_wrap_layout(&mut clipped, top_left - Vec2::new(scroll, 0.), &row.layout);
+                if !self.painting_drag_float {
+                    let y = row.top..=row.top + row.layout.height;
+                    self.code_line_clips
+                        .push((Rect::from_x_y_ranges(clip.x_range(), y), row.layout.source_range));
+                }
             } else {
-                self.show_code_block_line(ui, node, top_left, node_code_block, line, synthetic);
-                self.show_block_line_prefixes(
-                    ui,
-                    node,
-                    line,
-                    Pos2::new(content_left, top_left.y),
-                    row_height,
-                );
-                top_left.y += self.height_code_block_line(node, node_code_block, line, synthetic);
+                self.show_wrap_layout(ui, top_left, &row.layout);
             }
-
-            top_left.y += self.layout.row_spacing;
+            // Container gutter columns sit at the code block's outer left (the
+            // deepest container's content origin), not inside the padded box.
+            self.show_block_line_prefixes(
+                ui,
+                node,
+                row.line,
+                Pos2::new(rect.left(), row.top),
+                row_height,
+            );
         }
+
+        // the fill composited: what the fades cover code with
+        let ground = theme
+            .code_variant()
+            .map_or(theme.neutral_bg(), |code| code.background);
+        if scrolls {
+            // edge to edge, but a revealed fence stays put, unfaded
+            let half_spacing = self.layout.row_spacing / 2.;
+            fn fence(row: Option<&CodeRow>) -> Option<&CodeRow> {
+                row.filter(|row| !row.scrolls)
+            }
+            let top = fence(rows.first())
+                .map_or(inside.top(), |fence| fence.top + fence.layout.height + half_spacing);
+            let bottom =
+                fence(rows.last()).map_or(inside.bottom(), |fence| fence.top - half_spacing);
+            let content = content + inside.width() - shown;
+            let bands = [(top, bottom, ground)];
+            self.row_scroll_chrome(ui, key, inside, clip, content, &bands);
+        }
+    }
+
+    /// Recompute [`Bounds::code_blocks`]. Depends on text only.
+    pub fn calc_code_block_bounds(&mut self, root: &'ast AstNode<'ast>) {
+        let drawn_as_code = |node: &&'ast AstNode<'ast>| {
+            matches!(
+                node.data.borrow().value,
+                NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) | NodeValue::FrontMatter(_)
+            )
+        };
+        let code_blocks: Vec<_> = root
+            .descendants()
+            .filter(drawn_as_code)
+            .map(|node| self.node_range(node).start())
+            .collect();
+        // scroll offsets go by a code block's place among them
+        if code_blocks.len() != self.bounds.code_blocks.len() {
+            self.row_scrolls
+                .retain(|key, _| !matches!(key, RowScroller::Code(_)));
+        }
+        self.bounds.code_blocks = code_blocks;
     }
 
     fn reveal_indented_code_block(&self, node: &'ast AstNode<'ast>, synthetic: bool) -> bool {
@@ -477,20 +559,23 @@ impl<'ast> MdRender {
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (Grapheme, Grapheme), synthetic: bool,
     ) -> f32 {
-        let width = self.width(node) - 2. * self.layout.block_padding;
-        let layout = self.layout_code_block_line(node, node_code_block, line, synthetic);
-        self.compute_layout_from(layout, width, self.layout.row_height)
+        self.code_row_layout(node, node_code_block, line, synthetic)
             .height
     }
 
-    fn show_code_block_line(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_code_block: &NodeCodeBlock, line: (Grapheme, Grapheme), synthetic: bool,
-    ) {
-        let width = self.width(node) - 2. * self.layout.block_padding;
+    /// One line of code, laid out at [`Self::code_width`].
+    fn code_row_layout(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+        line: (Grapheme, Grapheme), synthetic: bool,
+    ) -> WrapUnitLayout {
         let layout = self.layout_code_block_line(node, node_code_block, line, synthetic);
-        let result = self.compute_layout_from(layout, width, self.layout.row_height);
-        self.show_wrap_layout(ui, top_left, &result);
+        self.compute_layout_from(layout, self.code_width(node), self.layout.row_height)
+    }
+
+    /// How wide a line of code may be laid out: in the editor, where a block
+    /// scrolls, however long it is; elsewhere, as wide as the block.
+    fn code_width(&self, node: &'ast AstNode<'ast>) -> f32 {
+        if self.interactive { UNBOUNDED } else { self.width(node) - 2. * self.layout.block_padding }
     }
 
     // "The closing code fence may be indented up to three spaces, and may be

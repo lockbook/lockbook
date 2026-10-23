@@ -161,8 +161,8 @@ pub struct MdRender {
     pub text_areas: Vec<TextBufferArea>,
     /// Strikethroughs and underlines painted on top of text
     pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
-    /// Edge fades of scrolled tables `(rect, left color, right color)`,
-    /// painted over the text.
+    /// Edge fades of scrolled tables and code blocks `(rect, left color,
+    /// right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
     pub render_events: Vec<input::Event>,
     /// Touch targets painted this frame.
@@ -177,10 +177,13 @@ pub struct MdRender {
     /// A painter slot above each header row's background, with the row's
     /// rect: the selection's highlight there would paint under it.
     pub table_header_slots: Vec<(egui::layers::ShapeIdx, Rect)>,
-    /// How far each table too wide for the note is scrolled.
+    /// How far each table or code block too wide for the note is scrolled.
     pub row_scrolls: HashMap<row_scroll::RowScroller, row_scroll::RowScroll>,
     /// Per-frame: where each block wider than the note shows.
     pub row_scrollers: Vec<(Rect, row_scroll::RowScroller)>,
+    /// Per-frame: each line of a scrolled code block, as the rect it shows
+    /// in and its source.
+    pub code_line_clips: Vec<(Rect, (Grapheme, Grapheme))>,
     /// Drag action emitted by a list marker this frame, drained by
     /// `MdEdit::show` to update / commit the in-progress block drag
     /// (mirrors how `render_events` carries buffer edits out of render).
@@ -644,6 +647,7 @@ impl MdRender {
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
+            code_line_clips: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -738,6 +742,7 @@ impl MdRender {
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
+            code_line_clips: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -818,6 +823,7 @@ impl MdRender {
             self.calc_fold_bounds(root);
             self.calc_atom_bounds(root);
             self.calc_table_bounds(root);
+            self.calc_code_block_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
             // from compute_bounds_block_pre_spacing) queries
             // hidden_by_fold, which now expects every node already
@@ -912,6 +918,7 @@ impl Editor {
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
+            code_line_clips: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -1366,6 +1373,10 @@ impl Editor {
             .inner;
 
         if editor_shown {
+            // a caret a scrolled block hides: a platform drawing its own hides it
+            let selection = self.edit.renderer.buffer.current.selection;
+            self.next_resp.caret_covered |=
+                selection.0 == selection.1 && self.edit.renderer.caret_scrolled_out(selection.1);
             let new_offset = self.edit.scroll_area.stored_offset();
             self.next_resp.scroll_updated = new_offset != prev_offset;
             self.edit.scroll_area_velocity = self.edit.scroll_area.velocity();

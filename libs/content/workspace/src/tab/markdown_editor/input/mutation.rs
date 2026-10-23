@@ -1,7 +1,7 @@
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
-    NodeValueExt as _, leading_indent_cols, leading_indent_range,
+    NodeValueExt as _, leading_indent_cols, leading_indent_range, wrap_layout,
 };
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{CopiedRendered, ExtendedOutput as _};
@@ -1246,8 +1246,16 @@ impl<'ast> MdEdit {
             // is reserved for a click on it via `handle_image_interactions`.
             frag.source_range
         } else {
-            self.renderer.fragment_offset(frag, pos.x).into_range()
+            self.renderer
+                .fragment_offset(frag, self.reachable_x(frag, pos))
+                .into_range()
         }
+    }
+
+    /// `pos.x`, kept to what a scrolled code block shows of `frag`.
+    fn reachable_x(&self, frag: &wrap_layout::Fragment, pos: Pos2) -> f32 {
+        let reachable = self.renderer.row_reachable(frag.source_range, frag.rect);
+        if reachable == frag.rect { pos.x } else { reachable.x_range().clamp(pos.x) }
     }
 
     /// Resolves a pointer position to a single cursor offset. Unlike
@@ -1272,7 +1280,8 @@ impl<'ast> MdEdit {
         // The hit-test inverse: edge-snaps atomic fragments by the rect
         // midpoint, walks clusters otherwise, and collapses an empty
         // range to its start.
-        self.renderer.fragment_offset(frag, pos.x)
+        self.renderer
+            .fragment_offset(frag, self.reachable_x(frag, pos))
     }
 }
 

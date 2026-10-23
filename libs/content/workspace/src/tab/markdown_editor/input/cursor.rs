@@ -74,6 +74,9 @@ impl MdEdit {
     pub fn show_offset(
         &self, ui: &mut Ui, offset: Grapheme, accent: Color32, time_since_interact: Option<f64>,
     ) {
+        if self.renderer.caret_scrolled_out(offset) {
+            return;
+        }
         if let Some([top, bot]) = self.cursor_line(offset) {
             let paint = |alpha| {
                 crate::widgets::paint_caret(
@@ -103,7 +106,9 @@ impl MdEdit {
             // Insertion teardrop under a collapsed caret. Hidden while typing;
             // stays up during its own drag.
             let dragging_insertion = self.in_progress_selection.is_some_and(|s| s.is_empty());
-            if !self.renderer.readonly && (self.insertion_handle_visible || dragging_insertion) {
+            let shown =
+                self.insertion_handle_visible && !self.renderer.caret_scrolled_out(selection.0);
+            if !self.renderer.readonly && (shown || dragging_insertion) {
                 if let Some(line) = self.cursor_line(selection.0) {
                     self.paint_insertion_handle(ui, line, radius, color);
                     self.interact_insertion_handle(ui, line);
@@ -112,8 +117,14 @@ impl MdEdit {
             return;
         }
 
-        let selection_start_line = self.cursor_line(selection.0);
-        let selection_end_line = self.cursor_line(selection.1);
+        // an end a scrolled block hides has no handle, unless it is held
+        let held = self.in_progress_selection.is_some();
+        let line = |offset| {
+            let hidden = !held && self.renderer.caret_scrolled_out(offset);
+            self.cursor_line(offset).filter(|_| !hidden)
+        };
+        let selection_start_line = line(selection.0);
+        let selection_end_line = line(selection.1);
 
         if let Some(line) = selection_start_line {
             self.paint_handle(ui, line, radius, color, true);
@@ -314,8 +325,9 @@ impl MdEdit {
         use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
         let frag = self.renderer.fragment_at_offset(offset)?;
         let x = self.renderer.fragment_x(frag, offset);
-        // at the edge of what a scrolled table shows, if it is beyond it
-        let x = match self.renderer.table_showing(frag.rect) {
+        // at the edge of what a scrolled block shows, if it is beyond it
+        let reachable = self.renderer.row_reachable(frag.source_range, frag.rect);
+        let x = match self.renderer.row_showing(frag.source_range, reachable) {
             Some(showing) => showing.x_range().clamp(x),
             None => x,
         };
@@ -415,8 +427,9 @@ impl MdRender {
             if rect.area() <= 0.001 {
                 continue;
             }
-            // a scrolled table hides some of what is painted on its rows
-            let Some(rect) = self.table_showing(rect).filter(|rect| rect.area() > 0.001) else {
+            // a scrolled block hides some of what is painted on its rows
+            let showing = self.row_showing(frag.source_range, rect);
+            let Some(rect) = showing.filter(|rect| rect.area() > 0.001) else {
                 continue;
             };
             result.push(rect);
@@ -442,20 +455,22 @@ impl MdRender {
                 if let Some(frag) = self.fragment_at_offset(newline) {
                     let x = self.fragment_x(frag, newline);
                     let (top, bot) = (frag.rect.min.y, frag.rect.max.y);
+                    let slab = Rect::from_min_max(Pos2::new(x, top), Pos2::new(x + slab_w, bot));
+                    // a scrolled block hides it past its edge
+                    let Some(slab) = self.row_showing(frag.source_range, slab) else {
+                        continue;
+                    };
                     // Extend the row's content rect rightward into the slab so
                     // the newline flows out of the row's highlight as one
                     // rounded shape, rather than a separate notched rect.
                     if let Some(r) = result.iter_mut().find(|r| {
                         (r.top() - top).abs() < 0.001
                             && (r.bottom() - bot).abs() < 0.001
-                            && (r.right() - x).abs() < 0.5
+                            && (r.right() - slab.left()).abs() < 0.5
                     }) {
-                        r.max.x = r.max.x.max(x + slab_w);
-                    } else {
-                        result.push(Rect::from_min_max(
-                            Pos2::new(x, top),
-                            Pos2::new(x + slab_w, bot),
-                        ));
+                        r.max.x = r.max.x.max(slab.right());
+                    } else if slab.width() > 0.001 {
+                        result.push(slab);
                     }
                 }
             }

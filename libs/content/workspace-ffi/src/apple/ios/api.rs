@@ -1042,8 +1042,8 @@ pub unsafe extern "C" fn ios_reorder_end(obj: *mut c_void, x: f32, y: f32, cance
     }
 }
 
-/// A horizontal pan began at a point: whether a table wider than the note
-/// is there to take it.
+/// A horizontal pan began at a point: whether a table or code block wider
+/// than the note is there to take it.
 ///
 /// # Safety
 /// obj must be a valid pointer to WgpuWorkspace

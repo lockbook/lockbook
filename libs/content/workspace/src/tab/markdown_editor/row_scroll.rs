@@ -1,8 +1,8 @@
-//! Tables wider than the note scroll along their rows: a wheel over one, a
-//! touch drag that sets out sideways, or the platform's own pan recognizer
-//! moves it, and it coasts after a fling. It follows what the user is shown:
-//! a find or preview match, or the end of a selection the user moved. An
-//! edge with more beyond it fades out.
+//! Blocks wider than the note — tables and code blocks — scroll along their
+//! rows: a wheel over one, a touch drag that sets out sideways, or the
+//! platform's own pan recognizer moves it, and it coasts after a fling. It
+//! follows what the user is shown: a find or preview match, or the end of a
+//! selection the user moved. An edge with more beyond it fades out.
 
 use egui::{Color32, Pos2, Rangef, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
@@ -15,6 +15,8 @@ use crate::tab::markdown_editor::{MdEdit, MdRender};
 pub enum RowScroller {
     /// A table, by its place among the tables.
     Table(usize),
+    /// A block drawn as code, by its place among them.
+    Code(usize),
 }
 
 /// Where a block wider than the note is scrolled to along its rows.
@@ -38,6 +40,7 @@ impl MdRender {
     /// chrome over them.
     pub fn clear_row_scroll_frame(&mut self) {
         self.row_scrollers.clear();
+        self.code_line_clips.clear();
         self.edge_fades.clear();
     }
 
@@ -155,6 +158,41 @@ impl MdRender {
         let mut scrollers = self.row_scrollers.iter();
         let found = scrollers.find(|(rect, _)| rect.contains(pos))?.1;
         self.row_scrolls.contains_key(&found).then_some(found)
+    }
+
+    /// What shows of `rect`, painted for `source`: a block too wide for the
+    /// note hides the rest. `None` if nothing does. A rect off every such
+    /// block is as it was.
+    pub fn row_showing(&self, source: (Grapheme, Grapheme), rect: Rect) -> Option<Rect> {
+        let y = rect.center().y;
+        let code_line = self.code_line_clips.iter().find(|(clip, line)| {
+            clip.y_range().contains(y) && line.contains_range(&source, true, true)
+        });
+        let Some((clip, _)) = code_line else { return self.table_showing(rect) };
+        let x = rect.x_range().intersection(clip.x_range());
+        (x.min <= x.max).then(|| Rect::from_x_y_ranges(x, rect.y_range()))
+    }
+
+    /// Whether a scrolled block hides where the caret at `offset` is: it
+    /// isn't drawn then, until a move or an edit scrolls back to it.
+    pub fn caret_scrolled_out(&self, offset: Grapheme) -> bool {
+        let Some(frag) = self.fragment_at_offset(offset) else { return false };
+        let x = self.fragment_x(frag, offset);
+        let caret = Rect::from_x_y_ranges(x..=x, frag.rect.y_range());
+        self.row_showing(frag.source_range, caret).is_none()
+    }
+
+    /// `rect`, painted for `source`, as far as a pointer can reach it: a
+    /// code block too wide for the note squeezes what it hides to the edge
+    /// it is hidden past.
+    pub fn row_reachable(&self, source: (Grapheme, Grapheme), rect: Rect) -> Rect {
+        let y = rect.center().y;
+        let code_line = self.code_line_clips.iter().find(|(clip, line)| {
+            clip.y_range().contains(y) && line.contains_range(&source, true, true)
+        });
+        let Some((clip, _)) = code_line else { return rect };
+        let x = |x: f32| x.clamp(clip.left(), clip.right());
+        Rect::from_x_y_ranges(x(rect.left())..=x(rect.right()), rect.y_range())
     }
 }
 

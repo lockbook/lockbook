@@ -940,7 +940,7 @@ impl<'ast> Editor {
                             .push((rect, TouchTarget::Popup));
                         let caret = self.edit.renderer.buffer.current.selection.1;
                         let caret = self.edit.cursor_line(caret);
-                        self.next_resp.caret_covered = caret.is_some_and(|[top, bottom]| {
+                        self.next_resp.caret_covered |= caret.is_some_and(|[top, bottom]| {
                             rect.intersects(Rect::from_two_pos(top, bottom))
                         });
                         if chosen.is_some() || close {
