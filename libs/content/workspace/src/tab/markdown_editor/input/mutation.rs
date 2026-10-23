@@ -109,6 +109,7 @@ impl<'ast> MdEdit {
             Event::Camera => {
                 response.open_camera = true;
             }
+            Event::Gesture(gesture) => self.apply_gesture(gesture),
             Event::Newline { shift } => {
                 if self.newline_in_table(shift, operations) {
                     return response;

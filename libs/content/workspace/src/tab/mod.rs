@@ -870,6 +870,7 @@ pub trait ExtendedInput {
     fn pop_events(&self) -> Vec<Event>;
     fn pop_events_where(&self, predicate: &mut dyn FnMut(&Event) -> bool) -> Vec<Event>;
     fn read_events(&self) -> Vec<Event>;
+    fn has_events(&self) -> bool;
     fn drain(&self);
 }
 
@@ -918,6 +919,14 @@ impl ExtendedInput for egui::Context {
             }
             m.data.insert_temp(Id::unique("custom_events"), rest);
             matching
+        })
+    }
+
+    fn has_events(&self) -> bool {
+        self.memory(|m| {
+            m.data
+                .get_temp::<Vec<Event>>(Id::unique("custom_events"))
+                .is_some_and(|events| !events.is_empty())
         })
     }
 

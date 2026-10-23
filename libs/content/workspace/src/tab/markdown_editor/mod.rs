@@ -357,6 +357,9 @@ pub struct MdEdit {
     /// 0 while the content fits.
     pub overflow_scroll: f32,
 
+    /// A composer-like field without a page of its own: gestures scroll `overflow_scroll`.
+    pub standalone: bool,
+
     /// Buffer (seq, selection) and rect at the last cursor-follow of
     /// `overflow_scroll` — the follow runs when these change, leaving a
     /// wheel scroll free to move the cursor out of view.
@@ -432,6 +435,7 @@ impl MdEdit {
             pending_scroll: None,
             single_line_scroll: 0.0,
             overflow_scroll: 0.0,
+            standalone: true,
             overflow_follow: (0, Default::default(), Rect::ZERO),
             scroll_area_velocity: Default::default(),
             file_id,
@@ -999,6 +1003,7 @@ impl Editor {
                 pending_scroll: None,
                 single_line_scroll: 0.0,
                 overflow_scroll: 0.0,
+                standalone: false,
                 overflow_follow: (0, Default::default(), Rect::ZERO),
                 scroll_area_velocity: Default::default(),
                 file_id,
