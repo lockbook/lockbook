@@ -775,8 +775,8 @@ pub trait FilesExt {
     /// Where the note an unmatched wikilink title names would be created: an
     /// existing folder, then the names to create under it, the document last.
     /// A path title is walked from the note's folder (`/` from the scope's
-    /// top). None for a title that names no file, or when the note's folder
-    /// is outside its scope.
+    /// top). None for a title that names no file or a file that can't be made
+    /// empty, or when the note's folder is outside its scope.
     fn wikilink_placement(&self, title: &str, note: Uuid) -> Option<(Uuid, Vec<String>)> {
         let title = self.wiki_file_part(title);
         let from = self.get_by_id(note)?.parent;
@@ -793,6 +793,9 @@ pub trait FilesExt {
             return None;
         }
         let last = names.last_mut()?;
+        if unmakeable(last) {
+            return None;
+        }
         if !has_extension(last) {
             last.push_str(".md");
         }
@@ -945,6 +948,13 @@ fn has_extension(name: &str) -> bool {
     ["md", "svg", "txt"]
         .iter()
         .any(|e| ext.eq_ignore_ascii_case(e))
+}
+
+/// Whether a name ends in the extension of a kind of file that can't be
+/// made empty (`photo.png`, `paper.pdf`): a title naming one creates nothing.
+fn unmakeable(name: &str) -> bool {
+    let ext = name.rsplit_once('.').map_or("", |(_, ext)| ext);
+    crate::tab::image_viewer::is_supported_image_fmt(ext) || ext.eq_ignore_ascii_case("pdf")
 }
 
 /// The title a file answers to in a wikilink, as in Obsidian: a note's name

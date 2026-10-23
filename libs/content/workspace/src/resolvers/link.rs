@@ -334,6 +334,7 @@ mod tests {
             "placeholder: Open to create **drafts/Ideas.md**."
         );
         assert!(message(reading.wikilink_state("Ideas")).starts_with("broken: "));
+        assert!(message(writing.wikilink_state("photo.png")).starts_with("broken: "));
         assert!(message(writing.wikilink_state("../Ideas")).starts_with("broken: "));
         assert_eq!(message(writing.wikilink_state("Budget")), "normal");
         let (parent, names) = writing.wikilink_placement("drafts/Ideas").unwrap();
