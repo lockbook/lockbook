@@ -7,9 +7,8 @@
 use egui::{Color32, Pos2, Rangef, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
-use crate::style::EDGE_FADE;
+use crate::style::{EDGE_FADE, overlay_scroll};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
-use crate::theme::palette_v2::ThemeExt as _;
 
 /// A block that scrolls along its rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -29,6 +28,9 @@ pub struct RowScroll {
     pub tracked: f32,
     /// The find and preview matches it last scrolled to show.
     pub shown: [Option<(Grapheme, Grapheme)>; 2],
+    /// Only the program moved it this frame — to show the caret or a match,
+    /// or back inside its bounds — which leaves its bar hidden.
+    pub quiet: bool,
 }
 
 impl MdRender {
@@ -79,6 +81,7 @@ impl MdRender {
             None
         };
         scroll.shown = shown;
+        let users = scroll.offset;
         if let Some(span) = span {
             if span.min < scroll.offset {
                 scroll.offset = span.min;
@@ -96,6 +99,7 @@ impl MdRender {
             scroll.velocity = 0.0;
         }
         scroll.offset = clamped;
+        scroll.quiet = scroll.offset != users;
         self.row_scrolls.insert(key, scroll);
         scroll.offset
     }
@@ -107,16 +111,17 @@ impl MdRender {
             .map_or(0.0, |scroll| scroll.offset)
     }
 
-    /// The chrome of `rect`, scrolled `scroll` of `content` and showing
-    /// within `clip`: its rows fade out at an edge with more beyond it —
-    /// painted over the text, once it is — each band `(top, bottom, color)`
-    /// in its own color, and a thumb along the bottom border says there is
-    /// more.
+    /// The chrome of `key`, `content` wide and showing in `rect` within
+    /// `clip`: its rows fade out at an edge with more beyond it — painted
+    /// over the text, once it is — each band `(top, bottom, color)` in its
+    /// own color, and the design system's bar runs along the bottom while
+    /// the user scrolls.
     pub fn row_scroll_chrome(
-        &mut self, ui: &Ui, rect: Rect, clip: Rect, scroll: f32, content: f32,
+        &mut self, ui: &mut Ui, key: RowScroller, rect: Rect, clip: Rect, content: f32,
         bands: &[(f32, f32, Color32)],
     ) {
         let (width, fade) = (rect.width(), EDGE_FADE.pts());
+        let scroll = self.row_scrolled(key);
         let edges = [
             (scroll > 0.5, rect.left(), rect.left() + fade),
             (scroll + width < content - 0.5, rect.right() - fade, rect.right()),
@@ -133,12 +138,16 @@ impl MdRender {
             }
         }
 
-        let track = rect.shrink2(Vec2::new(2.0, 1.0));
-        let thumb = Vec2::new(track.width() * width / content, 3.0);
-        let travel = (track.width() - thumb.x) * scroll / (content - width);
-        let thumb = Rect::from_min_size(track.left_bottom() + Vec2::new(travel, -thumb.y), thumb);
-        ui.painter()
-            .rect_filled(thumb, 1.5, self.ctx.get_lb_theme().neutral());
+        if self.painting_drag_float {
+            return;
+        }
+        let Some(row_scroll) = self.row_scrolls.get_mut(&key) else { return };
+        let id = ui.scope_id().with(("row_scroll", key));
+        let mut offset = row_scroll.offset;
+        overlay_scroll::scroller_bar_x(ui, id, rect, content, &mut offset, row_scroll.quiet);
+        if offset != row_scroll.offset {
+            (row_scroll.offset, row_scroll.velocity) = (offset, 0.0);
+        }
     }
 
     /// The block wider than the note that shows at `pos`.

@@ -85,17 +85,24 @@ impl<'ast> MdRender {
                 let header_slots = self.table_header_slots.len();
                 self.show_block_children(&mut clipped, node, top_left - Vec2::new(scroll, 0.0));
 
-                // the header fades in its own color
+                // the header fades in its own color, inside the border, which
+                // stays put over the fades
+                let inside = table.shrink(1.0);
                 let header = self
                     .table_header_slots
                     .get(header_slots)
                     .map(|(_, rect)| *rect);
-                let header_bottom = header.map_or(table.top(), |h| h.bottom());
+                let header_bottom = header.map_or(inside.top(), |h| h.bottom());
                 let bands = [
-                    (table.top(), header_bottom, theme.neutral_bg_secondary()),
-                    (header_bottom, table.bottom(), theme.neutral_bg()),
+                    (inside.top(), header_bottom, theme.neutral_bg_secondary()),
+                    (header_bottom, inside.bottom(), theme.neutral_bg()),
                 ];
-                self.row_scroll_chrome(ui, table, clip, scroll, content, &bands);
+                let key = node.first_child().map(|header| self.table_row_key(header));
+                if let Some(ordinal) = key.and_then(|key| self.table_ordinal(key)) {
+                    let key = RowScroller::Table(ordinal);
+                    let content = content + inside.width() - table.width();
+                    self.row_scroll_chrome(ui, key, inside, clip, content, &bands);
+                }
 
                 // what the table hides of a cell is not there to touch
                 let shown = self.touch_targets.split_off(touch_targets).into_iter();
