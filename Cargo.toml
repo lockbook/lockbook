@@ -38,3 +38,8 @@ debug = true
 # see https://bevy-cheatbook.github.io/pitfalls/performance.html
 [profile.dev.package."*"]
 opt-level = 3
+
+# tests spend their time in our own code (the editor property tests), which
+# opt-level 0 makes about 3x slower; dev builds keep their fast rebuilds
+[profile.test]
+opt-level = 1
