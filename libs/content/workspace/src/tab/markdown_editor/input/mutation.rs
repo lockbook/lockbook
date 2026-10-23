@@ -600,11 +600,7 @@ impl<'ast> MdEdit {
             }
             Event::OpenLink { url, wikilink } => {
                 let ctx = self.renderer.ctx.clone();
-                if wikilink {
-                    self.renderer.open_wikilink(&url, &ctx, false);
-                } else {
-                    self.renderer.open_resolved_link(&url, &ctx, false);
-                }
+                self.renderer.open_dest(&url, wikilink, &ctx);
             }
             Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
             Event::EnterAtom => {

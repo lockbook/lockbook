@@ -12,6 +12,7 @@ use lb_rs::model::text::offset_types::{
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::block::drag::DragUnit;
+use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     Fragment, FragmentContent, FragmentInset,
@@ -942,7 +943,7 @@ impl<'ast> MdRender {
         }
         let max_image_height = leaf
             .descendants()
-            .filter(|d| matches!(d.data.borrow().value, NodeValue::Image(_)))
+            .filter(|d| image_url(d).is_some())
             .filter(|d| leaf_node_line.contains_range(&self.node_range(d), true, true))
             // Same collapse predicate as `layout_image`, else a selected image
             // stays tall but the row doesn't inflate, shifting the marker.

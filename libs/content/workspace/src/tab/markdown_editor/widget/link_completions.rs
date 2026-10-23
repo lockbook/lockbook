@@ -46,6 +46,8 @@ pub enum CompletionMode {
     Link,
     /// `![alt text](path)` — image link, shows only image files.
     ImageLink,
+    /// `![[title]]` — wiki embed, shows only image files.
+    WikiEmbed,
     /// `[display text](des...` — cursor in the destination; completes file
     /// paths while the display text is kept as-is.
     LinkDest,
@@ -138,7 +140,7 @@ impl LinkCompletions {
 
         let raw = &buffer[range];
         let complete = match mode {
-            CompletionMode::WikiLink => raw.ends_with("]]"),
+            CompletionMode::WikiLink | CompletionMode::WikiEmbed => raw.ends_with("]]"),
             CompletionMode::Link | CompletionMode::ImageLink => raw.ends_with(')'),
             // being inside complete syntax is the destination context
             CompletionMode::LinkDest | CompletionMode::ImageLinkDest => false,
@@ -271,6 +273,7 @@ impl LinkCompletions {
     ) {
         let text = match mode {
             CompletionMode::WikiLink => format!("[[{}]]", path),
+            CompletionMode::WikiEmbed => format!("![[{}]]", path),
             CompletionMode::Link | CompletionMode::LinkDest => {
                 format!("[{}]({})", display, path)
             }
@@ -294,8 +297,11 @@ impl LinkCompletions {
 /// Tries all detection strategies, returning the first match with its mode.
 /// WikiLink (`[[`) takes priority over plain Link (`[`).
 fn detect_any(buffer: &Buffer) -> Option<((Grapheme, Grapheme), CompletionMode)> {
-    if let Some(range) = detect_wikilink(buffer) {
-        return Some((range, CompletionMode::WikiLink));
+    if let Some((start, end)) = detect_wikilink(buffer) {
+        if start.0 > 0 && grapheme_at(buffer, start.0 - 1) == "!" {
+            return Some(((start - 1, end), CompletionMode::WikiEmbed));
+        }
+        return Some(((start, end), CompletionMode::WikiLink));
     }
     if let Some((range, is_image)) = detect_link(buffer) {
         let mode = if is_image { CompletionMode::ImageLink } else { CompletionMode::Link };
@@ -578,6 +584,7 @@ fn query_range(
 
     let prefix_len = match mode {
         CompletionMode::WikiLink => 2,  // [[
+        CompletionMode::WikiEmbed => 3, // ![[
         CompletionMode::Link => 1,      // [
         CompletionMode::ImageLink => 2, // ![
         CompletionMode::LinkDest | CompletionMode::ImageLinkDest => unreachable!(),
@@ -588,7 +595,7 @@ fn query_range(
     // multi-byte clusters (Devanagari, emoji) overshoot otherwise.
     let raw = &buffer[range];
     let end = match mode {
-        CompletionMode::WikiLink => {
+        CompletionMode::WikiLink | CompletionMode::WikiEmbed => {
             let trimmed = raw.trim_end_matches(']');
             Grapheme(range.0.0 + trimmed.graphemes(true).count())
         }
@@ -723,7 +730,10 @@ impl LinkCompletions {
         if self.candidates_for == key {
             return;
         }
-        let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
+        let image = matches!(
+            mode,
+            CompletionMode::ImageLink | CompletionMode::ImageLinkDest | CompletionMode::WikiEmbed
+        );
         let scope = cache.scope_top(file_id);
         let from = cache.get_by_id(file_id).map_or(file_id, |f| f.parent);
         let from_path = cache.path(from);
@@ -794,7 +804,10 @@ impl LinkCompletions {
         });
         ranked.truncate(MAX_RESULTS);
 
-        let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
+        let image = matches!(
+            mode,
+            CompletionMode::ImageLink | CompletionMode::ImageLinkDest | CompletionMode::WikiEmbed
+        );
         let origin = self
             .open_origin
             .as_deref()
@@ -807,22 +820,23 @@ impl LinkCompletions {
                 // a wikilink title, or a link destination: a relative path in
                 // the scope, the external URL out of it, never an absolute
                 // path; a title past the scope is unique in the reader's tree
-                let (insert, located) = if mode == CompletionMode::WikiLink {
-                    let title = cache
-                        .wikilink_title(f.id, file_id)
-                        .or_else(|| cache.wikilink_title_in(f.id, cache.tree_root(file_id)))
-                        .unwrap_or_else(|| wiki_title(&f.name).to_string());
-                    // resolved as the note will read it, escapes undone
-                    let located = cache.locate_wikilink(&unescape_wiki_title(&title), file_id);
-                    (title, located)
-                } else {
-                    let destination = match cache.link_destination(f.id, file_id) {
-                        Some(path) => path,
-                        None => format!("{origin}/open/{}", f.id),
+                let (insert, located) =
+                    if matches!(mode, CompletionMode::WikiLink | CompletionMode::WikiEmbed) {
+                        let title = cache
+                            .wikilink_title(f.id, file_id)
+                            .or_else(|| cache.wikilink_title_in(f.id, cache.tree_root(file_id)))
+                            .unwrap_or_else(|| wiki_title(&f.name).to_string());
+                        // resolved as the note will read it, escapes undone
+                        let located = cache.locate_wikilink(&unescape_wiki_title(&title), file_id);
+                        (title, located)
+                    } else {
+                        let destination = match cache.link_destination(f.id, file_id) {
+                            Some(path) => path,
+                            None => format!("{origin}/open/{}", f.id),
+                        };
+                        let located = cache.locate_link(&destination, file_id);
+                        (destination, located)
                     };
-                    let located = cache.locate_link(&destination, file_id);
-                    (destination, located)
-                };
                 let (outside, path) = (candidate.outside, cache.path(f.id));
                 // the dot is the color the link will draw in: none where it
                 // opens this file for everyone, red where it opens no file or
@@ -1650,6 +1664,41 @@ mod tests {
             rows(&cache, editing, "mark", CompletionMode::Link),
             ["/lockbook/marketing/launch.md"]
         );
+    }
+
+    /// `![[` offers images, not drawings or notes, and writes a wiki embed.
+    #[test]
+    fn a_wiki_embed_offers_images() {
+        use lb_rs::model::text::buffer::Buffer;
+        use lb_rs::model::text::offset_types::Grapheme;
+
+        use super::{detect_any, query_range};
+
+        let mut buffer = Buffer::from("see ![[ch");
+        buffer.current.selection = (Grapheme(9), Grapheme(9));
+        let (range, mode) = detect_any(&buffer).unwrap();
+        assert!(mode == CompletionMode::WikiEmbed);
+        assert_eq!(&buffer[range], "![[ch");
+        assert_eq!(&buffer[query_range(&buffer, range, mode)], "ch");
+
+        let files = tree(
+            "alice",
+            &["/notes/editing.md", "/notes/chart.png", "/notes/chart sketch.svg", "/chart.md"],
+        );
+        let editing = at(&files, "/notes/editing.md");
+        let cache = cache(files);
+        assert_eq!(rows(&cache, editing, "ch", mode), ["/notes/chart.png"]);
+        let mut events = vec![];
+        LinkCompletions::default().apply_completion(
+            &mut events,
+            range.0,
+            range.1,
+            "",
+            "chart.png",
+            mode,
+        );
+        let replaced = matches!(&events[..], [crate::tab::markdown_editor::input::Event::Replace { text, .. }] if text == "![[chart.png]]");
+        assert!(replaced, "{events:?}");
     }
 
     /// A name on top by its first letters stays on top as the rest of it is

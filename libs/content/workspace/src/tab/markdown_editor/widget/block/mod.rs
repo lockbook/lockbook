@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::fold::FOLD_TAG;
+use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::{Event, MdRender};
@@ -221,17 +222,18 @@ impl<'ast> MdRender {
                 // height separately and `max` it in at the end.
                 let mut image_height = 0.0f32;
                 for d in node.descendants() {
+                    if let Some(url) = image_url(d) {
+                        let dims = self.embeds.size(&url);
+                        image_height =
+                            image_height.max(self.image_size(dims, width, self.image_dims(d)).y);
+                        continue;
+                    }
                     match &d.data.borrow().value {
                         NodeValue::Text(t) => chars += t.chars().count(),
                         NodeValue::Code(c) => chars += c.literal.chars().count(),
                         NodeValue::HtmlInline(s) => chars += s.chars().count(),
                         NodeValue::Math(m) => chars += m.literal.chars().count(),
                         NodeValue::SoftBreak | NodeValue::LineBreak => chars += 1,
-                        NodeValue::Image(link) => {
-                            let dims = self.embeds.size(&link.url);
-                            image_height = image_height
-                                .max(self.image_size(dims, width, self.image_dims(d)).y);
-                        }
                         _ => {}
                     }
                 }

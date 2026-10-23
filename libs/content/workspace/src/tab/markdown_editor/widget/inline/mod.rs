@@ -2,6 +2,7 @@ use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 
 pub(crate) mod code;
 pub(crate) mod emph;
@@ -210,6 +211,9 @@ impl<'ast> MdRender {
             NodeValue::Superscript => self.layout_superscript(layout, node, range),
             NodeValue::Text(_) => self.layout_text(layout, node, range),
             NodeValue::Underline => self.layout_underline(layout, node, range),
+            NodeValue::WikiLink(_) if image_url(node).is_some() => {
+                self.layout_image(layout, node, range)
+            }
             NodeValue::WikiLink(_) => self.layout_wikilink(layout, node, range),
         }
     }
