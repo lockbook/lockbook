@@ -684,6 +684,15 @@ pub trait ExtendedOutput {
     /// Sheets requested together show one after another.
     fn show_link_sheet(&self, sheet: LinkSheet);
     fn pop_link_sheets(&self) -> Vec<LinkSheet>;
+    /// A rendered copy; hosts put both flavors on the clipboard at once.
+    fn set_copied_rendered(&self, copied: CopiedRendered);
+    fn pop_copied_rendered(&self) -> Option<CopiedRendered>;
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct CopiedRendered {
+    pub plain: String,
+    pub html: String,
 }
 
 /// A sheet about a link the reader tried to open: why it may open differently
@@ -700,6 +709,14 @@ pub struct LinkSheet {
 }
 
 impl ExtendedOutput for egui::Context {
+    fn set_copied_rendered(&self, copied: CopiedRendered) {
+        self.memory_mut(|m| m.data.insert_temp(Id::unique("copied_rendered"), copied));
+    }
+
+    fn pop_copied_rendered(&self) -> Option<CopiedRendered> {
+        self.memory_mut(|m| m.data.remove_temp(Id::unique("copied_rendered")))
+    }
+
     fn set_virtual_keyboard_shown(&self, enabled: bool) {
         self.memory_mut(|m| {
             m.data

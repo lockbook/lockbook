@@ -521,10 +521,18 @@
                 free_urls(output.urls_opened)
             }
 
-            if let text = output.copied_text {
+            if let text = output.copied_text, let html = output.copied_html {
                 let text = textFromPtr(s: text)
+                let html = textFromPtr(s: html)
                 if !text.isEmpty {
-                    UIPasteboard.general.string = text
+                    if html.isEmpty {
+                        UIPasteboard.general.string = text
+                    } else {
+                        UIPasteboard.general.items = [[
+                            UTType.utf8PlainText.identifier: text,
+                            UTType.html.identifier: html,
+                        ]]
+                    }
                 }
             }
 

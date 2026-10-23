@@ -37,7 +37,7 @@ impl<'ast> MdRender {
     /// row of a setext heading). When syntax is revealed, leading
     /// indentation and the source-line prefix come through as syntax-
     /// formatted text; otherwise just the inline children.
-    fn layout_setext_heading_line(
+    pub(crate) fn layout_setext_heading_line(
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> Layout {
         let mut layout = Layout::new(node_line);
@@ -126,7 +126,7 @@ impl<'ast> MdRender {
     /// whitespace, with syntax visibility driven by reveal. Empty
     /// heading falls back to rendering the whole line as syntax
     /// (Obsidian-inspired).
-    fn layout_atx_heading_line(
+    pub(crate) fn layout_atx_heading_line(
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> Layout {
         let mut layout = Layout::new(node_line);

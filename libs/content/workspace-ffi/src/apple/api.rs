@@ -325,6 +325,17 @@ pub unsafe extern "C" fn selection_open_target(obj: *mut c_void) -> *const c_cha
     }
 }
 
+/// Edit-menu "Copy Rendered": the selection as drawn, as plain text and
+/// HTML, delivered through the next response's `copied_text` / `copied_html`.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn copy_rendered(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.renderer
+        .context
+        .push_markdown_event(workspace_rs::tab::markdown_editor::input::Event::CopyRendered);
+}
+
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn open_selection_links(obj: *mut c_void) {

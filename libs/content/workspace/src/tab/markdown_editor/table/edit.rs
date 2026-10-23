@@ -3,10 +3,12 @@
 //! deleted in a cell stays in the cell, a selection of whole cells clears
 //! them, and a selection of whole rows removes their lines.
 
+use comrak::nodes::TableAlignment;
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
 use unicode_segmentation::UnicodeSegmentation as _;
 
+use super::structure::{BLANK, row_text};
 use super::{CellBounds, RowBounds, TableBounds, TableSelection, is_pipe_space};
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::input::{Advance, Region};
@@ -681,7 +683,52 @@ impl MdRender {
         let range = (table.rows[rows.0].line.start(), table.rows[rows.1].line.end());
         Some((range, lines.join("\n")))
     }
+
+    /// The selected cells or rows, for the clipboard's rendered flavors: as a
+    /// table of their own with its first row the header, which renders as
+    /// one, and as each row's cells' content ranges — empty for a cell the
+    /// row lacks. `None` unless the selection takes whole cells or rows.
+    pub fn table_selection_grid(&self) -> Option<(String, TableGrid)> {
+        let (table, rows, columns) = match self.table_selection(self.buffer.current.selection)? {
+            TableSelection::Cells { table, row, columns } => (table, (row, row), columns),
+            TableSelection::Rows { table, rows } => (table, rows, (0, table.columns() - 1)),
+            TableSelection::InCell { .. } => return None,
+        };
+        let width = columns.1 - columns.0 + 1;
+        let (mut lines, mut grid) = (Vec::new(), Vec::new());
+        for row in &table.rows[rows.0..=rows.1] {
+            let cells: Vec<_> = row.cells.iter().skip(columns.0).take(width).collect();
+            let mut texts: Vec<String> = cells
+                .iter()
+                .map(|cell| self.buffer[cell.span].to_string())
+                .collect();
+            texts.resize(width, BLANK.to_string());
+            lines.push(row_text(&texts, true, true));
+            if lines.len() == 1 {
+                // as the editor aligns them: an unaligned column is left, where
+                // HTML would center a header cell
+                let delimiter = table.delimiter.alignments[columns.0..=columns.1].iter();
+                let delimiter: Vec<String> = delimiter
+                    .map(|alignment| match alignment {
+                        TableAlignment::Center => " :-: ",
+                        TableAlignment::Right => " --: ",
+                        _ => " :-- ",
+                    })
+                    .map(str::to_string)
+                    .collect();
+                lines.push(row_text(&delimiter, true, true));
+            }
+            let end = row.line.end();
+            let mut contents: Vec<_> = cells.iter().map(|cell| cell.content).collect();
+            contents.resize(width, (end, end));
+            grid.push(contents);
+        }
+        Some((lines.join("\n"), grid))
+    }
 }
+
+/// Each row's cells' content ranges.
+pub type TableGrid = Vec<Vec<(Grapheme, Grapheme)>>;
 
 impl MdEdit {
     /// Tab in a table moves to the next cell, or with shift the previous,

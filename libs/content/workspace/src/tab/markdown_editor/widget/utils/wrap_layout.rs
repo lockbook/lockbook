@@ -487,6 +487,33 @@ impl Layout {
         self.events
             .push((self.visible.len(), FlowEvent::InteractionClose));
     }
+
+    /// The visible text sourced from `clip` with its tabs back: one-to-one
+    /// segments are sliced by source byte (`byte_of` maps a grapheme to its
+    /// buffer byte), override text comes along whole when its source lies
+    /// in `clip`.
+    pub fn visible_in(
+        &self, clip: (Grapheme, Grapheme), byte_of: impl Fn(Grapheme) -> usize,
+    ) -> String {
+        let mut out = String::new();
+        for seg in &self.source_segments {
+            if seg.one_to_one {
+                let clipped = seg.source.trim(&clip);
+                if clipped.is_empty() {
+                    continue;
+                }
+                let base = byte_of(seg.source.start());
+                let start = seg.visible.start + byte_of(clipped.start()) - base;
+                let end = seg.visible.start + byte_of(clipped.end()) - base;
+                for (i, c) in self.visible[start..end].char_indices() {
+                    out.push(if self.tab_positions.contains(&(start + i)) { '\t' } else { c });
+                }
+            } else if !seg.visible.is_empty() && clip.contains_range(&seg.source, true, true) {
+                out.push_str(&self.visible[seg.visible.clone()]);
+            }
+        }
+        out
+    }
 }
 
 /// Sanitise BiDi paragraph-separator chars (LF, CR, FS, GS, RS,

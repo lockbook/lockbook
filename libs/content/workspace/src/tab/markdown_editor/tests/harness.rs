@@ -153,9 +153,21 @@ impl TestEditor {
     /// Inject raw egui key/text events for one frame *without* forcing editor
     /// focus, so focus stays where a widget (e.g. find) parked it.
     pub fn enter_frame_with_input(&mut self, events: Vec<egui::Event>) {
+        self.enter_frame_with_input_held(events, egui::Modifiers::NONE);
+    }
+
+    /// Like [`enter_frame_with_input`] with `modifiers` held for the frame
+    /// (`ctx.input().modifiers`), as hosts report for keys they translate
+    /// themselves.
+    pub fn enter_frame_with_input_held(
+        &mut self, events: Vec<egui::Event>, modifiers: egui::Modifiers,
+    ) {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, SCREEN_SIZE);
+        let events = std::iter::once(egui::Event::ModifiersChanged(modifiers))
+            .chain(events)
+            .collect();
         ctx.run_pass(
             RawInput { screen_rect: Some(screen_rect), events, ..Default::default() },
             |ctx| {

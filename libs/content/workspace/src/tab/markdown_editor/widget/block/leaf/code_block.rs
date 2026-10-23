@@ -446,7 +446,7 @@ impl<'ast> MdRender {
     /// region becomes its own `push_source` with a per-region color
     /// (mono font + colored). Without highlighting, the whole line
     /// goes in as one push_source with the default code format.
-    fn layout_code_block_line(
+    pub(crate) fn layout_code_block_line(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (Grapheme, Grapheme), synthetic: bool,
     ) -> Layout {
@@ -497,7 +497,7 @@ impl<'ast> MdRender {
     // followed only by spaces, which are ignored."
     // https://github.github.com/gfm/#fenced-code-blocks
 
-    fn is_closing_fence(
+    pub(crate) fn is_closing_fence(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (Grapheme, Grapheme),
     ) -> bool {

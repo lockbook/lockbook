@@ -59,6 +59,7 @@ pub fn syntax_theme() -> &'static Theme {
 }
 
 pub mod bounds;
+mod clipboard;
 pub mod commands;
 pub mod fold;
 pub mod input;

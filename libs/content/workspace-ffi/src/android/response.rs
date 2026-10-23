@@ -8,6 +8,7 @@ pub struct AndroidResponse {
     // platform response
     pub redraw_in: u64,
     pub copied_text: String,
+    pub copied_html: String,
     pub copied_image: Vec<u8>,
     pub has_url_opened: bool,
     pub url_opened: String,
@@ -61,6 +62,7 @@ impl From<crate::Response> for AndroidResponse {
                 },
             redraw_in,
             copied_text,
+            copied_html,
             copied_image,
             urls_opened,
             cursor: _,
@@ -82,6 +84,7 @@ impl From<crate::Response> for AndroidResponse {
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text,
+            copied_html,
             copied_image,
             has_url_opened: !urls_opened.is_empty(),
             url_opened: urls_opened.into_iter().next().unwrap_or_default(),

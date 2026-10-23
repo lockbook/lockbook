@@ -42,6 +42,7 @@ pub struct MacOSResponse {
     // platform response
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
+    pub copied_html: *mut c_char,
     pub copied_image: CBytes,
     pub urls_opened: CUrls,
     pub cursor: CCursorIcon,
@@ -84,6 +85,7 @@ impl From<crate::Response> for MacOSResponse {
                 },
             redraw_in,
             copied_text,
+            copied_html,
             copied_image,
             urls_opened,
             cursor,
@@ -118,6 +120,7 @@ impl From<crate::Response> for MacOSResponse {
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text: CString::new(copied_text).unwrap().into_raw(),
+            copied_html: CString::new(copied_html).unwrap().into_raw(),
             copied_image: copied_image.into(),
             urls_opened,
             cursor: cursor.into(),
