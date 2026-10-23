@@ -18,7 +18,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSp
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
-/// What an image node shows, as the image cache knows it: a markdown image's
+/// What an image node shows, as embeds take it: a markdown image's
 /// destination, or the [`wiki_embed_key`] of a wiki embed whose title names
 /// an image (`![[photo.png]]`). Other wiki embeds are links.
 pub fn image_url(node: &AstNode<'_>) -> Option<String> {

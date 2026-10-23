@@ -16,7 +16,7 @@ use crate::tab::input_controller::{
     InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
 use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
-use crate::widgets::image_cache::{ImageCache, ImageState};
+use crate::widgets::image_cache::{ImageCache, ImageKey, ImageState};
 
 const MIN_ZOOM_LEVEL: f32 = 0.1;
 const ZOOM_STEP: f32 = 10.0;
@@ -70,8 +70,7 @@ impl ImageViewer {
             self.process_events(ui, available);
         }
 
-        let url = format!("lb://{}", self.id);
-        let state = self.images.get_or_load(&url, self.id, true);
+        let state = self.images.get_or_load(&ImageKey::File(self.id), true);
         let image_state = state.lock().unwrap().deref().clone();
 
         self.islands.clear();

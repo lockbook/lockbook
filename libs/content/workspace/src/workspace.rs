@@ -1373,8 +1373,8 @@ impl Workspace {
                         }
                     };
 
-                // Refresh before the markdown event lands: the image cache's
-                // URL→id lookup caches a sticky failure if the file is absent.
+                // Refresh before the markdown event lands, so the link it
+                // writes finds the imported file.
                 let Ok(cache) = FileCache::new(&self.core) else {
                     self.out
                         .failure_messages
@@ -2398,8 +2398,8 @@ impl WsPersistentStore {
         self.write_to_file();
     }
 
-    pub fn image_dims(&self) -> HashMap<String, [f32; 2]> {
-        self.data.read().unwrap().image_dims.clone()
+    pub fn image_dims(&self, url: &str) -> Option<[f32; 2]> {
+        self.data.read().unwrap().image_dims.get(url).copied()
     }
 
     pub fn merge_image_dims(&self, new_dims: HashMap<String, [f32; 2]>) {

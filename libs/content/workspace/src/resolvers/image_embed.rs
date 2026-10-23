@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::ops::Deref as _;
 
 use egui::os::OperatingSystem;
@@ -6,12 +5,12 @@ use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, Stroke, Ui, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 
-use crate::file_cache::FilesExt as _;
+use crate::file_cache::{FilesExt as _, Reach, web_link};
 use crate::resolvers::EmbedResolver;
 use crate::style::chrome::phosphor;
 use crate::style::{TypeRole, phosphor_font_id};
 use crate::theme::palette_v2::ThemeExt as _;
-use crate::widgets::image_cache::{ImageCache, ImageState};
+use crate::widgets::image_cache::{ImageCache, ImageKey, ImageState};
 
 /// The url of the image a wiki embed names (`![[photo.png]]`): its title in
 /// brackets, resolved in [`ImageEmbedResolver`], whose note it's relative to.
@@ -36,22 +35,35 @@ impl ImageEmbedResolver {
 }
 
 impl ImageEmbedResolver {
-    /// The image cache's url for `url`: a wiki embed's file by id, as a title
-    /// names different files from different notes. A title naming nothing
-    /// stays as it is, which resolves to nothing.
-    fn cached<'a>(&self, url: &'a str) -> Cow<'a, str> {
-        let Some(title) = wiki_embed_title(url) else { return Cow::Borrowed(url) };
+    /// The image `url` shows in this note, as a link in it would reach it,
+    /// and whether it waits for the reader to ask for it: a file past the
+    /// note's scope, which opens different things for different readers,
+    /// like a yellow link; or a web image while the reader hasn't let the
+    /// app contact linked sites. None for one naming nothing: a red image.
+    fn locate(&self, url: &str) -> Option<(ImageKey, bool)> {
         let files = self.images.files();
-        let id = files.read().unwrap().resolve_wikilink(title, self.file_id);
-        match id {
-            Some(id) => Cow::Owned(format!("lb://{id}")),
-            None => Cow::Borrowed(url),
-        }
+        let files = files.read().unwrap();
+        let (key, reach) = match wiki_embed_title(url) {
+            Some(title) => {
+                let (id, reach) = files.locate_wikilink(title, self.file_id)?;
+                (ImageKey::File(id), reach)
+            }
+            None => match files.locate_link(url, self.file_id) {
+                Some((id, reach)) => (ImageKey::File(id), reach),
+                None if web_link(url) => (ImageKey::Web(url.into()), Reach::Scope),
+                None => return None,
+            },
+        };
+        let waits = (reach != Reach::Scope || self.images.off_the_web(&key))
+            && !self.images.shown_anyway(self.file_id, &key);
+        Some((key, waits))
     }
 
-    /// An image that waits (yellow) or names nothing (red) never loads.
-    fn held(&self, url: &str) -> bool {
-        self.images.withheld(url, self.file_id) || self.images.broken(url, self.file_id)
+    /// The image `url` shows, unless it waits or names nothing: those never
+    /// load.
+    fn shown(&self, url: &str) -> Option<ImageKey> {
+        self.locate(url)
+            .and_then(|(key, waits)| (!waits).then_some(key))
     }
 }
 
@@ -61,41 +73,30 @@ const PLACEHOLDER_PT: f32 = 160.0;
 
 impl EmbedResolver for ImageEmbedResolver {
     fn size(&self, url: &str) -> Vec2 {
-        let url = &self.cached(url);
         let placeholder = Vec2::splat(PLACEHOLDER_PT * self.images.pixels_per_point());
-        if self.held(url) {
-            return placeholder;
-        }
-        self.images.dims(url).unwrap_or(placeholder)
+        self.shown(url)
+            .and_then(|key| self.images.dims(&key))
+            .unwrap_or(placeholder)
     }
 
     fn is_loaded(&self, url: &str) -> bool {
-        let url = &self.cached(url);
-        !self.held(url) && self.images.is_loaded(url)
+        self.shown(url)
+            .is_some_and(|key| self.images.is_loaded(&key))
     }
 
     fn withheld(&self, url: &str) -> bool {
-        self.images.withheld(&self.cached(url), self.file_id)
+        self.locate(url).is_some_and(|(_, waits)| waits)
     }
 
     fn load_anyway(&self, url: &str) {
-        self.images.show_anyway(self.file_id, &self.cached(url));
+        if let Some((key, _)) = self.locate(url) {
+            self.images.show_anyway(self.file_id, &key);
+        }
     }
 
     fn show(&self, ui: &mut Ui, url: &str, rect: Rect, rounding: CornerRadius) {
-        let url = &self.cached(url);
         let theme = ui.ctx().get_lb_theme();
-        if self.images.withheld(url, self.file_id) {
-            let touch = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-            let tap = if touch { "Tap" } else { "Click" };
-            if self.images.off_the_web(url) {
-                show_hidden(ui, rect, rounding, &format!("{tap} to load"), Hidden::Web);
-            } else {
-                show_hidden(ui, rect, rounding, &format!("{tap} to show"), Hidden::Reader);
-            }
-            return;
-        }
-        if self.images.broken(url, self.file_id) {
+        let Some((key, waits)) = self.locate(url) else {
             // what's missing; hover says why
             let url = wiki_embed_title(url).unwrap_or(url);
             let name = url.split(['#', '?']).next().unwrap_or(url);
@@ -107,8 +108,18 @@ impl EmbedResolver for ImageEmbedResolver {
             let name = urlencoding::decode(name).map_or(name.into(), |n| n.into_owned());
             show_placeholder(ui, rect, phosphor::IMAGE_BROKEN, &name, Some(theme.fg().red));
             return;
+        };
+        if waits {
+            let touch = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+            let tap = if touch { "Tap" } else { "Click" };
+            if self.images.off_the_web(&key) {
+                show_hidden(ui, rect, rounding, &format!("{tap} to load"), Hidden::Web);
+            } else {
+                show_hidden(ui, rect, rounding, &format!("{tap} to show"), Hidden::Reader);
+            }
+            return;
         }
-        let state = self.images.get_or_load(url, self.file_id, false);
+        let state = self.images.get_or_load(&key, false);
         let image_state = state.lock().unwrap().deref().clone();
         match image_state {
             ImageState::Loading => {
@@ -133,9 +144,8 @@ impl EmbedResolver for ImageEmbedResolver {
     }
 
     fn prefetch(&self, url: &str) {
-        let url = &self.cached(url);
-        if !self.held(url) {
-            self.images.get_or_load(url, self.file_id, false);
+        if let Some(key) = self.shown(url) {
+            self.images.get_or_load(&key, false);
         }
     }
 
