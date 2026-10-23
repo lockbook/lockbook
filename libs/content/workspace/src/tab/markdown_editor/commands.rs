@@ -6,7 +6,7 @@ use super::input::{Location, Region};
 use egui::Pos2;
 use lb_rs::model::text::offset_types::Grapheme;
 
-use super::input::Event;
+use super::input::{Event, Gesture};
 use super::widget::block::drag::{BlockDragAction, TouchReorder};
 use super::{MdEdit, TouchTarget};
 
@@ -118,6 +118,28 @@ impl MdEdit {
         self.touch_reorder = TouchReorder::Idle;
         self.touch_reorder_driven = false;
         self.renderer.ctx.request_repaint();
+    }
+
+    /// A standalone field (the chat composer) scrolls its overflow; a note
+    /// scrolls its page.
+    pub fn apply_gesture(&mut self, gesture: Gesture) {
+        if self.standalone {
+            if let Gesture::Scroll { dy } | Gesture::Crawl { dy } = gesture {
+                self.overflow_scroll_by(-dy);
+            }
+            return;
+        }
+        match gesture {
+            Gesture::Scroll { dy } => self.scroll_area.gesture_scroll(-dy),
+            Gesture::Fling { vy } => self.scroll_area.gesture_fling(-vy),
+            Gesture::Crawl { dy } => self.crawl_by(-dy),
+            Gesture::ScrollbarBegin => self.scroll_area.gesture_scrollbar_begin(),
+            Gesture::ScrollbarDrag { dy } => self.scroll_area.gesture_scrollbar_drag(dy),
+            Gesture::RowPan { dx } => self.row_pan_by(dx),
+            Gesture::RowPanEnd { vx } => self.row_pan_end(vx),
+            Gesture::ReorderMove { pos } => self.reorder_move(pos),
+            Gesture::ReorderEnd { pos, cancelled } => self.reorder_end(pos, cancelled),
+        }
     }
 
     /// A crawl at the viewport's edge scrolls like a pan.

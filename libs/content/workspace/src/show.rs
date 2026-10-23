@@ -10,7 +10,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FilesExt as _, link_id, split_fragment};
 use crate::output::Response;
 use crate::search::SearchType;
-use crate::tab::{ExtendedOutput as _, image_viewer};
+use crate::tab::{ExtendedInput as _, ExtendedOutput as _, image_viewer};
 use crate::theme::palette_v2::ThemeExt;
 use crate::theme::visuals;
 use crate::widgets::GlyphonLabel;
@@ -39,7 +39,7 @@ impl Workspace {
             self.tabs.promote(&slot.id);
         }
 
-        if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
+        if self.ctx.input(|inp| !inp.raw.events.is_empty()) || self.ctx.has_events() {
             self.core.app_foregrounded();
         }
 
@@ -63,6 +63,13 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_open_tab(ui));
             self.landing_page_first_frame = true;
         }
+        // A gesture no editor took this frame is not owed to the next one.
+        self.ctx.pop_events_where(&mut |e| {
+            matches!(
+                e,
+                crate::tab::Event::Markdown(crate::tab::markdown_editor::input::Event::Gesture(_))
+            )
+        });
         self.update_window_title();
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg

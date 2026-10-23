@@ -576,6 +576,21 @@ impl Workspace {
             .is_some_and(|md| md.find.focused(&self.ctx))
     }
 
+    /// Apply the gestures queued for the next frame now, so a host call that
+    /// reads or arms gesture state sees them in order.
+    pub fn flush_gestures(&mut self) {
+        use crate::tab::markdown_editor::input::Event;
+        let gestures = self
+            .ctx
+            .pop_events_where(&mut |e| matches!(e, crate::tab::Event::Markdown(Event::Gesture(_))));
+        let Some(md) = self.focused_mdedit_mut() else { return };
+        for event in gestures {
+            if let crate::tab::Event::Markdown(Event::Gesture(gesture)) = event {
+                md.apply_gesture(gesture);
+            }
+        }
+    }
+
     /// Apply an edit from the platform text system to the focused editor now.
     /// A text change marks the tab changed so it saves.
     pub fn apply_platform_event(
@@ -589,6 +604,7 @@ impl Workspace {
         &mut self, event: crate::tab::markdown_editor::input::Event, reveal: bool,
     ) -> lb_rs::model::text::buffer::Response {
         use crate::tab::markdown_editor::input::Event;
+        self.core.app_foregrounded();
         // A selection written for a touch on the note takes focus from the
         // find field, as a click does on a desktop.
         if matches!(event, Event::Select { .. }) && self.chrome_text_focused() {

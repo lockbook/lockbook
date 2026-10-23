@@ -118,6 +118,21 @@ pub enum Event {
     LoadImage { url: String }, // show an image that waited past the note's scope
     Table(TableAction), // a structure edit of the table at the selection, or a new table there
     PasteGrid(Grid), // rows of cells pasted: into the table at the selection, or as a new table there
+    Gesture(Gesture), // a native pan the host finished interpreting; applies even when readonly
+}
+
+/// Finger travel in points, already converted to the editor's units by the host.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Gesture {
+    Scroll { dy: f32 },
+    Fling { vy: f32 },
+    Crawl { dy: f32 },
+    ScrollbarBegin,
+    ScrollbarDrag { dy: f32 },
+    RowPan { dx: f32 },
+    RowPanEnd { vx: f32 },
+    ReorderMove { pos: Pos2 },
+    ReorderEnd { pos: Pos2, cancelled: bool },
 }
 
 impl From<(Grapheme, Grapheme)> for Region {
