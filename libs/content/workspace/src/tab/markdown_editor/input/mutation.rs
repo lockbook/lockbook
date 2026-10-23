@@ -623,6 +623,8 @@ impl<'ast> MdEdit {
                 {
                     self.enter_at_link(root, operations);
                 }
+                // Edit is for typing: the keyboard may have been put away
+                self.renderer.ctx.set_virtual_keyboard_shown(true);
             }
             Event::Table(action) => {
                 if !self.renderer.readonly && !self.renderer.plaintext {
