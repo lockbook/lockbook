@@ -19,6 +19,9 @@
 //!   are two of those views.
 //! - **Reader-dependent paths are marked.** An absolute path in a shared note
 //!   is [`Reach::Reader`] wherever it resolves.
+//! - **What one holder writes, every holder reads.** The title or destination
+//!   the cache writes toward a document in the scope, in any view, names
+//!   that document in the scope in every view.
 //!
 //! Confirmed via fault injection: the scope taken as the reader's whole tree,
 //! `..` allowed past the scope's top, and absolute paths in shared notes left
@@ -269,6 +272,38 @@ fn check(buf: &[u8]) -> Result<(), String> {
                         let shared = v.scope_top(note.id) != v.root().id;
                         if shared && matches!(l, Some((_, r)) if *r != Reach::Reader) {
                             return fail("unmarked absolute path in a shared note", answers());
+                        }
+                    }
+                }
+            }
+        }
+
+        for (writer, v) in &holders {
+            let scope = v.scope_top(note.id);
+            let targets = v
+                .iter_files()
+                .filter(|f| f.is_document() && f.id != note.id && f.id != scope)
+                .filter(|f| v.in_scope(scope, f.id));
+            for target in targets {
+                let written = [
+                    v.wikilink_title(target.id, note.id)
+                        .map(|t| (Form::Wiki, t)),
+                    v.link_destination(target.id, note.id)
+                        .map(|d| (Form::Relative, d)),
+                ];
+                for (form, dest) in written.into_iter().flatten() {
+                    for (reader, w) in &holders {
+                        let read = match form {
+                            Form::Wiki => w.locate_wikilink(&dest, note.id),
+                            _ => w.locate_link(&dest, note.id),
+                        };
+                        if read != Some((target.id, Reach::Scope)) {
+                            return Err(format!(
+                                "{writer} wrote {form:?} {dest:?} for {} in {:?}; {reader} reads {:?}",
+                                v.path(target.id),
+                                note.name,
+                                read.map(|(id, r)| (w.path(id), r))
+                            ));
                         }
                     }
                 }

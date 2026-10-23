@@ -327,6 +327,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionOpenTarget
     }
 }
 
+/// Whether the edit menu's link is an image, for its wording.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionTargetIsImage(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_target_is_image()) as jboolean
+}
+
 /// Edit-menu "Open Link": open every link/image in the current selection.
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_openSelectionLinks(

@@ -166,6 +166,9 @@ impl Workspace {
                         self.navigate_to_range(id, range);
                     }
                 }
+                for (parent, names) in ui.ctx().pop_create_notes() {
+                    self.create_note_at(parent, &names);
+                }
                 let sheets = ui.ctx().pop_link_sheets();
                 if !sheets.is_empty() && self.link_sheets.is_empty() {
                     // the keyboard and the text selection's handles would cover it

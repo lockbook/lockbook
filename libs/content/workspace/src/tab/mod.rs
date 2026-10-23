@@ -684,6 +684,10 @@ pub trait ExtendedOutput {
     /// Sheets requested together show one after another.
     fn show_link_sheet(&self, sheet: LinkSheet);
     fn pop_link_sheets(&self) -> Vec<LinkSheet>;
+    /// Create `names` under `parent` — folders, then a document last — and
+    /// open the document.
+    fn create_note(&self, parent: Uuid, names: Vec<String>);
+    fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)>;
     /// A rendered copy; hosts put both flavors on the clipboard at once.
     fn set_copied_rendered(&self, copied: CopiedRendered);
     fn pop_copied_rendered(&self) -> Option<CopiedRendered>;
@@ -792,6 +796,25 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| {
             m.data
                 .remove_temp::<Vec<LinkSheet>>(Id::unique("link_sheets"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn create_note(&self, parent: Uuid, names: Vec<String>) {
+        self.memory_mut(|m| {
+            let mut notes: Vec<(Uuid, Vec<String>)> = m
+                .data
+                .get_temp(Id::unique("create_notes"))
+                .unwrap_or_default();
+            notes.push((parent, names));
+            m.data.insert_temp(Id::unique("create_notes"), notes);
+        })
+    }
+
+    fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<(Uuid, Vec<String>)>>(Id::unique("create_notes"))
                 .unwrap_or_default()
         })
     }

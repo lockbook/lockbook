@@ -10,7 +10,7 @@
 //! resvg, and EXIF orientation correction. Decoded images are uploaded as
 //! egui textures.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -23,7 +23,7 @@ use lb_rs::{Uuid, spawn};
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform};
 
-use crate::file_cache::{FileCache, FilesExt as _, Reach, ResolvedLink};
+use crate::file_cache::{FileCache, FilesExt as _, Reach, ResolvedLink, web_link};
 use crate::seq::ws_seq;
 use crate::tab::markdown_editor::HttpClient;
 use crate::workspace::WsPersistentStore;
@@ -57,6 +57,8 @@ struct Inner {
     current: HashMap<String, Arc<Mutex<ImageState>>>,
     previous: HashMap<String, Arc<Mutex<ImageState>>>,
     began_this_frame: bool,
+    /// Images past their note's scope the reader asked to see: (note, url).
+    shown_anyway: HashSet<(Uuid, String)>,
 }
 
 #[derive(Clone)]
@@ -158,12 +160,52 @@ impl ImageCache {
             .map(|[w, h]| Vec2::new(w, h))
     }
 
-    /// Why `url` must not show as an image in `note`: it reaches a file
-    /// outside the note's scope. States here are shared by every note
-    /// embedding `url` (and the image viewer), so embeds check this first.
-    pub fn out_of_scope(&self, url: &str, note: Uuid) -> bool {
+    /// Whether `url` in `note` reaches a file past the note's scope that the
+    /// reader hasn't asked to see: it opens different things for different
+    /// readers, so it waits like a yellow link. States here are shared by
+    /// every note embedding `url` (and the image viewer), so embeds check
+    /// this first.
+    pub fn withheld(&self, url: &str, note: Uuid) -> bool {
+        self.differs_by_reader(url, note)
+            && !self
+                .inner
+                .lock()
+                .unwrap()
+                .shown_anyway
+                .contains(&(note, url.to_string()))
+    }
+
+    /// Whether `url` in `note` reaches a file past the note's scope: a
+    /// yellow image, which opens different things for different readers.
+    pub fn differs_by_reader(&self, url: &str, note: Uuid) -> bool {
         let files = self.files.read().unwrap();
         matches!(files.locate_link(url, note), Some((_, reach)) if reach != Reach::Scope)
+    }
+
+    /// Whether `url` in `note` names a file nothing resolves: a red image.
+    pub fn broken(&self, url: &str, note: Uuid) -> bool {
+        !web_link(url) && self.files.read().unwrap().locate_link(url, note).is_none()
+    }
+
+    /// The reader asked to see `url` in `note` though it reaches past the
+    /// note's scope.
+    pub fn show_anyway(&self, note: Uuid, url: &str) {
+        self.inner
+            .lock()
+            .unwrap()
+            .shown_anyway
+            .insert((note, url.to_string()));
+        self.seq
+            .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+        self.ctx.request_repaint();
+    }
+
+    pub fn files(&self) -> Arc<RwLock<FileCache>> {
+        self.files.clone()
+    }
+
+    pub fn pixels_per_point(&self) -> f32 {
+        self.ctx.pixels_per_point()
     }
 
     pub fn color_image(&self, id: Uuid) -> Result<ColorImage, String> {

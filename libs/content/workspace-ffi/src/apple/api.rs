@@ -325,6 +325,16 @@ pub unsafe extern "C" fn selection_open_target(obj: *mut c_void) -> *const c_cha
     }
 }
 
+/// Whether the edit menu's link is an image, for its wording.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn selection_target_is_image(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_target_is_image())
+}
+
 /// Edit-menu "Copy Rendered": the selection as drawn, as plain text and
 /// HTML, delivered through the next response's `copied_text` / `copied_html`.
 /// # Safety

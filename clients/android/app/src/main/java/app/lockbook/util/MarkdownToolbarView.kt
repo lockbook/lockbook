@@ -105,6 +105,7 @@ class MarkdownToolbarView(
             ToolbarAction(MarkdownToolbarAction.Quote, "Quote", R.drawable.ic_md_format_quote_24, ToolbarCategory.Lists),
             ToolbarAction(MarkdownToolbarAction.Table, "Table", R.drawable.ic_md_table_24, ToolbarCategory.Lists, false),
             ToolbarAction(MarkdownToolbarAction.Link, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments),
+            ToolbarAction(MarkdownToolbarAction.Image, "Image", R.drawable.ic_outline_image_24, ToolbarCategory.Attachments),
             ToolbarAction(null, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments, false),
             ToolbarAction(
                 MarkdownToolbarAction.Indent,

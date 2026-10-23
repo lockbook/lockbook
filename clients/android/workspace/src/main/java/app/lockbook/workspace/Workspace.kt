@@ -57,6 +57,7 @@ enum class MarkdownToolbarAction {
     TaskList,
     Quote,
     Link,
+    Image,
     Indent,
     Outdent,
     Table,
@@ -177,6 +178,8 @@ object Workspace {
     external fun insertTextAtCursor(rustObj: Long, text: String)
     external fun enterSelectedAtom(rustObj: Long)
     external fun selectionOpenTarget(rustObj: Long): String?
+
+    external fun selectionTargetIsImage(rustObj: Long): Boolean
     external fun openSelectionLinks(rustObj: Long)
     external fun refreshSelectionPreviews(rustObj: Long)
     external fun setContactLinkedSites(rustObj: Long, value: Boolean)

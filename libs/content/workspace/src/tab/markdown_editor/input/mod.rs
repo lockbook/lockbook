@@ -114,6 +114,7 @@ pub enum Event {
     EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
     ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
     OpenLink { url: String, wikilink: bool }, // navigate, on the platform
+    LoadImage { url: String }, // show an image that waited past the note's scope
     Table(TableAction), // a structure edit of the table at the selection, or a new table there
     PasteGrid(Grid), // rows of cells pasted: into the table at the selection, or as a new table there
 }

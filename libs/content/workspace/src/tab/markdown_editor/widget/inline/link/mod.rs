@@ -46,6 +46,7 @@ impl<'ast> MdRender {
             LinkState::Normal => theme.fg().blue,
             LinkState::Warning { .. } => theme.fg().yellow,
             LinkState::Broken { .. } => theme.fg().red,
+            LinkState::Placeholder { .. } => theme.fg().cyan,
         };
         Format { color, underline: true, ..parent_text_format }
     }
@@ -237,7 +238,10 @@ impl<'ast> MdRender {
             crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |_| {});
             return;
         }
-        let (LinkState::Warning { message } | LinkState::Broken { message }) = state() else {
+        let (LinkState::Warning { message }
+        | LinkState::Broken { message }
+        | LinkState::Placeholder { message }) = state()
+        else {
             return;
         };
         let mut lines = message.lines();
@@ -396,9 +400,13 @@ impl<'ast> MdRender {
     }
 
     /// Opens the file a wikilink names, behind a confirmation when it means
-    /// different files to different readers.
+    /// different files to different readers. A title nothing matches creates
+    /// the note where the resolver has a place for it.
     pub fn open_wikilink(&self, title: &str, ctx: &egui::Context, new_tab: bool) {
         let Some(file_id) = self.resolve_wikilink(title) else {
+            if let Some((parent, names)) = self.link_resolver.wikilink_placement(title) {
+                return ctx.create_note(parent, names);
+            }
             let shown = format!("[[{title}]]");
             return self.explain_unopenable(&shown, self.link_state_for_wikilink(title), ctx);
         };
@@ -437,24 +445,65 @@ impl<'ast> MdRender {
         self.link_resolver.wikilink_state(url)
     }
 
-    /// URL (or wikilink target) of the first link-like node whose source range
-    /// intersects the current selection — gates and feeds the platform edit
-    /// menu's "Open Link" / "Copy Link".
+    /// The external URL of file `id`, which means the file wherever it is
+    /// pasted.
+    pub fn external_url(&self, id: Uuid) -> String {
+        let origin = self
+            .open_origin
+            .as_deref()
+            .unwrap_or("https://app.lockbook.net");
+        format!("{origin}/open/{id}")
+    }
+
+    /// What copying a link puts on the clipboard. A link to a file copies as
+    /// the file's external URL, any `#fragment` kept: the one form that means
+    /// the same file wherever it is pasted. Anything else copies as written.
+    pub fn link_to_copy(&self, url: &str, wikilink: bool) -> String {
+        let file = if wikilink {
+            self.resolve_wikilink(url)
+        } else {
+            match self.resolve_link(url) {
+                Some(ResolvedLink::File(id)) => Some(id),
+                _ => None,
+            }
+        };
+        let Some(id) = file else { return url.into() };
+        match url.split_once('#') {
+            Some((_, fragment)) => format!("{}#{fragment}", self.external_url(id)),
+            None => self.external_url(id),
+        }
+    }
+
+    /// Whether [`Self::selection_open_target`] is an image, for the platform
+    /// edit menu's wording.
+    pub fn selection_target_is_image(&mut self) -> bool {
+        self.selection_target().is_some_and(|(_, _, image)| image)
+    }
+
+    /// What to copy ([`Self::link_to_copy`]) for the first link-like node
+    /// whose source range intersects the current selection — gates and feeds
+    /// the platform edit menu's "Open Link" / "Copy Link".
     pub fn selection_open_target(&mut self) -> Option<String> {
+        let (url, wikilink, _) = self.selection_target()?;
+        Some(self.link_to_copy(&url, wikilink))
+    }
+
+    /// The first link-like node whose source range intersects the selection:
+    /// its destination, and whether it is a wikilink or an image.
+    fn selection_target(&mut self) -> Option<(String, bool, bool)> {
         let arena = Arena::new();
         let root = self.reparse(&arena);
         let selection = self.buffer.current.selection;
-        for node in root.descendants() {
-            let url = match &node.data.borrow().value {
-                NodeValue::Link(l) | NodeValue::Image(l) => l.url.clone(),
-                NodeValue::WikiLink(nwl) => nwl.url.clone(),
-                _ => continue,
+        root.descendants().find_map(|node| {
+            let target = match &node.data.borrow().value {
+                NodeValue::Link(l) => (l.url.clone(), false, false),
+                NodeValue::Image(l) => (l.url.clone(), false, true),
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                _ => return None,
             };
-            if !url.is_empty() && self.node_range(node).intersects(&selection, true) {
-                return Some(url);
-            }
-        }
-        None
+            (!target.0.is_empty() && self.node_range(node).intersects(&selection, true))
+                .then_some(target)
+        })
     }
 
     /// Open every link/image in the current selection (reparses first); the iOS
