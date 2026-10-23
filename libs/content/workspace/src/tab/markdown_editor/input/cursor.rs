@@ -72,7 +72,7 @@ impl MdEdit {
     /// Draws a caret at the provided offset.
     // todo: improve cursor rendering at the end of inline code segments and similar constructs
     pub fn show_offset(
-        &self, ui: &mut Ui, offset: Grapheme, accent: Color32, time_since_interact: Option<f64>,
+        &self, ui: &mut Ui, offset: Grapheme, accent: Color32, time_since_interact: f64,
     ) {
         if let Some([top, bot]) = self.cursor_line(offset) {
             let paint = |alpha| {
@@ -83,11 +83,7 @@ impl MdEdit {
                     accent.gamma_multiply(alpha),
                 );
             };
-            if let Some(dt) = time_since_interact {
-                crate::widgets::with_blinking_caret(ui, dt, paint);
-            } else {
-                paint(1.0);
-            }
+            crate::widgets::with_blinking_caret(ui, time_since_interact, paint);
         }
     }
 

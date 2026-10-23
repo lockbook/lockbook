@@ -1152,7 +1152,6 @@ impl MdEdit {
             {
                 self.cursor_last_interact = Some(now);
             }
-            let blink = focused.then(|| now - self.cursor_last_interact.unwrap_or(now));
             // Android Material You: `fg()` is colorPrimary in both modes.
             // `bright` is the washed primaryContainer in light.
             let caret = if ui.ctx().os() == OperatingSystem::Android {
@@ -1160,8 +1159,9 @@ impl MdEdit {
             } else {
                 theme.bright.get_color(theme.prefs().primary)
             };
-            self.show_offset(ui, selection.1, caret, blink);
             if focused {
+                let blink = now - self.cursor_last_interact.unwrap_or(now);
+                self.show_offset(ui, selection.1, caret, blink);
                 // egui-winit disallows the IME without this, discarding a
                 // composition whose caret is off screen
                 let cursor = self
