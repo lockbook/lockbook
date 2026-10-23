@@ -26,6 +26,7 @@ pub use structure::TableAction;
 
 use super::bounds::{Bounds, RangesExt as _};
 use super::input::{Advance, Increment, Location, Region};
+use super::row_scroll::RowScroller;
 use super::widget::utils::NodeValueExt as _;
 use super::{MdEdit, MdRender};
 
@@ -128,19 +129,6 @@ impl TableBounds {
     }
 }
 
-/// Where a table wider than the note is scrolled to along its rows.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct TableScroll {
-    pub offset: f32,
-    /// How fast it is coasting after a touch pan, in points a second of
-    /// offset, decaying frame by frame.
-    pub velocity: f32,
-    /// The pan's speed while a finger drives it, which it coasts from.
-    pub tracked: f32,
-    /// The find and preview matches it last scrolled to show.
-    pub shown: [Option<(Grapheme, Grapheme)>; 2],
-}
-
 /// What a selection takes of a table that both its ends are in.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TableSelection<'t> {
@@ -224,7 +212,8 @@ impl<'ast> MdRender {
         }
         // scroll offsets go by a table's place among the tables
         if tables.len() != self.bounds.tables.len() {
-            self.table_scrolls.clear();
+            self.row_scrolls
+                .retain(|key, _| !matches!(key, RowScroller::Table(_)));
         }
         self.bounds.tables = tables;
     }

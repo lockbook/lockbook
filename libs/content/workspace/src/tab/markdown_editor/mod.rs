@@ -65,6 +65,7 @@ pub mod fold;
 pub mod fragment;
 pub mod input;
 pub mod md_label;
+pub mod row_scroll;
 mod scroll_content;
 pub mod show;
 pub mod table;
@@ -162,7 +163,7 @@ pub struct MdRender {
     pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
     /// Edge fades of scrolled tables `(rect, left color, right color)`,
     /// painted over the text.
-    pub table_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
+    pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
     pub render_events: Vec<input::Event>,
     /// Touch targets painted this frame.
     pub touch_targets: Vec<(Rect, TouchTarget)>,
@@ -176,9 +177,10 @@ pub struct MdRender {
     /// A painter slot above each header row's background, with the row's
     /// rect: the selection's highlight there would paint under it.
     pub table_header_slots: Vec<(egui::layers::ShapeIdx, Rect)>,
-    /// How far each table too wide for the note is scrolled, by its index
-    /// in [`bounds::Bounds::tables`].
-    pub table_scrolls: HashMap<usize, table::TableScroll>,
+    /// How far each table too wide for the note is scrolled.
+    pub row_scrolls: HashMap<row_scroll::RowScroller, row_scroll::RowScroll>,
+    /// Per-frame: where each block wider than the note shows.
+    pub row_scrollers: Vec<(Rect, row_scroll::RowScroller)>,
     /// Drag action emitted by a list marker this frame, drained by
     /// `MdEdit::show` to update / commit the in-progress block drag
     /// (mirrors how `render_events` carries buffer edits out of render).
@@ -377,13 +379,12 @@ pub struct MdEdit {
     /// the platform, which arrives as any other does, is to be a table.
     pub paste_as_table: std::cell::Cell<Option<f64>>,
 
-    /// A touch drag that began on a table wider than the note: the table,
-    /// by its place among the tables, and once the drag has set out,
-    /// whether along the rows. See [`MdEdit::pan_table`].
-    pub table_pan: Option<(usize, Option<bool>)>,
-    /// A table wider than the note that the platform's own pan recognizer
-    /// is panning, by its place among the tables (see [`commands`]).
-    pub platform_table_pan: Option<usize>,
+    /// A touch drag that began on a block wider than the note, and once the
+    /// drag has set out, whether along the rows. See [`MdEdit::pan_rows`].
+    pub row_pan: Option<(row_scroll::RowScroller, Option<bool>)>,
+    /// A block wider than the note that the platform's own pan recognizer
+    /// is panning (see [`commands`]).
+    pub platform_row_pan: Option<row_scroll::RowScroller>,
 
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
@@ -431,8 +432,8 @@ impl MdEdit {
             context_menu_link: None,
             context_menu_heading: None,
             paste_as_table: Default::default(),
-            table_pan: None,
-            platform_table_pan: None,
+            row_pan: None,
+            platform_row_pan: None,
             scroll_area: AffineScrollArea::new(file_id),
             cursor_last_interact: None,
             caret_moved: false,
@@ -641,11 +642,12 @@ impl MdRender {
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
             table_header_slots: Vec::new(),
-            table_scrolls: Default::default(),
+            row_scrolls: Default::default(),
+            row_scrollers: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
-            table_fades: Default::default(),
+            edge_fades: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -734,11 +736,12 @@ impl MdRender {
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
             table_header_slots: Vec::new(),
-            table_scrolls: Default::default(),
+            row_scrolls: Default::default(),
+            row_scrollers: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
-            table_fades: Default::default(),
+            edge_fades: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -907,11 +910,12 @@ impl Editor {
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
             table_header_slots: Vec::new(),
-            table_scrolls: Default::default(),
+            row_scrolls: Default::default(),
+            row_scrollers: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
-            table_fades: Default::default(),
+            edge_fades: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -985,8 +989,8 @@ impl Editor {
                 context_menu_link: None,
                 context_menu_heading: None,
                 paste_as_table: Default::default(),
-                table_pan: None,
-                platform_table_pan: None,
+                row_pan: None,
+                platform_row_pan: None,
                 scroll_area: AffineScrollArea::new(file_id),
                 cursor_last_interact: None,
                 caret_moved: false,
@@ -1748,7 +1752,7 @@ impl Editor {
                         // the body's drag (so taps reach it) but below
                         // the scrollbar (so taps on the bar don't).
                         let begun = self.edit.scroll_area.begin(ui);
-                        if self.edit.pan_table(ui, begun.body_response()) {
+                        if self.edit.pan_rows(ui, begun.body_response()) {
                             self.edit.scroll_area.suppress_body_drag = true;
                         }
 
@@ -1763,7 +1767,7 @@ impl Editor {
                         self.edit.renderer.bounds.wrap_lines.clear();
                         self.edit.renderer.text_areas.clear();
                         self.edit.renderer.deco_lines.clear();
-                        self.edit.renderer.table_fades.clear();
+                        self.edit.renderer.clear_row_scroll_frame();
 
                         // Phase 1: drive scroll math + scrollbar, and
                         // pick up to one viewport's worth of rows above
