@@ -141,6 +141,29 @@ fn parse_retry_after(value: &str) -> Option<Duration> {
     Some(Duration::from_secs(secs))
 }
 
+/// Whether a response says its host is throttling us, and for how long
+/// when it says so.
+fn throttled(
+    status: reqwest::StatusCode, headers: &reqwest::header::HeaderMap,
+) -> Option<Option<Duration>> {
+    let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS
+        || status == reqwest::StatusCode::SERVICE_UNAVAILABLE
+    {
+        return Some(header("retry-after").and_then(parse_retry_after));
+    }
+    // GitHub's API answers a spent quota with 403 and the time it resets
+    if status == reqwest::StatusCode::FORBIDDEN && header("x-ratelimit-remaining") == Some("0") {
+        let now = web_time::SystemTime::now()
+            .duration_since(web_time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or_default();
+        let reset = header("x-ratelimit-reset").and_then(|r| r.parse::<u64>().ok());
+        return Some(reset.map(|r| Duration::from_secs(r.saturating_sub(now))));
+    }
+    None
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 mod imp {
     use std::io::Read as _;
@@ -151,7 +174,7 @@ mod imp {
     use url::{Host, Url};
     use web_time::Instant;
 
-    use super::{FetchError, MAX_HTML_BYTES, USER_AGENT, cooldowns, parse_retry_after};
+    use super::{FetchError, MAX_HTML_BYTES, USER_AGENT, cooldowns, throttled};
 
     const TIMEOUT: Duration = Duration::from_secs(5);
     const MAX_REDIRECTS: usize = 5;
@@ -243,7 +266,7 @@ mod imp {
         })
     }
 
-    fn open(url: &str) -> Result<reqwest::blocking::Response, FetchError> {
+    fn open(url: &str, accept: &str) -> Result<reqwest::blocking::Response, FetchError> {
         let parsed = Url::parse(url).map_err(|e| FetchError::Permanent(e.to_string()))?;
         let host = parsed.host_str().unwrap_or_default().to_string();
         cooldowns().check(&host, Instant::now())?;
@@ -251,18 +274,11 @@ mod imp {
         let resp = client()
             .get(url)
             .header("User-Agent", USER_AGENT)
+            .header("Accept", accept)
             .send()
             .map_err(|e| FetchError::Transient(e.to_string()))?;
 
-        let status = resp.status();
-        if status == reqwest::StatusCode::TOO_MANY_REQUESTS
-            || status == reqwest::StatusCode::SERVICE_UNAVAILABLE
-        {
-            let retry_after = resp
-                .headers()
-                .get(reqwest::header::RETRY_AFTER)
-                .and_then(|v| v.to_str().ok())
-                .and_then(parse_retry_after);
+        if let Some(retry_after) = throttled(resp.status(), resp.headers()) {
             let until = cooldowns().record_rate_limited(&host, retry_after, Instant::now());
             return Err(FetchError::RateLimited { until });
         }
@@ -275,7 +291,19 @@ mod imp {
     pub fn fetch_html(
         _client: &reqwest::blocking::Client, url: &str,
     ) -> Result<String, FetchError> {
-        let resp = open(url)?;
+        fetch_text(url, "text/html", "html")
+    }
+
+    #[tracing::instrument(level = "debug", name = "egress", skip_all, fields(kind = "json", url = %url))]
+    pub fn fetch_json(
+        _client: &reqwest::blocking::Client, url: &str,
+    ) -> Result<String, FetchError> {
+        fetch_text(url, "application/json", "json")
+    }
+
+    /// A body whose content type names `kind`, asked for as `accept`.
+    fn fetch_text(url: &str, accept: &str, kind: &str) -> Result<String, FetchError> {
+        let resp = open(url, accept)?;
         // Cloudflare marks challenge pages explicitly; they otherwise look
         // like a normal HTML response with a junk <title>.
         if resp
@@ -298,13 +326,13 @@ mod imp {
                 status.canonical_reason().unwrap_or("")
             )));
         }
-        let is_html = resp
+        let is_kind = resp
             .headers()
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
-            .is_some_and(|ct| ct.contains("html"));
-        if !is_html {
-            return Err(FetchError::Permanent("response is not HTML".into()));
+            .is_some_and(|ct| ct.contains(kind));
+        if !is_kind {
+            return Err(FetchError::Permanent(format!("response is not {kind}")));
         }
         let mut buf = Vec::new();
         resp.take(MAX_HTML_BYTES)
@@ -317,7 +345,7 @@ mod imp {
     pub fn fetch_bytes(
         _client: &reqwest::blocking::Client, url: &str, max: u64,
     ) -> Result<Vec<u8>, FetchError> {
-        let resp = open(url)?;
+        let resp = open(url, "*/*")?;
         let status = resp.status();
         if !status.is_success() {
             return Err(FetchError::Permanent(format!(
@@ -384,13 +412,15 @@ mod imp {
     use url::Url;
     use web_time::Instant;
 
-    use super::{FetchError, MAX_HTML_BYTES, USER_AGENT, cooldowns, parse_retry_after};
+    use super::{FetchError, MAX_HTML_BYTES, USER_AGENT, cooldowns, throttled};
 
     /// The browser performs the connection (no DNS access here for IP filtering),
     /// so CORS / Private Network Access policies stand in; we still enforce HTTPS
     /// and a body cap. CORS usually hides `Retry-After` from us, so rate-limited
     /// hosts mostly ride the backoff schedule here.
-    async fn open(client: &reqwest::Client, url: &str) -> Result<reqwest::Response, FetchError> {
+    async fn open(
+        client: &reqwest::Client, url: &str, accept: &str,
+    ) -> Result<reqwest::Response, FetchError> {
         let parsed = Url::parse(url).map_err(|e| FetchError::Permanent(e.to_string()))?;
         if parsed.scheme() != "https" {
             return Err(FetchError::Permanent("only https URLs are fetched".into()));
@@ -400,19 +430,12 @@ mod imp {
         let resp = client
             .get(url)
             .header("User-Agent", USER_AGENT)
+            .header("Accept", accept)
             .send()
             .await
             .map_err(|e| FetchError::Transient(e.to_string()))?;
 
-        let status = resp.status();
-        if status == reqwest::StatusCode::TOO_MANY_REQUESTS
-            || status == reqwest::StatusCode::SERVICE_UNAVAILABLE
-        {
-            let retry_after = resp
-                .headers()
-                .get(reqwest::header::RETRY_AFTER)
-                .and_then(|v| v.to_str().ok())
-                .and_then(parse_retry_after);
+        if let Some(retry_after) = throttled(resp.status(), resp.headers()) {
             let until = cooldowns().record_rate_limited(&host, retry_after, Instant::now());
             return Err(FetchError::RateLimited { until });
         }
@@ -422,7 +445,19 @@ mod imp {
 
     #[tracing::instrument(level = "debug", name = "egress", skip_all, fields(kind = "html", url = %url))]
     pub async fn fetch_html(client: &reqwest::Client, url: &str) -> Result<String, FetchError> {
-        let resp = open(client, url).await?;
+        fetch_text(client, url, "text/html", "html").await
+    }
+
+    #[tracing::instrument(level = "debug", name = "egress", skip_all, fields(kind = "json", url = %url))]
+    pub async fn fetch_json(client: &reqwest::Client, url: &str) -> Result<String, FetchError> {
+        fetch_text(client, url, "application/json", "json").await
+    }
+
+    /// A body whose content type names `kind`, asked for as `accept`.
+    async fn fetch_text(
+        client: &reqwest::Client, url: &str, accept: &str, kind: &str,
+    ) -> Result<String, FetchError> {
+        let resp = open(client, url, accept).await?;
         // Cloudflare marks challenge pages explicitly; they otherwise look
         // like a normal HTML response with a junk <title>.
         if resp
@@ -445,13 +480,13 @@ mod imp {
                 status.canonical_reason().unwrap_or("")
             )));
         }
-        let is_html = resp
+        let is_kind = resp
             .headers()
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
-            .is_some_and(|ct| ct.contains("html"));
-        if !is_html {
-            return Err(FetchError::Permanent("response is not HTML".into()));
+            .is_some_and(|ct| ct.contains(kind));
+        if !is_kind {
+            return Err(FetchError::Permanent(format!("response is not {kind}")));
         }
         let text = resp
             .text()
@@ -464,7 +499,7 @@ mod imp {
     pub async fn fetch_bytes(
         client: &reqwest::Client, url: &str, max: u64,
     ) -> Result<Vec<u8>, FetchError> {
-        let resp = open(client, url).await?;
+        let resp = open(client, url, "*/*").await?;
         let status = resp.status();
         if !status.is_success() {
             return Err(FetchError::Permanent(format!(
@@ -481,7 +516,7 @@ mod imp {
     }
 }
 
-pub use imp::{fetch_bytes, fetch_html};
+pub use imp::{fetch_bytes, fetch_html, fetch_json};
 
 #[cfg(test)]
 mod cooldown_tests {

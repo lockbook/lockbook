@@ -20,6 +20,53 @@ pub struct LinkMeta {
     pub thumbnail_height: Option<u32>,
     pub thumbnail_alt: Option<String>,
     pub favicon_url: Option<String>,
+    /// Where an issue, pull request, or question stands, from sites that say.
+    pub status: Option<Status>,
+    /// Who, or counts: "x80486 · 6 comments", "27.5k votes · 25 answers".
+    pub byline: Option<String>,
+    /// The byline's author's picture.
+    pub avatar_url: Option<String>,
+    /// Lines a change adds and removes.
+    pub changes: Option<(u64, u64)>,
+    /// Files a change touches.
+    pub changed_files: Option<u64>,
+    /// When it came to stand where it does (opened, closed, merged), in Unix seconds.
+    pub at: Option<i64>,
+    /// An issue's labels or a question's tags, in the site's colors if it has them.
+    pub labels: Vec<Label>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Label {
+    pub name: String,
+    pub rgb: Option<[u8; 3]>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Status {
+    IssueOpen,
+    IssueClosed,
+    /// Closed without being done.
+    IssueNotPlanned,
+    PullOpen,
+    PullDraft,
+    PullMerged,
+    /// Closed without being merged.
+    PullClosed,
+    Answered,
+}
+
+impl Status {
+    pub fn label(self) -> &'static str {
+        match self {
+            Status::IssueOpen | Status::PullOpen => "Open",
+            Status::IssueClosed | Status::PullClosed => "Closed",
+            Status::IssueNotPlanned => "Not planned",
+            Status::PullDraft => "Draft",
+            Status::PullMerged => "Merged",
+            Status::Answered => "Answered",
+        }
+    }
 }
 
 /// Scrape `LinkMeta` from a page's HTML. `base_url` is the page's own URL,
@@ -43,6 +90,7 @@ pub fn extract_link_meta(html: &str, base_url: &str) -> Option<LinkMeta> {
             "meta[property='og:image:alt'], meta[name='twitter:image:alt']",
         ),
         favicon_url: extract_favicon_url(&doc, base_url),
+        ..Default::default()
     })
 }
 

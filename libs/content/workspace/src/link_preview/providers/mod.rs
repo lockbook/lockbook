@@ -1,26 +1,68 @@
-//! Sites a preview knows by name, one file each.
+//! Sites a preview knows by name, one file each. A provider reads what a
+//! link is from its URL and, where the site offers one, fetches a small
+//! documented endpoint instead of the page.
 
 mod crates;
 mod github;
+mod hacker_news;
 mod npm;
+mod stack_exchange;
 mod wikipedia;
 mod x;
+mod youtube;
 
+use serde_json::Value;
 use url::Url;
+
+use super::LinkMeta;
 
 struct Provider {
     /// The chip's text when the URL alone says what the link is.
     label: fn(&Url) -> Option<String>,
+    /// The endpoint that describes this link, when there is one.
+    endpoint: fn(&Url) -> Option<String>,
+    /// The preview, read from what [`Self::endpoint`] answered.
+    parse: fn(&Value, &Url) -> Option<LinkMeta>,
 }
 
-const PROVIDERS: &[Provider] =
-    &[github::PROVIDER, wikipedia::PROVIDER, x::PROVIDER, crates::PROVIDER, npm::PROVIDER];
+const PROVIDERS: &[Provider] = &[
+    github::PROVIDER,
+    youtube::PROVIDER,
+    wikipedia::PROVIDER,
+    x::PROVIDER,
+    hacker_news::PROVIDER,
+    stack_exchange::PROVIDER,
+    crates::PROVIDER,
+    npm::PROVIDER,
+];
 
 /// The chip text a provider reads off `url` (`lockbook#5188`, `@jack`). It
 /// needs no fetch, so it shows with previews off too.
 pub fn label(url: &str) -> Option<String> {
     let url = Url::parse(url).ok()?;
     PROVIDERS.iter().find_map(|p| (p.label)(&url))
+}
+
+/// Where a link's preview comes from when a provider knows a better place
+/// than its page.
+pub struct Source {
+    pub endpoint: String,
+    url: Url,
+    parse: fn(&Value, &Url) -> Option<LinkMeta>,
+}
+
+impl Source {
+    pub fn parse(&self, body: &str) -> Option<LinkMeta> {
+        (self.parse)(&serde_json::from_str(body).ok()?, &self.url)
+    }
+}
+
+pub fn source(url: &str) -> Option<Source> {
+    let url = Url::parse(url).ok()?;
+    PROVIDERS.iter().find_map(|p| {
+        let endpoint = (p.endpoint)(&url)?;
+        Some(Source { endpoint, url: url.clone(), parse: p.parse })
+    })
 }
 
 /// `url`'s path segments when its host is `host` or a `www.` of it.
@@ -32,9 +74,63 @@ fn segments<'a>(url: &'a Url, host: &str) -> Option<Vec<&'a str>> {
     Some(url.path_segments()?.filter(|s| !s.is_empty()).collect())
 }
 
+/// `url` with `link` as its one query value, for oEmbed endpoints.
+fn with_url(endpoint: &str, link: &Url) -> String {
+    format!("{endpoint}?url={}", urlencoding::encode(link.as_str()))
+}
+
+fn text(value: &Value) -> Option<String> {
+    Some(value.as_str()?.trim().to_string()).filter(|s| !s.is_empty())
+}
+
+/// 27546 → "27.5k".
+fn compact(n: u64) -> String {
+    let short = |n: f64, unit| {
+        let digits = if n < 100.0 { format!("{n:.1}") } else { format!("{n:.0}") };
+        format!("{}{unit}", digits.trim_end_matches(".0"))
+    };
+    match n {
+        0..1_000 => n.to_string(),
+        1_000..1_000_000 => short(n as f64 / 1e3, "k"),
+        1_000_000..1_000_000_000 => short(n as f64 / 1e6, "M"),
+        _ => short(n as f64 / 1e9, "B"),
+    }
+}
+
+/// The text of an HTML fragment, tags dropped and entities decoded.
+fn html_text(fragment: &str) -> String {
+    let doc = scraper::Html::parse_fragment(fragment);
+    doc.root_element()
+        .text()
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// "a · b · c" from the parts that are there.
+fn joined<const N: usize>(parts: [Option<String>; N]) -> Option<String> {
+    let parts: Vec<String> = parts.into_iter().flatten().collect();
+    Some(parts.join(" · ")).filter(|s| !s.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::label;
+    use super::{compact, label};
+
+    #[test]
+    fn counts_read_short() {
+        for (n, want) in [
+            (7, "7"),
+            (999, "999"),
+            (1_000, "1k"),
+            (27_546, "27.5k"),
+            (104_000, "104k"),
+            (1_578_778_352, "1.6B"),
+        ] {
+            assert_eq!(compact(n), want);
+        }
+    }
 
     #[test]
     fn labels_from_urls() {

@@ -9,7 +9,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
-use crate::link_preview::{self, LinkMeta, Preview};
+use crate::link_preview::{self, LinkMeta, Preview, Status};
 use crate::show::DocType;
 use crate::style::{TypeRole, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::TouchTarget;
@@ -225,8 +225,21 @@ impl<'ast> MdRender {
         preview: Option<(&str, bool)>,
     ) {
         if !response.contains_pointer() {
+            // the pointer may be on its way to the preview's buttons
+            if let Some((url, shows_url)) = preview {
+                if self.show_link_preview(ctx, response, url, shows_url) {
+                    return;
+                }
+            }
             // still called, so the tip's dwell timing sees the pointer leave
-            crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |_| {});
+            crate::style::tip_card_placed(
+                ctx,
+                response,
+                response.rect,
+                LINK_TIP_W,
+                crate::style::TIP_MARGIN,
+                |_| {},
+            );
             return;
         }
         let (LinkState::Warning { message }
@@ -241,21 +254,28 @@ impl<'ast> MdRender {
         let mut lines = message.lines();
         let Some(what) = lines.next() else { return };
         let fixes: Vec<&str> = lines.collect();
-        crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |ui| {
-            let t = ui.ctx().get_lb_theme();
-            let line = |ui: &mut egui::Ui, text: &str, ink| {
-                ui.add(
-                    GlyphonLabel::new_rich(rich_spans(text), ink)
-                        .font_size(TypeRole::Body.size())
-                        .line_height(TypeRole::Body.line_height())
-                        .max_width(LINK_TIP_W),
-                );
-            };
-            line(ui, what, t.neutral_fg());
-            for fix in fixes {
-                line(ui, fix, t.neutral_fg_secondary());
-            }
-        });
+        crate::style::tip_card_placed(
+            ctx,
+            response,
+            response.rect,
+            LINK_TIP_W,
+            crate::style::TIP_MARGIN,
+            |ui| {
+                let t = ui.ctx().get_lb_theme();
+                let line = |ui: &mut egui::Ui, text: &str, ink| {
+                    ui.add(
+                        GlyphonLabel::new_rich(rich_spans(text), ink)
+                            .font_size(TypeRole::Body.size())
+                            .line_height(TypeRole::Body.line_height())
+                            .max_width(LINK_TIP_W),
+                    );
+                };
+                line(ui, what, t.neutral_fg());
+                for fix in fixes {
+                    line(ui, fix, t.neutral_fg_secondary());
+                }
+            },
+        );
     }
 
     /// Favicon URL for a capsule preview's external link when previews are on
@@ -328,7 +348,15 @@ impl<'ast> MdRender {
                     egui::Vec2::splat(size),
                 );
                 self.embeds.prefetch(&favicon_url);
-                if self.embeds.is_loaded(&favicon_url) {
+                // an issue or pull request shows where it stands instead
+                let status = match self.get_link_meta(&url) {
+                    LinkMetaLookup::Loaded(meta) => meta.status,
+                    _ => None,
+                };
+                if let Some(status) = status.filter(|s| *s != Status::Answered) {
+                    let mark = icon_rect.expand(chip.height() * 0.06);
+                    hover::paint_status(ui.painter(), mark, status, &self.ctx.get_lb_theme());
+                } else if self.embeds.is_loaded(&favicon_url) {
                     // Dark mode: a near-white tile behind the icon so dark
                     // monochrome marks (e.g. GitHub) read against the dark pill;
                     // opaque favicons simply hide it.
@@ -736,7 +764,7 @@ pub enum LinkMetaLookup {
     /// Internal file link — a title from the file cache (never a card/capsule).
     Internal(String),
     /// Fetched external metadata.
-    Loaded(LinkMeta),
+    Loaded(Box<LinkMeta>),
     /// External fetch in progress — a card holds a skeleton until it resolves.
     Loading,
     /// No metadata and none coming (fetch failed, fetching off, or

@@ -18,6 +18,7 @@ pub mod list_chrome;
 pub mod motion;
 pub mod overlay;
 pub mod overlay_scroll;
+pub mod pill;
 pub mod segmented;
 pub mod sheet;
 pub mod space;
@@ -49,6 +50,7 @@ pub use layout::{
     with_h_pad_in, with_pad_fit,
 };
 pub use overlay::handle_toggle_shortcut;
+pub use pill::{Pill, PillLead};
 pub use space::Space;
 pub use spacer::Spacer;
 pub use spacer::{begin_record as begin_spacer_record, take_record as take_spacer_record};
@@ -77,4 +79,4 @@ pub use sticky::{
     FlatRow, RowGeom, Stuck, TreeRowChrome, ancestor_at_depth, flatten, folder_has_flat_child,
     paint_sticky_viewport, paint_tree_file_row, row_type_icon, sticky_band_above, sticky_layout,
 };
-pub use tip::{tip_card_placed, tip_text};
+pub use tip::{TIP_MARGIN, dismiss_tip, tip_card_placed, tip_card_reachable, tip_text};

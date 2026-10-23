@@ -170,6 +170,8 @@ pub struct MdRender {
     pub render_events: Vec<input::Event>,
     /// Touch targets painted this frame.
     pub touch_targets: Vec<(Rect, TouchTarget)>,
+    /// A block card's Open or `⋯` menu choice this frame, for the editor to act on.
+    pub card_action: std::cell::RefCell<Option<(String, widget::inline::link::LinkMenuAction)>>,
     /// Per-frame geometry index of every list item, populated during the
     /// render DFS. Cleared each frame (mirrors `fragments`); read for
     /// pointer hit-testing and drop-gap math by drag-to-reorder.
@@ -670,6 +672,7 @@ impl MdRender {
             copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
+            card_action: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
@@ -769,6 +772,7 @@ impl MdRender {
             copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
+            card_action: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
@@ -948,6 +952,7 @@ impl Editor {
             copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
+            card_action: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),

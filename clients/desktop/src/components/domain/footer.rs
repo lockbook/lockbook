@@ -13,8 +13,8 @@ use lb::model::api::FREE_TIER_USAGE_SIZE;
 use lb::subscribers::status::Status;
 
 use crate::components::{
-    FG_HOVER, Radius, Space, Spacer, Theme, ThemeExt, TypeRole, control_height, icon_button,
-    phosphor, phosphor_ui_font_id, tip_card_placed, tip_text,
+    FG_HOVER, Radius, Space, Spacer, TIP_MARGIN, Theme, ThemeExt, TypeRole, control_height,
+    icon_button, phosphor, phosphor_ui_font_id, tip_card_placed, tip_text,
 };
 
 use crate::shell::ShellApp;
@@ -313,7 +313,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         .as_ref()
         .map(|(u, c, f)| (u.clone(), c.clone(), *f));
     let uname = username.clone();
-    tip_card_placed(ui.ctx(), &hit, footer_rect, content_w, |ui| {
+    tip_card_placed(ui.ctx(), &hit, footer_rect, content_w, TIP_MARGIN, |ui| {
         ui.set_width(content_w);
         ui.set_max_width(content_w);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);

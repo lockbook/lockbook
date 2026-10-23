@@ -4,7 +4,7 @@
 mod page;
 mod providers;
 
-pub use page::{LinkMeta, extract_link_meta, is_junk_meta};
+pub use page::{Label, LinkMeta, Status, extract_link_meta, is_junk_meta};
 pub use providers::label;
 
 use std::collections::HashMap;
@@ -16,7 +16,7 @@ use egui::Context;
 use lb_rs::spawn;
 use web_time::Instant;
 
-use crate::egress::{FetchError, fetch_html};
+use crate::egress::{FetchError, fetch_html, fetch_json};
 use crate::tab::markdown_editor::HttpClient;
 use crate::workspace::WsPersistentStore;
 
@@ -32,7 +32,7 @@ const BLOCKED_RETRY: Duration = Duration::from_secs(6 * 60 * 60);
 
 enum State {
     Loading,
-    Loaded(LinkMeta),
+    Loaded(Box<LinkMeta>),
     /// `retry_at: Some(t)` — eligible for a refetch once `t` passes (the
     /// host's `Retry-After`, a transient-failure backoff, or a bot-wall
     /// cooldown). `None` — deterministic failure, no retry this run.
@@ -51,7 +51,7 @@ struct Entry {
 
 /// What a link's preview is right now.
 pub enum Preview {
-    Loaded(LinkMeta),
+    Loaded(Box<LinkMeta>),
     /// In flight — a card holds a skeleton until it resolves.
     Loading,
     /// None, and none coming for now (failed, fetching off) — show the link.
@@ -154,7 +154,7 @@ impl LinkPreviews {
     /// `url`'s preview if one has loaded; never fetches.
     pub fn loaded(&self, url: &str) -> Option<LinkMeta> {
         match &self.entries.lock().unwrap().get(url)?.state {
-            State::Loaded(meta) => Some(meta.clone()),
+            State::Loaded(meta) => Some((**meta).clone()),
             _ => None,
         }
     }
@@ -171,7 +171,7 @@ impl LinkPreviews {
 
     /// A preview known without fetching, as tests and films seed them.
     pub fn insert(&self, url: &str, meta: LinkMeta) {
-        self.set(url, State::Loaded(meta));
+        self.set(url, State::Loaded(Box::new(meta)));
     }
 
     /// A failed fetch, retried after `retry_at`.
@@ -203,29 +203,30 @@ impl LinkPreviews {
         let client = self.client.clone();
         let ctx = self.ctx.clone();
         spawn!({
-            #[cfg(not(target_arch = "wasm32"))]
-            let html = fetch_html(&client, &url);
-            #[cfg(target_arch = "wasm32")]
-            let html = fetch_html(&client, &url).await;
-
-            let now = Instant::now();
-            let failed = |retry_at| State::Failed { retry_at, attempts: attempts + 1 };
-            let state = match html {
-                Ok(h) => match extract_link_meta(&h, &url) {
-                    Some(meta) if !is_junk_meta(&h, &meta, &url) => State::Loaded(meta),
-                    // junk describes the wall, not the page
-                    Some(_) => failed(Some(now + BLOCKED_RETRY)),
-                    None => failed(None),
-                },
-                Err(FetchError::RateLimited { until }) => failed(Some(until)),
-                Err(FetchError::Blocked(_)) => failed(Some(now + BLOCKED_RETRY)),
-                Err(FetchError::Transient(_)) => {
-                    let backoff =
-                        (TRANSIENT_RETRY_BASE * 2u32.pow(attempts.min(4))).min(TRANSIENT_RETRY_CAP);
-                    failed(Some(now + backoff))
+            // a provider's own endpoint when it has one, else the page
+            let state = match providers::source(&url) {
+                Some(source) => {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let body = fetch_json(&client, &source.endpoint);
+                    #[cfg(target_arch = "wasm32")]
+                    let body = fetch_json(&client, &source.endpoint).await;
+                    match body {
+                        Ok(body) => match source.parse(&body) {
+                            Some(meta) => State::Loaded(Box::new(meta)),
+                            None => State::Failed { retry_at: None, attempts: attempts + 1 },
+                        },
+                        Err(e) => failed_state(e, attempts),
+                    }
                 }
-                Err(FetchError::Permanent(_)) => failed(None),
+                None => {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let html = fetch_html(&client, &url);
+                    #[cfg(target_arch = "wasm32")]
+                    let html = fetch_html(&client, &url).await;
+                    page_state(html, &url, attempts)
+                }
             };
+            let now = Instant::now();
             let mut entries = this.entries.lock().unwrap();
             let entry = entries
                 .entry(url)
@@ -239,4 +240,35 @@ impl LinkPreviews {
             ctx.request_repaint();
         });
     }
+}
+
+/// What a page fetch leaves: its preview, or how long to wait before trying
+/// again. `attempts` counts prior consecutive failures.
+fn page_state(html: Result<String, FetchError>, url: &str, attempts: u32) -> State {
+    let now = Instant::now();
+    let failed = |retry_at| State::Failed { retry_at, attempts: attempts + 1 };
+    match html {
+        Ok(h) => match extract_link_meta(&h, url) {
+            Some(meta) if !is_junk_meta(&h, &meta, url) => State::Loaded(Box::new(meta)),
+            // junk describes the wall, not the page
+            Some(_) => failed(Some(now + BLOCKED_RETRY)),
+            None => failed(None),
+        },
+        Err(e) => failed_state(e, attempts),
+    }
+}
+
+/// How long a fetch that failed with `e` waits before trying again.
+/// `attempts` counts prior consecutive failures.
+fn failed_state(e: FetchError, attempts: u32) -> State {
+    let now = Instant::now();
+    let retry_at = match e {
+        FetchError::RateLimited { until } => Some(until),
+        FetchError::Blocked(_) => Some(now + BLOCKED_RETRY),
+        FetchError::Transient(_) => {
+            Some(now + (TRANSIENT_RETRY_BASE * 2u32.pow(attempts.min(4))).min(TRANSIENT_RETRY_CAP))
+        }
+        FetchError::Permanent(_) => None,
+    };
+    State::Failed { retry_at, attempts: attempts + 1 }
 }
