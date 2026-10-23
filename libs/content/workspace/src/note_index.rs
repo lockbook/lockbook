@@ -10,6 +10,7 @@ use std::thread;
 
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+#[cfg(not(target_family = "wasm"))]
 use lb_rs::service::events::Event;
 
 use crate::file_cache::{Change, FileCache, FilesExt, Reach};
@@ -160,6 +161,7 @@ impl NoteIndex {
     /// files are notes comes from `lb`, not `files`: sync announces a change
     /// before the workspace has rebuilt its cache, and a note new to this
     /// device arrives with no write announced at all.
+    #[cfg(not(target_family = "wasm"))]
     pub fn keep(files: Arc<RwLock<FileCache>>, lb: Lb, ctx: egui::Context) {
         thread::spawn(move || {
             let mut events = lb.subscribe();
