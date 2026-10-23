@@ -4,6 +4,7 @@
 //! surface.
 
 use crate::file_cache::FileCache;
+use crate::link_preview::LinkPreviews;
 use crate::resolvers::EmbedResolver;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::link::{LinkResolver, LinkState, ResolvedLink};
@@ -60,8 +61,11 @@ impl TestEditor {
     /// Build with a custom `EmbedResolver`. Used by tests that exercise
     /// image-load layout behavior.
     pub fn with_embeds(lb: Lb, md: &str, embeds: Box<dyn EmbedResolver>) -> Self {
-        let mut harness =
-            Self { editor: build_editor(lb, md, "md", embeds), pending: vec![], copied: None };
+        let mut harness = Self {
+            editor: build_editor(lb, md, embeds, super::super::test_egui_ctx(), None),
+            pending: vec![],
+            copied: None,
+        };
         harness.enter_frame();
         harness
     }
@@ -71,7 +75,13 @@ impl TestEditor {
     pub fn with_test_embeds(lb: Lb, md: &str) -> (Self, Arc<TestEmbeds>) {
         let embeds = Arc::new(TestEmbeds::default());
         let mut harness = Self {
-            editor: build_editor(lb, md, "md", Box::new(embeds.clone())),
+            editor: build_editor(
+                lb,
+                md,
+                Box::new(embeds.clone()),
+                super::super::test_egui_ctx(),
+                None,
+            ),
             pending: vec![],
             copied: None,
         };
@@ -79,22 +89,30 @@ impl TestEditor {
         (harness, embeds)
     }
 
+    /// Another tab in the same app as `other`: same context, so same shared caches.
+    pub fn beside(other: &Self, md: &str) -> Self {
+        let ctx = other.editor.edit.renderer.ctx.clone();
+        // tabs share the workspace's settings and its previews
+        let renderer = &other.editor.edit.renderer;
+        let shared = (other.editor.persistence.clone(), renderer.previews.clone());
+        Self::from_editor(build_editor(build_lb(), md, Box::new(()), ctx, Some(shared)))
+    }
+
     /// Build as the note `file_id` in `files`, resolving links against them.
     pub fn in_files(files: FileCache, file_id: Uuid, md: &str) -> Self {
         let files = Arc::new(RwLock::new(files));
         let resolver = FileCacheLinkResolver::new(files.clone(), file_id).creating_notes(true);
+        let ctx = super::super::test_egui_ctx();
+        let (persistence, previews) = store_and_previews(&ctx);
         let editor = Editor::new(
             md,
             file_id,
             None,
             MdResources {
-                ctx: super::super::test_egui_ctx(),
+                ctx: ctx.clone(),
+                previews,
                 core: build_lb(),
-                persistence: WsPersistentStore::new(
-                    false,
-                    format!("/tmp/{}", Uuid::new_v4()).into(),
-                    true,
-                ),
+                persistence,
                 link_resolver: Box::new(resolver),
                 embeds: Box::new(()),
                 files,
@@ -292,7 +310,7 @@ impl EmbedResolver for Arc<TestEmbeds> {
 /// `LinkResolver` for tests that exercise link-title fetches. Resolves
 /// every URL to itself (External) so the renderer's `get_link_title`
 /// path is reached and the layout cache's `link_titles` map gets
-/// queried — gives `link_seq` an actual job in tests.
+/// queried — gives the previews' seq an actual job in tests.
 pub struct TestLinks;
 
 impl LinkResolver for TestLinks {
@@ -310,27 +328,33 @@ impl LinkResolver for TestLinks {
     }
 }
 
-/// `ext` selects the parse path: `"md"` runs the full markdown
-/// pipeline; `""` or `"txt"` renders each line as plain text.
-fn build_editor(core: Lb, md: &str, ext: &str, embeds: Box<dyn EmbedResolver>) -> Editor {
+/// A fresh settings store and the link previews that read it.
+pub fn store_and_previews(ctx: &egui::Context) -> (WsPersistentStore, LinkPreviews) {
+    let persistence =
+        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let previews = LinkPreviews::new(ctx.clone(), Default::default(), persistence.clone());
+    (persistence, previews)
+}
+
+fn build_editor(
+    core: Lb, md: &str, embeds: Box<dyn EmbedResolver>, ctx: egui::Context,
+    shared: Option<(WsPersistentStore, LinkPreviews)>,
+) -> Editor {
     let files = Arc::new(RwLock::new(FileCache::empty()));
-    let ctx = super::super::test_egui_ctx();
+    let (persistence, previews) = shared.unwrap_or_else(|| store_and_previews(&ctx));
     Editor::new(
         md,
         Uuid::new_v4(),
         None,
         MdResources {
             ctx,
+            previews,
             core,
-            persistence: WsPersistentStore::new(
-                false,
-                format!("/tmp/{}", Uuid::new_v4()).into(),
-                true,
-            ),
+            persistence,
             link_resolver: Box::new(TestLinks),
             embeds,
             files,
         },
-        MdConfig { readonly: false, ext: ext.to_string() },
+        MdConfig { readonly: false, ext: "md".into() },
     )
 }

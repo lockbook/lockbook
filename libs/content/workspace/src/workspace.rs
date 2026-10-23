@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock, mpsc};
 use tracing::{debug, error, info, instrument, trace_span, warn};
@@ -25,6 +24,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{Change, FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::link_plan::Plan;
+use crate::link_preview::LinkPreviews;
 use crate::open_guard::{self, OpenGuard};
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
@@ -104,6 +104,7 @@ pub struct Workspace {
     pub tasks: TaskManager,
     pub files: Arc<RwLock<FileCache>>,
     pub images: ImageCache,
+    pub previews: LinkPreviews,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
 
@@ -194,6 +195,7 @@ impl Workspace {
         let cfg = WsPersistentStore::new(recent_crash, writeable_path, persist);
         let (open_guard, interrupted) = OpenGuard::new(writeable_dir, persist, last_panic);
         let http = HttpClient::default();
+        let previews = LinkPreviews::new(ctx.clone(), http.clone(), cfg.clone());
         let images =
             ImageCache::new(ctx.clone(), http, core.clone(), Arc::clone(&files), cfg.clone());
         ctx.set_zoom_factor(cfg.get_zoom_factor());
@@ -212,6 +214,7 @@ impl Workspace {
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,
             images,
+            previews,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
 
@@ -1208,15 +1211,7 @@ impl Workspace {
                     self.replace_files(file_cache);
                     self.out.file_cache_updated = true;
 
-                    for tab in self.tabs.values_mut() {
-                        if let Some(md) = tab.markdown_mut() {
-                            let renderer = &md.edit.renderer;
-                            renderer.layout_cache.link_seq.store(
-                                renderer.ws_seq.fetch_add(1, Ordering::Relaxed),
-                                Ordering::Relaxed,
-                            );
-                        }
-                    }
+                    self.previews.bump();
                     let files = self.files.read().unwrap();
                     let mut ids_to_delete = vec![];
                     for slot in &self.tab_strip {
@@ -1555,6 +1550,7 @@ impl Workspace {
                                         maybe_hmac,
                                         MdResources {
                                             ctx: self.ctx.clone(),
+                                            previews: self.previews.clone(),
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
                                             link_resolver: Box::new(

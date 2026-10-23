@@ -11,7 +11,6 @@ use crate::style::ThemeExt;
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
-use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
@@ -53,10 +52,7 @@ impl MdRender {
                 Some(ResolvedLink::External(url)) => url,
                 _ => continue,
             };
-            let Some(arc) = self.layout_cache.link_meta.borrow().get(&resolved).cloned() else {
-                continue;
-            };
-            let LinkMetaState::Loaded(meta) = &*arc.lock().unwrap() else {
+            let Some(meta) = self.previews.loaded(&resolved) else {
                 continue;
             };
             if let Some(url) = meta.thumbnail_url.as_deref() {

@@ -1,5 +1,4 @@
 use std::hash::{Hash as _, Hasher as _};
-use std::sync::atomic::Ordering;
 
 use comrak::nodes::{AstNode, NodeValue, TableAlignment};
 use egui::{Pos2, Ui, Vec2};
@@ -63,7 +62,7 @@ impl<'ast> MdRender {
             return None;
         }
         let format = self.text_format(node);
-        let loaded = (self.embeds.seq(), self.layout_cache.link_seq.load(Ordering::Relaxed));
+        let loaded = (self.embeds.seq(), self.previews.seq());
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.buffer[span].hash(&mut hasher);
         // a pipe before the cell and definitions elsewhere change the parse

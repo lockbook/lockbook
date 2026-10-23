@@ -6,6 +6,7 @@ use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
 use crate::file_cache::FileCache;
+use crate::link_preview::LinkPreviews;
 use crate::resolvers::{EmbedResolver, LinkResolver};
 use bounds::Bounds;
 use colored::Colorize as _;
@@ -256,6 +257,7 @@ pub struct MdRender {
 
     // caches
     pub layout_cache: LayoutCache,
+    pub previews: LinkPreviews,
     pub syntax: SyntaxHighlightCache,
 
     // viewport
@@ -552,6 +554,8 @@ pub struct MdFilePersistence {
 
 pub struct MdResources {
     pub ctx: Context,
+    /// The workspace's link previews, shared by every tab.
+    pub previews: LinkPreviews,
     pub core: Lb,
     pub persistence: WsPersistentStore,
     pub files: Arc<RwLock<FileCache>>,
@@ -636,6 +640,7 @@ impl MdRender {
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
         let dark_mode = ctx.global_style().visuals.dark_mode;
         let ws_seq = crate::seq::ws_seq(&ctx);
+        let previews = LinkPreviews::offline(ctx.clone());
         Self {
             ctx,
             layout,
@@ -693,6 +698,7 @@ impl MdRender {
             files: Arc::new(RwLock::new(FileCache::empty())),
             ws_seq,
             layout_cache: Default::default(),
+            previews,
             syntax: Default::default(),
             width: Default::default(),
             width_seq: 0,
@@ -734,6 +740,7 @@ impl MdRender {
     pub(crate) fn test(md: &str) -> Self {
         let ctx = test_egui_ctx();
         let ws_seq = crate::seq::ws_seq(&ctx);
+        let previews = LinkPreviews::offline(ctx.clone());
         Self {
             ctx,
             layout: MdLayout::desktop(),
@@ -787,6 +794,7 @@ impl MdRender {
             client: Default::default(),
             files: Arc::new(RwLock::new(FileCache::empty())),
             layout_cache: Default::default(),
+            previews,
             syntax: Default::default(),
             width: Default::default(),
             width_seq: 0,
@@ -894,7 +902,7 @@ impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, files, link_resolver, embeds } = res;
+        let MdResources { ctx, previews, core, persistence, files, link_resolver, embeds } = res;
         let MdConfig { readonly, ext } = cfg;
         let plaintext = ext.to_lowercase() != "md";
 
@@ -968,6 +976,7 @@ impl Editor {
             files,
 
             layout_cache: Default::default(),
+            previews,
             syntax: Default::default(),
 
             width: Default::default(),
@@ -1078,6 +1087,7 @@ impl Editor {
             Uuid::new_v4(),
             None,
             MdResources {
+                previews: LinkPreviews::offline(ctx.clone()),
                 ctx,
                 core,
                 persistence: WsPersistentStore::new(
@@ -1203,12 +1213,7 @@ impl Editor {
         let embeds_updated = embeds_seq != self.embeds_seq;
         self.embeds_seq = embeds_seq;
 
-        let link_seq = self
-            .edit
-            .renderer
-            .layout_cache
-            .link_seq
-            .load(std::sync::atomic::Ordering::Relaxed);
+        let link_seq = self.edit.renderer.previews.seq();
         let link_meta_updated = link_seq != self.link_seq;
         self.link_seq = link_seq;
 

@@ -151,6 +151,11 @@ fn inline_image_advance_matches_rendered_width() {
         file_id,
         None,
         super::super::MdResources {
+            previews: crate::link_preview::LinkPreviews::new(
+                ctx.clone(),
+                Default::default(),
+                persistence.clone(),
+            ),
             ctx: ctx.clone(),
             core: lb,
             persistence,
@@ -741,10 +746,9 @@ fn harness_smoke() {
 /// Regression: a link-title fetch completing must invalidate cached
 /// heights. Empty-text links display the resolved title (or the raw URL
 /// if the title's still loading); a long URL → short title flips wrap
-/// rows, so the cached height becomes wrong if `link_seq` isn't stamped.
+/// rows, so the cached height becomes wrong if the previews' seq isn't stamped.
 #[test]
 fn layout_cache_consistent_under_link_title() {
-    use std::sync::{Arc, Mutex};
     const EPS: f32 = 0.5;
     // Long URL ensures URL display wraps to multiple rows; short title
     // collapses to one row, making the height delta visible.
@@ -753,25 +757,11 @@ fn layout_cache_consistent_under_link_title() {
     let mut ws = TestEditor::new(&doc);
     ws.enter_frame();
 
-    {
-        use super::super::widget::inline::link::meta::{LinkMeta, LinkMetaState};
-        let mut titles = ws.editor.edit.renderer.layout_cache.link_meta.borrow_mut();
-        titles.insert(
-            url.to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "ok".into(),
-                ..Default::default()
-            }))),
-        );
-    }
-    ws.editor.edit.renderer.layout_cache.link_seq.store(
-        ws.editor
-            .edit
-            .renderer
-            .ws_seq
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-        std::sync::atomic::Ordering::Relaxed,
-    );
+    ws.editor
+        .edit
+        .renderer
+        .previews
+        .insert(url, crate::link_preview::LinkMeta { title: "ok".into(), ..Default::default() });
     ws.enter_frame();
 
     let arena = comrak::Arena::new();
@@ -1335,6 +1325,11 @@ fn image_load_layout_consistent() {
         file_id,
         None,
         super::super::MdResources {
+            previews: crate::link_preview::LinkPreviews::new(
+                ctx.clone(),
+                Default::default(),
+                persistence.clone(),
+            ),
             ctx: ctx.clone(),
             core: lb,
             persistence,
@@ -2092,26 +2087,18 @@ fn bounded_composer_scrolls_cursor_into_view() {
 /// it — inside the scope's bounding box — still place the cursor (#4895).
 #[test]
 fn wrapped_capsule_touch_region_matches_pill() {
-    use std::sync::{Arc, Mutex};
-
     use egui::{Pos2, Rect, Vec2};
 
-    use crate::tab::markdown_editor::widget::inline::link::meta::{LinkMeta, LinkMetaState};
+    use crate::link_preview::LinkMeta;
 
     let mut ws = TestEditor::new("before https://example.com after\n");
-    ws.editor
-        .edit
-        .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(
-            "https://example.com".to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "a sufficiently long example title that wraps across rows".into(),
-                ..Default::default()
-            }))),
-        );
+    ws.editor.edit.renderer.previews.insert(
+        "https://example.com",
+        LinkMeta {
+            title: "a sufficiently long example title that wraps across rows".into(),
+            ..Default::default()
+        },
+    );
     // Interaction runs against the previous frame's fragments, and the first
     // frame after a resize still wraps at the old width — settle the layout.
     let size = Vec2::new(300., 600.);
@@ -2297,9 +2284,7 @@ fn selection_open_target_includes_wikilinks() {
 /// intermittent short-caret bug's fixed behavior.
 #[test]
 fn caret_bordering_embeds_spans_their_height() {
-    use std::sync::{Arc, Mutex};
-
-    use crate::tab::markdown_editor::widget::inline::link::meta::{LinkMeta, LinkMetaState};
+    use crate::link_preview::LinkMeta;
 
     // image: caret at the image's start spans its (test-embed 200pt) height
     let (mut ws, _embeds) = TestEditor::with_test_embeds(
@@ -2317,25 +2302,19 @@ fn caret_bordering_embeds_spans_their_height() {
 
     // card: caret at the card's start spans the card
     let mut ws = TestEditor::new("https://example.com\n");
-    ws.editor
-        .edit
-        .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(
-            "https://example.com".to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "Example Title".into(),
-                description: Some(
-                    "A description long enough to wrap onto multiple lines of the \
+    ws.editor.edit.renderer.previews.insert(
+        "https://example.com",
+        LinkMeta {
+            title: "Example Title".into(),
+            description: Some(
+                "A description long enough to wrap onto multiple lines of the \
                      card body, giving the card several rows of height beyond its \
                      title so the guard below holds."
-                        .into(),
-                ),
-                ..Default::default()
-            }))),
-        );
+                    .into(),
+            ),
+            ..Default::default()
+        },
+    );
     ws.enter_frame();
     ws.enter_frame();
     let card = ws
@@ -2364,14 +2343,13 @@ fn caret_bordering_embeds_spans_their_height() {
 /// screen. Swept across scroll positions.
 #[test]
 fn phone_toolbar_never_pushed_off_screen() {
-    use std::sync::{Arc, Mutex, RwLock};
+    use std::sync::{Arc, RwLock};
 
     use lb_rs::Uuid;
 
     use crate::file_cache::FileCache;
-    use crate::tab::markdown_editor::widget::inline::link::meta::{LinkMeta, LinkMetaState};
+    use crate::link_preview::LinkMeta;
     use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
-    use crate::workspace::WsPersistentStore;
 
     let lb = super::harness::build_lb();
     let ctx = crate::tab::markdown_editor::test_egui_ctx();
@@ -2392,18 +2370,16 @@ fn phone_toolbar_never_pushed_off_screen() {
     let files = Arc::new(RwLock::new(FileCache::empty()));
     // The canary resolver allocates in `show` — the worst-case embed painter.
     let embeds = Arc::new(super::harness::TestEmbeds::default());
+    let (persistence, previews) = super::harness::store_and_previews(&ctx);
     let mut editor = super::super::Editor::new(
         &md,
         Uuid::new_v4(),
         None,
         super::super::MdResources {
             ctx: ctx.clone(),
+            previews,
             core: lb,
-            persistence: WsPersistentStore::new(
-                false,
-                format!("/tmp/{}", Uuid::new_v4()).into(),
-                true,
-            ),
+            persistence,
             link_resolver: Box::new(super::harness::TestLinks),
             embeds: Box::new(embeds.clone()),
             files,
@@ -2413,41 +2389,27 @@ fn phone_toolbar_never_pushed_off_screen() {
     assert!(editor.edit.renderer.touch_mode, "touch mode");
     assert!(editor.edit.phone_mode, "phone mode");
     for i in 0..10 {
-        editor
-            .edit
-            .renderer
-            .layout_cache
-            .link_meta
-            .borrow_mut()
-            .insert(
-                format!("https://example{i}.com"),
-                Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                    title: format!("Example {i}"),
-                    description: Some(
-                        "a description that adds a couple of wrapped lines to the \
+        editor.edit.renderer.previews.insert(
+            &format!("https://example{i}.com"),
+            LinkMeta {
+                title: format!("Example {i}"),
+                description: Some(
+                    "a description that adds a couple of wrapped lines to the \
                          card body so every card is several rows tall"
-                            .into(),
-                    ),
-                    thumbnail_url: Some(format!("https://example{i}.com/hero.png")),
-                    ..Default::default()
-                }))),
-            );
-        editor
-            .edit
-            .renderer
-            .layout_cache
-            .link_meta
-            .borrow_mut()
-            .insert(
-                format!("https://inline{i}.example.com"),
-                Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                    title: format!(
-                        "a sufficiently long inline preview title number {i} that wraps"
-                    ),
-                    favicon_url: Some(format!("https://inline{i}.example.com/favicon.ico")),
-                    ..Default::default()
-                }))),
-            );
+                        .into(),
+                ),
+                thumbnail_url: Some(format!("https://example{i}.com/hero.png")),
+                ..Default::default()
+            },
+        );
+        editor.edit.renderer.previews.insert(
+            &format!("https://inline{i}.example.com"),
+            LinkMeta {
+                title: format!("a sufficiently long inline preview title number {i} that wraps"),
+                favicon_url: Some(format!("https://inline{i}.example.com/favicon.ico")),
+                ..Default::default()
+            },
+        );
         // mark every texture loaded so the canary's `show` actually runs
         for url in [
             format!("https://example{i}.com/hero.png"),

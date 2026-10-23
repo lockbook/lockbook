@@ -1,27 +1,20 @@
 pub(crate) mod card;
-pub(crate) mod meta;
 
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
+use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
-use lb_rs::{Uuid, spawn};
-use std::collections::hash_map::Entry;
-use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
 
 use lb_rs::model::text::operation_types::Operation;
 
-use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
+use crate::link_preview::{LinkMeta, Preview};
 use crate::show::DocType;
 use crate::style::{TypeRole, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::fragment::slugify;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::image::image::image_url;
-use crate::tab::markdown_editor::widget::inline::link::meta::{
-    LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
-};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
@@ -669,8 +662,8 @@ impl<'ast> MdRender {
     /// Resolve a link's preview metadata. Internal links (lb:// / relative
     /// paths) resolve synchronously to a title from the file cache. External
     /// http(s) links are fetched asynchronously (gated by `contact_linked_sites`)
-    /// and cached in [`LayoutCache::link_meta`]; `External(None)` until a fetch
-    /// completes, the site is uncacheable, or fetching is off.
+    /// and shared through [`crate::link_preview::LinkPreviews`]; `Unavailable`
+    /// while a fetch failed or fetching is off.
     pub fn get_link_meta(&self, url: &str) -> LinkMetaLookup {
         let Some(resolved) = self.resolve_link(url) else {
             return LinkMetaLookup::Unavailable;
@@ -693,162 +686,22 @@ impl<'ast> MdRender {
             ResolvedLink::External(_) => return LinkMetaLookup::Unavailable,
         };
 
-        let now = web_time::Instant::now();
-        let arc = match self
-            .layout_cache
-            .link_meta
-            .borrow_mut()
-            .entry(resolved_url.clone())
-        {
-            Entry::Occupied(mut e) => {
-                // A failure whose next-retry timestamp has passed is eligible
-                // again (still behind the fetch opt-in).
-                let retry_attempts = match &*e.get().lock().unwrap() {
-                    LinkMetaState::Failed { retry_at: Some(t), attempts } if *t <= now => {
-                        Some(*attempts)
-                    }
-                    _ => None,
-                };
-                match retry_attempts {
-                    Some(attempts) if self.contact_linked_sites => {
-                        let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
-                        e.insert(arc.clone());
-                        self.spawn_meta_fetch(resolved_url, arc.clone(), attempts);
-                        arc
-                    }
-                    _ => e.get().clone(),
-                }
-            }
-            Entry::Vacant(e) => {
-                // Opt-out: don't contact the site unless preview fetching is on.
-                // (Occupied/cached metadata above still displays — no new request.)
-                if !self.contact_linked_sites {
-                    return LinkMetaLookup::Unavailable;
-                }
-                let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
-                e.insert(arc.clone());
-                self.spawn_meta_fetch(resolved_url, arc.clone(), 0);
-                arc
-            }
-        };
-
-        let state = arc.lock().unwrap();
-        match &*state {
-            LinkMetaState::Loaded(meta) => LinkMetaLookup::Loaded(meta.clone()),
-            LinkMetaState::Loading => LinkMetaLookup::Loading,
-            LinkMetaState::Failed { retry_at: Some(until), .. } if *until > now => {
-                // Wake a frame when the cooldown lapses — an idle editor never
-                // repaints, so without this the retry waits for user input.
-                self.ctx.request_repaint_after(*until - now);
-                LinkMetaLookup::Unavailable
-            }
-            LinkMetaState::Failed { .. } => LinkMetaLookup::Unavailable,
+        match self.previews.get(&resolved_url) {
+            Preview::Loaded(meta) => LinkMetaLookup::Loaded(meta),
+            Preview::Loading => LinkMetaLookup::Loading,
+            Preview::Unavailable => LinkMetaLookup::Unavailable,
         }
-    }
-
-    /// Fetch + scrape `resolved_url`'s metadata into `meta_state` off-thread,
-    /// then bump `link_seq` and request a repaint. `attempts` counts prior
-    /// consecutive failures — it drives the transient-failure backoff.
-    fn spawn_meta_fetch(
-        &self, resolved_url: String, meta_state: Arc<Mutex<LinkMetaState>>, attempts: u32,
-    ) {
-        /// Self-assigned retry-after for network-level failures; doubles per
-        /// consecutive failure up to the cap.
-        const TRANSIENT_RETRY_BASE: std::time::Duration = std::time::Duration::from_secs(60);
-        const TRANSIENT_RETRY_CAP: std::time::Duration = std::time::Duration::from_secs(15 * 60);
-        /// Bot walls outlive short retries — a site's posture changes slowly.
-        const BLOCKED_RETRY: std::time::Duration = std::time::Duration::from_secs(6 * 60 * 60);
-
-        let client = self.client.clone();
-        let ctx = self.ctx.clone();
-        let link_seq = self.layout_cache.link_seq.clone();
-        let ws_seq = self.ws_seq.clone();
-        spawn!({
-            const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-            const GOOGLEBOT: &str =
-                "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
-
-            #[cfg(not(target_arch = "wasm32"))]
-            let mut html = fetch_html(&client, &resolved_url, CHROME);
-            #[cfg(target_arch = "wasm32")]
-            let mut html = fetch_html(&client, &resolved_url, CHROME).await;
-
-            // Some sites (e.g. Twitter/X) only serve static content to known
-            // crawlers, and bot walls often whitelist them — but never burn a
-            // second request on a host that's rate-limiting us.
-            let good = |h: &str| {
-                extract_link_meta(h, &resolved_url)
-                    .is_some_and(|m| !is_junk_meta(h, &m, &resolved_url))
-            };
-            if !matches!(html, Err(FetchError::RateLimited { .. }))
-                && !html.as_deref().is_ok_and(good)
-            {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    html = fetch_html(&client, &resolved_url, GOOGLEBOT);
-                }
-                #[cfg(target_arch = "wasm32")]
-                {
-                    html = fetch_html(&client, &resolved_url, GOOGLEBOT).await;
-                }
-            }
-
-            let now = web_time::Instant::now();
-            *meta_state.lock().unwrap() = match html {
-                Ok(h) => match extract_link_meta(&h, &resolved_url) {
-                    Some(meta) if !is_junk_meta(&h, &meta, &resolved_url) => {
-                        LinkMetaState::Loaded(meta)
-                    }
-                    // Junk describes the wall, not the page — treat like a
-                    // bot wall rather than rendering it.
-                    Some(_) => LinkMetaState::Failed {
-                        retry_at: Some(now + BLOCKED_RETRY),
-                        attempts: attempts + 1,
-                    },
-                    None => LinkMetaState::Failed { retry_at: None, attempts: attempts + 1 },
-                },
-                Err(FetchError::RateLimited { until }) => {
-                    LinkMetaState::Failed { retry_at: Some(until), attempts: attempts + 1 }
-                }
-                Err(FetchError::Blocked(_)) => LinkMetaState::Failed {
-                    retry_at: Some(now + BLOCKED_RETRY),
-                    attempts: attempts + 1,
-                },
-                Err(FetchError::Transient(_)) => {
-                    let backoff =
-                        (TRANSIENT_RETRY_BASE * 2u32.pow(attempts.min(4))).min(TRANSIENT_RETRY_CAP);
-                    LinkMetaState::Failed { retry_at: Some(now + backoff), attempts: attempts + 1 }
-                }
-                Err(FetchError::Permanent(_)) => {
-                    LinkMetaState::Failed { retry_at: None, attempts: attempts + 1 }
-                }
-            };
-            link_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
-            ctx.request_repaint();
-        });
     }
 
     /// Drop `url`'s cached metadata and fetch it fresh — the context menu's
     /// "Refresh Preview". Explicitly user-invoked, but still behind the
     /// contact-linked-sites opt-in (previews don't render without it anyway).
     pub fn refresh_link_meta(&self, url: &str) {
-        if !self.contact_linked_sites {
-            return;
-        }
-        let resolved_url = match self.resolve_link(url) {
-            Some(ResolvedLink::External(u))
-                if u.starts_with("http://") || u.starts_with("https://") =>
-            {
-                u
+        if let Some(ResolvedLink::External(u)) = self.resolve_link(url) {
+            if u.starts_with("http://") || u.starts_with("https://") {
+                self.previews.refresh(&u);
             }
-            _ => return,
-        };
-        let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
-        self.layout_cache
-            .link_meta
-            .borrow_mut()
-            .insert(resolved_url.clone(), arc.clone());
-        self.spawn_meta_fetch(resolved_url, arc, 0);
+        }
     }
 
     /// Re-fetch preview metadata for every link intersecting the selection —

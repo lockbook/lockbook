@@ -273,11 +273,7 @@ async fn fetch_title(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     // println!("{}", normalized_url);
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
-        .user_agent(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
-                     AppleWebKit/537.36 (KHTML, like Gecko) \
-                     Chrome/115.0 Safari/537.36",
-        )
+        .user_agent(crate::egress::USER_AGENT)
         .build()?;
 
     let response = client

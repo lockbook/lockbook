@@ -5,43 +5,21 @@
 //! `og:image`/favicon paths against the page URL.
 
 use scraper::{Html, Selector};
-use serde::{Deserialize, Serialize};
 
 /// Preview metadata scraped from an external link's page — the data a card is
-/// built from. `Serialize`/`Deserialize` ready it for the synced sidecar.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// built from.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LinkMeta {
     pub title: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub site_name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thumbnail_url: Option<String>,
     /// Declared `og:image` dimensions, when present — lets a card pick its
     /// hero-vs-horizontal form before the texture decodes.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thumbnail_width: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thumbnail_height: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thumbnail_alt: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub favicon_url: Option<String>,
-}
-
-/// Async fetch state for a URL's `LinkMeta`, held in the layout cache.
-pub enum LinkMetaState {
-    Loading,
-    Loaded(LinkMeta),
-    /// `retry_at: Some(t)` — eligible for a refetch once `t` passes (the
-    /// host's `Retry-After`, a transient-failure backoff, or a bot-wall
-    /// cooldown). `None` — deterministic failure, no retry this session.
-    /// `attempts` counts consecutive failures and drives the backoff.
-    Failed {
-        retry_at: Option<web_time::Instant>,
-        attempts: u32,
-    },
 }
 
 /// Scrape `LinkMeta` from a page's HTML. `base_url` is the page's own URL,

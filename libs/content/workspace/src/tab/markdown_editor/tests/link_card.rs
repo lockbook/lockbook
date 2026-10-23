@@ -4,15 +4,13 @@
 //! stays clean, portable markdown — the trigger is positional, not a syntax
 //! suffix — so these pin exactly which links qualify.
 
-use std::sync::{Arc, Mutex};
-
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
 use super::super::input::Event;
 use super::harness::TestEditor;
-use crate::tab::markdown_editor::widget::inline::link::meta::{LinkMeta, LinkMetaState};
+use crate::link_preview::LinkMeta;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, FragmentContent};
 
 /// True if a `LinkCard` embed fragment was painted this frame.
@@ -32,16 +30,8 @@ fn renders_card_with_cached_meta(md: &str, cache_url: &str) -> bool {
     ws.editor
         .edit
         .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(
-            cache_url.to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "Example Title".into(),
-                ..Default::default()
-            }))),
-        );
+        .previews
+        .insert(cache_url, LinkMeta { title: "Example Title".into(), ..Default::default() });
     ws.enter_frame();
     has_card_fragment(&ws)
 }
@@ -108,15 +98,26 @@ fn previews_off_does_not_fetch_autolink_titles() {
     let mut ws = TestEditor::new("https://example.com\n");
     ws.enter_frame();
     assert!(
-        ws.editor
-            .edit
-            .renderer
-            .layout_cache
-            .link_meta
-            .borrow()
-            .is_empty(),
+        ws.editor.edit.renderer.previews.is_empty(),
         "no title fetch should be initiated when previews are off"
     );
+}
+
+/// Previews belong to the app, not the tab: a note opened again, or in a
+/// second tab, shows what the first already fetched without asking the site.
+#[test]
+fn previews_are_shared_across_tabs() {
+    let url = "https://example.com";
+    let first = TestEditor::new("https://example.com\n");
+    first
+        .editor
+        .edit
+        .renderer
+        .previews
+        .insert(url, LinkMeta { title: "Example Title".into(), ..Default::default() });
+    let mut second = TestEditor::beside(&first, "https://example.com\n");
+    second.enter_frame();
+    assert!(has_card_fragment(&second), "the second tab shows the first tab's preview");
 }
 
 // ── card rendering (does a card fragment actually get emitted) ──
@@ -152,20 +153,14 @@ fn wrapped_capsule_edge_carets() {
     use lb_rs::model::text::offset_types::IntoRangeExt as _;
     let url = "https://example.com";
     let mut ws = TestEditor::new("see https://example.com\nnext para\n");
-    ws.editor
-        .edit
-        .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(
-            url.to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "Example Title That Wraps Across Rows".into(),
-                favicon_url: Some("https://example.com/favicon.ico".into()),
-                ..Default::default()
-            }))),
-        );
+    ws.editor.edit.renderer.previews.insert(
+        url,
+        LinkMeta {
+            title: "Example Title That Wraps Across Rows".into(),
+            favicon_url: Some("https://example.com/favicon.ico".into()),
+            ..Default::default()
+        },
+    );
     // Production fonts are narrower than egui defaults; a short title
     // can fit on one line at 160px.
     let size = egui::Vec2::new(160.0, 600.0);
@@ -228,20 +223,14 @@ fn capsule_selection_rects_hug_pill() {
     use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
     let url = "https://example.com";
     let mut ws = TestEditor::new("see https://example.com after\n");
-    ws.editor
-        .edit
-        .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(
-            url.to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "Example Title".into(),
-                favicon_url: Some("https://example.com/favicon.ico".into()),
-                ..Default::default()
-            }))),
-        );
+    ws.editor.edit.renderer.previews.insert(
+        url,
+        LinkMeta {
+            title: "Example Title".into(),
+            favicon_url: Some("https://example.com/favicon.ico".into()),
+            ..Default::default()
+        },
+    );
     ws.enter_frame();
 
     let range = {
@@ -297,16 +286,8 @@ fn enter_atom_reveals_link_card_source() {
     ws.editor
         .edit
         .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(
-            url.to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "Example Title".into(),
-                ..Default::default()
-            }))),
-        );
+        .previews
+        .insert(url, LinkMeta { title: "Example Title".into(), ..Default::default() });
     ws.enter_frame();
     assert!(has_card_fragment(&ws), "card renders with cached meta");
 
@@ -344,26 +325,15 @@ fn enter_atom_reveals_link_card_source() {
 fn rate_limited_meta_degrades_and_gates_refetch() {
     let url = "https://example.com";
     let mut ws = TestEditor::new("https://example.com\n");
-    let arc = Arc::new(Mutex::new(LinkMetaState::Failed {
-        retry_at: Some(web_time::Instant::now() + std::time::Duration::from_secs(60)),
-        attempts: 1,
-    }));
-    ws.editor
-        .edit
-        .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(url.to_string(), arc.clone());
+    let previews = ws.editor.edit.renderer.previews.clone();
+    previews.fail(url, web_time::Instant::now() + std::time::Duration::from_secs(60));
     ws.enter_frame();
     assert!(!has_card_fragment(&ws), "cooling down: plain link, no skeleton");
 
     // Timestamp lapses, but fetching is off (the default): the entry must be
     // left untouched — no Loading swap-in, no spawned request.
-    *arc.lock().unwrap() =
-        LinkMetaState::Failed { retry_at: Some(web_time::Instant::now()), attempts: 1 };
+    previews.fail(url, web_time::Instant::now());
     ws.enter_frame();
-    let entry = ws.editor.edit.renderer.layout_cache.link_meta.borrow()[url].clone();
-    assert!(Arc::ptr_eq(&arc, &entry), "fetching off: expired retry_at doesn't refetch");
+    assert!(!previews.is_loading(url), "fetching off: expired retry_at doesn't refetch");
     assert!(!has_card_fragment(&ws));
 }
