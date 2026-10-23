@@ -1,7 +1,7 @@
 # Layout
 A markdown note always wraps to the window. Past a **max width**, we pad the sides so the column feels airy rather than stretching with the display. How wide that column should be is contended; we are likely to offer a setting.
 
-The markdown document as a whole does not scroll horizontally, but horizontal scroll inside code blocks, still within the document’s bounded width, is something users have asked for. Tables likely want the same.
+The markdown document as a whole does not scroll horizontally, but horizontal scroll inside code blocks, still within the document’s bounded width, is something users have asked for. A table does it already: when its columns cannot fit the note even at their narrowest, it scrolls along its rows and follows the caret.
 
 ## Blocks & Wraps
 A markdown note is displayed as a vertical stack of markdown blocks. Blocks are spaced to visualize the blank lines between them, unlike markdown renderers without editing.

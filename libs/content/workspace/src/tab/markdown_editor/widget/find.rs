@@ -68,8 +68,8 @@ pub struct Find {
 impl Default for Find {
     fn default() -> Self {
         Self {
-            id: Id::new("find"),
-            replace_id: Id::new("find_replace"),
+            id: Id::unique("find"),
+            replace_id: Id::unique("find_replace"),
             term: None,
             replace_term: String::new(),
             case_sensitive: false,

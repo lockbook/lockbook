@@ -139,7 +139,7 @@ impl<'a> Button<'a> {
                     WidgetText::LayoutJob(job) => job
                         .sections
                         .iter()
-                        .map(|s| &job.text[s.byte_range.clone()])
+                        .map(|s| &job.text[s.byte_range.start.0..s.byte_range.end.0])
                         .collect(),
                     WidgetText::Galley(g) => g.job.text.clone(),
                     WidgetText::Text(s) => s.to_string(),
@@ -213,6 +213,7 @@ impl<'a> Button<'a> {
                         round_to_pixels: None,
                         blur_width: 0.,
                         brush: None,
+                        angle: 0.0,
                     });
 
                     let mut text_pos = egui::pos2(

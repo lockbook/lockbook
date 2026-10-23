@@ -142,7 +142,7 @@ impl Outline {
         linked: &[LinkedNote],
     ) -> (Option<Choice>, Rect, bool) {
         let t = ctx.get_lb_theme();
-        let screen = ctx.screen_rect();
+        let screen = ctx.content_rect();
         let layer = egui::LayerId::new(Order::Foreground, id);
         let mut dismissed = sheet_dim(ctx, id.with("dim"), layer) && !self.sheet_opening;
         let (margin, pad, header) = (Space::Md.pts(), Space::Sm.pts(), control_height());
@@ -488,7 +488,7 @@ fn measure_headings(
             let mut job =
                 LayoutJob::simple(row.text.clone(), TypeRole::Body.font_id(), color, text_w);
             job.wrap = wrap(text_w, if touch { 2 } else { 1 });
-            let galley = ctx.fonts(|f| f.layout_job(job));
+            let galley = ctx.fonts_mut(|f| f.layout_job(job));
             let min_h = if touch { TOUCH_ROW_H } else { control_height() };
             let height = min_h.max(galley.size().y + 2.0 * Space::Xs.pts());
             let tip = row.text.clone();
@@ -522,7 +522,7 @@ fn measure_linked(ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch:
             text_w(0.0),
         );
         job.wrap = wrap(text_w(0.0), if touch { 2 } else { 1 });
-        let galley = ctx.fonts(|f| f.layout_job(job));
+        let galley = ctx.fonts_mut(|f| f.layout_job(job));
         rows.push(MeasuredRow {
             height: min_h.max(galley.size().y + 2.0 * Space::Xs.pts()),
             galley,
@@ -541,7 +541,7 @@ fn measure_linked(ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch:
             job.append(&text[label.clone()], 0.0, loud);
             job.append(&text[label.end..], 0.0, quiet);
             job.wrap = wrap(text_w(indent), MENTION_LINES);
-            let galley = ctx.fonts(|f| f.layout_job(job));
+            let galley = ctx.fonts_mut(|f| f.layout_job(job));
             let least = if touch { TOUCH_ROW_H } else { 0.0 };
             rows.push(MeasuredRow {
                 height: least.max(galley.size().y + 2.0 * Space::Xs.pts()),
@@ -584,7 +584,9 @@ fn wrap(max_width: f32, max_rows: usize) -> TextWrapping {
 fn quiet_text(ctx: &egui::Context, text: &str, width: f32) -> Arc<Galley> {
     let t = ctx.get_lb_theme();
     let text_w = (width - 2.0 * Space::Sm.pts()).max(1.0);
-    ctx.fonts(|f| f.layout(text.into(), TypeRole::Body.font_id(), t.neutral_fg_secondary(), text_w))
+    ctx.fonts_mut(|f| {
+        f.layout(text.into(), TypeRole::Body.font_id(), t.neutral_fg_secondary(), text_w)
+    })
 }
 
 /// The outline's surface, card or sheet: the sidebar's color with no border.

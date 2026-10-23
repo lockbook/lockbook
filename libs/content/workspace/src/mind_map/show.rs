@@ -1,11 +1,11 @@
 use super::data::{
     DONE, Graph, LinkNode, URL_NAME_STORE, lockbook_data, start_extraction_names, stop_extraction,
 };
-use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
 use lb_rs::blocking::Lb;
 use lb_rs::{Uuid, spawn};
+use std::collections::HashMap;
 use std::f32;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
@@ -358,7 +358,7 @@ impl MindMap {
         }
         self.last_pan += self.pan / self.zoom_factor;
         self.pan = Vec2::ZERO;
-        let is_dark_mode = ui.ctx().style().visuals.dark_mode;
+        let is_dark_mode = ui.ctx().global_style().visuals.dark_mode;
         let text_color: egui::Color32 = if is_dark_mode { Color32::WHITE } else { Color32::BLACK };
         let base_size = radius;
         let k = 1.0;
@@ -648,8 +648,7 @@ impl MindMap {
             ui.input(|i| {
                 self.zoom_factor *= i.zoom_delta();
                 self.debug = self.zoom_factor.to_string();
-                let scroll = i.raw_scroll_delta.to_pos2();
-                self.pan += scroll.to_vec2();
+                self.pan += i.smooth_scroll_delta();
                 // You could update debug with pan if you wish.
             });
         }

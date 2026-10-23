@@ -114,13 +114,13 @@ impl<'ast> MdRender {
     /// Shared by producer + consumer so `ui.id().with(salt)` resolves
     /// to the same id on both sides.
     pub fn link_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
-        egui::Id::new(("md_link", node_range))
+        egui::Id::unique(("md_link", node_range))
     }
 
     /// Click-target id for a link rendered as a capsule preview; distinct from
     /// the plain-link salt so its embed-style tap handling doesn't collide.
     pub fn link_capsule_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
-        egui::Id::new(("md_link_capsule", node_range))
+        egui::Id::unique(("md_link_capsule", node_range))
     }
 
     /// Emit a link as a circumfix. For autolinks with a fetched title,
@@ -320,6 +320,12 @@ impl<'ast> MdRender {
             // Favicon over the leading em-space slot; a neutral link glyph
             // holds the slot while the texture loads — or forever, if it
             // never does — so the reserved space always reads as an icon.
+            // a scrolled table shows only some of a row
+            let row =
+                egui::Rect::from_x_y_ranges(egui::Rangef::EVERYTHING, chip_rects[0].y_range());
+            let showing = self.table_showing(row).unwrap_or(egui::Rect::NOTHING);
+            let row_clip = ui.clip_rect();
+            ui.set_clip_rect(row_clip.intersect(showing));
             if let Some(favicon_url) = self.capsule_favicon_url(&url) {
                 let chip = chip_rects[0];
                 let size = chip.height() * 0.7;
@@ -352,6 +358,7 @@ impl<'ast> MdRender {
                     );
                 }
             }
+            ui.set_clip_rect(row_clip);
 
             if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
@@ -367,8 +374,8 @@ impl<'ast> MdRender {
                         None => rows.push(*r),
                     }
                 }
-                for r in &rows {
-                    ui.painter().rect_filled(*r, 2.0, tint);
+                for r in rows.iter().filter_map(|r| self.table_showing(*r)) {
+                    ui.painter().rect_filled(r, 2.0, tint);
                 }
             }
         }
@@ -600,7 +607,7 @@ impl<'ast> MdRender {
     /// click instead selects the link and pops the menu
     /// ([`MdEdit::handle_link_menu_taps`]).
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
-        let parent_base = ui.id();
+        let parent_base = ui.scope_id();
         for node in root.descendants() {
             let (url, is_wikilink) = match &node.data.borrow().value {
                 NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
@@ -1042,7 +1049,7 @@ impl<'ast> MdEdit {
         if !self.renderer.touch_mode || self.renderer.readonly {
             return;
         }
-        let parent_base = ui.id();
+        let parent_base = ui.scope_id();
         for node in root.descendants() {
             match &node.data.borrow().value {
                 NodeValue::Link(_) | NodeValue::WikiLink(_) => {}

@@ -102,7 +102,7 @@ pub(crate) fn show_share_check(
 
 /// Where the share sheet keeps whether to share linked files too.
 pub(crate) fn share_linked_id() -> egui::Id {
-    egui::Id::new("shell_share_linked")
+    egui::Id::unique("shell_share_linked")
 }
 
 /// Update **3 links** in **log**, **roadmap**, and **2 other notes**.

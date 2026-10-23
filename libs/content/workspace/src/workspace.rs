@@ -116,12 +116,11 @@ pub struct Workspace {
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
 
-    pub show_tabs: bool, // draw the egui tab strip
-    /// Activate-if-open / honor open-in-new-tab. Independent of `show_tabs`
-    /// so Apple can keep its own strip while using desktop policy.
+    /// Touch hosts type through the software keyboard. iOS clears this while
+    /// a hardware keyboard keeps the software one away.
+    pub software_keyboard_in_use: bool,
+    /// Activate-if-open / honor open-in-new-tab.
     pub desktop_tab_policy: bool,
-    pub tab_strip_left_inset: f32,
-    pub tab_strip_min_height: f32,
     pub sidebar_open: bool,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
@@ -158,13 +157,13 @@ enum Reveal {
 impl Workspace {
     pub fn set_user_present(&self) {
         self.ctx.data_mut(|d| {
-            d.insert_temp(egui::Id::new("user_present"), UserPresent(self.core.user_active()))
+            d.insert_temp(egui::Id::unique("user_present"), UserPresent(self.core.user_active()))
         });
     }
 
     pub fn user_present(ctx: &Context) -> bool {
         ctx.data(|d| {
-            d.get_temp::<UserPresent>(egui::Id::new("user_present"))
+            d.get_temp::<UserPresent>(egui::Id::unique("user_present"))
                 .map(|p| p.0)
         })
         .unwrap_or(true)
@@ -174,8 +173,7 @@ impl Workspace {
 impl Workspace {
     #[instrument(name = "Workspace::new", level = "trace", skip_all)]
     pub fn new(
-        core: &Lb, ctx: &Context, show_tabs: bool, persist: bool,
-        file_cache: Option<Arc<RwLock<FileCache>>>,
+        core: &Lb, ctx: &Context, persist: bool, file_cache: Option<Arc<RwLock<FileCache>>>,
     ) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
@@ -213,10 +211,8 @@ impl Workspace {
             ctx: ctx.clone(),
             core: core.clone(),
 
-            show_tabs,
-            desktop_tab_policy: show_tabs,
-            tab_strip_left_inset: 0.0,
-            tab_strip_min_height: 0.0,
+            software_keyboard_in_use: true,
+            desktop_tab_policy: false,
             sidebar_open: false,
             focused_parent: Default::default(),
 
@@ -243,6 +239,7 @@ impl Workspace {
         }
 
         let (open_sessions, current_tab_index) = ws.cfg.get_sessions();
+        info!(persist, recent_crash, sessions = open_sessions.len(), "workspace init");
         let current_session_id = current_tab_index
             .and_then(|i| open_sessions.get(i))
             .map(|s| s.id);
@@ -281,6 +278,7 @@ impl Workspace {
     /// absent. Does not add to tab_strip or make current — callers decide
     /// visibility.
     pub fn open_dest(&mut self, tab_id: SessionId, dest: &Destination) {
+        info!(?tab_id, ?dest, tabs = self.tab_strip.len(), "open dest");
         self.closed_tabs.retain(|c| c.slot.id != tab_id);
 
         if self.tabs.contains_key(&tab_id) {
@@ -368,12 +366,6 @@ impl Workspace {
     #[instrument(level = "trace", skip_all)]
     pub fn create_tab(&mut self, dest: Destination, make_current: bool) {
         self.resume_session(Session::new(dest), make_current);
-    }
-
-    pub fn begin_tab_rename(&mut self, tab_id: SessionId, name: String) {
-        if let Some(tab) = self.tabs.get_mut(&tab_id) {
-            tab.rename = Some(name);
-        }
     }
 
     pub fn clear_tab_rename(&mut self, tab_id: SessionId) {
@@ -1006,6 +998,7 @@ impl Workspace {
         let right = self.tab_strip.get(i + 1).map(|s| s.id);
 
         let closed_slot = self.tab_strip.remove(i);
+        info!(?tab_id, dest = ?closed_slot.dest, tabs = self.tab_strip.len(), "closed tab");
         self.out.tabs_changed = true;
         self.activation_history.retain(|id| *id != tab_id);
         self.closed_tabs.retain(|c| c.slot.id != tab_id);
@@ -1179,6 +1172,7 @@ impl Workspace {
                             if files.get_by_id(id).is_none()
                                 && self.core.get_file_by_id(id).is_err()
                             {
+                                info!(%id, "file gone after cache refresh");
                                 ids_to_delete.push(slot.id);
                             }
                         }
@@ -1369,7 +1363,6 @@ impl Workspace {
 
                 let ctx = self.ctx.clone();
                 let core = self.core.clone();
-                let show_tabs = self.show_tabs;
 
                 let tab_opt = if is_preview {
                     self.preview_pending
@@ -1383,17 +1376,9 @@ impl Workspace {
                     let files_clone = self.files.clone();
                     let files_guard = files_clone.read().unwrap();
 
-                    let account = &self.account;
-                    let (name, read_only) = if let Some(file) = files_guard.get_by_id(id) {
-                        (file.name.clone(), files_guard.access(id, account) == UserAccessMode::Read)
-                    } else if let Ok(file) = core.get_file_by_id(id) {
-                        // read-through (can remove when we master cache
-                        // refreshes): a freshly created file isn't in the
-                        // async-rebuilt cache yet; without this the
-                        // completed load is discarded and the tab is stuck
-                        // loading forever. New/owned files are writable.
-                        (file.name, false)
-                    } else {
+                    // The async-rebuilt cache can trail a create or rename;
+                    // the name that picks the editor comes from core.
+                    let Ok(file) = core.get_file_by_id(id) else {
                         // genuinely gone (e.g. deleted): fail the tab
                         // rather than discard the load and hang in Loading.
                         let msg = format!("failed to load file: {id} not found");
@@ -1402,6 +1387,9 @@ impl Workspace {
                         self.out.failure_messages.push(msg);
                         continue;
                     };
+                    let name = file.name;
+                    let read_only = files_guard.get_by_id(id).is_some()
+                        && files_guard.access(id, &self.account) == UserAccessMode::Read;
 
                     let doc_type = DocType::from_name(&name);
                     let ext = name.split('.').next_back().unwrap_or_default().to_owned();
@@ -1429,7 +1417,6 @@ impl Workspace {
                         DocType::PDF => {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
                                 id, bytes, &ctx,
-                                !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         }
                         DocType::SVG => {
@@ -1510,11 +1497,7 @@ impl Workspace {
                                                 id,
                                             )),
                                         },
-                                        MdConfig {
-                                            readonly: tab.read_only,
-                                            ext: ext.clone(),
-                                            tablet_or_desktop: show_tabs,
-                                        },
+                                        MdConfig { readonly: tab.read_only, ext: ext.clone() },
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
@@ -1534,7 +1517,7 @@ impl Workspace {
                     if is_preview {
                         if let Some(md) = tab.markdown_mut() {
                             md.initialized = true;
-                            md.id_salt = egui::Id::new("search_preview");
+                            md.id_salt = egui::Id::unique("search_preview");
                             md.in_preview = true;
                         }
                         // A chat's first frame would focus its composer,
@@ -1879,22 +1862,20 @@ impl Workspace {
     }
 
     pub fn file_renamed(&mut self, id: Uuid, new_name: String) {
-        let mut different_file_type = false;
-        let tab_id = self
+        let dest = Destination::File(id);
+        let tab_ids: Vec<_> = self
             .tab_strip
             .iter()
-            .find(|s| s.dest.id() == id)
-            .map(|s| s.id);
-        if let Some(tab) = tab_id.and_then(|tid| self.tabs.get(&tid)) {
-            different_file_type = !NameComponents::from(&new_name)
-                .extension
-                .eq(&NameComponents::from(&self.tab_title(tab)).extension);
-        }
-
-        if different_file_type {
-            // `ext`/`plaintext` are baked at editor construction; drop and re-open.
-            let dest = Destination::File(id);
-            if let Some(tab_id) = tab_id {
+            .filter(|s| s.dest.id() == id)
+            .map(|s| s.id)
+            .collect();
+        for tab_id in tab_ids {
+            let fits = self
+                .tabs
+                .get(&tab_id)
+                .is_none_or(|t| content_fits_name(&t.content, &new_name));
+            if !fits {
+                // `ext`/`plaintext` are baked at editor construction; drop and re-open.
                 self.tabs.remove(&tab_id);
                 self.open_dest(tab_id, &dest);
             }
@@ -2060,6 +2041,23 @@ pub struct WsPersistentStore {
     pub path: PathBuf,
     pub data: Arc<RwLock<WsPresistentData>>,
     enabled: bool,
+}
+
+/// Whether `content` was built for a file named `name`. Loading content picks
+/// its editor from core's current name when the load lands.
+fn content_fits_name(content: &ContentState, name: &str) -> bool {
+    let ext = name.split('.').next_back().unwrap_or_default();
+    let doc_type = DocType::from_name(name);
+    match content {
+        ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.ext == ext,
+        ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
+        ContentState::Open(TabContent::Image(_)) => doc_type == DocType::Image,
+        ContentState::Open(TabContent::Pdf(_)) => doc_type == DocType::PDF,
+        #[cfg(not(target_family = "wasm"))]
+        ContentState::Open(TabContent::Chat(_)) => doc_type == DocType::Chat,
+        ContentState::Failed(_) => false,
+        _ => true,
+    }
 }
 
 fn default_open_in_new_tab() -> bool {

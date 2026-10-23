@@ -18,17 +18,17 @@ use super::action::{Action, CreateKind, CreateLoc, Modal};
 const CREATE_SHEET_W: f32 = 480.0;
 
 fn create_sheet_h_key() -> Id {
-    Id::new("shell_create_inner_h")
+    Id::unique("shell_create_inner_h")
 }
 
 /// The sheet's height before a re-measure.
 fn create_last_h_key() -> Id {
-    Id::new("shell_create_last_h")
+    Id::unique("shell_create_last_h")
 }
 
 /// The form's own height when the sheet's was locked.
 fn create_form_h_key() -> Id {
-    Id::new("shell_create_form_h")
+    Id::unique("shell_create_form_h")
 }
 
 /// Fixed footer band shared by form + location wizard (Md + control row).
@@ -46,8 +46,8 @@ fn create_footer_band_h() -> f32 {
 pub(crate) fn show_create(
     app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
 ) {
-    let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_create"));
-    if sheet_dim(ctx, Id::new("shell_create_dim"), layer) {
+    let layer = egui::LayerId::new(Order::Foreground, Id::unique("shell_create"));
+    if sheet_dim(ctx, Id::unique("shell_create_dim"), layer) {
         queue.push(A::CloseModal);
     }
 
@@ -59,7 +59,7 @@ pub(crate) fn show_create(
     };
 
     // Folder tree expand seed when the location wizard is first opened.
-    let exp_id = Id::new("shell_create_folder_exp");
+    let exp_id = Id::unique("shell_create_folder_exp");
     let mut expanded: std::collections::HashSet<Uuid> =
         ctx.data(|d| d.get_temp(exp_id)).unwrap_or_default();
     if picking && expanded.is_empty() {
@@ -81,7 +81,7 @@ pub(crate) fn show_create(
 
     let locked_h = ctx.data(|d| d.get_temp::<f32>(create_sheet_h_key()));
 
-    Area::new(Id::new("shell_create"))
+    Area::new(Id::unique("shell_create"))
         .order(Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {
@@ -181,9 +181,9 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
     };
     let mut kind_i = kind.index();
     let labels: Vec<&str> = CreateKind::ALL.iter().map(|k| k.label()).collect();
-    let edit_id = Id::new("shell_create_field").with("edit");
+    let edit_id = Id::unique("shell_create_field").with("edit");
     let need_focus = ui.ctx().data(|d| {
-        d.get_temp::<bool>(Id::new("shell_create_need_focus"))
+        d.get_temp::<bool>(Id::unique("shell_create_need_focus"))
             .unwrap_or(false)
     });
 
@@ -217,7 +217,7 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
         };
         let before = name.clone();
         let mut field = Field::new(t, name)
-            .id("shell_create_field")
+            .id(egui::Id::unique("shell_create_field"))
             .select_all_on_focus(true);
         if let Some(ext) = kind.ext() {
             field = field.trailing_static(ext);
@@ -227,7 +227,7 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
             ui.memory_mut(|m| m.request_focus(edit_id));
             if ui.memory(|m| m.has_focus(edit_id)) {
                 ui.ctx().data_mut(|d| {
-                    d.insert_temp(Id::new("shell_create_need_focus"), false);
+                    d.insert_temp(Id::unique("shell_create_need_focus"), false);
                 });
             }
         }

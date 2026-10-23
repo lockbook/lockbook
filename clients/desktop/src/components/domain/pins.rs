@@ -152,14 +152,14 @@ pub fn show(
             };
 
             if use_scroll {
-                let scroll_id = Id::new("pinned_scroll");
+                let scroll_id = Id::unique("pinned_scroll");
                 with_overlay_scroll(ui, scroll_id, |ui| {
                     let out = egui::ScrollArea::vertical()
                         .id_salt("pinned_scroll")
                         .max_height(max_h)
                         .auto_shrink([false, true])
                         .show(ui, draw);
-                    ((), out.state.offset.y, out.id)
+                    ((), out.state.clamped_offset().y, out.id)
                 });
             } else {
                 draw(ui);

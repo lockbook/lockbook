@@ -7,6 +7,7 @@ use lb_c::model::text::offset_types::Grapheme;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
+use workspace_rs::tab::markdown_editor::table::TableAction;
 use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
 
 use super::keyboard::AndroidKeys;
@@ -27,6 +28,21 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarStat
     env.new_string(serde_json::to_string(&state).expect("serialize toolbar state"))
         .expect("create toolbar state")
         .into_raw()
+}
+
+/// Inserts a table of `columns` columns and `rows` rows, its header one.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTable(
+    _env: JNIEnv, _: JClass, obj: jlong, columns: jint, rows: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let Some(editor) = obj.workspace.current_tab_markdown_mut() else { return };
+    if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
+        return;
+    }
+    let (columns, rows) = (columns.max(1) as usize, rows.max(1) as usize - 1);
+    let event = Event::Table(TableAction::Insert { columns, rows });
+    obj.renderer.context.push_markdown_event(event);
 }
 
 #[unsafe(no_mangle)]
@@ -52,7 +68,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarActi
         if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
             return;
         }
-        let event = editor.android_toolbar_action(action);
+        let event = editor.toolbar_action(action);
         obj.renderer.context.push_markdown_event(event);
     }
 }
@@ -63,8 +79,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setNativeMarkdownTo
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.renderer.context.memory_mut(|m| {
-        m.data
-            .insert_temp(egui::Id::new("android_native_markdown_toolbar_height"), height.max(0.0))
+        m.data.insert_temp(
+            egui::Id::unique("android_native_markdown_toolbar_height"),
+            height.max(0.0),
+        )
     });
 }
 
@@ -130,6 +148,9 @@ fn android_response_to_java<'local>(
     let copied_text = env
         .new_string(response.copied_text)
         .expect("create copied_text string");
+    let copied_html = env
+        .new_string(response.copied_html)
+        .expect("create copied_html string");
     let copied_image: Vec<i8> = response
         .copied_image
         .into_iter()
@@ -166,10 +187,11 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;)V",
+        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
+            JValue::Object(&JObject::from(copied_html)),
             JValue::Object(&JObject::from(copied_image_array)),
             JValue::Bool(if response.has_url_opened { 1 } else { 0 }),
             JValue::Object(&JObject::from(url_opened)),
@@ -237,7 +259,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
         command: false,
     };
 
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 
     let Some(key) = AndroidKeys::from(key_code) else { return };
 
@@ -1054,6 +1076,18 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardCopy(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.renderer.context.push_markdown_event(Event::Copy);
+}
+
+/// Edit-menu "Copy Rendered": the selection as drawn, as plain text and
+/// HTML, delivered through the next response's `copied_text` / `copied_html`.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_copyRendered(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer
+        .context
+        .push_markdown_event(Event::CopyRendered);
 }
 
 #[no_mangle]

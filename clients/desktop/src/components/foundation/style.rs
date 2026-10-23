@@ -73,7 +73,7 @@ pub fn install(ctx: &Context) {
 /// Classic `Lockbook::deferred_init` installs these; shell must too for
 /// `Image::from_bytes` (account QR) and other URI images.
 fn ensure_image_loaders(ctx: &Context) {
-    let id = Id::new("design_image_loaders_installed");
+    let id = Id::unique("design_image_loaders_installed");
     if ctx.data(|d| d.get_temp::<()>(id).is_some()) {
         return;
     }
@@ -82,28 +82,28 @@ fn ensure_image_loaders(ctx: &Context) {
 }
 
 fn ensure_style(ctx: &Context) {
-    let id = Id::new("design_style_installed");
+    let id = Id::unique("design_style_installed");
     if ctx.data(|d| d.get_temp::<()>(id).is_some()) {
         return;
     }
-    let mut style = (*ctx.style()).clone();
+    let mut style = (*ctx.global_style()).clone();
     style.spacing.item_spacing = Vec2::ZERO;
     style.animation_time = HOVER_ANIM_SECS;
     typography::install_text_styles(&mut style);
-    ctx.set_style(style);
+    ctx.set_global_style(style);
     ctx.data_mut(|d| d.insert_temp(id, ()));
 }
 
 /// Drop the style latch so the next [`install`] reapplies type / spacing
 /// (call after theme family changes that reset visuals).
 pub fn reinstall_style(ctx: &Context) {
-    ctx.data_mut(|d| d.remove_temp::<()>(Id::new("design_style_installed")));
+    ctx.data_mut(|d| d.remove_temp::<()>(Id::unique("design_style_installed")));
     ensure_style(ctx);
 }
 
 /// Install workspace fonts once (includes Phosphor).
 fn ensure_fonts(ctx: &Context) {
-    let id = Id::new("design_fonts_installed");
+    let id = Id::unique("design_fonts_installed");
     if ctx.data(|d| d.get_temp::<()>(id).is_some()) {
         return;
     }
@@ -115,7 +115,11 @@ fn ensure_fonts(ctx: &Context) {
 
 /// Ensure a theme exists; sync from OS when preference is system.
 pub fn ensure_theme(ctx: &Context) {
-    let has = ctx.memory(|m| m.data.get_temp::<Theme>(egui::Id::new("theme")).is_some());
+    let has = ctx.memory(|m| {
+        m.data
+            .get_temp::<Theme>(egui::Id::unique("theme"))
+            .is_some()
+    });
     if !has {
         set_mode_preference(ctx, ModePreference::System);
         let family = theme_family(ctx);
@@ -127,26 +131,26 @@ pub fn ensure_theme(ctx: &Context) {
 
 pub fn theme_family(ctx: &Context) -> ThemeFamily {
     ctx.data(|d| {
-        d.get_temp::<ThemeFamily>(Id::new(THEME_FAMILY_ID))
+        d.get_temp::<ThemeFamily>(Id::unique(THEME_FAMILY_ID))
             .unwrap_or_default()
     })
 }
 
 pub fn set_theme_family(ctx: &Context, family: ThemeFamily) {
-    ctx.data_mut(|d| d.insert_temp(Id::new(THEME_FAMILY_ID), family));
+    ctx.data_mut(|d| d.insert_temp(Id::unique(THEME_FAMILY_ID), family));
     ctx.set_lb_theme(family.build(resolved_mode(ctx)));
 }
 
 /// Current mode preference (system vs pinned).
 pub fn mode_preference(ctx: &Context) -> ModePreference {
     ctx.data(|d| {
-        d.get_temp::<ModePreference>(Id::new(MODE_PREF_ID))
+        d.get_temp::<ModePreference>(Id::unique(MODE_PREF_ID))
             .unwrap_or(ModePreference::System)
     })
 }
 
 pub fn set_mode_preference(ctx: &Context, pref: ModePreference) {
-    ctx.data_mut(|d| d.insert_temp(Id::new(MODE_PREF_ID), pref));
+    ctx.data_mut(|d| d.insert_temp(Id::unique(MODE_PREF_ID), pref));
 }
 
 /// Resolved light/dark for painting (preference + OS).
@@ -169,7 +173,9 @@ pub fn system_mode(ctx: &Context) -> Mode {
         return egui_theme_to_mode(theme);
     }
     let now = ctx.input(|i| i.time);
-    if let Some((cached, at)) = ctx.data(|d| d.get_temp::<(Mode, f64)>(Id::new(DETECTED_MODE_ID))) {
+    if let Some((cached, at)) =
+        ctx.data(|d| d.get_temp::<(Mode, f64)>(Id::unique(DETECTED_MODE_ID)))
+    {
         let remaining = OS_PROBE_TTL_SECS - (now - at);
         if remaining > 0.0 {
             ctx.request_repaint_after_secs(remaining.max(0.05) as f32);
@@ -180,7 +186,7 @@ pub fn system_mode(ctx: &Context) -> Mode {
         Ok(dark_light::Mode::Dark) => Mode::Dark,
         Ok(dark_light::Mode::Light | dark_light::Mode::Unspecified) | Err(_) => Mode::Light,
     };
-    ctx.data_mut(|d| d.insert_temp(Id::new(DETECTED_MODE_ID), (mode, now)));
+    ctx.data_mut(|d| d.insert_temp(Id::unique(DETECTED_MODE_ID), (mode, now)));
     ctx.request_repaint_after_secs(OS_PROBE_TTL_SECS as f32);
     mode
 }
@@ -195,7 +201,11 @@ fn egui_theme_to_mode(theme: EguiTheme) -> Mode {
 /// Apply preference → Lockbook theme mode when it differs.
 fn sync_mode_from_preference(ctx: &Context) {
     let want = resolved_mode(ctx);
-    let has = ctx.memory(|m| m.data.get_temp::<Theme>(egui::Id::new("theme")).is_some());
+    let has = ctx.memory(|m| {
+        m.data
+            .get_temp::<Theme>(egui::Id::unique("theme"))
+            .is_some()
+    });
     if !has {
         ctx.set_lb_theme(theme_family(ctx).build(want));
         return;

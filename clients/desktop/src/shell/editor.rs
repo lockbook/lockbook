@@ -1,4 +1,4 @@
-//! Shell tab strip + Workspace content (`show_tabs = false`, desktop tab policy).
+//! Shell tab strip + Workspace content (desktop tab policy).
 
 use egui::{Align, Layout, Ui};
 
@@ -22,7 +22,6 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
             return;
         };
 
-        ready.workspace.show_tabs = false;
         ready.workspace.desktop_tab_policy = true;
         ready.workspace.sidebar_open = sidebar_open;
         // Workspace create-dest follows the open tab. Tree `cursor` is selection

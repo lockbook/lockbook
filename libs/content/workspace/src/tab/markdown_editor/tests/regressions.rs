@@ -107,7 +107,7 @@ fn inline_image_advance_matches_rendered_width() {
             embeds: embed,
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
+        super::super::MdConfig { readonly: false, ext: "md".to_string() },
     );
     let mut ws = super::harness::TestEditor::from_editor(editor);
 
@@ -1274,7 +1274,7 @@ fn image_load_layout_consistent() {
             embeds: embed,
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
+        super::super::MdConfig { readonly: false, ext: "md".to_string() },
     );
     let mut ws = TestEditor::from_editor(editor);
 
@@ -1428,6 +1428,55 @@ fn toggle_list_style_on_empty_item_switches() {
             (Grapheme(*expected_cursor), Grapheme(*expected_cursor)),
             "case {desc:?}: cursor expected={expected_cursor} got={got_sel:?}",
         );
+    }
+}
+
+/// Regression: toggling a block style inside a container of another kind
+/// used to strip that container's marker and put the new one in its place
+/// (`> quoted` + bullet → `* quoted`). Only a container of the toggled
+/// style's kind gives up its prefix; otherwise the new marker nests.
+#[test]
+fn toggle_block_style_nests_inside_other_containers() {
+    use comrak::nodes::{ListType, NodeList, NodeValue};
+
+    let bullet = || Event::ToggleStyle {
+        region: Region::Selection,
+        style: NodeValue::List(NodeList { list_type: ListType::Bullet, ..Default::default() }),
+    };
+    let task = || Event::ToggleStyle {
+        region: Region::Selection,
+        style: NodeValue::List(NodeList {
+            list_type: ListType::Bullet,
+            is_task_list: true,
+            ..Default::default()
+        }),
+    };
+    let quote = || Event::ToggleStyle { region: Region::Selection, style: NodeValue::BlockQuote };
+
+    // (description, input, cursor, event, expected_text)
+    let cases: &[(&str, &str, usize, Event, &str)] = &[
+        ("bullet inside quote", "> quoted\n", 4, bullet(), "> * quoted\n"),
+        ("bullet inside two-line quote", "> one\n> two\n", 3, bullet(), "> * one\n> two\n"),
+        ("quote inside bullet", "- item\n", 3, quote(), "- > item\n"),
+        ("quote inside empty bullet", "- \n", 2, quote(), "- > \n"),
+        ("bullet inside empty quote", "> \n", 2, bullet(), "> * \n"),
+        ("unapply quote around a bullet", "> - item\n", 5, quote(), "- item\n"),
+        ("unapply bullet inside quote", "> - item\n", 5, bullet(), "> item\n"),
+        ("type change across a quote", "- > quoted\n", 5, task(), "* [ ] > quoted\n"),
+    ];
+    for (desc, input, cursor, ev, expected) in cases {
+        let mut ws = TestEditor::new(input);
+        ws.enter_frame();
+        ws.push(Event::Select {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(Grapheme(*cursor)),
+                end: Location::Grapheme(Grapheme(*cursor)),
+            },
+        });
+        ws.enter_frame();
+        ws.push(ev.clone());
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), *expected, "case {desc:?}");
     }
 }
 
@@ -1625,6 +1674,35 @@ fn tab_indents_parent_to_child_keeps_child_level() {
     ws.push(Event::Indent { deindent: false });
     ws.enter_frame();
     assert_eq!(ws.get_text(), "- bullet parent\n    - child four\n    - asdf\n");
+}
+
+/// Regression: Enter on an empty `> ` line of a quote inside a list item
+/// used to insert a bare newline, leaving a stray `>` (comrak ends the
+/// item before the content-less quote line, so the line looked like it
+/// was outside every container). It closes the quote like it does at the
+/// top level, keeping the item's indentation.
+#[test]
+fn newline_closes_empty_quote_inside_item() {
+    let cases: &[(&str, &str)] = &[
+        ("- item\n  > quoted\n  > \n", "- item\n  > quoted\n  \n"),
+        ("- [x] b\n\n  para\n\n  > quoted\n  > \n", "- [x] b\n\n  para\n\n  > quoted\n  \n"),
+        ("- a\n  - b\n    > q\n    > \n", "- a\n  - b\n    > q\n    \n"),
+    ];
+    for (input, expected) in cases {
+        let mut ws = TestEditor::new(input);
+        ws.enter_frame();
+        let cursor = Grapheme(input.chars().count() - 1); // end of the empty quote line
+        ws.push(Event::Select {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(cursor),
+                end: Location::Grapheme(cursor),
+            },
+        });
+        ws.enter_frame();
+        ws.push(Event::Newline { shift: false });
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), *expected, "input {input:?}");
+    }
 }
 
 /// Newline at the end of a nested list item must start the sibling at
@@ -1833,14 +1911,17 @@ fn masked_plaintext_mdedit_renders_glyphs() {
     let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(300., 30.));
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
     let frame = |edit: &mut MdEdit| {
-        let _ =
-            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
-                ctx.set_lb_theme(Theme::default(Mode::Dark));
-                crate::register_font_system(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    edit.show(ui, rect, egui::Id::new("key_field"));
-                });
+        ctx.run_pass(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+            ctx.set_lb_theme(Theme::default(Mode::Dark));
+            crate::register_font_system(ctx);
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    edit.show(ui, rect, egui::Id::unique("key_field"));
+                })
             });
+        })
+        .textures_delta
+        .clear();
     };
     frame(&mut edit);
 
@@ -1896,14 +1977,17 @@ fn bounded_composer_scrolls_cursor_into_view() {
     let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(600., 140.));
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
     let frame = |edit: &mut MdEdit| {
-        let _ =
-            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
-                ctx.set_lb_theme(Theme::default(Mode::Dark));
-                crate::register_font_system(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    edit.show(ui, rect, egui::Id::new("composer"));
-                });
+        ctx.run_pass(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+            ctx.set_lb_theme(Theme::default(Mode::Dark));
+            crate::register_font_system(ctx);
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    edit.show(ui, rect, egui::Id::unique("composer"));
+                })
             });
+        })
+        .textures_delta
+        .clear();
     };
 
     let end = {
@@ -2256,7 +2340,7 @@ fn phone_toolbar_never_pushed_off_screen() {
             embeds: Box::new(embeds.clone()),
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: false },
+        super::super::MdConfig { readonly: false, ext: "md".into() },
     );
     assert!(editor.edit.renderer.touch_mode, "touch mode");
     assert!(editor.edit.phone_mode, "phone mode");
@@ -2314,18 +2398,22 @@ fn phone_toolbar_never_pushed_off_screen() {
     let frames_run = std::cell::Cell::new(0u32);
     let frame = |editor: &mut super::super::Editor, events: Vec<egui::Event>| -> (f32, f32) {
         let mut content = (f32::NAN, f32::NAN);
-        let _ = ctx.run(
+        ctx.run_pass(
             egui::RawInput { screen_rect: Some(screen), events, ..Default::default() },
             |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
                 editor.focus(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    editor.show(ui);
-                    content = (ui.min_rect().max.y, ui.max_rect().max.y);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        editor.show(ui);
+                        content = (ui.min_rect().max.y, ui.max_rect().max.y);
+                    })
                 });
             },
-        );
+        )
+        .textures_delta
+        .clear();
         // The layout-level signal: embed painting (which runs for off-screen
         // neighbor rows) must never drag the toolbar allocation off screen.
         // The first frames lay out before fonts/virtualization settle.
@@ -2379,6 +2467,8 @@ fn phone_toolbar_never_pushed_off_screen() {
                     unit: egui::MouseWheelUnit::Point,
                     delta: egui::vec2(0.0, -40.0),
                     modifiers: Default::default(),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
                 },
             ],
         );
@@ -2408,6 +2498,8 @@ fn phone_toolbar_never_pushed_off_screen() {
                     unit: egui::MouseWheelUnit::Point,
                     delta: egui::vec2(0.0, 35.0),
                     modifiers: Default::default(),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
                 },
             ],
         );
@@ -2548,4 +2640,68 @@ fn down_arrow_into_folded_tail_stops_at_visible_end() {
     let fold = &ws.editor.edit.renderer.bounds.folds[0];
     assert!(!fold.conceals(landed), "landed inside folded contents at {}", landed.0);
     assert_eq!(landed, fold.contents.start(), "doc: {doc:?}");
+}
+
+/// Clicking away mid-composition ends it with its text as typed and the
+/// caret where clicked, through what fcitx5 on Wayland sends after the
+/// click interrupts it: the composition again, then an empty preedit.
+#[test]
+fn click_away_mid_composition_keeps_its_text_and_the_click() {
+    use egui::{Event as Egui, ImeEvent};
+    let preedit =
+        |text: &str| Egui::Ime(ImeEvent::Preedit { text: text.into(), active_range_chars: None });
+    let at = |offset: usize| Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(offset)),
+            end: Location::Grapheme(Grapheme(offset)),
+        },
+    };
+
+    let mut ws = TestEditor::new("hello world\n");
+    ws.push(at(11));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("zh")]);
+    ws.enter_frame_with_input(vec![preedit("zhong")]);
+    assert_eq!(ws.get_text(), "hello worldzhong\n");
+
+    ws.push(at(5));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("zhong"), preedit("zhong")]);
+    ws.enter_frame_with_input(vec![]);
+    ws.enter_frame_with_input(vec![preedit("")]);
+    ws.enter_frame_with_input(vec![]);
+
+    let renderer = &ws.editor.edit.renderer;
+    assert_eq!(ws.get_text(), "hello worldzhong\n");
+    assert_eq!(renderer.buffer.current.selection, (Grapheme(5), Grapheme(5)));
+    assert!(renderer.ime_marked.is_none());
+
+    // the next composition starts at the caret
+    ws.enter_frame_with_input(vec![preedit("n")]);
+    assert_eq!(ws.get_text(), "hellon worldzhong\n");
+}
+
+/// What a click away abandons is ignored only until the editor gets input of
+/// its own: a later composition with the same text still commits.
+#[test]
+fn abandoned_composition_text_commits_after_typing() {
+    use egui::{Event as Egui, ImeEvent};
+    let preedit =
+        |text: &str| Egui::Ime(ImeEvent::Preedit { text: text.into(), active_range_chars: None });
+    let at = |offset: usize| Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(offset)),
+            end: Location::Grapheme(Grapheme(offset)),
+        },
+    };
+
+    let mut ws = TestEditor::new("ab\n");
+    ws.push(at(2));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("n")]);
+    ws.push(at(0));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![Egui::Text("x".into())]);
+    ws.enter_frame_with_input(vec![Egui::Ime(ImeEvent::Commit("n".into()))]);
+    assert_eq!(ws.get_text(), "xnabn\n");
 }

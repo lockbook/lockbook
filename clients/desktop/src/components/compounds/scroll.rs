@@ -81,7 +81,7 @@ pub fn fixed_height_list<R>(
                             ui.spacing_mut().item_spacing.y = 0.0;
                             add_contents(ui)
                         });
-                    (out.inner, out.state.offset.y, out.id)
+                    (out.inner, out.state.clamped_offset().y, out.id)
                 })
             })
             .inner;

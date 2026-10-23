@@ -56,7 +56,7 @@ pub fn show_delete_tree(
 
     // Outside hairline (not Frame Inside — sticky fills cover it). Stroke is
     let pin_top_r = crate::components::Radius::Control.pts();
-    let scroll_id = Id::new("shell_delete_tree_scroll");
+    let scroll_id = Id::unique("shell_delete_tree_scroll");
     let radius = crate::components::Radius::Control.corner();
 
     ui.allocate_ui_with_layout(vec2(w, list_h), Layout::top_down(egui::Align::Min), |ui| {
@@ -92,7 +92,7 @@ pub fn show_delete_tree(
                             },
                         );
                     });
-                ((), out.state.offset.y, out.id)
+                ((), out.state.clamped_offset().y, out.id)
             });
         });
     });
@@ -136,7 +136,11 @@ fn paint_delete_row(
     };
     let open = expanded.contains(&row.id);
     let icon = row_type_icon(&name, row.is_folder, open);
-    let id = ui.id().with("delete_tree_row").with(row.id).with(elevated);
+    let id = ui
+        .scope_id()
+        .with("delete_tree_row")
+        .with(row.id)
+        .with(elevated);
     // Folders expand; docs are static (no wash) — see module interactivity table.
     let chrome = TreeRowChrome::new(row.depth)
         .with_sheet_pin(elevated, pin_vy, pin_top_r)
