@@ -1,3 +1,4 @@
+use crate::style::button::COPY_FEEDBACK_SECS;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
@@ -498,6 +499,22 @@ impl<'ast> MdEdit {
                 };
 
                 ctx.copy_text(text);
+            }
+            Event::CopyCode { node: range } => {
+                let code = root
+                    .descendants()
+                    .find_map(|node| match &node.data.borrow().value {
+                        NodeValue::CodeBlock(code) if self.renderer.node_range(node) == range => {
+                            Some(code.literal.clone())
+                        }
+                        _ => None,
+                    });
+                if let Some(code) = code {
+                    // without the last line's newline, a pasted command waits to be run
+                    ctx.copy_text(code.strip_suffix('\n').unwrap_or(&code).into());
+                    let until = ctx.input(|i| i.time) + COPY_FEEDBACK_SECS;
+                    self.renderer.code_copied = Some((range, until));
+                }
             }
             Event::CopyRendered => {
                 let mut range = self.clipboard_range(current_selection);

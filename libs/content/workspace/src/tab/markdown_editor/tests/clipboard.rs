@@ -143,3 +143,24 @@ fn shifted_copy_event_copies_rendered() {
     ws.enter_frame_with_input_held(vec![egui::Event::Cut], shifted);
     assert_eq!(ws.get_text(), "run ~~`ls`~~ now");
 }
+
+#[test]
+fn code_block_copies_its_code() {
+    use comrak::nodes::NodeValue;
+
+    let doc = "> ```sh\n> echo hi\n>   ls -la\n> ```\n\n    indented\n";
+    let mut ws = TestEditor::new(doc);
+    let r = &mut ws.editor.edit.renderer;
+    let arena = comrak::Arena::new();
+    let root = r.reparse(&arena);
+    let code_blocks = root
+        .descendants()
+        .filter(|node| matches!(node.data.borrow().value, NodeValue::CodeBlock(_)));
+    let nodes: Vec<_> = code_blocks.map(|node| r.node_range(node)).collect();
+    // no container prefixes, no fences, no last newline
+    for (node, code) in nodes.into_iter().zip(["echo hi\n  ls -la", "indented"]) {
+        ws.push(Event::CopyCode { node });
+        ws.enter_frame();
+        assert_eq!(ws.copied.take().as_deref(), Some(code));
+    }
+}

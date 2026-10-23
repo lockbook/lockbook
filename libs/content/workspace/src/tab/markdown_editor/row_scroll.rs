@@ -42,6 +42,7 @@ impl MdRender {
         self.row_scrollers.clear();
         self.code_line_clips.clear();
         self.edge_fades.clear();
+        self.copy_buttons.clear();
     }
 
     /// How far `key`, `content` wide and showing in `viewport`, is scrolled

@@ -164,6 +164,8 @@ pub struct MdRender {
     /// Edge fades of scrolled tables and code blocks `(rect, left color,
     /// right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
+    /// Code blocks' copy buttons, painted over the text.
+    pub copy_buttons: Vec<widget::block::leaf::code_block::CopyButton>,
     pub render_events: Vec<input::Event>,
     /// Touch targets painted this frame.
     pub touch_targets: Vec<(Rect, TouchTarget)>,
@@ -184,6 +186,9 @@ pub struct MdRender {
     /// Per-frame: each line of a scrolled code block, as the rect it shows
     /// in and its source.
     pub code_line_clips: Vec<(Rect, (Grapheme, Grapheme))>,
+    /// A code block whose code was copied, by its range, and until when its
+    /// button says so.
+    pub code_copied: Option<((Grapheme, Grapheme), f64)>,
     /// Drag action emitted by a list marker this frame, drained by
     /// `MdEdit::show` to update / commit the in-progress block drag
     /// (mirrors how `render_events` carries buffer edits out of render).
@@ -648,10 +653,12 @@ impl MdRender {
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
             code_line_clips: Default::default(),
+            code_copied: None,
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -743,10 +750,12 @@ impl MdRender {
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
             code_line_clips: Default::default(),
+            code_copied: None,
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -919,10 +928,12 @@ impl Editor {
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
             code_line_clips: Default::default(),
+            code_copied: None,
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),

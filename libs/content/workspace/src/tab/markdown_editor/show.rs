@@ -1229,6 +1229,9 @@ impl MdEdit {
         for (rect, left, right) in std::mem::take(&mut self.renderer.edge_fades) {
             crate::style::paint_fade(ui.painter(), rect, left, right, false);
         }
+        for button in std::mem::take(&mut self.renderer.copy_buttons) {
+            button.paint(ui);
+        }
         // strikethroughs and underlines painted on top of text
         for deco in std::mem::take(&mut self.renderer.deco_lines) {
             ui.painter()

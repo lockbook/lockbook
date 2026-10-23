@@ -3,19 +3,21 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Color32, Pos2, Rangef, Rect, Stroke, Ui, UiBuilder, Vec2};
+use egui::{Align2, Color32, CursorIcon, Pos2, Rangef, Rect, Sense, Stroke, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
 use comrak::nodes::NodeValue;
 
-use crate::tab::markdown_editor::MdRender;
+use crate::style::{FG_HOVER, Radius, phosphor, phosphor_font_id, tip_text};
+use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FontFamily, Format, Layout, Row, WrapUnitLayout,
 };
+use crate::tab::markdown_editor::{MdRender, TouchTarget};
 
 use crate::theme::palette_v2::{ThemeExt as _, translucent_over};
 
@@ -37,6 +39,38 @@ fn row_right(row: &Row) -> f32 {
         .iter()
         .map(|frag| frag.rect.right())
         .fold(0., f32::max)
+}
+
+/// A code block's copy button, painted over the text once it is.
+pub struct CopyButton {
+    rect: Rect,
+    /// The block's fill as it shows, which the button covers its code with.
+    ground: Color32,
+    hovered: bool,
+    /// Shows a check: the code was just copied.
+    copied: bool,
+}
+
+impl CopyButton {
+    pub fn paint(&self, ui: &Ui) {
+        let theme = ui.ctx().get_lb_theme();
+        let fill = if self.hovered {
+            theme.wash_toward_neutral_fg(self.ground, FG_HOVER)
+        } else {
+            self.ground
+        };
+        let (glyph, ink) = if self.copied {
+            (phosphor::CHECK, theme.neutral_fg())
+        } else if self.hovered {
+            (phosphor::COPY, theme.neutral_fg())
+        } else {
+            (phosphor::COPY, theme.neutral_fg_secondary())
+        };
+        let painter = ui.painter();
+        painter.rect_filled(self.rect, Radius::Sm.corner(), fill);
+        let size = self.rect.height() * 0.6;
+        painter.text(self.rect.center(), Align2::CENTER_CENTER, glyph, phosphor_font_id(size), ink);
+    }
 }
 
 /// Language tokens whose bundled syntect grammar panics inside
@@ -297,7 +331,8 @@ impl<'ast> MdRender {
     }
 
     /// Paints a code block's box and its rows. Code does not wrap: a block
-    /// whose code is wider than the box scrolls along its rows.
+    /// whose code is wider than the box scrolls along its rows. A code
+    /// block proper gets a button that copies its code.
     fn show_code_rows(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, rect: Rect, rows: Vec<CodeRow>,
     ) {
@@ -324,6 +359,15 @@ impl<'ast> MdRender {
             .filter(|row| row.scrolls)
             .map(|row| row.layout.rows.iter().map(row_right).fold(0., f32::max))
             .fold(0., f32::max);
+        let copies =
+            self.interactive && matches!(node.data.borrow().value, NodeValue::CodeBlock(_));
+        let button = self.copy_button_rect(rect);
+        // on touch the button always shows: the code scrolls clear of it
+        let content = if copies && self.touch_mode {
+            content + rect.right() - button.left() - padding
+        } else {
+            content
+        };
         let start = self.node_range(node).start();
         let ordinal = self.bounds.code_blocks.binary_search(&start);
         let key = RowScroller::Code(ordinal.unwrap_or_else(|ordinal| ordinal));
@@ -381,7 +425,7 @@ impl<'ast> MdRender {
             );
         }
 
-        // the fill composited: what the fades cover code with
+        // the fill composited: what the fades and the button cover code with
         let ground = theme
             .code_variant()
             .map_or(theme.neutral_bg(), |code| code.background);
@@ -399,6 +443,19 @@ impl<'ast> MdRender {
             let bands = [(top, bottom, ground)];
             self.row_scroll_chrome(ui, key, inside, clip, content, &bands);
         }
+
+        if copies {
+            self.show_copy_button(ui, node, rect, button, ground);
+        }
+    }
+
+    /// Where a code block in `rect` has its copy button: over the end of its
+    /// first row.
+    fn copy_button_rect(&self, rect: Rect) -> Rect {
+        let size = self.layout.row_height + self.layout.row_spacing;
+        let inset = self.layout.block_padding - self.layout.row_spacing / 2.;
+        let min = rect.right_top() + Vec2::new(-inset - size, inset);
+        Rect::from_min_size(min, Vec2::splat(size))
     }
 
     /// Recompute [`Bounds::code_blocks`]. Depends on text only.
@@ -420,6 +477,51 @@ impl<'ast> MdRender {
                 .retain(|key, _| !matches!(key, RowScroller::Code(_)));
         }
         self.bounds.code_blocks = code_blocks;
+    }
+
+    /// The button at a code block's top right that copies its code, shown
+    /// while the pointer is over the block (always, on touch).
+    fn show_copy_button(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, rect: Rect, button: Rect,
+        ground: Color32,
+    ) {
+        if self.painting_drag_float {
+            return;
+        }
+        let range = self.node_range(node);
+        let now = ui.input(|i| i.time);
+        let copied = self
+            .code_copied
+            .filter(|(copied, until)| *copied == range && now < *until);
+        if let Some((_, until)) = copied {
+            ui.ctx().request_repaint_after_secs((until - now) as f32);
+        }
+        if !self.touch_mode && copied.is_none() && !ui.rect_contains_pointer(rect) {
+            return;
+        }
+
+        let copy = Event::CopyCode { node: range };
+        let resp = ui.interact(button, ui.scope_id().with(("code_copy", range)), Sense::click());
+        if resp.clicked() {
+            self.render_events.push(copy.clone());
+        }
+        let hovered = resp.hovered();
+        if hovered {
+            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+        }
+        tip_text(ui.ctx(), &resp, if copied.is_some() { "Copied" } else { "Copy code" });
+        // a finger's reach, on the first row only
+        let target = Rect::from_min_max(
+            Pos2::new(button.right() - 44., rect.top()),
+            Pos2::new(rect.right(), button.bottom() + self.layout.row_spacing / 2.),
+        );
+        self.touch_targets.push((target, TouchTarget::Tap(copy)));
+        self.copy_buttons.push(CopyButton {
+            rect: button,
+            ground,
+            hovered,
+            copied: copied.is_some(),
+        });
     }
 
     fn reveal_indented_code_block(&self, node: &'ast AstNode<'ast>, synthetic: bool) -> bool {
