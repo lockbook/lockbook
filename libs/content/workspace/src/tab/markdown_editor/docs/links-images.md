@@ -1,5 +1,5 @@
 # Links and images
-A link goes to another Lockbook file or a web URL. Syntax is a normal markdown link, wiki link, or autolink. On open, a Lockbook file stays in the app, while a web URL resolves through the host system.
+A link goes to another Lockbook file or a web URL. Syntax is a normal markdown link, wiki link, or autolink; an image is a markdown image or a wiki embed. On open, a Lockbook file stays in the app, while a web URL resolves through the host system.
 
 ## Scope
 A link means the same file, or fails the same way, for everyone who can read the note. A note's scope is the subtree of its innermost shared ancestor (the whole tree for a note under no share), and relative paths and wiki titles resolve inside it: wiki titles match below the top, nearest first, and as in Obsidian only `.md` may be left off (`[[Plan]]` is `Plan.md`, a drawing is `[[Sketch.svg]]`); equally near matches are a tie, which resolves to nothing. Inside the scope, where a recipient places a share changes nothing.
@@ -54,4 +54,6 @@ Grouping attachments is good. Constraints:
 Pasted images land in a sibling `imports/` folder today; the name is not intuitive, and the path is not frozen.
 
 ## Embeds
+`![[title]]` embeds the file a wiki title names. A title ending in an image's extension (or `.svg`) is an image, and everything `![]()` is: one glyph in the wrap, green, hidden, or red by the same rules, Edit selecting what is between the brackets, with Obsidian's `|W` or `|WxH` after the pipe as its size. Any other embed (`![[Plan]]`, `![[Plan#Goals]]`, `![[paper.pdf]]`) is the wiki link it names. Renames and moves rewrite an embed as they do a wiki link, `!` kept.
+
 We are open to embedding more than images. It is oddly specific that an image embeds and a drawing or a table file does not — we already show arbitrary tab types in search previews. SVG is particularly exciting.

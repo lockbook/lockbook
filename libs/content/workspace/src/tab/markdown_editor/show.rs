@@ -883,11 +883,8 @@ impl MdEdit {
                     if let Some(link) = &link_target {
                         match action {
                             LinkMenuAction::Open => {
-                                if link.is_wikilink {
-                                    self.renderer.open_wikilink(&link.url, ui.ctx(), false);
-                                } else {
-                                    self.renderer.open_resolved_link(&link.url, ui.ctx(), false);
-                                }
+                                self.renderer
+                                    .open_dest(&link.url, link.is_wikilink, ui.ctx())
                             }
                             LinkMenuAction::Copy => ui
                                 .ctx()

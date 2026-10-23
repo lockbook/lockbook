@@ -18,6 +18,7 @@ use crate::style::{TypeRole, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::fragment::slugify;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
+use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
 };
@@ -400,6 +401,14 @@ impl<'ast> MdRender {
         }
     }
 
+    /// Opens a link's destination: a wiki title when `wikilink`, else a URL.
+    pub fn open_dest(&self, dest: &str, wikilink: bool, ctx: &egui::Context) {
+        match wikilink {
+            true => self.open_wikilink(dest, ctx, false),
+            false => self.open_resolved_link(dest, ctx, false),
+        }
+    }
+
     /// Opens the file a wikilink names, behind a confirmation when it means
     /// different files to different readers. A title nothing matches creates
     /// the note where the resolver has a place for it.
@@ -513,10 +522,11 @@ impl<'ast> MdRender {
         let root = self.reparse(&arena);
         let selection = self.buffer.current.selection;
         root.descendants().find_map(|node| {
+            let is_image = image_url(node).is_some();
             let target = match &node.data.borrow().value {
                 NodeValue::Link(l) => (l.url.clone(), false, false),
                 NodeValue::Image(l) => (l.url.clone(), false, true),
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, is_image),
                 _ => return None,
             };
             (!target.0.is_empty() && self.node_range(node).intersects(&selection, true))
@@ -980,8 +990,9 @@ impl<'ast> MdEdit {
         let frag = self.renderer.fragment_at_pos(pos)?;
         let offset = frag.source_range.start();
         for node in root.descendants() {
+            let is_image = image_url(node).is_some();
             let (url, is_wikilink, is_image) = match &node.data.borrow().value {
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, is_image),
                 NodeValue::Image(l) => (l.url.clone(), false, true),
                 NodeValue::Link(l) => (l.url.clone(), false, false),
                 _ => continue,
@@ -1012,7 +1023,10 @@ impl<'ast> MdEdit {
         let node_range = self.renderer.node_range(node);
         let is_image = matches!(node.data.borrow().value, NodeValue::Image(_));
         match &node.data.borrow().value {
-            NodeValue::WikiLink(_) => ((node_range.start() + 2, node_range.end() - 2), false),
+            NodeValue::WikiLink(wl) => {
+                let open = if wl.embed { 3 } else { 2 };
+                ((node_range.start() + open, node_range.end() - 2), false)
+            }
             NodeValue::Link(_) | NodeValue::Image(_) => {
                 let url = node_link_url(node);
                 if !is_image && !url.is_empty() && self.renderer.link_is_auto(node, &url) {

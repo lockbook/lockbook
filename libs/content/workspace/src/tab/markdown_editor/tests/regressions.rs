@@ -234,6 +234,35 @@ fn enter_atom_selects_wikilink_interior() {
     assert_eq!(&ws.editor.edit.renderer.buffer[sel], "target", "interior selected: {sel:?}");
 }
 
+/// A wiki embed whose title names an image is an image: one atom, sized by
+/// its label. Any other embed is a link. Edit selects either's interior.
+#[test]
+fn wiki_embeds_of_images_are_images() {
+    let mut ws = TestEditor::new("![[Chart.png|120]] ![[Plan]]\n");
+    ws.enter_frame();
+
+    let images = ws.editor.edit.renderer.bounds.images.clone();
+    let chart = ((0).into(), (18).into());
+    assert_eq!(images, [chart]);
+    let arena = Arena::new();
+    let root = ws.editor.edit.renderer.reparse(&arena);
+    let embed = root
+        .descendants()
+        .find(|n| ws.editor.edit.renderer.node_range(n) == chart);
+    let size = ws.editor.edit.renderer.image_logical_size(embed.unwrap());
+    assert_eq!(size.map(|s| s.x), Some(120.0));
+
+    let plan = ((19).into(), (28).into());
+    for (atom, interior) in [(chart, "Chart.png|120"), (plan, "Plan")] {
+        ws.push(Event::Select { region: atom.into() });
+        ws.enter_frame();
+        ws.push(Event::EnterAtom);
+        ws.enter_frame();
+        let sel = ws.editor.edit.renderer.buffer.current.selection;
+        assert_eq!(&ws.editor.edit.renderer.buffer[sel], interior);
+    }
+}
+
 #[test]
 fn long_link_stays_inside_render_area() {
     // Long links should wrap at UAX#14 break opportunities (`/`,
