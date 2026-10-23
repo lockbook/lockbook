@@ -454,6 +454,9 @@ pub struct Editor {
     /// The note's headings as the outline lists them, for the text at the
     /// `text_seq` beside them.
     outline_rows: Option<(u64, Vec<widget::outline::OutlineRow>)>,
+    /// The notes linking here as the card lists them, for the index version
+    /// beside them.
+    linked: Option<(u64, Vec<widget::outline::LinkedNote>)>,
     /// Where the outline card stands this frame; None once it has faded out.
     card: Option<widget::outline::CardPlace>,
     /// Where a heading link lands, at the top of the view. Its row is laid
@@ -987,6 +990,7 @@ impl Editor {
             selection_moved: false,
             outline_offered: false,
             outline_rows: None,
+            linked: None,
             card: None,
             landing: None,
             painted_rows: Vec::new(),
@@ -2153,18 +2157,26 @@ impl Editor {
         let (seq, rows) = self.outline_rows.take().unwrap_or_default();
 
         let id = Id::unique("md_outline").with(self.edit.file_id);
+        let (version, linked) = self.linked_notes();
         let (chosen, popup) = if self.edit.renderer.touch_mode {
             self.outline
-                .show(ui.ctx(), id.with("sheet"), &rows, current)
+                .show(ui.ctx(), id.with("sheet"), &rows, current, &linked)
         } else {
-            let (chosen, rect, dismissed) =
-                self.outline
-                    .card(ui.ctx(), id.with("card"), self.card, canvas, &rows, current);
+            let (chosen, rect, dismissed) = self.outline.card(
+                ui.ctx(),
+                id.with("card"),
+                self.card,
+                canvas,
+                &rows,
+                current,
+                &linked,
+            );
             if dismissed {
                 self.persistence.set_sidecar_open(false);
             }
             (chosen, rect.filter(|_| self.card.is_some_and(|c| c.floating && c.open)))
         };
+        self.linked = Some((version, linked));
         self.outline_rows = Some((seq, rows));
         if let Some(rect) = popup {
             self.edit
@@ -2172,13 +2184,57 @@ impl Editor {
                 .touch_targets
                 .push((rect, TouchTarget::Popup));
         }
-        if let Some(slug) = chosen {
-            self.open_at_heading(&slug);
-            // a reader who jumped didn't ask for the keyboard
-            if !self.edit.renderer.touch_mode || self.keyboard_visible {
-                self.focus(ui.ctx());
+        match chosen {
+            Some(widget::outline::Choice::Heading(slug)) => {
+                self.open_at_heading(&slug);
+                // a reader who jumped didn't ask for the keyboard
+                if !self.edit.renderer.touch_mode || self.keyboard_visible {
+                    self.focus(ui.ctx());
+                }
+            }
+            Some(widget::outline::Choice::Note { id, span }) => {
+                use crate::tab::ExtendedOutput as _;
+                let new_tab = ui.input(|i| i.modifiers.command);
+                match span {
+                    Some(span) => ui.ctx().open_link_at(id, span, new_tab),
+                    None => ui.ctx().open_link(id, None, new_tab),
+                }
+            }
+            None => {}
+        }
+    }
+
+    /// The notes with links to this one, by path, each with its links here
+    /// in order, kept until the index changes.
+    fn linked_notes(&mut self) -> (u64, Vec<widget::outline::LinkedNote>) {
+        use crate::file_cache::FilesExt as _;
+        let files = self.edit.renderer.files.read().unwrap();
+        let version = files.notes.version();
+        if let Some((at, linked)) = self.linked.take() {
+            if at == version {
+                return (at, linked);
             }
         }
+        let mut linked: Vec<widget::outline::LinkedNote> = vec![];
+        for b in files.notes.backlinks(&*files, self.edit.file_id) {
+            let mention = widget::outline::Mention {
+                context: b.link.context,
+                label: b.link.label,
+                span: b.link.span,
+            };
+            match linked.last_mut() {
+                Some(note) if note.id == b.note => note.links.push(mention),
+                _ => {
+                    let name = files.get_by_id(b.note).map_or("", |f| f.name.as_str());
+                    linked.push(widget::outline::LinkedNote {
+                        id: b.note,
+                        title: crate::file_cache::wiki_title(name).to_string(),
+                        links: vec![mention],
+                    });
+                }
+            }
+        }
+        (version, linked)
     }
 
     pub fn open_navigate(&mut self, byte_range: std::ops::Range<usize>) {
@@ -2192,6 +2248,34 @@ impl Editor {
             .clamp(0.into(), last);
         self.select_from_outside((start, end));
         self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+    }
+
+    /// Lands on the text at `byte_range`, as on a heading: near the top of
+    /// the view, washed for a moment, any fold hiding it opened, and the
+    /// caret at its start except while reading on touch.
+    pub fn open_at_text(&mut self, byte_range: std::ops::Range<usize>) {
+        let segs = &self.edit.renderer.buffer.current.segs;
+        let last = segs.last_cursor_position();
+        let start = segs
+            .byte_to_char_floor(Byte(byte_range.start))
+            .clamp(0.into(), last);
+        let end = segs
+            .byte_to_char_ceil(Byte(byte_range.end))
+            .clamp(0.into(), last);
+        let arena = Arena::new();
+        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        let reading = self.edit.renderer.touch_mode && !self.keyboard_visible;
+        let prior = self.edit.renderer.buffer.current.selection;
+        self.select_from_outside((start, end));
+        if !self.edit.renderer.plaintext {
+            self.edit.unfold_at_selection(&arena);
+        }
+        // an unfold above the text moves it; the selection moved with it
+        let range = self.edit.renderer.buffer.current.selection;
+        let caret = if reading { prior } else { (range.0, range.0) };
+        self.select_from_outside(caret);
+        self.landing = Some(Landing::Heading(range));
+        self.heading_flash = Some((range, web_time::Instant::now()));
     }
 
     /// Lands on the heading `fragment` names: its line near the top of the
@@ -2408,7 +2492,7 @@ const SIDECAR_MIN_TEXT: f32 = 560.0;
 enum Landing {
     /// The note's top, for a heading that isn't there.
     Top,
-    /// The heading from its text's start to its end.
+    /// Text from its start to its end: a heading's, or a link's.
     Heading((Grapheme, Grapheme)),
 }
 

@@ -28,15 +28,19 @@ On desktop and macOS the outline is a card docked beside the note, in the sideba
 
 The outline marks the caret's section after you type or move the caret, while the caret is on screen, and otherwise the section being read: the last heading at or above the reading line. That line sits near the top of the view and, over the last screen of scrolling, slides down to the note's last line, so every section near the end gets its turn, in order. Opening at a heading scrolls to where the reading line meets it, lower on the screen near the end, a later heading never landing above an earlier one, so the heading opened is the one marked. The marked row is followed into view, and a row jumps to its heading. An `open/` URL opened from outside the app keeps its heading on iOS, macOS, and Android.
 
+## Backlinks
+The outline has a second section, Backlinks, in the card on desktop and macOS and in the sheet on touch: every note with a link that reaches this one, by path, each link with the words around it and its own words in the text color. A note's row opens it; a link's row opens the note landing on the link as a heading link lands, in a new tab with ⌘. The section is always there; with nothing linking here it says so and how to add a link. Links are read from an index of every note's headings and links, built once and again for a note when its content changes; what each link reaches is worked out again after the notes or the tree change, which takes a few milliseconds for a thousand notes.
+
+## Changes that move links
+Renames, moves, deletes, creates, and shares go through the workspace, which works out what the change does to links before making it, by resolving them in the tree as it would be. A link that would stop reaching its file, or reach another one (a new or renamed note taking a wiki title), gets an edit to its destination, in the form it's written in, heading kept: the relative path from where things will be, the shortest wiki title that names the file, an absolute path's new path. Each edit is checked to reach the file it reaches now. A link in a note you can't edit, with no form that reaches the file from there, or whose destination isn't written in the link as it reads (a reference link, an escaped spelling) is listed as one that will break. Edits are never made without asking: the desktop rename, move, and create sheets show "Update 3 links in log and roadmap" with a switch that remembers your last choice, a drop onto a folder that would touch links opens the move sheet first, and the delete sheet names the notes whose links will break. Writes merge with whatever the note holds by then. Sync never edits links.
+
+A share is checked under the scope it will make: a link inside what's shared that opens the same file for everyone now and won't then is listed by note, naming the people. For files you own, a switch shares them with the same people too and changes the path links to them into external URLs, so the links open; wiki links to them stay as they are. Desktop shows all of this; touch and the agent will use the same workspace calls once their screens are designed.
+
 ## Broken, missing, unshared
 Obsidian-shaped wiki: people deliberately leave unresolved wiki links as placeholders; several notes pointing at the same missing title are linked together; click creates the note. For wiki links, "cannot resolve" may be normal.
 
-We still like broken-link checking so documents don't decay (markdown paths that rot). Red-if-unresolved is probably too blunt. Not shared with you → that link is broken.
-
-When you are about to share a file, tell you it links to files you are not also sharing, and offer to share them together (possibly special case to images). Resolve links inside Shared with me. Wiki click-to-create is an edit, so it is off in a read-only view.
-
 ## Fetch
-Outbound fetch for card titles/thumbnails is default off: someone can put a URL in a note they share with you; if we fetch on preview, that site learns you opened the note. Maybe default-off only for shared notes. As long as we negotiate privacy well, retry/backoff/cache are details.
+Nothing is fetched from the web unless you allow it: someone can put a URL in a note they share with you, and if we fetch on render, that site learns you opened the note. One switch, Load web images and link previews, off by default, covers previews and images in every note, your own included. While it's off a web image is a chip with a globe and "Click to load"; a click loads that one.
 
 ## Getting an image in
 Support all the usual ways, especially on mobile (camera, paste, picker, share sheet). Drop onto the editor is a design goal.

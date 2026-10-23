@@ -1555,8 +1555,7 @@ mod tests {
             ("/project/research/Plan.md", "# Goals\n## Gone"),
         ] {
             let id = at(&cache, path);
-            let headings = super::document_headings(md);
-            cache.notes.insert(id, headings);
+            cache.notes.insert(id, crate::links::read_note(md));
         }
         let mut rows = |query: &str, mode| {
             lc.search(&cache, editing, query, mode, note)

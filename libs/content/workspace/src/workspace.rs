@@ -22,8 +22,9 @@ use std::sync::{Arc, RwLock, mpsc};
 use tracing::{debug, error, info, instrument, trace_span, warn};
 use web_time::{Duration, Instant};
 
-use crate::file_cache::{FileCache, FilesExt};
+use crate::file_cache::{Change, FileCache, FilesExt};
 use crate::landing::LandingPage;
+use crate::link_plan::Plan;
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
@@ -49,6 +50,7 @@ use crate::task_manager::{
 };
 use crate::widgets::image_cache::ImageCache;
 use crate::widgets::tab_cache::TabCache;
+use lb_rs::model::file::ShareMode;
 
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
@@ -148,6 +150,8 @@ enum Reveal {
     Range(std::ops::Range<usize>),
     /// Pin the heading this `#fragment` names to the top.
     Heading(String),
+    /// Land on these bytes as on a heading: a link followed from a backlink.
+    Text(std::ops::Range<usize>),
 }
 
 impl Workspace {
@@ -882,6 +886,17 @@ impl Workspace {
         }
     }
 
+    /// Opens note `id` landing on the link at `byte_range`, as a heading
+    /// link lands. In place unless `in_new_tab`, so Back returns.
+    pub fn open_link_at(&mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool) {
+        if in_new_tab {
+            self.open_file(id, true, true);
+        } else {
+            self.navigate_to(Destination::File(id));
+        }
+        self.pending_reveal = Some((id, Reveal::Text(byte_range)));
+    }
+
     /// Opens a file from outside the app (an `open/` URL) at the heading its
     /// `#fragment` names.
     pub fn open_file_at_heading(&mut self, id: Uuid, heading: String, in_new_tab: bool) {
@@ -901,6 +916,7 @@ impl Workspace {
                 match reveal {
                     Reveal::Range(range) => md.open_navigate(range),
                     Reveal::Heading(heading) => md.open_at_heading(&heading),
+                    Reveal::Text(range) => md.open_at_text(range),
                 }
                 self.pending_reveal = None;
             }
@@ -1826,11 +1842,12 @@ impl Workspace {
         self.open_dest_as_session(dest, true, false);
     }
 
-    pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
+    pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) -> bool {
         let (id, new_name) = req;
         match self.core.rename_file(&id, &new_name) {
             Ok(()) => {
                 self.file_renamed(id, new_name);
+                true
             }
             Err(LbErr { kind, .. }) => {
                 if by_user {
@@ -1839,6 +1856,7 @@ impl Workspace {
                         .push(format!("Rename failed: {kind}"));
                 }
                 warn!(?id, "failed to rename file: {:?}", kind);
+                false
             }
         }
     }
@@ -1866,32 +1884,153 @@ impl Workspace {
         self.ctx.request_repaint();
     }
 
-    pub fn move_file(&mut self, req: (Uuid, Uuid)) {
+    pub fn move_file(&mut self, req: (Uuid, Uuid)) -> bool {
         let (id, new_parent) = req;
         match self.core.move_file(&id, &new_parent) {
             Ok(()) => {
                 self.ctx.request_repaint();
+                true
             }
             Err(LbErr { kind, .. }) => {
                 self.out
                     .failure_messages
                     .push(format!("Move failed: {kind}"));
                 warn!(?id, "failed to move file: {:?}", kind);
+                false
             }
         }
     }
 
-    pub fn delete_file(&mut self, id: Uuid) {
+    pub fn delete_file(&mut self, id: Uuid) -> bool {
         match self.core.delete_file(&id) {
             Ok(()) => {
                 self.out.file_deleted = Some(id);
                 self.ctx.request_repaint();
+                true
             }
             Err(LbErr { kind, .. }) => {
                 self.out
                     .failure_messages
                     .push(format!("Delete failed: {kind}"));
                 warn!(?id, "failed to delete file: {:?}", kind);
+                false
+            }
+        }
+    }
+
+    /// What `change` would do to links, worked out once per change and tree.
+    pub fn link_plan(&self, change: &Change) -> Arc<Plan> {
+        crate::link_plan::planned(&self.files.read().unwrap(), change)
+    }
+
+    /// Makes `change`, and if `update_links`, the edits that keep links
+    /// reaching what they reach now. Every platform's renames, moves, and
+    /// deletes come here, so links are planned for before the tree changes.
+    pub fn make_change(&mut self, change: Change, update_links: bool) {
+        // what was made, which for several files may be fewer than asked
+        let made = match &change {
+            Change::Rename { id, name } => self
+                .rename_file((*id, name.clone()), true)
+                .then(|| change.clone()),
+            Change::Move { ids, to } => {
+                let ids: Vec<Uuid> = ids.iter().filter(|id| *id != to).copied().collect();
+                let moved: Vec<Uuid> = ids
+                    .into_iter()
+                    .filter(|id| self.move_file((*id, *to)))
+                    .collect();
+                (!moved.is_empty()).then_some(Change::Move { ids: moved, to: *to })
+            }
+            Change::Delete { ids } => {
+                let gone: Vec<Uuid> = ids
+                    .iter()
+                    .copied()
+                    .filter(|id| self.delete_file(*id))
+                    .collect();
+                (!gone.is_empty()).then_some(Change::Delete { ids: gone })
+            }
+            Change::Share { .. } | Change::Create { .. } => None,
+        };
+        let Some(made) = made else { return };
+        // planned against the tree before the change, which the cache still is
+        let plan = self.link_plan(&made);
+        if update_links {
+            self.write_mends(&plan);
+        }
+        // the next change plans against this one, before the rebuild lands
+        let mut files = self.files.write().unwrap();
+        let mut after = files.after(&made);
+        let mut notes = std::mem::take(&mut files.notes);
+        notes.retain_in(&after);
+        after.notes = notes;
+        *files = after;
+        self.out.file_cache_updated = true;
+    }
+
+    /// Shares `id` with each of `users`, and if `share_linked`, also the
+    /// user's own files that links inside it reach past the scope the share
+    /// makes, linking to those by id so they open for the people too.
+    /// Returns the users it failed for, and why.
+    pub fn share_with(
+        &mut self, id: Uuid, users: &[String], mode: ShareMode, share_linked: bool,
+    ) -> Vec<(String, String)> {
+        let with = users.first().cloned().unwrap_or_default();
+        let plan = self.link_plan(&Change::Share { id, with, mode });
+        let mut failed = vec![];
+        let mut shared = vec![];
+        for user in users {
+            match self.core.share_file(id, user, mode) {
+                Ok(()) => shared.push(user),
+                Err(e) => failed.push((user.clone(), e.to_string())),
+            }
+        }
+        if share_linked && !shared.is_empty() {
+            for target in &plan.share_too {
+                for user in &shared {
+                    if let Err(e) = self.core.share_file(*target, user, mode) {
+                        warn!(?target, "failed to share a linked file: {e}");
+                    }
+                }
+            }
+            self.write_mends(&plan);
+        }
+        failed
+    }
+
+    /// Creates `name` under `parent`, and if `update_links`, makes the wiki
+    /// links the new document would take name the files they mean now.
+    pub fn create_file_at(
+        &mut self, parent: Uuid, name: &str, file_type: FileType, update_links: bool,
+    ) -> lb_rs::model::errors::LbResult<File> {
+        let change = Change::Create { parent, name: name.to_string() };
+        let plan = match file_type {
+            FileType::Document => Some(self.link_plan(&change)),
+            _ => None,
+        };
+        let file = self.core.create_file(name, &parent, file_type)?;
+        self.files
+            .write()
+            .unwrap()
+            .insert_created_file(file.clone());
+        if let Some(plan) = plan.filter(|_| update_links) {
+            self.write_mends(&plan);
+        }
+        Ok(file)
+    }
+
+    fn write_mends(&mut self, plan: &Plan) {
+        if !plan.mends.is_empty() {
+            for (note, err) in crate::link_plan::write_mends(&self.core, &plan.mends) {
+                let name = self
+                    .files
+                    .read()
+                    .unwrap()
+                    .get_by_id(note)
+                    .map(|f| f.name.clone());
+                let name = name.unwrap_or_default();
+                warn!(?note, "failed to update links: {err}");
+                self.out
+                    .failure_messages
+                    .push(format!("Couldn't update links in {name}: {err}"));
             }
         }
     }
@@ -1961,6 +2100,13 @@ pub struct WsPresistentData {
     /// The sidecar, the panel beside a note that holds its outline, is open.
     #[serde(default)]
     sidecar_open: bool,
+    /// A rename or move updates the links it would break, as last chosen.
+    #[serde(default = "default_update_links")]
+    update_links: bool,
+}
+
+fn default_update_links() -> bool {
+    true
 }
 
 impl Default for WsPresistentData {
@@ -1981,6 +2127,7 @@ impl Default for WsPresistentData {
             contact_linked_sites: false,
             last_search: SearchState::default(),
             sidecar_open: false,
+            update_links: true,
         }
     }
 }
@@ -2148,6 +2295,20 @@ impl WsPersistentStore {
             return;
         }
         data_lock.sidecar_open = open;
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn get_update_links(&self) -> bool {
+        self.data.read().unwrap().update_links
+    }
+
+    pub fn set_update_links(&mut self, update: bool) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.update_links == update {
+            return;
+        }
+        data_lock.update_links = update;
         drop(data_lock);
         self.write_to_file();
     }

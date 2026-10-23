@@ -247,6 +247,7 @@ pub(crate) fn show_share(
                 ui.add(Spacer::new(Space::Xl));
                 if show_summary {
                     paint_share_summary(ui, t, &subject, &share_names, mode_buf == 0);
+                    super::sheet_links::show_share_check(app, ui, t, id, &share_names);
                     ui.add(Spacer::new(Space::Md));
                 }
 

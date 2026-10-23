@@ -92,8 +92,11 @@ impl ImageCache {
         }
     }
 
+    /// Changes whenever what an embed shows may: a load, a reveal, or the
+    /// switch that lets web images load.
     pub fn seq(&self) -> u64 {
-        self.seq.load(Ordering::Relaxed)
+        let web = self.persistence.get_contact_linked_sites() as u64;
+        self.seq.load(Ordering::Relaxed) * 2 + web
     }
 
     pub fn begin_frame(&self) {
@@ -160,13 +163,14 @@ impl ImageCache {
             .map(|[w, h]| Vec2::new(w, h))
     }
 
-    /// Whether `url` in `note` reaches a file past the note's scope that the
-    /// reader hasn't asked to see: it opens different things for different
-    /// readers, so it waits like a yellow link. States here are shared by
-    /// every note embedding `url` (and the image viewer), so embeds check
-    /// this first.
+    /// Whether `url` in `note` waits for the reader to ask for it: a file
+    /// past the note's scope, which opens different things for different
+    /// readers, like a yellow link; or a web image while the reader hasn't
+    /// let the app contact linked sites. States here are shared by every
+    /// note embedding `url` (and the image viewer), so embeds check this
+    /// first.
     pub fn withheld(&self, url: &str, note: Uuid) -> bool {
-        self.differs_by_reader(url, note)
+        (self.differs_by_reader(url, note) || self.off_the_web(url))
             && !self
                 .inner
                 .lock()
@@ -180,6 +184,14 @@ impl ImageCache {
     pub fn differs_by_reader(&self, url: &str, note: Uuid) -> bool {
         let files = self.files.read().unwrap();
         matches!(files.locate_link(url, note), Some((_, reach)) if reach != Reach::Scope)
+    }
+
+    /// Whether `url` is a web image the reader hasn't let the app fetch:
+    /// fetching tells the site who opened the note, and when.
+    pub fn off_the_web(&self, url: &str) -> bool {
+        // the URLs a load would fetch
+        let fetched = url.starts_with("http://") || url.starts_with("https://");
+        fetched && !self.persistence.get_contact_linked_sites()
     }
 
     /// Whether `url` in `note` names a file nothing resolves: a red image.

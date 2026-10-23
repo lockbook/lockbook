@@ -3,12 +3,15 @@
 //! where the window is too narrow; on touch, a sheet from the bottom with
 //! rows sized for a thumb. A row jumps to its heading, closing a floating
 //! card or sheet. The current section is marked, and brought into view only
-//! when out of it.
+//! when out of it. Under the outline, the card lists the notes that link to
+//! this one, each link with the words around it.
 
+use std::ops::Range;
 use std::sync::Arc;
 
-use egui::text::{LayoutJob, TextWrapping};
+use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Align2, Area, Color32, Galley, Id, Order, Rect, Sense, Ui, pos2, vec2};
+use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::Grapheme;
 
 use crate::style::sheet::sheet_dim;
@@ -37,6 +40,32 @@ pub struct OutlineRow {
     pub span: (Grapheme, Grapheme),
 }
 
+/// A note that links to this one, and its links here.
+pub struct LinkedNote {
+    pub id: Uuid,
+    pub title: String,
+    pub links: Vec<Mention>,
+}
+
+/// A link to this note: the words around it, its own among them, and
+/// where it is in its note.
+pub struct Mention {
+    pub context: String,
+    pub label: Range<usize>,
+    pub span: Range<usize>,
+}
+
+/// What a click in the outline asks for.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Choice {
+    Heading(String),
+    /// A linking note, at the link when there's a span.
+    Note {
+        id: Uuid,
+        span: Option<Range<usize>>,
+    },
+}
+
 /// Where the card stands: `area` bounds it, and `floating` puts it over the
 /// note rather than beside the text. `shown` is how far it has faded in;
 /// closing, it is not `open` and takes no clicks.
@@ -56,10 +85,17 @@ pub struct Outline {
     sheet_opening: bool,
     /// The current row last shown on the card, to follow it when it changes.
     card_current: Option<usize>,
+    headings: Scroll,
+    linked: Scroll,
+}
+
+/// A list's scroll.
+#[derive(Default)]
+struct Scroll {
     /// How far the rows are scrolled, in points from the top.
-    scroll: f32,
+    at: f32,
     /// Where a reveal is easing the scroll to; the user's own scroll ends it.
-    scroll_to: Option<f32>,
+    to: Option<f32>,
     /// The pass the rows were last drawn in, so they open already scrolled.
     drawn_pass: u64,
 }
@@ -80,15 +116,16 @@ impl Outline {
         self.sheet_opening = self.sheet_open;
     }
 
-    /// The sheet, if open. Returns the slug of a chosen row and the rect
-    /// that takes touches.
+    /// The sheet, if open. Returns the chosen row's choice and the rect that
+    /// takes touches.
     pub fn show(
         &mut self, ctx: &egui::Context, id: Id, rows: &[OutlineRow], current: Option<usize>,
-    ) -> (Option<String>, Option<Rect>) {
+        linked: &[LinkedNote],
+    ) -> (Option<Choice>, Option<Rect>) {
         if !self.sheet_open {
             return (None, None);
         }
-        let (chosen, rect, dismissed) = self.sheet(ctx, id, rows, current);
+        let (chosen, rect, dismissed) = self.sheet(ctx, id, rows, current, linked);
         let escape = ctx.input(|i| i.key_pressed(egui::Key::Escape));
         if chosen.is_some() || dismissed || escape {
             self.sheet_open = false;
@@ -98,10 +135,12 @@ impl Outline {
     }
 
     /// A sheet from the bottom of the screen over a dimmed note, drawn as
-    /// the desktop card is, with a close button.
+    /// the desktop card is, with a close button: the outline, then the notes
+    /// `linked` here.
     fn sheet(
         &mut self, ctx: &egui::Context, id: Id, rows: &[OutlineRow], current: Option<usize>,
-    ) -> (Option<String>, Rect, bool) {
+        linked: &[LinkedNote],
+    ) -> (Option<Choice>, Rect, bool) {
         let t = ctx.get_lb_theme();
         let screen = ctx.content_rect();
         let layer = egui::LayerId::new(Order::Foreground, id);
@@ -113,13 +152,12 @@ impl Outline {
         let bottom = Space::Xl.pts();
         let max_list = screen.height() * 0.6;
 
-        let measured = measure(ctx, rows, current, inner_w, true);
-        let empty = rows.is_empty().then(|| empty_state(ctx, inner_w));
-        let list_h = match &empty {
-            Some(empty) => empty_height(empty),
-            None => measured.height().min(max_list),
-        };
-        let size = vec2(width, header + list_h + 2.0 * pad);
+        let gap = Space::Md.pts();
+        let measured = measure_headings(ctx, rows, current, inner_w, true);
+        let mentions = measure_linked(ctx, linked, inner_w, true);
+        let room = (max_list - header - gap).max(0.0);
+        let (heads_h, links_h) = split(room, measured.height(), mentions.height());
+        let size = vec2(width, 2.0 * header + gap + heads_h + links_h + 2.0 * pad);
         let sheet = Rect::from_min_size(
             pos2(screen.center().x - width / 2.0, screen.bottom() - bottom - size.y),
             size,
@@ -133,7 +171,8 @@ impl Outline {
             .fade_in(false)
             .show(ctx, |ui| {
                 ui.allocate_rect(sheet, Sense::hover());
-                paint_frame(ui, sheet, None);
+                paint_surface(ui, sheet, None);
+                paint_title(ui, "Outline", sheet.left() + pad, sheet.top() + pad);
                 let close = Rect::from_min_size(
                     pos2(sheet.right() - pad - header, sheet.top() + pad),
                     vec2(header, header),
@@ -151,27 +190,37 @@ impl Outline {
                 if x.clicked() {
                     dismissed = true;
                 }
-                let view = Rect::from_min_size(
-                    pos2(sheet.left() + pad, sheet.top() + pad + header),
-                    vec2(inner_w, list_h),
-                );
-                match empty {
-                    Some(empty) => paint_empty_state(ui, view, empty),
-                    None => chosen = self.list(ui, id, view, &measured, ground, false),
+                let (left, mut top) = (sheet.left() + pad, sheet.top() + pad + header);
+                let view = Rect::from_min_size(pos2(left, top), vec2(inner_w, heads_h));
+                chosen = self
+                    .headings
+                    .list(ui, id, view, &measured, ground, false, true);
+                top += heads_h + gap;
+                paint_title(ui, "Backlinks", left, top);
+                top += header;
+                let view = Rect::from_min_size(pos2(left, top), vec2(inner_w, links_h));
+                let links_id = id.with("linked");
+                if let Some(c) = self
+                    .linked
+                    .list(ui, links_id, view, &mentions, ground, false, true)
+                {
+                    chosen = Some(c);
                 }
             });
         // the dimmed note takes taps too, which dismiss
         (chosen, screen, dismissed)
     }
 
-    /// The card at `place`, fading in or out. It is as tall as its rows, up
-    /// to `area`, scrolling inside when they don't fit. Floating, it closes
-    /// on a click elsewhere in `canvas` or Escape. Returns the choice, the
-    /// card, and whether it was dismissed.
+    /// The card at `place`, fading in or out: the outline, then the notes
+    /// `linked` here. It is as tall as its rows, up to `area`, each list
+    /// scrolling inside when they don't fit. Floating, it closes on a click
+    /// elsewhere in `canvas` or Escape. Returns the choice, the card, and
+    /// whether it was dismissed.
+    #[allow(clippy::too_many_arguments)]
     pub fn card(
         &mut self, ctx: &egui::Context, id: Id, place: Option<CardPlace>, canvas: Rect,
-        rows: &[OutlineRow], current: Option<usize>,
-    ) -> (Option<String>, Option<Rect>, bool) {
+        rows: &[OutlineRow], current: Option<usize>, linked: &[LinkedNote],
+    ) -> (Option<Choice>, Option<Rect>, bool) {
         let Some(CardPlace { area, floating, shown, open }) = place else {
             return (None, None, false);
         };
@@ -179,6 +228,7 @@ impl Outline {
         let ground = t.neutral_bg_secondary();
         let pad = Space::Sm.pts();
         let header = control_height();
+        let gap = Space::Md.pts();
         let reveal = self.card_current != current;
         self.card_current = current;
 
@@ -193,26 +243,38 @@ impl Outline {
             .show(ctx, |ui| {
                 ui.multiply_opacity(shown);
                 let inner_w = area.width() - 2.0 * pad;
-                let measured = measure(ctx, rows, current, inner_w, false);
-                let empty = rows.is_empty().then(|| empty_state(ctx, inner_w));
-                let max_list = (area.height() - header - 2.0 * pad).max(control_height());
-                let list_h = match &empty {
-                    Some(empty) => empty_height(empty),
-                    None => measured.height().min(max_list),
-                };
-                card =
-                    Rect::from_min_size(area.min, vec2(area.width(), header + list_h + 2.0 * pad));
+                let headings = measure_headings(ctx, rows, current, inner_w, false);
+                let mentions = measure_linked(ctx, linked, inner_w, false);
+                let room = (area.height() - 2.0 * header - gap - 2.0 * pad).max(0.0);
+                let (heads_h, links_h) = split(room, headings.height(), mentions.height());
+                card = Rect::from_min_size(
+                    area.min,
+                    vec2(area.width(), 2.0 * header + gap + heads_h + links_h + 2.0 * pad),
+                );
                 ui.allocate_rect(card, Sense::hover());
 
                 let shadow = floating.then(|| pin_shadow(&t));
-                paint_frame(ui, card, shadow);
-                let view = Rect::from_min_size(
-                    pos2(card.left() + pad, card.top() + pad + header),
-                    vec2(inner_w, list_h),
-                );
-                match empty {
-                    Some(empty) => paint_empty_state(ui, view, empty),
-                    None => chosen = self.list(ui, id, view, &measured, ground, reveal),
+                paint_surface(ui, card, shadow);
+                let (left, mut top) = (card.left() + pad, card.top() + pad);
+                paint_title(ui, "Outline", left, top);
+                top += header;
+                let view = Rect::from_min_size(pos2(left, top), vec2(inner_w, heads_h));
+                if let Some(c) = self
+                    .headings
+                    .list(ui, id, view, &headings, ground, reveal, open)
+                {
+                    chosen = Some(c);
+                }
+                top += heads_h + gap;
+                paint_title(ui, "Backlinks", left, top);
+                top += header;
+                let view = Rect::from_min_size(pos2(left, top), vec2(inner_w, links_h));
+                let links_id = id.with("linked");
+                if let Some(c) = self
+                    .linked
+                    .list(ui, links_id, view, &mentions, ground, false, open)
+                {
+                    chosen = Some(c);
                 }
             });
         if !open {
@@ -228,16 +290,41 @@ impl Outline {
         let dismissed = floating && (chosen.is_some() || click_elsewhere || escape);
         (chosen, Some(card), dismissed)
     }
+}
 
+/// Splits `room` between two lists `a` and `b` tall: each whole if both
+/// fit, else the shorter whole if it fits in half, else half each.
+fn split(room: f32, a: f32, b: f32) -> (f32, f32) {
+    let half = room / 2.0;
+    if a + b <= room {
+        (a, b)
+    } else if a <= half {
+        (a, room - a)
+    } else if b <= half {
+        (room - b, b)
+    } else {
+        (half, half)
+    }
+}
+
+impl Scroll {
     /// Draws `measured` rows in `view` over `ground`, scrolled by the wheel, a
     /// drag, or the bar. Rows fade out at an edge with more beyond it, and
     /// `reveal` eases the current row into view clear of the fades; a list
-    /// just opened starts there. Returns the slug of a chosen row.
+    /// just opened starts there. A list that isn't `live` (fading out) takes
+    /// no scrolling. Returns the chosen row's choice.
+    #[allow(clippy::too_many_arguments)]
     fn list(
         &mut self, ui: &mut Ui, id: Id, view: Rect, measured: &Measured, ground: Color32,
-        reveal: bool,
-    ) -> Option<String> {
+        reveal: bool, live: bool,
+    ) -> Option<Choice> {
         let t = ui.ctx().get_lb_theme();
+        if let Some(empty) = &measured.empty {
+            let at = pos2(view.left() + Space::Sm.pts(), view.top() + Space::Xs.pts());
+            ui.painter_at(view)
+                .galley(at, empty.clone(), Color32::PLACEHOLDER);
+            return None;
+        }
         let fade = EDGE_FADE.pts();
         let content = measured.height();
         let max_scroll = (content - view.height()).max(0.0);
@@ -247,21 +334,21 @@ impl Outline {
         self.drawn_pass = pass;
 
         let drag = ui.interact(view, id.with("drag"), Sense::drag());
-        let before = self.scroll;
-        if ui.rect_contains_pointer(view) {
-            self.scroll -= ui.input_mut(|i| std::mem::take(&mut i.smooth_scroll_delta.y));
+        let before = self.at;
+        if live && ui.rect_contains_pointer(view) {
+            self.at -= ui.input_mut(|i| std::mem::take(&mut i.smooth_scroll_delta.y));
         }
-        if drag.dragged() {
-            self.scroll -= drag.drag_delta().y;
+        if live && drag.dragged() {
+            self.at -= drag.drag_delta().y;
         }
-        let user_scrolled = self.scroll != before;
+        let user_scrolled = self.at != before;
         if user_scrolled {
-            self.scroll_to = None;
+            self.to = None;
         }
         // the current row clear of the fades, from where the scroll is headed
         if let Some(i) = measured.current.filter(|_| reveal || opening) {
             let (top, bottom) = (measured.tops[i], measured.tops[i] + measured.rows[i].height);
-            let headed = self.scroll_to.unwrap_or(self.scroll);
+            let headed = self.to.unwrap_or(self.at);
             let to = if top - fade < headed {
                 top - fade
             } else if bottom + fade > headed + view.height() {
@@ -269,25 +356,25 @@ impl Outline {
             } else {
                 headed
             };
-            self.scroll_to = Some(to.clamp(0.0, max_scroll));
+            self.to = Some(to.clamp(0.0, max_scroll));
         }
-        if let Some(to) = self.scroll_to {
+        if let Some(to) = self.to {
             let dt = ui.input(|i| i.stable_dt).min(0.1);
             let step = 1.0 - (-dt / SCROLL_TAU).exp();
-            self.scroll += (to - self.scroll) * if opening { 1.0 } else { step };
-            if (to - self.scroll).abs() < 0.5 {
-                self.scroll = to;
-                self.scroll_to = None;
+            self.at += (to - self.at) * if opening { 1.0 } else { step };
+            if (to - self.at).abs() < 0.5 {
+                self.at = to;
+                self.to = None;
             } else {
                 ui.ctx().request_repaint();
             }
         }
-        self.scroll = self.scroll.clamp(0.0, max_scroll);
+        self.at = self.at.clamp(0.0, max_scroll);
 
         let painter = ui.painter_at(view);
         let mut chosen = None;
         for (i, m) in measured.rows.iter().enumerate() {
-            let top = view.top() + measured.tops[i] - self.scroll;
+            let top = view.top() + measured.tops[i] - self.at;
             let rect = Rect::from_min_size(pos2(view.left(), top), vec2(view.width(), m.height));
             if !rect.intersects(view) {
                 continue;
@@ -304,7 +391,7 @@ impl Outline {
                 let wash = t.wash_toward_neutral_fg(ground, amount);
                 painter.rect_filled(rect, Radius::Sm.corner(), wash);
             }
-            if resp.hovered() {
+            if live && resp.hovered() {
                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
             }
             let text_rect = Rect::from_min_max(
@@ -316,63 +403,82 @@ impl Outline {
                 .min;
             painter.galley(at, m.galley.clone(), Color32::PLACEHOLDER);
             if m.galley.elided {
-                tip_text(ui.ctx(), &resp, m.row.text.clone());
+                tip_text(ui.ctx(), &resp, m.tip.clone());
             }
             if resp.clicked() {
-                chosen = Some(m.row.slug.clone());
+                chosen = Some(m.choice.clone());
             }
         }
 
         let clear = Color32::TRANSPARENT;
-        if self.scroll > 0.5 {
+        if self.at > 0.5 {
             paint_fade(&painter, view.with_max_y(view.top() + fade), ground, clear, true);
         }
-        if self.scroll < max_scroll - 0.5 {
+        if self.at < max_scroll - 0.5 {
             paint_fade(&painter, view.with_min_y(view.bottom() - fade), clear, ground, true);
         }
-        let before = self.scroll;
+        let before = self.at;
         // the bar shows for the user's scrolling, not for a reveal's
         let quiet = !user_scrolled;
-        overlay_scroll::scroller_bar(ui, id.with("scroll"), view, content, &mut self.scroll, quiet);
-        if self.scroll != before {
-            self.scroll_to = None;
+        overlay_scroll::scroller_bar(ui, id.with("scroll"), view, content, &mut self.at, quiet);
+        if self.at != before {
+            self.to = None;
         }
         chosen
     }
 }
 
-/// A row laid out: its text, its height, and how far its level indents it.
-struct MeasuredRow<'a> {
-    row: &'a OutlineRow,
+/// A row laid out: its text, its height, how far it indents, what it says
+/// when cut short, and what a click on it asks for.
+struct MeasuredRow {
     galley: Arc<Galley>,
     height: f32,
     indent: f32,
+    tip: String,
+    choice: Choice,
 }
 
-/// The rows laid out at a width, each row's top, and which is current.
-struct Measured<'a> {
-    rows: Vec<MeasuredRow<'a>>,
+/// A list laid out at a width: its rows and each one's top, which is
+/// current, or what it says when it has no rows.
+struct Measured {
+    rows: Vec<MeasuredRow>,
     tops: Vec<f32>,
     current: Option<usize>,
+    empty: Option<Arc<Galley>>,
 }
 
-impl Measured<'_> {
+impl Measured {
+    fn new(rows: Vec<MeasuredRow>, current: Option<usize>, empty: Option<Arc<Galley>>) -> Self {
+        let mut top = 0.0;
+        let tops = rows
+            .iter()
+            .map(|r| {
+                let at = top;
+                top += r.height;
+                at
+            })
+            .collect();
+        Self { rows, tops, current, empty }
+    }
+
     fn height(&self) -> f32 {
-        self.rows
-            .last()
-            .map_or(0.0, |r| self.tops[self.rows.len() - 1] + r.height)
+        match &self.empty {
+            Some(empty) => control_height().max(empty.size().y + 2.0 * Space::Xs.pts()),
+            None => self
+                .rows
+                .last()
+                .map_or(0.0, |r| self.tops[self.rows.len() - 1] + r.height),
+        }
     }
 }
 
-/// Lays out `rows` at `width`. Touch rows are a thumb tall and wrap a long
-/// title to two lines; mouse rows are a control tall and truncate.
-fn measure<'a>(
-    ctx: &egui::Context, rows: &'a [OutlineRow], current: Option<usize>, width: f32, touch: bool,
-) -> Measured<'a> {
+/// Lays out heading `rows` at `width`. Touch rows are a thumb tall and wrap a
+/// long title to two lines; mouse rows are a control tall and truncate.
+fn measure_headings(
+    ctx: &egui::Context, rows: &[OutlineRow], current: Option<usize>, width: f32, touch: bool,
+) -> Measured {
     let t = ctx.get_lb_theme();
-    let mut top = 0.0;
-    let mut tops = Vec::with_capacity(rows.len());
-    let rows = rows
+    let measured = rows
         .iter()
         .enumerate()
         .map(|(i, row)| {
@@ -381,64 +487,140 @@ fn measure<'a>(
             let color = if current == Some(i) { t.accent() } else { t.neutral_fg() };
             let mut job =
                 LayoutJob::simple(row.text.clone(), TypeRole::Body.font_id(), color, text_w);
-            job.wrap = TextWrapping {
-                max_width: text_w,
-                max_rows: if touch { 2 } else { 1 },
-                break_anywhere: false,
-                overflow_character: Some('…'),
-            };
+            job.wrap = wrap(text_w, if touch { 2 } else { 1 });
             let galley = ctx.fonts_mut(|f| f.layout_job(job));
             let min_h = if touch { TOUCH_ROW_H } else { control_height() };
             let height = min_h.max(galley.size().y + 2.0 * Space::Xs.pts());
-            tops.push(top);
-            top += height;
-            MeasuredRow { row, galley, height, indent }
+            let tip = row.text.clone();
+            MeasuredRow { galley, height, indent, tip, choice: Choice::Heading(row.slug.clone()) }
         })
         .collect();
-    Measured { rows, tops, current }
+    let empty = rows
+        .is_empty()
+        .then(|| quiet_text(ctx, "No headings yet. Start a line with # to add one.", width));
+    Measured::new(measured, current, empty)
 }
 
-/// What the outline says of a note with no headings, laid out at `width`.
-fn empty_state(ctx: &egui::Context, width: f32) -> Arc<Galley> {
+/// Lines of words around a link shown.
+const MENTION_LINES: usize = 3;
+/// Characters kept before a link's own words, so they show in the lines.
+const MENTION_LEAD: usize = 48;
+
+/// Lays out the notes `linked` here at `width`: each note's title, then its
+/// links with the words around them, the link's own in the text color.
+/// Touch rows are at least a thumb tall, and a long title wraps to two lines.
+fn measure_linked(ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch: bool) -> Measured {
+    let min_h = if touch { TOUCH_ROW_H } else { control_height() };
+    let t = ctx.get_lb_theme();
+    let text_w = |indent: f32| (width - indent - 2.0 * Space::Sm.pts()).max(1.0);
+    let mut rows = vec![];
+    for note in linked {
+        let mut job = LayoutJob::simple(
+            note.title.clone(),
+            TypeRole::Body.font_id(),
+            t.neutral_fg(),
+            text_w(0.0),
+        );
+        job.wrap = wrap(text_w(0.0), if touch { 2 } else { 1 });
+        let galley = ctx.fonts_mut(|f| f.layout_job(job));
+        rows.push(MeasuredRow {
+            height: min_h.max(galley.size().y + 2.0 * Space::Xs.pts()),
+            galley,
+            indent: 0.0,
+            tip: note.title.clone(),
+            choice: Choice::Note { id: note.id, span: None },
+        });
+        let indent = Space::Md.pts();
+        for m in &note.links {
+            let (text, label) = lead_trimmed(&m.context, m.label.clone());
+            let font = TypeRole::Body.font_id();
+            let quiet = TextFormat::simple(font.clone(), t.neutral_fg_secondary());
+            let loud = TextFormat::simple(font, t.neutral_fg());
+            let mut job = LayoutJob::default();
+            job.append(&text[..label.start], 0.0, quiet.clone());
+            job.append(&text[label.clone()], 0.0, loud);
+            job.append(&text[label.end..], 0.0, quiet);
+            job.wrap = wrap(text_w(indent), MENTION_LINES);
+            let galley = ctx.fonts_mut(|f| f.layout_job(job));
+            let least = if touch { TOUCH_ROW_H } else { 0.0 };
+            rows.push(MeasuredRow {
+                height: least.max(galley.size().y + 2.0 * Space::Xs.pts()),
+                galley,
+                indent,
+                tip: m.context.clone(),
+                choice: Choice::Note { id: note.id, span: Some(m.span.clone()) },
+            });
+        }
+    }
+    let empty = linked
+        .is_empty()
+        .then(|| quiet_text(ctx, "No backlinks yet. Type [[ in another note to link here.", width));
+    Measured::new(rows, None, empty)
+}
+
+/// `context` cut to [`MENTION_LEAD`] characters before `label`, at a word.
+fn lead_trimmed(context: &str, label: Range<usize>) -> (String, Range<usize>) {
+    let head = &context[..label.start];
+    if head.chars().count() <= MENTION_LEAD {
+        return (context.to_string(), label);
+    }
+    let cut = head
+        .char_indices()
+        .rev()
+        .nth(MENTION_LEAD - 1)
+        .map_or(0, |(i, _)| i);
+    let cut = head[cut..].find(' ').map_or(cut, |i| cut + i + 1);
+    let text = format!("…{}", &context[cut..]);
+    let shift = cut as isize - '…'.len_utf8() as isize;
+    let moved = |i: usize| (i as isize - shift) as usize;
+    (text, moved(label.start)..moved(label.end))
+}
+
+fn wrap(max_width: f32, max_rows: usize) -> TextWrapping {
+    TextWrapping { max_width, max_rows, break_anywhere: false, overflow_character: Some('…') }
+}
+
+/// A list's empty state, laid out at `width`.
+fn quiet_text(ctx: &egui::Context, text: &str, width: f32) -> Arc<Galley> {
     let t = ctx.get_lb_theme();
     let text_w = (width - 2.0 * Space::Sm.pts()).max(1.0);
     ctx.fonts_mut(|f| {
-        f.layout(
-            "No headings yet. Start a line with # to add one.".into(),
-            TypeRole::Body.font_id(),
-            t.neutral_fg_secondary(),
-            text_w,
-        )
+        f.layout(text.into(), TypeRole::Body.font_id(), t.neutral_fg_secondary(), text_w)
     })
 }
 
-fn empty_height(empty: &Galley) -> f32 {
-    control_height().max(empty.size().y + 2.0 * Space::Xs.pts())
-}
-
-fn paint_empty_state(ui: &Ui, view: Rect, empty: Arc<Galley>) {
-    let at = pos2(view.left() + Space::Sm.pts(), view.center().y - empty.size().y / 2.0);
-    ui.painter().galley(at, empty, Color32::PLACEHOLDER);
-}
-
-/// The outline's surface, card or sheet: the sidebar's color with no border,
-/// and its title in the header row.
-fn paint_frame(ui: &Ui, rect: Rect, shadow: Option<egui::Shadow>) {
+/// The outline's surface, card or sheet: the sidebar's color with no border.
+fn paint_surface(ui: &Ui, rect: Rect, shadow: Option<egui::Shadow>) {
     let t = ui.ctx().get_lb_theme();
-    let (pad, header) = (Space::Sm.pts(), control_height());
     let radius = Radius::Surface.corner();
     if let Some(shadow) = shadow {
         ui.painter().add(shadow.as_shape(rect, radius));
     }
     ui.painter()
         .rect_filled(rect, radius, t.neutral_bg_secondary());
+}
+
+/// A section's title in a header row whose top left is (`left`, `top`).
+fn paint_title(ui: &Ui, title: &str, left: f32, top: f32) {
+    let t = ui.ctx().get_lb_theme();
     let font = egui::FontId::new(TypeRole::Body.size(), egui::FontFamily::Name(Arc::from("Bold")));
     let title = ui
         .painter()
-        .layout_no_wrap("Outline".into(), font, t.neutral_fg_secondary());
-    let at = pos2(
-        rect.left() + pad + Space::Xs.pts(),
-        rect.top() + pad + (header - title.size().y) / 2.0,
-    );
+        .layout_no_wrap(title.into(), font, t.neutral_fg_secondary());
+    let at = pos2(left + Space::Xs.pts(), top + (control_height() - title.size().y) / 2.0);
     ui.painter().galley(at, title, t.neutral_fg_secondary());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_long_lead_is_cut_at_a_word() {
+        let context = format!("{} the [plan] here", "word ".repeat(30));
+        let start = context.find("plan").unwrap();
+        let (text, label) = lead_trimmed(&context, start..start + 4);
+        assert!(text.starts_with("…word"));
+        assert_eq!(&text[label], "plan");
+    }
 }
