@@ -550,8 +550,9 @@ class WorkspaceFragment : Fragment() {
 
         model._showKeyboard.observe(viewLifecycleOwner) {
             if (it) {
+                // the keyboard comes up only for the view that takes the text
                 (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                    .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+                    .showSoftInput(view.findFocus() ?: view, InputMethodManager.SHOW_IMPLICIT)
             } else {
                 (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                     .hideSoftInputFromWindow(view.windowToken, 0)
