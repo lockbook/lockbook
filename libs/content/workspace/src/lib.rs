@@ -7,6 +7,7 @@ pub mod links;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;
 pub mod note_index;
+pub mod open_guard;
 pub mod output;
 pub mod resolvers;
 pub mod search;

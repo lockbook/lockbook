@@ -25,6 +25,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{Change, FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::link_plan::Plan;
+use crate::open_guard;
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
@@ -112,6 +113,8 @@ pub struct Workspace {
     // Resources & configuration
     pub cfg: WsPersistentStore,
     pub ctx: Context,
+    /// Refused documents the user opened anyway this session.
+    opened_anyway: Vec<Uuid>,
 
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
@@ -212,6 +215,7 @@ impl Workspace {
 
             cfg,
             ctx: ctx.clone(),
+            opened_anyway: Vec::new(),
             core: core.clone(),
 
             software_keyboard_in_use: true,
@@ -375,6 +379,25 @@ impl Workspace {
         if let Some(tab) = self.tabs.get_mut(&tab_id) {
             tab.rename = None;
         }
+    }
+
+    /// Reloads a refused document without its refusal; `target` is `None` for the preview.
+    pub(crate) fn open_anyway(&mut self, id: Uuid, target: Option<SessionId>) {
+        self.opened_anyway.push(id);
+        let tab = match target {
+            Some(sid) => self.tabs.get_mut(&sid),
+            None => self.preview.as_mut(),
+        };
+        if let Some(tab) = tab {
+            tab.content = ContentState::Loading(id);
+        }
+        self.tasks.queue_load(LoadRequest {
+            id,
+            tab_created: true,
+            make_current: false,
+            is_preview: target.is_none(),
+            target,
+        });
     }
 
     pub fn set_preview(&mut self, id: Option<lb_rs::Uuid>) {
@@ -1410,6 +1433,24 @@ impl Workspace {
 
                     tab.read_only = read_only || is_preview;
 
+                    let is_text = matches!(
+                        doc_type,
+                        DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+                    ) && content_inspector::inspect(&bytes).is_text();
+                    // a reload keeps the open editor and its unsaved edits, so it isn't refused
+                    let reload = !tab_created && matches!(tab.content, ContentState::Open(_));
+                    let refusal = if reload || self.opened_anyway.contains(&id) || !is_text {
+                        None
+                    } else {
+                        open_guard::text_refusal(&bytes, doc_type == DocType::Markdown)
+                    };
+                    if let Some(refusal) = refusal {
+                        warn!(%id, ?refusal, "refusing to open");
+                        tab.content = ContentState::Failed(TabFailure::Refused(refusal));
+                        self.out.tabs_changed |= !is_preview;
+                        continue;
+                    }
+
                     match doc_type {
                         DocType::Image => {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
@@ -1469,12 +1510,7 @@ impl Workspace {
                                 chat.reload(&bytes, maybe_hmac);
                             }
                         }
-                        DocType::PlainText
-                        | DocType::Markdown
-                        | DocType::Code
-                        | DocType::Unknown
-                            if content_inspector::inspect(&bytes).is_text() =>
-                        {
+                        _ if is_text => {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
                             if !reload {
