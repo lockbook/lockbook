@@ -62,7 +62,7 @@ impl<'ast> MdRender {
     /// The thumbnail's width/height ratio: declared `og:image` dims first (known
     /// before the texture loads, so no reflow), else the decoded texture's real
     /// aspect, else square.
-    fn thumb_aspect(&self, meta: &LinkMeta, thumb: &str) -> f32 {
+    pub(super) fn thumb_aspect(&self, meta: &LinkMeta, thumb: &str) -> f32 {
         if let (Some(w), Some(h)) = (meta.thumbnail_width, meta.thumbnail_height) {
             if w > 0 && h > 0 {
                 return w as f32 / h as f32;

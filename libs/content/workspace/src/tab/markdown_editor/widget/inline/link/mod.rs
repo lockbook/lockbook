@@ -1,4 +1,5 @@
 pub(crate) mod card;
+mod hover;
 
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
@@ -216,9 +217,12 @@ impl<'ast> MdRender {
     }
 
     /// The hover card explaining a yellow or red link: what's wrong, then the
-    /// fix in quieter ink. `state` is worked out only under the pointer.
+    /// fix in quieter ink; for any other web link, its preview card.
+    /// `state` is worked out only under the pointer. `preview` is the link's
+    /// URL and whether its text is that URL, for links that may preview.
     pub fn show_link_tip(
         &self, ctx: &egui::Context, response: &egui::Response, state: impl FnOnce() -> LinkState,
+        preview: Option<(&str, bool)>,
     ) {
         if !response.contains_pointer() {
             // still called, so the tip's dwell timing sees the pointer leave
@@ -229,6 +233,9 @@ impl<'ast> MdRender {
         | LinkState::Broken { message }
         | LinkState::Placeholder { message }) = state()
         else {
+            if let Some((url, shows_url)) = preview {
+                self.show_link_preview(ctx, response, url, shows_url);
+            }
             return;
         };
         let mut lines = message.lines();
@@ -604,9 +611,10 @@ impl<'ast> MdRender {
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.scope_id();
         for node in root.descendants() {
-            let (url, is_wikilink) = match &node.data.borrow().value {
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
-                NodeValue::Link(nl) | NodeValue::Image(nl) => (nl.url.clone(), false),
+            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                NodeValue::Link(nl) => (nl.url.clone(), false, false),
+                NodeValue::Image(nl) => (nl.url.clone(), false, true),
                 _ => continue,
             };
             let id = parent_base.with(Self::link_interaction_id_salt(self.node_range(node)));
@@ -626,13 +634,20 @@ impl<'ast> MdRender {
             if response.hovered() && response.sense.senses_click() {
                 crate::style::link_cursor(ui.ctx());
             }
-            self.show_link_tip(ui.ctx(), response, || {
-                if is_wikilink {
-                    self.link_state_for_wikilink(&url)
-                } else {
-                    self.link_state_for_url(&url)
-                }
-            });
+            let preview =
+                (!is_wikilink && !is_image).then(|| (url.as_str(), self.link_is_auto(node, &url)));
+            self.show_link_tip(
+                ui.ctx(),
+                response,
+                || {
+                    if is_wikilink {
+                        self.link_state_for_wikilink(&url)
+                    } else {
+                        self.link_state_for_url(&url)
+                    }
+                },
+                preview,
+            );
 
             if response.clicked() && (self.readonly || !self.touch_mode) {
                 self.render_events.push(open);

@@ -265,7 +265,11 @@ impl<'ast> MdEdit {
                 true => self.renderer.link_state_for_wikilink(dest),
                 false => self.renderer.link_state_for_url(dest),
             };
-            self.renderer.show_link_tip(ui.ctx(), &response, state);
+            // a block card already shows everything its preview would
+            let card = !is_image && self.renderer.link_renders_as_card(node);
+            let preview = (!is_image && !wikilink && !card).then_some((url, false));
+            self.renderer
+                .show_link_tip(ui.ctx(), &response, state, preview);
         }
         if withheld && response.clicked() {
             self.renderer.embeds.load_anyway(url);

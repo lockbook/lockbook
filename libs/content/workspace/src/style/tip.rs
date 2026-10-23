@@ -11,9 +11,7 @@
 //!
 //! Anchored to the host control (not the cursor). Canvas plate + hairline.
 
-use egui::{
-    Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Response, Sense, Ui, Vec2, vec2,
-};
+use egui::{Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Response, Ui, Vec2, vec2};
 
 use super::chrome::{Radius, TIP_CHAIN_GRACE_SECS};
 use super::color::ThemeExt;
@@ -186,8 +184,12 @@ fn show_anchored_at(
 ) {
     let t = ctx.get_lb_theme();
     let screen = ctx.content_rect();
-    let prefer_below = screen.bottom() - host.bottom() >= 72.0;
     let gap = Space::Xs.pts();
+    let id = host_id.with("design_tip");
+    // below when it fits, by its height last frame; else the roomier side
+    let height = ctx.memory(|m| m.area_rect(id)).map_or(72.0, |r| r.height());
+    let (below, above) = (screen.bottom() - host.bottom(), host.top() - screen.top());
+    let prefer_below = below >= height + gap || below >= above;
 
     let (pos, pivot) = if prefer_below {
         (Pos2::new(host.center().x, host.bottom() + gap), Align2::CENTER_TOP)
@@ -195,12 +197,13 @@ fn show_anchored_at(
         (Pos2::new(host.center().x, host.top() - gap), Align2::CENTER_BOTTOM)
     };
 
-    Area::new(host_id.with("design_tip"))
+    Area::new(id)
         .order(Order::Tooltip)
         .fixed_pos(pos)
         .pivot(pivot)
         .constrain(true)
-        .sense(Sense::hover())
+        // a tip pushed over its host mustn't take the pointer from it
+        .interactable(false)
         .default_size(vec2(0.0, 0.0))
         .fade_in(false)
         .show(ctx, |ui| {
