@@ -376,8 +376,7 @@ class WorkspaceTextInputConnection(
         getInputMethodManager().updateCursorAnchorInfo(textInputWrapper, builder.build())
     }
 
-    private fun utf16Offset(grapheme: Int): Int =
-        Workspace.getTextInRange(WorkspaceView.wgpuObj, 0, grapheme.coerceAtLeast(0)).length
+    private fun utf16Offset(grapheme: Int): Int = Workspace.getTextInRange(WorkspaceView.wgpuObj, 0, grapheme.coerceAtLeast(0)).length
 
     private fun eguiToWrapperLocal(
         x: Float,
