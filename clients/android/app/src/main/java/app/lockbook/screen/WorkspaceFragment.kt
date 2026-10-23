@@ -162,7 +162,7 @@ class WorkspaceFragment : Fragment() {
             pendingTabSwitchUiState = null
 
             model.isFileTreeSyncedToCurrentTab = true
-            workspaceWrapper.workspaceView.openDoc(request.id, request.newFile)
+            workspaceWrapper.workspaceView.openDoc(request.id, request.newFile, request.heading)
 
             when (request.presentation) {
                 OpenFilePresentation.Preserve -> {
@@ -232,6 +232,10 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.workspaceBackRequested.observe(viewLifecycleOwner) {
+            if (model.outlineOpen.value == true) {
+                workspaceWrapper.workspaceView.toggleOutline()
+                return@observe
+            }
             val navigatedBack = workspaceWrapper.workspaceView.back()
             if (!navigatedBack) {
                 mainScreenModel.navigate(MainNavigationAction.ShowSplitOrSidebar)
@@ -324,6 +328,10 @@ class WorkspaceFragment : Fragment() {
     private fun onCreateToolbar(workspaceWrapper: WorkspaceWrapperView) {
         binding.workspaceToolbar.setOnMenuItemClickListener { it ->
             when (it.itemId) {
+                R.id.menu_text_editor_outline -> {
+                    workspaceWrapper.workspaceView.toggleOutline()
+                }
+
                 R.id.menu_text_editor_share -> {
                     (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
@@ -341,6 +349,15 @@ class WorkspaceFragment : Fragment() {
             }
 
             true
+        }
+
+        model.outlineAvailable.observe(viewLifecycleOwner) { available ->
+            binding.workspaceToolbar.menu
+                .findItem(R.id.menu_text_editor_outline)
+                .isVisible = available
+        }
+        model.outlineOpen.observe(viewLifecycleOwner) { open ->
+            if (open) hideBottomSheet() else showBottomSheet()
         }
 
         binding.workspaceToolbar.setNavigationOnClickListener {
@@ -361,6 +378,8 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.hideToolbar.observe(viewLifecycleOwner) { distanceY ->
+            // a swipe in the outline sheet scrolls the outline, not the note
+            if (model.outlineOpen.value == true) return@observe
             val isKeyboardVisible = model.keyboardVisible.value ?: false
             when {
                 isKeyboardVisible -> model._nativeMarkdownToolbarVisible.value = true

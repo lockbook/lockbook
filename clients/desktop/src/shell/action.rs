@@ -280,6 +280,8 @@ pub enum Action {
     /// Per-tab workspace history (same as mobile `nav_back` / `nav_forward`).
     NavBack,
     NavForward,
+    /// Show or hide the sidecar beside the current note.
+    ToggleSidecar,
     /// Open documents (filters folders). Multi: first reuses tab path unless
     /// `new_tab`; further docs always open as new tabs.
     OpenDocuments {
@@ -450,6 +452,7 @@ impl Action {
             Self::OpenFileNewTab(_) => "OpenFileNewTab",
             Self::NavBack => "NavBack",
             Self::NavForward => "NavForward",
+            Self::ToggleSidecar => "ToggleSidecar",
             Self::OpenDocuments { .. } => "OpenDocuments",
             Self::SelectTab(_) => "SelectTab",
             Self::CloseTab(_) => "CloseTab",

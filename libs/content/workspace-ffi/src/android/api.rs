@@ -327,6 +327,59 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionOpenTarget
     }
 }
 
+/// Whether the current note has an outline to offer on the app bar.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_outlineAvailable(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_offered) as jboolean
+}
+
+/// Whether the current note's outline is open, so the bottom bar stands aside.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_outlineOpen(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_open()) as jboolean
+}
+
+/// Opens or closes the current note's outline from the app bar.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleOutline(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.current_tab_markdown_mut() {
+        md.toggle_outline();
+    }
+}
+
+/// A link to the heading on the caret's line, or null, for the edit menu's
+/// "Copy Heading Link".
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionHeadingLink(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    match obj
+        .workspace
+        .current_tab_markdown_mut()
+        .and_then(|md| md.edit.selection_heading_link())
+    {
+        Some(url) => env
+            .new_string(url)
+            .expect("Couldn't create java string!")
+            .into_raw(),
+        None => std::ptr::null_mut(),
+    }
+}
+
 /// Whether the edit menu's link is an image, for its wording.
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionTargetIsImage(
@@ -580,6 +633,19 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     let id = Uuid::parse_str(&rid).unwrap();
 
     obj.workspace.open_file(id, true, new_file == 1);
+    get_current_tab(obj)
+}
+
+/// Opens a file from an `open/` URL at the heading its `#fragment` names.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDocAtHeading(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, jheading: JString,
+) -> jint {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let heading: String = env.get_string(&jheading).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+    obj.workspace.open_file_at_heading(id, heading, false);
     get_current_tab(obj)
 }
 

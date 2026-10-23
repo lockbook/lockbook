@@ -141,6 +141,26 @@ where
     });
 }
 
+/// Full-feature `gen_doc(all())` corpus from longer byte streams, so the
+/// doc outgrows a small view and scrolls; the rest of the stream picks the
+/// view.
+fn run_long<C, E>(check: C, seeds: u64)
+where
+    C: Fn(&[u8]) -> Result<(), E>,
+    E: std::fmt::Display,
+{
+    crate::test_utils::prop::run(seeds, 1024, check, |b| {
+        let mut src = ByteSource::new(b);
+        let doc = gen_doc(&mut src, &Features::all());
+        format!("doc:\n{doc:?}\nview: {:?}", long_view(&mut src))
+    });
+}
+
+/// A view a long doc scrolls in, and whether it reads on touch.
+fn long_view(src: &mut ByteSource) -> (f32, bool) {
+    (200.0 + 100.0 * src.draw(5) as f32, src.draw(2) == 1)
+}
+
 /// Corpus is chosen inside the check (varies per seed), so the repro is the
 /// shrunken bytes — decode them with the check's own generator.
 fn run_raw<C, E>(check: C, seeds: u64)
@@ -224,6 +244,11 @@ fn fold_toggle_does_not_jump_scroll() {
 fn layout_cache_consistent() {
     run_all(layout_cache_consistent_check, 1000);
 } // + embed resolver
+// two properties, one pass: each opens every heading
+#[test]
+fn opened_heading_is_scrolled_to_and_lands_in_order() {
+    run_long(opened_heading_is_scrolled_to_check, 1000);
+}
 
 // tables
 #[test]
@@ -1166,6 +1191,88 @@ fn fold_toggle_does_not_jump_scroll_check(buf: &[u8]) -> Result<(), &'static str
     })
     .map_err(|_| "editor panicked while checking fold-toggle stability")?;
     violation.map(Err).unwrap_or(Ok(()))
+}
+
+/// Properties: opening at any heading of a note that scrolls makes it the
+/// heading scrolled to, and headings opened in the note's order land in
+/// order down the view, a later one never higher than an earlier. Landing on
+/// a heading and reading which heading the view is on are inverses, at the
+/// top of the view and on the reading line's slide over the last screen.
+/// Small views, so more notes scroll.
+fn opened_heading_is_scrolled_to_check(buf: &[u8]) -> Result<(), String> {
+    use super::super::fragment::headings_in;
+    use super::super::scroll_content::DocScrollContent;
+    use crate::widgets::affine_scroll::{Offset, Rows as _};
+    let mut src = ByteSource::new(buf);
+    let md = gen_doc(&mut src, &Features::all());
+    let (height, touch) = long_view(&mut src);
+    let size = egui::Vec2::new(800.0, height);
+    let mut ws = TestEditor::new(&md);
+    // reading on touch, the caret stays where it was
+    if touch {
+        ws.editor.edit.renderer.touch_mode = true;
+        ws.editor.keyboard_visible = false;
+    }
+    ws.enter_frame_at(size);
+    let slugs: Vec<String> = {
+        let arena = comrak::Arena::new();
+        let root = ws.editor.edit.renderer.reparse(&arena);
+        headings_in(root).into_iter().map(|(_, h)| h.slug).collect()
+    };
+    landings_in_order(&mut ws)?;
+    for (i, slug) in slugs.iter().enumerate() {
+        ws.editor.open_at_heading(slug);
+        for _ in 0..3 {
+            ws.enter_frame_at(size);
+        }
+        let arena = comrak::Arena::new();
+        let root = ws.editor.edit.renderer.reparse(&arena);
+        let state = &ws.editor.edit.scroll_area.state;
+        let view = state.viewport_height;
+        let rows = DocScrollContent::for_frame(&ws.editor.edit.renderer, root, view);
+        let top = Offset::at_top_of(rows.first().ok_or("no rows")?);
+        let max = state.max_offset(&rows).ok_or("no rows")?;
+        if state.precise_distance(&rows, &top, &max, view) == Some(0.0) {
+            return Ok(()); // a note that doesn't scroll
+        }
+        let got = ws.editor.scrolled_to_heading(root);
+        if got != Some(i) {
+            return Err(format!("opened heading {i} ({slug:?}), scrolled to {got:?}"));
+        }
+    }
+    Ok(())
+}
+
+/// Where a heading at each point down the note would land in the view, a few
+/// points apart: never higher for a point lower in the note.
+fn landings_in_order(ws: &mut TestEditor) -> Result<(), String> {
+    use super::super::heading_scroll;
+    use super::super::scroll_content::{DocRowId, DocScrollContent};
+    use crate::widgets::affine_scroll::{Offset, Rows as _, offset_by};
+    let arena = comrak::Arena::new();
+    let root = ws.editor.edit.renderer.reparse(&arena);
+    let state = &ws.editor.edit.scroll_area.state;
+    let view = state.viewport_height;
+    let rows = DocScrollContent::for_frame(&ws.editor.edit.renderer, root, view);
+    let mut point = Offset::at_top_of(rows.first().ok_or("no rows")?);
+    let mut above = f32::MIN;
+    loop {
+        let scroll = heading_scroll(state, &rows, point.clone());
+        let landed = state
+            .precise_distance(&rows, &scroll, &point, 2.0 * view)
+            .ok_or("a point far from the view it lands in")?;
+        if landed < above - 0.5 {
+            return Err(format!(
+                "{point:?} lands {landed} down, above a point before it at {above}"
+            ));
+        }
+        above = landed;
+        let next = offset_by(&rows, point.clone(), 7.0);
+        if next == point || next.anchor == DocRowId::Trailing {
+            return Ok(());
+        }
+        point = next;
+    }
 }
 
 /// Property: rendering one input-bearing frame followed by an idle frame

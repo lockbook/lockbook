@@ -50,6 +50,16 @@ class WorkspaceViewModel : ViewModel() {
     val nativeMarkdownToolbarVisible: LiveData<Boolean>
         get() = _nativeMarkdownToolbarVisible
 
+    /** The open note has headings, so the app bar offers its outline. */
+    val _outlineAvailable = MutableLiveData(false)
+    val outlineAvailable: LiveData<Boolean>
+        get() = _outlineAvailable
+
+    /** The outline sheet is up: the bottom bar would cover it. */
+    val _outlineOpen = MutableLiveData(false)
+    val outlineOpen: LiveData<Boolean>
+        get() = _outlineOpen
+
     val _showKeyboard = MutableLiveData<Boolean>()
     val showKeyboard: LiveData<Boolean>
         get() = _showKeyboard
@@ -117,6 +127,8 @@ data class OpenFileRequest(
     val id: String,
     val newFile: Boolean,
     val presentation: OpenFilePresentation,
+    /** The heading a link's `#fragment` names, to open at. */
+    val heading: String? = null,
 )
 
 enum class OpenFilePresentation {

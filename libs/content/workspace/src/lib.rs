@@ -4,6 +4,7 @@ pub mod font;
 pub mod landing;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;
+pub mod note_index;
 pub mod output;
 pub mod resolvers;
 pub mod search;

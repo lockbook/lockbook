@@ -12,10 +12,11 @@ use std::sync::{Arc, Mutex};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::egress::{FetchError, fetch_html};
-use crate::file_cache::{FilesExt as _, ResolvedLink};
+use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
 use crate::show::DocType;
 use crate::style::{TypeRole, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::fragment::slugify;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
@@ -410,30 +411,42 @@ impl<'ast> MdRender {
             let shown = format!("[[{title}]]");
             return self.explain_unopenable(&shown, self.link_state_for_wikilink(title), ctx);
         };
+        let heading = wiki_fragment(title).1;
         match self.link_resolver.wikilink_confirmation(title) {
-            Some(reason) => self.ask_to_open(file_id, new_tab, reason, ctx),
-            None => ctx.open_file(file_id, new_tab),
+            Some(reason) => self.ask_to_open(file_id, heading, new_tab, reason, ctx),
+            None => ctx.open_link(file_id, heading.map(Into::into), new_tab),
         }
     }
 
     /// Opens the file `url` resolved to, behind a confirmation when the link
     /// means different files to different readers.
     fn open_linked_file(&self, url: &str, file_id: Uuid, ctx: &egui::Context, new_tab: bool) {
+        let heading = split_fragment(url).1;
         match self.link_resolver.confirmation(url) {
-            Some(reason) => self.ask_to_open(file_id, new_tab, reason, ctx),
-            None => ctx.open_file(file_id, new_tab),
+            Some(reason) => self.ask_to_open(file_id, heading, new_tab, reason, ctx),
+            None => ctx.open_link(file_id, heading.map(Into::into), new_tab),
         }
     }
 
-    fn ask_to_open(&self, file_id: Uuid, new_tab: bool, reason: String, ctx: &egui::Context) {
+    fn ask_to_open(
+        &self, file_id: Uuid, heading: Option<&str>, new_tab: bool, reason: String,
+        ctx: &egui::Context,
+    ) {
         let shown = self.files.read().unwrap().path(file_id);
-        ctx.show_link_sheet(LinkSheet { open: Some((file_id, new_tab)), shown, message: reason });
+        let heading = heading.map(String::from);
+        ctx.show_link_sheet(LinkSheet {
+            open: Some((file_id, new_tab)),
+            heading,
+            shown,
+            message: reason,
+        });
     }
 
     /// Says why a link that names nothing the reader can see doesn't open.
     fn explain_unopenable(&self, shown: &str, state: LinkState, ctx: &egui::Context) {
         if let LinkState::Broken { message } = state {
-            ctx.show_link_sheet(LinkSheet { open: None, shown: shown.into(), message });
+            let sheet = LinkSheet { open: None, heading: None, shown: shown.into(), message };
+            ctx.show_link_sheet(sheet);
         }
     }
 
@@ -456,8 +469,9 @@ impl<'ast> MdRender {
     }
 
     /// What copying a link puts on the clipboard. A link to a file copies as
-    /// the file's external URL, any `#fragment` kept: the one form that means
-    /// the same file wherever it is pasted. Anything else copies as written.
+    /// the file's external URL, a heading kept as its slug: the one form that
+    /// means the same place wherever it is pasted. Anything else copies as
+    /// written.
     pub fn link_to_copy(&self, url: &str, wikilink: bool) -> String {
         let file = if wikilink {
             self.resolve_wikilink(url)
@@ -468,8 +482,12 @@ impl<'ast> MdRender {
             }
         };
         let Some(id) = file else { return url.into() };
-        match url.split_once('#') {
-            Some((_, fragment)) => format!("{}#{fragment}", self.external_url(id)),
+        let fragment = match wikilink {
+            true => wiki_fragment(url).1.map(slugify),
+            false => split_fragment(url).1.map(String::from),
+        };
+        match fragment.filter(|f| !f.is_empty()) {
+            Some(fragment) => format!("{}#{fragment}", self.external_url(id)),
             None => self.external_url(id),
         }
     }
@@ -880,6 +898,27 @@ fn alone_on_line<'a>(
         sib = next(s);
     }
     true
+}
+
+impl MdEdit {
+    /// A link to this note's heading with `slug`: the external URL, which
+    /// opens the same place wherever it is pasted.
+    pub fn heading_link(&self, slug: &str) -> String {
+        format!("{}#{slug}", self.renderer.external_url(self.file_id))
+    }
+
+    /// [`Self::heading_link`] for the heading on the caret's line, for the
+    /// platform edit menu's "Copy Heading Link".
+    pub fn selection_heading_link(&mut self) -> Option<String> {
+        if self.renderer.plaintext {
+            return None;
+        }
+        let arena = Arena::new();
+        let root = self.renderer.reparse(&arena);
+        let caret = self.renderer.buffer.current.selection.1;
+        let slug = self.renderer.heading_slug_at(root, caret)?;
+        Some(self.heading_link(&slug))
+    }
 }
 
 /// A choice from the desktop link context menu ([`fill_link_menu`]).

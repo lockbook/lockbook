@@ -35,6 +35,7 @@ use super::{ImeMarked, MdEdit, MdRender};
 #[derive(Clone)]
 enum EditorMenuCmd {
     Link(LinkMenuAction),
+    HeadingLink,
     Cut,
     Copy,
     CopyRendered,
@@ -222,6 +223,7 @@ impl MdEdit {
 
         if buf_resp.text_updated || buf_resp.selection_user_moved {
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
+            self.caret_moved = true;
         }
         self.renderer.caret_moved |= buf_resp.selection_user_moved;
 
@@ -374,6 +376,7 @@ impl MdEdit {
         if reveal && (resp.text_updated || resp.selection_user_moved) {
             self.pending_scroll = Some(ScrollTarget::Cursor);
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
+            self.caret_moved = true;
             self.renderer.caret_moved |= resp.selection_user_moved;
         }
         ctx.request_repaint();
@@ -469,7 +472,7 @@ impl MdEdit {
         self.post_render(ui, rect, id, pre);
         self.draw_dragged_overlay(ui, root);
         if overflow > 0.0 {
-            self.show_overflow_scrollbar(ui, rect, id, height, overflow);
+            self.show_overflow_scrollbar(ui, rect, id, height);
         }
 
         // Keep the cursor inside the rect: fragments (and so `cursor_line`)
@@ -528,54 +531,15 @@ impl MdEdit {
 
     /// Overlay scrollbar on the right edge of an overflowing bounded field.
     /// Same grab semantics as the document bar; paint/fade matches Files.
-    fn show_overflow_scrollbar(
-        &mut self, ui: &mut Ui, rect: Rect, id: Id, height: f32, overflow: f32,
-    ) {
-        use crate::style::overlay_scroll;
-        const MIN_THUMB: f32 = 12.0;
-        let track = Rect::from_min_max(
-            Pos2::new(
-                rect.max.x - overlay_scroll::BAR_WIDTH - overlay_scroll::BAR_INSET,
-                rect.min.y,
-            ),
-            Pos2::new(rect.max.x - overlay_scroll::BAR_INSET, rect.max.y),
+    fn show_overflow_scrollbar(&mut self, ui: &mut Ui, rect: Rect, id: Id, height: f32) {
+        crate::style::overlay_scroll::scroller_bar(
+            ui,
+            id.with("overflow"),
+            rect,
+            height,
+            &mut self.overflow_scroll,
+            false,
         );
-        let thumb_h = (track.height() * rect.height() / height).max(MIN_THUMB);
-        let movable = track.height() - thumb_h;
-        let thumb_at = |scroll: f32| {
-            Rect::from_min_size(
-                Pos2::new(track.min.x, track.min.y + movable * (scroll / overflow)),
-                egui::Vec2::new(track.width(), thumb_h),
-            )
-        };
-
-        // Same as the document bar: no hit while hidden, so a faded thumb
-        // cannot jump-scroll or steal composer drags.
-        let overlay_id = id.with("overflow_overlay");
-        let bar_live = overlay_scroll::is_shown(ui, overlay_id);
-        if bar_live {
-            let resp = ui.interact(track, id.with("overflow_scrollbar"), Sense::click_and_drag());
-            if movable > 0.0 {
-                if let Some(pos) = resp.interact_pointer_pos() {
-                    let on_thumb = thumb_at(self.overflow_scroll).contains(pos);
-                    if (resp.drag_started() || resp.clicked()) && !on_thumb {
-                        let target = (pos.y - track.min.y - thumb_h / 2.0).clamp(0.0, movable);
-                        self.overflow_scroll = target / movable * overflow;
-                    } else if resp.dragged() && !resp.drag_started() {
-                        self.overflow_scroll = (self.overflow_scroll
-                            + resp.drag_delta().y / movable * overflow)
-                            .clamp(0.0, overflow);
-                    }
-                    ui.ctx().request_repaint();
-                }
-            }
-            let bar_held = resp.hovered() || resp.dragged() || resp.is_pointer_button_down_on();
-            if overlay_scroll::tick(ui, overlay_id, self.overflow_scroll, bar_held) {
-                overlay_scroll::paint(ui, track, thumb_at(self.overflow_scroll), bar_held);
-            }
-        } else if overlay_scroll::tick(ui, overlay_id, self.overflow_scroll, false) {
-            overlay_scroll::paint(ui, track, thumb_at(self.overflow_scroll), false);
-        }
     }
 
     /// Consume the marker's [`BlockDragAction`] for the frame and, on
@@ -874,17 +838,25 @@ impl MdEdit {
             // Capture the link under the click when it lands, so the menu's
             // link section stays stable while the pointer moves over it.
             if response.secondary_clicked() {
-                self.context_menu_link = response
-                    .interact_pointer_pos()
-                    .and_then(|pos| self.link_target_at_pos(root, pos));
+                let pos = response.interact_pointer_pos();
+                self.context_menu_link = pos.and_then(|pos| self.link_target_at_pos(root, pos));
+                self.context_menu_heading = pos.and_then(|pos| {
+                    let offset = self.location_to_char_offset(Location::Pos(pos));
+                    self.renderer.heading_slug_at(root, offset)
+                });
             }
             let link_target = self.context_menu_link.clone();
+            let heading = self.context_menu_heading.clone();
             let (readonly, plaintext) = (self.renderer.readonly, self.renderer.plaintext);
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
                 if let Some(link) = &link_target {
                     // plain links never render a preview — nothing to refresh
                     fill_link_menu(e, link.is_image, !readonly, false, EditorMenuCmd::Link);
+                    e.separator();
+                }
+                if heading.is_some() {
+                    e.item(phosphor::LINK, "Copy Heading Link", EditorMenuCmd::HeadingLink);
                     e.separator();
                 }
                 if !readonly {
@@ -901,6 +873,11 @@ impl MdEdit {
             });
             let mut menu_events: Vec<Event> = Vec::new();
             match chosen {
+                Some(EditorMenuCmd::HeadingLink) => {
+                    if let Some(slug) = &heading {
+                        ui.ctx().copy_text(self.heading_link(slug));
+                    }
+                }
                 Some(EditorMenuCmd::Link(action)) => {
                     if let Some(link) = &link_target {
                         match action {
@@ -1066,6 +1043,7 @@ impl MdEdit {
         let pointer_resp = self.renderer.buffer.update();
         if pointer_resp.text_updated || pointer_resp.selection_user_moved {
             self.cursor_last_interact = Some(ui.ctx().input(|i| i.time));
+            self.caret_moved = true;
         }
         self.renderer.caret_moved |= pointer_resp.selection_user_moved;
         // Pointer only emits Select ops (no text change), so no re-parse

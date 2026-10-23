@@ -520,6 +520,14 @@
             if currentTab == .Welcome {
                 workspaceOutput?.currentSession = nil
             }
+            let outline = currentTab == .Markdown && outline_available(wsHandle)
+            if outline != workspaceOutput?.outlineAvailable {
+                workspaceOutput?.outlineAvailable = outline
+            }
+            let outlineOpen = currentTab == .Markdown && outline_open(wsHandle)
+            if outlineOpen != workspaceOutput?.outlineOpen {
+                workspaceOutput?.outlineOpen = outlineOpen
+            }
             if currentTab == .Welcome || currentTab == .Search, currentOpenDoc != nil {
                 currentOpenDoc = nil
                 workspaceOutput?.openDoc = nil

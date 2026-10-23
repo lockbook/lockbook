@@ -69,6 +69,18 @@ pub extern "C" fn open_file_at(
         .open_file_at_range(id, range_start..range_end, new_tab);
 }
 
+/// Opens a file at the heading a link's `#fragment` names.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn open_file_at_heading(
+    obj: *mut c_void, id: CUuid, heading: *const c_char, new_tab: bool,
+) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let heading = CStr::from_ptr(heading).to_string_lossy().into_owned();
+    obj.workspace
+        .open_file_at_heading(id.into(), heading, new_tab);
+}
+
 #[no_mangle]
 pub extern "C" fn navigate_to_file(obj: *mut c_void, id: CUuid) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
@@ -318,6 +330,54 @@ pub unsafe extern "C" fn selection_open_target(obj: *mut c_void) -> *const c_cha
         return std::ptr::null();
     };
     match md.renderer.selection_open_target() {
+        Some(url) => CString::new(url)
+            .map(|s| s.into_raw() as *const c_char)
+            .unwrap_or(std::ptr::null()),
+        None => std::ptr::null(),
+    }
+}
+
+/// Whether the current note has an outline to offer in native chrome.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn outline_available(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_offered)
+}
+
+/// Whether the current note's outline is open, so floating chrome stands aside.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn outline_open(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_open())
+}
+
+/// Opens or closes the current note's outline from native chrome.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn toggle_outline(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    if let Some(md) = obj.workspace.current_tab_markdown_mut() {
+        md.toggle_outline();
+    }
+}
+
+/// A link to the heading on the caret's line, or null, for the edit menu's
+/// "Copy Heading Link". The returned string must be freed with `free_text`.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn selection_heading_link(obj: *mut c_void) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    match obj
+        .workspace
+        .current_tab_markdown_mut()
+        .and_then(|md| md.edit.selection_heading_link())
+    {
         Some(url) => CString::new(url)
             .map(|s| s.into_raw() as *const c_char)
             .unwrap_or(std::ptr::null()),

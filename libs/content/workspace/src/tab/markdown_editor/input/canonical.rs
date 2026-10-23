@@ -1,5 +1,6 @@
 use crate::file_cache::{FilesExt as _, link_id};
 use crate::show::DocType;
+use crate::tab::markdown_editor::fragment::{document_headings, find_heading};
 use crate::tab::markdown_editor::widget::link_completions::{
     detect_destination, detect_link, detect_wikilink,
 };
@@ -33,13 +34,20 @@ const PAGE_LINES: usize = 50;
 impl MdEdit {
     /// For pasted text that is an id link (`lb://`, or a file's external URL)
     /// to a document here: the destination this note would link to it with,
-    /// any `#fragment` kept, and the name to show.
+    /// any `#fragment` kept, and the name to show. A heading of this note is
+    /// just `#slug`, which no rename breaks, shown as the heading's text.
     fn pasted_file_link(&self, text: &str) -> Option<(String, String)> {
         let url = text.trim();
         let id = link_id(url).filter(|_| !url.contains(char::is_whitespace))?;
         let files = self.renderer.files.read().unwrap();
         let file = files.get_by_id(id).filter(|f| f.is_document())?;
         let fragment = url.split_once('#').map_or("", |(_, fragment)| fragment);
+        if id == self.file_id && !fragment.is_empty() {
+            let headings = document_headings(&self.renderer.buffer.current.text);
+            let name = find_heading(&headings, fragment)
+                .map_or(fragment.to_string(), |i| headings[i].text.clone());
+            return Some((format!("#{fragment}"), name));
+        }
         let with_fragment = |link: String| match fragment {
             "" => link,
             fragment => format!("{link}#{fragment}"),
@@ -148,7 +156,7 @@ impl<'ast> MdEdit {
                     }
                     return Some(Event::Replace {
                         region: Region::Selection,
-                        text: format!("[{name}]({destination})"),
+                        text: format!("[{}]({destination})", escape_brackets(&name)),
                         advance_cursor: true,
                     });
                 }
@@ -565,4 +573,9 @@ impl<'ast> MdEdit {
             _ => None,
         }
     }
+}
+
+/// A link's text with its brackets escaped, so it can't close the link.
+fn escape_brackets(text: &str) -> String {
+    text.replace('[', "\\[").replace(']', "\\]")
 }

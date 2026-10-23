@@ -3,7 +3,9 @@ use std::sync::{Arc, RwLock};
 
 use lb_rs::Uuid;
 
-use crate::file_cache::{FileCache, FilesExt, Reach, link_id, web_link};
+use crate::file_cache::{
+    FileCache, FilesExt, Reach, link_id, split_fragment, web_link, wiki_fragment,
+};
 #[cfg(test)]
 use lb_rs::model::file::File;
 use lb_rs::model::file::ShareMode;
@@ -123,7 +125,8 @@ impl LinkResolver for FileCacheLinkResolver {
                         "Ask the owner to share it or remove the link.",
                     )
                 } else {
-                    not_found(&*files, note, &format!("No file you can see is at **{url}**."))
+                    let path = split_fragment(url).0;
+                    not_found(&*files, note, &format!("No file you can see is at **{path}**."))
                 };
                 LinkState::Broken { message: tooltip(&*files, note, why) }
             }
@@ -140,6 +143,7 @@ impl LinkResolver for FileCacheLinkResolver {
             },
             None => {
                 let tied = |scope| files.wikilink_nearest_in(title, note, scope).len() > 1;
+                let title = wiki_fragment(title).0;
                 let why = if tied(files.scope_top(note)) || tied(files.tree_root(note)) {
                     let last = title.rsplit('/').next().unwrap_or(title);
                     Why::new(

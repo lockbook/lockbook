@@ -99,7 +99,9 @@ pub fn tab_left_inset(sidebar_w: f32) -> f32 {
     (controls_right() - sidebar_w.max(0.0)).max(0.0)
 }
 
-pub fn tab_right_inset() -> f32 {
+/// Room the window controls take at the right edge: a margin on macOS,
+/// whose controls are on the left.
+pub fn window_controls_inset() -> f32 {
     #[cfg(target_os = "macos")]
     {
         Space::Sm.pts()
@@ -108,6 +110,16 @@ pub fn tab_right_inset() -> f32 {
     {
         caption_cluster_w()
     }
+}
+
+/// Window-x distance from the right edge to the sidecar toggle's right edge.
+pub fn sidecar_toggle_inset() -> f32 {
+    window_controls_inset() + TOOLBAR_GAP
+}
+
+/// Tabs end before the sidecar toggle and the window controls.
+pub fn tab_right_inset() -> f32 {
+    sidecar_toggle_inset() + icon_size() + group_gap()
 }
 
 #[cfg(target_os = "windows")]

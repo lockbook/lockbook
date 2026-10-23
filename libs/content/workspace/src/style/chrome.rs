@@ -145,6 +145,24 @@ pub fn overlay_shadow(t: &Theme) -> Shadow {
     Shadow { offset: [0, 4], blur: 12, spread: 0, color: shadow_ink(t) }
 }
 
+/// How deep content fades out at an edge of its scroller with more beyond.
+pub const EDGE_FADE: Space = Space::Lg;
+
+/// Paints `rect` from `from` at its top (or left) edge to `to` at its bottom
+/// (or right): over content, `from` the surface and `to` clear fades it out
+/// toward that edge.
+pub fn paint_fade(painter: &egui::Painter, rect: Rect, from: Color32, to: Color32, vertical: bool) {
+    let (a, b, c, d) = if vertical { (from, from, to, to) } else { (from, to, from, to) };
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(rect.left_top(), a);
+    mesh.colored_vertex(rect.right_top(), b);
+    mesh.colored_vertex(rect.left_bottom(), c);
+    mesh.colored_vertex(rect.right_bottom(), d);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(1, 2, 3);
+    painter.add(egui::Shape::mesh(mesh));
+}
+
 /// Contact shadow for held-in-place chrome (sticky pins).
 /// [`overlay_shadow`]'s blur and ink at half the lift: offset 2, blur 12.
 pub fn pin_shadow(t: &Theme) -> Shadow {
@@ -363,6 +381,10 @@ pub mod phosphor {
     pub const ARROW_LINE_LEFT: &str = "\u{e062}";
     /// Nested lines — document outline (`ph-list`).
     pub const LIST: &str = "\u{e2f0}";
+    /// Lines with dashes — the outline button (`ph-list-dashes`).
+    pub const LIST_DASHES: &str = "\u{e2f4}";
+    /// `#` — a note's headings in the link picker (`ph-hash`).
+    pub const HASH: &str = "\u{e2a2}";
     pub const LIST_BULLETS: &str = "\u{e2f2}";
     pub const LIST_NUMBERS: &str = "\u{e2f6}";
     pub const CHECK_SQUARE: &str = "\u{e186}";

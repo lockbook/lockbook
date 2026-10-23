@@ -469,6 +469,19 @@
                 mtkView.workspaceOutput?.openDoc = nil
             }
 
+            let outline = currentTab == .Markdown && outline_available(wsHandle)
+            if outline != mtkView.workspaceOutput!.outlineAvailable {
+                DispatchQueue.main.async {
+                    mtkView.workspaceOutput!.outlineAvailable = outline
+                }
+            }
+            let outlineOpen = currentTab == .Markdown && outline_open(wsHandle)
+            if outlineOpen != mtkView.workspaceOutput!.outlineOpen {
+                DispatchQueue.main.async {
+                    mtkView.workspaceOutput!.outlineOpen = outlineOpen
+                }
+            }
+
             if currentTab != mtkView.workspaceOutput!.currentTab {
                 if let currentWrapper = mtkView.currentWrapper as? SvgView {
                     currentWrapper.applyPanTouchRequirements(for: currentTab)

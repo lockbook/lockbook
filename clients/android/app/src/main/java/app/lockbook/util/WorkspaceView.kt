@@ -55,7 +55,7 @@ class WorkspaceView(
     private var surface: Surface? = null
 
     // The fragment may request a file before SurfaceView creates its native workspace.
-    private var deferredOpenDoc: Pair<String, Boolean>? = null
+    private var deferredOpenDoc: Triple<String, Boolean, String?>? = null
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
@@ -272,9 +272,9 @@ class WorkspaceView(
 
         requestFocus()
 
-        deferredOpenDoc?.let { (id, newFile) ->
+        deferredOpenDoc?.let { (id, newFile, heading) ->
             deferredOpenDoc = null
-            openDoc(id, newFile)
+            openDoc(id, newFile, heading)
         }
     }
 
@@ -384,6 +384,15 @@ class WorkspaceView(
         val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
         if (response.failureMessage.isNotEmpty()) {
             Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
+        }
+
+        val outline = Workspace.outlineAvailable(wgpuObj)
+        if (outline != model.outlineAvailable.value) {
+            model._outlineAvailable.value = outline
+        }
+        val outlineOpen = Workspace.outlineOpen(wgpuObj)
+        if (outlineOpen != model.outlineOpen.value) {
+            model._outlineOpen.value = outlineOpen
         }
 
         if (response.urlOpened.isNotEmpty()) {
@@ -533,17 +542,31 @@ class WorkspaceView(
     fun openDoc(
         id: String,
         newFile: Boolean,
+        heading: String? = null,
     ) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
-            deferredOpenDoc = id to newFile
+            deferredOpenDoc = Triple(id, newFile, heading)
             return
         }
 
         deferredOpenDoc = null
-        Workspace.openDoc(wgpuObj, id, newFile)
+        if (heading.isNullOrEmpty()) {
+            Workspace.openDoc(wgpuObj, id, newFile)
+        } else {
+            Workspace.openDocAtHeading(wgpuObj, id, heading)
+        }
         invalidate()
 
         return
+    }
+
+    fun toggleOutline() {
+        if (wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        Workspace.toggleOutline(wgpuObj)
+        invalidate()
     }
 
     fun activateDoc(id: String) {
@@ -657,6 +680,7 @@ class WorkspaceView(
         const val OPEN_LINK_MENU_ID = 0x00E0170B
         const val COPY_LINK_MENU_ID = 0x00E0170C
         const val REFRESH_PREVIEW_MENU_ID = 0x00E0170D
+        const val COPY_HEADING_LINK_MENU_ID = 0x00E0170F
         const val COPY_RENDERED_MENU_ID = 0x00E0170E
     }
 
@@ -763,6 +787,7 @@ class WorkspaceView(
     ) : ActionMode.Callback {
         // URL under the selection when the menu was built; feeds "Copy Link"
         private var openTarget: String? = null
+        private var headingLink: String? = null
 
         override fun onCreateActionMode(
             mode: ActionMode?,
@@ -792,6 +817,13 @@ class WorkspaceView(
 
                 menu
                     .add(Menu.NONE, COPY_LINK_MENU_ID, 0, "Copy Link")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+
+            headingLink = Workspace.selectionHeadingLink(wgpuObj)
+            if (headingLink != null) {
+                menu
+                    .add(Menu.NONE, COPY_HEADING_LINK_MENU_ID, 0, "Copy Heading Link")
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
 
@@ -866,6 +898,15 @@ class WorkspaceView(
                     REFRESH_PREVIEW_MENU_ID -> {
                         Workspace.refreshSelectionPreviews(wgpuObj)
                         invalidate()
+                    }
+
+                    COPY_HEADING_LINK_MENU_ID -> {
+                        headingLink?.let {
+                            (
+                                context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                    as ClipboardManager
+                            ).setPrimaryClip(ClipData.newPlainText("", it))
+                        }
                     }
 
                     COPY_RENDERED_MENU_ID -> {

@@ -675,7 +675,9 @@ pub trait ExtendedOutput {
     fn set_context_menu(&self, pos: egui::Pos2, target: ContextMenuTarget);
     fn pop_context_menu(&self) -> Option<(egui::Pos2, ContextMenuTarget)>;
     fn open_file(&self, id: Uuid, new_tab: bool);
-    fn pop_open_files(&self) -> Vec<(Uuid, bool)>;
+    /// Open a file a link names, at the heading its `#fragment` names.
+    fn open_link(&self, id: Uuid, heading: Option<String>, new_tab: bool);
+    fn pop_open_files(&self) -> Vec<(Uuid, Option<String>, bool)>;
     /// Open a file with the selection over `byte_range` (e.g. a placeholder
     /// to type over).
     fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool);
@@ -706,6 +708,8 @@ pub struct LinkSheet {
     /// The file to open on confirmation, and whether in a new tab; None when
     /// the link can't open.
     pub open: Option<(Uuid, bool)>,
+    /// The `#fragment` naming the heading to open at.
+    pub heading: Option<String>,
     /// What the link reaches or names: a path, or the destination as written.
     pub shown: String,
     /// Why, then the fix on the next line when the reader can act on it.
@@ -744,20 +748,24 @@ impl ExtendedOutput for egui::Context {
     }
 
     fn open_file(&self, id: Uuid, new_tab: bool) {
+        self.open_link(id, None, new_tab)
+    }
+
+    fn open_link(&self, id: Uuid, heading: Option<String>, new_tab: bool) {
         self.memory_mut(|m| {
-            let mut files: Vec<(Uuid, bool)> = m
+            let mut files: Vec<(Uuid, Option<String>, bool)> = m
                 .data
                 .get_temp(Id::unique("open_files"))
                 .unwrap_or_default();
-            files.push((id, new_tab));
+            files.push((id, heading, new_tab));
             m.data.insert_temp(Id::unique("open_files"), files);
         })
     }
 
-    fn pop_open_files(&self) -> Vec<(Uuid, bool)> {
+    fn pop_open_files(&self) -> Vec<(Uuid, Option<String>, bool)> {
         self.memory_mut(|m| {
             m.data
-                .remove_temp::<Vec<(Uuid, bool)>>(Id::unique("open_files"))
+                .remove_temp::<Vec<(Uuid, Option<String>, bool)>>(Id::unique("open_files"))
                 .unwrap_or_default()
         })
     }

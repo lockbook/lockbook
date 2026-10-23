@@ -87,7 +87,8 @@ pub struct Workspace {
     /// A new search starts where the last one left off.
     pub last_search: SearchState,
 
-    pending_open_range: Option<(Uuid, std::ops::Range<usize>)>,
+    /// Where a file being opened puts its caret once its editor has loaded.
+    pending_reveal: Option<(Uuid, Reveal)>,
     /// Sheets explaining links the reader tried to open, the first showing.
     pub(crate) link_sheets: std::collections::VecDeque<crate::tab::LinkSheet>,
     /// The tab the sheets belong to; they close when it stops being current.
@@ -140,6 +141,14 @@ pub enum WsUpdates {
 
 #[derive(Clone, Copy)]
 struct UserPresent(bool);
+
+#[derive(Clone)]
+enum Reveal {
+    /// Select these bytes: a search hit, a placeholder to type over.
+    Range(std::ops::Range<usize>),
+    /// Pin the heading this `#fragment` names to the top.
+    Heading(String),
+}
 
 impl Workspace {
     pub fn set_user_present(&self) {
@@ -213,7 +222,7 @@ impl Workspace {
             preview: None,
             preview_pending: None,
             last_search: SearchState::default(),
-            pending_open_range: None,
+            pending_reveal: None,
             link_sheets: Default::default(),
             link_sheet_tab: None,
             link_sheet_keys: (false, false),
@@ -253,7 +262,10 @@ impl Workspace {
         let ctx = ctx.clone();
 
         #[cfg(not(target_family = "wasm"))]
-        spawn!(lb_bg_worker(ctx, core, ws_tx));
+        {
+            crate::note_index::NoteIndex::keep(ws.files.clone(), core.clone(), ctx.clone());
+            spawn!(lb_bg_worker(ctx, core, ws_tx));
+        }
 
         ws
     }
@@ -849,23 +861,51 @@ impl Workspace {
         &mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool,
     ) {
         self.open_file(id, true, in_new_tab);
-        self.pending_open_range = Some((id, byte_range));
+        self.pending_reveal = Some((id, Reveal::Range(byte_range)));
     }
 
     pub fn navigate_to_range(&mut self, id: Uuid, byte_range: std::ops::Range<usize>) {
         self.navigate_to(Destination::File(id));
-        self.pending_open_range = Some((id, byte_range));
+        self.pending_reveal = Some((id, Reveal::Range(byte_range)));
     }
 
-    pub(crate) fn apply_pending_open_range(&mut self) {
-        let Some((id, range)) = self.pending_open_range.clone() else { return };
-        if let Some(md) = self.get_mut_tab_by_id(id).and_then(|t| t.markdown_mut()) {
+    /// Opens a file a link names, with the heading its `#fragment` names at
+    /// the top of the view. In place unless `in_new_tab`, so Back returns.
+    pub fn open_link(&mut self, id: Uuid, heading: Option<String>, in_new_tab: bool) {
+        if in_new_tab {
+            self.open_file(id, true, true);
+        } else {
+            self.navigate_to(Destination::File(id));
+        }
+        if let Some(heading) = heading.filter(|h| !h.is_empty()) {
+            self.pending_reveal = Some((id, Reveal::Heading(heading)));
+        }
+    }
+
+    /// Opens a file from outside the app (an `open/` URL) at the heading its
+    /// `#fragment` names.
+    pub fn open_file_at_heading(&mut self, id: Uuid, heading: String, in_new_tab: bool) {
+        self.open_file(id, true, in_new_tab);
+        self.pending_reveal = Some((id, Reveal::Heading(heading)));
+    }
+
+    pub(crate) fn apply_pending_reveal(&mut self) {
+        let Some((id, reveal)) = self.pending_reveal.clone() else { return };
+        // the current tab when the note is open in more than one
+        let tab = match self.current_tab_id() == Some(id) {
+            true => self.current_tab_mut(),
+            false => self.get_mut_tab_by_id(id),
+        };
+        if let Some(md) = tab.and_then(|t| t.markdown_mut()) {
             if md.initialized {
-                md.open_navigate(range);
-                self.pending_open_range = None;
+                match reveal {
+                    Reveal::Range(range) => md.open_navigate(range),
+                    Reveal::Heading(heading) => md.open_at_heading(&heading),
+                }
+                self.pending_reveal = None;
             }
         } else if self.tab_strip.iter().all(|s| s.dest.id() != id) {
-            self.pending_open_range = None;
+            self.pending_reveal = None;
         }
     }
 
@@ -1080,13 +1120,23 @@ impl Workspace {
         self.closed_tabs.iter().rev().map(|c| &c.slot).collect()
     }
 
+    /// Puts `cache` in place of the file cache, keeping the headings of the
+    /// notes it still has.
+    fn replace_files(&self, mut cache: FileCache) {
+        let mut files = self.files.write().unwrap();
+        let mut notes = std::mem::take(&mut files.notes);
+        notes.retain_in(&cache);
+        cache.notes = notes;
+        *files = cache;
+    }
+
     pub fn process_bg_tasks(&mut self) {
         loop {
             match self.ws_rx.try_recv() {
                 Ok(WsUpdates::FileCacheComputed(file_cache)) => {
                     let file_cache = file_cache.unwrap();
                     self.landing_page.update_recent_files(&file_cache);
-                    *self.files.write().unwrap() = file_cache;
+                    self.replace_files(file_cache);
                     self.out.file_cache_updated = true;
 
                     for tab in self.tabs.values_mut() {
@@ -1263,7 +1313,7 @@ impl Workspace {
                     continue;
                 };
                 let link = crate::tab::imported_image_link(&cache, file_id, &file);
-                *self.files.write().unwrap() = cache;
+                self.replace_files(cache);
                 match link {
                     Ok(link) => {
                         self.ctx
@@ -1452,6 +1502,7 @@ impl Workspace {
                         if let Some(md) = tab.markdown_mut() {
                             md.initialized = true;
                             md.id_salt = egui::Id::unique("search_preview");
+                            md.in_preview = true;
                         }
                         // A chat's first frame would focus its composer,
                         // stealing focus from the search query.
@@ -1907,6 +1958,9 @@ pub struct WsPresistentData {
     /// Where the next new search starts.
     #[serde(default)]
     last_search: SearchState,
+    /// The sidecar, the panel beside a note that holds its outline, is open.
+    #[serde(default)]
+    sidecar_open: bool,
 }
 
 impl Default for WsPresistentData {
@@ -1926,6 +1980,7 @@ impl Default for WsPresistentData {
             image_dims: HashMap::default(),
             contact_linked_sites: false,
             last_search: SearchState::default(),
+            sidecar_open: false,
         }
     }
 }
@@ -2079,6 +2134,20 @@ impl WsPersistentStore {
             return; // no-op guard: mobile pushes this from its per-frame draw
         }
         data_lock.contact_linked_sites = contact_linked_sites;
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn get_sidecar_open(&self) -> bool {
+        self.data.read().unwrap().sidecar_open
+    }
+
+    pub fn set_sidecar_open(&mut self, open: bool) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.sidecar_open == open {
+            return;
+        }
+        data_lock.sidecar_open = open;
         drop(data_lock);
         self.write_to_file();
     }
