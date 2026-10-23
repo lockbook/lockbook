@@ -29,6 +29,7 @@ use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, DragUnit, TouchReorder};
+use super::widget::block::leaf::diagram::Picture;
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use super::{ImeMarked, MdEdit, MdRender};
 
@@ -214,6 +215,20 @@ impl MdEdit {
                 (range.contains_range(&sel, true, true) && range.intersects(&prev, true))
                     .then_some(range)
             });
+        }
+
+        let selection = self.renderer.buffer.current.selection;
+        if buf_resp.text_updated || self.caret_in_code_at != Some(selection) {
+            let root = self.renderer.reparse(&arena);
+            self.caret_in_code = root.descendants().any(|node| {
+                use comrak::nodes::NodeValue;
+                matches!(node.data.borrow().value, NodeValue::CodeBlock(_) | NodeValue::Code(_))
+                    && self
+                        .renderer
+                        .node_range(node)
+                        .contains(selection.1, true, true)
+            });
+            self.caret_in_code_at = Some(selection);
         }
 
         self.sync_reveal_selection(ctx, id, prior_entered_atom);
@@ -829,6 +844,8 @@ impl MdEdit {
 
         // image / card / link taps → open (cmd) or select + menu (touch)
         self.handle_image_interactions(root, ui, id, &mut ops);
+        self.escape_diagram_source(root, ui, id, &mut ops);
+        self.handle_diagram_interactions(root, ui, id, &mut ops);
         self.handle_card_interactions(root, ui, id, &mut ops);
         self.handle_link_capsule_interactions(root, ui, id, &mut ops);
         self.handle_link_menu_taps(root, ui, id, &mut ops);
@@ -892,6 +909,9 @@ impl MdEdit {
                             LinkMenuAction::Copy => ui
                                 .ctx()
                                 .copy_text(self.renderer.link_to_copy(&link.url, link.is_wikilink)),
+                            LinkMenuAction::CopyImage => {
+                                self.renderer.copy_picture(Picture::Image(link.url.clone()))
+                            }
                             LinkMenuAction::Refresh => self.renderer.refresh_link_meta(&link.url),
                             LinkMenuAction::Edit => {
                                 if link.force_reveal {

@@ -76,7 +76,7 @@ impl SVGEditor {
                             id,
                             Element::Image(Box::new(Image {
                                 data: resvg::usvg::ImageKind::PNG(data.into()),
-                                visibility: resvg::usvg::Visibility::Visible,
+                                visible: true,
                                 transform,
                                 view_box: NonZeroRect::from_xywh(
                                     fitted_img_rect.min.x,

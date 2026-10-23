@@ -214,7 +214,43 @@ pub unsafe extern "C" fn copy_image(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     if let Some(image_viewer) = obj.workspace.current_tab_image() {
         image_viewer.copy_image(&obj.renderer.context);
+    } else {
+        obj.renderer
+            .context
+            .push_markdown_event(workspace_rs::tab::markdown_editor::input::Event::CopyImage);
     }
+}
+
+/// Whether the selection is a picture (image or diagram) "Copy Image" copies.
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn selection_has_picture(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_has_picture())
+}
+
+/// Whether the selection is a diagram "Open" shows in the image viewer.
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn selection_has_diagram(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_has_diagram())
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn open_selected_diagram(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.renderer
+        .context
+        .push_markdown_event(workspace_rs::tab::markdown_editor::input::Event::OpenDiagram);
 }
 
 /// A key press as egui sees it, for the editor's chrome and popups.
@@ -1180,6 +1216,7 @@ pub unsafe extern "C" fn ios_text_traits(obj: *mut c_void) -> CTextTraits {
             single_line: md.renderer.single_line,
             completions: md.emoji_completions.active || md.link_completions.active,
             send_on_return,
+            code: md.caret_in_code,
         },
         None => CTextTraits::default(),
     }

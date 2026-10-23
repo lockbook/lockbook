@@ -111,6 +111,12 @@ impl EmbedResolver for ImageEmbedResolver {
     fn seq(&self) -> u64 {
         self.images.seq()
     }
+
+    fn copy_image(&self, url: &str, _ctx: &egui::Context) {
+        if !self.held(url) {
+            self.images.copy_image(url, self.file_id);
+        }
+    }
 }
 
 /// A quiet box: hairline frame, icon and caption in secondary ink. `dot`

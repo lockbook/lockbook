@@ -342,6 +342,9 @@ impl Workspace {
             Destination::Search(state) => {
                 ContentState::Open(TabContent::Search(Search::new(&self.core, &self.ctx, state)))
             }
+            Destination::Diagram(source) => ContentState::Open(TabContent::Image(
+                ImageViewer::diagram(source.clone(), self.images.clone()),
+            )),
         };
         let now = Instant::now();
         self.tabs.insert(

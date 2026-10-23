@@ -1146,7 +1146,43 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_copyImage(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     if let Some(image_viewer) = obj.workspace.current_tab_image() {
         image_viewer.copy_image(&obj.renderer.context);
+    } else {
+        obj.renderer.context.push_markdown_event(Event::CopyImage);
     }
+}
+
+/// Whether the selection is a picture (image or diagram) "Copy Image" copies.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionHasPicture(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let has = obj
+        .workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_has_picture());
+    has as jboolean
+}
+
+/// Whether the selection is a diagram "Open" shows in the image viewer.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionHasDiagram(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let has = obj
+        .workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_has_diagram());
+    has as jboolean
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_openSelectedDiagram(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer.context.push_markdown_event(Event::OpenDiagram);
 }
 
 #[no_mangle]

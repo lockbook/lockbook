@@ -447,6 +447,7 @@ pub mod phosphor {
     pub const ARROW_LINE_DOWN: &str = "\u{e05c}";
     /// Mind map tab (connected nodes).
     pub const GRAPH: &str = "\u{eb58}";
+    pub const FLOW_ARROW: &str = "\u{e6ec}";
     /// Space inspector tab (share of disk).
     pub const CHART_PIE_SLICE: &str = "\u{e15a}";
 }
@@ -491,6 +492,7 @@ pub fn tab_icon(dest: &crate::tab::Destination, name: &str) -> &'static str {
         Destination::Search(_) => phosphor::SEARCH,
         Destination::MindMap(_) => phosphor::GRAPH,
         Destination::SpaceInspector(_) => phosphor::CHART_PIE_SLICE,
+        Destination::Diagram(_) => phosphor::FLOW_ARROW,
         Destination::File(_) => file_row_icon(name, false),
     }
 }

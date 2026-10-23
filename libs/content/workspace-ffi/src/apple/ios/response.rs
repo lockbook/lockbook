@@ -328,4 +328,6 @@ pub struct CTextTraits {
     /// The chat composer: a hardware Return sends, with Shift it breaks the
     /// line.
     pub send_on_return: bool,
+    /// The caret is in code: smart punctuation would rewrite what's typed.
+    pub code: bool,
 }

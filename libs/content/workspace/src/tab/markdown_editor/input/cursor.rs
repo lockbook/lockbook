@@ -439,11 +439,19 @@ impl MdRender {
         if !range.is_empty() {
             let slab_w = self.layout.row_height * 0.4;
             let line_count = self.bounds.source_lines.len();
+            // a collapsed diagram's lines are one picture: no newlines to show
+            let diagrams: Vec<_> = self.collapsed_diagrams().collect();
             for i in 0..line_count.saturating_sub(1) {
                 // The `\n` grapheme sits at the line's end offset (source
                 // lines exclude their trailing newline).
                 let newline = self.bounds.source_lines[i].end();
                 if newline < range.start() || newline >= range.end() {
+                    continue;
+                }
+                if diagrams
+                    .iter()
+                    .any(|d| d.start() < newline && newline < d.end())
+                {
                     continue;
                 }
                 // Match the row's content rects (bare fragment rect), not

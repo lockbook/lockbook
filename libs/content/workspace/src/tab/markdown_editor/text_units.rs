@@ -123,12 +123,13 @@ impl MdEdit {
     }
 
     /// Ranges the platform sees as one glyph with no text to edit inside:
-    /// collapsed images and fold chips. A fold's atom is its tag, not the
+    /// collapsed images and diagrams, and fold chips. A fold's atom is its tag, not the
     /// hidden contents behind it, so a tap beside the chip lands beside it.
     pub fn atoms(&self) -> Vec<Range> {
         let r = &self.renderer;
         let mut atoms = r.bounds.images.clone();
         atoms.extend(r.bounds.folds.iter().map(|f| f.tag));
+        atoms.extend(r.collapsed_diagrams());
         atoms.sort_unstable();
         atoms
     }

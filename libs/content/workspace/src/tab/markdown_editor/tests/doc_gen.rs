@@ -108,7 +108,7 @@ pub fn gen_identifier_token(src: &mut ByteSource) -> String {
 /// renderer wraps the call in `catch_unwind`, but the panic hook still
 /// prints to stderr, and 2048 iterations × N JS blocks would dump MBs of
 /// noise. JS coverage lives in its own focused test.
-const LANGS: &[&str] = &["", "rust", "python", "text"];
+const LANGS: &[&str] = &["", "rust", "python", "text", "mermaid"];
 
 /// HTML block tags from CommonMark's "type 6" start condition (block-level
 /// tags that begin a line). Kept short — the parser cares about the tag
@@ -126,10 +126,18 @@ const HTML_BLOCK_TAGS: &[&str] = &["div", "section", "article", "aside"];
 fn gen_fenced_code(src: &mut ByteSource) -> String {
     let lang = LANGS[src.draw(LANGS.len())];
     let n_lines = gen_code_block_line_count(src);
-    let body = (0..n_lines)
-        .map(|_| gen_code_text(src))
-        .collect::<Vec<_>>()
-        .join("\n");
+    // half the diagrams draw; the rest are errors
+    let body = if lang == "mermaid" && src.bias(&[1, 1]) == 0 {
+        std::iter::once("flowchart TD".to_string())
+            .chain((0..n_lines).map(|i| format!("    N{i} --> N{}", i + 1)))
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        (0..n_lines)
+            .map(|_| gen_code_text(src))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
     format!("```{lang}\n{body}\n```\n")
 }
 

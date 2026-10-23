@@ -16,16 +16,15 @@ use crate::tab::input_controller::{
     InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
 use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
+use crate::widgets::diagram_cache::{DiagramCache, DiagramSize, diagram_theme};
 use crate::widgets::image_cache::{ImageCache, ImageState};
 
 const MIN_ZOOM_LEVEL: f32 = 0.1;
 const ZOOM_STEP: f32 = 10.0;
 const SCREEN_PADDING: egui::Pos2 =
     if cfg!(target_os = "android") { egui::pos2(10.0, 50.0) } else { egui::pos2(20.0, 20.0) };
-const BACK_LABEL: &str = "Back to image";
-
 pub struct ImageViewer {
-    pub id: Uuid,
+    picture: Picture,
     images: ImageCache,
     input_controller: InputController,
     master_transform: Transform,
@@ -33,6 +32,13 @@ pub struct ImageViewer {
     islands: Vec<Rect>,
     /// A menu is open over the canvas; touches go to it.
     menu_open: bool,
+}
+
+/// What the viewer shows: an image file, or a note's diagram, drawn from
+/// its source at the size it's shown so it stays sharp as it's zoomed.
+enum Picture {
+    File(Uuid),
+    Diagram(String),
 }
 
 #[derive(Clone, Copy)]
@@ -48,13 +54,29 @@ enum ImageCmd {
 
 impl ImageViewer {
     pub fn new(id: Uuid, images: ImageCache) -> Self {
+        Self::of(Picture::File(id), images)
+    }
+
+    pub fn diagram(source: String, images: ImageCache) -> Self {
+        Self::of(Picture::Diagram(source), images)
+    }
+
+    fn of(picture: Picture, images: ImageCache) -> Self {
         Self {
-            id,
+            picture,
             images,
             input_controller: InputController::new(InputControllerConfig::new(true, true)),
             master_transform: Transform::identity(),
             islands: Vec::new(),
             menu_open: false,
+        }
+    }
+
+    /// The image file shown, if it's a file.
+    pub fn file(&self) -> Option<Uuid> {
+        match self.picture {
+            Picture::File(id) => Some(id),
+            Picture::Diagram(_) => None,
         }
     }
 
@@ -70,35 +92,93 @@ impl ImageViewer {
             self.process_events(ui, available);
         }
 
-        let url = format!("lb://{}", self.id);
-        let state = self.images.get_or_load(&url, self.id, true);
-        let image_state = state.lock().unwrap().deref().clone();
-
         self.islands.clear();
-        match image_state {
+        match self.state(ui) {
             ImageState::Loading => loading_indicator(ui),
             ImageState::Loaded(texture_id) => {
-                let [img_w, img_h] = ui.ctx().tex_manager().read().meta(texture_id).unwrap().size;
-                let image_size = Vec2::new(img_w as f32, img_h as f32);
+                let size = self.natural_size(ui, texture_id);
+                let rect = self.image_rect(available, size);
 
-                let rect = self.image_rect(available, image_size);
-
-                painter.add(RectShape::filled(rect, 0.0, Color32::WHITE).with_texture(
-                    texture_id,
-                    Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
-                ));
+                // a diagram's texture is drawn for the size it's shown at
+                let texture_id = match &self.picture {
+                    Picture::Diagram(source) => {
+                        let px = rect.width() * ui.ctx().pixels_per_point();
+                        // in steps, so a zoom redraws now and then rather than every frame
+                        let px = 2f32.powf((px.max(1.0).log2() * 4.0).ceil() / 4.0) as u32;
+                        let theme = diagram_theme(ui.ctx());
+                        DiagramCache::of(ui.ctx()).texture(source, &theme, px)
+                    }
+                    Picture::File(_) => Some(texture_id),
+                };
+                if let Some(texture_id) = texture_id {
+                    painter.add(RectShape::filled(rect, 0.0, Color32::WHITE).with_texture(
+                        texture_id,
+                        Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
+                    ));
+                }
 
                 self.show_image_context_menu(ui, available, rect);
                 self.show_viewport_controls(ui, available, rect);
             }
-            ImageState::Failed(ref msg) => message_indicator(
-                ui,
-                phosphor::IMAGE_BROKEN,
-                &format!("Failed to load image: {msg}"),
-            ),
+            ImageState::Failed(ref msg) => {
+                let what = match self.picture {
+                    Picture::File(_) => "image",
+                    Picture::Diagram(_) => "diagram",
+                };
+                message_indicator(
+                    ui,
+                    phosphor::IMAGE_BROKEN,
+                    &format!("Failed to load {what}: {msg}"),
+                )
+            }
         }
 
         ui.ctx().pop_events();
+    }
+
+    /// The picture as the image cache would have it. A diagram that has
+    /// drawn is `Loaded` with a stand-in texture id; [`Self::show`] asks
+    /// for its texture at the size it's shown.
+    fn state(&self, ui: &egui::Ui) -> ImageState {
+        match &self.picture {
+            Picture::File(id) => {
+                let url = format!("lb://{id}");
+                let state = self.images.get_or_load(&url, *id, true);
+                let state = state.lock().unwrap().deref().clone();
+                state
+            }
+            Picture::Diagram(source) => {
+                match DiagramCache::of(ui.ctx()).size(source, &diagram_theme(ui.ctx())) {
+                    DiagramSize::Pending => ImageState::Loading,
+                    DiagramSize::Ready(_) => ImageState::Loaded(egui::TextureId::default()),
+                    DiagramSize::Failed(message) => ImageState::Failed(message),
+                }
+            }
+        }
+    }
+
+    /// The picture's size before the viewer scales it: an image's pixels,
+    /// a diagram's points.
+    fn natural_size(&self, ui: &egui::Ui, texture_id: egui::TextureId) -> Vec2 {
+        match &self.picture {
+            Picture::File(_) => {
+                let [w, h] = ui.ctx().tex_manager().read().meta(texture_id).unwrap().size;
+                Vec2::new(w as f32, h as f32)
+            }
+            Picture::Diagram(source) => {
+                match DiagramCache::of(ui.ctx()).size(source, &diagram_theme(ui.ctx())) {
+                    DiagramSize::Ready(size) => size,
+                    _ => Vec2::splat(1.0),
+                }
+            }
+        }
+    }
+
+    fn back_label(&self) -> &'static str {
+        match self.picture {
+            Picture::File(_) => "Back to image",
+            Picture::Diagram(_) => "Back to diagram",
+        }
     }
 
     pub fn detect_islands_interaction(&self, pos: Pos2) -> bool {
@@ -151,7 +231,14 @@ impl ImageViewer {
                 .x
                 + 2.0 * control_space::PAD_X.pts()
         };
-        let pct_w = text_w("000%");
+        let zoom_percentage = (self.master_transform.sx * 100.0).round();
+        let label = if self.master_transform.sx <= MIN_ZOOM_LEVEL {
+            "Max".to_string()
+        } else {
+            format!("{}%", zoom_percentage as i32)
+        };
+        // digits needn't be one width: room for the label as it reads
+        let pct_w = text_w("000%").max(text_w(&label));
 
         let zoom_rect = Rect::from_min_size(
             egui::pos2(
@@ -162,7 +249,6 @@ impl ImageViewer {
         );
         self.islands.push(zoom_rect);
 
-        let zoom_percentage = (self.master_transform.sx * 100.0).round();
         let mut stop = None;
         island::island(ui, zoom_rect, |ui| {
             let can_zoom_out = zoom_percentage > ZOOM_STEP;
@@ -185,11 +271,6 @@ impl ImageViewer {
                 self.zoom_to(target, available.center());
             }
 
-            let label = if self.master_transform.sx <= MIN_ZOOM_LEVEL {
-                "Max".to_string()
-            } else {
-                format!("{}%", zoom_percentage as i32)
-            };
             let pct = Button::secondary(&t, label)
                 .min_width(pct_w)
                 .max_width(pct_w)
@@ -226,13 +307,14 @@ impl ImageViewer {
         if available.intersects(image_rect) {
             return;
         }
-        let back_w = island::width(text_w(BACK_LABEL));
+        let back_label = self.back_label();
+        let back_w = island::width(text_w(back_label));
         let back_rect = Rect::from_min_size(
             egui::pos2(zoom_rect.left() - Space::Sm.pts() - back_w, zoom_rect.top()),
             egui::vec2(back_w, island::height()),
         );
         self.islands.push(back_rect);
-        if island::island(ui, back_rect, |ui| Button::secondary(&t, BACK_LABEL).show(ui)).clicked()
+        if island::island(ui, back_rect, |ui| Button::secondary(&t, back_label).show(ui)).clicked()
         {
             self.reset_viewport();
         }
@@ -269,7 +351,17 @@ impl ImageViewer {
     }
 
     pub fn copy_image(&self, ctx: &egui::Context) {
-        match self.images.color_image(self.id) {
+        let id = match &self.picture {
+            Picture::File(id) => *id,
+            Picture::Diagram(source) => {
+                let theme = diagram_theme(ctx);
+                if let Some((image, _)) = DiagramCache::of(ctx).image(source, &theme) {
+                    ctx.copy_image(image);
+                }
+                return;
+            }
+        };
+        match self.images.color_image(id) {
             Ok(image) => ctx.copy_image(image),
             Err(err) => error!("failed to copy image to clipboard: {err}"),
         }

@@ -153,6 +153,9 @@ impl<'ast> MdRender {
     pub fn height_fenced_code_block(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
+        if self.diagram_collapsed(node, node_code_block) {
+            return self.height_diagram(node, node_code_block);
+        }
         let width = self.width(node) - 2. * self.layout.block_padding;
         let row_height = self.layout.row_height;
 
@@ -188,15 +191,20 @@ impl<'ast> MdRender {
             }
         }
 
-        result + self.layout.block_padding
+        result + self.layout.block_padding + self.height_diagram_preview(node, node_code_block)
     }
 
     pub fn show_fenced_code_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock,
     ) {
+        if self.diagram_collapsed(node, node_code_block) {
+            self.show_diagram(ui, node, top_left, node_code_block);
+            return;
+        }
         let width = self.width(node);
-        let height = self.height_fenced_code_block(node, node_code_block);
+        let preview_height = self.height_diagram_preview(node, node_code_block);
+        let height = self.height_fenced_code_block(node, node_code_block) - preview_height;
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
         let inner_width = width - 2. * self.layout.block_padding;
         let row_height = self.layout.row_height;
@@ -235,6 +243,7 @@ impl<'ast> MdRender {
             }
         }
         self.show_code_rows(ui, node, rect, rows);
+        self.show_diagram_preview(ui, node, rect.left_bottom(), node_code_block);
     }
 
     fn reveal_fenced_code_block(
@@ -554,7 +563,7 @@ impl<'ast> MdRender {
     /// actual content of a code-block line (fence indent stripped for
     /// fenced; 4-col indent stripped for indented, combined with parent
     /// item padding if any).
-    fn code_line_range(
+    pub(crate) fn code_line_range(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         node_line: (Grapheme, Grapheme), synthetic: bool,
     ) -> (Grapheme, Grapheme) {

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
@@ -51,7 +52,7 @@ pub fn syntax_set() -> &'static SyntaxSet {
 
 pub fn syntax_theme() -> &'static Theme {
     SYNTAX_THEME.get_or_init(|| {
-        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
+        let theme_bytes = &include_bytes!("assets/placeholders.tmTheme")[..];
         let cursor = Cursor::new(theme_bytes);
         let mut buffer = BufReader::new(cursor);
         ThemeSet::load_from_reader(&mut buffer).unwrap()
@@ -161,8 +162,8 @@ pub struct MdRender {
     pub text_areas: Vec<TextBufferArea>,
     /// Strikethroughs and underlines painted on top of text
     pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
-    /// Edge fades of scrolled tables and code blocks `(rect, left color,
-    /// right color)`, painted over the text.
+    /// Edge fades of scrolled tables, code blocks, and diagrams `(rect,
+    /// left color, right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
     /// Code blocks' copy buttons, painted over the text.
     pub copy_buttons: Vec<widget::block::leaf::code_block::CopyButton>,
@@ -179,7 +180,8 @@ pub struct MdRender {
     /// A painter slot above each header row's background, with the row's
     /// rect: the selection's highlight there would paint under it.
     pub table_header_slots: Vec<(egui::layers::ShapeIdx, Rect)>,
-    /// How far each table or code block too wide for the note is scrolled.
+    /// How far each table, code block, or diagram too wide for the note is
+    /// scrolled.
     pub row_scrolls: HashMap<row_scroll::RowScroller, row_scroll::RowScroll>,
     /// Per-frame: where each block wider than the note shows.
     pub row_scrollers: Vec<(Rect, row_scroll::RowScroller)>,
@@ -189,6 +191,10 @@ pub struct MdRender {
     /// A code block whose code was copied, by its range, and until when its
     /// button says so.
     pub code_copied: Option<((Grapheme, Grapheme), f64)>,
+    pub diagrams: crate::widgets::diagram_cache::DiagramCache,
+    /// The source each revealed diagram last rendered, by fence start, so
+    /// its preview holds while edits render.
+    pub diagram_previews: RefCell<HashMap<Grapheme, String>>,
     /// Drag action emitted by a list marker this frame, drained by
     /// `MdEdit::show` to update / commit the in-progress block drag
     /// (mirrors how `render_events` carries buffer edits out of render).
@@ -323,6 +329,10 @@ pub struct MdEdit {
     /// The platform's own recognizer drives the reorder (see [`commands`]),
     /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
     pub touch_reorder_driven: bool,
+    /// The caret is in code, where a platform keyboard's smart punctuation
+    /// would rewrite what's typed (`-->` to an em dash).
+    pub caret_in_code: bool,
+    caret_in_code_at: Option<(Grapheme, Grapheme)>,
 
     /// A committed reorder `(drag, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
@@ -425,6 +435,8 @@ impl MdEdit {
             in_progress_block_drag: None,
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
+            caret_in_code: false,
+            caret_in_code_at: None,
             pending_block_move: None,
             deferred_input: Vec::new(),
             ime_reset: false,
@@ -632,6 +644,7 @@ impl MdRender {
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
         let dark_mode = ctx.global_style().visuals.dark_mode;
         let ws_seq = crate::seq::ws_seq(&ctx);
+        let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
         Self {
             ctx,
             layout,
@@ -654,6 +667,8 @@ impl MdRender {
             row_scrollers: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
+            diagrams,
+            diagram_previews: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -730,6 +745,7 @@ impl MdRender {
     pub(crate) fn test(md: &str) -> Self {
         let ctx = test_egui_ctx();
         let ws_seq = crate::seq::ws_seq(&ctx);
+        let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
         Self {
             ctx,
             layout: MdLayout::desktop(),
@@ -751,6 +767,8 @@ impl MdRender {
             row_scrollers: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
+            diagrams,
+            diagram_previews: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -906,6 +924,7 @@ impl Editor {
                 .map(str::to_string)
         });
 
+        let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
         let renderer = MdRender {
             ctx,
             layout,
@@ -929,6 +948,8 @@ impl Editor {
             row_scrollers: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
+            diagrams,
+            diagram_previews: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -992,6 +1013,8 @@ impl Editor {
                 in_progress_block_drag: None,
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
+                caret_in_code: false,
+                caret_in_code_at: None,
                 pending_block_move: None,
                 deferred_input: Vec::new(),
                 ime_reset: false,
@@ -1192,7 +1215,13 @@ impl Editor {
             self.edit.renderer.layout_cache.clear();
         }
 
-        let embeds_seq = self.edit.renderer.embeds.seq();
+        // both stamp the workspace counter, so the larger moves when either does
+        let embeds_seq = self
+            .edit
+            .renderer
+            .embeds
+            .seq()
+            .max(self.edit.renderer.diagrams.seq());
         let embeds_updated = embeds_seq != self.embeds_seq;
         self.embeds_seq = embeds_seq;
 

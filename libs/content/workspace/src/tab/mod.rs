@@ -39,13 +39,15 @@ pub enum Destination {
     MindMap(Uuid),
     SpaceInspector(Uuid),
     Search(SearchState),
+    /// A note's diagram, by its source, in the image viewer.
+    Diagram(String),
 }
 
 impl Destination {
     pub fn id(&self) -> Uuid {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => *id,
-            Self::Search(_) => Uuid::nil(),
+            Self::Search(_) | Self::Diagram(_) => Uuid::nil(),
         }
     }
 
@@ -53,7 +55,7 @@ impl Destination {
     pub fn backing_file(&self) -> Option<Uuid> {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => Some(*id),
-            Self::Search(_) => None,
+            Self::Search(_) | Self::Diagram(_) => None,
         }
     }
 
@@ -64,6 +66,7 @@ impl Destination {
             Self::Search(_) => 1,
             Self::MindMap(_) => 2,
             Self::SpaceInspector(_) => 3,
+            Self::Diagram(_) => 4,
         }
     }
 }
@@ -232,7 +235,7 @@ pub struct Tab {
 impl Tab {
     pub fn id(&self) -> Option<Uuid> {
         match self.destination {
-            Destination::Search(_) => None,
+            Destination::Search(_) | Destination::Diagram(_) => None,
             _ => Some(self.destination.id()),
         }
     }
@@ -507,7 +510,7 @@ impl TabContent {
             TabContent::Chat(chat) => Some(chat.id),
             TabContent::Markdown(md) => Some(md.edit.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
-            TabContent::Image(image_viewer) => Some(image_viewer.id),
+            TabContent::Image(image_viewer) => image_viewer.file(),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => None,
@@ -662,6 +665,7 @@ impl Workspace {
                 ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
                 ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
                 ContentState::Open(TabContent::Search(_)) => "Search".into(),
+                ContentState::Open(TabContent::Image(_)) => "Diagram".into(),
                 _ => "Unknown".into(),
             },
         }
@@ -705,6 +709,9 @@ pub trait ExtendedOutput {
     /// open the document.
     fn create_note(&self, parent: Uuid, names: Vec<String>);
     fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)>;
+    /// Open a note's diagram, by its source, in the image viewer.
+    fn open_diagram(&self, source: String);
+    fn pop_open_diagram(&self) -> Option<String>;
     /// A rendered copy; hosts put both flavors on the clipboard at once.
     fn set_copied_rendered(&self, copied: CopiedRendered);
     fn pop_copied_rendered(&self) -> Option<CopiedRendered>;
@@ -775,6 +782,14 @@ impl ExtendedOutput for egui::Context {
             files.push((id, heading, new_tab));
             m.data.insert_temp(Id::unique("open_files"), files);
         })
+    }
+
+    fn open_diagram(&self, source: String) {
+        self.memory_mut(|m| m.data.insert_temp(Id::unique("open_diagram"), source));
+    }
+
+    fn pop_open_diagram(&self) -> Option<String> {
+        self.memory_mut(|m| m.data.remove_temp(Id::unique("open_diagram")))
     }
 
     fn pop_open_files(&self) -> Vec<(Uuid, Option<String>, bool)> {

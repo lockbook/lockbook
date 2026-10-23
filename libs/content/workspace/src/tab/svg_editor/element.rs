@@ -61,7 +61,7 @@ impl PromoteWeakImage for Image {
 
         Image {
             data: resvg::usvg::ImageKind::PNG(data.into()),
-            visibility: resvg::usvg::Visibility::Visible,
+            visible: true,
             transform: Transform::from_row(
                 value.transform.sx,
                 value.transform.ky,
