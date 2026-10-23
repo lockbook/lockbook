@@ -1,6 +1,6 @@
 //! Blinking caret.
 
-use egui::{Color32, Rangef, Rect, Ui, pos2};
+use egui::{Color32, Id, Rangef, Rect, Ui, pos2};
 
 use crate::workspace::Workspace;
 
@@ -21,6 +21,19 @@ pub fn paint_caret(ui: &Ui, x: f32, y: Rangef, color: Color32) {
 }
 
 pub fn with_blinking_caret(ui: &Ui, time_since_interact: f64, paint: impl FnOnce(f32)) {
+    // Like AppKit: no caret in a background window, and a fresh blink on return.
+    let key = Id::unique("caret_window_refocused_at");
+    let (window_focused, now) = ui.input(|i| (i.focused, i.time));
+    if !window_focused {
+        ui.data_mut(|d| d.insert_temp::<Option<f64>>(key, None));
+        return;
+    }
+    let refocused_at = ui.data_mut(|d| {
+        *d.get_temp_mut_or_insert_with(key, || Some(f64::NEG_INFINITY))
+            .get_or_insert(now)
+    });
+    let time_since_interact = time_since_interact.min(now - refocused_at);
+
     if !Workspace::user_present(ui.ctx()) {
         paint(1.0);
         return;
