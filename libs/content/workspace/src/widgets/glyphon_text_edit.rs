@@ -512,13 +512,8 @@ impl<'a> GlyphonTextEdit<'a> {
                     &mut fs,
                     Metrics::new(self.font_size * ppi, line_height * ppi),
                 );
-                buf.set_size(&mut fs, Some(f32::MAX), None);
-                buf.set_text(
-                    &mut fs,
-                    paint_str,
-                    &Attrs::new().family(Family::SansSerif),
-                    Shaping::Advanced,
-                );
+                buf.set_size(Some(f32::MAX), None);
+                set_sans_text(&mut buf, paint_str, self.font_size);
                 buf.shape_until_scroll(&mut fs, false);
                 buf
             },
@@ -584,6 +579,8 @@ impl<'a> GlyphonTextEdit<'a> {
                 (rect.min.x + cursor_x - state.singleline_offset).clamp(rect.min.x, rect.max.x);
             ui.output_mut(|o| {
                 o.ime = Some(egui::output::IMEOutput {
+                    purpose: Default::default(),
+                    should_interrupt_composition: false,
                     rect,
                     cursor_rect: Rect::from_min_max(
                         egui::pos2(cx, rect.min.y),
@@ -646,13 +643,8 @@ impl<'a> GlyphonTextEdit<'a> {
                                 &mut fs,
                                 Metrics::new(self.font_size * ppi, line_height * ppi),
                             );
-                            buf.set_size(&mut fs, Some(visible_width * ppi), None);
-                            buf.set_text(
-                                &mut fs,
-                                hint,
-                                &Attrs::new().family(Family::SansSerif),
-                                Shaping::Advanced,
-                            );
+                            buf.set_size(Some(visible_width * ppi), None);
+                            set_sans_text(&mut buf, hint, self.font_size);
                             buf.shape_until_scroll(&mut fs, false);
                             buf
                         },
@@ -699,13 +691,8 @@ impl<'a> GlyphonTextEdit<'a> {
                                 &mut fs,
                                 Metrics::new(self.font_size * ppi, line_height * ppi),
                             );
-                            buf.set_size(&mut fs, Some(f32::MAX), None);
-                            buf.set_text(
-                                &mut fs,
-                                suffix,
-                                &Attrs::new().family(Family::SansSerif),
-                                Shaping::Advanced,
-                            );
+                            buf.set_size(Some(f32::MAX), None);
+                            set_sans_text(&mut buf, suffix, self.font_size);
                             buf.shape_until_scroll(&mut fs, false);
                             buf
                         },
@@ -868,6 +855,22 @@ fn hit_test_buffer(buffer: &glyphon::Buffer, x: f32, _y: f32) -> usize {
         }
     }
     0
+}
+
+/// Sets `text` in the system sans, spaced as [`crate::font::track`] spaces it,
+/// with emoji in the color font as labels draw them.
+fn set_sans_text(buf: &mut glyphon::Buffer, text: &str, points: f32) {
+    use unicode_segmentation::UnicodeSegmentation as _;
+    let attrs = Attrs::new().family(Family::SansSerif);
+    let emoji = Attrs::new().family(Family::Name("Twemoji Mozilla"));
+    let spans = text.graphemes(true).map(|g| {
+        if crate::widgets::glyphon_label::is_emoji_grapheme(g) {
+            (g, emoji.clone())
+        } else {
+            (g, crate::font::track(attrs.clone(), g, points))
+        }
+    });
+    buf.set_rich_text(spans, &attrs, Shaping::Advanced, None);
 }
 
 #[cfg(test)]

@@ -2,7 +2,7 @@ pub fn switch(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
     let desired_size = ui.spacing().interact_size.y * egui::vec2(2.0, 1.0);
 
     let (rect, mut response) = ui.allocate_exact_size(desired_size, egui::Sense::click());
-    response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, *on, ""));
+    response.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, true, *on, ""));
 
     if response.clicked() {
         *on = !*on;

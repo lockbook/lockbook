@@ -298,6 +298,9 @@ pub mod phosphor {
     pub const CHECK_CIRCLE: &str = "\u{e184}";
     /// Horizontal ellipsis (`ph-dots-three`).
     pub const DOTS_THREE: &str = "\u{e1fe}";
+    /// Drag grips (`ph-dots-six` / `ph-dots-six-vertical`).
+    pub const DOTS_SIX: &str = "\u{e794}";
+    pub const DOTS_SIX_VERTICAL: &str = "\u{eae2}";
     /// GFM alert / status.
     pub const INFO: &str = "\u{e2ce}";
     pub const LIGHTBULB: &str = "\u{e2dc}";
@@ -346,6 +349,18 @@ pub mod phosphor {
     pub const TEXT_SUPERSCRIPT: &str = "\u{ec9a}";
     pub const TEXT_INDENT: &str = "\u{ea1e}";
     pub const TEXT_OUTDENT: &str = "\u{ea1c}";
+    pub const QUOTES: &str = "\u{e660}";
+    pub const TABLE: &str = "\u{e476}";
+    pub const ROWS_PLUS_TOP: &str = "\u{e5a0}";
+    pub const ROWS_PLUS_BOTTOM: &str = "\u{e59e}";
+    pub const COLUMNS_PLUS_LEFT: &str = "\u{e544}";
+    pub const COLUMNS_PLUS_RIGHT: &str = "\u{e542}";
+    pub const TEXT_ALIGN_LEFT: &str = "\u{e484}";
+    pub const TEXT_ALIGN_CENTER: &str = "\u{e480}";
+    pub const TEXT_ALIGN_RIGHT: &str = "\u{e486}";
+    /// Tab and back-tab (`ph-arrow-line-right` / `ph-arrow-line-left`).
+    pub const ARROW_LINE_RIGHT: &str = "\u{e064}";
+    pub const ARROW_LINE_LEFT: &str = "\u{e062}";
     /// Nested lines — document outline (`ph-list`).
     pub const LIST: &str = "\u{e2f0}";
     pub const LIST_BULLETS: &str = "\u{e2f2}";
@@ -367,6 +382,8 @@ pub mod phosphor {
     /// Titleband back / forward.
     pub const ARROW_LEFT: &str = "\u{e058}";
     pub const ARROW_RIGHT: &str = "\u{e06c}";
+    pub const ARROW_UP: &str = "\u{e08e}";
+    pub const ARROW_DOWN: &str = "\u{e03e}";
     pub const FOLDERS: &str = "\u{e260}";
     pub const PUSH_PIN: &str = "\u{e3e2}";
     pub const SCISSORS: &str = "\u{eae0}";
@@ -474,11 +491,20 @@ pub fn loading_indicator(ui: &mut Ui) {
     let t = ui.ctx().get_lb_theme();
     ui.ctx().request_repaint();
     let angle = (ui.input(|i| i.time) * std::f64::consts::TAU) as f32;
-    let g = ui.painter().layout_no_wrap(
-        phosphor::SPINNER_GAP.into(),
-        phosphor_ui_font_id(),
-        t.accent(),
-    );
+    centered_status(ui, phosphor::SPINNER_GAP, "Loading…", t.accent(), angle);
+}
+
+/// Centered muted Phosphor mark + caption (failed loads, empty states).
+pub fn message_indicator(ui: &mut Ui, icon: &'static str, caption: &str) {
+    let t = ui.ctx().get_lb_theme();
+    centered_status(ui, icon, caption, t.neutral_fg_secondary(), 0.0);
+}
+
+fn centered_status(ui: &mut Ui, icon: &'static str, caption: &str, ink: Color32, angle: f32) {
+    let t = ui.ctx().get_lb_theme();
+    let g = ui
+        .painter()
+        .layout_no_wrap(icon.into(), phosphor_ui_font_id(), ink);
     let gap = Space::Xs.pts();
     let cap_h = TypeRole::Body.line_height();
     let content_h = g.size().y + gap + cap_h;
@@ -491,15 +517,11 @@ pub fn loading_indicator(ui: &mut Ui) {
     super::layout::place_at(ui, block, Layout::top_down(Align::Center), |ui| {
         let (icon_rect, _) = ui.allocate_exact_size(g.size(), Sense::hover());
         ui.painter().add(
-            egui::epaint::TextShape::new(icon_rect.min, g, t.accent())
+            egui::epaint::TextShape::new(icon_rect.min, g, ink)
                 .with_angle_and_anchor(angle, Align2::CENTER_CENTER),
         );
         ui.add_space(gap);
-        ui.label(
-            TypeRole::Body
-                .rich("Loading…")
-                .color(t.neutral_fg_secondary()),
-        );
+        ui.label(TypeRole::Body.rich(caption).color(t.neutral_fg_secondary()));
     });
     let _ = ui.allocate_rect(rect, Sense::hover());
 }

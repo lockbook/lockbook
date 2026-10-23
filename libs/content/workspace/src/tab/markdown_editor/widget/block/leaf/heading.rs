@@ -37,7 +37,7 @@ impl<'ast> MdRender {
     /// row of a setext heading). When syntax is revealed, leading
     /// indentation and the source-line prefix come through as syntax-
     /// formatted text; otherwise just the inline children.
-    fn layout_setext_heading_line(
+    pub(crate) fn layout_setext_heading_line(
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> Layout {
         let mut layout = Layout::new(node_line);
@@ -126,7 +126,7 @@ impl<'ast> MdRender {
     /// whitespace, with syntax visibility driven by reveal. Empty
     /// heading falls back to rendering the whole line as syntax
     /// (Obsidian-inspired).
-    fn layout_atx_heading_line(
+    pub(crate) fn layout_atx_heading_line(
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> Layout {
         let mut layout = Layout::new(node_line);
@@ -148,6 +148,14 @@ impl<'ast> MdRender {
                         self.text_format_syntax(),
                     );
                 }
+            } else {
+                // Captured `#`s still get a cursor position, so a line
+                // selection or drag on the captured heading includes them.
+                layout.push_override(
+                    (indentation.start(), prefix_range.end()),
+                    "",
+                    self.text_format_syntax(),
+                );
             }
             if self.infix_range(node).is_some() {
                 self.layout_inline_children(&mut layout, node, node_line);
@@ -446,7 +454,7 @@ impl<'ast> MdRender {
         // (off-screen neighbor rows would displace the mobile toolbar, #4892).
         let range = self.node_range(node);
         let id = ui
-            .id()
+            .scope_id()
             .with(("md_fold_btn", range.start().0, range.end().0));
         let resp = ui.interact(space, id, sense_click());
         if resp.hovered() {

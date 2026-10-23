@@ -5,7 +5,7 @@ use egui::{Context, Id, Key};
 const ID: &str = "lb.design.space_overlay";
 
 fn id() -> Id {
-    Id::new(ID)
+    Id::unique(ID)
 }
 
 pub fn is_enabled(ctx: &Context) -> bool {

@@ -78,6 +78,15 @@ impl HasWindowHandle for NativeWindow {
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setPreferredLanguages(
+    mut env: JNIEnv, _: JClass, tags: JString,
+) {
+    let Ok(tags) = env.get_string(&tags) else { return };
+    let tags: String = tags.into();
+    workspace_rs::font::cjk::set_preferred_languages(tags.split(',').map(str::to_owned).collect());
+}
+
+#[no_mangle]
 pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWSOffloaded(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, theme: JObject,
 ) -> jlong {
@@ -89,8 +98,9 @@ unsafe fn init_ws(
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
     let mut native_window = NativeWindow::new(&env, surface);
-    let mut renderer =
-        RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window).unwrap());
+    let mut renderer = RendererState::from_surface(
+        SurfaceTargetUnsafe::from_display_and_window(&native_window, &native_window).unwrap(),
+    );
     let font_system = workspace_rs::register_font_system(&renderer.context);
     let sample_count = renderer.backend().sample_count;
     let format =
@@ -110,7 +120,7 @@ unsafe fn init_ws(
         .context
         .set_lb_theme(android_material_theme_to_lb(&mut env, theme));
 
-    let workspace = Workspace::new(core, &renderer.context, false, true, None);
+    let workspace = Workspace::new(core, &renderer.context, true, None);
 
     let mut fonts = FontDefinitions::default();
     workspace_rs::register_fonts(&mut fonts);

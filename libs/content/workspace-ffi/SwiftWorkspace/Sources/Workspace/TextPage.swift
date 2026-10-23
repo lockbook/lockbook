@@ -16,6 +16,7 @@
         private(set) var text: TextInputView!
         private(set) var taps: TapLayer!
         let scrollPan = UIPanGestureRecognizer()
+        let tablePan = UIPanGestureRecognizer()
         let coastStop = CoastStopRecognizer()
         private var observedDrags: [UIGestureRecognizer] = []
 
@@ -58,6 +59,13 @@
             }
             scrollPan.delegate = self
             addGestureRecognizer(scrollPan)
+
+            // A pan along the rows of a table wider than the note pans the table.
+            tablePan.addTarget(self, action: #selector(handleTablePan(_:)))
+            tablePan.allowedScrollTypesMask = .all
+            tablePan.allowedTouchTypes = scrollPan.allowedTouchTypes
+            tablePan.delegate = self
+            addGestureRecognizer(tablePan)
 
             coastStop.stopCoast = { [weak self] in
                 guard let self, let wsHandle = self.wsHandle else { return false }
@@ -242,10 +250,39 @@
             }
         }
 
+        @objc private func handleTablePan(_ pan: UIPanGestureRecognizer) {
+            guard let wsHandle else { return }
+            switch pan.state {
+            case .began, .changed:
+                let dx = pan.translation(in: self).x
+                pan.setTranslation(.zero, in: self)
+                ios_table_pan(wsHandle, Float(dx))
+                mtkView.requestFrame()
+            case .ended:
+                let dx = pan.translation(in: self).x
+                pan.setTranslation(.zero, in: self)
+                ios_table_pan(wsHandle, Float(dx))
+                ios_table_pan_end(wsHandle, Float(pan.velocity(in: self).x))
+                mtkView.requestFrame()
+            case .cancelled, .failed:
+                ios_table_pan_end(wsHandle, 0)
+                mtkView.requestFrame()
+            default:
+                break
+            }
+        }
+
         override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             if gestureRecognizer === scrollPan {
                 let velocity = scrollPan.velocity(in: self)
                 return abs(velocity.y) > abs(velocity.x)
+            }
+            if gestureRecognizer === tablePan {
+                guard let wsHandle else { return false }
+                let velocity = tablePan.velocity(in: self)
+                guard abs(velocity.x) > abs(velocity.y) else { return false }
+                let p = convert(tablePan.location(in: self), to: mtkView)
+                return ios_table_pan_begin(wsHandle, Float(p.x), Float(p.y))
             }
             if isInteractiveContentPop(gestureRecognizer) {
                 return false
@@ -261,7 +298,8 @@
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            gestureRecognizer === scrollPan && otherGestureRecognizer.isRangeAdjustment
+            (gestureRecognizer === scrollPan || gestureRecognizer === tablePan)
+                && otherGestureRecognizer.isRangeAdjustment
         }
 
         /// Stopping a coast keeps the finger for a scroll or a handle drag,
@@ -276,7 +314,8 @@
                 return true
             }
             if gestureRecognizer === coastStop {
-                return otherGestureRecognizer === scrollPan || otherGestureRecognizer === scrollbar
+                return otherGestureRecognizer === scrollPan || otherGestureRecognizer === tablePan
+                    || otherGestureRecognizer === scrollbar
                     || otherGestureRecognizer.isRangeAdjustment || otherGestureRecognizer.isSelectionDrag
             }
             if gestureRecognizer === scrollbar {

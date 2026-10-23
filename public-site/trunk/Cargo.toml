@@ -4,23 +4,23 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-egui = "0.32.3"
+egui = "0.37.0"
 log = "0.4"
 
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
-eframe = { version = "0.32.3", default-features = false, features = [
+eframe = { version = "0.37.0", default-features = false, features = [
     "default_fonts", # Embed the default egui fonts.
     "wgpu",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
 ] }
-wgpu = { version = "25", features = ["webgpu", "webgl"] }
+wgpu = { version = "30.0.1", features = ["webgpu", "webgl"] }
 
 workspace = { path = "../../libs/content/workspace" }
 lb-rs = { path = "../../libs/lb/lb-rs" }
 futures = "0.3.30"
-glyphon = "0.9.0"
+glyphon = "0.12.0"
 
 tracing = "0.1.5"
 

@@ -502,7 +502,7 @@ impl MdEdit {
             cursor_top,
             cursor_bot,
             completion_popup_size(max_width, results.len()),
-            ui.ctx().screen_rect(),
+            ui.ctx().content_rect(),
         );
         self.renderer
             .touch_targets
@@ -514,7 +514,8 @@ impl MdEdit {
         let hover_pos = ui.input(|i| i.pointer.hover_pos());
         let mut clicked: Option<usize> = None;
         for (idx, _) in results.iter().enumerate() {
-            let resp = ui.interact(row_rects[idx], Id::new("emoji_item").with(idx), Sense::click());
+            let resp =
+                ui.interact(row_rects[idx], Id::unique("emoji_item").with(idx), Sense::click());
             if resp.clicked() {
                 clicked = Some(idx);
             }

@@ -942,7 +942,7 @@ impl MdEdit {
             cursor_top,
             cursor_bot,
             completion_popup_size(popup_width - completion_chrome_w(), results.len()),
-            ui.ctx().screen_rect(),
+            ui.ctx().content_rect(),
         );
         self.renderer
             .touch_targets
@@ -972,8 +972,11 @@ impl MdEdit {
         let hover_pos = ui.input(|i| i.pointer.hover_pos());
         let mut clicked = None;
         for (idx, result) in results.iter().enumerate() {
-            let resp =
-                ui.interact(row_rects[idx], Id::new("link_item").with(result.id), Sense::click());
+            let resp = ui.interact(
+                row_rects[idx],
+                Id::unique("link_item").with(result.id),
+                Sense::click(),
+            );
             if resp.clicked() {
                 clicked = Some(idx);
             }

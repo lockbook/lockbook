@@ -31,9 +31,9 @@ pub(crate) fn show_onboard(
         _ => return,
     };
 
-    let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_onboard"));
+    let layer = egui::LayerId::new(Order::Foreground, Id::unique("shell_onboard"));
     // Don't dismiss create/import by dim-click while busy, or the backup step at all.
-    if !busy && sheet_dim(ctx, Id::new("shell_onboard_dim"), layer) {
+    if !busy && sheet_dim(ctx, Id::unique("shell_onboard_dim"), layer) {
         // Stay on onboard when signed out — only cancel sub-modes.
         if mode != OnboardMode::Choice && mode != OnboardMode::Backup {
             queue.push(A::OnboardSetMode(OnboardMode::Choice));
@@ -47,8 +47,8 @@ pub(crate) fn show_onboard(
         };
         if super::sheets::debounce_query(
             ctx,
-            Id::new("onboard_uname_verify_due"),
-            Id::new("onboard_uname_verify_q"),
+            Id::unique("onboard_uname_verify_due"),
+            Id::unique("onboard_uname_verify_q"),
             &q_trim,
             &uname_lookup_for,
         ) {
@@ -69,7 +69,7 @@ pub(crate) fn show_onboard(
         && uname_snap.trim().eq_ignore_ascii_case(&uname_lookup_for)
         && matches!(uname_lookup, OnboardLookup::Available);
 
-    Area::new(Id::new("shell_onboard"))
+    Area::new(Id::unique("shell_onboard"))
         .order(Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {
@@ -169,9 +169,9 @@ pub(crate) fn show_onboard(
                                 (phosphor::USER, t.neutral_fg_secondary())
                             }
                         };
-                        let edit_id = Id::new("onboard_uname").with("edit");
+                        let edit_id = Id::unique("onboard_uname").with("edit");
                         let need_focus = ui.ctx().data(|d| {
-                            d.get_temp::<bool>(Id::new("onboard_uname_need_focus"))
+                            d.get_temp::<bool>(Id::unique("onboard_uname_need_focus"))
                                 .unwrap_or(false)
                         });
                         {
@@ -181,7 +181,7 @@ pub(crate) fn show_onboard(
                             let before = uname.clone();
                             let _ = Field::new(t, uname)
                                 .hint("username")
-                                .id("onboard_uname")
+                                .id(egui::Id::unique("onboard_uname"))
                                 .leading(lead_icon)
                                 .leading_ink(lead_ink)
                                 .clearable(true)
@@ -190,7 +190,7 @@ pub(crate) fn show_onboard(
                                 ui.memory_mut(|m| m.request_focus(edit_id));
                                 if ui.memory(|m| m.has_focus(edit_id)) {
                                     ui.ctx().data_mut(|d| {
-                                        d.insert_temp(Id::new("onboard_uname_need_focus"), false);
+                                        d.insert_temp(Id::unique("onboard_uname_need_focus"), false);
                                     });
                                 }
                             }
@@ -269,9 +269,9 @@ pub(crate) fn show_onboard(
                                 .color(t.neutral_fg_secondary()),
                         );
                         ui.add(Spacer::new(Space::Xs));
-                        let edit_id = Id::new("onboard_account_key").with("edit");
+                        let edit_id = Id::unique("onboard_account_key").with("edit");
                         let need_focus = ui.ctx().data(|d| {
-                            d.get_temp::<bool>(Id::new("onboard_account_key_need_focus"))
+                            d.get_temp::<bool>(Id::unique("onboard_account_key_need_focus"))
                                 .unwrap_or(false)
                         });
                         {
@@ -282,7 +282,7 @@ pub(crate) fn show_onboard(
                             let before = account_key.clone();
                             let _ = Field::new(t, account_key)
                                 .hint("Phrase or compact key")
-                                .id("onboard_account_key")
+                                .id(egui::Id::unique("onboard_account_key"))
                                 .password(true)
                                 .show(ui);
                             if need_focus {
@@ -290,7 +290,7 @@ pub(crate) fn show_onboard(
                                 if ui.memory(|m| m.has_focus(edit_id)) {
                                     ui.ctx().data_mut(|d| {
                                         d.insert_temp(
-                                            Id::new("onboard_account_key_need_focus"),
+                                            Id::unique("onboard_account_key_need_focus"),
                                             false,
                                         );
                                     });
@@ -316,11 +316,11 @@ pub(crate) fn show_onboard(
                         // until the user hits Import.
                         if can_import && !busy {
                             let last = ui.ctx().data(|d| {
-                                d.get_temp::<String>(Id::new("onboard_auto_submit_secret"))
+                                d.get_temp::<String>(Id::unique("onboard_auto_submit_secret"))
                             });
                             if last.as_deref() != Some(secret.as_str()) {
                                 ui.ctx().data_mut(|d| {
-                                    d.insert_temp(Id::new("onboard_auto_submit_secret"), secret);
+                                    d.insert_temp(Id::unique("onboard_auto_submit_secret"), secret);
                                 });
                                 queue.push(A::OnboardSubmit { show_error: false });
                             }
@@ -414,7 +414,7 @@ fn onboard_backup(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut 
         ui.set_min_height(row_h);
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
         let copy = Button::quiet(t, "Copy")
-            .copy_feedback("shell_onboard_copy_phrase")
+            .copy_feedback(egui::Id::unique("shell_onboard_copy_phrase"))
             .height(row_h)
             .show(ui);
         if copy.clicked() {
@@ -480,11 +480,11 @@ fn onboard_phrase_word(ui: &mut egui::Ui, t: &Theme, n: usize, word: &str) {
 }
 
 fn onboard_server_edit_id() -> Id {
-    Id::new("onboard_server").with("edit")
+    Id::unique("onboard_server").with("edit")
 }
 
 fn onboard_server_need_focus_key() -> Id {
-    Id::new("onboard_server_need_focus")
+    Id::unique("onboard_server_need_focus")
 }
 
 /// Rest: hostname caption. Click: field. Blur / Enter commit; Esc reverts; × defaults.
@@ -507,7 +507,7 @@ fn onboard_server_row(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, api_url:
             };
             let _ = Field::new(t, api_url)
                 .hint(lb::DEFAULT_API_LOCATION)
-                .id("onboard_server")
+                .id(egui::Id::unique("onboard_server"))
                 .clearable(true)
                 .sticky(false)
                 .show(ui);
