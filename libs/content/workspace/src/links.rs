@@ -108,15 +108,18 @@ pub fn written_dests(md: &str) -> Vec<(LinkKind, String, Range<usize>)> {
 }
 
 /// The destination's bytes in a link's own source, where it's written as it
-/// reads. A wiki title follows `[[`; a destination follows the first `](`
-/// it starts right after (a title may hold another); an autolink is its
-/// own text. A reference link has none.
+/// reads. A wiki title follows `[[` (`![[` for an embed); a destination
+/// follows the first `](` it starts right after (a title may hold another);
+/// an autolink is its own text. A reference link has none.
 fn dest_in(kind: LinkKind, raw: &str, dest: &str) -> Option<Range<usize>> {
     let at = match kind {
-        LinkKind::Wiki => raw
-            .strip_prefix("[[")
-            .filter(|title| title.starts_with(dest))
-            .map(|_| 2),
+        LinkKind::Wiki => {
+            let open = if raw.starts_with('!') { 3 } else { 2 };
+            raw.get(open - 2..)
+                .and_then(|r| r.strip_prefix("[["))
+                .filter(|title| title.starts_with(dest))
+                .map(|_| open)
+        }
         _ if raw.starts_with('[') || raw.starts_with("![") => raw
             .match_indices("](")
             .map(|(i, _)| {
@@ -252,12 +255,12 @@ mod tests {
     /// What a mend rewrites is the destination as written, nothing around it.
     #[test]
     fn finds_each_destination_where_it_is_written() {
-        let md = "---\ntitle: x\n---\n# [[Plan#Goals|the plan]]\n\n| a | [b](../b%20c.md \"t\") |\n|---|---|\n\n- ![](img.png)\n";
+        let md = "---\ntitle: x\n---\n# [[Plan#Goals|the plan]]\n\n| a | [b](../b%20c.md \"t\") |\n|---|---|\n\n- ![](img.png) ![[Chart.png|300]]\n";
         let found: Vec<&str> = written_dests(md)
             .into_iter()
             .map(|(_, _, at)| &md[at])
             .collect();
-        assert_eq!(found, ["Plan#Goals", "../b%20c.md", "img.png"]);
+        assert_eq!(found, ["Plan#Goals", "../b%20c.md", "img.png", "Chart.png"]);
     }
 
     /// Only a destination written in the link, as it reads, is rewritten:
