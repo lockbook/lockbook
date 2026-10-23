@@ -224,6 +224,9 @@ pub struct Tab {
 
     /// Transient tab-title edit. Not part of the session.
     pub rename: Option<String>,
+
+    /// Content hasn't been drawn since it opened; see [`crate::open_guard`].
+    pub first_draw: bool,
 }
 
 impl Tab {
@@ -383,6 +386,11 @@ impl Tab {
                 ui.spinner();
                 Response::default()
             }
+            ContentState::Failed(TabFailure::Refused(refusal)) => Response {
+                open_anyway: crate::open_guard::show_refusal(ui, refusal)
+                    .then(|| self.destination.id()),
+                ..Default::default()
+            },
             ContentState::Failed(fail) => {
                 ui.label(fail.msg());
                 Response::default()
@@ -571,12 +579,14 @@ pub struct Response {
     pub mobile_toolbar_shown: bool,
     pub caret_covered: bool,
     pub open_file: Option<Uuid>,
+    pub open_anyway: Option<Uuid>,
 }
 
 #[derive(Debug)]
 pub enum TabFailure {
     SimpleMisc(String),
     Unexpected(String),
+    Refused(crate::open_guard::Refusal),
 }
 
 impl From<LbErr> for TabFailure {
@@ -593,6 +603,7 @@ impl TabFailure {
         match self {
             TabFailure::SimpleMisc(msg) => msg.clone(),
             TabFailure::Unexpected(msg) => format!("Unexpected error: {msg}"),
+            TabFailure::Refused(r) => format!("{}: {}", r.title, r.detail),
         }
     }
 }

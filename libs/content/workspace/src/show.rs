@@ -228,7 +228,8 @@ impl Workspace {
         // iOS sets the tab policy from the size class and Android never does; compact
         // has no room for a page sidebar
         let compact = !self.desktop_tab_policy;
-        if let Some(tab) = self.current_tab_mut() {
+        let session = self.current_tab;
+        if let Some(tab) = session.and_then(|sid| self.tabs.get_mut(&sid)) {
             if let Some(pdf) = tab.pdf_mut() {
                 pdf.compact = compact;
             }
@@ -237,7 +238,10 @@ impl Workspace {
                 md.edit.phone_mode = md.edit.renderer.touch_mode && software_keyboard;
             }
 
-            let resp = tab.show(ui);
+            let resp = self.open_guard.show(tab, |tab| tab.show(ui));
+            if let Some(id) = resp.open_anyway {
+                self.open_anyway(id, session);
+            }
 
             self.out.open_camera = resp.open_camera;
             if resp.text_updated {
