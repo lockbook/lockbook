@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleIcons</key><dict>
+        <key>CFBundlePrimaryIcon</key><dict>
+            <key>CFBundleSymbolName</key><string>Lockbook</string>
+        </dict>
+    </dict>
+    <key>NSExtension</key><dict>
+        <key>NSExtensionPointIdentifier</key><string>com.apple.fileprovider-nonui</string>
+        <key>NSExtensionPrincipalClass</key><string>$(PRODUCT_MODULE_NAME).FileProviderExtension</string>
+        <key>NSExtensionFileProviderSupportsEnumeration</key><true/>
+    </dict>
+</dict></plist>

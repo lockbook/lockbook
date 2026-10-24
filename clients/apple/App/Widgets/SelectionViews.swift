@@ -79,6 +79,23 @@ func contextMenuItem(
     }
 }
 
+@ViewBuilder
+func finderMenuSection(_ id: UUID) -> some View {
+    #if os(macOS)
+        if FinderIntegration.shared.enabled {
+            Section {
+                contextMenuItem("Show in Finder", systemImage: "folder") {
+                    FinderIntegration.shared.open(id: id)
+                }
+                contextMenuItem("Open Externally", systemImage: "arrow.up.forward.square") {
+                    FinderIntegration.shared.open(id: id, reveal: false)
+                }
+            }
+            .disabled(FinderIntegration.shared.busy)
+        }
+    #endif
+}
+
 struct SelectionIndicator: View {
     let selection: SelectionModel
     let id: UUID
@@ -168,6 +185,8 @@ struct SelectableRowModifier: ViewModifier {
 
                     Divider()
                 }
+
+                finderMenuSection(id)
 
                 contextMenuItem("New File Here", systemImage: "square.and.pencil") {
                     fileTreeModel.createTarget = file

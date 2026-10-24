@@ -1172,6 +1172,13 @@ pub struct LbEvent {
 
 pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
 
+/// The macOS notification posted after this database commits. Free with `lb_free_str`.
+#[cfg(target_os = "macos")]
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_change_notification_name(lb: *mut Lb) -> *mut c_char {
+    cstring(rlb(lb).async_lb().change_notification_name().to_owned())
+}
+
 #[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, notify: LbNotify) {
@@ -1211,6 +1218,7 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
     });
 }
 
+mod document_version;
 mod ffi_utils;
 mod lb_c_err;
 mod lb_file;

@@ -96,6 +96,7 @@ struct PinnedFilesSection: View {
                     homeState.compactColumn = .detail
                 }
             }
+            finderMenuSection(file.id)
             contextMenuItem("Unpin", systemImage: "pin.slash") {
                 filesModel.togglePin(file.id)
             }
