@@ -1,5 +1,5 @@
 import Bridge
-import notify
+import Darwin
 import FileProvider
 import OSLog
 
@@ -8,7 +8,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     let manager: NSFileProviderManager
     private let queue = DispatchQueue(label: "app.lockbook.file-provider.notifications")
     private let cache = FileProviderCache()
-    private var changeToken = NOTIFY_TOKEN_INVALID
+    private var changeSource: DispatchSourceRead?
     private var invalidated = false
     private var syncTimer: DispatchSourceTimer?
 
@@ -35,31 +35,55 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         syncTimer = nil
         queue.async {
             self.invalidated = true
-            if self.changeToken != NOTIFY_TOKEN_INVALID {
-                notify_cancel(self.changeToken)
-                self.changeToken = NOTIFY_TOKEN_INVALID
-            }
+            self.changeSource?.cancel()
+            self.changeSource = nil
         }
     }
 
     deinit {
-        if changeToken != NOTIFY_TOKEN_INVALID { notify_cancel(changeToken) }
+        changeSource?.cancel()
     }
 
     private func observeChanges() {
-        guard !invalidated, changeToken == NOTIFY_TOKEN_INVALID else { return }
+        guard !invalidated, changeSource == nil else { return }
         do {
             let core = try core()
-            let name = lb_change_notification_name(core.core.lb)
-            defer { lb_free_str(name) }
-            let status = notify_register_dispatch(name, &changeToken, queue) { [weak self] _ in
+            let url = core.ipcDirectory.appendingPathComponent("fp-\(UUID().uuidString.prefix(8))")
+            var address = sockaddr_un()
+            let path = Array(url.path.utf8CString)
+            guard path.count <= MemoryLayout.size(ofValue: address.sun_path) else {
+                throw POSIXError(.ENAMETOOLONG)
+            }
+            address.sun_family = sa_family_t(AF_UNIX)
+            address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+            withUnsafeMutableBytes(of: &address.sun_path) { destination in
+                path.withUnsafeBytes { destination.copyBytes(from: $0) }
+            }
+            let fd = socket(AF_UNIX, SOCK_DGRAM, 0)
+            guard fd >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+            let bound = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+                }
+            }
+            guard bound == 0 else {
+                let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+                close(fd)
+                throw error
+            }
+            let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+            source.setEventHandler { [weak self] in
+                var byte: UInt8 = 0
+                while recv(fd, &byte, 1, MSG_DONTWAIT) >= 0 {}
                 guard let self, !self.invalidated else { return }
                 self.signalChanges()
             }
-            guard status == NOTIFY_STATUS_OK else {
-                changeToken = NOTIFY_TOKEN_INVALID
-                throw CocoaError(.featureUnsupported)
+            source.setCancelHandler {
+                close(fd)
+                try? FileManager.default.removeItem(at: url)
             }
+            changeSource = source
+            source.resume()
             // Cover commits before registration, including during extension startup.
             signalChanges()
         } catch {

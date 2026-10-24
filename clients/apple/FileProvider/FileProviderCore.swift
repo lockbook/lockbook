@@ -7,6 +7,7 @@ final class FileProviderCore {
     let core: LbInitRes
     let root: UUID
     let cache: FileProviderCache
+    let ipcDirectory: URL
 
     init(domain: NSFileProviderDomain, cache: FileProviderCache) throws {
         self.cache = cache
@@ -15,6 +16,7 @@ final class FileProviderCore {
             throw NSFileProviderError(.notAuthenticated)
         }
         let location = group.appendingPathComponent("data", isDirectory: true)
+        ipcDirectory = location.appendingPathComponent("CoreV5/ipc", isDirectory: true)
         guard fm.fileExists(atPath: location.appendingPathComponent("CoreV5").path),
               let root = UUID(uuidString: domain.identifier.rawValue) else {
             throw NSFileProviderError(.notAuthenticated)
