@@ -108,7 +108,12 @@ import SwiftWorkspace
             return MockLb()
         }
 
-        return Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? LB_LOC, logs: true)
+        #if os(macOS)
+        let clientName = "macos"
+        #else
+        let clientName = "ios"
+        #endif
+        return Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? LB_LOC, clientName: clientName, logs: true)
     }()
 
     func checkIfLoggedIn() {

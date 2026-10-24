@@ -49,10 +49,10 @@ public class Lb: LbAPI {
     public var lbUnsafeRawPtr: UnsafeMutableRawPointer?
     public var events: Events = .init()
 
-    public init(writablePath: String, logs: Bool) {
-        print("Starting core at \(writablePath) and logs=\(logs)")
+    public init(writablePath: String, clientName: String, logs: Bool) {
+        print("Starting \(clientName) core at \(writablePath) and logs=\(logs)")
 
-        _ = start(writablePath: writablePath, logs: logs)
+        _ = start(writablePath: writablePath, clientName: clientName, logs: logs)
 
         subscribe(notify: { event in
             DispatchQueue.main.async {
@@ -70,8 +70,8 @@ public class Lb: LbAPI {
         })
     }
 
-    public func start(writablePath: String, logs: Bool) -> Result<Void, LbError> {
-        let res = lb_init(writablePath, logs, true)
+    public func start(writablePath: String, clientName: String, logs: Bool) -> Result<Void, LbError> {
+        let res = lb_init(writablePath, clientName, logs, true)
         defer {
             lb_free_err(res.err)
         }

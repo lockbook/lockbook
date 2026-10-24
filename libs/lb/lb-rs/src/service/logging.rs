@@ -31,7 +31,9 @@ fn trace_targets(metadata: &tracing::Metadata<'_>) -> bool {
     log_targets(metadata) || metadata.target().starts_with("lockbook_desktop")
 }
 
-fn fmt_layers<S>(config: &Config) -> Vec<Box<dyn Layer<S> + Send + Sync + 'static>>
+fn fmt_layers<S>(
+    config: &Config, client_name: Option<&str>,
+) -> Vec<Box<dyn Layer<S> + Send + Sync + 'static>>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
@@ -48,7 +50,11 @@ where
             .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
             .with_ansi(config.colored_logs)
             .with_target(true)
-            .with_writer(tracing_appender::rolling::never(&config.writeable_path, LOG_FILE))
+            .with_writer(tracing_appender::rolling::never(
+                &config.writeable_path,
+                client_name
+                    .map_or_else(|| LOG_FILE.to_owned(), |name| format!("lockbook-{name}.log")),
+            ))
             .with_filter(lockbook_log_level)
             .with_filter(filter::filter_fn(log_targets))
             .boxed(),
@@ -178,9 +184,18 @@ pub fn flush_traces() {
 /// [`TRACE_ENV_VAR`]) a Perfetto trace file. Called by `Lb::init`; call it
 /// earlier from a process entry point to capture boot.
 pub fn init(config: &Config) -> LbResult<()> {
+    init_for_client(config, None)
+}
+
+/// Use `lockbook-<client_name>.log` when named. The first initialization in a
+/// process selects its log file; later core instances reuse the subscriber.
+pub fn init_for_client(config: &Config, client_name: Option<&str>) -> LbResult<()> {
     if !config.logs {
         return Ok(());
     }
+    // Extensions may initialize multiple core instances concurrently.
+    static INIT: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _guard = INIT.lock().map_err(core_err_unexpected)?;
     if tracing::dispatcher::has_been_set() {
         return Ok(());
     }
@@ -188,7 +203,7 @@ pub fn init(config: &Config) -> LbResult<()> {
         std::fs::create_dir_all(&config.writeable_path).map_err(core_err_unexpected)?;
     }
 
-    let subscriber = tracing_subscriber::Registry::default().with(fmt_layers(config));
+    let subscriber = tracing_subscriber::Registry::default().with(fmt_layers(config, client_name));
 
     #[cfg(not(target_family = "wasm"))]
     let subscriber = subscriber.with(trace_layer(config));
@@ -223,6 +238,33 @@ fn panic_capture(config: &Config) {
 mod tests {
     use super::*;
     use crate::model::core_config::ClientType;
+
+    #[test]
+    fn client_logs_are_separate() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut config = Config::cli_config("cli");
+        config.writeable_path = directory.path().to_str().unwrap().to_owned();
+        config.colored_logs = false;
+        let clients = [None, Some("macos"), Some("file-provider"), Some("widgets")];
+        for client in clients {
+            let subscriber =
+                tracing_subscriber::Registry::default().with(fmt_layers(&config, client));
+            tracing::subscriber::with_default(subscriber, || {
+                tracing::info!("message from [{}]", client.unwrap_or("default"));
+            });
+        }
+        for client in clients {
+            let filename =
+                client.map_or_else(|| LOG_FILE.to_owned(), |name| format!("lockbook-{name}.log"));
+            let contents = std::fs::read_to_string(directory.path().join(filename)).unwrap();
+            for other in clients {
+                assert_eq!(
+                    contents.contains(&format!("[{}]", other.unwrap_or("default"))),
+                    client == other
+                );
+            }
+        }
+    }
 
     #[test]
     fn lb_trace_writes_a_pftrace() {

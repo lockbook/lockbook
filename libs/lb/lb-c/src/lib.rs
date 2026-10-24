@@ -34,10 +34,11 @@ pub struct LbInitRes {
 }
 
 /// Initializes a regular core instance with configurable background work.
+/// `client_name` partitions log files; pass null to use `lockbook.log`.
 /// Release the result with `lb_free_init`.
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_init(
-    writeable_path: *const c_char, logs: bool, background_work: bool,
+    writeable_path: *const c_char, client_name: *const c_char, logs: bool, background_work: bool,
 ) -> LbInitRes {
     let config = Config {
         writeable_path: rstring(writeable_path),
@@ -48,7 +49,9 @@ pub extern "C" fn lb_init(
         client_type: ClientType::Ui,
     };
 
-    match Lb::init(config) {
+    match service::logging::init_for_client(&config, r_opt_str(client_name))
+        .and_then(|()| Lb::init(config))
+    {
         Ok(lb) => {
             let lb = Box::into_raw(Box::new(lb));
             LbInitRes { lb, err: null_mut() }

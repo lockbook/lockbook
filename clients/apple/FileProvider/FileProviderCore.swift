@@ -22,7 +22,7 @@ final class FileProviderCore {
             throw NSFileProviderError(.notAuthenticated)
         }
         self.root = root
-        let initialized = lb_init(location.path, false, false)
+        let initialized = lb_init(location.path, "file-provider", true, false)
         if initialized.err != nil {
             let error = Self.error(initialized.err!)
             lb_free_init(initialized)
