@@ -92,4 +92,3 @@ final class MetricKitCrashStoreTests: XCTestCase {
         XCTAssertEqual(try files().count, 1)
     }
 }
-
