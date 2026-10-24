@@ -198,8 +198,14 @@ import SwiftWorkspace
 
         var body: some View {
             Form {
-                #if !DEBUG
                 Section("Finder") {
+                    #if DEBUG
+                    Toggle("Show Lockbook in Finder", isOn: .constant(false))
+                        .disabled(true)
+                    Text("Finder integration is disabled in development builds.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    #else
                     Toggle("Show Lockbook in Finder", isOn: Binding(
                         get: { finder.enabled }, set: { finder.setEnabled($0) }
                     ))
@@ -210,8 +216,8 @@ import SwiftWorkspace
                     Text("Files you open in Finder are downloaded as regular, unencrypted files on this Mac.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    #endif
                 }
-                #endif
                 Section("Tabs") {
                     Toggle("Open files in new tabs", isOn: $openInNewTab)
                     Text(
