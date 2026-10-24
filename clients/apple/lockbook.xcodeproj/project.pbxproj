@@ -933,6 +933,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.FileProvider;
 				PRODUCT_MODULE_NAME = LockbookFileProvider;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = macosx;
@@ -968,6 +969,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.FileProvider;
 				PRODUCT_MODULE_NAME = LockbookFileProvider;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = macosx;
@@ -1003,6 +1005,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.FileProvider;
 				PRODUCT_MODULE_NAME = LockbookFileProvider;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = macosx;
