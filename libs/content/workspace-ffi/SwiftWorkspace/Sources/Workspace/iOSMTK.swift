@@ -389,6 +389,7 @@
             }
 
             dark_mode(wsHandle, mtkView.isDarkMode())
+            set_software_keyboard_in_use(wsHandle, mtkView.softwareKeyboardInUse)
             syncAccentColor(mtkView)
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
@@ -468,6 +469,19 @@
                 mtkView.workspaceOutput?.openDoc = nil
             }
 
+            let outline = currentTab == .Markdown && outline_available(wsHandle)
+            if outline != mtkView.workspaceOutput!.outlineAvailable {
+                DispatchQueue.main.async {
+                    mtkView.workspaceOutput!.outlineAvailable = outline
+                }
+            }
+            let outlineOpen = currentTab == .Markdown && outline_open(wsHandle)
+            if outlineOpen != mtkView.workspaceOutput!.outlineOpen {
+                DispatchQueue.main.async {
+                    mtkView.workspaceOutput!.outlineOpen = outlineOpen
+                }
+            }
+
             if currentTab != mtkView.workspaceOutput!.currentTab {
                 if let currentWrapper = mtkView.currentWrapper as? SvgView {
                     currentWrapper.applyPanTouchRequirements(for: currentTab)
@@ -520,10 +534,18 @@
                 free_urls(output.urls_opened)
             }
 
-            if let text = output.copied_text {
+            if let text = output.copied_text, let html = output.copied_html {
                 let text = textFromPtr(s: text)
+                let html = textFromPtr(s: html)
                 if !text.isEmpty {
-                    UIPasteboard.general.string = text
+                    if html.isEmpty {
+                        UIPasteboard.general.string = text
+                    } else {
+                        UIPasteboard.general.items = [[
+                            UTType.utf8PlainText.identifier: text,
+                            UTType.html.identifier: html,
+                        ]]
+                    }
                 }
             }
 
@@ -700,6 +722,11 @@
                 name: UIApplication.didBecomeActiveNotification,
                 object: nil
             )
+            for name in [Notification.Name.GCKeyboardDidConnect, .GCKeyboardDidDisconnect] {
+                NotificationCenter.default.addObserver(
+                    self, selector: #selector(hardwareKeyboardChanged), name: name, object: nil
+                )
+            }
             NotificationCenter.default.addObserver(
                 self,
                 selector: #selector(appDidEnterBackground),
@@ -710,6 +737,11 @@
 
         @objc private func appDidBecomeActive() {
             self.isPaused = false
+        }
+
+        /// The editor's layout follows the hardware keyboard; redraw when one comes or goes.
+        @objc private func hardwareKeyboardChanged() {
+            DispatchQueue.main.async { self.requestFrame() }
         }
 
         @objc private func appDidEnterBackground() {
@@ -871,7 +903,7 @@
                 Unmanaged.passUnretained(layer).toOpaque()
             )
             claimedPersistence = true
-            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
 
             if let wsHandle {
@@ -1157,6 +1189,13 @@
 
         func isDarkMode() -> Bool {
             traitCollection.userInterfaceStyle != .light
+        }
+
+        /// A hardware keyboard keeps the software one away unless it comes up
+        /// anyway, covering more than the shortcuts bar would.
+        var softwareKeyboardInUse: Bool {
+            let covered = bounds.maxY - keyboardLayoutGuide.layoutFrame.minY
+            return GCKeyboard.coalesced == nil || covered > 150
         }
 
         deinit {

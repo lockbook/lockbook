@@ -208,6 +208,37 @@ impl Ops {
         replaces == 1 && text_graphemes <= 1 && selects <= 1
     }
 
+    /// The frame's one replacement, if it has exactly one.
+    fn frame_replace(&self, start: usize, end: usize) -> Option<&Replace> {
+        let mut replaces = self.all[start..end].iter().filter_map(|op| match op {
+            Operation::Replace(replace) => Some(replace),
+            Operation::Select(_) => None,
+        });
+        let replace = replaces.next()?;
+        replaces.next().is_none().then_some(replace)
+    }
+
+    /// Whether the current frame replaces exactly the text the previous one
+    /// inserted, as an input method's composition does with each update and
+    /// its commit. Ranges are comparable only if the current frame was based
+    /// on the state right after the previous one (selects aside).
+    fn frame_revises(&self, (prev_start, prev_end): (usize, usize), curr_start: usize) -> bool {
+        let curr_end = self.frame_at(curr_start).1;
+        let (Some(prev), Some(curr)) =
+            (self.frame_replace(prev_start, prev_end), self.frame_replace(curr_start, curr_end))
+        else {
+            return false;
+        };
+        let based_after =
+            self.meta[curr_start].base - self.meta[prev_start].base == curr_start - prev_start;
+        let inserted = prev.text.graphemes(true).count();
+        let start = prev.range.start();
+        based_after
+            && inserted > 0
+            && curr.range.start() == start
+            && curr.range.end() == Grapheme(start.0 + inserted)
+    }
+
     fn frame_has_replace(&self, start: usize, end: usize) -> bool {
         self.all[start..end]
             .iter()
@@ -247,6 +278,11 @@ impl Ops {
             }
             walk = s;
         };
+
+        // a composition's updates and commit revise one insertion
+        if prev_real.is_some_and(|prev| self.frame_revises(prev, curr_start)) {
+            return false;
+        }
 
         // typing-grouping: rapid single-keystroke edits stay in one
         // unit so a burst of typing undoes together

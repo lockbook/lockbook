@@ -17,14 +17,16 @@ use super::render_props::{
 
 // ── renderer ──
 
-/// An image out of the note's scope never starts a load: the cache is
-/// shared by every note and the image viewer, which must still open it.
+/// An image past the note's scope, or from the web while sites may not be
+/// contacted, waits, and never starts a load, until the reader asks to see
+/// it: the cache is shared by every note and the image viewer, which must
+/// still open it. One naming nothing is broken.
 #[test]
-fn out_of_scope_embed_leaves_image_cache_alone() {
+fn withheld_embeds_leave_image_cache_alone() {
     use crate::file_cache::tests::alice;
     use crate::resolvers::EmbedResolver as _;
     use crate::resolvers::image_embed::ImageEmbedResolver;
-    use crate::widgets::image_cache::ImageCache;
+    use crate::widgets::image_cache::{ImageCache, ImageKey};
     use crate::workspace::WsPersistentStore;
     use lb_rs::Uuid;
     use std::sync::{Arc, RwLock};
@@ -43,9 +45,78 @@ fn out_of_scope_embed_leaves_image_cache_alone() {
     let embed = ImageEmbedResolver::new(images.clone(), note);
 
     let url = format!("lb://{private}");
+    let key = ImageKey::File(private);
     embed.prefetch(&url);
+    assert!(embed.withheld(&url));
     assert!(!embed.is_loaded(&url));
-    assert!(!images.has_state(&url));
+    assert!(!images.has_state(&key));
+
+    embed.load_anyway(&url);
+    assert!(!embed.withheld(&url));
+    embed.prefetch(&url);
+    assert!(images.has_state(&key));
+
+    let unknown = Uuid::from_u128(99);
+    embed.prefetch(&format!("lb://{unknown}"));
+    assert!(!embed.withheld(&format!("lb://{unknown}")));
+    assert!(!images.has_state(&ImageKey::File(unknown)));
+
+    // a web image waits until asked for, or until sites may be contacted
+    let web = "https://example.com/pixel.png";
+    embed.prefetch(web);
+    assert!(embed.withheld(web) && !images.has_state(&ImageKey::Web(web.into())));
+    embed.load_anyway(web);
+    assert!(!embed.withheld(web));
+}
+
+/// Two notes in different folders that write the same relative image show
+/// each their own file, though the cache is shared.
+#[test]
+fn same_image_path_in_two_folders_shows_two_files() {
+    use crate::file_cache::FileCache;
+    use crate::resolvers::EmbedResolver as _;
+    use crate::resolvers::image_embed::ImageEmbedResolver;
+    use crate::widgets::image_cache::{ImageCache, ImageKey};
+    use crate::workspace::WsPersistentStore;
+    use lb_rs::Uuid;
+    use lb_rs::model::file::File;
+    use lb_rs::model::file_metadata::FileType;
+    use std::sync::{Arc, RwLock};
+
+    let [root, a, b, note_a, note_b, photo_a, photo_b] = [1, 2, 3, 4, 5, 6, 7].map(Uuid::from_u128);
+    let file = |id, parent, name: &str, file_type| File {
+        id,
+        parent,
+        name: name.into(),
+        file_type,
+        last_modified: 0,
+        last_modified_by: Default::default(),
+        owner: Default::default(),
+        shares: vec![],
+        size_bytes: 0,
+    };
+    let files = [
+        file(root, root, "root", FileType::Folder),
+        file(a, root, "a", FileType::Folder),
+        file(b, root, "b", FileType::Folder),
+        file(note_a, a, "note.md", FileType::Document),
+        file(note_b, b, "note.md", FileType::Document),
+        file(photo_a, a, "photo.png", FileType::Document),
+        file(photo_b, b, "photo.png", FileType::Document),
+    ];
+    let files = FileCache::from_owned_and_shared(files[0].clone(), files, []);
+    let images = ImageCache::new(
+        crate::tab::markdown_editor::test_egui_ctx(),
+        super::super::HttpClient::default(),
+        super::harness::build_lb(),
+        Arc::new(RwLock::new(files)),
+        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true),
+    );
+
+    ImageEmbedResolver::new(images.clone(), note_a).prefetch("photo.png");
+    ImageEmbedResolver::new(images.clone(), note_b).prefetch("photo.png");
+    assert!(images.has_state(&ImageKey::File(photo_a)));
+    assert!(images.has_state(&ImageKey::File(photo_b)));
 }
 
 /// Image fragments allocate exactly the image's logical size — no
@@ -54,7 +125,7 @@ fn out_of_scope_embed_leaves_image_cache_alone() {
 fn inline_image_advance_matches_rendered_width() {
     use crate::file_cache::FileCache;
     use crate::resolvers::image_embed::ImageEmbedResolver;
-    use crate::widgets::image_cache::ImageCache;
+    use crate::widgets::image_cache::{ImageCache, ImageKey};
     use crate::workspace::WsPersistentStore;
     use egui::{Color32, ColorImage, ImageData, TextureOptions};
     use lb_rs::Uuid;
@@ -66,8 +137,9 @@ fn inline_image_advance_matches_rendered_width() {
     ctx.set_pixels_per_point(2.0);
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
-    let persistence =
+    let mut persistence =
         WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    persistence.set_contact_linked_sites(true);
     let image_cache =
         ImageCache::new(ctx.clone(), client, lb.clone(), files.clone(), persistence.clone());
     let image_cache_handle = image_cache.clone();
@@ -86,7 +158,7 @@ fn inline_image_advance_matches_rendered_width() {
             embeds: embed,
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
+        super::super::MdConfig { readonly: false, ext: "md".to_string() },
     );
     let mut ws = super::harness::TestEditor::from_editor(editor);
 
@@ -98,7 +170,7 @@ fn inline_image_advance_matches_rendered_width() {
             .write()
             .alloc("placehold_test".into(), image, TextureOptions::default())
     };
-    image_cache_handle.complete_load(url, Ok(texture_id));
+    image_cache_handle.complete_load(&ImageKey::Web(url.into()), Ok(texture_id));
 
     // Cursor off both images so they collapse rather than revealing.
     ws.push(Event::Select {
@@ -211,6 +283,35 @@ fn enter_atom_selects_wikilink_interior() {
 
     let sel = ws.editor.edit.renderer.buffer.current.selection;
     assert_eq!(&ws.editor.edit.renderer.buffer[sel], "target", "interior selected: {sel:?}");
+}
+
+/// A wiki embed whose title names an image is an image: one atom, sized by
+/// its label. Any other embed is a link. Edit selects either's interior.
+#[test]
+fn wiki_embeds_of_images_are_images() {
+    let mut ws = TestEditor::new("![[Chart.png|120]] ![[Plan]]\n");
+    ws.enter_frame();
+
+    let images = ws.editor.edit.renderer.bounds.images.clone();
+    let chart = ((0).into(), (18).into());
+    assert_eq!(images, [chart]);
+    let arena = Arena::new();
+    let root = ws.editor.edit.renderer.reparse(&arena);
+    let embed = root
+        .descendants()
+        .find(|n| ws.editor.edit.renderer.node_range(n) == chart);
+    let size = ws.editor.edit.renderer.image_logical_size(embed.unwrap());
+    assert_eq!(size.map(|s| s.x), Some(120.0));
+
+    let plan = ((19).into(), (28).into());
+    for (atom, interior) in [(chart, "Chart.png|120"), (plan, "Plan")] {
+        ws.push(Event::Select { region: atom.into() });
+        ws.enter_frame();
+        ws.push(Event::EnterAtom);
+        ws.enter_frame();
+        let sel = ws.editor.edit.renderer.buffer.current.selection;
+        assert_eq!(&ws.editor.edit.renderer.buffer[sel], interior);
+    }
 }
 
 #[test]
@@ -1220,7 +1321,7 @@ fn image_load_layout_consistent() {
 
     use crate::file_cache::FileCache;
     use crate::resolvers::image_embed::ImageEmbedResolver;
-    use crate::widgets::image_cache::ImageCache;
+    use crate::widgets::image_cache::{ImageCache, ImageKey};
     use crate::workspace::WsPersistentStore;
 
     let lb = super::harness::build_lb();
@@ -1253,7 +1354,7 @@ fn image_load_layout_consistent() {
             embeds: embed,
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
+        super::super::MdConfig { readonly: false, ext: "md".to_string() },
     );
     let mut ws = TestEditor::from_editor(editor);
 
@@ -1268,7 +1369,7 @@ fn image_load_layout_consistent() {
             .alloc("test_image".into(), image, TextureOptions::default());
         id
     };
-    image_cache_handle.complete_load(url, Ok(texture_id));
+    image_cache_handle.complete_load(&ImageKey::Web(url.into()), Ok(texture_id));
 
     // Two frames: first triggers `embeds_updated` and clears the cache;
     // the second renders against the (potentially stale) populated cache.
@@ -1407,6 +1508,55 @@ fn toggle_list_style_on_empty_item_switches() {
             (Grapheme(*expected_cursor), Grapheme(*expected_cursor)),
             "case {desc:?}: cursor expected={expected_cursor} got={got_sel:?}",
         );
+    }
+}
+
+/// Regression: toggling a block style inside a container of another kind
+/// used to strip that container's marker and put the new one in its place
+/// (`> quoted` + bullet → `* quoted`). Only a container of the toggled
+/// style's kind gives up its prefix; otherwise the new marker nests.
+#[test]
+fn toggle_block_style_nests_inside_other_containers() {
+    use comrak::nodes::{ListType, NodeList, NodeValue};
+
+    let bullet = || Event::ToggleStyle {
+        region: Region::Selection,
+        style: NodeValue::List(NodeList { list_type: ListType::Bullet, ..Default::default() }),
+    };
+    let task = || Event::ToggleStyle {
+        region: Region::Selection,
+        style: NodeValue::List(NodeList {
+            list_type: ListType::Bullet,
+            is_task_list: true,
+            ..Default::default()
+        }),
+    };
+    let quote = || Event::ToggleStyle { region: Region::Selection, style: NodeValue::BlockQuote };
+
+    // (description, input, cursor, event, expected_text)
+    let cases: &[(&str, &str, usize, Event, &str)] = &[
+        ("bullet inside quote", "> quoted\n", 4, bullet(), "> * quoted\n"),
+        ("bullet inside two-line quote", "> one\n> two\n", 3, bullet(), "> * one\n> two\n"),
+        ("quote inside bullet", "- item\n", 3, quote(), "- > item\n"),
+        ("quote inside empty bullet", "- \n", 2, quote(), "- > \n"),
+        ("bullet inside empty quote", "> \n", 2, bullet(), "> * \n"),
+        ("unapply quote around a bullet", "> - item\n", 5, quote(), "- item\n"),
+        ("unapply bullet inside quote", "> - item\n", 5, bullet(), "> item\n"),
+        ("type change across a quote", "- > quoted\n", 5, task(), "* [ ] > quoted\n"),
+    ];
+    for (desc, input, cursor, ev, expected) in cases {
+        let mut ws = TestEditor::new(input);
+        ws.enter_frame();
+        ws.push(Event::Select {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(Grapheme(*cursor)),
+                end: Location::Grapheme(Grapheme(*cursor)),
+            },
+        });
+        ws.enter_frame();
+        ws.push(ev.clone());
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), *expected, "case {desc:?}");
     }
 }
 
@@ -1604,6 +1754,35 @@ fn tab_indents_parent_to_child_keeps_child_level() {
     ws.push(Event::Indent { deindent: false });
     ws.enter_frame();
     assert_eq!(ws.get_text(), "- bullet parent\n    - child four\n    - asdf\n");
+}
+
+/// Regression: Enter on an empty `> ` line of a quote inside a list item
+/// used to insert a bare newline, leaving a stray `>` (comrak ends the
+/// item before the content-less quote line, so the line looked like it
+/// was outside every container). It closes the quote like it does at the
+/// top level, keeping the item's indentation.
+#[test]
+fn newline_closes_empty_quote_inside_item() {
+    let cases: &[(&str, &str)] = &[
+        ("- item\n  > quoted\n  > \n", "- item\n  > quoted\n  \n"),
+        ("- [x] b\n\n  para\n\n  > quoted\n  > \n", "- [x] b\n\n  para\n\n  > quoted\n  \n"),
+        ("- a\n  - b\n    > q\n    > \n", "- a\n  - b\n    > q\n    \n"),
+    ];
+    for (input, expected) in cases {
+        let mut ws = TestEditor::new(input);
+        ws.enter_frame();
+        let cursor = Grapheme(input.chars().count() - 1); // end of the empty quote line
+        ws.push(Event::Select {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(cursor),
+                end: Location::Grapheme(cursor),
+            },
+        });
+        ws.enter_frame();
+        ws.push(Event::Newline { shift: false });
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), *expected, "input {input:?}");
+    }
 }
 
 /// Newline at the end of a nested list item must start the sibling at
@@ -1812,14 +1991,17 @@ fn masked_plaintext_mdedit_renders_glyphs() {
     let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(300., 30.));
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
     let frame = |edit: &mut MdEdit| {
-        let _ =
-            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
-                ctx.set_lb_theme(Theme::default(Mode::Dark));
-                crate::register_font_system(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    edit.show(ui, rect, egui::Id::new("key_field"));
-                });
+        ctx.run_pass(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+            ctx.set_lb_theme(Theme::default(Mode::Dark));
+            crate::register_font_system(ctx);
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    edit.show(ui, rect, egui::Id::unique("key_field"));
+                })
             });
+        })
+        .textures_delta
+        .clear();
     };
     frame(&mut edit);
 
@@ -1875,14 +2057,17 @@ fn bounded_composer_scrolls_cursor_into_view() {
     let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(600., 140.));
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
     let frame = |edit: &mut MdEdit| {
-        let _ =
-            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
-                ctx.set_lb_theme(Theme::default(Mode::Dark));
-                crate::register_font_system(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    edit.show(ui, rect, egui::Id::new("composer"));
-                });
+        ctx.run_pass(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+            ctx.set_lb_theme(Theme::default(Mode::Dark));
+            crate::register_font_system(ctx);
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    edit.show(ui, rect, egui::Id::unique("composer"));
+                })
             });
+        })
+        .textures_delta
+        .clear();
     };
 
     let end = {
@@ -2235,7 +2420,7 @@ fn phone_toolbar_never_pushed_off_screen() {
             embeds: Box::new(embeds.clone()),
             files,
         },
-        super::super::MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: false },
+        super::super::MdConfig { readonly: false, ext: "md".into() },
     );
     assert!(editor.edit.renderer.touch_mode, "touch mode");
     assert!(editor.edit.phone_mode, "phone mode");
@@ -2293,18 +2478,22 @@ fn phone_toolbar_never_pushed_off_screen() {
     let frames_run = std::cell::Cell::new(0u32);
     let frame = |editor: &mut super::super::Editor, events: Vec<egui::Event>| -> (f32, f32) {
         let mut content = (f32::NAN, f32::NAN);
-        let _ = ctx.run(
+        ctx.run_pass(
             egui::RawInput { screen_rect: Some(screen), events, ..Default::default() },
             |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
                 editor.focus(ctx);
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    editor.show(ui);
-                    content = (ui.min_rect().max.y, ui.max_rect().max.y);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        editor.show(ui);
+                        content = (ui.min_rect().max.y, ui.max_rect().max.y);
+                    })
                 });
             },
-        );
+        )
+        .textures_delta
+        .clear();
         // The layout-level signal: embed painting (which runs for off-screen
         // neighbor rows) must never drag the toolbar allocation off screen.
         // The first frames lay out before fonts/virtualization settle.
@@ -2358,6 +2547,8 @@ fn phone_toolbar_never_pushed_off_screen() {
                     unit: egui::MouseWheelUnit::Point,
                     delta: egui::vec2(0.0, -40.0),
                     modifiers: Default::default(),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
                 },
             ],
         );
@@ -2387,6 +2578,8 @@ fn phone_toolbar_never_pushed_off_screen() {
                     unit: egui::MouseWheelUnit::Point,
                     delta: egui::vec2(0.0, 35.0),
                     modifiers: Default::default(),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
                 },
             ],
         );
@@ -2527,4 +2720,68 @@ fn down_arrow_into_folded_tail_stops_at_visible_end() {
     let fold = &ws.editor.edit.renderer.bounds.folds[0];
     assert!(!fold.conceals(landed), "landed inside folded contents at {}", landed.0);
     assert_eq!(landed, fold.contents.start(), "doc: {doc:?}");
+}
+
+/// Clicking away mid-composition ends it with its text as typed and the
+/// caret where clicked, through what fcitx5 on Wayland sends after the
+/// click interrupts it: the composition again, then an empty preedit.
+#[test]
+fn click_away_mid_composition_keeps_its_text_and_the_click() {
+    use egui::{Event as Egui, ImeEvent};
+    let preedit =
+        |text: &str| Egui::Ime(ImeEvent::Preedit { text: text.into(), active_range_chars: None });
+    let at = |offset: usize| Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(offset)),
+            end: Location::Grapheme(Grapheme(offset)),
+        },
+    };
+
+    let mut ws = TestEditor::new("hello world\n");
+    ws.push(at(11));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("zh")]);
+    ws.enter_frame_with_input(vec![preedit("zhong")]);
+    assert_eq!(ws.get_text(), "hello worldzhong\n");
+
+    ws.push(at(5));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("zhong"), preedit("zhong")]);
+    ws.enter_frame_with_input(vec![]);
+    ws.enter_frame_with_input(vec![preedit("")]);
+    ws.enter_frame_with_input(vec![]);
+
+    let renderer = &ws.editor.edit.renderer;
+    assert_eq!(ws.get_text(), "hello worldzhong\n");
+    assert_eq!(renderer.buffer.current.selection, (Grapheme(5), Grapheme(5)));
+    assert!(renderer.ime_marked.is_none());
+
+    // the next composition starts at the caret
+    ws.enter_frame_with_input(vec![preedit("n")]);
+    assert_eq!(ws.get_text(), "hellon worldzhong\n");
+}
+
+/// What a click away abandons is ignored only until the editor gets input of
+/// its own: a later composition with the same text still commits.
+#[test]
+fn abandoned_composition_text_commits_after_typing() {
+    use egui::{Event as Egui, ImeEvent};
+    let preedit =
+        |text: &str| Egui::Ime(ImeEvent::Preedit { text: text.into(), active_range_chars: None });
+    let at = |offset: usize| Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(offset)),
+            end: Location::Grapheme(Grapheme(offset)),
+        },
+    };
+
+    let mut ws = TestEditor::new("ab\n");
+    ws.push(at(2));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![preedit("n")]);
+    ws.push(at(0));
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![Egui::Text("x".into())]);
+    ws.enter_frame_with_input(vec![Egui::Ime(ImeEvent::Commit("n".into()))]);
+    assert_eq!(ws.get_text(), "xnabn\n");
 }

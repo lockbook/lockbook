@@ -1,9 +1,11 @@
+use crate::style::button::COPY_FEEDBACK_SECS;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
-    NodeValueExt as _, leading_indent_cols, leading_indent_range,
+    NodeValueExt as _, leading_indent_cols, leading_indent_range, wrap_layout,
 };
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::{CopiedRendered, ExtendedOutput as _};
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
     NodeTaskItem, NodeValue, Sourcepos,
@@ -55,6 +57,13 @@ impl MdEdit {
 }
 
 impl<'ast> MdEdit {
+    /// The selection, else the current line; a selected fold chip is just
+    /// its tag, but the clipboard gets the folded contents too.
+    fn clipboard_range(&self, selection: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
+        let range = if !selection.is_empty() { selection } else { self.clipboard_current_line() };
+        self.renderer.grow_range_over_fold_contents(range)
+    }
+
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
     /// Dispatches events that aren't buffer operations. Returns a (text_updated, selection_updated) pair.
     pub fn calc_operations(
@@ -65,8 +74,14 @@ impl<'ast> MdEdit {
         let mut response = buffer::Response::default();
         match event {
             Event::Select { region } => {
-                let range = self.region_to_range(region);
+                if self.table_select_edits(region, operations) {
+                    return response;
+                }
+                let range = self
+                    .extend_table_selection(region)
+                    .unwrap_or_else(|| self.region_to_range(region));
                 let range = self.renderer.snap_selection_out_of_fold_tags(range);
+                let range = self.renderer.snap_selection_into_table_cells(range);
                 operations.push(Operation::Select(range));
             }
             Event::Replace { region, text, advance_cursor } => {
@@ -75,6 +90,9 @@ impl<'ast> MdEdit {
                     // selecting a fold chip is just selecting a fold tag, but
                     // replacing it should delete folded content
                     range = self.renderer.grow_range_over_fold_contents(range);
+                }
+                if self.replace_in_table(range, &text, advance_cursor, operations) {
+                    return response;
                 }
                 operations.push(Operation::Replace(Replace { range, text }));
                 if advance_cursor {
@@ -91,7 +109,12 @@ impl<'ast> MdEdit {
             Event::Camera => {
                 response.open_camera = true;
             }
+            Event::Gesture(gesture) => self.apply_gesture(gesture),
             Event::Newline { shift } => {
+                if self.newline_in_table(shift, operations) {
+                    return response;
+                }
+
                 // Enter after a `···` fold chip creates the new heading / list
                 // item after the hidden contents
                 let handled = !shift && self.newline_at_fold(root, operations);
@@ -205,6 +228,10 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                if self.delete_from_caret_at_table(region, operations) {
+                    return response;
+                }
+
                 // delete container block prefix
                 let mut handled = || {
                     // must be mostly vanilla backspace
@@ -256,6 +283,9 @@ impl<'ast> MdEdit {
                     }
 
                     let range = self.renderer.grow_delete_over_fold_tags(range);
+                    if self.delete_range_in_table(range, operations) {
+                        return response;
+                    }
                     operations.push(Operation::Replace(Replace { range, text: "".into() }));
                 }
 
@@ -263,6 +293,10 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Indent { deindent } => {
+                if self.indent_in_table(deindent, operations) {
+                    return response;
+                }
+
                 let selected_lines = self
                     .renderer
                     .bounds
@@ -447,27 +481,73 @@ impl<'ast> MdEdit {
                 response |= self.renderer.buffer.redo();
             }
             Event::Cut => {
-                let range = if !current_selection.is_empty() {
-                    current_selection
-                } else {
-                    self.clipboard_current_line()
-                };
-                // selecting a fold chip is just selecting a fold tag, but
-                // copying it should copy folded content
-                let range = self.renderer.grow_range_over_fold_contents(range);
+                let range = self.clipboard_range(current_selection);
+                let (range, text) = self
+                    .renderer
+                    .table_rows_clipboard()
+                    .unwrap_or_else(|| (range, self.renderer.buffer[range].into()));
 
-                ctx.copy_text(self.renderer.buffer[range].into());
-                operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                ctx.copy_text(text);
+                if !self.cut_range_in_table(range, operations) {
+                    operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                }
             }
             Event::Copy => {
-                let range = if !current_selection.is_empty() {
-                    current_selection
-                } else {
-                    self.clipboard_current_line()
+                let range = self.clipboard_range(current_selection);
+                let text = match self.renderer.table_rows_clipboard() {
+                    Some((_, text)) => text,
+                    None => self.renderer.buffer[range].into(),
                 };
-                let range = self.renderer.grow_range_over_fold_contents(range);
 
-                ctx.copy_text(self.renderer.buffer[range].into());
+                ctx.copy_text(text);
+            }
+            Event::CopyCode { node: range } => {
+                let code = root
+                    .descendants()
+                    .find_map(|node| match &node.data.borrow().value {
+                        NodeValue::CodeBlock(code) if self.renderer.node_range(node) == range => {
+                            Some(code.literal.clone())
+                        }
+                        _ => None,
+                    });
+                if let Some(code) = code {
+                    // without the last line's newline, a pasted command waits to be run
+                    ctx.copy_text(code.strip_suffix('\n').unwrap_or(&code).into());
+                    let until = ctx.input(|i| i.time) + COPY_FEEDBACK_SECS;
+                    self.renderer.code_copied = Some((range, until));
+                }
+            }
+            Event::CopyRendered => {
+                let mut range = self.clipboard_range(current_selection);
+                // a caret's line comes with its leading newline for Copy, so
+                // a paste re-inserts a whole line; rendered pastes start inline
+                if self.renderer.buffer[range].starts_with('\n') {
+                    range.0 += 1;
+                }
+                // cells or rows of a table paste as cells
+                let (plain, html) = match self.renderer.table_selection_grid() {
+                    Some((table, grid)) => {
+                        let mut rows = Vec::new();
+                        for row in &grid {
+                            let mut cells = Vec::new();
+                            for &cell in row {
+                                cells.push(match cell.is_empty() {
+                                    true => String::new(),
+                                    false => {
+                                        self.renderer.rendered_text(root, cell).replace('\t', " ")
+                                    }
+                                });
+                            }
+                            rows.push(cells.join("\t"));
+                        }
+                        (rows.join("\n"), self.renderer.rendered_html_of(&table))
+                    }
+                    None => (
+                        self.renderer.rendered_text(root, range),
+                        self.renderer.rendered_html(range),
+                    ),
+                };
+                ctx.set_copied_rendered(CopiedRendered { plain, html });
             }
             Event::ToggleDebug => {
                 self.renderer.debug = !self.renderer.debug;
@@ -520,15 +600,22 @@ impl<'ast> MdEdit {
             }
             Event::OpenLink { url, wikilink } => {
                 let ctx = self.renderer.ctx.clone();
-                if wikilink {
-                    self.renderer.open_wikilink(&url, &ctx, false);
-                } else {
-                    self.renderer.open_resolved_link(&url, &ctx, false);
-                }
+                self.renderer.open_dest(&url, wikilink, &ctx);
             }
+            Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
             Event::EnterAtom => {
                 if !self.enter_at_image(root, operations) {
                     self.enter_at_link(root, operations);
+                }
+            }
+            Event::Table(action) => {
+                if !self.renderer.readonly && !self.renderer.plaintext {
+                    self.table_action(root, action, operations);
+                }
+            }
+            Event::PasteGrid(grid) => {
+                if !self.renderer.readonly && !self.renderer.plaintext {
+                    self.paste_grid(root, &grid, operations);
                 }
             }
         }
@@ -571,7 +658,7 @@ impl<'ast> MdEdit {
 
                 let mut handled = false;
                 for node in root.descendants() {
-                    if self.renderer.selected_block(node) {
+                    if self.renderer.table_styled_whole(node) {
                         handled = true;
 
                         // apply heading to ATX heading: replace existing heading
@@ -643,22 +730,29 @@ impl<'ast> MdEdit {
                                 }
                             }
                         } else {
-                            // remove target prefix regardless (will often be empty / supports replacements)
+                            // a block of the target style's kind gives up its prefix
+                            // (type change / unapply); a list's marker lives on its item
                             // todo: space between selected nodes?
-                            let target_node = if node.is_container_block() {
-                                node
-                            } else {
-                                node.parent().unwrap()
-                            };
-                            for line_idx in self.renderer.node_lines(node).iter() {
-                                let line = self.renderer.bounds.source_lines[line_idx];
+                            let target_node = kind_ancestor(node, &style).map(|ancestor| {
+                                if matches!(ancestor.node_type(), NodeValue::List(_)) {
+                                    node.ancestors()
+                                        .find(|n| n.parent().is_some_and(|p| p.same_node(ancestor)))
+                                        .unwrap_or(ancestor)
+                                } else {
+                                    ancestor
+                                }
+                            });
+                            if let Some(target_node) = target_node {
+                                for line_idx in self.renderer.node_lines(node).iter() {
+                                    let line = self.renderer.bounds.source_lines[line_idx];
 
-                                let prefix = self.renderer.line_own_prefix(target_node, line);
+                                    let prefix = self.renderer.line_own_prefix(target_node, line);
 
-                                operations.push(Operation::Replace(Replace {
-                                    range: prefix,
-                                    text: "".into(),
-                                }));
+                                    operations.push(Operation::Replace(Replace {
+                                        range: prefix,
+                                        text: "".into(),
+                                    }));
+                                }
                             }
 
                             if !unapply {
@@ -676,11 +770,20 @@ impl<'ast> MdEdit {
                                         continue;
                                     }
 
-                                    let range = self
-                                        .renderer
-                                        .line_ancestors_prefix(node, line)
-                                        .end()
-                                        .into_range();
+                                    // where the prefix came out, else just inside
+                                    // the deepest container
+                                    let range = match target_node {
+                                        Some(target) => {
+                                            self.renderer.line_own_prefix(target, line).start()
+                                        }
+                                        None if node.is_container_block() => {
+                                            self.renderer.line_own_prefix(node, line).end()
+                                        }
+                                        None => {
+                                            self.renderer.line_ancestors_prefix(node, line).end()
+                                        }
+                                    }
+                                    .into_range();
                                     let text = match style {
                                         NodeValue::Heading(_) => unreachable!(),
                                         NodeValue::BlockQuote => "> ",
@@ -841,22 +944,10 @@ impl<'ast> MdEdit {
             if self.renderer.selected_block(node) {
                 any_selected_blocks = true;
 
-                // Walk up the ancestor chain: the selected block (a leaf
-                // like Paragraph, or its immediate container) may sit
-                // several levels below the structural container that
-                // bears the toggled style. `* foo` has `List > Item >
-                // Paragraph` — the bullet style lives on `List`, two
-                // levels above the selected Paragraph.
-                let mut maybe = if node.is_container_block() { Some(node) } else { node.parent() };
-                while let Some(ancestor) = maybe {
-                    let ancestor_type = ancestor.node_type();
-                    if std::mem::discriminant(&ancestor_type) == std::mem::discriminant(style) {
-                        if &ancestor_type == style {
-                            unapply = true;
-                        }
-                        break;
+                if let Some(ancestor) = kind_ancestor(node, style) {
+                    if &ancestor.node_type() == style {
+                        unapply = true;
                     }
-                    maybe = ancestor.parent();
                 }
             }
         }
@@ -1169,8 +1260,16 @@ impl<'ast> MdEdit {
             // is reserved for a click on it via `handle_image_interactions`.
             frag.source_range
         } else {
-            self.renderer.fragment_offset(frag, pos.x).into_range()
+            self.renderer
+                .fragment_offset(frag, self.reachable_x(frag, pos))
+                .into_range()
         }
+    }
+
+    /// `pos.x`, kept to what a scrolled code block shows of `frag`.
+    fn reachable_x(&self, frag: &wrap_layout::Fragment, pos: Pos2) -> f32 {
+        let reachable = self.renderer.row_reachable(frag.source_range, frag.rect);
+        if reachable == frag.rect { pos.x } else { reachable.x_range().clamp(pos.x) }
     }
 
     /// Resolves a pointer position to a single cursor offset. Unlike
@@ -1195,7 +1294,8 @@ impl<'ast> MdEdit {
         // The hit-test inverse: edge-snaps atomic fragments by the rect
         // midpoint, walks clusters otherwise, and collapses an empty
         // range to its start.
-        self.renderer.fragment_offset(frag, pos.x)
+        self.renderer
+            .fragment_offset(frag, self.reachable_x(frag, pos))
     }
 }
 
@@ -1205,6 +1305,22 @@ pub fn distance(coord: f32, range: Rangef) -> f32 {
     } else {
         (coord - range.min).abs().min((coord - range.max).abs())
     }
+}
+
+/// Nearest container at or above `node` of `style`'s kind: the list for
+/// any list style, the quote for a quote. A leaf's walk starts at its
+/// parent; `* foo` is `List > Item > Paragraph`, bullet style on `List`.
+fn kind_ancestor<'ast>(
+    node: &'ast AstNode<'ast>, style: &NodeValue,
+) -> Option<&'ast AstNode<'ast>> {
+    let mut maybe = if node.is_container_block() { Some(node) } else { node.parent() };
+    while let Some(ancestor) = maybe {
+        if std::mem::discriminant(&ancestor.node_type()) == std::mem::discriminant(style) {
+            return Some(ancestor);
+        }
+        maybe = ancestor.parent();
+    }
+    None
 }
 
 /// Buffer edit that deindents `line` past `ancestor`, or `None`.
@@ -1391,17 +1507,20 @@ impl<'ast> MdEdit {
 
     fn insert_tail(&self, offset: Grapheme, style: NodeValue, operations: &mut Vec<Operation>) {
         let text = style.node_type().tail().to_string();
-        if let NodeValue::Link(link) = style {
+        if let NodeValue::Link(link) | NodeValue::Image(link) = style {
             let NodeLink { url, .. } = *link;
 
             operations.push(Operation::Replace(Replace {
                 range: offset.to_range(),
                 text: text[..2].into(),
             }));
+            // with nothing selected the cursor stays in the label, where
+            // typing a name offers the file; a selection is the label
+            // already, so the cursor goes to the destination
             let url_empty = url.is_empty();
-            if url_empty {
+            if url_empty && !self.renderer.buffer.current.selection.is_empty() {
                 operations.push(Operation::Select(offset.to_range()));
-            } else {
+            } else if !url_empty {
                 operations
                     .push(Operation::Replace(Replace { range: offset.to_range(), text: url }));
             }
@@ -1492,6 +1611,8 @@ impl NodeType for NodeValue {
             }
             NodeValue::Math(_) => NodeValue::Math(Default::default()),
             NodeValue::MultilineBlockQuote(_) => NodeValue::MultilineBlockQuote(Default::default()),
+            NodeValue::BlockDirective(_) => NodeValue::BlockDirective(Default::default()),
+            NodeValue::MultilineComment(_) => NodeValue::MultilineComment(Default::default()),
             NodeValue::Escaped => NodeValue::Escaped,
             NodeValue::WikiLink(_) => NodeValue::WikiLink(Default::default()),
             NodeValue::Underline => NodeValue::Underline,
@@ -1509,6 +1630,8 @@ impl NodeType for NodeValue {
                 }
                 .into(),
             ),
+            NodeValue::Insert => NodeValue::Insert,
+            NodeValue::CommentInline(_) => NodeValue::CommentInline(Default::default()),
             NodeValue::Subtext => NodeValue::Subtext,
         }
     }

@@ -10,9 +10,12 @@ use crate::style::{
 };
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::fragment;
 use crate::tab::markdown_editor::input::Event;
-use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Layout, WrapUnitLayout};
+
+/// How long a copied heading link shows its check.
+const COPIED_SECS: f32 = 1.5;
 
 impl<'ast> MdRender {
     pub fn heading_row_height(&self, level: u8) -> f32 {
@@ -37,7 +40,7 @@ impl<'ast> MdRender {
     /// row of a setext heading). When syntax is revealed, leading
     /// indentation and the source-line prefix come through as syntax-
     /// formatted text; otherwise just the inline children.
-    fn layout_setext_heading_line(
+    pub(crate) fn layout_setext_heading_line(
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> Layout {
         let mut layout = Layout::new(node_line);
@@ -126,7 +129,7 @@ impl<'ast> MdRender {
     /// whitespace, with syntax visibility driven by reveal. Empty
     /// heading falls back to rendering the whole line as syntax
     /// (Obsidian-inspired).
-    fn layout_atx_heading_line(
+    pub(crate) fn layout_atx_heading_line(
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> Layout {
         let mut layout = Layout::new(node_line);
@@ -148,6 +151,14 @@ impl<'ast> MdRender {
                         self.text_format_syntax(),
                     );
                 }
+            } else {
+                // Captured `#`s still get a cursor position, so a line
+                // selection or drag on the captured heading includes them.
+                layout.push_override(
+                    (indentation.start(), prefix_range.end()),
+                    "",
+                    self.text_format_syntax(),
+                );
             }
             if self.infix_range(node).is_some() {
                 self.layout_inline_children(&mut layout, node, node_line);
@@ -179,11 +190,11 @@ impl<'ast> MdRender {
     pub fn show_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, level: u8, setext: bool,
     ) {
-        if setext {
-            self.show_setext_heading(ui, node, top_left, level);
+        let trailing = if setext {
+            self.show_setext_heading(ui, node, top_left, level)
         } else {
-            self.show_atx_heading(ui, node, top_left, level);
-        }
+            self.show_atx_heading(ui, node, top_left, level)
+        };
 
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
         let hovered = {
@@ -215,13 +226,89 @@ impl<'ast> MdRender {
                 self.heading_fold_reveal(node),
             );
         }
+
+        if self.interactive && !self.touch_mode && !self.plaintext && !self.painting_drag_float {
+            if let Some(trailing) = trailing {
+                self.show_heading_link(ui, node, top_left, trailing);
+            }
+        }
+    }
+
+    /// A link glyph after the title while the pointer is on the heading; a
+    /// click copies the note's external URL with the heading's slug, and a
+    /// check stands in for a moment after.
+    fn show_heading_link(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, trailing: Pos2,
+    ) {
+        let range = self.node_range(node);
+        let id = ui
+            .scope_id()
+            .with(("md_heading_link", range.start().0, range.end().0));
+        let size = self.layout.indent * 0.8;
+        let space = Rect::from_center_size(
+            Pos2::new(trailing.x + self.layout.inline_padding * 2.0 + size / 2.0, trailing.y),
+            Vec2::splat(size),
+        );
+        let rows = Rect::from_min_size(top_left, Vec2::new(self.width(node), self.height(node)))
+            .union(space);
+        let copied = self
+            .heading_copied
+            .is_some_and(|(r, at)| r == range && at.elapsed().as_secs_f32() < COPIED_SECS);
+        let over = ui
+            .input(|i| i.pointer.latest_pos())
+            .is_some_and(|p| rows.contains(p));
+        // a heading of only punctuation has no slug to link to
+        if !over && !copied || fragment::slugify(&fragment::heading_text(node)).is_empty() {
+            return;
+        }
+
+        let resp = ui.interact(space, id, sense_click());
+        let t = self.ctx.get_lb_theme();
+        let hover =
+            ui.ctx()
+                .animate_bool_with_time(id.with("hover"), resp.hovered(), HOVER_ANIM_SECS);
+        if hover > 0.0 {
+            let fill = t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER * hover);
+            ui.painter().rect_filled(space, Radius::Sm.corner(), fill);
+        }
+        let (glyph, color) = if copied {
+            (phosphor::CHECK, t.accent())
+        } else {
+            (
+                phosphor::LINK,
+                t.neutral_fg_secondary()
+                    .lerp_to_gamma(t.neutral_fg(), hover),
+            )
+        };
+        let galley = ui.painter().layout_no_wrap(
+            glyph.into(),
+            phosphor_font_id(size * 0.6),
+            Color32::PLACEHOLDER,
+        );
+        ui.painter()
+            .galley(space.center() - galley.size() / 2.0, galley, color);
+        if resp.hovered() {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+        }
+        tip_text(ui.ctx(), &resp, if copied { "Copied" } else { "Copy Heading Link" });
+        if copied {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(100));
+        }
+        if resp.clicked() {
+            let root = node.ancestors().last().unwrap_or(node);
+            if let Some(slug) = self.heading_slug_at(root, range.0) {
+                self.heading_copied = Some((range, web_time::Instant::now()));
+                self.heading_copy = Some(slug);
+            }
+        }
     }
 
     // https://github.github.com/gfm/#setext-headings
     fn show_setext_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, level: u8,
-    ) -> Response {
-        let resp = Default::default();
+    ) -> Option<Pos2> {
+        let mut trailing = None;
         let width = self.width(node);
         let row_height = self.row_height(node);
         let reveal = self.reveal_setext_syntax(node);
@@ -237,6 +324,7 @@ impl<'ast> MdRender {
                 let h = result.height;
                 self.show_wrap_layout(ui, top_left, &result);
                 self.show_block_line_prefixes(ui, node, line, top_left, row_height);
+                trailing = row_trailing(top_left, &result);
                 top_left.y += h;
                 top_left.y += self.layout.row_spacing;
             } else if reveal {
@@ -257,14 +345,13 @@ impl<'ast> MdRender {
         if level == 1 {
             self.show_heading_rule(ui, top_left, width);
         }
-        resp
+        trailing
     }
 
     // https://github.github.com/gfm/#atx-headings
     fn show_atx_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, level: u8,
-    ) -> Response {
-        let resp = Default::default();
+    ) -> Option<Pos2> {
         let width = self.width(node);
         let row_height = self.row_height(node);
         let line = self.node_first_line(node); // more like node_ONLY_line amirite?
@@ -276,12 +363,13 @@ impl<'ast> MdRender {
         let height = result.height;
         self.show_wrap_layout(ui, top_left, &result);
         self.show_block_line_prefixes(ui, node, line, top_left, row_height);
+        let trailing = row_trailing(top_left, &result);
 
         top_left.y += height;
         if level == 1 {
             self.show_heading_rule(ui, top_left, width);
         }
-        resp
+        trailing
     }
 
     fn show_heading_rule(&mut self, ui: &mut Ui, top_left: Pos2, width: f32) {
@@ -446,7 +534,7 @@ impl<'ast> MdRender {
         // (off-screen neighbor rows would displace the mobile toolbar, #4892).
         let range = self.node_range(node);
         let id = ui
-            .id()
+            .scope_id()
             .with(("md_fold_btn", range.start().0, range.end().0));
         let resp = ui.interact(space, id, sense_click());
         if resp.hovered() {
@@ -498,4 +586,15 @@ impl<'ast> MdRender {
     pub fn heading_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
         self.range_contains_fold_revealed(self.heading_contents(node), false, true)
     }
+}
+
+/// The right end of a wrap unit's last row, at that row's middle.
+fn row_trailing(top_left: Pos2, layout: &WrapUnitLayout) -> Option<Pos2> {
+    let row = layout.rows.last()?;
+    let right = row
+        .fragments
+        .iter()
+        .map(|f| f.rect.right())
+        .fold(0.0_f32, f32::max);
+    Some(Pos2::new(top_left.x + right, top_left.y + row.y_top + (row.ascent + row.descent) / 2.0))
 }

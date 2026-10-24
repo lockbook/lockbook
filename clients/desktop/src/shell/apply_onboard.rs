@@ -70,23 +70,23 @@ pub(crate) fn onboard_form(
 }
 
 pub(crate) fn onboard_server_editing_key() -> egui::Id {
-    egui::Id::new("onboard_server_editing")
+    egui::Id::unique("onboard_server_editing")
 }
 
 pub(crate) fn onboard_server_snap_key() -> egui::Id {
-    egui::Id::new("onboard_server_snap")
+    egui::Id::unique("onboard_server_snap")
 }
 
 pub(crate) fn onboard_import_focus(ctx: &Context) {
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new("onboard_account_key_need_focus"), true));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("onboard_account_key_need_focus"), true));
 }
 
 fn onboard_uname_verify_done_key() -> egui::Id {
-    egui::Id::new("shell_onboard_uname_verify_done")
+    egui::Id::unique("shell_onboard_uname_verify_done")
 }
 
 fn onboard_uname_inflight_key() -> egui::Id {
-    egui::Id::new("shell_onboard_uname_verify_inflight")
+    egui::Id::unique("shell_onboard_uname_verify_inflight")
 }
 
 /// Local format rules (mirrors server `username_is_valid`).

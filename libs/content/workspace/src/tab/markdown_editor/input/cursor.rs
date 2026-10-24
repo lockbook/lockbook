@@ -1,6 +1,7 @@
+use std::f32::consts::SQRT_2;
 use std::mem;
 
-use egui::{Color32, Pos2, Rangef, Rect, Sense, Ui, Vec2};
+use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::ExtendedInput as _;
@@ -9,9 +10,12 @@ use crate::theme::palette_v2::ThemeExt as _;
 
 use super::{Event, Region};
 
-const SELECTION_HANDLE_RADIUS: f32 = 12.0;
+/// Material handle size in dp (not scaled with font). Touch target is padded.
+const HANDLE_SIZE: f32 = 22.0;
+const SELECTION_HANDLE_RADIUS: f32 = HANDLE_SIZE / 2.0;
+/// Insertion teardrop hangs this far below the caret (`r + r√2`).
 pub(in crate::tab::markdown_editor) const SELECTION_HANDLE_HEIGHT: f32 =
-    SELECTION_HANDLE_RADIUS * 2.0;
+    SELECTION_HANDLE_RADIUS * (1.0 + SQRT_2);
 
 #[derive(Debug, Default)]
 pub struct CursorState {
@@ -34,18 +38,24 @@ impl MdEdit {
     pub fn selection_tap(&self, pos: Pos2) -> bool {
         let selection = self.renderer.buffer.current.selection;
         if selection.is_empty() {
-            // A collapsed cursor has no handle, so size the menu-on-tap zone
-            // to the caret: tap the caret to menu, tap a neighboring glyph to
-            // reposition.
+            // Menu-on-tap: the caret, and the insertion handle when it's
+            // showing (the handle hangs below the line; without this a tap
+            // on it would place the caret on the next row).
             const PAD_X: f32 = 6.0;
             const PAD_Y: f32 = 12.0;
-            self.cursor_line(selection.0)
+            let on_caret = self
+                .cursor_line(selection.0)
                 .map(|[top, bot]| {
                     Rect::from_min_max(top, bot)
                         .expand2(Vec2::new(PAD_X, PAD_Y))
                         .contains(pos)
                 })
-                .unwrap_or(false)
+                .unwrap_or(false);
+            let on_handle = self.insertion_handle_visible
+                && self
+                    .cursor_line(selection.0)
+                    .is_some_and(|line| self.insertion_handle_hit_rect(line).contains(pos));
+            on_caret || on_handle
         } else {
             // Tapping the selection (padded to the 48dp handle target) menus.
             let pad_rect = |rect: Rect| {
@@ -62,8 +72,11 @@ impl MdEdit {
     /// Draws a caret at the provided offset.
     // todo: improve cursor rendering at the end of inline code segments and similar constructs
     pub fn show_offset(
-        &self, ui: &mut Ui, offset: Grapheme, accent: Color32, time_since_interact: Option<f64>,
+        &self, ui: &mut Ui, offset: Grapheme, accent: Color32, time_since_interact: f64,
     ) {
+        if self.renderer.caret_scrolled_out(offset) {
+            return;
+        }
         if let Some([top, bot]) = self.cursor_line(offset) {
             let paint = |alpha| {
                 crate::widgets::paint_caret(
@@ -73,11 +86,7 @@ impl MdEdit {
                     accent.gamma_multiply(alpha),
                 );
             };
-            if let Some(dt) = time_since_interact {
-                crate::widgets::with_blinking_caret(ui, dt, paint);
-            } else {
-                paint(1.0);
-            }
+            crate::widgets::with_blinking_caret(ui, time_since_interact, paint);
         }
     }
 
@@ -87,27 +96,98 @@ impl MdEdit {
         let selection = self
             .in_progress_selection
             .unwrap_or(self.renderer.buffer.current.selection);
-        let selection_start_line = self.cursor_line(selection.0);
-        let selection_end_line = self.cursor_line(selection.1);
-
         let radius = SELECTION_HANDLE_RADIUS;
 
-        // Handles are interactive only where they're drawn — a non-empty
-        // selection. A collapsed cursor has no handle, so it gets no drag
-        // target (else an invisible zone around the caret eats nearby taps).
-        if !self.renderer.buffer.current.selection.is_empty() {
-            if let Some(line) = selection_start_line {
-                self.paint_handle(ui, line, radius, color, true);
+        if selection.is_empty() {
+            // Insertion teardrop under a collapsed caret. Hidden while typing;
+            // stays up during its own drag.
+            let dragging_insertion = self.in_progress_selection.is_some_and(|s| s.is_empty());
+            let shown =
+                self.insertion_handle_visible && !self.renderer.caret_scrolled_out(selection.0);
+            if !self.renderer.readonly && (shown || dragging_insertion) {
+                if let Some(line) = self.cursor_line(selection.0) {
+                    self.paint_insertion_handle(ui, line, radius, color);
+                    self.interact_insertion_handle(ui, line);
+                }
             }
-            if let Some(line) = selection_end_line {
-                self.paint_handle(ui, line, radius, color, false);
-            }
+            return;
+        }
 
-            if let Some(line) = selection_start_line {
-                self.interact_handle(ui, line, radius, true);
+        // an end a scrolled block hides has no handle, unless it is held
+        let held = self.in_progress_selection.is_some();
+        let line = |offset| {
+            let hidden = !held && self.renderer.caret_scrolled_out(offset);
+            self.cursor_line(offset).filter(|_| !hidden)
+        };
+        let selection_start_line = line(selection.0);
+        let selection_end_line = line(selection.1);
+
+        if let Some(line) = selection_start_line {
+            self.paint_handle(ui, line, radius, color, true);
+        }
+        if let Some(line) = selection_end_line {
+            self.paint_handle(ui, line, radius, color, false);
+        }
+
+        if let Some(line) = selection_start_line {
+            self.interact_handle(ui, line, radius, true);
+        }
+        if let Some(line) = selection_end_line {
+            self.interact_handle(ui, line, radius, false);
+        }
+    }
+
+    pub(in crate::tab::markdown_editor) fn insertion_handle_hit_rect(
+        &self, line: [Pos2; 2],
+    ) -> Rect {
+        let r = SELECTION_HANDLE_RADIUS;
+        let tip = line[1];
+        let center = Pos2 { x: tip.x, y: tip.y + r * SQRT_2 };
+        Rect::from_min_max(Pos2::new(center.x - r, tip.y), Pos2::new(center.x + r, center.y + r))
+            .expand(12.0)
+    }
+
+    /// Material collapsed handle: circle + square, rotated 45° so the corner
+    /// points up at the caret.
+    fn paint_insertion_handle(&self, ui: &Ui, line: [Pos2; 2], radius: f32, color: Color32) {
+        let tip = line[1];
+        let center = Pos2 { x: tip.x, y: tip.y + radius * SQRT_2 };
+        ui.painter().circle_filled(center, radius, color);
+        let diag = radius * (SQRT_2 / 2.0);
+        ui.painter().add(egui::Shape::convex_polygon(
+            vec![
+                tip,
+                Pos2::new(center.x + diag, center.y - diag),
+                center,
+                Pos2::new(center.x - diag, center.y - diag),
+            ],
+            color,
+            Stroke::NONE,
+        ));
+    }
+
+    fn interact_insertion_handle(&mut self, ui: &mut Ui, line: [Pos2; 2]) {
+        let hit_rect = self.insertion_handle_hit_rect(line);
+        let id = ui.scope_id().with("insertion_handle");
+        let response = ui.interact(hit_rect, id, Sense::drag());
+
+        if response.drag_stopped() {
+            self.handle_drag_touch_offset = None;
+            self.in_progress_handle = None;
+            if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
+                let region = Region::from(in_progress_selection);
+                ui.ctx().push_markdown_event(Event::Select { region });
             }
-            if let Some(line) = selection_end_line {
-                self.interact_handle(ui, line, radius, false);
+        } else if response.dragged() {
+            let new_pos = self.handle_drag_query_pos(ui, line, response.drag_started());
+            let dragged = self.pos_to_char_offset(new_pos);
+            let displayed = self
+                .in_progress_selection
+                .unwrap_or(self.renderer.buffer.current.selection);
+            self.in_progress_selection = Some((dragged, dragged));
+            self.in_progress_handle = Some(dragged);
+            if displayed != (dragged, dragged) {
+                self.pending_scroll = Some(crate::tab::markdown_editor::ScrollTarget::Cursor);
             }
         }
     }
@@ -144,26 +224,22 @@ impl MdEdit {
             Pos2::new(max_x, cursor_bot.y + 2. * radius),
         )
         .expand(hit_pad);
-        let id =
-            ui.id()
-                .with(if is_start { "selection_handle_start" } else { "selection_handle_end" });
+        let id = ui.scope_id().with(if is_start {
+            "selection_handle_start"
+        } else {
+            "selection_handle_end"
+        });
         let response = ui.interact(hit_rect, id, Sense::drag());
 
         if response.drag_stopped() {
+            self.handle_drag_touch_offset = None;
             self.in_progress_handle = None;
             if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
                 let region = Region::from(in_progress_selection);
                 ui.ctx().push_markdown_event(Event::Select { region });
             }
         } else if response.dragged() {
-            let line_height = line[1].y - line[0].y;
-            let offset = Vec2::new(0.0, -line_height - radius);
-            let mut new_pos = ui.input(|i| i.pointer.interact_pos().unwrap_or_default()) + offset;
-            // stay within the last fragment's y-range so `pos_to_range`
-            // uses x-aware placement instead of jumping to doc end
-            if let Some(last) = self.renderer.fragments.last() {
-                new_pos.y = new_pos.y.min(last.rect.max.y - 1.0);
-            }
+            let new_pos = self.handle_drag_query_pos(ui, line, response.drag_started());
             // The fixed handle anchors at the committed selection (the buffer
             // selection doesn't change until drag release); handles paint at
             // raw .0/.1. Clamp the dragged handle so the two never cross and
@@ -172,11 +248,33 @@ impl MdEdit {
             let dragged = self.pos_to_char_offset(new_pos);
             let moving =
                 if is_start { dragged.min(selection.1 - 1) } else { dragged.max(selection.0 + 1) };
-            self.in_progress_selection =
-                Some(if is_start { (moving, selection.1) } else { (selection.0, moving) });
+            let new_sel = if is_start { (moving, selection.1) } else { (selection.0, moving) };
+            let displayed = self.in_progress_selection.unwrap_or(selection);
+            self.in_progress_selection = Some(new_sel);
             self.in_progress_handle = Some(moving);
-            self.pending_scroll = Some(crate::tab::markdown_editor::ScrollTarget::Cursor);
+            if displayed != new_sel {
+                self.pending_scroll = Some(crate::tab::markdown_editor::ScrollTarget::Cursor);
+            }
         }
+    }
+
+    /// Map the finger to a caret query point using the grab-time offset.
+    /// Querying at the caret midpoint (not the line-top boundary) and keeping
+    /// the offset constant prevents adjacent lines of different height from
+    /// feeding back into the next frame's mapping.
+    fn handle_drag_query_pos(&mut self, ui: &Ui, line: [Pos2; 2], drag_started: bool) -> Pos2 {
+        let finger = ui.input(|i| i.pointer.interact_pos().unwrap_or_default());
+        if drag_started || self.handle_drag_touch_offset.is_none() {
+            let caret = Pos2::new(line[0].x, (line[0].y + line[1].y) * 0.5);
+            self.handle_drag_touch_offset = Some(caret - finger);
+        }
+        let mut new_pos = finger + self.handle_drag_touch_offset.unwrap_or(Vec2::ZERO);
+        // stay within the last fragment's y-range so `pos_to_range`
+        // uses x-aware placement instead of jumping to doc end
+        if let Some(last) = self.renderer.fragments.last() {
+            new_pos.y = new_pos.y.min(last.rect.max.y - 1.0);
+        }
+        new_pos
     }
 
     pub fn scroll_to_cursor(&mut self, canvas_rect: Rect) {
@@ -223,6 +321,12 @@ impl MdEdit {
         use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
         let frag = self.renderer.fragment_at_offset(offset)?;
         let x = self.renderer.fragment_x(frag, offset);
+        // at the edge of what a scrolled block shows, if it is beyond it
+        let reachable = self.renderer.row_reachable(frag.source_range, frag.rect);
+        let x = match self.renderer.row_showing(frag.source_range, reachable) {
+            Some(showing) => showing.x_range().clamp(x),
+            None => x,
+        };
         let row_h = self.renderer.layout.row_height;
         // A caret bordering a collapsed embed (image or link card) spans the
         // embed's height — it reads as one big glyph.
@@ -319,6 +423,11 @@ impl MdRender {
             if rect.area() <= 0.001 {
                 continue;
             }
+            // a scrolled block hides some of what is painted on its rows
+            let showing = self.row_showing(frag.source_range, rect);
+            let Some(rect) = showing.filter(|rect| rect.area() > 0.001) else {
+                continue;
+            };
             result.push(rect);
         }
 
@@ -342,20 +451,22 @@ impl MdRender {
                 if let Some(frag) = self.fragment_at_offset(newline) {
                     let x = self.fragment_x(frag, newline);
                     let (top, bot) = (frag.rect.min.y, frag.rect.max.y);
+                    let slab = Rect::from_min_max(Pos2::new(x, top), Pos2::new(x + slab_w, bot));
+                    // a scrolled block hides it past its edge
+                    let Some(slab) = self.row_showing(frag.source_range, slab) else {
+                        continue;
+                    };
                     // Extend the row's content rect rightward into the slab so
                     // the newline flows out of the row's highlight as one
                     // rounded shape, rather than a separate notched rect.
                     if let Some(r) = result.iter_mut().find(|r| {
                         (r.top() - top).abs() < 0.001
                             && (r.bottom() - bot).abs() < 0.001
-                            && (r.right() - x).abs() < 0.5
+                            && (r.right() - slab.left()).abs() < 0.5
                     }) {
-                        r.max.x = r.max.x.max(x + slab_w);
-                    } else {
-                        result.push(Rect::from_min_max(
-                            Pos2::new(x, top),
-                            Pos2::new(x + slab_w, bot),
-                        ));
+                        r.max.x = r.max.x.max(slab.right());
+                    } else if slab.width() > 0.001 {
+                        result.push(slab);
                     }
                 }
             }

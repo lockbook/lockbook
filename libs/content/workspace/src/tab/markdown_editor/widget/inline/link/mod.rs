@@ -12,11 +12,13 @@ use std::sync::{Arc, Mutex};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::egress::{FetchError, fetch_html};
-use crate::file_cache::{FilesExt as _, ResolvedLink};
+use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
 use crate::show::DocType;
 use crate::style::{TypeRole, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::fragment::slugify;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
+use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
 };
@@ -46,6 +48,7 @@ impl<'ast> MdRender {
             LinkState::Normal => theme.fg().blue,
             LinkState::Warning { .. } => theme.fg().yellow,
             LinkState::Broken { .. } => theme.fg().red,
+            LinkState::Placeholder { .. } => theme.fg().cyan,
         };
         Format { color, underline: true, ..parent_text_format }
     }
@@ -112,13 +115,13 @@ impl<'ast> MdRender {
     /// Shared by producer + consumer so `ui.id().with(salt)` resolves
     /// to the same id on both sides.
     pub fn link_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
-        egui::Id::new(("md_link", node_range))
+        egui::Id::unique(("md_link", node_range))
     }
 
     /// Click-target id for a link rendered as a capsule preview; distinct from
     /// the plain-link salt so its embed-style tap handling doesn't collide.
     pub fn link_capsule_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
-        egui::Id::new(("md_link_capsule", node_range))
+        egui::Id::unique(("md_link_capsule", node_range))
     }
 
     /// Emit a link as a circumfix. For autolinks with a fetched title,
@@ -237,7 +240,10 @@ impl<'ast> MdRender {
             crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |_| {});
             return;
         }
-        let (LinkState::Warning { message } | LinkState::Broken { message }) = state() else {
+        let (LinkState::Warning { message }
+        | LinkState::Broken { message }
+        | LinkState::Placeholder { message }) = state()
+        else {
             return;
         };
         let mut lines = message.lines();
@@ -315,6 +321,12 @@ impl<'ast> MdRender {
             // Favicon over the leading em-space slot; a neutral link glyph
             // holds the slot while the texture loads — or forever, if it
             // never does — so the reserved space always reads as an icon.
+            // a scrolled table shows only some of a row
+            let row =
+                egui::Rect::from_x_y_ranges(egui::Rangef::EVERYTHING, chip_rects[0].y_range());
+            let showing = self.table_showing(row).unwrap_or(egui::Rect::NOTHING);
+            let row_clip = ui.clip_rect();
+            ui.set_clip_rect(row_clip.intersect(showing));
             if let Some(favicon_url) = self.capsule_favicon_url(&url) {
                 let chip = chip_rects[0];
                 let size = chip.height() * 0.7;
@@ -347,6 +359,7 @@ impl<'ast> MdRender {
                     );
                 }
             }
+            ui.set_clip_rect(row_clip);
 
             if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
@@ -362,8 +375,8 @@ impl<'ast> MdRender {
                         None => rows.push(*r),
                     }
                 }
-                for r in &rows {
-                    ui.painter().rect_filled(*r, 2.0, tint);
+                for r in rows.iter().filter_map(|r| self.table_showing(*r)) {
+                    ui.painter().rect_filled(r, 2.0, tint);
                 }
             }
         }
@@ -388,37 +401,61 @@ impl<'ast> MdRender {
         }
     }
 
+    /// Opens a link's destination: a wiki title when `wikilink`, else a URL.
+    pub fn open_dest(&self, dest: &str, wikilink: bool, ctx: &egui::Context) {
+        match wikilink {
+            true => self.open_wikilink(dest, ctx, false),
+            false => self.open_resolved_link(dest, ctx, false),
+        }
+    }
+
     /// Opens the file a wikilink names, behind a confirmation when it means
-    /// different files to different readers.
+    /// different files to different readers. A title nothing matches creates
+    /// the note where the resolver has a place for it.
     pub fn open_wikilink(&self, title: &str, ctx: &egui::Context, new_tab: bool) {
         let Some(file_id) = self.resolve_wikilink(title) else {
+            if let Some((parent, names)) = self.link_resolver.wikilink_placement(title) {
+                return ctx.create_note(parent, names);
+            }
             let shown = format!("[[{title}]]");
             return self.explain_unopenable(&shown, self.link_state_for_wikilink(title), ctx);
         };
+        let heading = wiki_fragment(title).1;
         match self.link_resolver.wikilink_confirmation(title) {
-            Some(reason) => self.ask_to_open(file_id, new_tab, reason, ctx),
-            None => ctx.open_file(file_id, new_tab),
+            Some(reason) => self.ask_to_open(file_id, heading, new_tab, reason, ctx),
+            None => ctx.open_link(file_id, heading.map(Into::into), new_tab),
         }
     }
 
     /// Opens the file `url` resolved to, behind a confirmation when the link
     /// means different files to different readers.
     fn open_linked_file(&self, url: &str, file_id: Uuid, ctx: &egui::Context, new_tab: bool) {
+        let heading = split_fragment(url).1;
         match self.link_resolver.confirmation(url) {
-            Some(reason) => self.ask_to_open(file_id, new_tab, reason, ctx),
-            None => ctx.open_file(file_id, new_tab),
+            Some(reason) => self.ask_to_open(file_id, heading, new_tab, reason, ctx),
+            None => ctx.open_link(file_id, heading.map(Into::into), new_tab),
         }
     }
 
-    fn ask_to_open(&self, file_id: Uuid, new_tab: bool, reason: String, ctx: &egui::Context) {
+    fn ask_to_open(
+        &self, file_id: Uuid, heading: Option<&str>, new_tab: bool, reason: String,
+        ctx: &egui::Context,
+    ) {
         let shown = self.files.read().unwrap().path(file_id);
-        ctx.show_link_sheet(LinkSheet { open: Some((file_id, new_tab)), shown, message: reason });
+        let heading = heading.map(String::from);
+        ctx.show_link_sheet(LinkSheet {
+            open: Some((file_id, new_tab)),
+            heading,
+            shown,
+            message: reason,
+        });
     }
 
     /// Says why a link that names nothing the reader can see doesn't open.
     fn explain_unopenable(&self, shown: &str, state: LinkState, ctx: &egui::Context) {
         if let LinkState::Broken { message } = state {
-            ctx.show_link_sheet(LinkSheet { open: None, shown: shown.into(), message });
+            let sheet = LinkSheet { open: None, heading: None, shown: shown.into(), message };
+            ctx.show_link_sheet(sheet);
         }
     }
 
@@ -430,24 +467,71 @@ impl<'ast> MdRender {
         self.link_resolver.wikilink_state(url)
     }
 
-    /// URL (or wikilink target) of the first link-like node whose source range
-    /// intersects the current selection — gates and feeds the platform edit
-    /// menu's "Open Link" / "Copy Link".
+    /// The external URL of file `id`, which means the file wherever it is
+    /// pasted.
+    pub fn external_url(&self, id: Uuid) -> String {
+        let origin = self
+            .open_origin
+            .as_deref()
+            .unwrap_or("https://app.lockbook.net");
+        format!("{origin}/open/{id}")
+    }
+
+    /// What copying a link puts on the clipboard. A link to a file copies as
+    /// the file's external URL, a heading kept as its slug: the one form that
+    /// means the same place wherever it is pasted. Anything else copies as
+    /// written.
+    pub fn link_to_copy(&self, url: &str, wikilink: bool) -> String {
+        let file = if wikilink {
+            self.resolve_wikilink(url)
+        } else {
+            match self.resolve_link(url) {
+                Some(ResolvedLink::File(id)) => Some(id),
+                _ => None,
+            }
+        };
+        let Some(id) = file else { return url.into() };
+        let fragment = match wikilink {
+            true => wiki_fragment(url).1.map(slugify),
+            false => split_fragment(url).1.map(String::from),
+        };
+        match fragment.filter(|f| !f.is_empty()) {
+            Some(fragment) => format!("{}#{fragment}", self.external_url(id)),
+            None => self.external_url(id),
+        }
+    }
+
+    /// Whether [`Self::selection_open_target`] is an image, for the platform
+    /// edit menu's wording.
+    pub fn selection_target_is_image(&mut self) -> bool {
+        self.selection_target().is_some_and(|(_, _, image)| image)
+    }
+
+    /// What to copy ([`Self::link_to_copy`]) for the first link-like node
+    /// whose source range intersects the current selection — gates and feeds
+    /// the platform edit menu's "Open Link" / "Copy Link".
     pub fn selection_open_target(&mut self) -> Option<String> {
+        let (url, wikilink, _) = self.selection_target()?;
+        Some(self.link_to_copy(&url, wikilink))
+    }
+
+    /// The first link-like node whose source range intersects the selection:
+    /// its destination, and whether it is a wikilink or an image.
+    fn selection_target(&mut self) -> Option<(String, bool, bool)> {
         let arena = Arena::new();
         let root = self.reparse(&arena);
         let selection = self.buffer.current.selection;
-        for node in root.descendants() {
-            let url = match &node.data.borrow().value {
-                NodeValue::Link(l) | NodeValue::Image(l) => l.url.clone(),
-                NodeValue::WikiLink(nwl) => nwl.url.clone(),
-                _ => continue,
+        root.descendants().find_map(|node| {
+            let is_image = image_url(node).is_some();
+            let target = match &node.data.borrow().value {
+                NodeValue::Link(l) => (l.url.clone(), false, false),
+                NodeValue::Image(l) => (l.url.clone(), false, true),
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, is_image),
+                _ => return None,
             };
-            if !url.is_empty() && self.node_range(node).intersects(&selection, true) {
-                return Some(url);
-            }
-        }
-        None
+            (!target.0.is_empty() && self.node_range(node).intersects(&selection, true))
+                .then_some(target)
+        })
     }
 
     /// Open every link/image in the current selection (reparses first); the iOS
@@ -533,7 +617,7 @@ impl<'ast> MdRender {
     /// click instead selects the link and pops the menu
     /// ([`MdEdit::handle_link_menu_taps`]).
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
-        let parent_base = ui.id();
+        let parent_base = ui.scope_id();
         for node in root.descendants() {
             let (url, is_wikilink) = match &node.data.borrow().value {
                 NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
@@ -826,6 +910,27 @@ fn alone_on_line<'a>(
     true
 }
 
+impl MdEdit {
+    /// A link to this note's heading with `slug`: the external URL, which
+    /// opens the same place wherever it is pasted.
+    pub fn heading_link(&self, slug: &str) -> String {
+        format!("{}#{slug}", self.renderer.external_url(self.file_id))
+    }
+
+    /// [`Self::heading_link`] for the heading on the caret's line, for the
+    /// platform edit menu's "Copy Heading Link".
+    pub fn selection_heading_link(&mut self) -> Option<String> {
+        if self.renderer.plaintext {
+            return None;
+        }
+        let arena = Arena::new();
+        let root = self.renderer.reparse(&arena);
+        let caret = self.renderer.buffer.current.selection.1;
+        let slug = self.renderer.heading_slug_at(root, caret)?;
+        Some(self.heading_link(&slug))
+    }
+}
+
 /// A choice from the desktop link context menu ([`fill_link_menu`]).
 #[derive(Clone, Copy)]
 pub enum LinkMenuAction {
@@ -885,8 +990,9 @@ impl<'ast> MdEdit {
         let frag = self.renderer.fragment_at_pos(pos)?;
         let offset = frag.source_range.start();
         for node in root.descendants() {
+            let is_image = image_url(node).is_some();
             let (url, is_wikilink, is_image) = match &node.data.borrow().value {
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, is_image),
                 NodeValue::Image(l) => (l.url.clone(), false, true),
                 NodeValue::Link(l) => (l.url.clone(), false, false),
                 _ => continue,
@@ -917,7 +1023,10 @@ impl<'ast> MdEdit {
         let node_range = self.renderer.node_range(node);
         let is_image = matches!(node.data.borrow().value, NodeValue::Image(_));
         match &node.data.borrow().value {
-            NodeValue::WikiLink(_) => ((node_range.start() + 2, node_range.end() - 2), false),
+            NodeValue::WikiLink(wl) => {
+                let open = if wl.embed { 3 } else { 2 };
+                ((node_range.start() + open, node_range.end() - 2), false)
+            }
             NodeValue::Link(_) | NodeValue::Image(_) => {
                 let url = node_link_url(node);
                 if !is_image && !url.is_empty() && self.renderer.link_is_auto(node, &url) {
@@ -954,7 +1063,7 @@ impl<'ast> MdEdit {
         if !self.renderer.touch_mode || self.renderer.readonly {
             return;
         }
-        let parent_base = ui.id();
+        let parent_base = ui.scope_id();
         for node in root.descendants() {
             match &node.data.borrow().value {
                 NodeValue::Link(_) | NodeValue::WikiLink(_) => {}

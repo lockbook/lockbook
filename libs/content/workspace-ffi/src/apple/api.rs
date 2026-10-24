@@ -69,6 +69,18 @@ pub extern "C" fn open_file_at(
         .open_file_at_range(id, range_start..range_end, new_tab);
 }
 
+/// Opens a file at the heading a link's `#fragment` names.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn open_file_at_heading(
+    obj: *mut c_void, id: CUuid, heading: *const c_char, new_tab: bool,
+) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let heading = CStr::from_ptr(heading).to_string_lossy().into_owned();
+    obj.workspace
+        .open_file_at_heading(id.into(), heading, new_tab);
+}
+
 #[no_mangle]
 pub extern "C" fn navigate_to_file(obj: *mut c_void, id: CUuid) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
@@ -228,9 +240,9 @@ pub unsafe extern "C" fn scroll_wheel(
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 
-    if obj.renderer.raw_input.modifiers.command || obj.renderer.raw_input.modifiers.ctrl {
+    if obj.renderer.modifiers.command || obj.renderer.modifiers.ctrl {
         let factor = (scroll_y / 50.).exp();
 
         obj.renderer.raw_input.events.push(Event::Zoom(factor))
@@ -238,7 +250,9 @@ pub unsafe extern "C" fn scroll_wheel(
         obj.renderer.raw_input.events.push(Event::MouseWheel {
             unit: MouseWheelUnit::Point,
             delta: vec2(scroll_x, scroll_y),
-            modifiers: obj.renderer.raw_input.modifiers,
+            modifiers: obj.renderer.modifiers,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
         });
     }
 }
@@ -321,6 +335,75 @@ pub unsafe extern "C" fn selection_open_target(obj: *mut c_void) -> *const c_cha
             .unwrap_or(std::ptr::null()),
         None => std::ptr::null(),
     }
+}
+
+/// Whether the current note has an outline to offer in native chrome.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn outline_available(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_offered)
+}
+
+/// Whether the current note's outline is open, so floating chrome stands aside.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn outline_open(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_open())
+}
+
+/// Opens or closes the current note's outline from native chrome.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn toggle_outline(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    if let Some(md) = obj.workspace.current_tab_markdown_mut() {
+        md.toggle_outline();
+    }
+}
+
+/// A link to the heading on the caret's line, or null, for the edit menu's
+/// "Copy Heading Link". The returned string must be freed with `free_text`.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn selection_heading_link(obj: *mut c_void) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    match obj
+        .workspace
+        .current_tab_markdown_mut()
+        .and_then(|md| md.edit.selection_heading_link())
+    {
+        Some(url) => CString::new(url)
+            .map(|s| s.into_raw() as *const c_char)
+            .unwrap_or(std::ptr::null()),
+        None => std::ptr::null(),
+    }
+}
+
+/// Whether the edit menu's link is an image, for its wording.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn selection_target_is_image(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_target_is_image())
+}
+
+/// Edit-menu "Copy Rendered": the selection as drawn, as plain text and
+/// HTML, delivered through the next response's `copied_text` / `copied_html`.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn copy_rendered(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.renderer
+        .context
+        .push_markdown_event(workspace_rs::tab::markdown_editor::input::Event::CopyRendered);
 }
 
 /// # Safety

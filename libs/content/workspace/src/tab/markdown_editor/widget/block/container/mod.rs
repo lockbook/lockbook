@@ -11,6 +11,8 @@ use lb_rs::model::text::offset_types::{
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
+use crate::tab::markdown_editor::widget::block::drag::DragUnit;
+use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     Fragment, FragmentContent, FragmentInset,
@@ -41,7 +43,8 @@ impl<'ast> MdRender {
     /// Returns the document offset ranges for which fragments must
     /// exist, covering the selection ± 1 source line so arrow-key
     /// navigation across the viewport edge has a fragment to land
-    /// on. Also includes the current find match.
+    /// on. Also includes the current find match and a heading being landed
+    /// on.
     pub fn fragment_required_ranges(
         &self, in_progress_selection: Option<(Grapheme, Grapheme)>,
         find_match: Option<(Grapheme, Grapheme)>,
@@ -57,6 +60,9 @@ impl<'ast> MdRender {
         }
         if let Some(preview_range) = self.preview_match {
             ranges.push(self.source_line_range(preview_range));
+        }
+        if let Some(at) = self.landing_heading {
+            ranges.push(self.source_line_range((at, at)));
         }
         // Keep the dragged item rendered even after auto-scroll parks its
         // source slot off-screen — the floating card and drop-gap both
@@ -146,7 +152,7 @@ impl<'ast> MdRender {
                         egui::Vec2::new(self.width(child), child_height),
                     );
                     let parent_start = self.node_range(node).start();
-                    self.push_block_box(child, block_rect, parent_start);
+                    self.push_block_box(child, block_rect, parent_start, DragUnit::Item);
                 }
             } else {
                 let in_buffer = top_left.y + child_height > viewport.min.y - buffer
@@ -232,6 +238,8 @@ impl<'ast> MdRender {
 
             // container_block
             NodeValue::Alert(_) => self.own_prefix_len_alert(node, line),
+            NodeValue::BlockDirective(_) => unimplemented!("extension disabled"),
+            NodeValue::MultilineComment(_) => unimplemented!("extension disabled"),
             NodeValue::BlockQuote => self.own_prefix_len_block_quote(node, line),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -253,6 +261,8 @@ impl<'ast> MdRender {
             | NodeValue::FootnoteReference(_)
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Insert
+            | NodeValue::CommentInline(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -367,6 +377,8 @@ impl<'ast> MdRender {
 
             // container_block
             NodeValue::Alert(_) => self.buffer[own_prefix].into(),
+            NodeValue::BlockDirective(_) => unimplemented!("extension disabled"),
+            NodeValue::MultilineComment(_) => unimplemented!("extension disabled"),
             NodeValue::BlockQuote => self.buffer[own_prefix].into(),
             NodeValue::DescriptionItem(_) => {
                 unimplemented!("extension disabled")
@@ -408,6 +420,8 @@ impl<'ast> MdRender {
             | NodeValue::FootnoteReference(_)
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Insert
+            | NodeValue::CommentInline(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -497,6 +511,8 @@ impl<'ast> MdRender {
 
             // container_block
             NodeValue::Alert(_) => result += &self.buffer[own_prefix],
+            NodeValue::BlockDirective(_) => unimplemented!("extension disabled"),
+            NodeValue::MultilineComment(_) => unimplemented!("extension disabled"),
             NodeValue::BlockQuote => result += &self.buffer[own_prefix],
             NodeValue::DescriptionItem(_) => {
                 unimplemented!("extension disabled")
@@ -538,6 +554,8 @@ impl<'ast> MdRender {
             | NodeValue::FootnoteReference(_)
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Insert
+            | NodeValue::CommentInline(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -925,7 +943,7 @@ impl<'ast> MdRender {
         }
         let max_image_height = leaf
             .descendants()
-            .filter(|d| matches!(d.data.borrow().value, NodeValue::Image(_)))
+            .filter(|d| image_url(d).is_some())
             .filter(|d| leaf_node_line.contains_range(&self.node_range(d), true, true))
             // Same collapse predicate as `layout_image`, else a selected image
             // stays tall but the row doesn't inflate, shifting the marker.

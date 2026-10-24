@@ -93,7 +93,7 @@ impl Toolbar {
 
                     let min_x = animate_eased(
                         ui.ctx(),
-                        "min",
+                        egui::Id::unique("min"),
                         active_rect.left() + 3.0,
                         0.5,
                         easing::cubic_in_out,
@@ -101,7 +101,7 @@ impl Toolbar {
 
                     let max_x = animate_eased(
                         ui.ctx(),
-                        "max",
+                        egui::Id::unique("max"),
                         active_rect.right() - 3.0,
                         0.5,
                         easing::cubic_in_out,
@@ -198,10 +198,7 @@ impl Toolbar {
                 ))
             }
         }
-        if self.layout.tool_popover.is_none() {
-            #[allow(deprecated)]
-            ui.set_sizing_pass(); // todo: reimplement using non-deprecated functionality
-        }
+        let sizing_pass = self.layout.tool_popover.is_none();
 
         let mut cursor_pos = self.show_at_cursor_tool_popover.unwrap().unwrap();
 
@@ -230,11 +227,13 @@ impl Toolbar {
         }
 
         let tool_popover_rect = egui::Rect::from_min_size(cursor_pos, tool_popovers_size);
-        let mut ui = ui.new_child(
-            UiBuilder::new()
-                .max_rect(ui.clip_rect())
-                .layout(egui::Layout::default()),
-        );
+        let mut builder = UiBuilder::new()
+            .max_rect(ui.clip_rect())
+            .layout(egui::Layout::default());
+        if sizing_pass {
+            builder = builder.sizing_pass();
+        }
+        let mut ui = ui.new_child(builder);
         let out = ui.scope(|ui| {
             ui.scope_builder(UiBuilder::new().max_rect(tool_popover_rect), |ui| {
                 egui::Frame::window(ui.style()).show(ui, |ui| match self.active_tool {
@@ -261,7 +260,7 @@ impl Toolbar {
 
         let opacity = animate_eased(
             ui.ctx(),
-            "opacity",
+            egui::Id::unique("opacity"),
             if self.layout.tool_popover.is_none() || self.hide_overlay { 0.0 } else { 1.0 },
             0.2,
             easing::cubic_in_out,

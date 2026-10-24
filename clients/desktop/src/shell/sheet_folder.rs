@@ -1,6 +1,6 @@
 use egui::{Area, Id, Order};
 use lb::Uuid;
-use workspace_rs::file_cache::FilesExt;
+use workspace_rs::file_cache::{Change, FilesExt};
 
 use crate::components::{
     SheetFooterOpts, Space, Spacer, Theme, TypeRole, display_file_name, sheet_dim, sheet_footer,
@@ -340,12 +340,12 @@ pub(crate) fn show_accept_share(
 pub(crate) fn show_decline_share(
     ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>, id: Uuid, name: &str,
 ) {
-    let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_decline_share"));
-    if sheet_dim(ctx, Id::new("shell_decline_share_dim"), layer) {
+    let layer = egui::LayerId::new(Order::Foreground, Id::unique("shell_decline_share"));
+    if sheet_dim(ctx, Id::unique("shell_decline_share_dim"), layer) {
         queue.push(A::CloseModal);
     }
 
-    Area::new(Id::new("shell_decline_share"))
+    Area::new(Id::unique("shell_decline_share"))
         .order(Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {
@@ -437,13 +437,13 @@ fn folder_picker_sheet(
     action: &str, subject: &str, hint: &str, primary: &str, dest: Option<Uuid>, exclude: &[Uuid],
     kind: FolderPickKind,
 ) {
-    let layer = egui::LayerId::new(Order::Foreground, Id::new(salt));
-    if sheet_dim(ctx, Id::new(format!("{salt}_dim")), layer) {
+    let layer = egui::LayerId::new(Order::Foreground, Id::unique(salt));
+    if sheet_dim(ctx, Id::unique(format!("{salt}_dim")), layer) {
         queue.push(A::CloseModal);
     }
 
     // Expand state shared for this picker salt; seed once toward `dest` / exclude parents.
-    let exp_id = Id::new(("shell_folder_pick_exp", salt));
+    let exp_id = Id::unique(("shell_folder_pick_exp", salt));
     let mut expanded: std::collections::HashSet<Uuid> =
         ctx.data(|d| d.get_temp(exp_id)).unwrap_or_default();
     if expanded.is_empty() {
@@ -460,7 +460,7 @@ fn folder_picker_sheet(
         }
     }
 
-    Area::new(Id::new(salt))
+    Area::new(Id::unique(salt))
         .order(Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {
@@ -510,7 +510,13 @@ fn folder_picker_sheet(
                 if show_summary {
                     ui.add(Spacer::new(Space::Xl));
                     match kind {
-                        FolderPickKind::Move => move_summary_line(ui, t, app, exclude, dest),
+                        FolderPickKind::Move => {
+                            move_summary_line(ui, t, app, exclude, dest);
+                            if let Some(to) = dest {
+                                let change = Change::Move { ids: exclude.to_vec(), to };
+                                super::sheet_links::show_link_plan(app, ui, t, queue, &change);
+                            }
+                        }
                         FolderPickKind::AcceptShare => {
                             dest_action_summary(ui, t, app, subject, "will be saved to", dest)
                         }

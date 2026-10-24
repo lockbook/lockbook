@@ -6,7 +6,7 @@ use tracing::instrument;
 use workspace_rs::tab::markdown_editor::TouchTarget;
 use workspace_rs::tab::markdown_editor::bounds::BoundExt as _;
 use workspace_rs::tab::markdown_editor::input::{
-    Advance, Bound, Event, Increment, Location, Region,
+    Advance, Bound, Event, Gesture, Increment, Location, Region,
 };
 use workspace_rs::tab::markdown_editor::text_units::Unit;
 use workspace_rs::tab::svg_editor::Tool;
@@ -51,14 +51,9 @@ pub unsafe extern "C" fn ios_layout_frame(obj: *mut c_void) -> IOSResponse {
 #[no_mangle]
 pub unsafe extern "C" fn ios_scroll(obj: *mut c_void, dy: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    let standalone = obj.workspace.current_tab_markdown().is_none();
-    if let Some(md) = obj.workspace.focused_mdedit_mut() {
-        if standalone {
-            md.overflow_scroll_by(-dy);
-        } else {
-            md.scroll_area.gesture_scroll(-dy);
-        }
-    }
+    obj.renderer
+        .context
+        .push_markdown_event(Event::Gesture(Gesture::Scroll { dy }));
 }
 
 /// Coast from the pan's release velocity in points per second.
@@ -68,12 +63,9 @@ pub unsafe extern "C" fn ios_scroll(obj: *mut c_void, dy: f32) {
 #[no_mangle]
 pub unsafe extern "C" fn ios_fling(obj: *mut c_void, vy: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    if obj.workspace.current_tab_markdown().is_none() {
-        return;
-    }
-    if let Some(md) = obj.workspace.focused_mdedit_mut() {
-        md.scroll_area.gesture_fling(-vy);
-    }
+    obj.renderer
+        .context
+        .push_markdown_event(Event::Gesture(Gesture::Fling { vy }));
 }
 
 /// Stop coasting. Returns whether the page was coasting.
@@ -83,6 +75,7 @@ pub unsafe extern "C" fn ios_fling(obj: *mut c_void, vy: f32) {
 #[no_mangle]
 pub unsafe extern "C" fn ios_stop_scroll(obj: *mut c_void) -> bool {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.flush_gestures();
     obj.workspace
         .focused_mdedit_mut()
         .is_some_and(|md| md.scroll_area.gesture_stop())
@@ -818,10 +811,10 @@ pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn show_hide_tabs(obj: *mut c_void, show: bool) {
+pub unsafe extern "C" fn set_software_keyboard_in_use(obj: *mut c_void, in_use: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.workspace.show_tabs = show;
+    obj.workspace.software_keyboard_in_use = in_use;
 }
 
 /// # Safety
@@ -856,7 +849,7 @@ pub unsafe extern "C" fn ios_key_event(
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
 
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 
     let Some(key) = UIKeys::from(key_code) else { return };
 
@@ -1001,6 +994,7 @@ pub unsafe extern "C" fn ios_tap(obj: *mut c_void, x: f32, y: f32) -> CTextRange
 #[no_mangle]
 pub unsafe extern "C" fn ios_reorder_can_start(obj: *mut c_void, x: f32, y: f32) -> bool {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.flush_gestures();
     let pos = obj.renderer.pos_from_points(x, y);
     obj.workspace
         .focused_mdedit_mut()
@@ -1012,6 +1006,7 @@ pub unsafe extern "C" fn ios_reorder_can_start(obj: *mut c_void, x: f32, y: f32)
 #[no_mangle]
 pub unsafe extern "C" fn ios_reorder_start(obj: *mut c_void, x: f32, y: f32) -> bool {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.flush_gestures();
     let pos = obj.renderer.pos_from_points(x, y);
     obj.workspace
         .focused_mdedit_mut()
@@ -1024,9 +1019,9 @@ pub unsafe extern "C" fn ios_reorder_start(obj: *mut c_void, x: f32, y: f32) -> 
 pub unsafe extern "C" fn ios_reorder_move(obj: *mut c_void, x: f32, y: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let pos = obj.renderer.pos_from_points(x, y);
-    if let Some(md) = obj.workspace.focused_mdedit_mut() {
-        md.reorder_move(pos);
-    }
+    obj.renderer
+        .context
+        .push_markdown_event(Event::Gesture(Gesture::ReorderMove { pos }));
 }
 
 /// Drop the lifted item at a point, or put it back if `cancelled`.
@@ -1037,9 +1032,49 @@ pub unsafe extern "C" fn ios_reorder_move(obj: *mut c_void, x: f32, y: f32) {
 pub unsafe extern "C" fn ios_reorder_end(obj: *mut c_void, x: f32, y: f32, cancelled: bool) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let pos = obj.renderer.pos_from_points(x, y);
-    if let Some(md) = obj.workspace.focused_mdedit_mut() {
-        md.reorder_end(pos, cancelled);
-    }
+    obj.renderer
+        .context
+        .push_markdown_event(Event::Gesture(Gesture::ReorderEnd { pos, cancelled }));
+}
+
+/// A horizontal pan began at a point: whether a table or code block wider
+/// than the note is there to take it.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_row_pan_begin(obj: *mut c_void, x: f32, y: f32) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.flush_gestures();
+    let pos = obj.renderer.pos_from_points(x, y);
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.row_pan_begin(pos))
+}
+
+/// The row pan moved `dx` points along the rows.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_row_pan(obj: *mut c_void, dx: f32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer
+        .context
+        .push_markdown_event(Event::Gesture(Gesture::RowPan { dx }));
+}
+
+/// The row pan ended at `vx` points per second along the rows; the
+/// block coasts from it. Zero for a pan the platform cancelled.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_row_pan_end(obj: *mut c_void, vx: f32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer
+        .context
+        .push_markdown_event(Event::Gesture(Gesture::RowPanEnd { vx }));
 }
 
 /// A touch landed on the scrollbar at `y` points.
@@ -1049,9 +1084,9 @@ pub unsafe extern "C" fn ios_reorder_end(obj: *mut c_void, x: f32, y: f32, cance
 #[no_mangle]
 pub unsafe extern "C" fn ios_scrollbar_begin(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    if let Some(md) = obj.workspace.focused_mdedit_mut() {
-        md.scroll_area.gesture_scrollbar_begin();
-    }
+    obj.renderer
+        .context
+        .push_markdown_event(Event::Gesture(Gesture::ScrollbarBegin));
 }
 
 /// Whether the point is on the scrollbar's thumb, where a drag may start.
@@ -1061,6 +1096,7 @@ pub unsafe extern "C" fn ios_scrollbar_begin(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn ios_on_scroll_thumb(obj: *mut c_void, y: f32) -> bool {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.flush_gestures();
     let y = obj.renderer.pos_from_points(0.0, y).y;
     obj.workspace
         .focused_mdedit_mut()
@@ -1074,9 +1110,9 @@ pub unsafe extern "C" fn ios_on_scroll_thumb(obj: *mut c_void, y: f32) -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn ios_scrollbar_drag(obj: *mut c_void, dy: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    if let Some(md) = obj.workspace.focused_mdedit_mut() {
-        md.scroll_area.gesture_scrollbar_drag(dy);
-    }
+    obj.renderer
+        .context
+        .push_markdown_event(Event::Gesture(Gesture::ScrollbarDrag { dy }));
 }
 
 /// One text row with its spacing, in points, for the host's edge crawl.
@@ -1113,14 +1149,9 @@ pub unsafe extern "C" fn ios_set_marked(obj: *mut c_void, range: CTextRange) {
 #[no_mangle]
 pub unsafe extern "C" fn ios_crawl(obj: *mut c_void, dy: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    let standalone = obj.workspace.current_tab_markdown().is_none();
-    if let Some(md) = obj.workspace.focused_mdedit_mut() {
-        if standalone {
-            md.overflow_scroll_by(-dy);
-        } else {
-            md.crawl_by(-dy);
-        }
-    }
+    obj.renderer
+        .context
+        .push_markdown_event(Event::Gesture(Gesture::Crawl { dy }));
 }
 
 /// # Safety

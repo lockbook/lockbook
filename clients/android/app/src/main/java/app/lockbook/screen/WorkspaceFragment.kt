@@ -162,7 +162,7 @@ class WorkspaceFragment : Fragment() {
             pendingTabSwitchUiState = null
 
             model.isFileTreeSyncedToCurrentTab = true
-            workspaceWrapper.workspaceView.openDoc(request.id, request.newFile)
+            workspaceWrapper.workspaceView.openDoc(request.id, request.newFile, request.heading)
 
             when (request.presentation) {
                 OpenFilePresentation.Preserve -> {
@@ -232,6 +232,10 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.workspaceBackRequested.observe(viewLifecycleOwner) {
+            if (model.outlineOpen.value == true) {
+                workspaceWrapper.workspaceView.toggleOutline()
+                return@observe
+            }
             val navigatedBack = workspaceWrapper.workspaceView.back()
             if (!navigatedBack) {
                 mainScreenModel.navigate(MainNavigationAction.ShowSplitOrSidebar)
@@ -324,6 +328,10 @@ class WorkspaceFragment : Fragment() {
     private fun onCreateToolbar(workspaceWrapper: WorkspaceWrapperView) {
         binding.workspaceToolbar.setOnMenuItemClickListener { it ->
             when (it.itemId) {
+                R.id.menu_text_editor_outline -> {
+                    workspaceWrapper.workspaceView.toggleOutline()
+                }
+
                 R.id.menu_text_editor_share -> {
                     (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
@@ -341,6 +349,15 @@ class WorkspaceFragment : Fragment() {
             }
 
             true
+        }
+
+        model.outlineAvailable.observe(viewLifecycleOwner) { available ->
+            binding.workspaceToolbar.menu
+                .findItem(R.id.menu_text_editor_outline)
+                .isVisible = available
+        }
+        model.outlineOpen.observe(viewLifecycleOwner) { open ->
+            if (open) hideBottomSheet() else showBottomSheet()
         }
 
         binding.workspaceToolbar.setNavigationOnClickListener {
@@ -361,6 +378,8 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.hideToolbar.observe(viewLifecycleOwner) { distanceY ->
+            // a swipe in the outline sheet scrolls the outline, not the note
+            if (model.outlineOpen.value == true) return@observe
             val isKeyboardVisible = model.keyboardVisible.value ?: false
             when {
                 isKeyboardVisible -> model._nativeMarkdownToolbarVisible.value = true
@@ -834,21 +853,18 @@ class WorkspaceWrapperView(
             ViewGroup.LayoutParams.MATCH_PARENT,
         )
 
-    private fun topInsetPxForTextWrapper(): Int {
-        val scaledDensity = context.resources.displayMetrics.scaledDensity
-        val topInsetDp = TEXT_TOOL_BAR_HEIGHT
-        return (topInsetDp * scaledDensity).toInt()
-    }
-
-    private fun textWrapperLayoutParams(topInsetPx: Int): MarginLayoutParams {
-        val scaledDensity = context.resources.displayMetrics.scaledDensity
-        return MarginLayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-        ).apply {
-            topMargin = topInsetPx
-            bottomMargin = (TEXT_TOOL_BAR_HEIGHT * scaledDensity).toInt()
-        }
+    private fun textWrapperLayoutParams(): FrameLayout.LayoutParams {
+        val density = context.resources.displayMetrics.scaledDensity
+        val toolbarPx = (TEXT_TOOL_BAR_HEIGHT * density).roundToInt()
+        return FrameLayout
+            .LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ).apply {
+                // Fallback until the first frame reports `text_interaction_rect`.
+                topMargin = toolbarPx
+                bottomMargin = toolbarPx
+            }
     }
 
     init {
@@ -964,11 +980,13 @@ class WorkspaceWrapperView(
             return
         }
 
-        val topInsetPx = topInsetPxForTextWrapper()
-        val wrapper = WorkspaceTextInputWrapper(context, workspaceView, topInsetPx.toFloat())
+        val wrapper = WorkspaceTextInputWrapper(context, workspaceView)
+        val params = textWrapperLayoutParams()
+        wrapper.touchOffsetX = params.leftMargin.toFloat()
+        wrapper.touchOffsetY = params.topMargin.toFloat()
         currentWrapper = wrapper
         workspaceView.wrapperView = wrapper
-        addView(wrapper, textWrapperLayoutParams(topInsetPx))
+        addView(wrapper, params)
         markdownToolbar.bringToFront()
     }
 
@@ -985,9 +1003,52 @@ class WorkspaceWrapperView(
 class WorkspaceTextInputWrapper(
     context: Context,
     val workspaceView: WorkspaceView,
-    val touchYOffset: Float,
 ) : View(context) {
     val wsInputConnection = WorkspaceTextInputConnection(workspaceView, this)
+
+    var touchOffsetX = 0f
+    var touchOffsetY = 0f
+
+    fun applyTextInteractionRect(
+        hasRect: Boolean,
+        minX: Float,
+        minY: Float,
+        maxX: Float,
+        maxY: Float,
+        density: Float,
+    ) {
+        if (!hasRect) {
+            return
+        }
+
+        val left = (minX * density).roundToInt()
+        val top = (minY * density).roundToInt()
+        val width = ((maxX - minX) * density).roundToInt().coerceAtLeast(1)
+        val height = ((maxY - minY) * density).roundToInt().coerceAtLeast(1)
+
+        val lp =
+            (layoutParams as? FrameLayout.LayoutParams) ?: FrameLayout.LayoutParams(width, height)
+        if (lp.leftMargin == left &&
+            lp.topMargin == top &&
+            lp.width == width &&
+            lp.height == height
+        ) {
+            touchOffsetX = left.toFloat()
+            touchOffsetY = top.toFloat()
+            return
+        }
+
+        lp.leftMargin = left
+        lp.topMargin = top
+        lp.rightMargin = 0
+        lp.bottomMargin = 0
+        lp.width = width
+        lp.height = height
+        layoutParams = lp
+
+        touchOffsetX = left.toFloat()
+        touchOffsetY = top.toFloat()
+    }
 
     private var touchStartX = 0f
     private var touchStartY = 0f
@@ -1036,7 +1097,7 @@ class WorkspaceTextInputWrapper(
                     abs(event.x - touchStartX).toInt() < slopTouchThreshold &&
                         abs(event.y - touchStartY).toInt() < slopTouchThreshold
                 if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch &&
-                    !workspaceView.willConsumeTouches(event.x, event.y + touchYOffset)
+                    !workspaceView.willConsumeTouches(event.x + touchOffsetX, event.y + touchOffsetY)
                 ) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
@@ -1045,7 +1106,7 @@ class WorkspaceTextInputWrapper(
         }
 
         if (event != null) {
-            workspaceView.touchForwarder.forward(event, touchYOffset)
+            workspaceView.touchForwarder.forward(event, touchOffsetX, touchOffsetY)
             tabSheetScrollDetector.onTouchEvent(event)
         }
 

@@ -1,16 +1,15 @@
 //! Shared image texture cache.
 //!
-//! URL → `Arc<Mutex<ImageState>>` lookups, double-buffered so images that
-//! stop appearing in the frame get evicted (and their textures freed) after
-//! one grace frame. Matches the lifecycle pattern used by
+//! [`ImageKey`] → `Arc<Mutex<ImageState>>` lookups, double-buffered so
+//! images that stop appearing in the frame get evicted (and their textures
+//! freed) after one grace frame. Matches the lifecycle pattern used by
 //! [`GlyphonCache`](super::glyphon_cache::GlyphonCache).
 //!
-//! The cache handles URL-to-bytes resolution for both lockbook-internal
-//! (`lb://uuid` and relative paths) and http(s) URLs, SVG rasterization via
-//! resvg, and EXIF orientation correction. Decoded images are uploaded as
+//! The cache loads lockbook files and http(s) URLs, rasterizes SVG via
+//! resvg, and corrects EXIF orientation. Decoded images are uploaded as
 //! egui textures.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -23,7 +22,7 @@ use lb_rs::{Uuid, spawn};
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform};
 
-use crate::file_cache::{FileCache, FilesExt as _, Reach, ResolvedLink};
+use crate::file_cache::FileCache;
 use crate::seq::ws_seq;
 use crate::tab::markdown_editor::HttpClient;
 use crate::workspace::WsPersistentStore;
@@ -52,11 +51,31 @@ pub enum ImageState {
     Failed(String),
 }
 
+/// The image an embed shows: the file it names, however the note names it,
+/// or the URL it fetches.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ImageKey {
+    File(Uuid),
+    Web(String),
+}
+
+impl ImageKey {
+    /// The key image dimensions persist under.
+    fn persisted(&self) -> String {
+        match self {
+            ImageKey::File(id) => format!("lb://{id}"),
+            ImageKey::Web(url) => url.clone(),
+        }
+    }
+}
+
 #[derive(Default)]
 struct Inner {
-    current: HashMap<String, Arc<Mutex<ImageState>>>,
-    previous: HashMap<String, Arc<Mutex<ImageState>>>,
+    current: HashMap<ImageKey, Arc<Mutex<ImageState>>>,
+    previous: HashMap<ImageKey, Arc<Mutex<ImageState>>>,
     began_this_frame: bool,
+    /// Images that wait the reader asked to see, by the note showing them.
+    shown_anyway: HashSet<(Uuid, ImageKey)>,
 }
 
 #[derive(Clone)]
@@ -90,8 +109,11 @@ impl ImageCache {
         }
     }
 
+    /// Changes whenever what an embed shows may: a load, a reveal, or the
+    /// switch that lets web images load.
     pub fn seq(&self) -> u64 {
-        self.seq.load(Ordering::Relaxed)
+        let web = self.persistence.get_contact_linked_sites() as u64;
+        self.seq.load(Ordering::Relaxed) * 2 + web
     }
 
     pub fn begin_frame(&self) {
@@ -109,14 +131,14 @@ impl ImageCache {
         // in-flight request.
         let texture_manager = self.ctx.tex_manager();
         let mut keep = Vec::new();
-        for (url, state) in inner.previous.drain() {
+        for (key, state) in inner.previous.drain() {
             let (keep_loading, free_id) = match state.lock().unwrap().deref() {
                 ImageState::Loading => (true, None),
                 ImageState::Loaded(id) => (false, Some(*id)),
                 ImageState::Failed(_) => (false, None),
             };
             if keep_loading {
-                keep.push((url, state));
+                keep.push((key, state));
             } else if let Some(id) = free_id {
                 texture_manager.write().free(id);
             }
@@ -125,45 +147,69 @@ impl ImageCache {
         inner.began_this_frame = false;
     }
 
-    /// Look up or spawn a load for the given URL. `from_file_id` is used to
-    /// resolve relative paths and `lb://` URIs against the lockbook file tree.
-    /// `user_activity` indicates whether this read should count toward suggested docs.
+    /// Look up or spawn a load for `key`. `user_activity` indicates whether
+    /// this read should count toward suggested docs.
     ///
-    /// Call between `begin_frame` and `end_frame`. URLs not looked up during
+    /// Call between `begin_frame` and `end_frame`. Keys not looked up during
     /// a frame are evicted at `end_frame` time.
-    pub fn get_or_load(
-        &self, url: &str, from_file_id: Uuid, user_activity: bool,
-    ) -> Arc<Mutex<ImageState>> {
+    pub fn get_or_load(&self, key: &ImageKey, user_activity: bool) -> Arc<Mutex<ImageState>> {
         let mut inner = self.inner.lock().unwrap();
-        if let Some(state) = inner.current.get(url) {
+        if let Some(state) = inner.current.get(key) {
             return state.clone();
         }
-        if let Some(state) = inner.previous.remove(url) {
-            inner.current.insert(url.to_string(), state.clone());
+        if let Some(state) = inner.previous.remove(key) {
+            inner.current.insert(key.clone(), state.clone());
             return state;
         }
 
         let state: Arc<Mutex<ImageState>> = Default::default();
-        self.spawn_load(url, from_file_id, user_activity, state.clone());
-        inner.current.insert(url.to_string(), state.clone());
+        self.spawn_load(key, user_activity, state.clone());
+        inner.current.insert(key.clone(), state.clone());
         state
     }
 
-    /// Real texture dimensions for `url`, if known.
-    pub fn dims(&self, url: &str) -> Option<Vec2> {
+    /// Real texture dimensions for `key`, if known.
+    pub fn dims(&self, key: &ImageKey) -> Option<Vec2> {
         self.persistence
-            .image_dims()
-            .get(url)
-            .copied()
+            .image_dims(&key.persisted())
             .map(|[w, h]| Vec2::new(w, h))
     }
 
-    /// Why `url` must not show as an image in `note`: it reaches a file
-    /// outside the note's scope. States here are shared by every note
-    /// embedding `url` (and the image viewer), so embeds check this first.
-    pub fn out_of_scope(&self, url: &str, note: Uuid) -> bool {
-        let files = self.files.read().unwrap();
-        matches!(files.locate_link(url, note), Some((_, reach)) if reach != Reach::Scope)
+    /// Whether `key` is a web image the reader hasn't let the app fetch:
+    /// fetching tells the site who opened the note, and when.
+    pub fn off_the_web(&self, key: &ImageKey) -> bool {
+        // the URLs a load would fetch
+        let fetched = matches!(key, ImageKey::Web(url) if url.starts_with("http://") || url.starts_with("https://"));
+        fetched && !self.persistence.get_contact_linked_sites()
+    }
+
+    /// Whether the reader asked to see `key` in `note` though it waits.
+    pub fn shown_anyway(&self, note: Uuid, key: &ImageKey) -> bool {
+        self.inner
+            .lock()
+            .unwrap()
+            .shown_anyway
+            .contains(&(note, key.clone()))
+    }
+
+    /// The reader asked to see `key` in `note` though it waits.
+    pub fn show_anyway(&self, note: Uuid, key: &ImageKey) {
+        self.inner
+            .lock()
+            .unwrap()
+            .shown_anyway
+            .insert((note, key.clone()));
+        self.seq
+            .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+        self.ctx.request_repaint();
+    }
+
+    pub fn files(&self) -> Arc<RwLock<FileCache>> {
+        self.files.clone()
+    }
+
+    pub fn pixels_per_point(&self) -> f32 {
+        self.ctx.pixels_per_point()
     }
 
     pub fn color_image(&self, id: Uuid) -> Result<ColorImage, String> {
@@ -176,37 +222,37 @@ impl ImageCache {
         Ok(ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()))
     }
 
-    /// Whether `url`'s texture is decoded and ready to paint this session — the
+    /// Whether `key`'s texture is decoded and ready to paint this session — the
     /// real `Loaded` state, not just persisted dims (which outlive the texture).
-    pub fn is_loaded(&self, url: &str) -> bool {
+    pub fn is_loaded(&self, key: &ImageKey) -> bool {
         let inner = self.inner.lock().unwrap();
         inner
             .current
-            .get(url)
-            .or_else(|| inner.previous.get(url))
+            .get(key)
+            .or_else(|| inner.previous.get(key))
             .map(|s| matches!(&*s.lock().unwrap(), ImageState::Loaded(_)))
             .unwrap_or(false)
     }
 
-    /// Test helper: whether any load of `url` has started.
+    /// Test helper: whether any load of `key` has started.
     #[cfg(test)]
-    pub fn has_state(&self, url: &str) -> bool {
+    pub fn has_state(&self, key: &ImageKey) -> bool {
         let inner = self.inner.lock().unwrap();
-        inner.current.contains_key(url) || inner.previous.contains_key(url)
+        inner.current.contains_key(key) || inner.previous.contains_key(key)
     }
 
-    /// Test helper: directly install a `Loaded`/`Failed` state for `url`,
+    /// Test helper: directly install a `Loaded`/`Failed` state for `key`,
     /// populate dims from texture metadata (when `Ok`), and bump `seq` —
     /// mimicking a worker thread completing a load. The dims insert
     /// happens before the state flip to match the spawn_load ordering.
     #[cfg(test)]
-    pub fn complete_load(&self, url: &str, result: Result<TextureId, String>) {
+    pub fn complete_load(&self, key: &ImageKey, result: Result<TextureId, String>) {
         let state = match result {
             Ok(tid) => {
                 if let Some(meta) = self.ctx.tex_manager().read().meta(tid) {
                     let [w, h] = meta.size;
                     self.persistence
-                        .merge_image_dims(HashMap::from([(url.to_string(), [w as f32, h as f32])]));
+                        .merge_image_dims(HashMap::from([(key.persisted(), [w as f32, h as f32])]));
                 }
                 ImageState::Loaded(tid)
             }
@@ -215,15 +261,13 @@ impl ImageCache {
         let mut inner = self.inner.lock().unwrap();
         inner
             .current
-            .insert(url.to_string(), Arc::new(Mutex::new(state)));
+            .insert(key.clone(), Arc::new(Mutex::new(state)));
         self.seq
             .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
     }
 
-    fn spawn_load(
-        &self, url: &str, from_file_id: Uuid, user_activity: bool, state: Arc<Mutex<ImageState>>,
-    ) {
-        let url = url.to_string();
+    fn spawn_load(&self, key: &ImageKey, user_activity: bool, state: Arc<Mutex<ImageState>>) {
+        let key = key.clone();
         let ctx = self.ctx.clone();
         let client = self.client.clone();
         let core = self.core.clone();
@@ -231,18 +275,10 @@ impl ImageCache {
         let ws_seq = self.ws_seq.clone();
         let persistence = self.persistence.clone();
 
-        let maybe_lb_id = {
-            let guard = self.files.read().unwrap();
-            match guard.resolve_link(&url, from_file_id) {
-                Some(ResolvedLink::File(id)) => Some(id),
-                _ => None,
-            }
-        };
-
         // viewport width is used to scale SVG rasterization — use the screen
         // width as a reasonable upper bound since we load asynchronously
         // before we know the precise render width
-        let viewport_width = ctx.screen_rect().width();
+        let viewport_width = ctx.content_rect().width();
         let pixels_per_point = ctx.pixels_per_point();
 
         spawn!({
@@ -250,41 +286,34 @@ impl ImageCache {
             let texture_manager = ctx.tex_manager();
 
             let texture_closure = async_on_wasm!({
-                let image_bytes = if let Some(id) = maybe_lb_id {
-                    core.read_document(id, user_activity)
-                        .map_err(|e| e.to_string())?
-                } else {
-                    if !url.starts_with("http://") && !url.starts_with("https://") {
-                        return Err(format!("image not found: {url}"));
+                let (image_bytes, is_svg) = match &key {
+                    ImageKey::File(id) => {
+                        let bytes = core
+                            .read_document(*id, user_activity)
+                            .map_err(|e| e.to_string())?;
+                        let file = core.get_file_by_id(*id).map_err(|e| e.to_string())?;
+                        (bytes, file.name.ends_with(".svg"))
                     }
-                    #[cfg(target_arch = "wasm32")]
-                    {
-                        download_image(&client, &url)
+                    ImageKey::Web(url) => {
+                        if !url.starts_with("http://") && !url.starts_with("https://") {
+                            return Err(format!("image not found: {url}"));
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        let bytes = download_image(&client, url)
                             .await
-                            .map_err(|e| e.to_string())?
+                            .map_err(|e| e.to_string())?;
+                        #[cfg(not(target_arch = "wasm32"))]
+                        let bytes = download_image(&client, url).map_err(|e| e.to_string())?;
+                        // Servers can return SVG without a `.svg` suffix
+                        // (placehold.co's default); sniff the bytes too.
+                        let is_svg = url.ends_with(".svg") || bytes_look_like_svg(&bytes);
+                        (bytes, is_svg)
                     }
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        download_image(&client, &url).map_err(|e| e.to_string())?
-                    }
-                };
-
-                let is_svg = if let Some(id) = maybe_lb_id {
-                    let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
-                    file.name.ends_with(".svg")
-                } else {
-                    // Servers can return SVG without a `.svg` suffix
-                    // (placehold.co's default); sniff the bytes too.
-                    url.ends_with(".svg") || bytes_look_like_svg(&image_bytes)
                 };
 
                 let image_bytes = if is_svg {
-                    rasterize_svg(
-                        &image_bytes,
-                        maybe_lb_id.is_some(),
-                        viewport_width,
-                        pixels_per_point,
-                    )?
+                    let is_lockbook_svg = matches!(key, ImageKey::File(_));
+                    rasterize_svg(&image_bytes, is_lockbook_svg, viewport_width, pixels_per_point)?
                 } else {
                     image_bytes
                 };
@@ -296,7 +325,7 @@ impl ImageCache {
                 let image_data = egui::ImageData::Color(color_image.into());
                 Ok(texture_manager
                     .write()
-                    .alloc(url.clone(), image_data, Default::default()))
+                    .alloc(key.persisted(), image_data, Default::default()))
             });
 
             #[cfg(target_arch = "wasm32")]
@@ -308,8 +337,10 @@ impl ImageCache {
                 Ok(texture_id) => {
                     if let Some(meta) = texture_manager.read().meta(texture_id) {
                         let [w, h] = meta.size;
-                        persistence
-                            .merge_image_dims(HashMap::from([(url.clone(), [w as f32, h as f32])]));
+                        persistence.merge_image_dims(HashMap::from([(
+                            key.persisted(),
+                            [w as f32, h as f32],
+                        )]));
                     }
                     *state.lock().unwrap() = ImageState::Loaded(texture_id);
                 }

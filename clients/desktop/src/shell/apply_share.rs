@@ -74,11 +74,11 @@ pub(crate) struct ShareNetDone {
 }
 
 pub(crate) fn share_verify_done_key() -> egui::Id {
-    egui::Id::new("shell_share_verify_done")
+    egui::Id::unique("shell_share_verify_done")
 }
 
 pub(crate) fn share_verify_inflight_key() -> egui::Id {
-    egui::Id::new("shell_share_verify_inflight")
+    egui::Id::unique("shell_share_verify_inflight")
 }
 
 /// Apply finished network checks (call from paint / apply each frame).
@@ -272,7 +272,7 @@ pub(crate) fn share_stage_field(app: &mut ShellApp, ctx: &Context) {
         lookup_for.clear();
         *err = None;
     }
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_share_need_focus"), true));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_share_need_focus"), true));
 }
 
 /// Debounced field verify. Local hits are free; network runs on a worker thread.
@@ -386,21 +386,22 @@ pub(crate) fn share_invite(app: &mut ShellApp, ctx: &Context) {
 
     let share_mode = if mode == 0 { ShareMode::Write } else { ShareMode::Read };
 
-    let mut ok: Vec<String> = Vec::new();
-    let mut fail: Vec<(String, String)> = Vec::new();
-    {
-        let Some(r) = app.session.ready_mut() else {
-            return;
-        };
-        for user in &targets {
-            match r.workspace.core.share_file(id, user, share_mode) {
-                Ok(()) => ok.push(user.clone()),
-                Err(e) => fail.push((user.clone(), e.to_string())),
-            }
-        }
-        if !ok.is_empty() {
-            r.refresh_status();
-        }
+    let Some(r) = app.session.ready_mut() else {
+        return;
+    };
+    let share_linked = ctx
+        .data(|d| d.get_temp::<bool>(super::sheet_links::share_linked_id()))
+        .unwrap_or(false);
+    let fail = r
+        .workspace
+        .share_with(id, &targets, share_mode, share_linked);
+    let ok: Vec<String> = targets
+        .iter()
+        .filter(|u| !fail.iter().any(|(f, _)| f == *u))
+        .cloned()
+        .collect();
+    if !ok.is_empty() {
+        r.refresh_status();
     }
 
     if let Some(Modal::Share { staged, query, lookup, lookup_for, err, .. }) = &mut app.modal {
@@ -439,7 +440,7 @@ pub(crate) fn share_invite(app: &mut ShellApp, ctx: &Context) {
         };
     }
 
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_share_need_focus"), true));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_share_need_focus"), true));
 }
 
 #[cfg(test)]

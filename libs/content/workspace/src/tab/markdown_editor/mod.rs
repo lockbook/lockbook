@@ -59,12 +59,16 @@ pub fn syntax_theme() -> &'static Theme {
 }
 
 pub mod bounds;
+mod clipboard;
 pub mod commands;
 pub mod fold;
+pub mod fragment;
 pub mod input;
 pub mod md_label;
+pub mod row_scroll;
 mod scroll_content;
 pub mod show;
+pub mod table;
 pub mod text_units;
 mod theme;
 pub(crate) mod widget;
@@ -91,12 +95,15 @@ pub struct Response {
     pub scroll_updated: bool,
     pub open_camera: bool,
 
-    /// Screen rect (egui points) where native iOS text interaction should
-    /// live — the editor viewport minus the find widget and toolbar. The
-    /// single source of truth for positioning the platform text view.
+    /// Screen rect (egui points) where the native text-input overlay should
+    /// live — the editor viewport minus the find widget and toolbar. Positions
+    /// the iOS `MdView` and the Android `WorkspaceTextInputWrapper`.
     pub text_interaction_rect: Option<egui::Rect>,
 
     pub mobile_toolbar_shown: bool,
+    /// A popup is painted over the caret: a platform that draws its own
+    /// caret above the editor hides it.
+    pub caret_covered: bool,
 }
 
 /// A region painted this frame that a platform deciding touches itself
@@ -111,6 +118,15 @@ pub enum TouchTarget {
     Popup,
 }
 
+/// A desktop IME composition in the buffer: where it sits, its text, and
+/// the buffer seq that placement is current for.
+#[derive(Clone, Debug)]
+pub struct ImeMarked {
+    pub range: (Grapheme, Grapheme),
+    pub text: String,
+    pub seq: usize,
+}
+
 pub struct MdRender {
     // context
     pub ctx: Context,
@@ -118,9 +134,20 @@ pub struct MdRender {
     pub dark_mode: bool,
     pub ext: String,
     pub touch_mode: bool,
+    /// Where this account's external file links point (`…/open/<id>`);
+    /// `app.lockbook.net` when unknown.
+    pub open_origin: Option<String>,
     /// Set only while painting the floating drag-reorder card, so chrome
     /// that shouldn't travel with it (the fold button) can opt out.
     pub painting_drag_float: bool,
+    /// The slug of a heading whose link was asked for this frame; the
+    /// editor, which knows the note, puts the link on the clipboard.
+    pub heading_copy: Option<String>,
+    /// The heading whose link was just copied, for its check mark.
+    pub heading_copied: Option<((Grapheme, Grapheme), web_time::Instant)>,
+    /// The user moved the selection since the last frame was painted: a
+    /// table wider than the note scrolls to show its end.
+    pub caret_moved: bool,
 
     // document
     pub buffer: Buffer,
@@ -134,6 +161,11 @@ pub struct MdRender {
     pub text_areas: Vec<TextBufferArea>,
     /// Strikethroughs and underlines painted on top of text
     pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
+    /// Edge fades of scrolled tables and code blocks `(rect, left color,
+    /// right color)`, painted over the text.
+    pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
+    /// Code blocks' copy buttons, painted over the text.
+    pub copy_buttons: Vec<widget::block::leaf::code_block::CopyButton>,
     pub render_events: Vec<input::Event>,
     /// Touch targets painted this frame.
     pub touch_targets: Vec<(Rect, TouchTarget)>,
@@ -141,6 +173,22 @@ pub struct MdRender {
     /// render DFS. Cleared each frame (mirrors `fragments`); read for
     /// pointer hit-testing and drop-gap math by drag-to-reorder.
     pub block_boxes: Vec<widget::block::drag::BlockBox>,
+    /// Per-frame geometry index of every table cell, cleared and read like
+    /// `block_boxes`: a pointer in a cell resolves to that cell.
+    pub table_cell_boxes: Vec<table::TableCellBox>,
+    /// A painter slot above each header row's background, with the row's
+    /// rect: the selection's highlight there would paint under it.
+    pub table_header_slots: Vec<(egui::layers::ShapeIdx, Rect)>,
+    /// How far each table or code block too wide for the note is scrolled.
+    pub row_scrolls: HashMap<row_scroll::RowScroller, row_scroll::RowScroll>,
+    /// Per-frame: where each block wider than the note shows.
+    pub row_scrollers: Vec<(Rect, row_scroll::RowScroller)>,
+    /// Per-frame: each line of a scrolled code block, as the rect it shows
+    /// in and its source.
+    pub code_line_clips: Vec<(Rect, (Grapheme, Grapheme))>,
+    /// A code block whose code was copied, by its range, and until when its
+    /// button says so.
+    pub code_copied: Option<((Grapheme, Grapheme), f64)>,
     /// Drag action emitted by a list marker this frame, drained by
     /// `MdEdit::show` to update / commit the in-progress block drag
     /// (mirrors how `render_events` carries buffer edits out of render).
@@ -168,6 +216,10 @@ pub struct MdRender {
     /// Read-only search-preview highlight: the snippet range to reveal,
     /// scroll to, and box-highlight. Independent of the find feature.
     pub preview_match: Option<(Grapheme, Grapheme)>,
+    /// Where a heading being landed on starts: its line is laid out wherever
+    /// it is, for the landing to measure. Set each frame from the editor's
+    /// landing.
+    pub landing_heading: Option<Grapheme>,
     pub interactive: bool, // enables fold buttons
     pub readonly: bool,    // disables task checkboxes and saving
     pub plaintext: bool,   // render as source text, not parsed markdown
@@ -193,6 +245,7 @@ pub struct MdRender {
     pub reveal_seq: u64, // includes selection and find matches
 
     pub search_range: Option<(Grapheme, Grapheme)>, // drawn in accent color for completions
+    pub ime_marked: Option<ImeMarked>,              // desktop IME composition, drawn underlined
 
     // capabilities
     pub embeds: Box<dyn EmbedResolver>,
@@ -223,6 +276,8 @@ pub enum ScrollTarget {
     FindMatch,
     /// Read-only search-preview snippet (see [`MdRender::preview_match`]).
     Preview,
+    /// The caret's line at the top of the view, where a heading link lands.
+    Heading,
 }
 
 /// Editing primitive — an [`MdRender`] plus the interactive state needed to
@@ -235,8 +290,8 @@ pub struct MdEdit {
     pub cursor: CursorState,
     pub event: EventState,
 
-    /// Phone-sized layout (phone or iPad compact mode). The toolbar docks to
-    /// the bottom above the virtual keyboard, for example.
+    /// Touch typing through the software keyboard: the toolbar docks above it
+    /// and shortcut hints hide. Set each frame from the workspace.
     pub phone_mode: bool,
 
     /// Transient drag selection — `Some` while a drag is in progress; the
@@ -248,6 +303,14 @@ pub struct MdEdit {
     /// follows the moving handle rather than always the selection end. `None`
     /// outside a handle drag — scroll then falls back to the selection end.
     pub in_progress_handle: Option<Grapheme>,
+
+    /// Finger → caret offset captured on handle grab and held constant for
+    /// the drag. Recomputing it from the current line each frame oscillates
+    /// the mapped caret when adjacent lines differ in height.
+    pub handle_drag_touch_offset: Option<Vec2>,
+
+    /// Android insertion teardrop. Set on tap-to-place; cleared on text change.
+    pub insertion_handle_visible: bool,
 
     /// Active list-item drag-to-reorder — `Some` from grab until release.
     /// Mirrored onto the renderer each frame for the dim/indicator paint.
@@ -261,11 +324,24 @@ pub struct MdEdit {
     /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
     pub touch_reorder_driven: bool,
 
-    /// A committed reorder `(section_range, insert_offset)`, applied at the
+    /// A committed reorder `(drag, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
     /// new layout is then current before the platform refetches selection
     /// geometry. Set on drag release (which runs post-render).
-    pub pending_block_move: Option<((Grapheme, Grapheme), Grapheme)>,
+    pub pending_block_move: Option<(widget::block::drag::BlockDrag, Grapheme)>,
+
+    /// Keyboard input after a frame's first IME edit, replayed next frame so
+    /// it acts on the edit's result (completions take keys ahead of the IME).
+    pub deferred_input: Vec<egui::Event>,
+
+    /// A composition was dropped this frame; withholding the IME output
+    /// tells the platform's input method to discard it too.
+    pub ime_reset: bool,
+
+    /// The text of a composition the caret left, which the input method may
+    /// still send before it lets go; ignored until it sends something else,
+    /// the editor gets input of its own, or loses focus.
+    pub ime_abandoned: Option<String>,
 
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
@@ -280,6 +356,9 @@ pub struct MdEdit {
     /// rect (the chat composer at max height). Maintained by [`MdEdit::show`];
     /// 0 while the content fits.
     pub overflow_scroll: f32,
+
+    /// A composer-like field without a page of its own: gestures scroll `overflow_scroll`.
+    pub standalone: bool,
 
     /// Buffer (seq, selection) and rect at the last cursor-follow of
     /// `overflow_scroll` — the follow runs when these change, leaving a
@@ -304,12 +383,27 @@ pub struct MdEdit {
     /// the click lands so the context menu's link section stays stable while
     /// the menu is open and the pointer moves.
     pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
+    /// The slug of the heading under the context menu, captured likewise.
+    pub context_menu_heading: Option<String>,
+
+    /// When "Paste as table" was last chosen: the paste it requested from
+    /// the platform, which arrives as any other does, is to be a table.
+    pub paste_as_table: std::cell::Cell<Option<f64>>,
+
+    /// A touch drag that began on a block wider than the note, and once the
+    /// drag has set out, whether along the rows. See [`MdEdit::pan_rows`].
+    pub row_pan: Option<(row_scroll::RowScroller, Option<bool>)>,
+    /// A block wider than the note that the platform's own pan recognizer
+    /// is panning (see [`commands`]).
+    pub platform_row_pan: Option<row_scroll::RowScroller>,
 
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
 
     cursor_last_interact: Option<f64>,
+    /// The user typed or moved the caret this frame.
+    pub caret_moved: bool,
 }
 
 impl MdEdit {
@@ -329,21 +423,32 @@ impl MdEdit {
             phone_mode: false,
             in_progress_selection: None,
             in_progress_handle: None,
+            handle_drag_touch_offset: None,
+            insertion_handle_visible: false,
             in_progress_block_drag: None,
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
             pending_block_move: None,
+            deferred_input: Vec::new(),
+            ime_reset: false,
+            ime_abandoned: None,
             pending_scroll: None,
             single_line_scroll: 0.0,
             overflow_scroll: 0.0,
+            standalone: true,
             overflow_follow: (0, Default::default(), Rect::ZERO),
             scroll_area_velocity: Default::default(),
             file_id,
             emoji_completions: Default::default(),
             link_completions: Default::default(),
             context_menu_link: None,
+            context_menu_heading: None,
+            paste_as_table: Default::default(),
+            row_pan: None,
+            platform_row_pan: None,
             scroll_area: AffineScrollArea::new(file_id),
             cursor_last_interact: None,
+            caret_moved: false,
         }
     }
 }
@@ -357,10 +462,42 @@ pub struct Editor {
 
     // document identity
     pub id_salt: Id,
+    /// Shown as a search preview, which has no outline.
+    pub in_preview: bool,
     /// Version of the *displayed* buffer. Only written with the matching
     /// text via [`Self::apply_disk_version`] / [`Self::record_disk_save`].
     hmac: Option<DocumentHmac>,
     pub initialized: bool,
+    /// The selection was moved between frames (a reveal); the next frame
+    /// tells the platform, whose own caret would stay behind.
+    selection_moved: bool,
+    /// The note can have an outline, headings or not, so native chrome
+    /// offers it.
+    pub outline_offered: bool,
+    /// The note's headings as the outline lists them, for the text at the
+    /// `text_seq` beside them.
+    outline_rows: Option<(u64, Vec<widget::outline::OutlineRow>)>,
+    /// The notes linking here as the card lists them, for the index version
+    /// beside them.
+    linked: Option<(u64, Vec<widget::outline::LinkedNote>)>,
+    /// Where the outline card stands this frame; None once it has faded out.
+    card: Option<widget::outline::CardPlace>,
+    /// Where a heading link lands, at the top of the view. Its row is laid
+    /// out with the frame's rows wherever it is, so the scroll is exact.
+    landing: Option<Landing>,
+    /// The rows painted this frame and their tops in the canvas, visible or
+    /// laid out off-screen.
+    painted_rows: Vec<(scroll_content::DocRowId, f32)>,
+    /// The canvas those rows were painted in.
+    painted_canvas: Rect,
+    /// The outline was opened while typing, so it marks the caret's section
+    /// even after the keyboard steps aside for it.
+    outline_from_typing: bool,
+    /// The user last typed or moved the caret rather than scrolled, so the
+    /// outline marks the caret's section while it is on screen.
+    outline_follows_caret: bool,
+    /// The heading just landed on, washed briefly so the eye finds it.
+    heading_flash: Option<((Grapheme, Grapheme), web_time::Instant)>,
 
     // change detection
     pub unprocessed_scroll: Option<Instant>,
@@ -376,6 +513,7 @@ pub struct Editor {
     // widgets moved onto MdEdit so a standalone composer inherits them)
     pub toolbar: Toolbar,
     pub find: Find,
+    pub outline: widget::outline::Outline,
 
     // misc
     /// Where the phone toolbar was allocated this frame — the layout-level
@@ -424,7 +562,6 @@ pub struct MdResources {
 pub struct MdConfig {
     pub readonly: bool,
     pub ext: String,
-    pub tablet_or_desktop: bool,
 }
 
 pub struct MdLayout {
@@ -497,7 +634,7 @@ impl MdRender {
     pub fn empty(ctx: Context) -> Self {
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
-        let dark_mode = ctx.style().visuals.dark_mode;
+        let dark_mode = ctx.global_style().visuals.dark_mode;
         let ws_seq = crate::seq::ws_seq(&ctx);
         Self {
             ctx,
@@ -505,15 +642,27 @@ impl MdRender {
             dark_mode,
             ext: "md".into(),
             touch_mode,
+            open_origin: None,
             painting_drag_float: false,
+            heading_copy: None,
+            heading_copied: None,
+            caret_moved: false,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
             fragments: Vec::new(),
             block_boxes: Vec::new(),
+            table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
+            row_scrolls: Default::default(),
+            row_scrollers: Default::default(),
+            code_line_clips: Default::default(),
+            code_copied: None,
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
+            edge_fades: Default::default(),
+            copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -524,6 +673,7 @@ impl MdRender {
             find_current_match: None,
             platform_marked: None,
             preview_match: None,
+            landing_heading: None,
             interactive: false,
             readonly: true,
             plaintext: false,
@@ -536,6 +686,7 @@ impl MdRender {
             reveal_seq: 0,
             text_seq: 0,
             search_range: None,
+            ime_marked: None,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
@@ -589,14 +740,26 @@ impl MdRender {
             dark_mode: false,
             ext: "md".into(),
             touch_mode: false,
+            open_origin: None,
             painting_drag_float: false,
+            heading_copy: None,
+            heading_copied: None,
+            caret_moved: false,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
             block_boxes: Vec::new(),
+            table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
+            row_scrolls: Default::default(),
+            row_scrollers: Default::default(),
+            code_line_clips: Default::default(),
+            code_copied: None,
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
+            edge_fades: Default::default(),
+            copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -605,6 +768,7 @@ impl MdRender {
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
+            ime_marked: None,
             disable_images: false,
             contact_linked_sites: false,
             in_progress_selection: None,
@@ -612,6 +776,7 @@ impl MdRender {
             find_current_match: None,
             platform_marked: None,
             preview_match: None,
+            landing_heading: None,
             interactive: false,
             readonly: true,
             plaintext: false,
@@ -670,6 +835,8 @@ impl MdRender {
             self.calc_source_lines();
             self.calc_fold_bounds(root);
             self.calc_atom_bounds(root);
+            self.calc_table_bounds(root);
+            self.calc_code_block_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
             // from compute_bounds_block_pre_spacing) queries
             // hidden_by_fold, which now expects every node already
@@ -703,7 +870,7 @@ impl MdRender {
         options.extension.footnotes = false;
         options.extension.front_matter_delimiter = Some("---".to_string());
         options.extension.greentext = false;
-        options.extension.header_ids = None; // intended for HTML renderers
+        options.extension.header_id_prefix = None; // intended for HTML renderers
         options.extension.highlight = true;
         options.extension.math_code = true; // rendered as code for now
         options.extension.math_dollars = true; // rendered as code for now
@@ -714,7 +881,6 @@ impl MdRender {
         options.extension.subscript = true;
         options.extension.superscript = true;
         options.extension.table = true;
-        options.extension.tagfilter = false; // intended for HTML renderers
         options.extension.tasklist = true;
         options.extension.underline = true;
         options.extension.wikilinks_title_after_pipe = true; // matches obsidian
@@ -729,12 +895,11 @@ impl Editor {
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
         let MdResources { ctx, core, persistence, files, link_resolver, embeds } = res;
-        let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
+        let MdConfig { readonly, ext } = cfg;
         let plaintext = ext.to_lowercase() != "md";
 
-        let dark_mode = ctx.style().visuals.dark_mode;
+        let dark_mode = ctx.global_style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
-        let phone_mode = touch_mode && !tablet_or_desktop;
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
         let client: HttpClient = Default::default();
@@ -751,16 +916,28 @@ impl Editor {
             dark_mode,
             ext,
             touch_mode,
+            open_origin: open_origin.clone(),
             painting_drag_float: false,
+            heading_copy: None,
+            heading_copied: None,
+            caret_moved: false,
 
             bounds: Default::default(),
             buffer: md.into(),
 
             fragments: Vec::new(),
             block_boxes: Vec::new(),
+            table_cell_boxes: Vec::new(),
+            table_header_slots: Vec::new(),
+            row_scrolls: Default::default(),
+            row_scrollers: Default::default(),
+            code_line_clips: Default::default(),
+            code_copied: None,
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
+            edge_fades: Default::default(),
+            copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
             interaction_responses: Default::default(),
@@ -772,6 +949,7 @@ impl Editor {
             find_current_match: None,
             platform_marked: None,
             preview_match: None,
+            landing_heading: None,
             interactive: true,
             readonly,
             plaintext,
@@ -780,6 +958,7 @@ impl Editor {
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
+            ime_marked: None,
             disable_images: false,
             contact_linked_sites: false,
 
@@ -807,48 +986,72 @@ impl Editor {
         Self {
             edit: MdEdit {
                 renderer,
-                phone_mode,
+                phone_mode: touch_mode,
                 cursor: Default::default(),
                 event: Default::default(),
                 in_progress_selection: None,
                 in_progress_handle: None,
+                handle_drag_touch_offset: None,
+                insertion_handle_visible: false,
                 in_progress_block_drag: None,
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
                 pending_block_move: None,
+                deferred_input: Vec::new(),
+                ime_reset: false,
+                ime_abandoned: None,
                 pending_scroll: None,
                 single_line_scroll: 0.0,
                 overflow_scroll: 0.0,
+                standalone: false,
                 overflow_follow: (0, Default::default(), Rect::ZERO),
                 scroll_area_velocity: Default::default(),
                 file_id,
                 emoji_completions: Default::default(),
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
+                context_menu_heading: None,
+                paste_as_table: Default::default(),
+                row_pan: None,
+                platform_row_pan: None,
                 scroll_area: AffineScrollArea::new(file_id),
                 cursor_last_interact: None,
+                caret_moved: false,
             },
 
             core,
             persistence,
 
             id_salt: Id::NULL,
+            in_preview: false,
             hmac,
             initialized: Default::default(),
+            selection_moved: false,
+            outline_offered: false,
+            outline_rows: None,
+            linked: None,
+            card: None,
+            landing: None,
+            painted_rows: Vec::new(),
+            painted_canvas: Rect::NOTHING,
+            outline_from_typing: false,
+            outline_follows_caret: false,
+            heading_flash: None,
             embeds_seq: 0,
             link_seq: 0,
 
             toolbar: Default::default(),
+            outline: Default::default(),
             find: Default::default(),
 
             // this is used to toggle the mobile toolbar
             mobile_toolbar_rect: None,
-            virtual_keyboard_shown: cfg!(target_os = "android"),
+            virtual_keyboard_shown: false,
             keyboard_visible: false,
             unprocessed_scroll: Default::default(),
 
             prev_dimensions: None,
-            prev_virtual_keyboard_shown: cfg!(target_os = "android"),
+            prev_virtual_keyboard_shown: false,
             find_bar_height: 0.0,
 
             next_resp: Default::default(),
@@ -884,12 +1087,12 @@ impl Editor {
                 embeds: Box::new(()),
                 files,
             },
-            MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
+            MdConfig { readonly: false, ext: String::new() },
         )
     }
 
     pub fn id(&self) -> Id {
-        Id::new(self.edit.file_id).with(self.id_salt)
+        Id::unique(self.edit.file_id).with(self.id_salt)
     }
 
     /// Last disk hmac adopted with the displayed buffer.
@@ -1025,11 +1228,12 @@ impl Editor {
                 .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
             ui.ctx().request_repaint();
         }
-        resp.selection_updated = prior_selection
-            != self
-                .edit
-                .in_progress_selection
-                .unwrap_or(self.edit.renderer.buffer.current.selection);
+        resp.selection_updated = std::mem::take(&mut self.selection_moved)
+            || prior_selection
+                != self
+                    .edit
+                    .in_progress_selection
+                    .unwrap_or(self.edit.renderer.buffer.current.selection);
         // Loads completing (embeds, link meta) and atom enter/exit reflow
         // layout, moving the selection's rects without moving the selection.
         // Report as a scroll: iOS re-fetches geometry on either signal, but a
@@ -1092,7 +1296,7 @@ impl Editor {
                     let toolbar_height = if cfg!(target_os = "android") {
                         ui.ctx()
                             .memory(|m| {
-                                m.data.get_temp::<f32>(Id::new(
+                                m.data.get_temp::<f32>(Id::unique(
                                     "android_native_markdown_toolbar_height",
                                 ))
                             })
@@ -1160,7 +1364,7 @@ impl Editor {
                     editor_shown
                 } else {
                     // no menu toggle in this layout; clear in case the menu was
-                    // open when an iPad left split view (it disables the buttons)
+                    // open when a hardware keyboard was attached (it disables the buttons)
                     self.toolbar.menu_open = false;
 
                     if !cfg!(target_os = "android")
@@ -1185,6 +1389,10 @@ impl Editor {
             .inner;
 
         if editor_shown {
+            // a caret a scrolled block hides: a platform drawing its own hides it
+            let selection = self.edit.renderer.buffer.current.selection;
+            self.next_resp.caret_covered |=
+                selection.0 == selection.1 && self.edit.renderer.caret_scrolled_out(selection.1);
             let new_offset = self.edit.scroll_area.stored_offset();
             self.next_resp.scroll_updated = new_offset != prev_offset;
             self.edit.scroll_area_velocity = self.edit.scroll_area.velocity();
@@ -1480,22 +1688,73 @@ impl Editor {
                 let canvas_width = canvas_rect.width();
                 let layout_margin = self.edit.renderer.layout.margin;
 
-                // Content column width caps at `max_width`; the affine
-                // widget spans the full canvas so its scrollbar lands
-                // at the canvas right edge.
-                let max_width = self.edit.renderer.layout.max_width;
-                let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
-                self.edit.renderer.set_width(col_width);
-
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
+
+                // Content column width caps at `max_width`; the affine
+                // widget spans the full canvas so its scrollbar lands
+                // at the canvas right edge. A docked outline narrows the
+                // column, and the two center together as one block.
+                let max_width = self.edit.renderer.layout.max_width;
+                let r = &self.edit.renderer;
+                let sidecar = !r.touch_mode
+                    && !self.in_preview
+                    && !r.plaintext
+                    && r.interactive
+                    && self.persistence.get_sidecar_open();
+                // The card docks while the text beside it is wide enough: the
+                // text keeps the canvas's center while the card fits in the
+                // margin, then slides left, then narrows. Narrower, the card
+                // floats where it would have docked, over the full text.
+                let edge = crate::style::Space::Md.pts();
+                let side = SIDECAR_GAP + SIDECAR_W + edge;
+                let full_col = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
+                let docked_col = (canvas_width - layout_margin - side).min(max_width);
+                let docks = docked_col >= SIDECAR_MIN_TEXT;
+                // the column's left and width closed and open, and the
+                // motion between them; both ends follow the canvas
+                let closed = (((canvas_width - full_col) / 2.0).max(0.0), full_col);
+                let open = match docks {
+                    true => (
+                        ((canvas_width - docked_col) / 2.0)
+                            .min(canvas_width - side - docked_col)
+                            .max(layout_margin),
+                        docked_col,
+                    ),
+                    false => closed,
+                };
+                // `shown` fades the card; the text eases the same both
+                // ways, so a reversal starts where it is
+                let shown = ui.ctx().animate_bool_with_time(
+                    Id::unique("md_sidecar_glide").with(self.edit.file_id),
+                    sidecar,
+                    widget::outline::MOTION_SECS,
+                );
+                let t = egui::emath::easing::quadratic_in_out(shown);
+                let col_width = egui::lerp(closed.1..=open.1, t);
+                self.edit.renderer.set_width(col_width);
 
                 // affine render: widget body spans the full canvas
                 // (scrollbar at canvas right); content centers within
                 // that body via `content_x`.
                 let touch_scroll = self.edit.renderer.touch_mode;
-                let content_x = canvas_rect.min.x
-                    + ((canvas_rect.width() - self.edit.renderer.width) / 2.0).max(0.0);
+                let content_x = canvas_rect.min.x + egui::lerp(closed.0..=open.0, t);
+                self.card = (shown > 0.0).then(|| {
+                    let width = SIDECAR_W.min(canvas_width - 2.0 * edge).max(0.0);
+                    let x = match docks {
+                        true => content_x + col_width + SIDECAR_GAP,
+                        false => canvas_rect.right() - edge - width,
+                    };
+                    widget::outline::CardPlace {
+                        area: Rect::from_min_size(
+                            Pos2::new(x, canvas_rect.top() + edge),
+                            Vec2::new(width, (canvas_rect.height() - 2.0 * edge).max(0.0)),
+                        ),
+                        floating: !docks,
+                        shown,
+                        open: sidecar,
+                    }
+                });
                 let pre = ui
                     .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
                         ui.set_clip_rect(canvas_rect);
@@ -1520,16 +1779,22 @@ impl Editor {
                         // the body's drag (so taps reach it) but below
                         // the scrollbar (so taps on the bar don't).
                         let begun = self.edit.scroll_area.begin(ui);
+                        if self.edit.pan_rows(ui, begun.body_response()) {
+                            self.edit.scroll_area.suppress_body_drag = true;
+                        }
 
                         let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
                         self.edit.renderer.fragments.clear();
                         self.edit.renderer.block_boxes.clear();
+                        self.edit.renderer.table_cell_boxes.clear();
+                        self.edit.renderer.table_header_slots.clear();
                         self.edit.renderer.in_progress_block_drag =
                             self.edit.in_progress_block_drag;
                         self.edit.renderer.bounds.wrap_lines.clear();
                         self.edit.renderer.text_areas.clear();
                         self.edit.renderer.deco_lines.clear();
+                        self.edit.renderer.clear_row_scroll_frame();
 
                         // Phase 1: drive scroll math + scrollbar, and
                         // pick up to one viewport's worth of rows above
@@ -1541,6 +1806,7 @@ impl Editor {
                         // entries. The immutable `DocScrollContent`
                         // borrow is released here before phase 2's
                         // mutable renderer paint.
+                        self.edit.renderer.landing_heading = self.landing.and_then(Landing::start);
                         let (visible, neighbors, far, scrollbar_grab) = {
                             use crate::widgets::affine_scroll::{Offset, Rows as _, VisibleRow};
 
@@ -1550,6 +1816,9 @@ impl Editor {
                                 canvas_rect.height(),
                             );
                             let resp = self.edit.scroll_area.finish(ui, begun, &content);
+                            if resp.user_scrolled {
+                                self.outline_follows_caret = false;
+                            }
 
                             let viewport_height = canvas_rect.height();
                             let mut neighbors: Vec<VisibleRow<scroll_content::DocRowId>> =
@@ -1615,7 +1884,8 @@ impl Editor {
                                 .in_progress_selection
                                 .unwrap_or(self.edit.renderer.buffer.current.selection);
                             let mut far: Vec<VisibleRow<scroll_content::DocRowId>> = Vec::new();
-                            for end in [selection.0, selection.1] {
+                            let landing = self.landing.and_then(Landing::start);
+                            for end in [selection.0, selection.1].into_iter().chain(landing) {
                                 let Some(row) = content.find_text_row(end) else { continue };
                                 let (Some(i), Some(first)) = (index(&row), band_first) else {
                                     continue;
@@ -1663,7 +1933,10 @@ impl Editor {
                         // the canvas — only to register fragments and
                         // wrap-line bounds for navigation.
                         let blocks: Vec<_> = root.children().collect();
+                        self.painted_rows.clear();
+                        self.painted_canvas = canvas_rect;
                         for vrow in visible.iter().chain(neighbors.iter()).chain(far.iter()) {
+                            self.painted_rows.push((vrow.id, vrow.top));
                             let top_left =
                                 Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
                             let from = self.edit.renderer.fragments.len();
@@ -1707,6 +1980,18 @@ impl Editor {
                             self.edit.show_range(ui, range, color);
                         }
 
+                        if let Some((range, at)) = self.heading_flash {
+                            let t = at.elapsed().as_secs_f32() / HEADING_FLASH_SECS;
+                            if t < 1.0 {
+                                let theme = self.edit.renderer.ctx.get_lb_theme();
+                                let color = theme.accent().gamma_multiply(0.3 * (1.0 - t));
+                                self.edit.show_range(ui, range, color);
+                                ui.ctx().request_repaint();
+                            } else {
+                                self.heading_flash = None;
+                            }
+                        }
+
                         if let Some(range) = self.edit.renderer.platform_marked {
                             let theme = self.edit.renderer.ctx.get_lb_theme();
                             let color = theme.accent().lerp_to_gamma(theme.neutral_bg(), 0.75);
@@ -1736,11 +2021,16 @@ impl Editor {
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);
+                self.show_outline(ui, root, canvas_rect);
                 ui.advance_cursor_after_rect(canvas_rect);
             });
 
         self.find
             .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
+
+        if let Some(slug) = self.edit.renderer.heading_copy.take() {
+            ui.ctx().copy_text(self.edit.heading_link(&slug));
+        }
 
         if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
             self.edit.pending_scroll = None;
@@ -1754,6 +2044,16 @@ impl Editor {
             if let Some(canvas_rect) = captured_canvas_rect {
                 self.scroll_to_preview(canvas_rect);
             }
+        }
+
+        if matches!(self.edit.pending_scroll, Some(ScrollTarget::Heading)) {
+            self.edit.pending_scroll = None;
+            if let Some(canvas_rect) = captured_canvas_rect {
+                self.scroll_to_heading(canvas_rect);
+            }
+        } else {
+            // another scroll took over before the landing's row was laid out
+            self.landing = None;
         }
     }
 
@@ -1843,6 +2143,143 @@ impl Editor {
             .reveal(&content, target_rect, Align::Center);
     }
 
+    /// Opens or closes the outline from native chrome: on touch, a sheet;
+    /// with a mouse, the card, remembered for every note.
+    pub fn toggle_outline(&mut self) {
+        if self.edit.renderer.touch_mode {
+            self.outline.toggle();
+        } else {
+            let open = self.persistence.get_sidecar_open();
+            self.persistence.set_sidecar_open(!open);
+        }
+    }
+
+    /// Whether the outline shows: the card or the sheet.
+    pub fn outline_open(&self) -> bool {
+        self.card.is_some_and(|c| c.open) || self.outline.is_open()
+    }
+
+    /// The outline, docked beside the text or opened over the note.
+    fn show_outline<'a>(&mut self, ui: &mut Ui, root: &'a AstNode<'a>, canvas: Rect) {
+        if std::mem::take(&mut self.edit.caret_moved) {
+            self.outline_follows_caret = true;
+        }
+        let r = &self.edit.renderer;
+        self.outline_offered = !r.plaintext && r.interactive && !self.in_preview;
+        if !self.outline_offered || self.card.is_none() && !self.outline.is_open() {
+            return;
+        }
+
+        // the caret's section while typing, else the one being read
+        let caret = r.buffer.current.selection.1;
+        let caret_shown = r.fragment_at_offset(caret).is_some_and(|f| {
+            !f.far && f.rect.bottom() > canvas.top() && f.rect.top() < canvas.bottom()
+        });
+        let mut typing = if r.touch_mode {
+            self.keyboard_visible
+        } else {
+            self.outline_follows_caret && caret_shown
+        };
+        if self.outline.is_opening() {
+            self.outline_from_typing = typing;
+            // the sheet stands where the keyboard is
+            if r.touch_mode && self.keyboard_visible {
+                crate::tab::ExtendedOutput::set_virtual_keyboard_shown(ui.ctx(), false);
+            }
+        }
+        if self.outline.is_open() {
+            typing = self.outline_from_typing;
+        }
+        let current = match typing {
+            true => self
+                .outline_rows(root)
+                .iter()
+                .rposition(|row| row.start <= caret),
+            false => self.scrolled_to_heading(root),
+        };
+        let (seq, rows) = self.outline_rows.take().unwrap_or_default();
+
+        let id = Id::unique("md_outline").with(self.edit.file_id);
+        let (version, linked) = self.linked_notes();
+        let (chosen, popup) = if self.edit.renderer.touch_mode {
+            self.outline
+                .show(ui.ctx(), id.with("sheet"), &rows, current, &linked)
+        } else {
+            let (chosen, rect, dismissed) = self.outline.card(
+                ui.ctx(),
+                id.with("card"),
+                self.card,
+                canvas,
+                &rows,
+                current,
+                &linked,
+            );
+            if dismissed {
+                self.persistence.set_sidecar_open(false);
+            }
+            (chosen, rect.filter(|_| self.card.is_some_and(|c| c.floating && c.open)))
+        };
+        self.linked = Some((version, linked));
+        self.outline_rows = Some((seq, rows));
+        if let Some(rect) = popup {
+            self.edit
+                .renderer
+                .touch_targets
+                .push((rect, TouchTarget::Popup));
+        }
+        match chosen {
+            Some(widget::outline::Choice::Heading(slug)) => {
+                self.open_at_heading(&slug);
+                // a reader who jumped didn't ask for the keyboard
+                if !self.edit.renderer.touch_mode || self.keyboard_visible {
+                    self.focus(ui.ctx());
+                }
+            }
+            Some(widget::outline::Choice::Note { id, span }) => {
+                use crate::tab::ExtendedOutput as _;
+                let new_tab = ui.input(|i| i.modifiers.command);
+                match span {
+                    Some(span) => ui.ctx().open_link_at(id, span, new_tab),
+                    None => ui.ctx().open_link(id, None, new_tab),
+                }
+            }
+            None => {}
+        }
+    }
+
+    /// The notes with links to this one, by path, each with its links here
+    /// in order, kept until the index changes.
+    fn linked_notes(&mut self) -> (u64, Vec<widget::outline::LinkedNote>) {
+        use crate::file_cache::FilesExt as _;
+        let files = self.edit.renderer.files.read().unwrap();
+        let version = files.notes.version();
+        if let Some((at, linked)) = self.linked.take() {
+            if at == version {
+                return (at, linked);
+            }
+        }
+        let mut linked: Vec<widget::outline::LinkedNote> = vec![];
+        for b in files.notes.backlinks(&*files, self.edit.file_id) {
+            let mention = widget::outline::Mention {
+                context: b.link.context,
+                label: b.link.label,
+                span: b.link.span,
+            };
+            match linked.last_mut() {
+                Some(note) if note.id == b.note => note.links.push(mention),
+                _ => {
+                    let name = files.get_by_id(b.note).map_or("", |f| f.name.as_str());
+                    linked.push(widget::outline::LinkedNote {
+                        id: b.note,
+                        title: crate::file_cache::wiki_title(name).to_string(),
+                        links: vec![mention],
+                    });
+                }
+            }
+        }
+        (version, linked)
+    }
+
     pub fn open_navigate(&mut self, byte_range: std::ops::Range<usize>) {
         let segs = &self.edit.renderer.buffer.current.segs;
         let last = segs.last_cursor_position();
@@ -1852,18 +2289,190 @@ impl Editor {
         let end = segs
             .byte_to_char_ceil(Byte(byte_range.end))
             .clamp(0.into(), last);
+        self.select_from_outside((start, end));
+        self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+    }
 
+    /// Lands on the text at `byte_range`, as on a heading: near the top of
+    /// the view, washed for a moment, any fold hiding it opened, and the
+    /// caret at its start except while reading on touch.
+    pub fn open_at_text(&mut self, byte_range: std::ops::Range<usize>) {
+        let segs = &self.edit.renderer.buffer.current.segs;
+        let last = segs.last_cursor_position();
+        let start = segs
+            .byte_to_char_floor(Byte(byte_range.start))
+            .clamp(0.into(), last);
+        let end = segs
+            .byte_to_char_ceil(Byte(byte_range.end))
+            .clamp(0.into(), last);
+        let arena = Arena::new();
+        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        let reading = self.edit.renderer.touch_mode && !self.keyboard_visible;
+        let prior = self.edit.renderer.buffer.current.selection;
+        self.select_from_outside((start, end));
+        if !self.edit.renderer.plaintext {
+            self.edit.unfold_at_selection(&arena);
+        }
+        // an unfold above the text moves it; the selection moved with it
+        let range = self.edit.renderer.buffer.current.selection;
+        let caret = if reading { prior } else { (range.0, range.0) };
+        self.select_from_outside(caret);
+        self.landing = Some(Landing::Heading(range));
+        self.heading_flash = Some((range, web_time::Instant::now()));
+    }
+
+    /// Lands on the heading `fragment` names: its line near the top of the
+    /// view, washed for a moment, any fold hiding it opened. The caret goes
+    /// after its text, except while reading on touch, where that would
+    /// reveal its markup. A fragment that names nothing lands at the top, as
+    /// a browser does.
+    pub fn open_at_heading(&mut self, fragment: &str) {
+        let arena = Arena::new();
+        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        let Some((mut start, mut caret)) = self.find_heading(&arena, fragment) else {
+            self.landing = Some(Landing::Top);
+            return;
+        };
+        let reading = self.edit.renderer.touch_mode && !self.keyboard_visible;
+        let prior = self.edit.renderer.buffer.current.selection;
+        self.select_from_outside((caret, caret));
+        if !self.edit.renderer.plaintext && self.edit.unfold_at_selection(&arena).text_updated {
+            // the fold's tag came out before the heading
+            if let Some(found) = self.find_heading(&arena, fragment) {
+                (start, caret) = found;
+                self.select_from_outside((caret, caret));
+            }
+        } else if reading {
+            self.select_from_outside(prior);
+        }
+        self.landing = Some(Landing::Heading((start, caret)));
+        self.heading_flash = Some(((start, caret), web_time::Instant::now()));
+    }
+
+    /// The heading `fragment` names: where its text starts (its markup may
+    /// be hidden, with nothing laid out to scroll to) and where it ends.
+    fn find_heading<'a>(
+        &mut self, arena: &'a Arena<'a>, fragment: &str,
+    ) -> Option<(Grapheme, Grapheme)> {
+        let root = self.edit.renderer.reparse(arena);
+        let (nodes, headings): (Vec<_>, Vec<_>) = fragment::headings_in(root).into_iter().unzip();
+        let node = nodes[fragment::find_heading(&headings, fragment)?];
+        Some(self.edit.renderer.heading_span(node))
+    }
+
+    fn select_from_outside(&mut self, selection: (Grapheme, Grapheme)) {
+        self.selection_moved = true;
         self.edit
             .renderer
             .buffer
-            .queue(vec![lb_rs::model::text::operation_types::Operation::Select((start, end))]);
+            .queue(vec![lb_rs::model::text::operation_types::Operation::Select(selection)]);
         self.edit.renderer.buffer.update();
         self.edit.renderer.reveal_seq = self
             .edit
             .renderer
             .ws_seq
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+    }
+
+    /// The heading scrolled to, by its index among the note's headings: the
+    /// last at or above the [`reading_line`]. Opening at any heading of a
+    /// note that scrolls makes it the one scrolled to.
+    pub(crate) fn scrolled_to_heading<'a>(&mut self, root: &'a AstNode<'a>) -> Option<usize> {
+        let spans: Vec<_> = self.outline_rows(root).iter().map(|row| row.span).collect();
+        let r = &self.edit.renderer;
+        let rows =
+            scroll_content::DocScrollContent::for_frame(r, root, self.painted_canvas.height());
+        let line = reading_line(&self.edit.scroll_area.state, &rows)?;
+        scrolled_heading(&line, spans.len(), |i| self.heading_point(&rows, spans[i]))
+    }
+
+    /// The note's headings as the outline lists them, kept until the text
+    /// changes.
+    fn outline_rows<'a>(&mut self, root: &'a AstNode<'a>) -> &[widget::outline::OutlineRow] {
+        let seq = self.edit.renderer.text_seq;
+        if self.outline_rows.as_ref().is_none_or(|(at, _)| *at != seq) {
+            let r = &self.edit.renderer;
+            let rows = fragment::headings_in(root)
+                .into_iter()
+                .map(|(node, h)| widget::outline::OutlineRow {
+                    level: h.level,
+                    text: h.text,
+                    slug: h.slug,
+                    start: r.node_range(node).0,
+                    span: r.heading_span(node),
+                })
+                .collect();
+            self.outline_rows = Some((seq, rows));
+        }
+        self.outline_rows.as_ref().map_or(&[], |(_, rows)| rows)
+    }
+
+    /// Where a heading's first line is in the note: its row, and the top of
+    /// what's drawn of `heading` (its text's start to its end) in it. Hidden
+    /// markup draws nothing, so the highest thing drawn over the range stands
+    /// for the line. A row laid out this frame draws only what's in view, so a
+    /// heading in it not drawn is above the view if text in view follows it,
+    /// else below. A row not laid out stands at its top: wholly above or
+    /// below the view, it's never the one the reading line is in.
+    fn heading_point(
+        &self, rows: &scroll_content::DocScrollContent<'_, '_>, heading: (Grapheme, Grapheme),
+    ) -> Option<DocOffset> {
+        use crate::widgets::affine_scroll::Rows as _;
+        let (start, end) = heading;
+        let row = rows.find_text_row(start)?;
+        let Some(&(_, row_top)) = self.painted_rows.iter().find(|(id, _)| *id == row) else {
+            return Some(Offset::new(row, 0.0));
+        };
+        let view = self.painted_canvas;
+        let drawn = || self.edit.renderer.fragments.iter();
+        let top = drawn()
+            .filter(|f| f.source_range.0 <= end && f.source_range.1 >= start)
+            .map(|f| f.rect.top())
+            .reduce(f32::min);
+        let in_view = |f: &&widget::utils::wrap_layout::Fragment| {
+            !f.far && f.rect.bottom() > view.top() && f.rect.top() < view.bottom()
+        };
+        let intra = match top {
+            Some(top) => top - view.min.y - row_top,
+            None if drawn().filter(in_view).any(|f| f.source_range.0 > end) => 0.0,
+            None => rows.precise(&row),
+        };
+        Some(Offset::new(row, intra))
+    }
+
+    /// The landing's line on the reading line, with room above it so it
+    /// clears the chrome. Its row is laid out this frame wherever it is; a
+    /// landing set after that waits a frame rather than scroll by estimate.
+    fn scroll_to_heading(&mut self, canvas_rect: Rect) {
+        let Some(landing) = self.landing else { return };
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        let content = scroll_content::DocScrollContent::for_frame(
+            &self.edit.renderer,
+            root,
+            canvas_rect.height(),
+        );
+        let target = match landing {
+            Landing::Top => Offset::at_top_of(scroll_content::DocRowId::Leading),
+            Landing::Heading(range) => {
+                let at = range.0;
+                let Some(row) = content.find_text_row(at) else {
+                    self.landing = None;
+                    return;
+                };
+                if !self.painted_rows.iter().any(|(id, _)| *id == row) {
+                    self.edit.pending_scroll = Some(ScrollTarget::Heading);
+                    self.edit.renderer.ctx.request_repaint();
+                    return;
+                }
+                let Some(point) = self.heading_point(&content, range) else { return };
+                heading_scroll(&self.edit.scroll_area.state, &content, point)
+            }
+        };
+        self.landing = None;
+        self.edit
+            .scroll_area
+            .reveal(&content, Reveal::point_at(target), Align::Top);
     }
 
     pub fn preview_navigate(&mut self, byte_range: Option<std::ops::Range<usize>>) {
@@ -1910,6 +2519,165 @@ impl Editor {
             .scroll_area
             .reveal(&content, target_rect, Align::Center);
     }
+}
+
+/// How long a heading landed on stays washed.
+const HEADING_FLASH_SECS: f32 = 0.9;
+
+/// The outline card's width, its gap from the text, and the narrowest text
+/// it docks beside; in narrower windows it floats over the text.
+const SIDECAR_W: f32 = 260.0;
+const SIDECAR_GAP: f32 = 24.0;
+const SIDECAR_MIN_TEXT: f32 = 560.0;
+
+/// Where a heading link lands.
+#[derive(Clone, Copy)]
+enum Landing {
+    /// The note's top, for a heading that isn't there.
+    Top,
+    /// Text from its start to its end: a heading's, or a link's.
+    Heading((Grapheme, Grapheme)),
+}
+
+impl Landing {
+    /// Where a heading landed on starts.
+    fn start(self) -> Option<Grapheme> {
+        match self {
+            Landing::Top => None,
+            Landing::Heading((at, _)) => Some(at),
+        }
+    }
+}
+
+/// Room above a landed heading. Android's status and app bars cover more
+/// of the page's top than its leading pad reserves, so it takes more.
+fn landing_room() -> f32 {
+    use crate::style::Space;
+    if cfg!(target_os = "android") { Space::Xl.pts() + Space::Md.pts() } else { Space::Lg.pts() }
+}
+
+type DocOffset = Offset<scroll_content::DocRowId>;
+
+/// Room above the reading line: the landing room, plus the bars an Android
+/// page runs under.
+fn reading_room(rows: &scroll_content::DocScrollContent<'_, '_>) -> f32 {
+    landing_room() + android_top_overlay(rows)
+}
+
+/// The reading line's slide over the last screen of scrolling, in a note
+/// that scrolls: `span` of scrolling before the bottom offset `max`, it
+/// walks down the view from `room` below its top to `tail`, where the note's
+/// last line rests at the bottom. It only walks down, so headings land in
+/// order.
+struct Slide {
+    max: DocOffset,
+    span: f32,
+    tail: f32,
+    room: f32,
+}
+
+impl Slide {
+    fn new(
+        state: &crate::widgets::affine_scroll::ScrollArea<scroll_content::DocRowId>,
+        rows: &scroll_content::DocScrollContent<'_, '_>, room: f32,
+    ) -> Option<Self> {
+        use crate::widgets::affine_scroll::Rows as _;
+        let screen = state.viewport_height;
+        let max = state.max_offset(rows)?;
+        let top = Offset::at_top_of(rows.first()?);
+        // the bound budgets the walk; a farther distance may still return
+        let range = state
+            .precise_distance(rows, &top, &max, screen)
+            .map_or(screen, |d| d.min(screen));
+        (range > 0.0).then_some(Self {
+            max,
+            span: range,
+            tail: (screen - rows.trailing_precise).max(room),
+            room,
+        })
+    }
+
+    /// How far below the view's top the line is, `r` short of the bottom.
+    fn line_y(&self, r: f32) -> f32 {
+        egui::lerp(self.room..=self.tail, 1.0 - (r / self.span).min(1.0))
+    }
+
+    /// The line's place relative to `max`, `r` short of the bottom. It
+    /// falls as `r` grows, so each place has one scroll.
+    fn line_from_max(&self, r: f32) -> f32 {
+        self.line_y(r) - r
+    }
+
+    /// How far short of the bottom the line's place is `t` relative to
+    /// `max`: [`Self::line_from_max`] inverted, within the slide.
+    fn short_of_bottom(&self, t: f32) -> f32 {
+        let pace = 1.0 + (self.tail - self.room) / self.span;
+        ((self.tail - t) / pace).clamp(0.0, self.span)
+    }
+}
+
+/// The reading line at the view's offset: `room` below its top, sliding over
+/// the last screen of scrolling down to the note's last line. A function of
+/// the rows, the offset, and the view's height alone; [`heading_scroll`] is
+/// its inverse, so a heading opened is the heading scrolled to.
+fn reading_line(
+    state: &crate::widgets::affine_scroll::ScrollArea<scroll_content::DocRowId>,
+    rows: &scroll_content::DocScrollContent<'_, '_>,
+) -> Option<DocOffset> {
+    use crate::widgets::affine_scroll::offset_by;
+    let room = reading_room(rows);
+    let off = state.offset(rows)?;
+    if let Some(slide) = Slide::new(state, rows, room) {
+        if let Some(r) = state
+            .precise_distance(rows, &off, &slide.max, slide.span)
+            .filter(|r| *r < slide.span)
+        {
+            let r = r.max(0.0);
+            return Some(offset_by(rows, slide.max.clone(), slide.line_from_max(r)));
+        }
+    }
+    Some(offset_by(rows, off, room))
+}
+
+/// The offset whose reading line falls on `target`: `room` above it, or
+/// near the end the scroll where the sliding line meets it.
+fn heading_scroll(
+    state: &crate::widgets::affine_scroll::ScrollArea<scroll_content::DocRowId>,
+    rows: &scroll_content::DocScrollContent<'_, '_>, target: DocOffset,
+) -> DocOffset {
+    use crate::widgets::affine_scroll::offset_by;
+    let room = reading_room(rows);
+    let above = offset_by(rows, target.clone(), -room);
+    let Some(slide) = Slide::new(state, rows, room) else { return above };
+    let Some(t) = state.precise_distance(rows, &slide.max, &target, state.viewport_height) else {
+        return above;
+    };
+    if t <= slide.line_from_max(slide.span) {
+        return above;
+    }
+    let r = slide.short_of_bottom(t);
+    offset_by(rows, slide.max, -r)
+}
+
+/// The heading scrolled to: the last of `count` headings whose line,
+/// `point(i)` in order down the note, is at or above the reading line `line`.
+fn scrolled_heading(
+    line: &DocOffset, count: usize, point: impl Fn(usize) -> Option<DocOffset>,
+) -> Option<usize> {
+    use scroll_content::DocRowId;
+    let order = |id: &DocRowId| match id {
+        DocRowId::Leading => 0,
+        DocRowId::Block(i) | DocRowId::Line(i) => i + 1,
+        DocRowId::Trailing => usize::MAX,
+    };
+    let at_or_above = |h: &DocOffset| match order(&h.anchor).cmp(&order(&line.anchor)) {
+        std::cmp::Ordering::Less => true,
+        std::cmp::Ordering::Equal => h.intra_precise <= line.intra_precise + 0.5,
+        std::cmp::Ordering::Greater => false,
+    };
+    let indices: Vec<usize> = (0..count).collect();
+    let above = indices.partition_point(|&i| point(i).is_some_and(|h| at_or_above(&h)));
+    above.checked_sub(1)
 }
 
 /// Build a [`Reveal`] spanning a Grapheme range — works for a single
@@ -2036,139 +2804,48 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    let (sans, mono, bold, italic, base_scale) = if cfg!(target_vendor = "apple") {
-        (
-            lb_fonts::SF_PRO_TEXT_REGULAR,
-            lb_fonts::SF_MONO_REGULAR,
-            lb_fonts::SF_PRO_TEXT_BOLD,
-            lb_fonts::SF_PRO_TEXT_ITALIC,
-            0.9,
-        )
-    } else {
-        (
-            lb_fonts::NOTO_SANS_REGULAR,
-            lb_fonts::NOTO_SANS_MONO_REGULAR,
-            lb_fonts::NOTO_SANS_BOLD,
-            lb_fonts::NOTO_SANS_ITALIC,
-            1.,
-        )
-    };
-
+    let text = crate::font::text_fonts();
+    let base_scale = text.scale;
     let mono_scale = 0.9 * base_scale;
     let mono_y_offset_factor = 0.1;
-    let mono_baseline_offset_factor = -0.1;
 
     let super_y_offset_factor = -1. / 4.;
     let sub_y_offset_factor = 1. / 4.;
     let super_scale = 3. / 4.;
     let sub_scale = 3. / 4.;
 
-    fonts.font_data.insert(
-        "sans".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(sans)
-        }
-        .into(),
-    );
-    fonts.font_data.insert("mono".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: mono_y_offset_factor,
-                scale: mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
-    fonts.font_data.insert(
-        "bold".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(bold)
-        }
-        .into(),
-    );
-    fonts.font_data.insert(
-        "italic".to_string(),
-        FontData {
-            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
-            ..FontData::from_static(italic)
-        }
-        .into(),
-    );
-
-    fonts.font_data.insert("sans_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor,
-                scale: super_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(sans)
-        }
-        .into()
-    });
-    fonts.font_data.insert("bold_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor,
-                scale: super_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(bold)
-        }
-        .into()
-    });
-    fonts.font_data.insert("mono_super".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: super_y_offset_factor + mono_y_offset_factor,
-                scale: super_scale * mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
-
-    fonts.font_data.insert("sans_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor,
-                scale: sub_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(sans)
-        }
-        .into()
-    });
-    fonts.font_data.insert("bold_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor,
-                scale: sub_scale * base_scale,
-                ..Default::default()
-            },
-            ..FontData::from_static(bold)
-        }
-        .into()
-    });
-    fonts.font_data.insert("mono_sub".into(), {
-        FontData {
-            tweak: FontTweak {
-                y_offset_factor: sub_y_offset_factor + mono_y_offset_factor,
-                scale: sub_scale * mono_scale,
-                baseline_offset_factor: mono_baseline_offset_factor,
-                ..Default::default()
-            },
-            ..FontData::from_static(mono)
-        }
-        .into()
-    });
+    let tweaked = |font: &FontData, scale: f32, y_offset_factor: f32| {
+        let mut font = font.clone();
+        font.tweak.scale = scale;
+        font.tweak.y_offset_factor = y_offset_factor;
+        Arc::new(font)
+    };
+    for (name, font, scale, y_offset_factor) in [
+        ("sans", &text.sans, base_scale, 0.),
+        ("bold", &text.bold, base_scale, 0.),
+        ("italic", &text.italic, base_scale, 0.),
+        ("mono", &text.mono, mono_scale, mono_y_offset_factor),
+        ("sans_super", &text.sans, super_scale * base_scale, super_y_offset_factor),
+        ("bold_super", &text.bold, super_scale * base_scale, super_y_offset_factor),
+        (
+            "mono_super",
+            &text.mono,
+            super_scale * mono_scale,
+            super_y_offset_factor + mono_y_offset_factor,
+        ),
+        ("sans_sub", &text.sans, sub_scale * base_scale, sub_y_offset_factor),
+        ("bold_sub", &text.bold, sub_scale * base_scale, sub_y_offset_factor),
+        (
+            "mono_sub",
+            &text.mono,
+            sub_scale * mono_scale,
+            sub_y_offset_factor + mono_y_offset_factor,
+        ),
+    ] {
+        fonts
+            .font_data
+            .insert(name.into(), tweaked(font, scale, y_offset_factor));
+    }
 
     fonts.font_data.insert("icons".into(), {
         FontData {
@@ -2243,6 +2920,8 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .unwrap()
             .push("phosphor".to_owned());
     }
+
+    crate::font::cjk::register_egui(fonts, base_scale);
 }
 
 /// Headless `Context` with the same fonts as production, including Phosphor.
@@ -2297,16 +2976,20 @@ mod test {
         fn enter_frame(&mut self) {
             let ctx = self.editor.edit.renderer.ctx.clone();
             let pending = std::mem::take(&mut self.pending);
-            let _ = ctx.run(RawInput::default(), |ctx| {
+            ctx.run_pass(RawInput::default(), |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
                 for event in &pending {
                     ctx.push_markdown_event(event.clone());
                 }
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.editor.show(ui);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        self.editor.show(ui);
+                    })
                 });
-            });
+            })
+            .textures_delta
+            .clear();
         }
 
         fn get_text(&self) -> &str {

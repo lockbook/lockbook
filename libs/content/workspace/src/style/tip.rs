@@ -62,16 +62,16 @@ pub fn tip_card_placed(
 fn note_tip_shown(ctx: &Context, host: Id) {
     let now = ctx.input(|i| i.time);
     ctx.data_mut(|d| {
-        d.insert_temp(Id::new(LAST_TIP_TIME), now);
-        d.insert_temp(Id::new(OPEN_TIP_HOST), host);
+        d.insert_temp(Id::unique(LAST_TIP_TIME), now);
+        d.insert_temp(Id::unique(OPEN_TIP_HOST), host);
     });
 }
 
 /// Kill chain so click-dismiss doesn’t reopen on the next micro-move.
 fn chill_tip_session(ctx: &Context) {
     ctx.data_mut(|d| {
-        d.insert_temp(Id::new(LAST_TIP_TIME), f64::NEG_INFINITY);
-        d.insert_temp(Id::new(OPEN_TIP_HOST), Id::NULL);
+        d.insert_temp(Id::unique(LAST_TIP_TIME), f64::NEG_INFINITY);
+        d.insert_temp(Id::unique(OPEN_TIP_HOST), Id::NULL);
     });
 }
 
@@ -90,7 +90,7 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
         return false;
     }
 
-    let style = ctx.style();
+    let style = ctx.global_style();
     let tooltip_delay = style.interaction.tooltip_delay;
     let tooltip_grace_time = style.interaction.tooltip_grace_time;
 
@@ -132,8 +132,8 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
     }
 
     let (last_shown, open_host) = ctx.data_mut(|d| {
-        let last = *d.get_temp_mut_or_insert_with(Id::new(LAST_TIP_TIME), || f64::NEG_INFINITY);
-        let host = d.get_temp::<Id>(Id::new(OPEN_TIP_HOST));
+        let last = *d.get_temp_mut_or_insert_with(Id::unique(LAST_TIP_TIME), || f64::NEG_INFINITY);
+        let host = d.get_temp::<Id>(Id::unique(OPEN_TIP_HOST));
         (last, host)
     });
 
@@ -171,8 +171,8 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
 
 fn end_open_if_host(ctx: &Context, host: Id) {
     ctx.data_mut(|d| {
-        if d.get_temp::<Id>(Id::new(OPEN_TIP_HOST)) == Some(host) {
-            d.insert_temp(Id::new(OPEN_TIP_HOST), Id::NULL);
+        if d.get_temp::<Id>(Id::unique(OPEN_TIP_HOST)) == Some(host) {
+            d.insert_temp(Id::unique(OPEN_TIP_HOST), Id::NULL);
         }
     });
 }
@@ -185,7 +185,7 @@ fn show_anchored_at(
     ctx: &Context, host_id: Id, host: egui::Rect, max_w: f32, add_contents: impl FnOnce(&mut Ui),
 ) {
     let t = ctx.get_lb_theme();
-    let screen = ctx.screen_rect();
+    let screen = ctx.content_rect();
     let prefer_below = screen.bottom() - host.bottom() >= 72.0;
     let gap = Space::Xs.pts();
 

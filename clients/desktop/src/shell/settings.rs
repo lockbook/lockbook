@@ -69,7 +69,7 @@ impl Default for SettingsLayoutReadout {
 }
 
 fn layout_readout_id() -> Id {
-    Id::new("shell_settings_layout_readout")
+    Id::unique("shell_settings_layout_readout")
 }
 
 /// Last frame’s settings geometry (headless tests read this after `show`).
@@ -94,12 +94,12 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
         _ => return,
     };
 
-    let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_settings"));
-    if sheet_dim(ctx, Id::new("shell_settings_dim"), layer) {
+    let layer = egui::LayerId::new(Order::Foreground, Id::unique("shell_settings"));
+    if sheet_dim(ctx, Id::unique("shell_settings_dim"), layer) {
         queue.push(A::CloseModal);
     }
 
-    let screen = ctx.screen_rect();
+    let screen = ctx.content_rect();
     let (settings_w, settings_h) = plate_size_for_screen(screen);
     let plate_origin = plate_origin_for_screen(screen, settings_w, settings_h);
 
@@ -114,7 +114,7 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
         first_nav: None,
     };
 
-    Area::new(Id::new("shell_settings"))
+    Area::new(Id::unique("shell_settings"))
         .order(Order::Foreground)
         // Pivot = top-left; we already did the center/clamp math.
         .fixed_pos(plate_origin)
@@ -264,7 +264,7 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
             ui.scope_builder(UiBuilder::new().max_rect(content_rect), |ui| {
                 ui.set_clip_rect(scroll_slot.intersect(ui.clip_rect()));
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-                let scroll_id = Id::new("settings_body_scroll");
+                let scroll_id = Id::unique("settings_body_scroll");
                 with_overlay_scroll(ui, scroll_id, |ui| {
                     // Parent owns body_h (plate geometry) — never available_height.
                     let scroll_h = scroll_slot.height().max(1.0);
@@ -302,7 +302,7 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
                                 }
                             });
                         });
-                    ((), out.state.offset.y, out.id)
+                    ((), out.state.clamped_offset().y, out.id)
                 });
             });
 
@@ -405,8 +405,8 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
         if form_toggle_detail(
             ui,
             t,
-            "Fetch link previews",
-            "Contacting linked sites reveals your IP and that you opened the note.",
+            "Load web images and link previews",
+            "Contacting a site reveals your IP and that you opened the note. While off, click an image to load it.",
             &mut previews,
         )
         .changed()
@@ -468,7 +468,7 @@ fn page_debug(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
         form_row(ui, t, "Debug info", |ui| {
             if Button::primary(t, "Copy")
                 .enabled(can_copy)
-                .copy_feedback("shell_copy_debug")
+                .copy_feedback(egui::Id::unique("shell_copy_debug"))
                 .show(ui)
                 .clicked()
             {
@@ -554,7 +554,7 @@ mod tests {
     use super::*;
     use crate::components::{ThemeExt, install};
     use crate::shell::ShellApp;
-    use egui::{Context, FullOutput, Pos2, RawInput, Vec2};
+    use egui::{Context, Pos2, RawInput, Vec2};
 
     fn layout_settings_at(screen_w: f32, screen_h: f32, cat: SettingsCat) -> SettingsLayoutReadout {
         let mut app = ShellApp { modal: Some(Modal::Settings { cat }), ..Default::default() };
@@ -564,15 +564,19 @@ mod tests {
             ..Default::default()
         };
         // Fonts bind after the frame that calls set_fonts (Phosphor nav icons).
-        let FullOutput { .. } = ctx.run(input.clone(), |ctx| {
+        ctx.run_pass(input.clone(), |ctx| {
             install(ctx);
-        });
-        let FullOutput { .. } = ctx.run(input, |ctx| {
+        })
+        .textures_delta
+        .clear();
+        ctx.run_pass(input, |ctx| {
             install(ctx);
             let t = ctx.get_lb_theme();
             let mut queue = Vec::new();
             show(&mut app, ctx, &t, &mut queue);
-        });
+        })
+        .textures_delta
+        .clear();
         take_layout_readout(&ctx).expect("settings should publish layout readout")
     }
 

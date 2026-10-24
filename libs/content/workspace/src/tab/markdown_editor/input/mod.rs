@@ -9,6 +9,8 @@ use egui::Pos2;
 
 use lb_rs::model::text::offset_types::Grapheme;
 
+use super::table::{Grid, TableAction};
+
 /*
  * This module processes input events, with the following major concerns:
  * * Plumbing: combining programmatic and UI input, delegating to appropriate handlers
@@ -103,6 +105,8 @@ pub enum Event {
     Redo,
     Cut,
     Copy,
+    CopyRendered, // the selection as drawn, as plain text and HTML
+    CopyCode { node: (Grapheme, Grapheme) }, // the code of the code block whose range this is
     ToggleDebug,
     IncrementBaseFontSize,
     DecrementBaseFontSize,
@@ -111,6 +115,24 @@ pub enum Event {
     EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
     ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
     OpenLink { url: String, wikilink: bool }, // navigate, on the platform
+    LoadImage { url: String }, // show an image that waited past the note's scope
+    Table(TableAction), // a structure edit of the table at the selection, or a new table there
+    PasteGrid(Grid), // rows of cells pasted: into the table at the selection, or as a new table there
+    Gesture(Gesture), // a native pan the host finished interpreting; applies even when readonly
+}
+
+/// Finger travel in points, already converted to the editor's units by the host.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Gesture {
+    Scroll { dy: f32 },
+    Fling { vy: f32 },
+    Crawl { dy: f32 },
+    ScrollbarBegin,
+    ScrollbarDrag { dy: f32 },
+    RowPan { dx: f32 },
+    RowPanEnd { vx: f32 },
+    ReorderMove { pos: Pos2 },
+    ReorderEnd { pos: Pos2, cancelled: bool },
 }
 
 impl From<(Grapheme, Grapheme)> for Region {

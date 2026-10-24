@@ -1,25 +1,20 @@
 use basic_human_duration::ChronoHumanDuration;
 use egui::os::OperatingSystem;
-use egui::{
-    Align2, DragAndDrop, Galley, Id, Key, LayerId, Modifiers, Order, Rangef, Rect, RichText, Sense,
-    TextWrapMode, UiBuilder, ViewportCommand, vec2,
-};
+use egui::{Key, Modifiers, ViewportCommand};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::mem;
 use std::sync::{Arc, Mutex};
 use web_time::{Duration, Instant};
 
-use crate::file_cache::{FilesExt as _, link_id};
+use crate::file_cache::{FilesExt as _, link_id, split_fragment};
 use crate::output::Response;
 use crate::search::SearchType;
-use crate::tab::{ExtendedOutput as _, TabStatus, image_viewer};
-use crate::theme::icons::Icon;
+use crate::tab::{ExtendedInput as _, ExtendedOutput as _, image_viewer};
 use crate::theme::palette_v2::ThemeExt;
 use crate::theme::visuals;
+use crate::widgets::GlyphonLabel;
 use crate::widgets::glyphon_cache::GlyphonCache;
-use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 use lb_rs::Uuid;
 
@@ -44,7 +39,7 @@ impl Workspace {
             self.tabs.promote(&slot.id);
         }
 
-        if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
+        if self.ctx.input(|inp| !inp.raw.events.is_empty()) || self.ctx.has_events() {
             self.core.app_foregrounded();
         }
 
@@ -56,7 +51,7 @@ impl Workspace {
         self.process_task_updates();
         self.process_keys();
         self.process_clip_events();
-        self.apply_pending_open_range();
+        self.apply_pending_reveal();
 
         self.set_user_present();
 
@@ -65,9 +60,16 @@ impl Workspace {
 
             self.landing_page_first_frame = false;
         } else {
-            ui.centered_and_justified(|ui| self.show_tabs(ui));
+            ui.centered_and_justified(|ui| self.show_open_tab(ui));
             self.landing_page_first_frame = true;
         }
+        // A gesture no editor took this frame is not owed to the next one.
+        self.ctx.pop_events_where(&mut |e| {
+            matches!(
+                e,
+                crate::tab::Event::Markdown(crate::tab::markdown_editor::input::Event::Gesture(_))
+            )
+        });
         self.update_window_title();
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg
@@ -115,30 +117,26 @@ impl Workspace {
         if let Some(last_touch_event) = self.last_touch_event {
             if Instant::now() - last_touch_event > Duration::from_secs(5) {
                 self.ctx
-                    .style_mut(|style| style.interaction.tooltip_delay = 0.0);
+                    .global_style_mut(|style| style.interaction.tooltip_delay = 0.0);
                 self.last_touch_event = None;
             } else {
                 self.ctx
-                    .style_mut(|style| style.interaction.tooltip_delay = f32::MAX);
+                    .global_style_mut(|style| style.interaction.tooltip_delay = f32::MAX);
             }
         }
     }
 
-    fn show_tabs(&mut self, ui: &mut egui::Ui) {
+    fn show_open_tab(&mut self, ui: &mut egui::Ui) {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
-            if self.current_tab().is_some() && self.show_tabs {
-                self.show_tab_strip(ui);
-            }
-
             ui.centered_and_justified(|ui| {
                 self.show_current_tab_content(ui);
 
                 // Links in notes open through their resolver; this catches the
                 // rest. An id link to a file here opens in the app, and `lb:`
                 // never reaches the OS.
-                let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
+                let mut open_ids: Vec<(Uuid, Option<String>, bool)> = Vec::new();
                 let files = Arc::clone(&self.files);
                 let files = files.read().unwrap();
                 ui.ctx().output_mut(|w| {
@@ -146,7 +144,8 @@ impl Workspace {
                         let egui::OutputCommand::OpenUrl(url) = c else { return true };
                         match link_id(&url.url) {
                             Some(id) if files.get_by_id(id).is_some_and(|f| f.is_document()) => {
-                                open_ids.push((id, url.new_tab));
+                                let heading = split_fragment(&url.url).1.map(String::from);
+                                open_ids.push((id, heading, url.new_tab));
                                 false
                             }
                             _ => !url.url.to_ascii_lowercase().starts_with("lb:"),
@@ -154,19 +153,11 @@ impl Workspace {
                     });
                 });
                 drop(files);
-                for (id, new_tab) in open_ids {
-                    if new_tab {
-                        self.open_file(id, true, true);
-                    } else {
-                        self.navigate_to(crate::tab::Destination::File(id));
-                    }
+                for (id, heading, new_tab) in open_ids {
+                    self.open_link(id, heading, new_tab);
                 }
-                for (id, new_tab) in ui.ctx().pop_open_files() {
-                    if new_tab {
-                        self.open_file(id, true, true);
-                    } else {
-                        self.navigate_to(crate::tab::Destination::File(id));
-                    }
+                for (id, heading, new_tab) in ui.ctx().pop_open_files() {
+                    self.open_link(id, heading, new_tab);
                 }
                 for (id, range, new_tab) in ui.ctx().pop_open_ranges() {
                     if new_tab {
@@ -174,6 +165,12 @@ impl Workspace {
                     } else {
                         self.navigate_to_range(id, range);
                     }
+                }
+                for (id, range, new_tab) in ui.ctx().pop_link_ats() {
+                    self.open_link_at(id, range, new_tab);
+                }
+                for (parent, names) in ui.ctx().pop_create_notes() {
+                    self.create_note_at(parent, &names);
                 }
                 let sheets = ui.ctx().pop_link_sheets();
                 if !sheets.is_empty() && self.link_sheets.is_empty() {
@@ -217,11 +214,7 @@ impl Workspace {
         let Some(sheet) = self.link_sheets.front().cloned() else { return };
         let (open, close) = link_sheet_modal(ctx, &sheet, self.link_sheet_keys);
         if let Some((id, new_tab)) = sheet.open.filter(|_| open) {
-            if new_tab {
-                self.open_file(id, true, true);
-            } else {
-                self.navigate_to(crate::tab::Destination::File(id));
-            }
+            self.open_link(id, sheet.heading.clone(), new_tab);
         }
         if close {
             self.link_sheets.pop_front();
@@ -238,14 +231,24 @@ impl Workspace {
             return;
         }
 
-        let show_tabs = self.show_tabs;
-        if let Some(tab) = self.current_tab_mut() {
-            // entering/leaving iPad split view toggles this while a doc is open
+        let software_keyboard = self.software_keyboard_in_use;
+        // iOS sets the tab policy from the size class and Android never does; compact
+        // has no room for a page sidebar
+        let compact = !self.desktop_tab_policy;
+        let session = self.current_tab;
+        if let Some(tab) = session.and_then(|sid| self.tabs.get_mut(&sid)) {
+            if let Some(pdf) = tab.pdf_mut() {
+                pdf.compact = compact;
+            }
+            // attaching or detaching a hardware keyboard toggles this while a doc is open
             if let Some(md) = tab.markdown_mut() {
-                md.edit.phone_mode = md.edit.renderer.touch_mode && !show_tabs;
+                md.edit.phone_mode = md.edit.renderer.touch_mode && software_keyboard;
             }
 
-            let resp = tab.show(ui);
+            let resp = self.open_guard.show(tab, |tab| tab.show(ui));
+            if let Some(id) = resp.open_anyway {
+                self.open_anyway(id, session);
+            }
 
             self.out.open_camera = resp.open_camera;
             if resp.text_updated {
@@ -257,177 +260,13 @@ impl Workspace {
             }
             self.out.text_interaction_rect = resp.text_interaction_rect;
             self.out.mobile_toolbar_shown = resp.mobile_toolbar_shown;
+            self.out.caret_covered = resp.caret_covered;
             if resp.scroll_updated {
                 self.out.markdown_editor_scroll_updated = true;
             }
             if let Some(file) = resp.open_file {
                 self.navigate_to(crate::tab::Destination::File(file));
             }
-        }
-    }
-
-    fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
-        let active_tab_changed = self.current_tab_changed;
-        self.current_tab_changed = false;
-
-        let mut back = false;
-        let mut forward = false;
-
-        let cursor = ui
-            .horizontal(|ui| {
-                egui::Frame::default()
-                    .fill(ui.ctx().style().visuals.panel_fill)
-                    .show(ui, |ui| {
-                        if self.tab_strip_min_height > 0.0 {
-                            ui.set_min_height(self.tab_strip_min_height);
-                        }
-                        if self.tab_strip_left_inset > 0.0 {
-                            ui.add_space(self.tab_strip_left_inset);
-                        }
-                        if IconButton::new(Icon::ARROW_LEFT)
-                            .disabled(
-                                self.current_slot_index()
-                                    .and_then(|i| self.tab_strip.get(i))
-                                    .map(|s| s.back.is_empty())
-                                    .unwrap_or(true),
-                            )
-                            .size(37.)
-                            .tooltip("Go Back")
-                            .show(ui)
-                            .clicked()
-                        {
-                            back = true;
-                        }
-                        if IconButton::new(Icon::ARROW_RIGHT)
-                            .disabled(
-                                self.current_slot_index()
-                                    .and_then(|i| self.tab_strip.get(i))
-                                    .map(|s| s.forward.is_empty())
-                                    .unwrap_or(true),
-                            )
-                            .size(37.)
-                            .tooltip("Go Forward")
-                            .show(ui)
-                            .clicked()
-                        {
-                            forward = true;
-                        }
-
-                        egui::ScrollArea::horizontal()
-                            .max_width(ui.available_width())
-                            .show(ui, |ui| {
-                                let mut responses = HashMap::new();
-                                for i in 0..self.tab_strip.len() {
-                                    let is_current = self.current_tab == Some(self.tab_strip[i].id);
-                                    if let Some(resp) =
-                                        self.tab_label(ui, i, is_current, active_tab_changed)
-                                    {
-                                        responses.insert(i, resp);
-                                    }
-                                }
-
-                                // handle responses after showing all tabs because closing a tab invalidates tab indexes
-                                for (i, resp) in responses {
-                                    let dest = self.tab_strip.get(i).map(|s| s.dest.clone());
-                                    let tab_id = self.tab_strip.get(i).map(|s| s.id);
-                                    match resp {
-                                        TabLabelResponse::Clicked => {
-                                            let Some(tab_id) = tab_id else { continue };
-                                            let is_current = self.current_tab == Some(tab_id);
-                                            if is_current {
-                                                self.out.tab_title_clicked = true;
-                                                let tab = self.tabs.get(&tab_id).unwrap();
-                                                let active_name = self.tab_title(tab);
-                                                self.begin_tab_rename(tab_id, active_name);
-                                            } else {
-                                                self.clear_tab_rename(tab_id);
-                                                self.make_current(i);
-                                            }
-                                        }
-                                        TabLabelResponse::Closed => {
-                                            self.close_tab(i);
-                                        }
-                                        TabLabelResponse::CloseOthers => {
-                                            self.close_other_tabs(i);
-                                        }
-                                        TabLabelResponse::CloseToLeft => {
-                                            self.close_tabs_to_left(i);
-                                        }
-                                        TabLabelResponse::CloseToRight => {
-                                            self.close_tabs_to_right(i);
-                                        }
-                                        TabLabelResponse::CloseAll => {
-                                            self.close_all_tabs();
-                                        }
-                                        TabLabelResponse::Rename => {
-                                            let Some(tab_id) = tab_id else { continue };
-                                            if let Some(tab) = self.tabs.get(&tab_id) {
-                                                let name = self.tab_title(tab);
-                                                self.begin_tab_rename(tab_id, name);
-                                                self.out.tab_title_clicked = true;
-                                            }
-                                        }
-                                        TabLabelResponse::ReopenClosed => {
-                                            self.reopen_closed_tab();
-                                            self.out.selected_file = self.current_tab_id();
-                                        }
-                                        TabLabelResponse::Renamed(name) => {
-                                            let Some(dest) = dest else { continue };
-                                            if let Some(tab_id) = tab_id {
-                                                self.clear_tab_rename(tab_id);
-                                            }
-                                            let id = dest.id();
-                                            self.rename_file((id, name.clone()), true);
-                                        }
-                                        TabLabelResponse::Reordered { src, mut dst } => {
-                                            let current = self.current_tab;
-
-                                            let d = self.tab_strip.remove(src);
-                                            if src < dst {
-                                                dst -= 1;
-                                            }
-                                            self.tab_strip.insert(dst, d);
-
-                                            if let Some(id) = current {
-                                                if let Some(idx) =
-                                                    self.tab_strip.iter().position(|s| s.id == id)
-                                                {
-                                                    self.make_current(idx);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    ui.ctx().request_repaint();
-                                }
-                            });
-                        ui.cursor()
-                    })
-                    .inner
-            })
-            .inner;
-
-        ui.style_mut().animation_time = 2.0;
-
-        let end_of_tabs = cursor.min.x;
-        let available_width = ui.available_width();
-        let remaining_rect = Rect::from_x_y_ranges(
-            Rangef { min: end_of_tabs, max: end_of_tabs + available_width },
-            cursor.y_range(),
-        );
-        let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-        let theme = self.ctx.get_lb_theme();
-
-        let bg_color = theme.neutral_bg_secondary();
-        ui.painter().rect_filled(remaining_rect, 0.0, bg_color);
-
-        ui.painter()
-            .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
-
-        if back {
-            self.back();
-        }
-        if forward {
-            self.forward();
         }
     }
 
@@ -653,436 +492,6 @@ impl Workspace {
             self.forward();
         }
     }
-
-    fn tab_label(
-        &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
-    ) -> Option<TabLabelResponse> {
-        let dest = self.tab_strip[t].dest.clone();
-        let tab_id = self.tab_strip[t].id;
-        let mut result = None;
-        let icon_size = 15.0;
-        let x_icon = Icon::CLOSE.size(icon_size);
-        let status = self.tab_status(t);
-
-        ui.style_mut()
-            .text_styles
-            .insert(egui::TextStyle::Body, egui::FontId::new(14.0, egui::FontFamily::Proportional));
-
-        let tab_bg = if is_active {
-            self.ctx.get_lb_theme().neutral_bg()
-        } else {
-            self.ctx.get_lb_theme().neutral_bg_secondary()
-        };
-
-        let tab_text_height = 20.0;
-        let tab_padding = if self.tab_strip_min_height > tab_text_height + 20.0 {
-            let v = ((self.tab_strip_min_height - tab_text_height) / 2.0).round() as i8;
-            egui::Margin { left: 10, right: 10, top: v, bottom: v }
-        } else {
-            egui::Margin::symmetric(10, 10)
-        };
-
-        let rename_id = egui::Id::new("rename_tab").with(t);
-        let mut rename_submitted = false;
-        if let Some(tab) = self.tabs.get_mut(&tab_id) {
-            if let Some(ref mut str) = tab.rename {
-                rename_submitted = GlyphonTextEdit::process_events(ui, rename_id, str);
-            }
-        }
-        let rename_text_for_sizing = self
-            .tabs
-            .get(&tab_id)
-            .and_then(|t| t.rename.clone())
-            .unwrap_or_default();
-        let is_renaming = self.tabs.get(&tab_id).is_some_and(|t| t.rename.is_some());
-        let tab_label = egui::Frame::default()
-            .fill(tab_bg)
-            .inner_margin(tab_padding)
-            .show(ui, |ui| {
-                ui.scope_builder(UiBuilder::new(), |ui| {
-                    let start = ui.available_rect_before_wrap().min;
-
-                    // create galleys - text layout
-
-                    // tab label - the actual file name
-                    let tab_font_size = 14.0;
-                    let tab_line_height = 20.0;
-                    let tab_max_width = 200.0;
-                    let raw_title = self
-                        .tabs
-                        .get(&tab_id)
-                        .map(|tab| self.tab_title(tab))
-                        .unwrap_or_else(|| "Unknown".into());
-                    let title = DocType::from_name(&raw_title)
-                        .display_name(&raw_title)
-                        .to_string();
-                    let text_width = GlyphonLabel::new(&title, egui::Color32::default())
-                        .font_size(tab_font_size)
-                        .line_height(tab_line_height)
-                        .max_width(tab_max_width)
-                        .measure(ui)
-                        .x;
-                    let text_size = if is_renaming {
-                        let rw =
-                            GlyphonLabel::new(&rename_text_for_sizing, egui::Color32::default())
-                                .font_size(tab_font_size)
-                                .line_height(tab_line_height)
-                                .measure(ui)
-                                .x;
-                        egui::vec2(rw, tab_line_height)
-                    } else {
-                        egui::vec2(text_width, tab_line_height)
-                    };
-
-                    // tab marker - tab status / tab number
-                    let tab_marker = if status == TabStatus::Clean {
-                        (t + 1).to_string()
-                    } else {
-                        "*".to_string()
-                    };
-                    let tab_marker: egui::WidgetText = egui::RichText::new(tab_marker)
-                        .font(egui::FontId::monospace(12.0))
-                        .color(if status == TabStatus::Clean {
-                            ui.style().visuals.weak_text_color()
-                        } else {
-                            ui.style().visuals.warn_fg_color
-                        })
-                        .into();
-                    let tab_marker = tab_marker.into_galley(
-                        ui,
-                        Some(TextWrapMode::Extend),
-                        f32::INFINITY,
-                        egui::TextStyle::Body,
-                    );
-
-                    // close button - the x
-                    let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
-                        .font(egui::FontId::monospace(10.))
-                        .into();
-                    let close_button = close_button.into_galley(
-                        ui,
-                        Some(TextWrapMode::Extend),
-                        f32::INFINITY,
-                        egui::TextStyle::Body,
-                    );
-
-                    // create rects - place these relative to one another
-                    let marker_rect = centered_galley_rect(&tab_marker);
-                    let marker_rect = Align2::LEFT_TOP.anchor_size(
-                        start + egui::vec2(0.0, text_size.y / 2.0 - marker_rect.height() / 2.0),
-                        marker_rect.size(),
-                    );
-
-                    let text_rect = egui::Align2::LEFT_TOP.anchor_size(
-                        start + egui::vec2(tab_marker.rect.width() + 7.0, 0.0),
-                        text_size,
-                    );
-
-                    let close_button_rect = centered_galley_rect(&close_button);
-                    let close_button_rect = egui::Align2::LEFT_TOP.anchor_size(
-                        text_rect.right_top()
-                            + vec2(5.0, (text_size.y - close_button_rect.height()) / 2.0),
-                        close_button_rect.size(),
-                    );
-
-                    // tab label rect represents the whole tab label
-                    let left_top = start - tab_padding.left_top();
-                    let right_bottom =
-                        close_button_rect.right_bottom() + tab_padding.right_bottom();
-                    let tab_label_rect = Rect::from_min_max(left_top, right_bottom);
-
-                    // render & process input
-                    let touch_mode =
-                        matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-
-                    ui.painter().galley(
-                        marker_rect.left_top(),
-                        tab_marker.clone(),
-                        ui.visuals().text_color(),
-                    );
-
-                    let tab_label_resp = ui.interact(
-                        tab_label_rect,
-                        Id::new("tab label").with(t),
-                        Sense::click_and_drag(),
-                    );
-
-                    // Close gets its own interact *after* the tab-wide one so
-                    // it wins hit-testing. The old path (tab click + point-in-
-                    // rect) failed while the rename field held focus.
-                    let close_button_interact_rect =
-                        close_button_rect.expand(if touch_mode { 4. } else { 2. });
-                    let close_resp = ui.interact(
-                        close_button_interact_rect,
-                        Id::new("tab close").with(t),
-                        Sense::click(),
-                    );
-
-                    let close_button_hovered = close_resp.hovered();
-                    let close_button_clicked =
-                        close_resp.clicked() || tab_label_resp.middle_clicked();
-
-                    let text_color = if is_active {
-                        ui.visuals().text_color()
-                    } else {
-                        ui.visuals()
-                            .widgets
-                            .noninteractive
-                            .fg_stroke
-                            .color
-                            .linear_multiply(0.8)
-                    };
-
-                    if is_renaming {
-                        let mut clear_rename = false;
-                        if let Some(tab) = self.tabs.get_mut(&tab_id) {
-                            if let Some(ref mut str) = tab.rename {
-                                let stem_end = str.rfind('.').unwrap_or(str.len());
-                                let res = ui.put(
-                                    text_rect,
-                                    GlyphonTextEdit::new(str)
-                                        .id(rename_id)
-                                        .font_size(14.0)
-                                        .select_on_focus(0, stem_end),
-                                );
-
-                                // Keep focus while editing, but not while the user
-                                // is on the close control (or we re-steal focus and
-                                // the close click is lost).
-                                let on_close = close_resp.hovered()
-                                    || close_resp.is_pointer_button_down_on()
-                                    || close_button_clicked;
-                                if !res.has_focus() && !res.lost_focus() && !on_close {
-                                    ui.memory_mut(|m| m.request_focus(res.id));
-                                }
-
-                                if rename_submitted {
-                                    result = Some(TabLabelResponse::Renamed(str.to_owned()));
-                                }
-
-                                if res.lost_focus() && !close_button_clicked {
-                                    clear_rename = true;
-                                }
-                            }
-                        }
-                        if clear_rename {
-                            self.clear_tab_rename(tab_id);
-                        }
-                    } else {
-                        ui.put(
-                            text_rect,
-                            GlyphonLabel::new(&title, text_color)
-                                .font_size(tab_font_size)
-                                .line_height(tab_line_height)
-                                .max_width(tab_max_width),
-                        );
-                    }
-
-                    if close_button_clicked {
-                        if is_renaming {
-                            ui.memory_mut(|m| m.surrender_focus(rename_id));
-                            self.clear_tab_rename(tab_id);
-                        }
-                        result = Some(TabLabelResponse::Closed);
-                    }
-                    if close_button_hovered {
-                        ui.painter().rect(
-                            close_button_interact_rect,
-                            2.0,
-                            ui.visuals().code_bg_color,
-                            egui::Stroke::NONE,
-                            egui::epaint::StrokeKind::Inside,
-                        );
-                    }
-
-                    let show_close_button =
-                        touch_mode || tab_label_resp.hovered() || close_resp.hovered() || is_active;
-                    if show_close_button {
-                        ui.painter().galley(
-                            close_button_rect.min,
-                            close_button,
-                            ui.visuals().text_color(),
-                        );
-                    }
-                    // Tab body click (not the X). While renaming, ignore so we
-                    // don't re-enter rename or fight the text field.
-                    if tab_label_resp.clicked() && !close_button_clicked && !is_renaming {
-                        result = Some(TabLabelResponse::Clicked);
-                    }
-                    let tab_count = self.tab_strip.len();
-                    let can_rename = matches!(dest, crate::tab::Destination::File(_));
-                    let can_reopen = self.can_reopen_closed_tab();
-                    tab_label_resp.context_menu(|ui| {
-                        if ui.button("Close").clicked() {
-                            result = Some(TabLabelResponse::Closed);
-                            ui.close();
-                        }
-
-                        ui.add_enabled_ui(tab_count >= 2, |ui| {
-                            if ui.button("Close Others").clicked() {
-                                result = Some(TabLabelResponse::CloseOthers);
-                                ui.close();
-                            }
-                        });
-
-                        ui.add_enabled_ui(t > 0, |ui| {
-                            if ui.button("Close to the Left").clicked() {
-                                result = Some(TabLabelResponse::CloseToLeft);
-                                ui.close();
-                            }
-                        });
-
-                        ui.add_enabled_ui(t + 1 < tab_count, |ui| {
-                            if ui.button("Close to the Right").clicked() {
-                                result = Some(TabLabelResponse::CloseToRight);
-                                ui.close();
-                            }
-                        });
-
-                        if ui.button("Close All").clicked() {
-                            result = Some(TabLabelResponse::CloseAll);
-                            ui.close();
-                        }
-
-                        ui.separator();
-
-                        ui.add_enabled_ui(can_rename, |ui| {
-                            if ui.button("Rename").clicked() {
-                                result = Some(TabLabelResponse::Rename);
-                                ui.close();
-                            }
-                        });
-
-                        ui.add_enabled_ui(can_reopen, |ui| {
-                            if ui.button("Reopen Closed Tab").clicked() {
-                                result = Some(TabLabelResponse::ReopenClosed);
-                                ui.close();
-                            }
-                        });
-                    });
-
-                    ui.advance_cursor_after_rect(text_rect.union(close_button_rect));
-
-                    // drag 'n' drop
-                    {
-                        // when drag starts, dragged tab sets dnd payload
-                        if tab_label_resp.dragged() && !DragAndDrop::has_any_payload(ui.ctx()) {
-                            DragAndDrop::set_payload(ui.ctx(), t);
-                        }
-
-                        if let (Some(pointer), true) = (
-                            ui.input(|i| i.pointer.interact_pos()),
-                            DragAndDrop::has_any_payload(ui.ctx()),
-                        ) {
-                            let contains_pointer = tab_label_rect.contains(pointer);
-                            if contains_pointer {
-                                // during drag, drop target renders indicator
-                                let drop_left_side = pointer.x < tab_label_rect.center().x;
-                                let stroke = ui.style().visuals.widgets.active.fg_stroke;
-                                let x = if drop_left_side {
-                                    tab_label_rect.min.x
-                                } else {
-                                    tab_label_rect.max.x
-                                };
-                                let y_range = tab_label_rect.y_range();
-
-                                ui.scope_builder(
-                                    UiBuilder::new().layer_id(LayerId::new(
-                                        Order::Foreground,
-                                        Id::from("tab_reorder_drop_indicator"),
-                                    )),
-                                    |ui| {
-                                        ui.painter().vline(x, y_range, stroke);
-                                    },
-                                );
-
-                                // when drag ends, dropped-on tab consumes dnd payload
-                                if let Some(drag_index) =
-                                    tab_label_resp.dnd_release_payload::<usize>()
-                                {
-                                    let drop_index = if drop_left_side { t } else { t + 1 };
-                                    result = Some(TabLabelResponse::Reordered {
-                                        src: *drag_index,
-                                        dst: drop_index,
-                                    });
-                                }
-                            }
-                        }
-                    }
-
-                    Rect::from_min_max(
-                        text_rect.min,
-                        egui::pos2(close_button_rect.min.x - 5.0, text_rect.max.y),
-                    )
-                })
-            });
-
-        if is_active && active_tab_changed {
-            tab_label.response.scroll_to_me(None);
-        }
-
-        if !is_active && tab_label.response.hovered() {
-            // this logic probably needs to be brought to the icon forwad and back buttons
-            ui.painter().rect_filled(
-                tab_label.response.rect,
-                0.0,
-                egui::Color32::WHITE.linear_multiply(0.002),
-            );
-        }
-
-        // draw separators
-        let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-        if !is_active {
-            ui.painter().hline(
-                tab_label.response.rect.x_range(),
-                tab_label.response.rect.max.y,
-                sep_stroke,
-            );
-        }
-        ui.painter().vline(
-            tab_label.response.rect.max.x,
-            tab_label.response.rect.y_range(),
-            sep_stroke,
-        );
-
-        let last_saved_str = self
-            .tabs
-            .get(&tab_id)
-            .map(|tab| tab.last_saved.elapsed_human_string())
-            .unwrap_or_else(|| "unknown".to_string());
-        let status_summary = self.tab_status(t).summary();
-        tab_label.response.on_hover_ui(|ui| {
-            ui.label(RichText::from(status_summary).size(15.0));
-            ui.label(RichText::from(format!("last saved {last_saved_str}")).size(12.0));
-            ui.ctx().request_repaint_after_secs(1.0);
-        });
-
-        result
-    }
-}
-
-/// egui, when rendering a single monospace symbol character doesn't seem to be able to center a character vertically
-/// this fn takes into account where the text was positioned within the galley and computes a size using mesh_bounds
-/// and retruns a rect with uniform padding.
-fn centered_galley_rect(galley: &Galley) -> Rect {
-    let min = galley.rect.min;
-    let offset = galley.rect.min - galley.mesh_bounds.min;
-    let max = galley.mesh_bounds.max - offset;
-
-    Rect { min, max }
-}
-
-enum TabLabelResponse {
-    Clicked,
-    Closed,
-    CloseOthers,
-    CloseToLeft,
-    CloseToRight,
-    CloseAll,
-    Rename,
-    ReopenClosed,
-    Renamed(String),
-    Reordered { src: usize, dst: usize },
 }
 
 // The only difference from count_and_consume_key is that here we use matches_exact instead of matches_logical,
@@ -1216,19 +625,6 @@ impl DocType {
         }
     }
 
-    pub fn to_icon(&self) -> Icon {
-        match self {
-            DocType::Markdown => Icon::DOC_MD,
-            DocType::PlainText => Icon::DOC_TEXT,
-            DocType::SVG => Icon::DRAW,
-            DocType::Image => Icon::IMAGE,
-            DocType::Code => Icon::CODE,
-            DocType::PDF => Icon::DOC_PDF,
-            DocType::Chat => Icon::CHAT,
-            _ => Icon::DOC_UNKNOWN,
-        }
-    }
-
     pub fn hide_ext(&self) -> bool {
         match self {
             DocType::PlainText => false,
@@ -1271,16 +667,16 @@ pub(crate) fn link_sheet_modal(
     use crate::style::{Button, FileRow, Space, Spacer, TypeRole, parent_crumbs, with_pad_fit};
 
     let t = ctx.get_lb_theme();
-    let screen = ctx.screen_rect();
+    let screen = ctx.content_rect();
     let touch = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
     let compact = touch || screen.width() < 520.0;
     let pad = Space::Md.pts();
     let width = if compact { (screen.width() - pad * 4.0).min(480.0) } else { 320.0 };
     let button_h = if touch { control_height() * 1.4 } else { control_height() };
-    let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("link_sheet"));
+    let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("link_sheet"));
 
     let mut dismissed = false;
-    egui::Area::new(egui::Id::new("link_sheet_dim"))
+    egui::Area::new(egui::Id::unique("link_sheet_dim"))
         .order(egui::Order::Middle)
         .fixed_pos(screen.min)
         .fade_in(false)

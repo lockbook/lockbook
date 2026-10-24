@@ -259,7 +259,7 @@ impl Search {
         let h = control_height();
         let pad = Space::Sm.pts();
         let gap = Space::Xs.pts();
-        let host = egui::Id::new("search_query");
+        let host = egui::Id::unique("search_query");
         let edit_id = host.with("edit");
         // Sheet / this prompt own Enter/Esc before the query Field (it swallows
         // both while focused). Sticky restore would also steal focus back after
@@ -398,7 +398,7 @@ impl Search {
         });
         self.scope_dest = Some(id);
         self.scope_open = true;
-        ctx.memory_mut(|m| m.surrender_focus(egui::Id::new("search_query").with("edit")));
+        ctx.memory_mut(|m| m.surrender_focus(egui::Id::unique("search_query").with("edit")));
     }
 
     fn close_scope_sheet(&mut self) {
@@ -500,7 +500,8 @@ fn paint_scope_chip(
         pos2(rect.left(), rect.top()),
         pos2((rect.right() - clear_reserve).max(rect.left() + pad), rect.bottom()),
     );
-    let resp = ui.interact(name_r, ui.id().with("search_scope_chip"), crate::style::sense_click());
+    let resp =
+        ui.interact(name_r, ui.scope_id().with("search_scope_chip"), crate::style::sense_click());
     let fills = crate::style::quiet_canvas_fills(t);
     let over = ui.ctx().rect_contains_pointer(ui.layer_id(), name_r) || open;
     let fill = crate::style::interact_fill(
@@ -809,7 +810,10 @@ impl Workspace {
                         if pending_loading && elapsed >= LOAD_DELAY_SECS {
                             crate::style::loading_indicator(ui);
                         } else if let Some(tab) = self.preview.as_mut() {
-                            tab.show(ui);
+                            let resp = self.open_guard.show(tab, |tab| tab.show(ui));
+                            if let Some(id) = resp.open_anyway {
+                                self.open_anyway(id, None);
+                            }
                             if pending_loading {
                                 ui.ctx()
                                     .request_repaint_after(std::time::Duration::from_secs_f32(

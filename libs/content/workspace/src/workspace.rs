@@ -22,8 +22,10 @@ use std::sync::{Arc, RwLock, mpsc};
 use tracing::{debug, error, info, instrument, trace_span, warn};
 use web_time::{Duration, Instant};
 
-use crate::file_cache::{FileCache, FilesExt};
+use crate::file_cache::{Change, FileCache, FilesExt};
 use crate::landing::LandingPage;
+use crate::link_plan::Plan;
+use crate::open_guard::{self, OpenGuard};
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
@@ -49,6 +51,7 @@ use crate::task_manager::{
 };
 use crate::widgets::image_cache::ImageCache;
 use crate::widgets::tab_cache::TabCache;
+use lb_rs::model::file::ShareMode;
 
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
@@ -87,7 +90,8 @@ pub struct Workspace {
     /// A new search starts where the last one left off.
     pub last_search: SearchState,
 
-    pending_open_range: Option<(Uuid, std::ops::Range<usize>)>,
+    /// Where a file being opened puts its caret once its editor has loaded.
+    pending_reveal: Option<(Uuid, Reveal)>,
     /// Sheets explaining links the reader tried to open, the first showing.
     pub(crate) link_sheets: std::collections::VecDeque<crate::tab::LinkSheet>,
     /// The tab the sheets belong to; they close when it stops being current.
@@ -109,16 +113,20 @@ pub struct Workspace {
     // Resources & configuration
     pub cfg: WsPersistentStore,
     pub ctx: Context,
+    pub(crate) open_guard: OpenGuard,
+    /// The open the previous launch never finished; that document is refused this session.
+    interrupted: Option<open_guard::Interrupted>,
+    /// Refused documents the user opened anyway this session.
+    opened_anyway: Vec<Uuid>,
 
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
 
-    pub show_tabs: bool, // draw the egui tab strip
-    /// Activate-if-open / honor open-in-new-tab. Independent of `show_tabs`
-    /// so Apple can keep its own strip while using desktop policy.
+    /// Touch hosts type through the software keyboard. iOS clears this while
+    /// a hardware keyboard keeps the software one away.
+    pub software_keyboard_in_use: bool,
+    /// Activate-if-open / honor open-in-new-tab.
     pub desktop_tab_policy: bool,
-    pub tab_strip_left_inset: f32,
-    pub tab_strip_min_height: f32,
     pub sidebar_open: bool,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
@@ -142,16 +150,26 @@ pub enum WsUpdates {
 #[derive(Clone, Copy)]
 struct UserPresent(bool);
 
+#[derive(Clone)]
+enum Reveal {
+    /// Select these bytes: a search hit, a placeholder to type over.
+    Range(std::ops::Range<usize>),
+    /// Pin the heading this `#fragment` names to the top.
+    Heading(String),
+    /// Land on these bytes as on a heading: a link followed from a backlink.
+    Text(std::ops::Range<usize>),
+}
+
 impl Workspace {
     pub fn set_user_present(&self) {
         self.ctx.data_mut(|d| {
-            d.insert_temp(egui::Id::new("user_present"), UserPresent(self.core.user_active()))
+            d.insert_temp(egui::Id::unique("user_present"), UserPresent(self.core.user_active()))
         });
     }
 
     pub fn user_present(ctx: &Context) -> bool {
         ctx.data(|d| {
-            d.get_temp::<UserPresent>(egui::Id::new("user_present"))
+            d.get_temp::<UserPresent>(egui::Id::unique("user_present"))
                 .map(|p| p.0)
         })
         .unwrap_or(true)
@@ -161,8 +179,7 @@ impl Workspace {
 impl Workspace {
     #[instrument(name = "Workspace::new", level = "trace", skip_all)]
     pub fn new(
-        core: &Lb, ctx: &Context, show_tabs: bool, persist: bool,
-        file_cache: Option<Arc<RwLock<FileCache>>>,
+        core: &Lb, ctx: &Context, persist: bool, file_cache: Option<Arc<RwLock<FileCache>>>,
     ) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
@@ -170,8 +187,12 @@ impl Workspace {
         let files = file_cache.unwrap_or_else(|| {
             Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")))
         });
-        let recent_crash = core.recent_panic().unwrap_or(true);
+        let (recent_crash, last_panic) = match core.recent_panic() {
+            Ok(t) => (t.is_some_and(|t| (Local::now() - t).num_seconds().abs() <= 5), t),
+            Err(_) => (true, None),
+        };
         let cfg = WsPersistentStore::new(recent_crash, writeable_path, persist);
+        let (open_guard, interrupted) = OpenGuard::new(writeable_dir, persist, last_panic);
         let http = HttpClient::default();
         let images =
             ImageCache::new(ctx.clone(), http, core.clone(), Arc::clone(&files), cfg.clone());
@@ -198,12 +219,13 @@ impl Workspace {
 
             cfg,
             ctx: ctx.clone(),
+            open_guard,
+            interrupted,
+            opened_anyway: Vec::new(),
             core: core.clone(),
 
-            show_tabs,
-            desktop_tab_policy: show_tabs,
-            tab_strip_left_inset: 0.0,
-            tab_strip_min_height: 0.0,
+            software_keyboard_in_use: true,
+            desktop_tab_policy: false,
             sidebar_open: false,
             focused_parent: Default::default(),
 
@@ -217,7 +239,7 @@ impl Workspace {
             preview: None,
             preview_pending: None,
             last_search: SearchState::default(),
-            pending_open_range: None,
+            pending_reveal: None,
             link_sheets: Default::default(),
             link_sheet_tab: None,
             link_sheet_keys: (false, false),
@@ -230,6 +252,7 @@ impl Workspace {
         }
 
         let (open_sessions, current_tab_index) = ws.cfg.get_sessions();
+        info!(persist, recent_crash, sessions = open_sessions.len(), "workspace init");
         let current_session_id = current_tab_index
             .and_then(|i| open_sessions.get(i))
             .map(|s| s.id);
@@ -256,7 +279,10 @@ impl Workspace {
         let ctx = ctx.clone();
 
         #[cfg(not(target_family = "wasm"))]
-        spawn!(lb_bg_worker(ctx, core, ws_tx));
+        {
+            crate::note_index::NoteIndex::keep(ws.files.clone(), core.clone(), ctx.clone());
+            spawn!(lb_bg_worker(ctx, core, ws_tx));
+        }
 
         ws
     }
@@ -265,6 +291,7 @@ impl Workspace {
     /// absent. Does not add to tab_strip or make current — callers decide
     /// visibility.
     pub fn open_dest(&mut self, tab_id: SessionId, dest: &Destination) {
+        info!(?tab_id, ?dest, tabs = self.tab_strip.len(), "open dest");
         self.closed_tabs.retain(|c| c.slot.id != tab_id);
 
         if self.tabs.contains_key(&tab_id) {
@@ -289,7 +316,9 @@ impl Workspace {
         let mut needs_load = false;
         let content = match dest {
             Destination::File(id) => {
-                if self.is_image(*id) {
+                if let Some(interrupted) = self.interrupted.as_ref().filter(|i| i.id == *id) {
+                    ContentState::Failed(TabFailure::Refused(interrupted.refusal()))
+                } else if self.is_image(*id) {
                     self.image_content(*id)
                 } else {
                     needs_load = true;
@@ -324,6 +353,7 @@ impl Workspace {
                 last_saved: now,
                 read_only: false,
                 rename: None,
+                first_draw: true,
             },
         );
         if needs_load {
@@ -354,16 +384,30 @@ impl Workspace {
         self.resume_session(Session::new(dest), make_current);
     }
 
-    pub fn begin_tab_rename(&mut self, tab_id: SessionId, name: String) {
-        if let Some(tab) = self.tabs.get_mut(&tab_id) {
-            tab.rename = Some(name);
-        }
-    }
-
     pub fn clear_tab_rename(&mut self, tab_id: SessionId) {
         if let Some(tab) = self.tabs.get_mut(&tab_id) {
             tab.rename = None;
         }
+    }
+
+    /// Reloads a refused document without its refusal; `target` is `None` for the preview.
+    pub(crate) fn open_anyway(&mut self, id: Uuid, target: Option<SessionId>) {
+        self.opened_anyway.push(id);
+        self.interrupted.take_if(|i| i.id == id);
+        let tab = match target {
+            Some(sid) => self.tabs.get_mut(&sid),
+            None => self.preview.as_mut(),
+        };
+        if let Some(tab) = tab {
+            tab.content = ContentState::Loading(id);
+        }
+        self.tasks.queue_load(LoadRequest {
+            id,
+            tab_created: true,
+            make_current: false,
+            is_preview: target.is_none(),
+            target,
+        });
     }
 
     pub fn set_preview(&mut self, id: Option<lb_rs::Uuid>) {
@@ -401,6 +445,7 @@ impl Workspace {
             last_saved: now,
             read_only: true,
             rename: None,
+            first_draw: true,
         });
         self.tasks.queue_load(LoadRequest {
             id,
@@ -531,6 +576,21 @@ impl Workspace {
             .is_some_and(|md| md.find.focused(&self.ctx))
     }
 
+    /// Apply the gestures queued for the next frame now, so a host call that
+    /// reads or arms gesture state sees them in order.
+    pub fn flush_gestures(&mut self) {
+        use crate::tab::markdown_editor::input::Event;
+        let gestures = self
+            .ctx
+            .pop_events_where(&mut |e| matches!(e, crate::tab::Event::Markdown(Event::Gesture(_))));
+        let Some(md) = self.focused_mdedit_mut() else { return };
+        for event in gestures {
+            if let crate::tab::Event::Markdown(Event::Gesture(gesture)) = event {
+                md.apply_gesture(gesture);
+            }
+        }
+    }
+
     /// Apply an edit from the platform text system to the focused editor now.
     /// A text change marks the tab changed so it saves.
     pub fn apply_platform_event(
@@ -544,6 +604,7 @@ impl Workspace {
         &mut self, event: crate::tab::markdown_editor::input::Event, reveal: bool,
     ) -> lb_rs::model::text::buffer::Response {
         use crate::tab::markdown_editor::input::Event;
+        self.core.app_foregrounded();
         // A selection written for a touch on the note takes focus from the
         // find field, as a click does on a desktop.
         if matches!(event, Event::Select { .. }) && self.chrome_text_focused() {
@@ -857,23 +918,63 @@ impl Workspace {
         &mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool,
     ) {
         self.open_file(id, true, in_new_tab);
-        self.pending_open_range = Some((id, byte_range));
+        self.pending_reveal = Some((id, Reveal::Range(byte_range)));
     }
 
     pub fn navigate_to_range(&mut self, id: Uuid, byte_range: std::ops::Range<usize>) {
         self.navigate_to(Destination::File(id));
-        self.pending_open_range = Some((id, byte_range));
+        self.pending_reveal = Some((id, Reveal::Range(byte_range)));
     }
 
-    pub(crate) fn apply_pending_open_range(&mut self) {
-        let Some((id, range)) = self.pending_open_range.clone() else { return };
-        if let Some(md) = self.get_mut_tab_by_id(id).and_then(|t| t.markdown_mut()) {
+    /// Opens a file a link names, with the heading its `#fragment` names at
+    /// the top of the view. In place unless `in_new_tab`, so Back returns.
+    pub fn open_link(&mut self, id: Uuid, heading: Option<String>, in_new_tab: bool) {
+        if in_new_tab {
+            self.open_file(id, true, true);
+        } else {
+            self.navigate_to(Destination::File(id));
+        }
+        if let Some(heading) = heading.filter(|h| !h.is_empty()) {
+            self.pending_reveal = Some((id, Reveal::Heading(heading)));
+        }
+    }
+
+    /// Opens note `id` landing on the link at `byte_range`, as a heading
+    /// link lands. In place unless `in_new_tab`, so Back returns.
+    pub fn open_link_at(&mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool) {
+        if in_new_tab {
+            self.open_file(id, true, true);
+        } else {
+            self.navigate_to(Destination::File(id));
+        }
+        self.pending_reveal = Some((id, Reveal::Text(byte_range)));
+    }
+
+    /// Opens a file from outside the app (an `open/` URL) at the heading its
+    /// `#fragment` names.
+    pub fn open_file_at_heading(&mut self, id: Uuid, heading: String, in_new_tab: bool) {
+        self.open_file(id, true, in_new_tab);
+        self.pending_reveal = Some((id, Reveal::Heading(heading)));
+    }
+
+    pub(crate) fn apply_pending_reveal(&mut self) {
+        let Some((id, reveal)) = self.pending_reveal.clone() else { return };
+        // the current tab when the note is open in more than one
+        let tab = match self.current_tab_id() == Some(id) {
+            true => self.current_tab_mut(),
+            false => self.get_mut_tab_by_id(id),
+        };
+        if let Some(md) = tab.and_then(|t| t.markdown_mut()) {
             if md.initialized {
-                md.open_navigate(range);
-                self.pending_open_range = None;
+                match reveal {
+                    Reveal::Range(range) => md.open_navigate(range),
+                    Reveal::Heading(heading) => md.open_at_heading(&heading),
+                    Reveal::Text(range) => md.open_at_text(range),
+                }
+                self.pending_reveal = None;
             }
         } else if self.tab_strip.iter().all(|s| s.dest.id() != id) {
-            self.pending_open_range = None;
+            self.pending_reveal = None;
         }
     }
 
@@ -950,6 +1051,7 @@ impl Workspace {
         let right = self.tab_strip.get(i + 1).map(|s| s.id);
 
         let closed_slot = self.tab_strip.remove(i);
+        info!(?tab_id, dest = ?closed_slot.dest, tabs = self.tab_strip.len(), "closed tab");
         self.out.tabs_changed = true;
         self.activation_history.retain(|id| *id != tab_id);
         self.closed_tabs.retain(|c| c.slot.id != tab_id);
@@ -1087,13 +1189,23 @@ impl Workspace {
         self.closed_tabs.iter().rev().map(|c| &c.slot).collect()
     }
 
+    /// Puts `cache` in place of the file cache, keeping the headings of the
+    /// notes it still has.
+    fn replace_files(&self, mut cache: FileCache) {
+        let mut files = self.files.write().unwrap();
+        let mut notes = std::mem::take(&mut files.notes);
+        notes.retain_in(&cache);
+        cache.notes = notes;
+        *files = cache;
+    }
+
     pub fn process_bg_tasks(&mut self) {
         loop {
             match self.ws_rx.try_recv() {
                 Ok(WsUpdates::FileCacheComputed(file_cache)) => {
                     let file_cache = file_cache.unwrap();
                     self.landing_page.update_recent_files(&file_cache);
-                    *self.files.write().unwrap() = file_cache;
+                    self.replace_files(file_cache);
                     self.out.file_cache_updated = true;
 
                     for tab in self.tabs.values_mut() {
@@ -1113,6 +1225,7 @@ impl Workspace {
                             if files.get_by_id(id).is_none()
                                 && self.core.get_file_by_id(id).is_err()
                             {
+                                info!(%id, "file gone after cache refresh");
                                 ids_to_delete.push(slot.id);
                             }
                         }
@@ -1260,8 +1373,8 @@ impl Workspace {
                         }
                     };
 
-                // Refresh before the markdown event lands: the image cache's
-                // URL→id lookup caches a sticky failure if the file is absent.
+                // Refresh before the markdown event lands, so the link it
+                // writes finds the imported file.
                 let Ok(cache) = FileCache::new(&self.core) else {
                     self.out
                         .failure_messages
@@ -1269,7 +1382,7 @@ impl Workspace {
                     continue;
                 };
                 let link = crate::tab::imported_image_link(&cache, file_id, &file);
-                *self.files.write().unwrap() = cache;
+                self.replace_files(cache);
                 match link {
                     Ok(link) => {
                         self.ctx
@@ -1303,7 +1416,6 @@ impl Workspace {
 
                 let ctx = self.ctx.clone();
                 let core = self.core.clone();
-                let show_tabs = self.show_tabs;
 
                 let tab_opt = if is_preview {
                     self.preview_pending
@@ -1317,17 +1429,9 @@ impl Workspace {
                     let files_clone = self.files.clone();
                     let files_guard = files_clone.read().unwrap();
 
-                    let account = &self.account;
-                    let (name, read_only) = if let Some(file) = files_guard.get_by_id(id) {
-                        (file.name.clone(), files_guard.access(id, account) == UserAccessMode::Read)
-                    } else if let Ok(file) = core.get_file_by_id(id) {
-                        // read-through (can remove when we master cache
-                        // refreshes): a freshly created file isn't in the
-                        // async-rebuilt cache yet; without this the
-                        // completed load is discarded and the tab is stuck
-                        // loading forever. New/owned files are writable.
-                        (file.name, false)
-                    } else {
+                    // The async-rebuilt cache can trail a create or rename;
+                    // the name that picks the editor comes from core.
+                    let Ok(file) = core.get_file_by_id(id) else {
                         // genuinely gone (e.g. deleted): fail the tab
                         // rather than discard the load and hang in Loading.
                         let msg = format!("failed to load file: {id} not found");
@@ -1336,6 +1440,9 @@ impl Workspace {
                         self.out.failure_messages.push(msg);
                         continue;
                     };
+                    let name = file.name;
+                    let read_only = files_guard.get_by_id(id).is_some()
+                        && files_guard.access(id, &self.account) == UserAccessMode::Read;
 
                     let doc_type = DocType::from_name(&name);
                     let ext = name.split('.').next_back().unwrap_or_default().to_owned();
@@ -1353,6 +1460,31 @@ impl Workspace {
 
                     tab.read_only = read_only || is_preview;
 
+                    let is_text = matches!(
+                        doc_type,
+                        DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+                    ) && content_inspector::inspect(&bytes).is_text();
+                    // a reload keeps the open editor and its unsaved edits, so it isn't refused
+                    let reload = !tab_created && matches!(tab.content, ContentState::Open(_));
+                    let refusal = if reload || self.opened_anyway.contains(&id) {
+                        None
+                    } else if let Some(interrupted) =
+                        self.interrupted.as_ref().filter(|i| i.id == id)
+                    {
+                        Some(interrupted.refusal())
+                    } else if is_text {
+                        open_guard::text_refusal(&bytes, doc_type == DocType::Markdown)
+                    } else {
+                        None
+                    };
+                    if let Some(refusal) = refusal {
+                        warn!(%id, ?refusal, "refusing to open");
+                        tab.content = ContentState::Failed(TabFailure::Refused(refusal));
+                        self.out.tabs_changed |= !is_preview;
+                        continue;
+                    }
+
+                    self.open_guard.enter(id);
                     match doc_type {
                         DocType::Image => {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
@@ -1363,7 +1495,6 @@ impl Workspace {
                         DocType::PDF => {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
                                 id, bytes, &ctx,
-                                !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         }
                         DocType::SVG => {
@@ -1413,12 +1544,7 @@ impl Workspace {
                                 chat.reload(&bytes, maybe_hmac);
                             }
                         }
-                        DocType::PlainText
-                        | DocType::Markdown
-                        | DocType::Code
-                        | DocType::Unknown
-                            if content_inspector::inspect(&bytes).is_text() =>
-                        {
+                        _ if is_text => {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
                             if !reload {
@@ -1431,21 +1557,20 @@ impl Workspace {
                                             ctx: self.ctx.clone(),
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
-                                            link_resolver: Box::new(FileCacheLinkResolver::new(
-                                                Arc::clone(&self.files),
-                                                id,
-                                            )),
+                                            link_resolver: Box::new(
+                                                FileCacheLinkResolver::new(
+                                                    Arc::clone(&self.files),
+                                                    id,
+                                                )
+                                                .creating_notes(!tab.read_only),
+                                            ),
                                             files: Arc::clone(&self.files),
                                             embeds: Box::new(ImageEmbedResolver::new(
                                                 self.images.clone(),
                                                 id,
                                             )),
                                         },
-                                        MdConfig {
-                                            readonly: tab.read_only,
-                                            ext: ext.clone(),
-                                            tablet_or_desktop: show_tabs,
-                                        },
+                                        MdConfig { readonly: tab.read_only, ext: ext.clone() },
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
@@ -1461,11 +1586,14 @@ impl Workspace {
                             )));
                         }
                     };
+                    self.open_guard.exit();
+                    tab.first_draw = true;
 
                     if is_preview {
                         if let Some(md) = tab.markdown_mut() {
                             md.initialized = true;
-                            md.id_salt = egui::Id::new("search_preview");
+                            md.id_salt = egui::Id::unique("search_preview");
+                            md.in_preview = true;
                         }
                         // A chat's first frame would focus its composer,
                         // stealing focus from the search query.
@@ -1613,6 +1741,42 @@ impl Workspace {
         self.ctx.request_repaint();
     }
 
+    /// Create `names` under `parent` — folders, then a document last — and
+    /// navigate to the document.
+    pub fn create_note_at(&mut self, parent: Uuid, names: &[String]) {
+        let mut parent = parent;
+        for (i, name) in names.iter().enumerate() {
+            let file_type =
+                if i + 1 == names.len() { FileType::Document } else { FileType::Folder };
+            let result = self
+                .core
+                .create_file(name, &parent, file_type)
+                .map_err(|err| format!("{err:?}"));
+            match &result {
+                Ok(file) => {
+                    self.files
+                        .write()
+                        .unwrap()
+                        .insert_created_file(file.clone());
+                    self.out.file_cache_updated = true;
+                    parent = file.id;
+                }
+                Err(err) => {
+                    self.out
+                        .failure_messages
+                        .push(format!("Create failed: {err}"));
+                    self.out.file_created = Some(result);
+                    return;
+                }
+            }
+            if file_type == FileType::Document {
+                self.navigate_to(crate::tab::Destination::File(parent));
+                self.out.file_created = Some(result);
+            }
+        }
+        self.ctx.request_repaint();
+    }
+
     pub fn create_folder_at(&mut self, parent: Uuid) {
         let date = Local::now().format("%Y-%m-%d");
         let mut new_file =
@@ -1753,11 +1917,12 @@ impl Workspace {
         self.open_dest_as_session(dest, true, false);
     }
 
-    pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
+    pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) -> bool {
         let (id, new_name) = req;
         match self.core.rename_file(&id, &new_name) {
             Ok(()) => {
                 self.file_renamed(id, new_name);
+                true
             }
             Err(LbErr { kind, .. }) => {
                 if by_user {
@@ -1766,27 +1931,26 @@ impl Workspace {
                         .push(format!("Rename failed: {kind}"));
                 }
                 warn!(?id, "failed to rename file: {:?}", kind);
+                false
             }
         }
     }
 
     pub fn file_renamed(&mut self, id: Uuid, new_name: String) {
-        let mut different_file_type = false;
-        let tab_id = self
+        let dest = Destination::File(id);
+        let tab_ids: Vec<_> = self
             .tab_strip
             .iter()
-            .find(|s| s.dest.id() == id)
-            .map(|s| s.id);
-        if let Some(tab) = tab_id.and_then(|tid| self.tabs.get(&tid)) {
-            different_file_type = !NameComponents::from(&new_name)
-                .extension
-                .eq(&NameComponents::from(&self.tab_title(tab)).extension);
-        }
-
-        if different_file_type {
-            // `ext`/`plaintext` are baked at editor construction; drop and re-open.
-            let dest = Destination::File(id);
-            if let Some(tab_id) = tab_id {
+            .filter(|s| s.dest.id() == id)
+            .map(|s| s.id)
+            .collect();
+        for tab_id in tab_ids {
+            let fits = self
+                .tabs
+                .get(&tab_id)
+                .is_none_or(|t| content_fits_name(&t.content, &new_name));
+            if !fits {
+                // `ext`/`plaintext` are baked at editor construction; drop and re-open.
                 self.tabs.remove(&tab_id);
                 self.open_dest(tab_id, &dest);
             }
@@ -1795,32 +1959,153 @@ impl Workspace {
         self.ctx.request_repaint();
     }
 
-    pub fn move_file(&mut self, req: (Uuid, Uuid)) {
+    pub fn move_file(&mut self, req: (Uuid, Uuid)) -> bool {
         let (id, new_parent) = req;
         match self.core.move_file(&id, &new_parent) {
             Ok(()) => {
                 self.ctx.request_repaint();
+                true
             }
             Err(LbErr { kind, .. }) => {
                 self.out
                     .failure_messages
                     .push(format!("Move failed: {kind}"));
                 warn!(?id, "failed to move file: {:?}", kind);
+                false
             }
         }
     }
 
-    pub fn delete_file(&mut self, id: Uuid) {
+    pub fn delete_file(&mut self, id: Uuid) -> bool {
         match self.core.delete_file(&id) {
             Ok(()) => {
                 self.out.file_deleted = Some(id);
                 self.ctx.request_repaint();
+                true
             }
             Err(LbErr { kind, .. }) => {
                 self.out
                     .failure_messages
                     .push(format!("Delete failed: {kind}"));
                 warn!(?id, "failed to delete file: {:?}", kind);
+                false
+            }
+        }
+    }
+
+    /// What `change` would do to links, worked out once per change and tree.
+    pub fn link_plan(&self, change: &Change) -> Arc<Plan> {
+        crate::link_plan::planned(&self.files.read().unwrap(), change)
+    }
+
+    /// Makes `change`, and if `update_links`, the edits that keep links
+    /// reaching what they reach now. Every platform's renames, moves, and
+    /// deletes come here, so links are planned for before the tree changes.
+    pub fn make_change(&mut self, change: Change, update_links: bool) {
+        // what was made, which for several files may be fewer than asked
+        let made = match &change {
+            Change::Rename { id, name } => self
+                .rename_file((*id, name.clone()), true)
+                .then(|| change.clone()),
+            Change::Move { ids, to } => {
+                let ids: Vec<Uuid> = ids.iter().filter(|id| *id != to).copied().collect();
+                let moved: Vec<Uuid> = ids
+                    .into_iter()
+                    .filter(|id| self.move_file((*id, *to)))
+                    .collect();
+                (!moved.is_empty()).then_some(Change::Move { ids: moved, to: *to })
+            }
+            Change::Delete { ids } => {
+                let gone: Vec<Uuid> = ids
+                    .iter()
+                    .copied()
+                    .filter(|id| self.delete_file(*id))
+                    .collect();
+                (!gone.is_empty()).then_some(Change::Delete { ids: gone })
+            }
+            Change::Share { .. } | Change::Create { .. } => None,
+        };
+        let Some(made) = made else { return };
+        // planned against the tree before the change, which the cache still is
+        let plan = self.link_plan(&made);
+        if update_links {
+            self.write_mends(&plan);
+        }
+        // the next change plans against this one, before the rebuild lands
+        let mut files = self.files.write().unwrap();
+        let mut after = files.after(&made);
+        let mut notes = std::mem::take(&mut files.notes);
+        notes.retain_in(&after);
+        after.notes = notes;
+        *files = after;
+        self.out.file_cache_updated = true;
+    }
+
+    /// Shares `id` with each of `users`, and if `share_linked`, also the
+    /// user's own files that links inside it reach past the scope the share
+    /// makes, linking to those by id so they open for the people too.
+    /// Returns the users it failed for, and why.
+    pub fn share_with(
+        &mut self, id: Uuid, users: &[String], mode: ShareMode, share_linked: bool,
+    ) -> Vec<(String, String)> {
+        let with = users.first().cloned().unwrap_or_default();
+        let plan = self.link_plan(&Change::Share { id, with, mode });
+        let mut failed = vec![];
+        let mut shared = vec![];
+        for user in users {
+            match self.core.share_file(id, user, mode) {
+                Ok(()) => shared.push(user),
+                Err(e) => failed.push((user.clone(), e.to_string())),
+            }
+        }
+        if share_linked && !shared.is_empty() {
+            for target in &plan.share_too {
+                for user in &shared {
+                    if let Err(e) = self.core.share_file(*target, user, mode) {
+                        warn!(?target, "failed to share a linked file: {e}");
+                    }
+                }
+            }
+            self.write_mends(&plan);
+        }
+        failed
+    }
+
+    /// Creates `name` under `parent`, and if `update_links`, makes the wiki
+    /// links the new document would take name the files they mean now.
+    pub fn create_file_at(
+        &mut self, parent: Uuid, name: &str, file_type: FileType, update_links: bool,
+    ) -> lb_rs::model::errors::LbResult<File> {
+        let change = Change::Create { parent, name: name.to_string() };
+        let plan = match file_type {
+            FileType::Document => Some(self.link_plan(&change)),
+            _ => None,
+        };
+        let file = self.core.create_file(name, &parent, file_type)?;
+        self.files
+            .write()
+            .unwrap()
+            .insert_created_file(file.clone());
+        if let Some(plan) = plan.filter(|_| update_links) {
+            self.write_mends(&plan);
+        }
+        Ok(file)
+    }
+
+    fn write_mends(&mut self, plan: &Plan) {
+        if !plan.mends.is_empty() {
+            for (note, err) in crate::link_plan::write_mends(&self.core, &plan.mends) {
+                let name = self
+                    .files
+                    .read()
+                    .unwrap()
+                    .get_by_id(note)
+                    .map(|f| f.name.clone());
+                let name = name.unwrap_or_default();
+                warn!(?note, "failed to update links: {err}");
+                self.out
+                    .failure_messages
+                    .push(format!("Couldn't update links in {name}: {err}"));
             }
         }
     }
@@ -1831,6 +2116,23 @@ pub struct WsPersistentStore {
     pub path: PathBuf,
     pub data: Arc<RwLock<WsPresistentData>>,
     enabled: bool,
+}
+
+/// Whether `content` was built for a file named `name`. Loading content picks
+/// its editor from core's current name when the load lands.
+fn content_fits_name(content: &ContentState, name: &str) -> bool {
+    let ext = name.split('.').next_back().unwrap_or_default();
+    let doc_type = DocType::from_name(name);
+    match content {
+        ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.ext == ext,
+        ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
+        ContentState::Open(TabContent::Image(_)) => doc_type == DocType::Image,
+        ContentState::Open(TabContent::Pdf(_)) => doc_type == DocType::PDF,
+        #[cfg(not(target_family = "wasm"))]
+        ContentState::Open(TabContent::Chat(_)) => doc_type == DocType::Chat,
+        ContentState::Failed(_) => false,
+        _ => true,
+    }
 }
 
 fn default_open_in_new_tab() -> bool {
@@ -1870,6 +2172,16 @@ pub struct WsPresistentData {
     /// Where the next new search starts.
     #[serde(default)]
     last_search: SearchState,
+    /// The sidecar, the panel beside a note that holds its outline, is open.
+    #[serde(default)]
+    sidecar_open: bool,
+    /// A rename or move updates the links it would break, as last chosen.
+    #[serde(default = "default_update_links")]
+    update_links: bool,
+}
+
+fn default_update_links() -> bool {
+    true
 }
 
 impl Default for WsPresistentData {
@@ -1889,6 +2201,8 @@ impl Default for WsPresistentData {
             image_dims: HashMap::default(),
             contact_linked_sites: false,
             last_search: SearchState::default(),
+            sidecar_open: false,
+            update_links: true,
         }
     }
 }
@@ -2046,6 +2360,34 @@ impl WsPersistentStore {
         self.write_to_file();
     }
 
+    pub fn get_sidecar_open(&self) -> bool {
+        self.data.read().unwrap().sidecar_open
+    }
+
+    pub fn set_sidecar_open(&mut self, open: bool) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.sidecar_open == open {
+            return;
+        }
+        data_lock.sidecar_open = open;
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn get_update_links(&self) -> bool {
+        self.data.read().unwrap().update_links
+    }
+
+    pub fn set_update_links(&mut self, update: bool) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.update_links == update {
+            return;
+        }
+        data_lock.update_links = update;
+        drop(data_lock);
+        self.write_to_file();
+    }
+
     pub fn get_zoom_factor(&self) -> f32 {
         self.data.read().unwrap().zoom_factor
     }
@@ -2056,8 +2398,8 @@ impl WsPersistentStore {
         self.write_to_file();
     }
 
-    pub fn image_dims(&self) -> HashMap<String, [f32; 2]> {
-        self.data.read().unwrap().image_dims.clone()
+    pub fn image_dims(&self, url: &str) -> Option<[f32; 2]> {
+        self.data.read().unwrap().image_dims.get(url).copied()
     }
 
     pub fn merge_image_dims(&self, new_dims: HashMap<String, [f32; 2]>) {

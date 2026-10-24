@@ -15,7 +15,7 @@ use std::path::Path;
 use std::env;
 
 #[cfg(not(target_family = "wasm"))]
-use chrono::{Local, TimeZone};
+use chrono::{DateTime, Local, TimeZone};
 
 #[cfg(not(target_family = "wasm"))]
 use crate::get_code_version;
@@ -107,9 +107,9 @@ impl Lb {
         Ok(panics)
     }
 
-    /// returns true if we have crashed within the last 5 seconds
+    /// When we last crashed, to the second, if a panic log survives.
     #[cfg(not(target_family = "wasm"))]
-    pub async fn recent_panic(&self) -> LbResult<bool> {
+    pub async fn recent_panic(&self) -> LbResult<Option<DateTime<Local>>> {
         recent_panic(&self.config.writeable_path).await
     }
 
@@ -252,23 +252,18 @@ fn is_metrickit_filename(name: &str) -> bool {
 }
 
 #[cfg(not(target_family = "wasm"))]
-async fn recent_panic(path: &str) -> LbResult<bool> {
+async fn recent_panic(path: &str) -> LbResult<Option<DateTime<Local>>> {
     let mut iter = iter_panic_files(path).await?;
+    let mut latest = None;
     while let Some(panic) = iter.next().await? {
         // Delayed MetricKit delivery must not disable workspace restoration as
         // though the app had just crashed. Its receipt time is not a crash time.
         if panic.is_metrickit() {
             continue;
         }
-        let timestamp_local_time = Local
-            .from_local_datetime(&panic.time)
-            .single()
-            .unwrap_or_default();
-        if (Local::now() - timestamp_local_time).abs().num_seconds() <= 5 {
-            return Ok(true);
-        }
+        latest = latest.max(Some(panic.time));
     }
-    Ok(false)
+    Ok(latest.and_then(|time| Local.from_local_datetime(&time).single()))
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -418,10 +413,14 @@ mod tests {
         fs::write(dir.path().join(metrickit_name('a')), "INFO: old MetricKit crash")
             .await
             .unwrap();
-        assert!(!recent_panic(path).await.unwrap());
-        fs::write(generate_panic_filename(path), "INFO: just crashed")
+        assert_eq!(recent_panic(path).await.unwrap(), None);
+        fs::write(dir.path().join("panic---2026-01-02---01-02-03.log"), "INFO: last crash")
             .await
             .unwrap();
-        assert!(recent_panic(path).await.unwrap());
+        fs::write(dir.path().join("panic---2026-01-01---01-02-03.log"), "INFO: older crash")
+            .await
+            .unwrap();
+        let latest = recent_panic(path).await.unwrap().unwrap();
+        assert_eq!(latest.naive_local().to_string(), "2026-01-02 01:02:03");
     }
 }

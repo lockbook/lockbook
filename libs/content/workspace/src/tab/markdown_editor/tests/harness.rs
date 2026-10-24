@@ -5,6 +5,7 @@
 
 use crate::file_cache::FileCache;
 use crate::resolvers::EmbedResolver;
+use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::link::{LinkResolver, LinkState, ResolvedLink};
 use crate::tab::ExtendedInput as _;
 use crate::tab::markdown_editor::input::Event;
@@ -39,6 +40,8 @@ const SCREEN_SIZE: Vec2 = Vec2::new(800., 600.);
 pub struct TestEditor {
     pub editor: Editor,
     pending: Vec<Event>,
+    /// Text the last frame put on the clipboard.
+    pub copied: Option<String>,
 }
 
 impl TestEditor {
@@ -55,7 +58,8 @@ impl TestEditor {
     /// Build with a custom `EmbedResolver`. Used by tests that exercise
     /// image-load layout behavior.
     pub fn with_embeds(lb: Lb, md: &str, embeds: Box<dyn EmbedResolver>) -> Self {
-        let mut harness = Self { editor: build_editor(lb, md, "md", embeds), pending: vec![] };
+        let mut harness =
+            Self { editor: build_editor(lb, md, "md", embeds), pending: vec![], copied: None };
         harness.enter_frame();
         harness
     }
@@ -64,17 +68,45 @@ impl TestEditor {
     /// the caller can complete fake loads via [`TestEmbeds::complete`].
     pub fn with_test_embeds(lb: Lb, md: &str) -> (Self, Arc<TestEmbeds>) {
         let embeds = Arc::new(TestEmbeds::default());
-        let mut harness =
-            Self { editor: build_editor(lb, md, "md", Box::new(embeds.clone())), pending: vec![] };
+        let mut harness = Self {
+            editor: build_editor(lb, md, "md", Box::new(embeds.clone())),
+            pending: vec![],
+            copied: None,
+        };
         harness.enter_frame();
         (harness, embeds)
+    }
+
+    /// Build as the note `file_id` in `files`, resolving links against them.
+    pub fn in_files(files: FileCache, file_id: Uuid, md: &str) -> Self {
+        let files = Arc::new(RwLock::new(files));
+        let resolver = FileCacheLinkResolver::new(files.clone(), file_id).creating_notes(true);
+        let editor = Editor::new(
+            md,
+            file_id,
+            None,
+            MdResources {
+                ctx: super::super::test_egui_ctx(),
+                core: build_lb(),
+                persistence: WsPersistentStore::new(
+                    false,
+                    format!("/tmp/{}", Uuid::new_v4()).into(),
+                    true,
+                ),
+                link_resolver: Box::new(resolver),
+                embeds: Box::new(()),
+                files,
+            },
+            MdConfig { readonly: false, ext: "md".into() },
+        );
+        Self::from_editor(editor)
     }
 
     /// Wrap a caller-built `Editor` so tests that need a custom resolver
     /// or other non-default construction can still drive it through the
     /// harness's `enter_frame` API.
     pub fn from_editor(editor: super::super::Editor) -> Self {
-        let mut harness = Self { editor, pending: vec![] };
+        let mut harness = Self { editor, pending: vec![], copied: None };
         harness.enter_frame();
         harness
     }
@@ -109,21 +141,35 @@ impl TestEditor {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, size);
-        let _ = ctx.run(RawInput { screen_rect: Some(screen_rect), ..Default::default() }, |ctx| {
-            ctx.set_lb_theme(Theme::default(Mode::Dark));
-            crate::register_font_system(ctx);
-            if focused {
-                self.editor.focus(ctx);
-            } else {
-                self.editor.surrender_focus(ctx);
-            }
-            for event in &pending {
-                ctx.push_markdown_event(event.clone());
-            }
-            egui::CentralPanel::default().show(ctx, |ui| {
-                self.editor.show(ui);
+        let mut out = ctx.run_pass(
+            RawInput { screen_rect: Some(screen_rect), ..Default::default() },
+            |ctx| {
+                ctx.set_lb_theme(Theme::default(Mode::Dark));
+                crate::register_font_system(ctx);
+                if focused {
+                    self.editor.focus(ctx);
+                } else {
+                    self.editor.surrender_focus(ctx);
+                }
+                for event in &pending {
+                    ctx.push_markdown_event(event.clone());
+                }
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        self.editor.show(ui);
+                    })
+                });
+            },
+        );
+        out.textures_delta.clear();
+        self.copied = out
+            .platform_output
+            .commands
+            .into_iter()
+            .find_map(|command| match command {
+                egui::OutputCommand::CopyText(text) => Some(text),
+                _ => None,
             });
-        });
     }
 
     pub fn get_text(&self) -> &str {
@@ -133,10 +179,22 @@ impl TestEditor {
     /// Inject raw egui key/text events for one frame *without* forcing editor
     /// focus, so focus stays where a widget (e.g. find) parked it.
     pub fn enter_frame_with_input(&mut self, events: Vec<egui::Event>) {
+        self.enter_frame_with_input_held(events, egui::Modifiers::NONE);
+    }
+
+    /// Like [`enter_frame_with_input`] with `modifiers` held for the frame
+    /// (`ctx.input().modifiers`), as hosts report for keys they translate
+    /// themselves.
+    pub fn enter_frame_with_input_held(
+        &mut self, events: Vec<egui::Event>, modifiers: egui::Modifiers,
+    ) {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, SCREEN_SIZE);
-        let _ = ctx.run(
+        let events = std::iter::once(egui::Event::ModifiersChanged(modifiers))
+            .chain(events)
+            .collect();
+        ctx.run_pass(
             RawInput { screen_rect: Some(screen_rect), events, ..Default::default() },
             |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
@@ -144,11 +202,15 @@ impl TestEditor {
                 for event in &pending {
                     ctx.push_markdown_event(event.clone());
                 }
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    self.editor.show(ui);
+                ctx.root_ui(|ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        self.editor.show(ui);
+                    })
                 });
             },
-        );
+        )
+        .textures_delta
+        .clear();
     }
 
     pub fn has_focus(&self, id: egui::Id) -> bool {
@@ -267,6 +329,6 @@ fn build_editor(core: Lb, md: &str, ext: &str, embeds: Box<dyn EmbedResolver>) -
             embeds,
             files,
         },
-        MdConfig { readonly: false, ext: ext.to_string(), tablet_or_desktop: true },
+        MdConfig { readonly: false, ext: ext.to_string() },
     )
 }

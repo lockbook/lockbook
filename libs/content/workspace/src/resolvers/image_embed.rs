@@ -1,13 +1,27 @@
 use std::ops::Deref as _;
 
+use egui::os::OperatingSystem;
 use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, Stroke, Ui, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 
+use crate::file_cache::{FilesExt as _, Reach, web_link};
 use crate::resolvers::EmbedResolver;
-use crate::theme::icons::Icon;
+use crate::style::chrome::phosphor;
+use crate::style::{TypeRole, phosphor_font_id};
 use crate::theme::palette_v2::ThemeExt as _;
-use crate::widgets::image_cache::{ImageCache, ImageState};
+use crate::widgets::image_cache::{ImageCache, ImageKey, ImageState};
+
+/// The url of the image a wiki embed names (`![[photo.png]]`): its title in
+/// brackets, resolved in [`ImageEmbedResolver`], whose note it's relative to.
+pub fn wiki_embed_key(title: &str) -> String {
+    format!("[[{title}]]")
+}
+
+/// The title in a [`wiki_embed_key`].
+pub fn wiki_embed_title(url: &str) -> Option<&str> {
+    url.strip_prefix("[[")?.strip_suffix("]]")
+}
 
 pub struct ImageEmbedResolver {
     images: ImageCache,
@@ -20,30 +34,96 @@ impl ImageEmbedResolver {
     }
 }
 
-const OUT_OF_SCOPE: &str = "Not shown: outside what this note is shared in";
+impl ImageEmbedResolver {
+    /// The image `url` shows in this note, as a link in it would reach it,
+    /// and whether it waits for the reader to ask for it: a file past the
+    /// note's scope, which opens different things for different readers,
+    /// like a yellow link; or a web image while the reader hasn't let the
+    /// app contact linked sites. None for one naming nothing: a red image.
+    fn locate(&self, url: &str) -> Option<(ImageKey, bool)> {
+        let files = self.images.files();
+        let files = files.read().unwrap();
+        let (key, reach) = match wiki_embed_title(url) {
+            Some(title) => {
+                let (id, reach) = files.locate_wikilink(title, self.file_id)?;
+                (ImageKey::File(id), reach)
+            }
+            None => match files.locate_link(url, self.file_id) {
+                Some((id, reach)) => (ImageKey::File(id), reach),
+                None if web_link(url) => (ImageKey::Web(url.into()), Reach::Scope),
+                None => return None,
+            },
+        };
+        let waits = (reach != Reach::Scope || self.images.off_the_web(&key))
+            && !self.images.shown_anyway(self.file_id, &key);
+        Some((key, waits))
+    }
+
+    /// The image `url` shows, unless it waits or names nothing: those never
+    /// load.
+    fn shown(&self, url: &str) -> Option<ImageKey> {
+        self.locate(url)
+            .and_then(|(key, waits)| (!waits).then_some(key))
+    }
+}
+
+/// A placeholder's side, in points, as the layout divides sizes by the
+/// screen's scale.
+const PLACEHOLDER_PT: f32 = 160.0;
 
 impl EmbedResolver for ImageEmbedResolver {
     fn size(&self, url: &str) -> Vec2 {
-        if self.images.out_of_scope(url, self.file_id) {
-            return Vec2::splat(200.);
-        }
-        self.images.dims(url).unwrap_or(Vec2::splat(200.))
+        let placeholder = Vec2::splat(PLACEHOLDER_PT * self.images.pixels_per_point());
+        self.shown(url)
+            .and_then(|key| self.images.dims(&key))
+            .unwrap_or(placeholder)
     }
 
     fn is_loaded(&self, url: &str) -> bool {
-        !self.images.out_of_scope(url, self.file_id) && self.images.is_loaded(url)
+        self.shown(url)
+            .is_some_and(|key| self.images.is_loaded(&key))
+    }
+
+    fn withheld(&self, url: &str) -> bool {
+        self.locate(url).is_some_and(|(_, waits)| waits)
+    }
+
+    fn load_anyway(&self, url: &str) {
+        if let Some((key, _)) = self.locate(url) {
+            self.images.show_anyway(self.file_id, &key);
+        }
     }
 
     fn show(&self, ui: &mut Ui, url: &str, rect: Rect, rounding: CornerRadius) {
-        if self.images.out_of_scope(url, self.file_id) {
-            show_placeholder(ui, rect, Icon::NO_IMAGE, OUT_OF_SCOPE);
+        let theme = ui.ctx().get_lb_theme();
+        let Some((key, waits)) = self.locate(url) else {
+            // what's missing; hover says why
+            let url = wiki_embed_title(url).unwrap_or(url);
+            let name = url.split(['#', '?']).next().unwrap_or(url);
+            let name = name
+                .trim_end_matches('/')
+                .rsplit('/')
+                .next()
+                .unwrap_or(name);
+            let name = urlencoding::decode(name).map_or(name.into(), |n| n.into_owned());
+            show_placeholder(ui, rect, phosphor::IMAGE_BROKEN, &name, Some(theme.fg().red));
+            return;
+        };
+        if waits {
+            let touch = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+            let tap = if touch { "Tap" } else { "Click" };
+            if self.images.off_the_web(&key) {
+                show_hidden(ui, rect, rounding, &format!("{tap} to load"), Hidden::Web);
+            } else {
+                show_hidden(ui, rect, rounding, &format!("{tap} to show"), Hidden::Reader);
+            }
             return;
         }
-        let state = self.images.get_or_load(url, self.file_id, false);
+        let state = self.images.get_or_load(&key, false);
         let image_state = state.lock().unwrap().deref().clone();
         match image_state {
             ImageState::Loading => {
-                show_placeholder(ui, rect, Icon::IMAGE, "Loading image...");
+                show_placeholder(ui, rect, phosphor::IMAGE, "Loading image…", None);
             }
             ImageState::Loaded(texture_id) => {
                 // Paint only — interaction (open vs. select) is driven by the
@@ -58,14 +138,14 @@ impl EmbedResolver for ImageEmbedResolver {
                     ));
             }
             ImageState::Failed(message) => {
-                show_placeholder(ui, rect, Icon::NO_IMAGE, &message);
+                show_placeholder(ui, rect, phosphor::IMAGE_BROKEN, &message, None);
             }
         }
     }
 
     fn prefetch(&self, url: &str) {
-        if !self.images.out_of_scope(url, self.file_id) {
-            self.images.get_or_load(url, self.file_id, false);
+        if let Some(key) = self.shown(url) {
+            self.images.get_or_load(&key, false);
         }
     }
 
@@ -74,27 +154,32 @@ impl EmbedResolver for ImageEmbedResolver {
     }
 }
 
-fn show_placeholder(ui: &mut Ui, rect: Rect, icon: Icon, caption: &str) {
+/// A quiet box: hairline frame, icon and caption in secondary ink. `dot`
+/// marks one that waits or names nothing, in the color its link draws in,
+/// as the completion picker marks files past the scope.
+fn show_placeholder(
+    ui: &mut Ui, rect: Rect, icon: &'static str, caption: &str, dot: Option<Color32>,
+) {
     let theme = ui.ctx().get_lb_theme();
     let color = theme.neutral_fg_secondary();
     // Clip so a tiny thumbnail's icon/caption can't spill over the card or text.
     let painter = ui.painter().with_clip_rect(rect);
 
     let icon_size = (rect.width().min(rect.height()) * 0.6).clamp(10.0, 48.0);
-    painter.text(
-        rect.center(),
-        Align2::CENTER_CENTER,
-        icon.icon,
-        FontId { size: icon_size, family: egui::FontFamily::Monospace },
-        color,
-    );
-    // Caption (e.g. an error message) only where it fits; otherwise the icon alone.
-    if rect.width() >= 160.0 && rect.height() >= 64.0 {
+    painter.text(rect.center(), Align2::CENTER_CENTER, icon, phosphor_font_id(icon_size), color);
+    // Caption only where it fits; otherwise the icon alone.
+    let font = FontId::proportional(TypeRole::Mono.size());
+    let fits = painter
+        .layout_no_wrap(caption.into(), font.clone(), color)
+        .size()
+        .x
+        <= rect.width() - 12.0;
+    if fits && rect.height() >= 64.0 {
         painter.text(
             rect.center_bottom() - Vec2::new(0.0, 8.0),
             Align2::CENTER_BOTTOM,
             caption,
-            FontId::default(),
+            font,
             color,
         );
     }
@@ -104,4 +189,51 @@ fn show_placeholder(ui: &mut Ui, rect: Rect, icon: Icon, caption: &str) {
         Stroke { width: 1., color: theme.neutral_bg_tertiary() },
         egui::epaint::StrokeKind::Inside,
     );
+    if let Some(dot) = dot {
+        let inset = DOT + crate::style::Space::Xs.pts();
+        painter.circle_filled(rect.right_top() + Vec2::new(-inset, inset), DOT, dot);
+    }
+}
+
+/// Radius of the state dot in a placeholder's corner.
+const DOT: f32 = 3.0;
+
+/// Why an image is hidden.
+#[derive(PartialEq)]
+enum Hidden {
+    /// A file that differs by reader.
+    Reader,
+    /// A web image, not fetched until asked.
+    Web,
+}
+
+/// A hidden image, as a spoiler chip: filled, a glyph, the caption, and for
+/// a file that differs by reader, the yellow dot. A web image shows a globe.
+fn show_hidden(ui: &mut Ui, rect: Rect, rounding: CornerRadius, caption: &str, why: Hidden) {
+    let theme = ui.ctx().get_lb_theme();
+    let ink = theme.neutral_fg_secondary();
+    let painter = ui.painter().with_clip_rect(rect);
+    painter.rect_filled(rect, rounding, theme.neutral_bg_secondary());
+    let glyph = (rect.width().min(rect.height()) * 0.3).clamp(14.0, 32.0);
+    painter.text(
+        rect.center() - Vec2::new(0.0, glyph * 0.4),
+        Align2::CENTER_CENTER,
+        match why {
+            Hidden::Reader => crate::style::phosphor::EYE_SLASH,
+            Hidden::Web => crate::style::phosphor::GLOBE,
+        },
+        crate::style::phosphor_font_id(glyph),
+        ink,
+    );
+    painter.text(
+        rect.center() + Vec2::new(0.0, glyph * 0.6),
+        Align2::CENTER_CENTER,
+        caption,
+        FontId::proportional(TypeRole::Mono.size()),
+        ink,
+    );
+    if why == Hidden::Reader {
+        let inset = DOT + crate::style::Space::Xs.pts();
+        painter.circle_filled(rect.right_top() + Vec2::new(-inset, inset), DOT, theme.fg().yellow);
+    }
 }

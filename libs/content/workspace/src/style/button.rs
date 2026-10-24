@@ -38,7 +38,7 @@ enum Tone {
 }
 
 /// How long a copy control shows the check instead of its label.
-const COPY_FEEDBACK_SECS: f64 = 1.2;
+pub const COPY_FEEDBACK_SECS: f64 = 1.2;
 
 pub struct Button<'a> {
     tokens: &'a Theme,
@@ -473,6 +473,18 @@ pub fn icon_button_hit(
 pub fn icon_button_glyph(
     ui: &mut Ui, t: &Theme, icon: &'static str, active: bool, ground: Color32, hit: f32, glyph: f32,
 ) -> Response {
+    icon_button_mark(ui, t, active, ground, hit, |painter, rect, color| {
+        let g = painter.layout_no_wrap(icon.into(), phosphor_font_id(glyph), Color32::PLACEHOLDER);
+        painter.galley(rect.center() - g.size() / 2.0, g, color);
+    })
+}
+
+/// [`icon_button_glyph`] for a mark Phosphor lacks: `mark` paints it in the
+/// hit rect, in the ink color it is given.
+pub fn icon_button_mark(
+    ui: &mut Ui, t: &Theme, active: bool, ground: Color32, hit: f32,
+    mark: impl FnOnce(&egui::Painter, egui::Rect, Color32),
+) -> Response {
     let hit = hit.max(1.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(hit, hit), sense_click());
     let hover = icon_hover_t(ui, &resp, rect);
@@ -486,11 +498,7 @@ pub fn icon_button_glyph(
     }
     // Idle: foreground. Applied / selected: accent.
     let color = if active { t.accent() } else { t.neutral_fg() };
-    let g = ui
-        .painter()
-        .layout_no_wrap(icon.into(), phosphor_font_id(glyph), Color32::PLACEHOLDER);
-    ui.painter()
-        .galley(rect.center() - g.size() / 2.0, g, color);
+    mark(ui.painter(), rect, color);
     resp
 }
 

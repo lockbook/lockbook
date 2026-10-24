@@ -76,7 +76,7 @@ pub fn show_shared(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
     let geom = RowGeom::from_heights(&heights);
 
     let pad = LIST_PAD.pts();
-    let scroll_id = Id::new("shell_shared_scroll");
+    let scroll_id = Id::unique("shell_shared_scroll");
     with_overlay_scroll(ui, scroll_id, |ui| {
         let out = ScrollArea::vertical()
             .id_salt("shell_shared_scroll")
@@ -117,7 +117,7 @@ pub fn show_shared(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
                     }
                 }
             });
-        ((), out.state.offset.y, out.id)
+        ((), out.state.clamped_offset().y, out.id)
     });
 }
 
@@ -160,7 +160,7 @@ fn paint_shared_row(
         let mut row_hit = rect;
         row_hit.max.x = row_hit.max.x.min(rect.right() - trail).max(row_hit.min.x);
         let ground = t.neutral_bg_secondary();
-        let id = ui.id().with("shared_root").with(row.id);
+        let id = ui.scope_id().with("shared_root").with(row.id);
         let subtitle = row.subtitle.clone().unwrap_or_default();
         let resp =
             paint_tree_file_row(ui, t, row.name.clone(), icon, chrome, id, rect, row_hit, |r| {
@@ -228,7 +228,7 @@ fn paint_shared_row(
             }
         }
     } else {
-        let id = ui.id().with("shared_child").with(row.id);
+        let id = ui.scope_id().with("shared_child").with(row.id);
         let resp =
             paint_tree_file_row(ui, t, row.name.clone(), icon, chrome, id, rect, rect, |r| {
                 r.sense(sense_click())

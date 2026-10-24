@@ -3,7 +3,9 @@ use std::sync::{Arc, RwLock};
 
 use lb_rs::Uuid;
 
-use crate::file_cache::{FileCache, FilesExt, Reach, link_id, web_link};
+use crate::file_cache::{
+    FileCache, FilesExt, Reach, link_id, split_fragment, web_link, wiki_fragment,
+};
 #[cfg(test)]
 use lb_rs::model::file::File;
 use lb_rs::model::file::ShareMode;
@@ -15,8 +17,16 @@ pub use crate::file_cache::ResolvedLink;
 #[derive(Clone, PartialEq, Eq)]
 pub enum LinkState {
     Normal,
-    Warning { message: String },
-    Broken { message: String },
+    Warning {
+        message: String,
+    },
+    Broken {
+        message: String,
+    },
+    /// A wikilink to a note that doesn't exist yet; opening it creates the note.
+    Placeholder {
+        message: String,
+    },
 }
 
 pub trait LinkResolver {
@@ -40,6 +50,12 @@ pub trait LinkResolver {
 
     /// [`Self::confirmation`] for a wikilink target.
     fn wikilink_confirmation(&self, _title: &str) -> Option<String> {
+        None
+    }
+
+    /// Where opening an unmatched wikilink creates its note: an existing
+    /// folder and the names to create under it, the document last.
+    fn wikilink_placement(&self, _title: &str) -> Option<(Uuid, Vec<String>)> {
         None
     }
 }
@@ -67,11 +83,17 @@ impl LinkResolver for () {
 pub struct FileCacheLinkResolver {
     files: Arc<RwLock<FileCache>>,
     file_id: Uuid,
+    creates_notes: bool,
 }
 
 impl FileCacheLinkResolver {
     pub fn new(files: Arc<RwLock<FileCache>>, file_id: Uuid) -> Self {
-        Self { files, file_id }
+        Self { files, file_id, creates_notes: false }
+    }
+
+    /// Opening a wikilink nothing matches creates the note it names.
+    pub fn creating_notes(self, creates_notes: bool) -> Self {
+        Self { creates_notes, ..self }
     }
 }
 
@@ -103,7 +125,8 @@ impl LinkResolver for FileCacheLinkResolver {
                         "Ask the owner to share it or remove the link.",
                     )
                 } else {
-                    not_found(&*files, note, "No file you can see is at this location.")
+                    let path = split_fragment(url).0;
+                    not_found(&*files, note, &format!("No file you can see is at **{path}**."))
                 };
                 LinkState::Broken { message: tooltip(&*files, note, why) }
             }
@@ -120,17 +143,35 @@ impl LinkResolver for FileCacheLinkResolver {
             },
             None => {
                 let tied = |scope| files.wikilink_nearest_in(title, note, scope).len() > 1;
+                let title = wiki_fragment(title).0;
                 let why = if tied(files.scope_top(note)) || tied(files.tree_root(note)) {
                     let last = title.rsplit('/').next().unwrap_or(title);
                     Why::new(
-                        "More than one file has this name.",
+                        format!("More than one file is named **{last}**."),
                         format!("Add its folder to the link: [[folder/**{last}**]]."),
                     )
+                } else if let Some((_, names)) = self
+                    .creates_notes
+                    .then(|| files.wikilink_placement(title, note))
+                    .flatten()
+                {
+                    let message = format!("Open to create **{}**.", names.join("/"));
+                    return LinkState::Placeholder { message };
                 } else {
-                    not_found(&*files, note, "No file you can see has this name.")
+                    not_found(&*files, note, &format!("No file you can see is named **{title}**."))
                 };
                 LinkState::Broken { message: tooltip(&*files, note, why) }
             }
+        }
+    }
+
+    fn wikilink_placement(&self, title: &str) -> Option<(Uuid, Vec<String>)> {
+        match self.wikilink_state(title) {
+            LinkState::Placeholder { .. } => {
+                let files = self.files.read().unwrap();
+                files.wikilink_placement(title, self.file_id)
+            }
+            _ => None,
         }
     }
 
@@ -249,7 +290,7 @@ fn shared_folder(files: &impl FilesExt, note: Uuid) -> Option<&str> {
 /// Whether the reader can change the note: they own it or hold it with
 /// write. A placed share's folders above it are the reader's own, so only
 /// shares count there.
-fn can_edit(files: &impl FilesExt, note: Uuid) -> bool {
+pub(crate) fn can_edit(files: &impl FilesExt, note: Uuid) -> bool {
     let me = &files.root().owner;
     let owns = files.get_by_id(note).is_some_and(|f| f.owner == *me);
     owns || iter::once(note)
@@ -272,7 +313,34 @@ mod tests {
             LinkState::Normal => "normal".into(),
             LinkState::Warning { message } => format!("warning: {message}"),
             LinkState::Broken { message } => format!("broken: {message}"),
+            LinkState::Placeholder { message } => format!("placeholder: {message}"),
         }
+    }
+
+    /// A wikilink nothing matches is a placeholder where the note can be
+    /// created, and says where; a read-only view, or a tie, keeps it broken.
+    #[test]
+    fn unmatched_wikilinks_are_placeholders() {
+        let (cache, [note, ..]) = alice();
+        let files = Arc::new(RwLock::new(cache));
+        let writing = FileCacheLinkResolver::new(files.clone(), note).creating_notes(true);
+        let reading = FileCacheLinkResolver::new(files, note);
+        assert_eq!(
+            message(writing.wikilink_state("Ideas")),
+            "placeholder: Open to create **Ideas.md**."
+        );
+        assert_eq!(
+            message(writing.wikilink_state("drafts/Ideas")),
+            "placeholder: Open to create **drafts/Ideas.md**."
+        );
+        assert!(message(reading.wikilink_state("Ideas")).starts_with("broken: "));
+        assert!(message(writing.wikilink_state("photo.png")).starts_with("broken: "));
+        assert!(message(writing.wikilink_state("../Ideas")).starts_with("broken: "));
+        assert_eq!(message(writing.wikilink_state("Budget")), "normal");
+        let (parent, names) = writing.wikilink_placement("drafts/Ideas").unwrap();
+        assert_eq!(names, ["drafts", "Ideas.md"]);
+        assert_eq!(writing.files.read().unwrap().path(parent), "/project/design/");
+        assert_eq!(reading.wikilink_placement("Ideas"), None);
     }
 
     #[test]
@@ -334,7 +402,7 @@ mod tests {
                 format!(
                     "broken: {}",
                     line2(
-                        "No file you can see is at this location.",
+                        "No file you can see is at **missing.md**.",
                         "Check the spelling or create the file."
                     )
                 ),
@@ -364,7 +432,7 @@ mod tests {
             format!(
                 "broken: {}",
                 line2(
-                    "No file you can see has this name.",
+                    "No file you can see is named **Nothing**.",
                     "Check the spelling or create the file."
                 )
             )
@@ -415,7 +483,7 @@ mod tests {
             assert_eq!(message(links.link_state(&secret)), format!("warning: {reason}"));
             assert_eq!(
                 message(links.link_state("missing.md")),
-                "broken: No file you can see is at this location."
+                "broken: No file you can see is at **missing.md**."
             );
             assert_eq!(links.confirmation(&secret).as_deref(), Some(reason));
         }
@@ -432,8 +500,8 @@ mod tests {
             ]
         );
         assert_eq!(
-            rich_spans("No file you can see is at this location."),
-            [("No file you can see is at this location.", false)]
+            rich_spans("No file you can see is at **missing.md**."),
+            [("No file you can see is at ", false), ("missing.md", true), (".", false)]
         );
     }
 
@@ -465,7 +533,7 @@ mod tests {
         let links = FileCacheLinkResolver::new(Arc::new(RwLock::new(view)), note);
         assert_eq!(
             message(links.wikilink_state("Spec")),
-            "broken: More than one file has this name.\nAdd its folder to the link: [[folder/**Spec**]]."
+            "broken: More than one file is named **Spec**.\nAdd its folder to the link: [[folder/**Spec**]]."
         );
         assert_eq!(message(links.wikilink_state("a/Spec")), "normal");
     }

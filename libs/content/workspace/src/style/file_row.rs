@@ -568,3 +568,26 @@ pub fn parent_crumbs(path: &str) -> String {
 pub fn ellipsize_path(ui: &Ui, path: &str, max_w: f32) -> String {
     middle_ellipsize_path_glyphon(ui, path, max_w, SUB_SIZE, SUB_LINE_H)
 }
+
+/// Ellipsis from the outside in, keeping the innermost segments:
+/// `a / b / c / d` → `… / c / d`. For chains whose nearest link matters
+/// most, like the headings above a heading.
+pub fn ellipsize_path_tail(ui: &Ui, path: &str, max_w: f32) -> String {
+    let measure = |s: &str| file_name::measure_sized(ui, s, SUB_SIZE, SUB_LINE_H, f32::MAX);
+    if max_w <= 0.0 || measure(path) <= max_w {
+        return path.to_owned();
+    }
+    let parts: Vec<&str> = path.split(" / ").filter(|p| !p.is_empty()).collect();
+    let dropped = (1..parts.len())
+        .map(|drop| format!("… / {}", parts[drop..].join(" / ")))
+        .find(|candidate| measure(candidate) <= max_w);
+    dropped.unwrap_or_else(|| {
+        // the innermost alone, cut short at its end
+        let last = parts.last().copied().unwrap_or_default();
+        let ends: Vec<usize> = last.char_indices().map(|(i, _)| i).skip(1).collect();
+        let ends = ends.into_iter().rev();
+        ends.map(|end| format!("{}…", &last[..end]))
+            .find(|candidate| measure(candidate) <= max_w)
+            .unwrap_or_else(|| "…".into())
+    })
+}

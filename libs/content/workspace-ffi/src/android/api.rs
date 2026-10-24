@@ -7,6 +7,7 @@ use lb_c::model::text::offset_types::Grapheme;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
+use workspace_rs::tab::markdown_editor::table::TableAction;
 use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
 
 use super::keyboard::AndroidKeys;
@@ -27,6 +28,21 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarStat
     env.new_string(serde_json::to_string(&state).expect("serialize toolbar state"))
         .expect("create toolbar state")
         .into_raw()
+}
+
+/// Inserts a table of `columns` columns and `rows` rows, its header one.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTable(
+    _env: JNIEnv, _: JClass, obj: jlong, columns: jint, rows: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let Some(editor) = obj.workspace.current_tab_markdown_mut() else { return };
+    if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
+        return;
+    }
+    let (columns, rows) = (columns.max(1) as usize, rows.max(1) as usize - 1);
+    let event = Event::Table(TableAction::Insert { columns, rows });
+    obj.renderer.context.push_markdown_event(event);
 }
 
 #[unsafe(no_mangle)]
@@ -52,7 +68,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarActi
         if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
             return;
         }
-        let event = editor.android_toolbar_action(action);
+        let event = editor.toolbar_action(action);
         obj.renderer.context.push_markdown_event(event);
     }
 }
@@ -63,8 +79,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setNativeMarkdownTo
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.renderer.context.memory_mut(|m| {
-        m.data
-            .insert_temp(egui::Id::new("android_native_markdown_toolbar_height"), height.max(0.0))
+        m.data.insert_temp(
+            egui::Id::unique("android_native_markdown_toolbar_height"),
+            height.max(0.0),
+        )
     });
 }
 
@@ -74,8 +92,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
 ) -> jobject {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-        let response: AndroidResponse = obj.frame().into();
-        response
+        frame_android_response(obj)
     });
 
     match maybe_err {
@@ -100,8 +117,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrameOffloaded
 ) -> jobject {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-        let response: AndroidResponse = obj.frame_offloaded().into();
-        response
+        frame_offloaded_android_response(obj)
     });
 
     match maybe_err {
@@ -130,6 +146,9 @@ fn android_response_to_java<'local>(
     let copied_text = env
         .new_string(response.copied_text)
         .expect("create copied_text string");
+    let copied_html = env
+        .new_string(response.copied_html)
+        .expect("create copied_html string");
     let copied_image: Vec<i8> = response
         .copied_image
         .into_iter()
@@ -166,10 +185,11 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;)V",
+        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFF)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
+            JValue::Object(&JObject::from(copied_html)),
             JValue::Object(&JObject::from(copied_image_array)),
             JValue::Bool(if response.has_url_opened { 1 } else { 0 }),
             JValue::Object(&JObject::from(url_opened)),
@@ -185,6 +205,15 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.selection_updated { 1 } else { 0 }),
             JValue::Bool(if response.text_updated { 1 } else { 0 }),
             JValue::Object(&JObject::from(failure_message)),
+            JValue::Bool(if response.scroll_updated { 1 } else { 0 }),
+            JValue::Bool(if response.has_text_interaction_rect { 1 } else { 0 }),
+            JValue::Float(response.text_interaction_min_x),
+            JValue::Float(response.text_interaction_min_y),
+            JValue::Float(response.text_interaction_max_x),
+            JValue::Float(response.text_interaction_max_y),
+            JValue::Bool(if response.has_magnifier { 1 } else { 0 }),
+            JValue::Float(response.magnifier_x),
+            JValue::Float(response.magnifier_y),
         ],
     )
     .expect("create AndroidResponse")
@@ -222,6 +251,45 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_queueFileForEditorI
     1
 }
 
+fn fill_magnifier(obj: &mut WgpuWorkspace, response: &mut AndroidResponse) {
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return };
+    let Some(offset) = md.in_progress_handle else { return };
+    let Some(line) = md.cursor_line(offset) else { return };
+    response.has_magnifier = true;
+    response.magnifier_x = line[0].x;
+    response.magnifier_y = (line[0].y + line[1].y) * 0.5;
+}
+
+fn frame_android_response(obj: &mut WgpuWorkspace) -> AndroidResponse {
+    let mut response: AndroidResponse = obj.frame().into();
+    fill_magnifier(obj, &mut response);
+    response
+}
+
+fn frame_offloaded_android_response(obj: &mut WgpuWorkspace) -> AndroidResponse {
+    let mut response: AndroidResponse = obj.frame_offloaded().into();
+    fill_magnifier(obj, &mut response);
+    response
+}
+
+fn jrect_obj<'local>(env: &mut JNIEnv<'local>, rect: JRect) -> JObject<'local> {
+    let cls = env
+        .find_class("app/lockbook/workspace/JRect")
+        .expect("find JRect class");
+    env.new_object(
+        cls,
+        "(ZFFFF)V",
+        &[
+            JValue::Bool(rect.none as u8),
+            JValue::Float(rect.min_x),
+            JValue::Float(rect.min_y),
+            JValue::Float(rect.max_x),
+            JValue::Float(rect.max_y),
+        ],
+    )
+    .expect("create JRect")
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
     mut env: JNIEnv, _: JClass, obj: jlong, key_code: jint, content: JString, pressed: jboolean,
@@ -237,7 +305,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
         command: false,
     };
 
-    obj.renderer.raw_input.modifiers = modifiers;
+    obj.renderer.set_modifiers(modifiers);
 
     let Some(key) = AndroidKeys::from(key_code) else { return };
 
@@ -305,6 +373,70 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionOpenTarget
     }
 }
 
+/// Whether the current note has an outline to offer on the app bar.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_outlineAvailable(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_offered) as jboolean
+}
+
+/// Whether the current note's outline is open, so the bottom bar stands aside.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_outlineOpen(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .current_tab_markdown_mut()
+        .is_some_and(|md| md.outline_open()) as jboolean
+}
+
+/// Opens or closes the current note's outline from the app bar.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleOutline(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.current_tab_markdown_mut() {
+        md.toggle_outline();
+    }
+}
+
+/// A link to the heading on the caret's line, or null, for the edit menu's
+/// "Copy Heading Link".
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionHeadingLink(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    match obj
+        .workspace
+        .current_tab_markdown_mut()
+        .and_then(|md| md.edit.selection_heading_link())
+    {
+        Some(url) => env
+            .new_string(url)
+            .expect("Couldn't create java string!")
+            .into_raw(),
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// Whether the edit menu's link is an image, for its wording.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionTargetIsImage(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_target_is_image()) as jboolean
+}
+
 /// Edit-menu "Open Link": open every link/image in the current selection.
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_openSelectionLinks(
@@ -329,14 +461,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_refreshSelectionPre
 }
 
 /// Push real IME visibility (from the Android inset listener) into the
-/// editor so touch long-press can pick drag-reorder vs text selection.
+/// editor so the phone toolbar can hide with the keyboard (iOS parity) and
+/// touch long-press can pick drag-reorder vs text selection.
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
     _env: JNIEnv, _: JClass, obj: jlong, shown: jboolean,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     if let Some(md) = obj.workspace.current_tab_markdown_mut() {
-        md.keyboard_visible = shown == 1;
+        let shown = shown == 1;
+        md.keyboard_visible = shown;
+        md.virtual_keyboard_shown = shown;
     }
 }
 
@@ -547,6 +682,19 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     let id = Uuid::parse_str(&rid).unwrap();
 
     obj.workspace.open_file(id, true, new_file == 1);
+    get_current_tab(obj)
+}
+
+/// Opens a file from an `open/` URL at the heading its `#fragment` names.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDocAtHeading(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, jheading: JString,
+) -> jint {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let heading: String = env.get_string(&jheading).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+    obj.workspace.open_file_at_heading(id, heading, false);
     get_current_tab(obj)
 }
 
@@ -979,6 +1127,18 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardCopy(
     obj.renderer.context.push_markdown_event(Event::Copy);
 }
 
+/// Edit-menu "Copy Rendered": the selection as drawn, as plain text and
+/// HTML, delivered through the next response's `copied_text` / `copied_html`.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_copyRendered(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer
+        .context
+        .push_markdown_event(Event::CopyRendered);
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_copyImage(
     _env: JNIEnv, _: JClass, obj: jlong,
@@ -1043,4 +1203,20 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_isPenOnlyDraw(
         false
     }
     .into()
+}
+
+/// Caret line at a grapheme offset, in egui points (workspace space).
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_cursorRectAt(
+    mut env: JNIEnv, _: JClass, obj: jlong, pos: jint,
+) -> jobject {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let rect = match obj.workspace.focused_mdedit_mut() {
+        Some(md) => md
+            .cursor_line(Grapheme(pos.max(0) as usize))
+            .map(JRect::from_line)
+            .unwrap_or(JRect { none: true, ..Default::default() }),
+        None => JRect { none: true, ..Default::default() },
+    };
+    jrect_obj(&mut env, rect).into_raw()
 }

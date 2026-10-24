@@ -158,7 +158,7 @@ pub(crate) fn upgrade_start_pay(app: &mut ShellApp, ctx: &Context) {
     let ctx = ctx.clone();
     // Result channel via temp Id — worker can't mut ShellApp.
     // Wrapper: `remove_temp` requires Default (Result doesn't implement it).
-    let result_id = egui::Id::new("shell_upgrade_result");
+    let result_id = egui::Id::unique("shell_upgrade_result");
     ctx.data_mut(|d| d.remove::<UpgradePayResult>(result_id));
     thread::spawn(move || {
         use lb::model::api::{PaymentMethod, StripeAccountTier};
@@ -180,7 +180,7 @@ pub(crate) fn poll_upgrade(app: &mut ShellApp, ctx: &Context) {
     else {
         return;
     };
-    let result_id = egui::Id::new("shell_upgrade_result");
+    let result_id = egui::Id::unique("shell_upgrade_result");
     let Some(UpgradePayResult(Some(out))) =
         ctx.data_mut(|d| d.remove_temp::<UpgradePayResult>(result_id))
     else {

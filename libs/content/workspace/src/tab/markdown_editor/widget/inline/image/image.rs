@@ -5,8 +5,10 @@ use egui::{self, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
-use crate::file_cache::ResolvedLink;
+use crate::file_cache::{ResolvedLink, wiki_fragment};
+use crate::resolvers::image_embed::{wiki_embed_key, wiki_embed_title};
 use crate::style::ThemeExt;
+use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
@@ -16,36 +18,52 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSp
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
+/// What an image node shows, as embeds take it: a markdown image's
+/// destination, or the [`wiki_embed_key`] of a wiki embed whose title names
+/// an image (`![[photo.png]]`). Other wiki embeds are links.
+pub fn image_url(node: &AstNode<'_>) -> Option<String> {
+    match &node.data.borrow().value {
+        NodeValue::Image(link) => Some(link.url.clone()),
+        NodeValue::WikiLink(wl) if wl.embed && names_image(&wl.url) => {
+            Some(wiki_embed_key(&wl.url))
+        }
+        _ => None,
+    }
+}
+
+/// Whether a wiki title names an image (or a drawing) by its extension.
+fn names_image(title: &str) -> bool {
+    let file = wiki_fragment(title).0;
+    let ext = file.rsplit_once('.').map_or("", |(_, ext)| ext.trim());
+    is_supported_image_fmt(ext) || ext.eq_ignore_ascii_case("svg")
+}
+
 impl MdRender {
     /// Prefetch textures under `node` so the image cache does not drop them.
     /// Used for off-screen neighbors about to scroll into view. Covers
-    /// markdown `![]()` images and link-preview thumbnails/favicons.
+    /// images ([`image_url`]) and link-preview thumbnails/favicons.
     pub fn warm_images<'a>(&self, node: &'a comrak::nodes::AstNode<'a>) {
         for descendant in node.descendants() {
-            match &descendant.data.borrow().value {
-                NodeValue::Image(link) => {
-                    self.embeds.prefetch(&link.url);
-                }
-                NodeValue::Link(link) => {
-                    let resolved = match self.resolve_link(&link.url) {
-                        Some(ResolvedLink::External(url)) => url,
-                        _ => continue,
-                    };
-                    let Some(arc) = self.layout_cache.link_meta.borrow().get(&resolved).cloned()
-                    else {
-                        continue;
-                    };
-                    let LinkMetaState::Loaded(meta) = &*arc.lock().unwrap() else {
-                        continue;
-                    };
-                    if let Some(url) = meta.thumbnail_url.as_deref() {
-                        self.embeds.prefetch(url);
-                    }
-                    if let Some(url) = meta.favicon_url.as_deref() {
-                        self.embeds.prefetch(url);
-                    }
-                }
-                _ => {}
+            if let Some(url) = image_url(descendant) {
+                self.embeds.prefetch(&url);
+                continue;
+            }
+            let NodeValue::Link(link) = &descendant.data.borrow().value else { continue };
+            let resolved = match self.resolve_link(&link.url) {
+                Some(ResolvedLink::External(url)) => url,
+                _ => continue,
+            };
+            let Some(arc) = self.layout_cache.link_meta.borrow().get(&resolved).cloned() else {
+                continue;
+            };
+            let LinkMetaState::Loaded(meta) = &*arc.lock().unwrap() else {
+                continue;
+            };
+            if let Some(url) = meta.thumbnail_url.as_deref() {
+                self.embeds.prefetch(url);
+            }
+            if let Some(url) = meta.favicon_url.as_deref() {
+                self.embeds.prefetch(url);
             }
         }
     }
@@ -102,30 +120,38 @@ impl<'ast> MdRender {
     }
 
     /// Obsidian-style explicit dimensions for an image, parsed from the
-    /// trailing `|W` / `|WxH` of its alt text (`![alt|100x100](url)`).
+    /// trailing `|W` / `|WxH` of its alt text (`![alt|100x100](url)`) or of
+    /// a wiki embed's label (`![[photo.png|100x100]]`).
     pub fn image_dims(&self, node: &'ast AstNode<'ast>) -> ImageDims {
+        let wiki = matches!(node.data.borrow().value, NodeValue::WikiLink(_));
         match self.infix_range(node) {
+            Some(range) if wiki => parse_image_dims(&format!("|{}", &self.buffer[range])),
             Some(range) => parse_image_dims(&self.buffer[range]),
             None => ImageDims::default(),
         }
     }
 
-    /// Logical-point size an `Image` node will render at, constrained
-    /// by its block's width and any Obsidian `|WxH` hint. `None` if
-    /// `node` isn't an `Image`, has no leaf-block ancestor, or
-    /// collapses to zero on the first frame.
+    /// Logical-point size an image node ([`image_url`]) will render at,
+    /// constrained by its block's width and any Obsidian `|WxH` hint. `None`
+    /// if `node` isn't an image, has no leaf-block ancestor, or collapses to
+    /// zero on the first frame.
     pub fn image_logical_size(&self, node: &'ast AstNode<'ast>) -> Option<Vec2> {
-        let url = match &node.data.borrow().value {
-            comrak::nodes::NodeValue::Image(link) => link.url.clone(),
-            _ => return None,
-        };
+        let url = image_url(node)?;
         let block_ancestor = node
             .ancestors()
             .skip(1)
             .find(|a| a.data.borrow().value.is_leaf_block())?;
-        let width = self.width(block_ancestor);
+        let mut width = self.width(block_ancestor);
+        let in_cell = matches!(block_ancestor.data.borrow().value, NodeValue::TableCell);
+        if in_cell {
+            width = (width - 2.0 * self.layout.block_padding).max(0.0);
+        }
         let texture_size = self.embeds.size(&url);
-        let size = self.image_size(texture_size, width, self.image_dims(node));
+        let mut size = self.image_size(texture_size, width, self.image_dims(node));
+        // a size asked for by name fits the viewport; in a cell it fits the cell
+        if in_cell && size.x > width {
+            size *= width / size.x;
+        }
         (size.x > 0.0 && size.y > 0.0).then_some(size)
     }
 
@@ -142,13 +168,13 @@ impl<'ast> MdRender {
             .then(|| self.image_logical_size(node))
             .flatten();
         let Some(size) = collapsed_size else {
-            self.layout_link(layout, node, range);
+            match node.data.borrow().value {
+                NodeValue::WikiLink(_) => self.layout_wikilink(layout, node, range),
+                _ => self.layout_link(layout, node, range),
+            }
             return;
         };
-        let url = match &node.data.borrow().value {
-            comrak::nodes::NodeValue::Image(link) => link.url.clone(),
-            _ => return,
-        };
+        let Some(url) = image_url(node) else { return };
         // Always interactive: a plain tap selects, a cmd/keyboard-hidden tap opens.
         layout.interaction_open(Self::image_interaction_id_salt(node_range), egui::Sense::click());
         layout.push_embed(EmbedSpec {
@@ -166,7 +192,7 @@ impl<'ast> MdRender {
     /// [`Self::link_interaction_id_salt`] so the collapsed-image and
     /// revealed-link handlers don't collide.
     pub fn image_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
-        egui::Id::new(("md_image", node_range))
+        egui::Id::unique(("md_image", node_range))
     }
 
     /// Recompute [`super::super::super::bounds::Bounds::images`] — the source
@@ -176,10 +202,8 @@ impl<'ast> MdRender {
     pub fn calc_atom_bounds<'a>(&mut self, root: &'a AstNode<'a>) {
         let mut images = Vec::new();
         for node in root.descendants() {
-            if let NodeValue::Image(_) = node.data.borrow().value {
-                if !self.disable_images {
-                    images.push(self.node_range(node));
-                }
+            if image_url(node).is_some() && !self.disable_images {
+                images.push(self.node_range(node));
             }
         }
         images.sort_unstable();
@@ -208,31 +232,53 @@ impl<'ast> MdEdit {
         &mut self, root: &'ast AstNode<'ast>, node: &'ast AstNode<'ast>, ui: &egui::Ui,
         id: egui::Id, ops: &mut Vec<Operation>, url: &str, salt: egui::Id, open: bool,
     ) {
-        let response = match self.renderer.interaction_responses.get(&ui.id().with(salt)) {
+        let response = match self
+            .renderer
+            .interaction_responses
+            .get(&ui.scope_id().with(salt))
+        {
             Some(r) => r.clone(), // clone to release the `renderer` borrow
             None => return,
         };
 
         let node_range = self.renderer.node_range(node);
-        let tap = if self.renderer.readonly {
-            Event::OpenLink { url: url.to_string(), wikilink: false }
+        // a wiki embed's key holds its title
+        let (dest, wikilink) = match wiki_embed_title(url) {
+            Some(title) => (title, true),
+            None => (url, false),
+        };
+        // an image hidden past the note's scope shows on a tap; shown, the
+        // picture says nothing
+        let is_image = image_url(node).is_some();
+        let withheld = is_image && self.renderer.embeds.withheld(url);
+        let tap = if withheld {
+            Event::LoadImage { url: url.to_string() }
+        } else if self.renderer.readonly {
+            Event::OpenLink { url: dest.to_string(), wikilink }
         } else {
             Event::Select { region: node_range.into() }
         };
         self.renderer
-            .touch_consume_interaction(ui.id().with(salt), TouchTarget::Tap(tap));
+            .touch_consume_interaction(ui.scope_id().with(salt), TouchTarget::Tap(tap));
 
-        if open && response.hovered() {
+        if (open || withheld) && response.hovered() {
             ui.ctx()
                 .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
-        if let NodeValue::Link(_) = node.data.borrow().value {
-            let state = || self.renderer.link_state_for_url(url);
+        if !is_image || !self.renderer.embeds.is_loaded(url) {
+            let state = || match wikilink {
+                true => self.renderer.link_state_for_wikilink(dest),
+                false => self.renderer.link_state_for_url(dest),
+            };
             self.renderer.show_link_tip(ui.ctx(), &response, state);
+        }
+        if withheld && response.clicked() {
+            self.renderer.embeds.load_anyway(url);
+            return;
         }
         if response.clicked() {
             if open {
-                self.renderer.open_resolved_link(url, ui.ctx(), false);
+                self.renderer.open_dest(dest, wikilink, ui.ctx());
             } else {
                 ui.memory_mut(|m| m.request_focus(id));
                 let region = Region::BetweenLocations {
@@ -248,7 +294,6 @@ impl<'ast> MdEdit {
         }
 
         if !self.renderer.touch_mode {
-            let is_image = matches!(node.data.borrow().value, NodeValue::Image(_));
             let editable = !self.renderer.readonly;
             // cards/capsules render fetched previews; images don't
             let refreshable = !is_image && self.renderer.contact_linked_sites;
@@ -257,10 +302,10 @@ impl<'ast> MdEdit {
                 fill_link_menu(e, is_image, editable, refreshable, |a| a);
             });
             match action {
-                Some(LinkMenuAction::Open) => {
-                    self.renderer.open_resolved_link(url, ui.ctx(), false)
-                }
-                Some(LinkMenuAction::Copy) => ui.ctx().copy_text(url.to_string()),
+                Some(LinkMenuAction::Open) => self.renderer.open_dest(dest, wikilink, ui.ctx()),
+                Some(LinkMenuAction::Copy) => ui
+                    .ctx()
+                    .copy_text(self.renderer.link_to_copy(dest, wikilink)),
                 Some(LinkMenuAction::Refresh) => self.renderer.refresh_link_meta(url),
                 Some(LinkMenuAction::Edit) => {
                     let (select, force_reveal) = self.atom_edit_selection(node);
@@ -285,10 +330,7 @@ impl<'ast> MdEdit {
     ) {
         let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
-            let url = match &node.data.borrow().value {
-                NodeValue::Image(link) => link.url.clone(),
-                _ => continue,
-            };
+            let Some(url) = image_url(node) else { continue };
             let node_range = self.renderer.node_range(node);
             let salt = MdRender::image_interaction_id_salt(node_range);
             self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
@@ -306,7 +348,7 @@ impl<'ast> MdEdit {
     ) -> bool {
         let selection = self.renderer.buffer.current.selection;
         for node in root.descendants() {
-            if !matches!(node.data.borrow().value, NodeValue::Image(_)) {
+            if image_url(node).is_none() {
                 continue;
             }
             let img = self.renderer.node_range(node);
