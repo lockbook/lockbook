@@ -1251,34 +1251,34 @@ impl Lb {
     async fn send_debug_info(&self, account: Account) {
         use crate::service::debug;
 
-        let max_panic_time = debug::latest_panic_time(&self.config.writeable_path)
-            .await
-            .unwrap_or_else(|e| {
-                warn!("could not enumerate panic files: {e:?}");
-                None
-            });
+        let new_marker = match debug::crash_report_marker(&self.config.writeable_path).await {
+            Ok(marker) => marker,
+            Err(e) => {
+                warn!("could not enumerate crash reports: {e:?}");
+                return;
+            }
+        };
 
         let last_sent = {
             let tx = self.ro_tx().await;
             tx.db().last_extracted_panic.as_ref().copied()
         };
 
-        let should_send = match (last_sent, max_panic_time) {
-            (None, _) => true,
-            (Some(prev), Some(cur)) => cur > prev,
-            (Some(_), None) => false,
-        };
-
-        if !should_send {
+        if last_sent == Some(new_marker) {
             return;
         }
 
-        let debug_info = self
+        let debug_info = match self
             .debug_info("none provided - sync".to_string(), false)
             .await
-            .unwrap();
+        {
+            Ok(info) => info,
+            Err(e) => {
+                warn!("could not collect crash reports: {e:?}");
+                return;
+            }
+        };
 
-        let new_marker = max_panic_time.unwrap_or(0);
         let bg_self = self.clone();
         let task = async move {
             match bg_self
