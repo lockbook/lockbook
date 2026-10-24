@@ -40,7 +40,7 @@ import SwiftWorkspace
         #elseif os(macOS)
             do {
                 let fm = FileManager.default
-                guard let group = fm.containerURL(forSecurityApplicationGroupIdentifier: "39ZS78S25U.app.lockbook") else {
+                guard let group = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") else {
                     throw CocoaError(.fileWriteNoPermission)
                 }
                 let location = group.appendingPathComponent("data", isDirectory: true)
