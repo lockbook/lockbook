@@ -1,10 +1,15 @@
 # Apple crash reporting
 
-The main iOS and macOS app subscribes to MetricKit diagnostics at startup using
-`MXMetricManagerSubscriber`, which supports our OS 26 deployment targets. It also
-imports `pastDiagnosticPayloads` to recover deliveries that were not saved before
-the previous process exited. Only `crashDiagnostics` are saved; performance metrics,
-hangs, CPU exceptions, and disk-write diagnostics are not collected by this integration.
+The main iOS and macOS app starts MetricKit collection at startup. On OS 27 and later,
+one long-lived task consumes `MetricManager.diagnosticReports` and saves only
+`DiagnosticResult.crash` events. The task retains its manager, writes reports serially
+off the main actor, and is cancelled when the app's reporter is released.
+
+OS 26 uses a separate `MXMetricManagerSubscriber` compatibility adapter because the
+replacement API requires OS 27. Only this adapter imports `pastDiagnosticPayloads`
+to recover cached deliveries. The two collectors never run together. Remove the
+deprecated adapter when the minimum OS reaches 27. Performance metrics, hangs, CPU
+exceptions, and disk-write diagnostics are not collected by this integration.
 
 This covers system-reported native crashes, including Swift runtime traps, without
 running Swift or Rust code in a signal handler. Apple controls diagnostic availability
@@ -15,14 +20,18 @@ App extensions have separate processes and are not subscribed by this change.
 
 Each diagnostic is atomically written to the same writable directory as lb-rs,
 respecting `LOCKBOOK_PATH`, as `metrickit---<sha256>.log`. The file contains a readable
-header and JSON with the original diagnostic (including stack addresses and binary
-UUIDs), bundle ID, application version, and reporting interval. The interval is not
-an exact crash timestamp. Rust labels the file modification time as its receipt time.
+header and JSON with the diagnostic (including stack addresses and binary UUIDs),
+bundle ID, application version, and reporting interval. On OS 27, it preserves the
+complete Codable `DiagnosticReport`, including the crashed build's environment and
+build number; the compatibility adapter stores the legacy crash diagnostic JSON.
+Use the supplied interval rather than assuming an exact crash timestamp. Rust labels
+the file modification time as its receipt time.
 
-Canonical JSON and an occurrence number within the payload make repeated deliveries
-idempotent while preserving multiple identical diagnostics in one payload. Different
-reporting intervals produce different IDs. There is no cross-source deduplication:
-a fatal Rust panic may appear both in a Rust panic log and in a MetricKit diagnostic.
+Canonical JSON makes repeated deliveries idempotent. An occurrence number preserves
+multiple identical diagnostics in a legacy payload; the modern API delivers individual
+events. Different reporting intervals produce different IDs. There is no cross-source
+or cross-API deduplication: a fatal Rust panic may also appear in MetricKit, and the
+same crash delivered through both APIs across an OS upgrade may be stored twice.
 
 lb-rs includes these files in the existing `DebugInfo.panics` array, so manual debug
 info and the server's Discord attachment include them without a wire or server schema
@@ -45,15 +54,18 @@ used by workspace restoration.
 
 ## Validation
 
-Run the standalone Swift tests on a Mac with Xcode:
+Build with Xcode 27 or later for the new MetricKit SDK. Deployment targets remain
+iOS/macOS 26. Run the standalone Swift tests on a Mac:
 
 ```sh
 swift test --package-path clients/apple
 cargo test -p lb-rs --lib service::debug::tests --locked
 ```
 
-The Swift package compiles the production subscriber and tests persistence, report
+The Swift package compiles both production collectors and tests persistence, report
 metadata, repeated deliveries, ordering, multiple occurrences, and write retries.
+On macOS 27 and later, it also tests typed-report crash filtering, preservation of
+build and stack details, and redelivery. Those tests are skipped on older systems.
 Rust tests cover discovery alongside legacy panic files, upload markers, and excluding
 delayed reports from crash-loop recovery.
 
@@ -63,7 +75,8 @@ and use Xcode's **Debug > Simulate MetricKit Payloads**. Inspect the resulting
 data, not proof of actual crash delivery. To validate actual capture, trigger a Swift
 trap in a disposable development build on a device, outside the debugger, then
 relaunch and wait for MetricKit delivery. Use a test account/server to inspect uploads;
-the subscriber itself never sends reports.
+the collectors themselves never send reports. Exercise both OS 26's compatibility
+path and OS 27's async path when checking real delivery.
 
 ## Symbolication
 
@@ -74,5 +87,7 @@ server-side symbolication. The version in each diagnostic can predate the curren
 running app, so use the crashed build's symbols.
 
 References: [MetricKit](https://developer.apple.com/documentation/metrickit),
+[MetricManager](https://developer.apple.com/documentation/metrickit/metricmanager),
+[DiagnosticReport](https://developer.apple.com/documentation/metrickit/diagnosticreport),
 [MXCrashDiagnostic](https://developer.apple.com/documentation/metrickit/mxcrashdiagnostic),
 [matching dSYMs](https://developer.apple.com/documentation/xcode/locating-a-missing-debug-symbol-file).
