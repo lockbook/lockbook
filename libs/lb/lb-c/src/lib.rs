@@ -63,6 +63,12 @@ pub extern "C" fn lb_init(
     }
 }
 
+/// Log the caller's build identity after initializing core logging.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_log_startup(build_info: *const c_char) {
+    service::logging::log_startup(rstr(build_info));
+}
+
 #[repr(C)]
 pub struct LbAccountRes {
     err: *mut LbFfiErr,

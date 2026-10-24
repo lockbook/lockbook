@@ -23,6 +23,7 @@ final class FileProviderCore {
         }
         self.root = root
         let initialized = lb_init(location.path, "file-provider", true, false)
+        _ = BuildInfo.log
         if initialized.err != nil {
             let error = Self.error(initialized.err!)
             lb_free_init(initialized)

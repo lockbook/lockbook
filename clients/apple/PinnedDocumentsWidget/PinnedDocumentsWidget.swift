@@ -55,6 +55,7 @@ struct PinnedDocumentsProvider: TimelineProvider {
             }
 
             let core = lb_init(directory.path, "widgets", true, false)
+            _ = BuildInfo.log
             defer { lb_free_init(core) }
 
             guard core.err == nil else {

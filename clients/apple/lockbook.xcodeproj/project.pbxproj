@@ -15,6 +15,9 @@
 		AC00000000000000000000B2 /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = AC00000000000000000000B1 /* Bridge */; };
 		AD00000000000000000000E9 /* FileProvider.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AD00000000000000000000E1 /* FileProvider.appex */; platformFilters = (macos, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AD00000000000000000000B2 /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = AD00000000000000000000B1 /* Bridge */; };
+		AA0000000000000000000F02 /* BuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000F01 /* BuildInfo.swift */; };
+		AC0000000000000000000F02 /* BuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000F01 /* BuildInfo.swift */; };
+		AD0000000000000000000F02 /* BuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000F01 /* BuildInfo.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,6 +66,7 @@
 		AB00000000000000000000E1 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC00000000000000000000E1 /* PinnedDocumentsWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PinnedDocumentsWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AD00000000000000000000E1 /* FileProvider.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FileProvider.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AE0000000000000000000F01 /* BuildInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildInfo.swift; sourceTree = DERIVED_FILE_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -148,6 +152,7 @@
 				AC00000000000000000000E2 /* PinnedDocumentsWidget */,
 				AD00000000000000000000E2 /* FileProvider */,
 				47728DB12EC921DD005F9C91 /* AppIcon.icon */,
+				AE0000000000000000000F01 /* BuildInfo.swift */,
 				EA5C7D702516606000F7F358 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -170,6 +175,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = AA00000000000000000000A7 /* Build configuration list for PBXNativeTarget "Lockbook" */;
 			buildPhases = (
+				AA0000000000000000000F03 /* Record build info */,
 				AA00000000000000000000A3 /* Sources */,
 				AA00000000000000000000A4 /* Frameworks */,
 				AA00000000000000000000A5 /* Resources */,
@@ -220,6 +226,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = AC00000000000000000000E4 /* Build configuration list for PBXNativeTarget "PinnedDocumentsWidget" */;
 			buildPhases = (
+				AC0000000000000000000F03 /* Record build info */,
 				AC00000000000000000000E5 /* Sources */,
 				AC00000000000000000000E6 /* Frameworks */,
 				AC00000000000000000000E7 /* Resources */,
@@ -243,6 +250,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = AD00000000000000000000E4 /* Build configuration list for PBXNativeTarget "FileProvider" */;
 			buildPhases = (
+				AD0000000000000000000F03 /* Record build info */,
 				AD00000000000000000000E5 /* Sources */,
 				AD00000000000000000000E6 /* Frameworks */,
 				AD00000000000000000000E7 /* Resources */,
@@ -329,11 +337,51 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		AA0000000000000000000F03 /* Record build info */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ("$(SRCROOT)/record-build-info.sh", );
+			name = "Record build info";
+			outputPaths = ("$(DERIVED_FILE_DIR)/BuildInfo.swift", );
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "sh \"$SRCROOT/record-build-info.sh\"";
+		};
+		AC0000000000000000000F03 /* Record build info */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ("$(SRCROOT)/record-build-info.sh", );
+			name = "Record build info";
+			outputPaths = ("$(DERIVED_FILE_DIR)/BuildInfo.swift", );
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "sh \"$SRCROOT/record-build-info.sh\"";
+		};
+		AD0000000000000000000F03 /* Record build info */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ("$(SRCROOT)/record-build-info.sh", );
+			name = "Record build info";
+			outputPaths = ("$(DERIVED_FILE_DIR)/BuildInfo.swift", );
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "sh \"$SRCROOT/record-build-info.sh\"";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		AA00000000000000000000A3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA0000000000000000000F02 /* BuildInfo.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -348,6 +396,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AC0000000000000000000F02 /* BuildInfo.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -355,6 +404,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AD0000000000000000000F02 /* BuildInfo.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -764,7 +814,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO; /* Build identity checks Git and local edits across the checkout. */
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -828,7 +878,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO; /* Build identity checks Git and local edits across the checkout. */
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -885,7 +935,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO; /* Build identity checks Git and local edits across the checkout. */
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;

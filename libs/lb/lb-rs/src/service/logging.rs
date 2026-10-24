@@ -213,6 +213,14 @@ pub fn init_for_client(config: &Config, client_name: Option<&str>) -> LbResult<(
     Ok(())
 }
 
+pub fn log_startup(build_info: &str) {
+    tracing::info!(
+        pid = std::process::id(),
+        core_version = crate::get_code_version(),
+        "startup {build_info}"
+    );
+}
+
 fn panic_capture(config: &Config) {
     let path = config.writeable_path.clone();
     panic::set_hook(Box::new(move |error_header| {

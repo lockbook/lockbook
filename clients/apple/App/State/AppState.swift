@@ -113,7 +113,9 @@ import SwiftWorkspace
         #else
         let clientName = "ios"
         #endif
-        return Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? LB_LOC, clientName: clientName, logs: true)
+        let core = Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? LB_LOC, clientName: clientName, logs: true)
+        _ = BuildInfo.log
+        return core
     }()
 
     func checkIfLoggedIn() {

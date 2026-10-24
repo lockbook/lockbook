@@ -24,6 +24,7 @@ fn logging_initialization_is_safe_for_concurrent_cores() {
             });
         }
     });
+    logging::log_startup("bundle=app.lockbook.FileProvider version=test build=123 commit=abc123");
     // Lb::init calls the unnamed initializer after the Swift bridge initializes logging.
     logging::init(&config).unwrap();
     let contents =
@@ -31,5 +32,12 @@ fn logging_initialization_is_safe_for_concurrent_cores() {
     for worker in 0..16 {
         assert!(contents.contains(&format!("[worker {worker}]")));
     }
+    assert!(
+        contents.contains(
+            "startup bundle=app.lockbook.FileProvider version=test build=123 commit=abc123"
+        )
+    );
+    assert!(contents.contains(&format!("pid={}", std::process::id())));
+    assert!(contents.contains(lb_rs::get_code_version()));
     assert!(!directory.path().join("lockbook.log").exists());
 }

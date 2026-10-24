@@ -15,6 +15,7 @@ func withWidgetCore<T>(_ operation: (OpaquePointer?) throws -> T) throws -> T {
     }
 
     let core = lb_init(directory.path, "widgets", true, false)
+    _ = BuildInfo.log
     defer { lb_free_init(core) }
     if let error = core.err {
         throw WidgetOperationError(message: String(cString: error.pointee.msg))
