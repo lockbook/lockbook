@@ -14,11 +14,7 @@ final class FileProviderCore {
         guard let group = fm.containerURL(forSecurityApplicationGroupIdentifier: "39ZS78S25U.app.lockbook") else {
             throw NSFileProviderError(.notAuthenticated)
         }
-        #if DEBUG
-        let location = group.appendingPathComponent("dev", isDirectory: true)
-        #else
         let location = group.appendingPathComponent("data", isDirectory: true)
-        #endif
         guard fm.fileExists(atPath: location.appendingPathComponent("CoreV5").path),
               let root = UUID(uuidString: domain.identifier.rawValue) else {
             throw NSFileProviderError(.notAuthenticated)

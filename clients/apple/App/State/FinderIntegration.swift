@@ -9,8 +9,12 @@ import SwiftWorkspace
     var busy = false
 
     private var domain: NSFileProviderDomain? {
+        #if os(macOS) && DEBUG
+        return nil
+        #else
         guard let root = try? AppState.lb.listMetadatas().get().first(where: \.isRoot) else { return nil }
         return NSFileProviderDomain(identifier: .init(root.id.uuidString), displayName: "Lockbook")
+        #endif
     }
 
     func refresh() {

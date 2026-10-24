@@ -198,6 +198,7 @@ import SwiftWorkspace
 
         var body: some View {
             Form {
+                #if !DEBUG
                 Section("Finder") {
                     Toggle("Show Lockbook in Finder", isOn: Binding(
                         get: { finder.enabled }, set: { finder.setEnabled($0) }
@@ -210,6 +211,7 @@ import SwiftWorkspace
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                #endif
                 Section("Tabs") {
                     Toggle("Open files in new tabs", isOn: $openInNewTab)
                     Text(
