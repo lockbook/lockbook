@@ -11,7 +11,7 @@ final class FileProviderCore {
     init(domain: NSFileProviderDomain, cache: FileProviderCache) throws {
         self.cache = cache
         let fm = FileManager.default
-        guard let group = fm.containerURL(forSecurityApplicationGroupIdentifier: "39ZS78S25U.app.lockbook") else {
+        guard let group = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") else {
             throw NSFileProviderError(.notAuthenticated)
         }
         let location = group.appendingPathComponent("data", isDirectory: true)
