@@ -2,6 +2,7 @@
 import PackageDescription
 
 // Test diagnostics without building the app's Rust workspace XCFramework.
+// Requires Xcode 27 or later for the modern MetricKit SDK, with older OS support.
 let package = Package(
     name: "LockbookDiagnostics",
     platforms: [.macOS(.v12), .iOS(.v15)],

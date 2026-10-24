@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 
 /// One immutable file per diagnostic, consumed by lb-rs alongside Rust panic logs.
-/// Call on a serial queue. File publication is atomic so sync never reads a partial report.
+/// Serialize calls from a single consumer. Atomic publication prevents partial reads by sync.
 struct MetricKitCrashStore {
     struct Diagnostic {
         let applicationVersion: String
