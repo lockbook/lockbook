@@ -14,7 +14,6 @@ use crate::releaser::android::AndroidTrack;
 pub use releaser::version::set_android_version_code;
 
 fn main() {
-    forget_cargo_run_env();
     Command::name("lbdev")
         .description("Tool for maintainers to dev, check and release Lockbook.")
         .with_completions()
@@ -139,26 +138,4 @@ fn main() {
         )
         .parse()
         .exit();
-}
-
-/// Drops the package variables `cargo run` hands lbdev, so a cargo it starts
-/// sees what a cargo started by hand does. Build scripts watch some of them
-/// (ring watches `CARGO_MANIFEST_DIR`), and a difference rebuilds everything
-/// above that crate each time the two kinds of cargo take turns.
-fn forget_cargo_run_env() {
-    let set_by_cargo_run = |key: &str| {
-        key.starts_with("CARGO_PKG_")
-            || matches!(
-                key,
-                "CARGO_MANIFEST_DIR"
-                    | "CARGO_MANIFEST_PATH"
-                    | "CARGO_CRATE_NAME"
-                    | "CARGO_BIN_NAME"
-            )
-    };
-    for (key, _) in std::env::vars_os() {
-        if key.to_str().is_some_and(set_by_cargo_run) {
-            std::env::remove_var(key);
-        }
-    }
 }

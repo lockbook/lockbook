@@ -17,27 +17,29 @@ jobs:
       NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE: 1
     steps:
     - uses: actions/checkout@v4
+    - name: Build lbdev
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo build --locked -p lbdev"
     - name: Check Workspace Fmt
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci fmt"
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci fmt"
     - name: Check Workspace Clippy
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci clippy"
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci clippy"
     - name: Run Server
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci start-server"
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci start-server"
     - name: Run Rust Tests
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci rust-tests"
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci rust-tests"
     - name: Run Android Lint
-      run: nix-shell clients/android --command "cargo run -p lbdev -- ci android-lint"
+      run: nix-shell clients/android --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci android-lint"
     - name: Server Logs
       if: always()
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci server-logs"
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci server-logs"
     - name: Check Lock File
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci assert-git-clean"
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci assert-git-clean"
     - name: Install Nightly
       run: rustup toolchain install nightly-2026-09-19
     - name: Install udeps
       run: nix-shell -p openssl pkg-config --command "cargo install cargo-udeps --locked --version 0.1.55"
     - name: Check Unused Dependencies
-      run: nix-shell -p openssl pkg-config glib gobject-introspection gdk-pixbuf gtk3 --command "cargo run -p lbdev -- ci assert-no-udeps"
+      run: nix-shell -p openssl pkg-config glib gobject-introspection gdk-pixbuf gtk3 --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci assert-no-udeps"
     - name: Cleanup
       if: always()
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci kill-server"
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci kill-server"
