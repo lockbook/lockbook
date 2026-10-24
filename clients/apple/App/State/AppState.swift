@@ -45,16 +45,13 @@ import SwiftWorkspace
                 let location = group.appendingPathComponent("dev", isDirectory: true)
                 #else
                 let location = group.appendingPathComponent("data", isDirectory: true)
-                #endif
                 let legacy = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".lockbook", isDirectory: true)
-                // Run before opening the core. Existing CLI processes must be stopped before migration.
-                if !fm.fileExists(atPath: location.path) {
-                    if fm.fileExists(atPath: legacy.path) {
-                        try fm.moveItem(at: legacy, to: location)
-                    } else {
-                        try fm.createDirectory(at: location, withIntermediateDirectories: true)
-                    }
+                // Only Release migrates its sandbox data; development leaves ~/.lockbook alone.
+                if !fm.fileExists(atPath: location.path), fm.fileExists(atPath: legacy.path) {
+                    try fm.moveItem(at: legacy, to: location)
                 }
+                #endif
+                try fm.createDirectory(at: location, withIntermediateDirectories: true)
                 return location.path
             } catch {
                 fatalError("Could not move Lockbook data to its shared container: \(error)")
