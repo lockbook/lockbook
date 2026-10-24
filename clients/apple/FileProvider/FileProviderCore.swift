@@ -14,7 +14,11 @@ final class FileProviderCore {
         guard let group = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") else {
             throw NSFileProviderError(.notAuthenticated)
         }
+        #if os(macOS)
         let location = group.appendingPathComponent("data", isDirectory: true)
+        #else
+        let location = group.appendingPathComponent("lockbook", isDirectory: true)
+        #endif
         guard fm.fileExists(atPath: location.appendingPathComponent("CoreV5").path),
               let root = UUID(uuidString: domain.identifier.rawValue) else {
             throw NSFileProviderError(.notAuthenticated)
@@ -104,7 +108,7 @@ final class FileProviderCore {
             // The document changed between the metadata lookup and its read.
             let current = try self.item(item.itemIdentifier, loadSize: false)
             guard current.contentVersion == Self.data(version) else {
-                throw NSFileProviderError(.versionNoLongerAvailable)
+                throw FileProviderCore.versionUnavailable
             }
             item.contentVersion = current.contentVersion
             item.modified = current.modified
@@ -160,6 +164,14 @@ final class FileProviderCore {
 
     func check(_ error: UnsafeMutablePointer<LbFfiErr>?) throws {
         if let error { throw Self.error(error) }
+    }
+
+    static var versionUnavailable: Error {
+        #if os(macOS)
+        NSFileProviderError(.versionNoLongerAvailable)
+        #else
+        NSFileProviderError(.cannotSynchronize)
+        #endif
     }
 
     static func error(_ error: UnsafeMutablePointer<LbFfiErr>) -> Error {

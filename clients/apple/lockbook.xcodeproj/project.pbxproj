@@ -13,7 +13,7 @@
 		AB00000000000000000000E9 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB00000000000000000000E1 /* ShareExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AC00000000000000000000E9 /* PinnedDocumentsWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AC00000000000000000000E1 /* PinnedDocumentsWidget.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AC00000000000000000000B2 /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = AC00000000000000000000B1 /* Bridge */; };
-		AD00000000000000000000E9 /* FileProvider.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AD00000000000000000000E1 /* FileProvider.appex */; platformFilters = (macos, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AD00000000000000000000E9 /* FileProvider.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AD00000000000000000000E1 /* FileProvider.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AD00000000000000000000B2 /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = AD00000000000000000000B1 /* Bridge */; };
 /* End PBXBuildFile section */
 
@@ -375,7 +375,6 @@
 		};
 		AD00000000000000000000EB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			platformFilters = (macos, );
 			target = AD00000000000000000000E0 /* FileProvider */;
 			targetProxy = AD00000000000000000000EA /* PBXContainerItemProxy */;
 		};
@@ -915,7 +914,10 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
-				CODE_SIGN_ENTITLEMENTS = FileProvider/FileProvider.entitlements;
+				CODE_SIGN_ENTITLEMENTS = FileProvider/iOS.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = FileProvider/FileProvider.entitlements;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20261016.082307;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
@@ -934,9 +936,9 @@
 				PRODUCT_MODULE_NAME = LockbookFileProvider;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				SDKROOT = macosx;
+				SDKROOT = auto;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -951,7 +953,10 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
-				CODE_SIGN_ENTITLEMENTS = FileProvider/FileProvider.entitlements;
+				CODE_SIGN_ENTITLEMENTS = FileProvider/iOS.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = FileProvider/FileProvider.entitlements;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20261016.082307;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
@@ -970,9 +975,9 @@
 				PRODUCT_MODULE_NAME = LockbookFileProvider;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				SDKROOT = macosx;
+				SDKROOT = auto;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -987,7 +992,10 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				OTHER_LDFLAGS = ("$(inherited)", "-framework", SystemConfiguration, );
-				CODE_SIGN_ENTITLEMENTS = FileProvider/FileProvider.entitlements;
+				CODE_SIGN_ENTITLEMENTS = FileProvider/iOS.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = FileProvider/FileProvider.entitlements;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20261016.082307;
 				DEVELOPMENT_TEAM = 39ZS78S25U;
@@ -1006,9 +1014,9 @@
 				PRODUCT_MODULE_NAME = LockbookFileProvider;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
-				SDKROOT = macosx;
+				SDKROOT = auto;
 				SKIP_INSTALL = YES;
-				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

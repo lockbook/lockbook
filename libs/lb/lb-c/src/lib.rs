@@ -1172,8 +1172,8 @@ pub struct LbEvent {
 
 pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
 
-/// The macOS notification posted after this database commits. Free with `lb_free_str`.
-#[cfg(target_os = "macos")]
+/// The Darwin notification posted after this database commits. Free with `lb_free_str`.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_change_notification_name(lb: *mut Lb) -> *mut c_char {
     cstring(rlb(lb).async_lb().change_notification_name().to_owned())

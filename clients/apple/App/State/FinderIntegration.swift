@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+#endif
 import FileProvider
 import SwiftWorkspace
 
@@ -50,12 +51,17 @@ import SwiftWorkspace
             NSFileProviderManager.getDomainsWithCompletionHandler { domains, error in
                 if let error { complete(error) }
                 else if domains.contains(where: { $0.identifier == domain.identifier }) {
+                    #if os(macOS)
                     NSFileProviderManager.remove(domain, mode: .preserveDirtyUserData) { _, error in complete(error) }
+                    #else
+                    NSFileProviderManager.remove(domain, completionHandler: complete)
+                    #endif
                 } else { complete(nil) }
             }
         }
     }
 
+    #if os(macOS)
     func open(id: UUID? = nil, reveal: Bool = true) {
         guard let domain else { return }
         let item: NSFileProviderItemIdentifier = id.map { .init($0.uuidString) } ?? .rootContainer
@@ -75,8 +81,14 @@ import SwiftWorkspace
         }
     }
 
+    #endif
+
     private func report(_ error: Error) {
-        AppState.shared.error = .custom(title: "Finder", msg: error.localizedDescription)
+        #if os(macOS)
+        let title = "Finder"
+        #else
+        let title = "Files"
+        #endif
+        AppState.shared.error = .custom(title: title, msg: error.localizedDescription)
     }
 }
-#endif
