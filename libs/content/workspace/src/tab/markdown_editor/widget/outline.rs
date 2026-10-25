@@ -391,9 +391,6 @@ impl Scroll {
                 let wash = t.wash_toward_neutral_fg(ground, amount);
                 painter.rect_filled(rect, Radius::Sm.corner(), wash);
             }
-            if live && resp.hovered() {
-                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            }
             let text_rect = Rect::from_min_max(
                 pos2(rect.left() + Space::Sm.pts() + m.indent, rect.top()),
                 pos2(rect.right() - Space::Sm.pts(), rect.bottom()),
@@ -401,6 +398,17 @@ impl Scroll {
             let at = Align2::LEFT_CENTER
                 .align_size_within_rect(m.galley.size(), text_rect)
                 .min;
+            // a faint dot in each step of a heading's indent, beside its first line
+            if matches!(m.choice, Choice::Heading(_)) {
+                let line = m.galley.rows.first().map_or(0.0, |r| r.rect().height());
+                let y = at.y + line / 2.0;
+                let ink = t.neutral_fg_secondary().gamma_multiply(0.45);
+                let steps = (m.indent / Space::Md.pts()).round() as usize;
+                for step in 0..steps {
+                    let x = rect.left() + Space::Sm.pts() + (step as f32 + 0.5) * Space::Md.pts();
+                    painter.circle_filled(pos2(x, y), 1.0, ink);
+                }
+            }
             painter.galley(at, m.galley.clone(), Color32::PLACEHOLDER);
             if m.galley.elided {
                 tip_text(ui.ctx(), &resp, m.tip.clone());
@@ -601,12 +609,14 @@ fn paint_surface(ui: &Ui, rect: Rect, shadow: Option<egui::Shadow>) {
 }
 
 /// A section's title in a header row whose top left is (`left`, `top`).
+/// A section's title, in small caps as list sections are titled.
 fn paint_title(ui: &Ui, title: &str, left: f32, top: f32) {
     let t = ui.ctx().get_lb_theme();
-    let font = egui::FontId::new(TypeRole::Body.size(), egui::FontFamily::Name(Arc::from("Bold")));
-    let title = ui
-        .painter()
-        .layout_no_wrap(title.into(), font, t.neutral_fg_secondary());
+    let title = ui.painter().layout_no_wrap(
+        TypeRole::caps(title),
+        TypeRole::Caption.font_id(),
+        t.neutral_fg_secondary(),
+    );
     let at = pos2(left + Space::Xs.pts(), top + (control_height() - title.size().y) / 2.0);
     ui.painter().galley(at, title, t.neutral_fg_secondary());
 }

@@ -1,23 +1,21 @@
 use std::collections::HashSet;
 
-use egui::{Context, Id, Key, Modifiers, Sense, Ui};
+use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::TextBufferArea;
-use crate::style::ThemeExt as _;
+use crate::style::{FileRow, Space, ThemeExt as _};
 use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
-use crate::tab::markdown_editor::widget::{
-    completion_font, completion_line_h, completion_popup_rect, completion_popup_size,
-    completion_row_rects, completion_text_rect,
-};
-use crate::widgets::GlyphonLabel;
+use crate::tab::markdown_editor::widget::completion_popup_rect;
 
 const MAX_RESULTS: usize = 5;
+/// The popup's width, narrower where the window is: room for
+/// `heavy_check_mark` and the shortcodes shorter than it, about 95% of use.
+const POPUP_WIDTH: f32 = 180.0;
 
 #[derive(Default)]
 pub struct EmojiCompletions {
@@ -111,42 +109,30 @@ impl EmojiCompletions {
             return;
         }
 
-        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) && self.selected > 0 {
+        let up = ctx.input_mut(|i| {
+            i.consume_key(Modifiers::NONE, Key::ArrowUp) || i.consume_key(Modifiers::CTRL, Key::P)
+        });
+        if up && self.selected > 0 {
             self.selected -= 1;
         }
-        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown))
-            && self.selected + 1 < results.len()
-        {
+        let down = ctx.input_mut(|i| {
+            i.consume_key(Modifiers::NONE, Key::ArrowDown) || i.consume_key(Modifiers::CTRL, Key::N)
+        });
+        if down && self.selected + 1 < results.len() {
             self.selected += 1;
         }
 
-        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
-            let idx = self.selected;
-            let shortcode = matching_shortcode(results[idx], &query);
+        let accept = ctx.input_mut(|i| {
+            i.consume_key(Modifiers::NONE, Key::Enter) || i.consume_key(Modifiers::NONE, Key::Tab)
+        });
+        if accept {
+            let shortcode = matching_shortcode(results[self.selected], &query);
             self.apply_completion(events, colon_offset, replace_end, shortcode);
-            return;
-        }
-
-        let num_modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
-            Modifiers::COMMAND
-        } else {
-            Modifiers::CTRL
-        };
-        for (idx, key) in [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5]
-            .iter()
-            .enumerate()
-            .take(results.len())
-        {
-            if ctx.input_mut(|i| i.consume_key(num_modifier, *key)) {
-                let shortcode = matching_shortcode(results[idx], &query);
-                self.apply_completion(events, colon_offset, replace_end, shortcode);
-                return;
-            }
         }
     }
 
     /// Push a replacement event for the current query and reset popup state.
-    /// Shared between `handle_input` (Enter / number keys) and the click path
+    /// Shared between `handle_input` (Enter / Tab) and the click path
     /// in `show_emoji_completions`.
     pub fn apply_completion(
         &mut self, events: &mut Vec<Event>, colon_offset: Grapheme, replace_end: Grapheme,
@@ -334,20 +320,6 @@ fn parse_ascii_shortcode(s: &str) -> Option<(usize, &str)> {
     None
 }
 
-/// Returns a bool per shortcode character: true if that character was consumed
-/// by the subsequence match.
-fn match_positions(query: &str, shortcode: &str) -> Vec<bool> {
-    let mut result = vec![false; shortcode.chars().count()];
-    let mut qi = query.chars().peekable();
-    for (i, sc) in shortcode.chars().enumerate() {
-        if qi.peek() == Some(&sc) {
-            result[i] = true;
-            qi.next();
-        }
-    }
-    result
-}
-
 /// True if every character of `needle` appears in `haystack` in order.
 /// Allows "smil" to match "smiling_face", "poop" to match "poop", etc.
 fn is_subsequence(needle: &str, haystack: &str) -> bool {
@@ -361,29 +333,6 @@ fn is_subsequence(needle: &str, haystack: &str) -> bool {
         return false;
     }
     true
-}
-
-/// Splits the label into (text, is_bold) spans. Characters in the shortcode
-/// that matched the query are bold; chrome and unmatched chars are normal.
-/// Consecutive chars with the same weight are grouped into one span.
-fn build_label_spans(emoji_str: &str, shortcode: &str, query: &str) -> Vec<(String, bool)> {
-    let flags = match_positions(query, shortcode);
-    let mut spans: Vec<(String, bool)> = vec![(format!("{} :", emoji_str), false)];
-    let mut cur = String::new();
-    let mut cur_bold = false;
-    for (ch, &matched) in shortcode.chars().zip(flags.iter()) {
-        if matched != cur_bold && !cur.is_empty() {
-            spans.push((cur.clone(), cur_bold));
-            cur.clear();
-        }
-        cur_bold = matched;
-        cur.push(ch);
-    }
-    if !cur.is_empty() {
-        spans.push((cur, cur_bold));
-    }
-    spans.push((":".to_string(), false));
-    spans
 }
 
 /// Returns the best matching shortcode for `emoji` given `query`, along with
@@ -456,113 +405,41 @@ impl MdEdit {
             return;
         };
 
-        // -- Measure content -------------------------------------------------------
         let t = ui.ctx().get_lb_theme();
-        let text_color = t.neutral_fg();
-        let hint_color = t.neutral_fg_secondary();
-        let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) { "⌘" } else { "^" };
-
-        let shortcodes: Vec<&str> = results
-            .iter()
-            .map(|emoji| matching_shortcode(emoji, &query))
-            .collect();
-
-        let hints: Vec<String> = if self.phone_mode {
-            Vec::new()
-        } else {
-            (0..results.len())
-                .map(|i| format!("{}{}", modifier, i + 1))
-                .collect()
-        };
-
-        let spans: Vec<Vec<(String, bool)>> = results
-            .iter()
-            .zip(shortcodes.iter())
-            .map(|(emoji, &shortcode)| build_label_spans(emoji.as_str(), shortcode, &query))
-            .collect();
-
-        let max_width = spans
-            .iter()
-            .enumerate()
-            .map(|(i, s)| {
-                let span_refs: Vec<(&str, bool)> =
-                    s.iter().map(|(t, b)| (t.as_str(), *b)).collect();
-                let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                    .font_size(completion_font())
-                    .line_height(completion_line_h());
-                if let Some(hint) = hints.get(i) {
-                    label = label.hint(hint, hint_color);
-                }
-                label.measure(ui).x
-            })
-            .fold(0.0_f32, f32::max);
-
-        // -- Position popup --------------------------------------------------------
-        let popup_rect = completion_popup_rect(
-            cursor_top,
-            cursor_bot,
-            completion_popup_size(max_width, results.len()),
-            ui.ctx().content_rect(),
-        );
+        let pad = Space::Xs.pts();
+        let row_h = FileRow::height_for(false);
+        let size = Vec2::new(POPUP_WIDTH, 2.0 * pad + row_h * results.len() as f32);
+        let popup_rect =
+            completion_popup_rect(cursor_top, cursor_bot, size, ui.ctx().content_rect());
         self.renderer
             .touch_targets
             .push((popup_rect, TouchTarget::Popup));
+        self.renderer.draw_completion_popup(ui, popup_rect);
 
-        let row_rects = completion_row_rects(popup_rect, results.len());
-
-        // -- Interaction -----------------------------------------------------------
-        let hover_pos = ui.input(|i| i.pointer.hover_pos());
-        let mut clicked: Option<usize> = None;
-        for (idx, _) in results.iter().enumerate() {
-            let resp =
-                ui.interact(row_rects[idx], Id::unique("emoji_item").with(idx), Sense::click());
+        let mut clicked = None;
+        for (i, emoji) in results.iter().enumerate() {
+            let top = popup_rect.top() + pad + row_h * i as f32;
+            let rect = Rect::from_min_max(
+                Pos2::new(popup_rect.left() + pad, top),
+                Pos2::new(popup_rect.right() - pad, top + row_h),
+            );
+            let label = format!("{}  {}", emoji.as_str(), matching_shortcode(emoji, &query));
+            let resp = FileRow::new(&t, label)
+                .icon("")
+                .highlighted(i == self.emoji_completions.selected)
+                .paint_at_hit(ui, rect, rect, Id::unique("emoji_item").with(i));
             if resp.clicked() {
-                clicked = Some(idx);
+                clicked = Some(i);
             }
         }
 
-        // -- Draw backgrounds ------------------------------------------------------
-        self.renderer.draw_completion_popup(
-            ui,
-            popup_rect,
-            &row_rects,
-            self.emoji_completions.selected,
-            hover_pos,
-        );
-
-        // -- Render text -----------------------------------------------------------
-        let clip_rect = ui.clip_rect();
-        let mut text_areas: Vec<TextBufferArea> = Vec::new();
-
-        for (idx, spans) in spans.iter().enumerate() {
-            let content_rect = completion_text_rect(row_rects[idx]);
-
-            let span_refs: Vec<(&str, bool)> =
-                spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
-            let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                .font_size(completion_font())
-                .line_height(completion_line_h());
-            if let Some(hint) = hints.get(idx) {
-                label = label.hint(hint, hint_color);
-            }
-            let shaped = label.build(ui.ctx());
-            text_areas.extend(shaped.text_areas(content_rect, ui.ctx(), clip_rect));
-        }
-
-        // Submit after the editor's main text callback so the popup composites on top.
-        ui.painter()
-            .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                ui.max_rect(),
-                crate::GlyphonRendererCallback::new(text_areas),
-            ));
-
-        // -- Apply clicked result --------------------------------------------------
-        if let Some(idx) = clicked {
+        if let Some(i) = clicked {
+            let shortcode = matching_shortcode(results[i], &query);
             self.emoji_completions.apply_completion(
                 &mut self.event.internal_events,
                 colon_offset,
                 replace_end,
-                shortcodes[idx],
+                shortcode,
             );
         }
     }

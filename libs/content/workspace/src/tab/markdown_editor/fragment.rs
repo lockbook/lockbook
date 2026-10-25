@@ -87,20 +87,6 @@ pub fn document_headings(md: &str) -> Vec<Heading> {
     headings_in(root).into_iter().map(|(_, h)| h).collect()
 }
 
-/// The headings above `headings[i]`, outermost first: `A / B`.
-pub fn crumbs(headings: &[Heading], i: usize) -> String {
-    let mut chain = Vec::new();
-    let mut level = headings[i].level;
-    for h in headings[..i].iter().rev() {
-        if h.level < level {
-            chain.push(h.text.as_str());
-            level = h.level;
-        }
-    }
-    chain.reverse();
-    chain.join(" / ")
-}
-
 /// Which of `headings` a fragment names: a slug first, so `#foo-1` is the
 /// second "Foo" and never a heading titled "foo-1"; then the first heading
 /// with that text. Case doesn't count; percent-escapes are decoded.
@@ -203,6 +189,5 @@ mod tests {
         for (i, h) in headings.iter().enumerate() {
             assert_eq!(find_heading(&headings, &wiki_token(h)), Some(i), "{h:?}");
         }
-        assert_eq!(crumbs(&document_headings("# A\n## B\n### C\n## D"), 2), "A / B");
     }
 }

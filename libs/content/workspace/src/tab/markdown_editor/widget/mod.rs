@@ -2,9 +2,7 @@ use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use egui::{Pos2, Rect, Sense, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
-use crate::style::chrome::{control_line_height, row_wash_inset};
-use crate::style::typography::TypeRole;
-use crate::style::{FG_HOVER, Radius, Space, ThemeExt as _, control_height};
+use crate::style::{Space, ThemeExt as _};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
 use super::MdRender;
@@ -363,10 +361,8 @@ impl<'ast> MdRender {
 
     /// Overlay plate + row washes for a completion popup. Text is glyphon,
     /// painted by each completion type after this.
-    pub fn draw_completion_popup(
-        &self, ui: &mut Ui, popup_rect: Rect, row_rects: &[Rect], selected: usize,
-        hover_pos: Option<egui::Pos2>,
-    ) {
+    /// A completion popup's plate: fill and shadow, its rows drawn on it.
+    pub fn draw_completion_popup(&self, ui: &mut Ui, popup_rect: Rect) {
         let t = ui.ctx().get_lb_theme();
         let mut child = ui.new_child(UiBuilder::new().max_rect(popup_rect));
         crate::style::chrome::canvas_overlay_frame(&t, Space::Xxs)
@@ -374,82 +370,7 @@ impl<'ast> MdRender {
             .show(&mut child, |ui| {
                 ui.allocate_exact_size(popup_rect.size(), Sense::hover());
             });
-
-        for (idx, rect) in row_rects.iter().enumerate() {
-            let over = idx == selected || hover_pos.is_some_and(|p| rect.contains(p));
-            if !over {
-                continue;
-            }
-            let wash = rect.shrink(row_wash_inset());
-            ui.painter().rect_filled(
-                wash,
-                Radius::Sm.corner(),
-                t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER),
-            );
-        }
     }
-}
-
-pub(crate) fn completion_row_h() -> f32 {
-    control_height()
-}
-
-pub(crate) fn completion_font() -> f32 {
-    TypeRole::Body.size()
-}
-
-pub(crate) fn completion_line_h() -> f32 {
-    control_line_height()
-}
-
-pub(crate) fn completion_path_font() -> f32 {
-    TypeRole::Mono.size()
-}
-
-fn completion_plate_pad() -> f32 {
-    Space::Xs.pts()
-}
-
-fn completion_row_pad_x() -> f32 {
-    Space::Sm.pts()
-}
-
-/// Plate pad + row inset on both sides (width beyond the glyphon content).
-pub(crate) fn completion_chrome_w() -> f32 {
-    2.0 * (completion_plate_pad() + completion_row_pad_x())
-}
-
-pub(crate) fn completion_popup_size(content_w: f32, n: usize) -> Vec2 {
-    Vec2::new(
-        content_w + completion_chrome_w(),
-        n as f32 * completion_row_h() + 2.0 * completion_plate_pad(),
-    )
-}
-
-pub(crate) fn completion_row_rects(popup: Rect, n: usize) -> Vec<Rect> {
-    completion_line_rects(popup, &vec![completion_row_h(); n])
-}
-
-/// [`completion_row_rects`] for lines of uneven heights, top to bottom.
-pub(crate) fn completion_line_rects(popup: Rect, heights: &[f32]) -> Vec<Rect> {
-    let inner = popup.shrink(completion_plate_pad());
-    let mut top = inner.top();
-    heights
-        .iter()
-        .map(|h| {
-            let rect =
-                Rect::from_min_size(egui::pos2(inner.left(), top), egui::vec2(inner.width(), *h));
-            top += h;
-            rect
-        })
-        .collect()
-}
-
-pub(crate) fn completion_text_rect(row: Rect) -> Rect {
-    let pad = completion_row_pad_x();
-    let lh = completion_line_h();
-    let y = row.center().y - lh / 2.0;
-    Rect::from_min_max(egui::pos2(row.left() + pad, y), egui::pos2(row.right() - pad, y + lh))
 }
 
 /// Gap kept between the completion popup and every window edge. Larger than
