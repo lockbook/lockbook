@@ -7,7 +7,7 @@
 //!
 //! Optional **subtitle** (path crumbs) lives **inside** the same interact rect
 //! so hover/selection wash covers name + path as one item. Paths use
-//! middle-ellipsis when they don't fit (`a / … / leaf`).
+//! middle-ellipsis when they don't fit (`a/…/leaf`).
 //!
 //! ## Looks
 //! Sidebar/chrome ground; idle transparent; hover/selection ink wash. Label
@@ -115,7 +115,8 @@ impl<'a> FileRow<'a> {
         self
     }
 
-    /// Leading Phosphor glyph (default [`phosphor::FILE`]).
+    /// Leading Phosphor glyph (default [`phosphor::FILE`]); empty for none,
+    /// the name then starting where the glyph would.
     pub fn icon(mut self, glyph: &'static str) -> Self {
         self.icon = glyph;
         self
@@ -306,7 +307,13 @@ impl<'a> FileRow<'a> {
         // Two-line recents rows (and hanging continuations): wider icon column so
         // name/path don't crowd the glyph. Continuations share that column so
         // extra hits line up under the parent's caption.
-        let icon_col = if two_line || hanging { ICON_SLOT + SUB_ICON_EXTRA } else { ICON_SLOT };
+        let icon_col = if self.icon.is_empty() {
+            0.0
+        } else if two_line || hanging {
+            ICON_SLOT + SUB_ICON_EXTRA
+        } else {
+            ICON_SLOT
+        };
         let text_x = icon_x + icon_col;
 
         if !hanging {
@@ -409,7 +416,8 @@ impl<'a> FileRow<'a> {
             let shown = middle_ellipsize_path_glyphon(ui, sub, max_w, sub_font_size, sub_lh);
             let sub_slot =
                 Rect::from_min_size(pos2(text_x, sub_cy - sub_lh / 2.0), vec2(max_w, sub_lh));
-            let label = crumb_label(&shown, t.neutral_fg_secondary(), t.accent());
+            let ink = t.neutral_fg_secondary();
+            let label = crumb_label(&shown, ink, ink).mono();
             file_name::paint_label(ui, label, sub_slot, sub_font_size, sub_lh);
         }
 
@@ -477,14 +485,20 @@ fn paint_caption(
     }
 }
 
-/// Middle-ellipsis for ` / `-joined path segments: `a / b / c / d` → `a / … / d`.
+/// Middle-ellipsis for a path's crumbs: `a/b/c/d` → `a/…/d`.
 ///
 /// Width measured with glyphon so emoji folder names size correctly.
 fn middle_ellipsize_path_glyphon(
     ui: &Ui, path: &str, max_w: f32, font_size: f32, line_height: f32,
 ) -> String {
-    let measure =
-        |s: &str| -> f32 { file_name::measure_sized(ui, s, font_size, line_height, f32::MAX) };
+    let measure = |s: &str| -> f32 {
+        let label = GlyphonLabel::new(s, Color32::PLACEHOLDER).mono();
+        label
+            .font_size(font_size)
+            .line_height(line_height)
+            .measure(ui)
+            .x
+    };
     if max_w <= 0.0 || path.is_empty() {
         return String::new();
     }
@@ -492,7 +506,7 @@ fn middle_ellipsize_path_glyphon(
         return path.to_owned();
     }
 
-    let parts: Vec<&str> = path.split(" / ").filter(|p| !p.is_empty()).collect();
+    let parts: Vec<&str> = path.split(CRUMB_SEP).filter(|p| !p.is_empty()).collect();
     if parts.is_empty() {
         return String::new();
     }
@@ -505,13 +519,13 @@ fn middle_ellipsize_path_glyphon(
 
     for right_keep in 1..parts.len() {
         let right = &parts[parts.len() - right_keep..];
-        let right_s = right.join(" / ");
+        let right_s = right.join(CRUMB_SEP);
         for left_keep in (0..parts.len() - right_keep).rev() {
             let candidate = if left_keep == 0 {
-                format!("{ellipsis} / {right_s}")
+                format!("{ellipsis}{CRUMB_SEP}{right_s}")
             } else {
-                let left = parts[..left_keep].join(" / ");
-                format!("{left} / {ellipsis} / {right_s}")
+                let left = parts[..left_keep].join(CRUMB_SEP);
+                format!("{left}{CRUMB_SEP}{ellipsis}{CRUMB_SEP}{right_s}")
             };
             if measure(&candidate) <= max_w {
                 return candidate;
@@ -519,17 +533,19 @@ fn middle_ellipsize_path_glyphon(
         }
     }
 
-    let fallback = format!("{ellipsis} / {last}");
+    let fallback = format!("{ellipsis}{CRUMB_SEP}{last}");
     if measure(&fallback) <= max_w { fallback } else { last.to_owned() }
 }
 
 fn path_parts(path: &str) -> Vec<&str> {
-    if path.contains(" / ") {
-        path.split(" / ").filter(|p| !p.is_empty()).collect()
-    } else {
-        path.split('/').filter(|p| !p.is_empty()).collect()
-    }
+    path.split('/')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .collect()
 }
+
+/// Between a path's crumbs: a bare slash, the path as written.
+pub const CRUMB_SEP: &str = "/";
 
 /// Account root as a location: house glyph + “Home” (glyphon shapes phosphor PUA).
 pub fn home_crumb() -> String {
@@ -549,37 +565,37 @@ pub fn crumb_label<'a>(
     }
 }
 
-/// Display crumbs for a stored path (`/a/b/c` or `a / b / c`) → `a / b / c`.
+/// Display crumbs for a stored path: `/a/b/c` → `a/b/c`.
 pub fn path_crumbs(path: &str) -> String {
     let parts = path_parts(path);
-    if parts.is_empty() { home_crumb() } else { parts.join(" / ") }
+    if parts.is_empty() { home_crumb() } else { parts.join(CRUMB_SEP) }
 }
 
-/// Parent crumbs of a stored path (`/a/b/c` → `a / b`). Root → [`home_crumb`].
+/// Parent crumbs of a stored path (`/a/b/c` → `a/b`). Root → [`home_crumb`].
 pub fn parent_crumbs(path: &str) -> String {
     let parts = path_parts(path);
     match parts.split_last() {
-        Some((_, parent)) if !parent.is_empty() => parent.join(" / "),
+        Some((_, parent)) if !parent.is_empty() => parent.join(CRUMB_SEP),
         _ => home_crumb(),
     }
 }
 
-/// Middle-ellipsis for ` / `-joined path segments: `a / b / c / d` → `a / … / d`.
+/// Middle-ellipsis for a path's crumbs: `a/b/c/d` → `a/…/d`.
 pub fn ellipsize_path(ui: &Ui, path: &str, max_w: f32) -> String {
     middle_ellipsize_path_glyphon(ui, path, max_w, SUB_SIZE, SUB_LINE_H)
 }
 
 /// Ellipsis from the outside in, keeping the innermost segments:
-/// `a / b / c / d` → `… / c / d`. For chains whose nearest link matters
+/// `a/b/c/d` → `…/c/d`. For chains whose nearest link matters
 /// most, like the headings above a heading.
 pub fn ellipsize_path_tail(ui: &Ui, path: &str, max_w: f32) -> String {
     let measure = |s: &str| file_name::measure_sized(ui, s, SUB_SIZE, SUB_LINE_H, f32::MAX);
     if max_w <= 0.0 || measure(path) <= max_w {
         return path.to_owned();
     }
-    let parts: Vec<&str> = path.split(" / ").filter(|p| !p.is_empty()).collect();
+    let parts: Vec<&str> = path.split(CRUMB_SEP).filter(|p| !p.is_empty()).collect();
     let dropped = (1..parts.len())
-        .map(|drop| format!("… / {}", parts[drop..].join(" / ")))
+        .map(|drop| format!("…{CRUMB_SEP}{}", parts[drop..].join(CRUMB_SEP)))
         .find(|candidate| measure(candidate) <= max_w);
     dropped.unwrap_or_else(|| {
         // the innermost alone, cut short at its end
