@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Align2, Color32, CursorIcon, Pos2, Rangef, Rect, Sense, Ui, UiBuilder, Vec2};
+use egui::{Align2, Color32, Pos2, Rangef, Rect, Sense, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
@@ -501,9 +501,6 @@ impl<'ast> MdRender {
             self.render_events.push(copy.clone());
         }
         let hovered = resp.hovered();
-        if hovered {
-            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
-        }
         tip_text(ui.ctx(), &resp, if copied.is_some() { "Copied" } else { "Copy code" });
         // a finger's reach, on the first row only
         let target = Rect::from_min_max(

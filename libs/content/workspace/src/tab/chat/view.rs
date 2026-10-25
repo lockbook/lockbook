@@ -1270,13 +1270,11 @@ impl Chat {
                                 });
                                 ui.painter().galley(r.center() - g.size() / 2.0, g, color);
                                 if let Some(target) = target.filter(|_| can_mutate) {
-                                    let resp = ui
-                                        .interact(
-                                            r,
-                                            Id::unique(("chat_arrow", vi, glyph)),
-                                            Sense::click(),
-                                        )
-                                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                    let resp = ui.interact(
+                                        r,
+                                        Id::unique(("chat_arrow", vi, glyph)),
+                                        Sense::click(),
+                                    );
                                     if resp.clicked() {
                                         action = Some(RowAction::Switch {
                                             parent: fork.parent,
@@ -1320,9 +1318,11 @@ impl Chat {
                             }
                             for (bi, (icon, act)) in icons.iter().enumerate() {
                                 let r = place(STRIP_H);
-                                let resp = ui
-                                    .interact(r, Id::unique(("chat_strip", i, bi)), Sense::click())
-                                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                let resp = ui.interact(
+                                    r,
+                                    Id::unique(("chat_strip", i, bi)),
+                                    Sense::click(),
+                                );
                                 let color =
                                     if resp.hovered() { text_color } else { secondary_color };
                                 let g = ui.fonts_mut(|f| {
@@ -1356,7 +1356,14 @@ impl Chat {
                         // note instead (point-tested: this row widget owns the
                         // whole rect, so they can't be their own widgets).
                         if self.entries[i].msg.tool.is_some() {
-                            let row_resp = row_resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+                            let listing = |p: Pos2| {
+                                tool_list_hits
+                                    .get(&i)
+                                    .is_some_and(|rows| rows.iter().any(|(r, _)| r.contains(p)))
+                            };
+                            if row_resp.hover_pos().is_some_and(listing) {
+                                crate::style::link_cursor(ui.ctx());
+                            }
                             if row_resp.clicked() {
                                 let hit = row_resp.interact_pointer_pos().and_then(|p| {
                                     tool_list_hits.get(&i).and_then(|rows| {
@@ -1404,6 +1411,9 @@ impl Chat {
                         // Fill with the bg-family accent (the send button's
                         // pattern) — the fg accent is for text and strokes.
                         let accent = theme.bg().get_color(theme.prefs().primary);
+                        ui.painter()
+                            .add(crate::style::pin_shadow(&theme).as_shape(r.border, 2));
+                        ui.painter().rect_filled(r.border, 2.0, theme.neutral_bg());
                         // Header bar with top corners rounded, like an expanded
                         // tool row's.
                         ui.painter().rect_filled(
@@ -1411,9 +1421,6 @@ impl Chat {
                             CornerRadius { nw: 2, ne: 2, sw: 0, se: 0 },
                             theme.neutral_bg_secondary(),
                         );
-                        ui.painter()
-                            .add(crate::style::pin_shadow(&theme).as_shape(r.border, 2));
-                        ui.painter().rect_filled(r.border, 2.0, theme.neutral_bg());
                         ui.painter().galley(
                             pos2(
                                 r.header_rect.min.x + TOOL_PAD_X,
@@ -1430,9 +1437,11 @@ impl Chat {
                         }
 
                         // Deny: bordered. Allow: accent-filled.
-                        let deny = ui
-                            .interact(r.deny_rect, Id::unique("chat_review_deny"), Sense::click())
-                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        let deny = ui.interact(
+                            r.deny_rect,
+                            Id::unique("chat_review_deny"),
+                            Sense::click(),
+                        );
                         ui.painter().rect_stroke(
                             r.deny_rect,
                             CornerRadius::same(6),
@@ -1444,13 +1453,11 @@ impl Chat {
                             r.deny,
                             secondary_color,
                         );
-                        let approve = ui
-                            .interact(
-                                r.approve_rect,
-                                Id::unique("chat_review_approve"),
-                                Sense::click(),
-                            )
-                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        let approve = ui.interact(
+                            r.approve_rect,
+                            Id::unique("chat_review_approve"),
+                            Sense::click(),
+                        );
                         ui.painter()
                             .rect_filled(r.approve_rect, CornerRadius::same(6), accent);
                         ui.painter().galley(
@@ -1611,9 +1618,8 @@ impl Chat {
                             );
                         }
                         // Centered text-only Cancel, filling its reserved rect.
-                        let cancel_resp = ui
-                            .interact(cancel_rect, Id::unique("chat_key_cancel"), Sense::click())
-                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        let cancel_resp =
+                            ui.interact(cancel_rect, Id::unique("chat_key_cancel"), Sense::click());
                         let cancel_color =
                             if cancel_resp.hovered() { text_color } else { secondary_color };
                         ui.painter().galley(cancel_rect.min, cancel, cancel_color);
@@ -1758,13 +1764,11 @@ impl Chat {
                                             pos2(x, yb),
                                             vec2(cell_w, button_h),
                                         );
-                                        let resp = ui
-                                            .interact(
-                                                cell,
-                                                Id::unique(("chat_onboard", name)),
-                                                Sense::click(),
-                                            )
-                                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                        let resp = ui.interact(
+                                            cell,
+                                            Id::unique(("chat_onboard", name)),
+                                            Sense::click(),
+                                        );
                                         if resp.hovered() {
                                             ui.painter().rect_filled(
                                                 cell,
@@ -1815,13 +1819,11 @@ impl Chat {
 
                                 if let Some(cancel) = cancel {
                                     let rect = rects[1];
-                                    let resp = ui
-                                        .interact(
-                                            rect,
-                                            Id::unique("chat_chooser_cancel"),
-                                            Sense::click(),
-                                        )
-                                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                    let resp = ui.interact(
+                                        rect,
+                                        Id::unique("chat_chooser_cancel"),
+                                        Sense::click(),
+                                    );
                                     let color =
                                         if resp.hovered() { text_color } else { secondary_color };
                                     ui.painter().galley(rect.min, cancel, color);
@@ -2150,9 +2152,7 @@ impl Chat {
                 text_rect.min + vec2(H_PAD, V_PAD),
                 pos2(text_rect.max.x - H_PAD, text_rect.max.y - V_PAD),
             );
-            let resp = ui
-                .interact(btn_rect, Id::unique("chat_add_key"), Sense::click())
-                .on_hover_cursor(egui::CursorIcon::PointingHand);
+            let resp = ui.interact(btn_rect, Id::unique("chat_add_key"), Sense::click());
             let accent = theme.bg().get_color(theme.prefs().primary);
             ui.painter()
                 .rect_filled(btn_rect, CornerRadius::same(8), accent);
@@ -2206,9 +2206,6 @@ impl Chat {
             let hit_rect = if touch_os { button_rect.expand(7.0) } else { button_rect };
             let active = (non_empty && send_block.is_none()) || agent_busy;
             let resp = ui.interact(hit_rect, Id::unique("chat_send"), Sense::click());
-            // A pointer cursor when it'll do something (send, or stop a turn).
-            let resp =
-                if active { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
 
             let painter = ui.painter();
             // The markdown-toolbar icon idiom — no filled disc, just the mark
@@ -2376,9 +2373,7 @@ impl Chat {
                     let rect =
                         Rect::from_min_size(pos2(cursor_x, toolbar_rect.min.y), vec2(w, TOOLBAR_H));
                     cursor_x = rect.max.x + STRIP_GAP;
-                    let resp = ui
-                        .interact(rect, Id::unique(id), Sense::click())
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    let resp = ui.interact(rect, Id::unique(id), Sense::click());
                     let text_top = rect.min.y + (TOOLBAR_H - galley.size().y) / 2.0;
                     ui.painter()
                         .galley(pos2(rect.min.x, text_top), galley, text_color);
@@ -2644,9 +2639,7 @@ impl Chat {
             // away from the per-message controls. Chips the budget folded
             // lead the menu as submenus, above the standing actions.
             {
-                let more_resp = ui
-                    .interact(more_rect, Id::unique("chat_more_btn"), Sense::click())
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                let more_resp = ui.interact(more_rect, Id::unique("chat_more_btn"), Sense::click());
                 let color = if more_resp.hovered() { text_color } else { secondary_color };
                 let glyph = ui.fonts_mut(|f| {
                     f.layout_no_wrap(

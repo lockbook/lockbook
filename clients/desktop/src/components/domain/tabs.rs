@@ -385,9 +385,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             vec2(CLOSE_SLOT, CLOSE_SLOT),
         );
         let close_id = ui.scope_id().with("shell_tab_close").with(index);
-        let close_resp = ui
-            .interact(close_rect, close_id, Sense::click())
-            .on_hover_cursor(CursorIcon::PointingHand);
+        let close_resp = ui.interact(close_rect, close_id, Sense::click());
         let close_over = ui.ctx().rect_contains_pointer(ui.layer_id(), close_rect);
         let close_h = ui.ctx().animate_bool(close_resp.id, close_over);
         // Ground = plate under the X (canvas when active; bar/hover when inactive).

@@ -2,8 +2,8 @@
 
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    Align, Align2, Color32, CursorIcon, FontFamily, FontId, Galley, Id, Layout, Rect, Sense, Ui,
-    Vec2, pos2, vec2,
+    Align, Align2, Color32, FontFamily, FontId, Galley, Id, Layout, Rect, Sense, Ui, Vec2, pos2,
+    vec2,
 };
 use lb_rs::Uuid;
 use serde::{Deserialize, Serialize};
@@ -276,9 +276,6 @@ fn row_plate(ui: &mut Ui, t: &Theme, id: Id) -> (Rect, egui::Response) {
     let fill = interact_fill_response(ui.ctx(), &resp, quiet_canvas_fills(t));
     ui.painter()
         .rect_filled(rect, Radius::Control.corner(), fill);
-    if resp.hovered() {
-        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
-    }
     (rect, resp)
 }
 

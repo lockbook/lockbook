@@ -89,19 +89,14 @@ impl IconButton {
             if self.disabled { Sense::hover() } else { Sense::click() },
         );
 
-        if resp.hovered() && !self.disabled {
-            if self.hover_bg {
-                ui.painter().rect(
-                    rect,
-                    2.,
-                    theme.neutral_bg_secondary(),
-                    egui::Stroke::NONE,
-                    egui::epaint::StrokeKind::Inside,
-                );
-            }
-            ui.output_mut(|o: &mut egui::PlatformOutput| {
-                o.cursor_icon = egui::CursorIcon::PointingHand
-            });
+        if resp.hovered() && !self.disabled && self.hover_bg {
+            ui.painter().rect(
+                rect,
+                2.,
+                theme.neutral_bg_secondary(),
+                egui::Stroke::NONE,
+                egui::epaint::StrokeKind::Inside,
+            );
         }
 
         let icon_color = if self.colored || resp.is_pointer_button_down_on() {

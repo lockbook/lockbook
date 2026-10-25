@@ -41,7 +41,7 @@ pub use file_row::{
     crumb_label, ellipsize_path, ellipsize_path_tail, home_crumb, parent_crumbs, path_crumbs,
 };
 pub use interact::{
-    canvas_selected_fills, interact_fill, interact_fill_response, quiet_canvas_fills,
+    canvas_selected_fills, interact_fill, interact_fill_response, link_cursor, quiet_canvas_fills,
     quiet_secondary_fills, sense_click,
 };
 pub use layout::{

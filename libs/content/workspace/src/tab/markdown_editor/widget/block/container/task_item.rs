@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeTaskItem, NodeValue};
-use egui::{CursorIcon, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
+use egui::{Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 
 use crate::tab::markdown_editor::TouchTarget;
@@ -70,7 +70,6 @@ impl<'ast> MdRender {
                 self.render_events.push(toggle.clone());
             }
             if checkbox_response.hovered() && !self.readonly {
-                ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
                 checkbox_space = checkbox_space.expand(0.5);
             }
             if !self.readonly {

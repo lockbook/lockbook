@@ -15,8 +15,8 @@ use crate::style::{
     surface_motion, tip_text, with_overlay_scroll,
 };
 use egui::{
-    Align, Align2, Color32, ColorImage, Context, CursorIcon, Event, Id, Image, ImageSource, Key,
-    Layout, Modifiers, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind, TextureHandle, Ui, Vec2,
+    Align, Align2, Color32, ColorImage, Context, Event, Id, Image, ImageSource, Key, Layout,
+    Modifiers, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind, TextureHandle, Ui, Vec2,
     load::SizedTexture, pos2, vec2,
 };
 use hayro::{InterpreterSettings, Pdf, RenderSettings};
@@ -565,9 +565,6 @@ impl PdfViewer {
             })
         };
         let hovered = resp.hover_pos().and_then(row_at);
-        if hovered.is_some() {
-            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
-        }
         let mut pressed = sidebar.pressed;
         if resp.is_pointer_button_down_on() {
             if let Some(p) = resp.interact_pointer_pos() {
