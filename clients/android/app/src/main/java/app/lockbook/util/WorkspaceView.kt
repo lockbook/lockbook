@@ -31,6 +31,7 @@ import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.model.WorkspaceReturnDestination
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -55,7 +56,7 @@ class WorkspaceView(
     private var surface: Surface? = null
 
     // The fragment may request a file before SurfaceView creates its native workspace.
-    private var deferredOpenDoc: Pair<String, Boolean>? = null
+    private var deferredOpenDoc: Triple<String, Boolean, WorkspaceReturnDestination>? = null
     private var safeInsets = Insets.NONE
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
@@ -272,9 +273,9 @@ class WorkspaceView(
 
         requestFocus()
 
-        deferredOpenDoc?.let { (id, newFile) ->
+        deferredOpenDoc?.let { (id, newFile, returnDestination) ->
             deferredOpenDoc = null
-            openDoc(id, newFile)
+            openDoc(id, newFile, returnDestination)
         }
         publishOpenTabCount()
     }
@@ -543,14 +544,16 @@ class WorkspaceView(
     fun openDoc(
         id: String,
         newFile: Boolean,
+        returnDestination: WorkspaceReturnDestination = WorkspaceReturnDestination.Files,
     ) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
-            deferredOpenDoc = id to newFile
+            deferredOpenDoc = Triple(id, newFile, returnDestination)
             return
         }
 
         deferredOpenDoc = null
         Workspace.openDoc(wgpuObj, id, newFile)
+        model.recordTabOrigin(Workspace.currentTab(wgpuObj).toModelTab().sessionId, returnDestination)
         publishOpenTabCount()
         invalidate()
 

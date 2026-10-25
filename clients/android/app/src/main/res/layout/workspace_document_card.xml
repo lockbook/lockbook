@@ -47,14 +47,6 @@
                 android:importantForAccessibility="no"
                 android:visibility="gone" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/cover_menu"
-                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_gravity="top|end"
-                android:layout_margin="8dp"
-                app:icon="@drawable/ic_baseline_more_vert_24" />
         </FrameLayout>
 
         <LinearLayout
@@ -62,27 +54,43 @@
             android:layout_height="wrap_content"
             android:minHeight="56dp"
             android:gravity="center_vertical"
-            android:orientation="vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="12dp">
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="4dp"
+            android:paddingVertical="4dp">
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/title"
-                android:layout_width="match_parent"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textAppearance="?attr/textAppearanceTitleMedium" />
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingVertical="8dp">
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/subtitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/subtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/cover_menu"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                app:icon="@drawable/ic_baseline_more_vert_24" />
         </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

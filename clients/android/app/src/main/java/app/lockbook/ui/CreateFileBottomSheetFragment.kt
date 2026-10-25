@@ -39,6 +39,7 @@ class CreateFileBottomSheetFragment : BottomSheetDialogFragment() {
     private var _binding: SheetCreateFileBinding? = null
     private val binding get() = _binding!!
     private var renderedPage: CreateFilePage? = null
+    private val folderOnly get() = arguments?.getBoolean(FOLDER_ONLY) == true
 
     private val model: CreateFileViewModel by viewModels()
     private val mainScreenModel: MainScreenViewModel by activityViewModels()
@@ -79,6 +80,7 @@ class CreateFileBottomSheetFragment : BottomSheetDialogFragment() {
         binding.folderList.itemAnimator = null
         binding.folderList.addOnScrollListener(dismissKeyboardOnScroll)
 
+        if (folderOnly && model.state.value?.page != CreateFilePage.FolderPicker) model.showFolderPicker()
         bindActions()
         model.state.observe(viewLifecycleOwner, ::render)
         model.createdFile.observe(viewLifecycleOwner) { file ->
@@ -104,7 +106,7 @@ class CreateFileBottomSheetFragment : BottomSheetDialogFragment() {
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
                     if (model.state.value?.isCreating == true) return
-                    if (model.state.value?.page == CreateFilePage.FolderPicker) {
+                    if (!folderOnly && model.state.value?.page == CreateFilePage.FolderPicker) {
                         model.hideFolderPicker()
                     } else {
                         dismiss()
@@ -140,7 +142,20 @@ class CreateFileBottomSheetFragment : BottomSheetDialogFragment() {
 
     private fun bindActions() {
         binding.createFile.setOnClickListener { model.create() }
-        binding.selectFolder.setOnClickListener { model.confirmFolder() }
+        binding.selectFolder.setOnClickListener {
+            if (folderOnly) {
+                val state = model.state.value ?: return@setOnClickListener
+                val folder = state.pickerEntries.firstOrNull { it.file.id == state.selectedFolderId }?.file ?: return@setOnClickListener
+                if (folder.type != net.lockbook.File.FileType.Folder) return@setOnClickListener
+                parentFragmentManager.setFragmentResult(
+                    requireArguments().getString(RESULT_KEY)!!,
+                    bundleOf(SELECTED_FOLDER_ID to folder.id),
+                )
+                dismiss()
+            } else {
+                model.confirmFolder()
+            }
+        }
         binding.locationFocused.setOnClickListener { model.selectFocusedFolder() }
         binding.locationAlongside.setOnClickListener { model.selectAlongside() }
         binding.locationChoose.setOnClickListener { model.showFolderPicker() }
@@ -298,6 +313,18 @@ class CreateFileBottomSheetFragment : BottomSheetDialogFragment() {
 
     companion object {
         const val TAG = "CreateFileBottomSheetFragment"
+        private const val FOLDER_ONLY = "folder_only"
+        private const val RESULT_KEY = "folder_result_key"
+        const val SELECTED_FOLDER_ID = "selected_folder_id"
+
+        fun folderPicker(
+            initialParentId: String?,
+            resultKey: String,
+        ): CreateFileBottomSheetFragment =
+            CreateFileBottomSheetFragment().apply {
+                arguments = bundleOf(INITIAL_PARENT_ID to initialParentId, FOLDER_ONLY to true, RESULT_KEY to resultKey)
+            }
+
         private const val INITIAL_PARENT_ID = "initial_parent_id"
         private const val FOCUSED_FOLDER_ID = "focused_folder_id"
 

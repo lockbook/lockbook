@@ -188,6 +188,7 @@ class MainScreenActivity : AppCompatActivity() {
             updateDetailFabVisibility()
             (supportFragmentManager.findFragmentByTag(WORKSPACE_FRAGMENT_TAG) as? WorkspaceFragment)
                 ?.let { workspaceFragment ->
+                    if (mode != WorkspaceShellMode.SidebarOnly) workspaceFragment.finishPendingTabClose()
                     workspaceFragment.updateRestoreSplitButtonVisibility(mode == WorkspaceShellMode.DetailOnly)
                     workspaceFragment.updateWorkspaceSearchButtonVisibility(mode != WorkspaceShellMode.Split)
                 }
@@ -656,6 +657,7 @@ class MainScreenActivity : AppCompatActivity() {
                     OpenFileRequest(
                         id = effect.id,
                         newFile = effect.newFile,
+                        returnDestination = effect.returnDestination,
                         presentation = OpenFilePresentation.Preserve,
                     ),
                 )

@@ -367,4 +367,6 @@
     <string name="starter_project">Project notes</string>
     <string name="starter_project_file">project.md</string>
     <string name="starter_project_content"># Project notes\n\n## Goal\n\n\n## Next steps\n\n- [ ] First step\n\n## Ideas\n\n</string>
+    <string name="quick_capture_save_location">Files will be saved in</string>
+    <string name="quick_capture_change_folder">Save quick captures in %1$s. Change folder</string>
 </resources>

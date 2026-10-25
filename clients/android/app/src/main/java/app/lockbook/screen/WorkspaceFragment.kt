@@ -4,12 +4,15 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Paint
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
 import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -60,11 +63,14 @@ import app.lockbook.model.OpenFilePresentation
 import app.lockbook.model.OpenTab
 import app.lockbook.model.QuickCaptureViewModel
 import app.lockbook.model.SearchPresentation
+import app.lockbook.model.SidebarRoot
 import app.lockbook.model.WorkspaceDocumentItem
+import app.lockbook.model.WorkspaceReturnDestination
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.model.workspaceDocumentItems
+import app.lockbook.ui.CreateFileBottomSheetFragment
 import app.lockbook.util.AttachmentStager
 import app.lockbook.util.DocumentCoverStore
 import app.lockbook.util.DocumentPreviewLoader
@@ -81,6 +87,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.File
@@ -107,6 +114,8 @@ class WorkspaceFragment : Fragment() {
     private var documentActionsBackCallback: OnBackPressedCallback? = null
     private var documentActionFile: File? = null
     private var workspaceView: WorkspaceView? = null
+    private var pendingTabClose: String? = null
+    private var pendingTabCloseJob: Job? = null
     private var cameraFile: JavaFile? = null
     private var captureExpansion: QuickCaptureExpansion? = null
     private var captureStart: Runnable? = null
@@ -166,6 +175,7 @@ class WorkspaceFragment : Fragment() {
     companion object {
         val TAG = "WorkspaceFragment"
         val BACKSTACK_TAG = "WorkspaceBackstack"
+        private const val QUICK_CAPTURE_FOLDER = "quick_capture_folder"
     }
 
     private val filesListModel: FileTreeViewModel by activityViewModels()
@@ -198,8 +208,9 @@ class WorkspaceFragment : Fragment() {
         onCreateDocumentActions()
 
         model.openFile.observe(viewLifecycleOwner) { request ->
+            finishPendingTabClose()
             model.isFileTreeSyncedToCurrentTab = true
-            workspaceWrapper.workspaceView.openDoc(request.id, request.newFile)
+            workspaceWrapper.workspaceView.openDoc(request.id, request.newFile, request.returnDestination)
 
             when (request.presentation) {
                 OpenFilePresentation.Preserve -> {
@@ -261,10 +272,36 @@ class WorkspaceFragment : Fragment() {
 
         model.workspaceBackRequested.observe(viewLifecycleOwner) {
             val view = workspaceWrapper.workspaceView
-            val navigatedBack = view.back() || view.closeCurrentTabToWelcome()
-            if (!navigatedBack) {
-                mainScreenModel.navigate(MainNavigationAction.ShowSidebar)
+            if (view.back()) return@observe
+            val tab = model.currentTab.value
+            val destination = tab?.let { model.returnDestination(it.sessionId) } ?: WorkspaceReturnDestination.Files
+            val activity = requireActivity() as MainScreenActivity
+            val deferClose =
+                destination != WorkspaceReturnDestination.Welcome &&
+                    model.openTabCount.value == 1 && activity.isFocusingDetail()
+            if (tab?.type != WorkspaceTabType.Welcome) {
+                val closed = !deferClose && view.closeCurrentTabToWelcome()
+                if (destination == WorkspaceReturnDestination.Welcome && closed) return@observe
+                val sidebar =
+                    when (destination) {
+                        WorkspaceReturnDestination.Recents -> SidebarRoot.Recents
+                        WorkspaceReturnDestination.PendingShares -> SidebarRoot.PendingShares
+                        else -> SidebarRoot.Files
+                    }
+                mainScreenModel.navigate(MainNavigationAction.SelectSidebar(sidebar))
             }
+            if (deferClose) {
+                tab?.sessionId?.let { sessionId ->
+                    finishPendingTabClose()
+                    pendingTabClose = sessionId
+                    pendingTabCloseJob =
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            delay(250)
+                            finishPendingTabClose()
+                        }
+                }
+            }
+            mainScreenModel.navigate(MainNavigationAction.ShowSidebar)
         }
 
         model.backGestureStarted.observe(viewLifecycleOwner) {
@@ -351,6 +388,25 @@ class WorkspaceFragment : Fragment() {
 
     private fun onCreateEmptyWorkspace() {
         val empty = binding.workspaceEmpty
+        empty.captureFolder.paintFlags = empty.captureFolder.paintFlags or Paint.UNDERLINE_TEXT_FLAG
+        childFragmentManager.setFragmentResultListener(QUICK_CAPTURE_FOLDER, viewLifecycleOwner) { _, result ->
+            result.getString(CreateFileBottomSheetFragment.SELECTED_FOLDER_ID)?.let(quickCapture::selectSaveFolder)
+        }
+        empty.captureFolder.setOnClickListener {
+            if (captureExpansion == null && quickCapture.isSaving.value != true &&
+                childFragmentManager.findFragmentByTag(QUICK_CAPTURE_FOLDER) == null
+            ) {
+                hideEditorKeyboard()
+                CreateFileBottomSheetFragment
+                    .folderPicker(quickCapture.saveFolder.value?.id, QUICK_CAPTURE_FOLDER)
+                    .show(childFragmentManager, QUICK_CAPTURE_FOLDER)
+            }
+        }
+        quickCapture.saveFolder.observe(viewLifecycleOwner) { folder ->
+            val name = if (folder == null || folder.isRoot) getString(R.string.home) else folder.name
+            empty.captureFolder.text = name
+            empty.captureFolder.contentDescription = getString(R.string.quick_capture_change_folder, name)
+        }
         empty.emptyScroll.setOnScrollChangeListener(
             NestedScrollView.OnScrollChangeListener { _, _, y, _, oldY -> onWorkspaceScroll((y - oldY).toFloat()) },
         )
@@ -386,11 +442,18 @@ class WorkspaceFragment : Fragment() {
         quickCapture.createdNote.observe(viewLifecycleOwner) { note ->
             if (note.fromQuickCapture) {
                 captureEditorId = note.id
+                binding.workspaceEmpty.captureText.performHapticFeedback(
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        HapticFeedbackConstants.CONFIRM
+                    } else {
+                        HapticFeedbackConstants.KEYBOARD_TAP
+                    },
+                )
             } else {
                 hideEditorKeyboard()
             }
             filesListModel.reloadFiles()
-            mainScreenModel.navigate(MainNavigationAction.OpenDocument(note.id, newFile = false))
+            mainScreenModel.navigate(MainNavigationAction.OpenDocument(note.id, newFile = false, returnToWelcome = true))
         }
         val adapter =
             WorkspaceDocumentsAdapter(
@@ -399,7 +462,7 @@ class WorkspaceFragment : Fragment() {
                 openDocument = { file ->
                     if (captureExpansion != null) return@WorkspaceDocumentsAdapter
                     hideEditorKeyboard()
-                    mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false))
+                    mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false, returnToWelcome = true))
                 },
                 createStarter = { template ->
                     if (captureExpansion ==
@@ -564,6 +627,7 @@ class WorkspaceFragment : Fragment() {
     private fun canToolbarHideOnScroll(): Boolean = isWelcomeVisible() || model.currentTab.value?.type == WorkspaceTabType.Markdown
 
     private fun onWorkspaceScroll(distanceY: Float) {
+        if (distanceY > 0 && model.currentTab.value?.type == WorkspaceTabType.Markdown) hideDocumentActions()
         if (distanceY != 0f && canToolbarHideOnScroll() &&
             model.keyboardVisible.value != true && documentActionFile == null && captureExpansion == null
         ) {
@@ -581,6 +645,7 @@ class WorkspaceFragment : Fragment() {
             if (empty) View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS else View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         if (empty) {
             binding.workspaceEmpty.captureText.isEnabled = true
+            quickCapture.refreshSaveFolder()
             filesListModel.reloadFiles()
         } else if (captureExpansion == null) {
             binding.workspaceEmpty.captureText.clearFocus()
@@ -713,7 +778,16 @@ class WorkspaceFragment : Fragment() {
         }
     }
 
+    fun finishPendingTabClose() {
+        val sessionId = pendingTabClose ?: return
+        pendingTabClose = null
+        pendingTabCloseJob?.cancel()
+        pendingTabCloseJob = null
+        workspaceView?.closeSession(sessionId)
+    }
+
     override fun onDestroyView() {
+        finishPendingTabClose()
         previewRefresh?.cancel()
         previewRefresh = null
         captureStart?.let { binding.workspaceEmpty.captureText.removeCallbacks(it) }

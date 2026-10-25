@@ -58,6 +58,7 @@ sealed interface MainNavigationAction {
     data class OpenDocument(
         val id: String,
         val newFile: Boolean,
+        val returnToWelcome: Boolean = false,
     ) : MainNavigationAction
 
     data class CreateLink(
@@ -79,6 +80,7 @@ sealed interface MainNavigationEffect {
     data class OpenDocument(
         val id: String,
         val newFile: Boolean,
+        val returnDestination: WorkspaceReturnDestination = WorkspaceReturnDestination.Files,
     ) : MainNavigationEffect
 }
 
@@ -144,7 +146,28 @@ fun reduceMainNavigation(
                         paneIntent = paneIntent,
                         searchOverlay = null,
                     ),
-                effect = MainNavigationEffect.OpenDocument(action.id, action.newFile),
+                effect =
+                    MainNavigationEffect.OpenDocument(
+                        action.id,
+                        action.newFile,
+                        if (action.returnToWelcome) {
+                            WorkspaceReturnDestination.Welcome
+                        } else {
+                            when (state.sidebar) {
+                                SidebarDestination.Files -> {
+                                    WorkspaceReturnDestination.Files
+                                }
+
+                                SidebarDestination.Recents -> {
+                                    WorkspaceReturnDestination.Recents
+                                }
+
+                                SidebarDestination.PendingShares, is SidebarDestination.CreateLink -> {
+                                    WorkspaceReturnDestination.PendingShares
+                                }
+                            }
+                        },
+                    ),
             )
         }
 

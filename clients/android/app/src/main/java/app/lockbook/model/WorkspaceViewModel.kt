@@ -7,6 +7,7 @@ package app.lockbook.model
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import app.lockbook.util.SingleMutableLiveData
 import app.lockbook.util.StagedAttachment
@@ -15,7 +16,23 @@ import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import net.lockbook.File
 import java.util.ArrayDeque
 
-class WorkspaceViewModel : ViewModel() {
+class WorkspaceViewModel(
+    private val savedState: SavedStateHandle = SavedStateHandle(),
+) : ViewModel() {
+    fun recordTabOrigin(
+        sessionId: String,
+        destination: WorkspaceReturnDestination,
+    ) {
+        if (sessionId == NULL_UUID) return
+        val destinations = savedState.get<HashMap<String, String>>("tab_origins") ?: hashMapOf()
+        savedState["tab_origins"] = HashMap(destinations).apply { put(sessionId, destination.name) }
+    }
+
+    fun returnDestination(sessionId: String): WorkspaceReturnDestination {
+        val name = savedState.get<HashMap<String, String>>("tab_origins")?.get(sessionId)
+        return WorkspaceReturnDestination.entries.firstOrNull { it.name == name } ?: WorkspaceReturnDestination.Files
+    }
+
     /** request workspace to  open a file **/
     private val _openFile = SingleMutableLiveData<OpenFileRequest>()
     val openFile: LiveData<OpenFileRequest>
@@ -113,7 +130,15 @@ data class OpenFileRequest(
     val id: String,
     val newFile: Boolean,
     val presentation: OpenFilePresentation,
+    val returnDestination: WorkspaceReturnDestination = WorkspaceReturnDestination.Files,
 )
+
+enum class WorkspaceReturnDestination {
+    Welcome,
+    Files,
+    Recents,
+    PendingShares,
+}
 
 enum class OpenFilePresentation {
     Preserve,

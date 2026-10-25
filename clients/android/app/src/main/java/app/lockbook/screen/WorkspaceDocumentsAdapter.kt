@@ -135,8 +135,7 @@ internal class WorkspaceDocumentsAdapter(
                 )
             binding.title.setTextColor(colors.accent)
             binding.subtitle.setTextColor(MaterialColors.getColor(itemView, com.google.android.material.R.attr.colorOnSurfaceVariant))
-            binding.coverMenu.backgroundTintList = ColorStateList.valueOf(coverColor)
-            binding.coverMenu.iconTint = ColorStateList.valueOf(colors.onAccentContainer)
+            binding.coverMenu.iconTint = ColorStateList.valueOf(colors.accent)
             return coverColor
         }
 
