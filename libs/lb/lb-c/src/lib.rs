@@ -34,12 +34,17 @@ pub struct LbInitRes {
 }
 
 /// Initializes a regular core instance with configurable background work.
+/// `client_name` partitions log files; pass null to use `lockbook.log`.
+/// `build_info` optionally identifies the caller's build in the startup log.
 /// Release the result with `lb_free_init`.
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_init(
-    writeable_path: *const c_char, logs: bool, background_work: bool,
+    writeable_path: *const c_char, client_name: *const c_char, build_info: *const c_char,
+    logs: bool, background_work: bool,
 ) -> LbInitRes {
     let config = Config {
+        client_name: r_opt_str(client_name).unwrap_or_default().to_owned(),
+        build_info: r_opt_str(build_info).map(str::to_owned),
         writeable_path: rstring(writeable_path),
         background_work,
         logs,
@@ -58,6 +63,12 @@ pub extern "C" fn lb_init(
             LbInitRes { lb: null_mut(), err }
         }
     }
+}
+
+/// Apply other processes' commits to this core's in-memory database.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_refresh(lb: *mut Lb) {
+    rlb(lb).refresh();
 }
 
 #[repr(C)]
@@ -1211,6 +1222,7 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
     });
 }
 
+mod document_version;
 mod ffi_utils;
 mod lb_c_err;
 mod lb_file;

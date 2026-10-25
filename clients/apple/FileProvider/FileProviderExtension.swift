@@ -1,0 +1,251 @@
+import Bridge
+import Darwin
+import FileProvider
+import OSLog
+
+final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
+    let domain: NSFileProviderDomain
+    let manager: NSFileProviderManager
+    let snapshots = FileProviderSnapshots()
+    private let queue = DispatchQueue(label: "app.lockbook.file-provider.notifications")
+    private let cache = FileProviderCache()
+    private let coreLock = NSLock()
+    private var sharedCore: FileProviderCore?
+    private var changeSource: DispatchSourceRead?
+    private var invalidated = false
+    private var syncTimer: DispatchSourceTimer?
+
+    required init(domain: NSFileProviderDomain) {
+        self.domain = domain
+        manager = NSFileProviderManager(for: domain)!
+        super.init()
+        queue.async { [weak self] in self?.observeChanges() }
+        let syncTimer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "app.lockbook.file-provider.sync"))
+        syncTimer.schedule(deadline: .now(), repeating: 30)
+        syncTimer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.queue.async { self.observeChanges() }
+            guard let core = try? self.core() else { return }
+            lb_free_err(lb_sync(core.core.lb))
+            self.signalChanges()
+        }
+        syncTimer.resume()
+        self.syncTimer = syncTimer
+    }
+
+    func invalidate() {
+        syncTimer?.cancel()
+        syncTimer = nil
+        queue.async {
+            self.invalidated = true
+            self.changeSource?.cancel()
+            self.changeSource = nil
+        }
+    }
+
+    deinit {
+        changeSource?.cancel()
+    }
+
+    private func observeChanges() {
+        guard !invalidated, changeSource == nil else { return }
+        do {
+            let core = try core()
+            let url = core.ipcDirectory.appendingPathComponent("fp-\(UUID().uuidString.prefix(8))")
+            var address = sockaddr_un()
+            let path = Array(url.path.utf8CString)
+            guard path.count <= MemoryLayout.size(ofValue: address.sun_path) else {
+                throw POSIXError(.ENAMETOOLONG)
+            }
+            address.sun_family = sa_family_t(AF_UNIX)
+            address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+            withUnsafeMutableBytes(of: &address.sun_path) { destination in
+                path.withUnsafeBytes { destination.copyBytes(from: $0) }
+            }
+            let fd = socket(AF_UNIX, SOCK_DGRAM, 0)
+            guard fd >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+            let bound = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+                }
+            }
+            guard bound == 0 else {
+                let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+                close(fd)
+                throw error
+            }
+            let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+            source.setEventHandler { [weak self] in
+                var byte: UInt8 = 0
+                while recv(fd, &byte, 1, MSG_DONTWAIT) >= 0 {}
+                guard let self, !self.invalidated else { return }
+                self.signalChanges()
+            }
+            source.setCancelHandler {
+                close(fd)
+                try? FileManager.default.removeItem(at: url)
+            }
+            changeSource = source
+            source.resume()
+            // Cover commits before registration, including during extension startup.
+            signalChanges()
+        } catch {
+            Logger(subsystem: "app.lockbook.FileProvider", category: "changes")
+                .error("Could not observe Lockbook changes: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func signalChanges() {
+        manager.signalEnumerator(for: .workingSet) { _ in }
+    }
+
+    func core() throws -> FileProviderCore {
+        // Only initialization is serialized; callbacks use the core concurrently.
+        let core = try coreLock.withLock {
+            if let sharedCore { return sharedCore }
+            let core = try FileProviderCore(domain: domain, cache: cache)
+            sharedCore = core
+            return core
+        }
+        lb_refresh(core.core.lb)
+        return core
+    }
+
+    func perform<T>(_ work: @escaping (FileProviderCore) throws -> T,
+                    completion: @escaping (Result<T, Error>) -> Void) -> Progress {
+        let progress = Progress(totalUnitCount: 1)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result {
+                guard !progress.isCancelled else { throw CocoaError(.userCancelled) }
+                return try work(self.core())
+            }
+            progress.completedUnitCount = 1
+            completion(result)
+        }
+        return progress
+    }
+
+    func item(for identifier: NSFileProviderItemIdentifier, request: NSFileProviderRequest,
+              completionHandler: @escaping (NSFileProviderItem?, Error?) -> Void) -> Progress {
+        perform({ try $0.item(identifier) }) {
+            switch $0 {
+            case .success(let item): completionHandler(item, nil)
+            case .failure(let error): completionHandler(nil, error)
+            }
+        }
+    }
+
+    func fetchContents(for identifier: NSFileProviderItemIdentifier, version: NSFileProviderItemVersion?,
+                       request: NSFileProviderRequest,
+                       completionHandler: @escaping (URL?, NSFileProviderItem?, Error?) -> Void) -> Progress {
+        perform({ core in
+            let item = try core.item(identifier, loadSize: false)
+            let data = try core.read(item)
+            if let version, version.contentVersion != item.contentVersion {
+                throw NSFileProviderError(.versionNoLongerAvailable)
+            }
+            let url = try self.manager.temporaryDirectoryURL().appendingPathComponent(UUID().uuidString)
+            try data.write(to: url)
+            return (url, item)
+        }) {
+            switch $0 {
+            case .success(let (url, item)): self.signalChanges(); completionHandler(url, item, nil)
+            case .failure(let error): completionHandler(nil, nil, error)
+            }
+        }
+    }
+
+    func createItem(basedOn template: NSFileProviderItem, fields: NSFileProviderItemFields, contents: URL?,
+                    options: NSFileProviderCreateItemOptions, request: NSFileProviderRequest,
+                    completionHandler: @escaping (NSFileProviderItem?, NSFileProviderItemFields, Bool, Error?) -> Void) -> Progress {
+        perform({ core in
+            let folder = template.contentType == .folder
+            guard folder || template.contentType?.conforms(to: .data) == true else {
+                throw CocoaError(.featureUnsupported)
+            }
+            let data = try contents.map { try Data(contentsOf: $0) }
+            // A crash/reimport can replay creation. Reuse only an identical item.
+            if options.contains(.mayAlreadyExist),
+               let existing = try core.items(in: template.parentItemIdentifier, loadSizes: false).first(where: {
+                   $0.filename == template.filename && $0.folder == folder
+               }), try folder || core.read(existing) == (data ?? Data()) {
+                core.cache.update(existing, date: template.contentModificationDate ?? nil)
+                return existing
+            }
+            let created = try core.create(name: template.filename, parent: template.parentItemIdentifier, folder: folder, data: data)
+            core.cache.update(created, date: template.contentModificationDate ?? nil)
+            return created
+        }) {
+            switch $0 {
+            case .success(let item): self.signalChanges(); completionHandler(item, [], false, nil)
+            case .failure(let error): completionHandler(nil, [], false, error)
+            }
+        }
+    }
+
+    func modifyItem(_ item: NSFileProviderItem, baseVersion: NSFileProviderItemVersion,
+                    changedFields: NSFileProviderItemFields, contents: URL?, options: NSFileProviderModifyItemOptions,
+                    request: NSFileProviderRequest,
+                    completionHandler: @escaping (NSFileProviderItem?, NSFileProviderItemFields, Bool, Error?) -> Void) -> Progress {
+        perform({ core in
+            let uuid = LbUuid(bytes: try core.uuid(item.itemIdentifier).uuid)
+            _ = try core.item(item.itemIdentifier, loadSize: false)
+            if !changedFields.intersection([.filename, .parentItemIdentifier]).isEmpty,
+               let collision = try core.items(in: item.parentItemIdentifier, loadSizes: false).first(where: {
+                   $0.itemIdentifier != item.itemIdentifier && $0.filename == item.filename
+               }) {
+                throw NSError.fileProviderErrorForCollision(with: collision)
+            }
+            if changedFields.contains(.contents) {
+                guard let contents else { throw CocoaError(.fileReadUnknown) }
+                try core.write(item.itemIdentifier, version: baseVersion.contentVersion, data: Data(contentsOf: contents))
+            }
+            if changedFields.contains(.filename) {
+                let error = lb_rename_file(core.core.lb, uuid, item.filename)
+                defer { lb_free_err(error) }
+                try core.check(error)
+            }
+            if changedFields.contains(.parentItemIdentifier) {
+                let parent = LbUuid(bytes: try core.uuid(item.parentItemIdentifier).uuid)
+                let error = lb_move_file(core.core.lb, uuid, parent)
+                defer { lb_free_err(error) }
+                try core.check(error)
+            }
+            let updated = try core.item(item.itemIdentifier)
+            if changedFields.contains(.contentModificationDate) || changedFields.contains(.contents) {
+                core.cache.update(updated, date: item.contentModificationDate ?? nil)
+            }
+            return updated
+        }) {
+            switch $0 {
+            case .success(let updated):
+                self.signalChanges()
+                let supported: NSFileProviderItemFields = [.contents, .filename, .parentItemIdentifier, .contentModificationDate]
+                completionHandler(updated, changedFields.subtracting(supported), false, nil)
+            case .failure(let error): completionHandler(nil, [], false, error)
+            }
+        }
+    }
+
+    func deleteItem(identifier: NSFileProviderItemIdentifier, baseVersion: NSFileProviderItemVersion,
+                    options: NSFileProviderDeleteItemOptions, request: NSFileProviderRequest,
+                    completionHandler: @escaping (Error?) -> Void) -> Progress {
+        perform({ core in
+            if !options.contains(.recursive), try core.items(loadSizes: false).contains(where: { $0.parentItemIdentifier == identifier && $0.itemIdentifier != identifier }) {
+                throw NSFileProviderError(.directoryNotEmpty)
+            }
+            let error = lb_delete_file(core.core.lb, LbUuid(bytes: try core.uuid(identifier).uuid))
+            defer { lb_free_err(error) }
+            if error?.pointee.code != FileNonexistent { try core.check(error) }
+        }) {
+            switch $0 {
+            case .success: self.signalChanges(); completionHandler(nil)
+            case .failure(let error): completionHandler(error)
+            }
+        }
+    }
+
+    func enumerator(for containerItemIdentifier: NSFileProviderItemIdentifier, request: NSFileProviderRequest) throws -> NSFileProviderEnumerator {
+        FileProviderEnumerator(provider: self, container: containerItemIdentifier)
+    }
+}

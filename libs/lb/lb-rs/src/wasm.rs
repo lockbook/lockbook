@@ -13,6 +13,9 @@ use crate::model::errors::LbResult;
 
 impl Lb {
     pub fn init_dummy(config: Config) -> LbResult<Self> {
+        if config.logs {
+            crate::service::logging::log_startup(&config);
+        }
         let db = CoreDb::init(&DbConfig::in_memory())?;
         let user_last_seen = Arc::new(RwLock::new(Instant::now()));
 
