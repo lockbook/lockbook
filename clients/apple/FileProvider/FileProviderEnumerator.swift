@@ -36,26 +36,11 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
         }
     }
 
-    // Anchors reference durable snapshots, so an extension restart doesn't lose deletions.
-    private var snapshots: URL {
-        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("\(provider.domain.identifier.rawValue)/anchors", isDirectory: true)
-    }
-
     private func save(_ items: [FileProviderItem]) throws -> NSFileProviderSyncAnchor {
-        let fm = FileManager.default
-        try fm.createDirectory(at: snapshots, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
         let data = try encoder.encode(items.sorted { $0.id < $1.id })
-        let name = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        try data.write(to: snapshots.appendingPathComponent(name), options: .atomic)
-        // A week of history is enough; expired anchors trigger a complete re-enumeration.
-        for url in try fm.contentsOfDirectory(at: snapshots, includingPropertiesForKeys: [.contentModificationDateKey]) {
-            if let date = try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
-               date < Date().addingTimeInterval(-7 * 86400) { try? fm.removeItem(at: url) }
-        }
-        return NSFileProviderSyncAnchor(Data(name.utf8))
+        return provider.snapshots.save(data)
     }
 
     func currentSyncAnchor(completionHandler: @escaping (NSFileProviderSyncAnchor?) -> Void) {
@@ -70,8 +55,7 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
     func enumerateChanges(for observer: NSFileProviderChangeObserver, from anchor: NSFileProviderSyncAnchor) {
         queue.async {
             do {
-                guard let name = String(data: anchor.rawValue, encoding: .utf8), name.count == 64, name.allSatisfy({ $0.isHexDigit }),
-                      let data = try? Data(contentsOf: self.snapshots.appendingPathComponent(name)),
+                guard let data = self.provider.snapshots.load(anchor),
                       let previous = try? JSONDecoder().decode([FileProviderItem].self, from: data) else {
                     throw NSFileProviderError(.syncAnchorExpired)
                 }
@@ -83,5 +67,25 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
                 observer.finishEnumeratingChanges(upTo: try self.save(items), moreComing: false)
             } catch { observer.finishEnumeratingWithError(error) }
         }
+    }
+}
+
+// Shared by enumerators; restarting the extension expires its anchors.
+final class FileProviderSnapshots {
+    private let lock = NSLock()
+    private var entries: [Data: (data: Data, saved: Date)] = [:]
+
+    func save(_ data: Data) -> NSFileProviderSyncAnchor {
+        let anchor = Data(SHA256.hash(data: data))
+        lock.withLock {
+            let now = Date()
+            entries = entries.filter { $0.value.saved >= now.addingTimeInterval(-7 * 86400) }
+            entries[anchor] = (data, now)
+        }
+        return NSFileProviderSyncAnchor(anchor)
+    }
+
+    func load(_ anchor: NSFileProviderSyncAnchor) -> Data? {
+        lock.withLock { entries[anchor.rawValue]?.data }
     }
 }

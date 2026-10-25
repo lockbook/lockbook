@@ -6,6 +6,7 @@ import OSLog
 final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     let domain: NSFileProviderDomain
     let manager: NSFileProviderManager
+    let snapshots = FileProviderSnapshots()
     private let queue = DispatchQueue(label: "app.lockbook.file-provider.notifications")
     private let cache = FileProviderCache()
     private let coreLock = NSLock()
