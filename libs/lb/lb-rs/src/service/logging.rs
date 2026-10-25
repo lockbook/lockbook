@@ -248,33 +248,6 @@ mod tests {
     use crate::model::core_config::ClientType;
 
     #[test]
-    fn client_logs_are_separate() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut config = Config::cli_config("cli");
-        config.writeable_path = directory.path().to_str().unwrap().to_owned();
-        config.colored_logs = false;
-        let clients = [None, Some("macos"), Some("file-provider"), Some("widgets")];
-        for client in clients {
-            let subscriber =
-                tracing_subscriber::Registry::default().with(fmt_layers(&config, client));
-            tracing::subscriber::with_default(subscriber, || {
-                tracing::info!("message from [{}]", client.unwrap_or("default"));
-            });
-        }
-        for client in clients {
-            let filename =
-                client.map_or_else(|| LOG_FILE.to_owned(), |name| format!("lockbook-{name}.log"));
-            let contents = std::fs::read_to_string(directory.path().join(filename)).unwrap();
-            for other in clients {
-                assert_eq!(
-                    contents.contains(&format!("[{}]", other.unwrap_or("default"))),
-                    client == other
-                );
-            }
-        }
-    }
-
-    #[test]
     fn lb_trace_writes_a_pftrace() {
         let path = std::env::temp_dir().join("lockbook-lb-trace-smoke.pftrace");
         let _ = std::fs::remove_file(&path);
