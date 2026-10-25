@@ -31,9 +31,7 @@ fn trace_targets(metadata: &tracing::Metadata<'_>) -> bool {
     log_targets(metadata) || metadata.target().starts_with("lockbook_desktop")
 }
 
-fn fmt_layers<S>(
-    config: &Config, client_name: Option<&str>,
-) -> Vec<Box<dyn Layer<S> + Send + Sync + 'static>>
+fn fmt_layers<S>(config: &Config) -> Vec<Box<dyn Layer<S> + Send + Sync + 'static>>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
@@ -52,8 +50,11 @@ where
             .with_target(true)
             .with_writer(tracing_appender::rolling::never(
                 &config.writeable_path,
-                client_name
-                    .map_or_else(|| LOG_FILE.to_owned(), |name| format!("lockbook-{name}.log")),
+                if config.client_name.is_empty() {
+                    LOG_FILE.to_owned()
+                } else {
+                    format!("lockbook-{}.log", config.client_name)
+                },
             ))
             .with_filter(lockbook_log_level)
             .with_filter(filter::filter_fn(log_targets))
@@ -180,16 +181,11 @@ pub fn flush_traces() {
     }
 }
 
-/// Install the process subscriber: `lockbook.log`, stdout/logcat, and (with
+/// Install the process subscriber: `lockbook-<client_name>.log`, stdout/logcat, and (with
 /// [`TRACE_ENV_VAR`]) a Perfetto trace file. Called by `Lb::init`; call it
-/// earlier from a process entry point to capture boot.
+/// earlier from a process entry point to capture boot. Later core instances
+/// reuse the subscriber and do not repeat the startup entry.
 pub fn init(config: &Config) -> LbResult<()> {
-    init_for_client(config, None)
-}
-
-/// Use `lockbook-<client_name>.log` when named. The first initialization in a
-/// process selects its log file; later core instances reuse the subscriber.
-pub fn init_for_client(config: &Config, client_name: Option<&str>) -> LbResult<()> {
     if !config.logs {
         return Ok(());
     }
@@ -200,21 +196,31 @@ pub fn init_for_client(config: &Config, client_name: Option<&str>) -> LbResult<(
         std::fs::create_dir_all(&config.writeable_path).map_err(core_err_unexpected)?;
     }
 
-    let subscriber = tracing_subscriber::Registry::default().with(fmt_layers(config, client_name));
+    let subscriber = tracing_subscriber::Registry::default().with(fmt_layers(config));
 
     #[cfg(not(target_family = "wasm"))]
     let subscriber = subscriber.with(trace_layer(config));
 
     tracing::subscriber::set_global_default(subscriber).map_err(core_err_unexpected)?;
     panic_capture(config);
+    log_startup(config);
     Ok(())
 }
 
-pub fn log_startup(build_info: &str) {
+/// Also used by clients that install their own tracing subscriber.
+pub fn log_startup(config: &Config) {
+    #[cfg(not(target_family = "wasm"))]
+    let pid = Some(std::process::id());
+    #[cfg(target_family = "wasm")]
+    let pid: Option<u32> = None;
+
     tracing::info!(
-        pid = std::process::id(),
+        client = config.client_name,
+        pid,
         core_version = crate::get_code_version(),
-        "startup {build_info}"
+        core_commit = env!("LB_GIT_COMMIT"),
+        "startup {}",
+        config.build_info.as_deref().unwrap_or_default()
     );
 }
 
@@ -256,6 +262,8 @@ mod tests {
             logs: true,
             stdout_logs: false,
             colored_logs: false,
+            client_name: "tests".into(),
+            build_info: None,
             client_type: ClientType::Unknown,
         };
         let subscriber = tracing_subscriber::Registry::default().with(trace_layer(&config));

@@ -1068,6 +1068,8 @@ impl Editor {
             stdout_logs: false,
             colored_logs: false,
             background_work: false,
+            client_name: "tests".into(),
+            build_info: None,
             client_type: ClientType::Unknown,
         })
         .unwrap();

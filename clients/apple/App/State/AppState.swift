@@ -113,8 +113,7 @@ import SwiftWorkspace
         #else
         let clientName = "ios"
         #endif
-        let core = Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? LB_LOC, clientName: clientName, logs: true)
-        _ = BuildInfo.log
+        let core = Lb(writablePath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? LB_LOC, clientName: clientName, buildInfo: BuildInfo.identity, logs: true)
         return core
     }()
 

@@ -66,6 +66,8 @@ impl LbWebApp {
             writeable_path: "".into(),
             background_work: false,
             stdout_logs: true,
+            client_name: "web".into(),
+            build_info: None,
             client_type: ClientType::Ui,
         })
         .unwrap();

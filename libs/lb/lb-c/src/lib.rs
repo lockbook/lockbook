@@ -35,12 +35,16 @@ pub struct LbInitRes {
 
 /// Initializes a regular core instance with configurable background work.
 /// `client_name` partitions log files; pass null to use `lockbook.log`.
+/// `build_info` optionally identifies the caller's build in the startup log.
 /// Release the result with `lb_free_init`.
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_init(
-    writeable_path: *const c_char, client_name: *const c_char, logs: bool, background_work: bool,
+    writeable_path: *const c_char, client_name: *const c_char, build_info: *const c_char,
+    logs: bool, background_work: bool,
 ) -> LbInitRes {
     let config = Config {
+        client_name: r_opt_str(client_name).unwrap_or_default().to_owned(),
+        build_info: r_opt_str(build_info).map(str::to_owned),
         writeable_path: rstring(writeable_path),
         background_work,
         logs,
@@ -49,9 +53,7 @@ pub extern "C" fn lb_init(
         client_type: ClientType::Ui,
     };
 
-    match service::logging::init_for_client(&config, r_opt_str(client_name))
-        .and_then(|()| Lb::init(config))
-    {
+    match Lb::init(config) {
         Ok(lb) => {
             let lb = Box::into_raw(Box::new(lb));
             LbInitRes { lb, err: null_mut() }
@@ -61,12 +63,6 @@ pub extern "C" fn lb_init(
             LbInitRes { lb: null_mut(), err }
         }
     }
-}
-
-/// Log the caller's build identity after initializing core logging.
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_log_startup(build_info: *const c_char) {
-    service::logging::log_startup(rstr(build_info));
 }
 
 #[repr(C)]

@@ -12,13 +12,8 @@ case "$status" in
     *) exit "$status" ;;
 esac
 
-source="import Bridge
-
-enum BuildInfo {
-    // Swift initializes static lets once, even when provider callbacks run concurrently.
-    static let log: Void = {
-        lb_log_startup(\"bundle=$PRODUCT_BUNDLE_IDENTIFIER version=$MARKETING_VERSION build=$CURRENT_PROJECT_VERSION commit=$commit configuration=$CONFIGURATION\")
-    }()
+source="enum BuildInfo {
+    static let identity = \"bundle=$PRODUCT_BUNDLE_IDENTIFIER version=$MARKETING_VERSION build=$CURRENT_PROJECT_VERSION commit=$commit configuration=$CONFIGURATION\"
 }"
 if [ "$(cat "$SCRIPT_OUTPUT_FILE_0" 2>/dev/null || true)" != "$source" ]; then
     printf '%s\n' "$source" > "$SCRIPT_OUTPUT_FILE_0"

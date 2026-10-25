@@ -6,7 +6,10 @@ pub fn init() {
         fmt::Layer::new()
             .pretty()
             .with_target(false)
-            .with_filter(filter::filter_fn(|metadata| metadata.target().starts_with("lb_fs"))),
+            .with_filter(filter::filter_fn(|metadata| {
+                metadata.target().starts_with("lb_fs")
+                    || metadata.target() == "lb_rs::service::logging"
+            })),
     );
 
     tracing::subscriber::set_global_default(subscriber).unwrap();

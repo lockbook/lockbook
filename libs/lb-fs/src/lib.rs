@@ -24,18 +24,19 @@ pub mod utils;
 
 impl Drive {
     pub async fn init() -> Self {
-        let lb = Lb::init(Config {
+        let config = Config {
             writeable_path: Config::writeable_path("drive"),
             background_work: false,
             logs: false,
             stdout_logs: false,
             colored_logs: false,
+            client_name: "lb-fs".into(),
+            build_info: None,
             client_type: ClientType::Cli,
-        })
-        .await
-        .unwrap();
-
+        };
         logger::init();
+        lb_rs::service::logging::log_startup(&config);
+        let lb = Lb::init(config).await.unwrap();
 
         let root = lb.root().await.map(|file| file.id).unwrap_or(Uuid::nil());
 
