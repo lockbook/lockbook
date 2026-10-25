@@ -685,12 +685,15 @@ impl<'ast> MdRender {
     }
 
     /// The text an autolink shows in place of its URL: a file's name, what a
-    /// known site's URL says it is, or the page's title once fetched.
+    /// known site's URL says it is, or the page's title once fetched. With
+    /// sites off a web link shows its URL, so it reads as previews being off.
     fn get_link_title(&self, url: &str) -> Option<String> {
         match self.get_link_meta(url) {
             LinkMetaLookup::Internal(title) => Some(title),
             LinkMetaLookup::Loaded(meta) => Some(link_preview::label(url).unwrap_or(meta.title)),
-            LinkMetaLookup::Loading | LinkMetaLookup::Unavailable => link_preview::label(url),
+            LinkMetaLookup::Loading | LinkMetaLookup::Unavailable => {
+                link_preview::label(url).filter(|_| self.contact_linked_sites)
+            }
         }
     }
 

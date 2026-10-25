@@ -2092,6 +2092,7 @@ fn wrapped_capsule_touch_region_matches_pill() {
     use crate::link_preview::LinkMeta;
 
     let mut ws = TestEditor::new("before https://example.com after\n");
+    ws.editor.persistence.set_contact_linked_sites(true);
     ws.editor.edit.renderer.previews.insert(
         "https://example.com",
         LinkMeta {
@@ -2302,6 +2303,7 @@ fn caret_bordering_embeds_spans_their_height() {
 
     // card: caret at the card's start spans the card
     let mut ws = TestEditor::new("https://example.com\n");
+    ws.editor.persistence.set_contact_linked_sites(true);
     ws.editor.edit.renderer.previews.insert(
         "https://example.com",
         LinkMeta {

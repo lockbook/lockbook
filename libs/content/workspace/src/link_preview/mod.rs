@@ -111,16 +111,18 @@ impl LinkPreviews {
     /// failure's retry time has passed, or the one shown has gone stale —
     /// and only when the reader lets sites be contacted.
     pub fn get(&self, url: &str) -> Preview {
-        let contact = self.contact();
+        // what came from a site isn't shown once the reader turns sites off
+        if !self.contact() {
+            return Preview::Unavailable;
+        }
         let now = Instant::now();
         let mut entries = self.entries.lock().unwrap();
         let fetch = match entries.get_mut(url) {
-            None if contact => {
+            None => {
                 entries.insert(url.into(), Entry { state: State::Loading, at: now });
                 Some(0)
             }
-            None => return Preview::Unavailable,
-            Some(entry) if contact => match entry.state {
+            Some(entry) => match entry.state {
                 State::Failed { retry_at: Some(t), attempts } if t <= now => {
                     *entry = Entry { state: State::Loading, at: now };
                     Some(attempts)
@@ -131,7 +133,6 @@ impl LinkPreviews {
                 }
                 _ => None,
             },
-            Some(_) => None,
         };
         let preview = match &entries[url].state {
             State::Loaded(meta) => Preview::Loaded(meta.clone()),

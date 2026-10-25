@@ -32,6 +32,7 @@ fn renders_card_with_cached_meta(md: &str, cache_url: &str) -> bool {
         .renderer
         .previews
         .insert(cache_url, LinkMeta { title: "Example Title".into(), ..Default::default() });
+    ws.editor.persistence.set_contact_linked_sites(true);
     ws.enter_frame();
     has_card_fragment(&ws)
 }
@@ -116,6 +117,7 @@ fn previews_are_shared_across_tabs() {
         .previews
         .insert(url, LinkMeta { title: "Example Title".into(), ..Default::default() });
     let mut second = TestEditor::beside(&first, "https://example.com\n");
+    second.editor.persistence.set_contact_linked_sites(true);
     second.enter_frame();
     assert!(has_card_fragment(&second), "the second tab shows the first tab's preview");
 }
@@ -125,6 +127,32 @@ fn previews_are_shared_across_tabs() {
 #[test]
 fn cached_metadata_renders_a_card() {
     assert!(renders_card_with_cached_meta("https://example.com\n", "https://example.com"));
+}
+
+/// Turning sites off hides what they already sent, not just what's to come.
+#[test]
+fn previews_off_hides_fetched_ones() {
+    let mut ws = TestEditor::new("https://example.com\n");
+    ws.editor.edit.renderer.previews.insert(
+        "https://example.com",
+        LinkMeta { title: "Example Title".into(), ..Default::default() },
+    );
+    ws.enter_frame();
+    assert!(!has_card_fragment(&ws));
+}
+
+/// With sites off, a link a known site's URL names stays its URL, so
+/// nothing reads as a preview.
+#[test]
+fn previews_off_leaves_known_sites_as_urls() {
+    let mut ws = TestEditor::new("see https://github.com/lockbook/lockbook/issues/1 here\n");
+    ws.enter_frame();
+    let chips = ws.editor.edit.renderer.fragments.iter();
+    assert!(
+        !chips
+            .into_iter()
+            .any(|f| f.style_stack.iter().any(|s| s.chip))
+    );
 }
 
 #[test]
@@ -161,6 +189,7 @@ fn wrapped_capsule_edge_carets() {
             ..Default::default()
         },
     );
+    ws.editor.persistence.set_contact_linked_sites(true);
     // Production fonts are narrower than egui defaults; a short title
     // can fit on one line at 160px.
     let size = egui::Vec2::new(160.0, 600.0);
@@ -231,6 +260,7 @@ fn capsule_selection_rects_hug_pill() {
             ..Default::default()
         },
     );
+    ws.editor.persistence.set_contact_linked_sites(true);
     ws.enter_frame();
 
     let range = {
@@ -288,6 +318,7 @@ fn enter_atom_reveals_link_card_source() {
         .renderer
         .previews
         .insert(url, LinkMeta { title: "Example Title".into(), ..Default::default() });
+    ws.editor.persistence.set_contact_linked_sites(true);
     ws.enter_frame();
     assert!(has_card_fragment(&ws), "card renders with cached meta");
 

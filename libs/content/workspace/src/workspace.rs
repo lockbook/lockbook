@@ -329,9 +329,10 @@ impl Workspace {
                 }
             }
             #[cfg(not(target_family = "wasm"))]
-            Destination::MindMap(_) => {
-                ContentState::Open(TabContent::MindMap(MindMap::new(&self.core)))
-            }
+            Destination::MindMap(_) => ContentState::Open(TabContent::MindMap(MindMap::new(
+                &self.core,
+                self.cfg.get_contact_linked_sites(),
+            ))),
             #[cfg(target_family = "wasm")]
             Destination::MindMap(_) => return,
             Destination::SpaceInspector(root_id) => {
