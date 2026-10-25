@@ -43,18 +43,17 @@ pub fn fixed_height_list<R>(
 ) -> R {
     use egui::{Align, Layout, Rect, ScrollArea, Sense, UiBuilder, vec2};
 
-    use crate::components::foundation::chrome::{Radius, paint_plate_stroke};
+    use crate::components::foundation::chrome::{Radius, paint_plate_shadow, pin_shadow};
 
     let h = height.max(1.0);
     let w = crate::components::ui_width(ui).max(1.0);
     let radius = Radius::Control.corner();
-    // Outside hairline after content so row washes cannot cover the border
-    // (paint order — same idea as plate_content).
     ui.allocate_ui_with_layout(vec2(w, h), Layout::top_down(Align::Min), |ui| {
         ui.set_width(w);
         ui.set_height(h);
         ui.set_max_height(h);
         let (slot, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
+        paint_plate_shadow(ui, slot, radius, t.neutral_bg(), pin_shadow(t));
         let inner = ui
             .scope_builder(UiBuilder::new().max_rect(slot), |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
@@ -85,8 +84,6 @@ pub fn fixed_height_list<R>(
                 })
             })
             .inner;
-        // Stroke last — wins over flush row fills / rounded-corner wash bleed.
-        paint_plate_stroke(ui, slot, radius, t.neutral());
         inner
     })
     .inner

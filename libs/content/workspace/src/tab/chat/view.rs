@@ -1114,6 +1114,12 @@ impl Chat {
                                 // grammar: filled header bar; expanded content
                                 // on the transcript background inside a
                                 // border, corners matching the table's.
+                                if let Some(container) = border {
+                                    ui.painter().add(
+                                        crate::style::pin_shadow(&theme).as_shape(container, 2),
+                                    );
+                                    ui.painter().rect_filled(container, 2.0, theme.neutral_bg());
+                                }
                                 let header_rounding = if border.is_some() {
                                     CornerRadius { nw: 2, ne: 2, sw: 0, se: 0 }
                                 } else {
@@ -1172,14 +1178,6 @@ impl Chat {
                                     if let Some(path) = row.open_path {
                                         tool_list_hits.entry(i).or_default().push((row.rect, path));
                                     }
-                                }
-                                if let Some(container) = border {
-                                    ui.painter().rect_stroke(
-                                        container,
-                                        2.0,
-                                        Stroke { width: 1.0, color: theme.neutral_bg_tertiary() },
-                                        StrokeKind::Inside,
-                                    );
                                 }
                             }
                         }
@@ -1413,6 +1411,9 @@ impl Chat {
                             CornerRadius { nw: 2, ne: 2, sw: 0, se: 0 },
                             theme.neutral_bg_secondary(),
                         );
+                        ui.painter()
+                            .add(crate::style::pin_shadow(&theme).as_shape(r.border, 2));
+                        ui.painter().rect_filled(r.border, 2.0, theme.neutral_bg());
                         ui.painter().galley(
                             pos2(
                                 r.header_rect.min.x + TOOL_PAD_X,
@@ -1463,13 +1464,6 @@ impl Chat {
                         if deny.clicked() {
                             deny_clicked = true;
                         }
-                        // Container border, like an expanded tool row's.
-                        ui.painter().rect_stroke(
-                            r.border,
-                            2.0,
-                            Stroke { width: 1.0, color: theme.neutral_bg_tertiary() },
-                            StrokeKind::Inside,
-                        );
                     }
 
                     // First-run: a minimal centered card. The Choose stage

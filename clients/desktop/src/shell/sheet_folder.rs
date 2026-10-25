@@ -478,11 +478,12 @@ fn folder_picker_sheet(
                 let tw = crate::components::ui_width(ui);
                 let (slot, _) =
                     ui.allocate_exact_size(egui::vec2(tw, tree_h), egui::Sense::hover());
-                crate::components::paint_plate_stroke(
+                crate::components::paint_plate_shadow(
                     ui,
                     slot,
                     crate::components::Radius::Control.corner(),
-                    t.neutral(),
+                    t.neutral_bg(),
+                    crate::components::pin_shadow(t),
                 );
                 ui.scope_builder(egui::UiBuilder::new().max_rect(slot), |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;

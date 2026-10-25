@@ -686,28 +686,18 @@ impl MdEdit {
         // matches link preview cards.
         let card_corner = egui::CornerRadius::same(4);
         let fill = theme.neutral_bg();
-        let stroke_color = theme.neutral_bg_tertiary();
 
         // Source slot: an empty ghost of the card.
         ui.painter().rect_filled(hole, card_corner, fill);
-        ui.painter().rect_stroke(
-            hole,
-            card_corner,
-            Stroke::new(0.5_f32, stroke_color),
-            egui::epaint::StrokeKind::Inside,
-        );
+        crate::style::paint_inset_shadow(ui.painter(), hole, card_corner, &theme);
 
         // Floating card translated so the grab-point stays under the
         // pointer regardless of mid-drag scroll.
         let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = card_rect.translate(offset);
+        ui.painter()
+            .add(crate::style::overlay_shadow(&theme).as_shape(card, card_corner));
         ui.painter().rect_filled(card, card_corner, fill);
-        ui.painter().rect_stroke(
-            card,
-            card_corner,
-            Stroke::new(0.5_f32, stroke_color),
-            egui::epaint::StrokeKind::Inside,
-        );
 
         // Re-draw the span translated.
         let section = drag.section_range;

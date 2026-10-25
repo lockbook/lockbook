@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Align2, Color32, CursorIcon, Pos2, Rangef, Rect, Sense, Stroke, Ui, UiBuilder, Vec2};
+use egui::{Align2, Color32, CursorIcon, Pos2, Rangef, Rect, Sense, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
@@ -343,12 +343,7 @@ impl<'ast> MdRender {
         if let Some(fill) = fill {
             ui.painter().rect_filled(rect, 2., fill);
         }
-        ui.painter().rect_stroke(
-            rect,
-            2.,
-            Stroke::new(1_f32, theme.neutral_bg_tertiary()),
-            egui::epaint::StrokeKind::Inside,
-        );
+        crate::style::paint_doc_border(ui.painter(), rect, 2, &theme);
 
         let padding = self.layout.block_padding;
         let row_height = self.layout.row_height;
