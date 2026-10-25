@@ -17,10 +17,13 @@ use crate::tab::markdown_editor::fragment::slugify;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{
+    BG_ROW_GAP, CHIP_SIDE_PAD, Format, FragmentContent, Layout, StyleInfo,
+};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
 use crate::theme::palette_v2::ThemeExt as _;
+use unicode_segmentation::UnicodeSegmentation as _;
 
 pub use crate::resolvers::LinkState;
 use crate::resolvers::rich_spans;
@@ -166,17 +169,15 @@ impl<'ast> MdRender {
                 format: pill_fmt.clone(),
                 source_range: node_range,
                 chip: !internal,
+                wrap: internal,
             });
             // Leading em-space reserves the favicon slot (painted in
             // `show_capsule_overlays`); it's in the title's source range, so the
-            // selection covers the favicon like text — no separate embed. The
-            // WORD JOINER removes the break opportunity after the em space
-            // (UAX#14 LB11) so the slot wraps with the title's first word
-            // instead of orphaning at the end of a line.
-            let text = if self.capsule_favicon_url(&url).is_some() {
-                format!("\u{2003}\u{2060}{t}")
-            } else {
-                t
+            // selection covers the favicon like text — no separate embed.
+            let lead = if self.capsule_favicon_url(&url).is_some() { FAVICON_SLOT } else { "" };
+            let text = match internal {
+                true => t,
+                false => format!("{lead}{}", self.chip_title(node, lead, &t, &pill_fmt).0),
             };
             layout.push_override(trimmed, &text, pill_fmt);
             layout.style_close();
@@ -276,6 +277,81 @@ impl<'ast> MdRender {
                 }
             },
         );
+    }
+
+    /// A chip's title cut to fit on one row; `true` when cut short. `lead`
+    /// comes before it.
+    pub(crate) fn chip_title(
+        &self, node: &'ast AstNode<'ast>, lead: &str, title: &str, fmt: &Format,
+    ) -> (String, bool) {
+        let Some(block) = node
+            .ancestors()
+            .find(|a| a.data.borrow().value.is_leaf_block())
+        else {
+            return (title.into(), false);
+        };
+        let em = self.row_height(block);
+        let room = (CHIP_MAX_EMS * em).min(self.width(block)) - 2.0 * em * CHIP_SIDE_PAD;
+        let fits = |t: &str| self.text_advance(&format!("{lead}{t}"), fmt, em) <= room;
+        if fits(title) {
+            return (title.into(), false);
+        }
+        let graphemes: Vec<&str> = title.graphemes(true).collect();
+        let cut = |n: usize| graphemes[..n].concat().trim_end().to_string();
+        let (mut lo, mut hi) = (0, graphemes.len());
+        while lo < hi {
+            let mid = (lo + hi).div_ceil(2);
+            if fits(&cut(mid)) { lo = mid } else { hi = mid - 1 }
+        }
+        (cut(lo), true)
+    }
+
+    /// A cut chip's text fading into its fill over its last ems, then the
+    /// fill over the pill's rounded end, painted over the text; and the x the
+    /// fade begins at.
+    fn cut_chip_fade(
+        &self, node: &'ast AstNode<'ast>, url: &str, node_range: (Grapheme, Grapheme),
+    ) -> Option<(Vec<egui::Shape>, f32)> {
+        let title = self.get_link_title(url)?;
+        let block = node
+            .ancestors()
+            .find(|a| a.data.borrow().value.is_leaf_block())?;
+        let lead = if self.capsule_favicon_url(url).is_some() { FAVICON_SLOT } else { "" };
+        let fmt = self.text_format_link_pill(node.parent()?, self.link_state_for_url(url));
+        if !self.chip_title(node, lead, &title, &fmt).1 {
+            return None;
+        }
+        let chip = self.fragments.iter().filter(|f| {
+            f.source_range.intersects(&node_range, true)
+                && f.style_stack.last().is_some_and(|s| s.chip)
+        });
+        let text = chip
+            .clone()
+            .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
+            .map(|f| f.rect)
+            .reduce(egui::Rect::union)?;
+        let right = chip.map(|f| f.rect.right()).fold(text.right(), f32::max);
+        // the pill as `show_wrap_layout` paints it
+        let pill = egui::Rect::from_x_y_ranges(
+            text.left()..=right,
+            text.y_range()
+                .expand(self.layout.inline_padding - BG_ROW_GAP / 2.0),
+        );
+        let cap = pill.height() / 2.0;
+        let end = (pill.right() - cap).min(text.right());
+        let from = end - CHIP_FADE_EMS * self.row_height(block);
+        let fill = fmt.background;
+        let mut mesh = egui::Mesh::default();
+        let clear = egui::Color32::TRANSPARENT;
+        mesh.colored_vertex(egui::pos2(from, pill.top()), clear);
+        mesh.colored_vertex(egui::pos2(end, pill.top()), fill);
+        mesh.colored_vertex(egui::pos2(from, pill.bottom()), clear);
+        mesh.colored_vertex(egui::pos2(end, pill.bottom()), fill);
+        mesh.add_triangle(0, 1, 2);
+        mesh.add_triangle(1, 2, 3);
+        let rest = egui::Rect::from_x_y_ranges(end..=pill.right(), pill.y_range());
+        let rounded = egui::CornerRadius { ne: cap as u8, se: cap as u8, ..Default::default() };
+        Some((vec![egui::Shape::mesh(mesh), egui::Shape::rect_filled(rest, rounded, fill)], from))
     }
 
     /// Favicon URL for a capsule preview's external link when previews are on
@@ -381,6 +457,14 @@ impl<'ast> MdRender {
             }
             ui.set_clip_rect(row_clip);
 
+            // a cut chip's fade, and where it begins
+            let fade =
+                if frag_start == 0 { self.cut_chip_fade(node, &url, node_range) } else { None };
+            let fade_from = fade.as_ref().map(|(_, x)| *x);
+            if let Some((shapes, _)) = fade {
+                self.over_text.extend(shapes);
+            }
+
             if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
                 let accent = theme.bg().get_color(theme.prefs().primary);
@@ -395,8 +479,18 @@ impl<'ast> MdRender {
                         None => rows.push(*r),
                     }
                 }
-                for r in rows.iter().filter_map(|r| self.table_showing(*r)) {
-                    ui.painter().rect_filled(r, 2.0, tint);
+                let shown: Vec<_> = rows.iter().filter_map(|r| self.table_showing(*r)).collect();
+                for r in shown {
+                    let Some(x) = fade_from.filter(|x| r.x_range().contains(*x)) else {
+                        ui.painter().rect_filled(r, 2.0, tint);
+                        continue;
+                    };
+                    // over the fade, the tint goes on after it
+                    let left = egui::CornerRadius { nw: 2, sw: 2, ..Default::default() };
+                    let right = egui::CornerRadius { ne: 2, se: 2, ..Default::default() };
+                    ui.painter().rect_filled(r.with_max_x(x), left, tint);
+                    self.over_text
+                        .push(egui::Shape::rect_filled(r.with_min_x(x), right, tint));
                 }
             }
         }
@@ -831,6 +925,13 @@ pub enum LinkMenuAction {
 }
 
 /// What a desktop context menu over a link-like node acts on.
+/// The space a chip's favicon is painted over, before its title.
+const FAVICON_SLOT: &str = "\u{2003}";
+/// Chips longer than this many ems are cut short.
+const CHIP_MAX_EMS: f32 = 24.0;
+/// How far a cut chip's fade reaches back into its text, in ems.
+const CHIP_FADE_EMS: f32 = 1.5;
+
 #[derive(Clone)]
 pub struct LinkMenuTarget {
     pub url: String,

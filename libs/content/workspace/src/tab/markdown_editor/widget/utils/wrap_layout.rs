@@ -211,11 +211,14 @@ pub struct StyleInfo {
     /// Paint the background as a compact capsule hugging the text
     /// middle (the fold `···` chip) instead of filling the row.
     pub chip: bool,
+    /// The scope may break across rows; one that can't moves to the next
+    /// row whole.
+    pub wrap: bool,
 }
 
 impl StyleInfo {
     pub fn new(format: Format, source_range: (Grapheme, Grapheme)) -> Self {
-        Self { format, source_range, chip: false }
+        Self { format, source_range, chip: false, wrap: true }
     }
 }
 
@@ -542,6 +545,20 @@ fn push_sanitised(out: &mut String, tabs: &mut Vec<usize>, text: &str) {
 }
 
 impl MdRender {
+    /// `text`'s width in `format` at `row_height`, shaped as the layout
+    /// shapes it.
+    pub fn text_advance(&self, text: &str, format: &Format, row_height: f32) -> f32 {
+        let fs = self.ctx.data(|d| {
+            d.get_temp::<std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>>(egui::Id::NULL)
+        });
+        let cache = self
+            .ctx
+            .data(|d| d.get_temp::<std::sync::Arc<std::sync::Mutex<GlyphonCache>>>(egui::Id::NULL));
+        let (Some(fs), Some(cache)) = (fs, cache) else { return 0.0 };
+        let ppi = self.ctx.pixels_per_point();
+        shape_chunk(&fs, &cache, text, format, row_height, f32::MAX / 4.0, ppi).1
+    }
+
     /// Run the post-walker pipeline (`shape → break → build_rows`)
     /// on a populated `Layout`. The public entry point until the
     /// AST-driven `compute_wrap_layout` is wired in (next migration
@@ -662,13 +679,13 @@ impl MdRender {
 // ─── shape (Layout → Vec<InlineItem>) ────────────────────────────────
 
 /// Space left between backgrounds (chips, inline code) on adjacent rows.
-const BG_ROW_GAP: f32 = 2.0;
+pub(crate) const BG_ROW_GAP: f32 = 2.0;
 
 /// Side padding inside a chip capsule, as a fraction of row height.
 /// Shared by the walker (which lays the pads between the glyph and
 /// the capsule edges) and by cursor math (which backs them out so the
 /// caret beside the atom renders beside the capsule).
-const CHIP_SIDE_PAD: f32 = 0.3;
+pub(crate) const CHIP_SIDE_PAD: f32 = 0.3;
 
 fn chip_is_icon(s: &StyleInfo) -> bool {
     s.chip && s.format.family == FontFamily::Phosphor
@@ -809,6 +826,19 @@ fn shape_to_items(
         }
     }
 
+    // nothing inside a scope that can't wrap is a place to break
+    let mut open = Vec::new();
+    for (pos, ev) in &layout.events {
+        match ev {
+            FlowEvent::Open(s) => open.push((*pos, s.wrap)),
+            FlowEvent::Close => {
+                if let Some((start, false)) = open.pop() {
+                    breaks.retain(|&b| b <= start || b >= *pos);
+                }
+            }
+            _ => {}
+        }
+    }
     let break_points: Vec<usize> = breaks.into_iter().collect();
     let stop = tab_stop_distance(row_height);
     let tab_set: std::collections::HashSet<usize> = layout.tab_positions.iter().copied().collect();
@@ -1396,6 +1426,16 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                         cur_width += inline_pad;
                     }
                     last_whitespace_glue = None;
+                } else if cur_width + natural > effective_width && cur_width > 0.0 {
+                    // nowhere earlier on the row to wrap (it holds one
+                    // unbreakable run, as a chip): the space starts the next
+                    // row, as an overflowing box does
+                    breaks.push(i);
+                    cur_width = *natural;
+                    if bg_open(&scope_bg_stack) {
+                        cur_width += inline_pad;
+                    }
+                    last_whitespace_glue = None;
                 } else {
                     cur_width += natural;
                 }
@@ -1891,38 +1931,10 @@ impl MdRender {
                     egui::Pos2::new(chain_left, row_top - pad),
                     egui::Pos2::new(chain_right, row_bottom + pad),
                 );
-                let mut left_radius = 2.0;
-                let mut right_radius = 2.0;
-                if chip {
-                    // Fully-rounded capsule at the inline-code pill height
-                    // (bg_rect already includes inline_pad above). A capsule
-                    // wrapped across rows drops its broken edges to the
-                    // inline-code radius — full caps only at the chip's true
-                    // ends, so glyphs at a wrap boundary don't crowd the
-                    // curvature and the segments read as one continued pill.
-                    let capsule = bg_rect.height() / 2.0;
-                    let scope = row.fragments[chain_start]
-                        .style_stack
-                        .last()
-                        .map(|s| s.source_range);
-                    let same_chip = |f: &Fragment| {
-                        f.style_stack
-                            .last()
-                            .is_some_and(|s| s.chip && Some(s.source_range) == scope)
-                    };
-                    let continued_from_prev =
-                        row_idx > 0 && layout.rows[row_idx - 1].fragments.iter().any(same_chip);
-                    let continues_to_next = row_idx + 1 < layout.rows.len()
-                        && layout.rows[row_idx + 1].fragments.iter().any(same_chip);
-                    if !continued_from_prev {
-                        left_radius = capsule;
-                    }
-                    if !continues_to_next {
-                        right_radius = capsule;
-                    }
-                }
+                // a chip is one row, so a whole capsule
+                let radius = if chip { bg_rect.height() / 2.0 } else { 2.0 };
                 if ui.clip_rect().intersects(bg_rect) {
-                    let rounding = corner_rounding(left_radius, right_radius);
+                    let rounding = egui::CornerRadius::same(radius as u8);
                     ui.painter().rect_filled(bg_rect, rounding, bg);
                 }
                 i = chain_end;
@@ -2078,16 +2090,6 @@ fn in_cell(fragment: &Fragment, cell: &(Grapheme, Grapheme)) -> bool {
     cell.contains_range(&fragment.source_range, true, true)
 }
 
-/// Per-corner rounding for smart-corner bg painting. Returns a
-/// `CornerRadius` (egui 0.31's per-corner type) with a per-side radius —
-/// e.g. a wrapped capsule's full cap on its true end and the subtle
-/// inline-code radius on its broken end.
-fn corner_rounding(left_radius: f32, right_radius: f32) -> egui::CornerRadius {
-    let l = left_radius as u8;
-    let r = right_radius as u8;
-    egui::CornerRadius { nw: l, sw: l, ne: r, se: r }
-}
-
 // ─── cursor + hit-test helpers (read-only over fragments) ────────────
 
 impl MdRender {
@@ -2101,21 +2103,14 @@ impl MdRender {
         // A caret at a chip's edge sits at the pill edge, not inside its padding
         // or favicon slot: prefer the chip's boundary anchor (a zero-width Spacer
         // at exactly `offset`, which `fragment_x` resolves to the pill edge) over
-        // the wider glyph fragments that also span the offset. A wrapped capsule
-        // re-opens its scope per row, giving every row such anchors at the same
-        // source positions — the caret belongs at the capsule's *true* edge:
-        // the first anchor for its start, the last for its end.
-        let mut anchors = self.fragments.iter().filter(|f| {
+        // the wider glyph fragments that also span the offset.
+        let anchor = self.fragments.iter().find(|f| {
             f.source_range == (offset, offset)
                 && matches!(f.content, FragmentContent::Spacer)
                 && f.style_stack.last().is_some_and(|s| s.chip)
         });
-        if let Some(first) = anchors.next() {
-            let leading = first
-                .style_stack
-                .last()
-                .is_some_and(|s| s.source_range.start() == offset);
-            return Some(if leading { first } else { anchors.next_back().unwrap_or(first) });
+        if anchor.is_some() {
+            return anchor;
         }
         self.fragments.iter().rev().find(|f| {
             let (s, e) = f.source_range;
@@ -2150,8 +2145,7 @@ impl MdRender {
                 continue;
             };
             // Chips paint their pill `inline_pad` (= row_spacing/2) beyond
-            // the text band; match the interact rect to the ink so a wrapped
-            // pill's rows meet across the gap and a tap between them hits it.
+            // the text band; match the interact rect to the ink.
             let rect = if f.style_stack.iter().any(|s| s.chip) {
                 f.rect
                     .expand2(egui::vec2(0.0, self.layout.row_spacing / 2.0))

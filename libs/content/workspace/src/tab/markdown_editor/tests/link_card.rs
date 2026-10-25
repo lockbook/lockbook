@@ -170,28 +170,22 @@ fn setting_mirrors_onto_renderer_each_frame() {
     assert!(ws.editor.edit.renderer.contact_linked_sites, "mirrored from persistence");
 }
 
-/// A wrapped capsule re-opens its style scope on each row, so chip boundary
-/// anchors exist per row at the same source positions. The edge carets must
-/// resolve to the capsule's *true* edges: start on the first row's pill-left,
-/// end on the last row's pill-right (regression: the end caret rendered at
-/// the end of the first row's segment).
+/// A chip too long for its row is cut to fit, never wrapped: one row, its
+/// edge carets at the pill's edges.
 #[test]
-fn wrapped_capsule_edge_carets() {
+fn long_chip_stays_on_one_row() {
     use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
-    use lb_rs::model::text::offset_types::IntoRangeExt as _;
     let url = "https://example.com";
     let mut ws = TestEditor::new("see https://example.com\nnext para\n");
     ws.editor.edit.renderer.previews.insert(
         url,
         LinkMeta {
-            title: "Example Title That Wraps Across Rows".into(),
+            title: "Example Title Much Too Long-Winded For Its Narrow Row".into(),
             favicon_url: Some("https://example.com/favicon.ico".into()),
             ..Default::default()
         },
     );
     ws.editor.persistence.set_contact_linked_sites(true);
-    // Production fonts are narrower than egui defaults; a short title
-    // can fit on one line at 160px.
     let size = egui::Vec2::new(160.0, 600.0);
     for _ in 0..3 {
         ws.enter_frame_at(size);
@@ -206,39 +200,38 @@ fn wrapped_capsule_edge_carets() {
             .expect("a link node");
         ws.editor.edit.renderer.node_range(node)
     };
-    ws.push(Event::Select { region: range.end().into_range().into() });
-    ws.enter_frame_at(size);
+    let chip: Vec<_> = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .filter(|f| f.style_stack.last().is_some_and(|s| s.chip))
+        .collect();
+    assert!(!chip.is_empty(), "chip renders");
+    assert!(
+        chip.iter()
+            .all(|f| (f.rect.top() - chip[0].rect.top()).abs() < 0.5),
+        "one row"
+    );
 
-    let anchors = |offset| {
-        ws.editor
-            .edit
-            .renderer
-            .fragments
-            .iter()
-            .filter(|f| {
-                f.source_range == (offset, offset)
-                    && matches!(f.content, FragmentContent::Spacer)
-                    && f.style_stack.last().is_some_and(|s| s.chip)
+    let edge = |offset| {
+        chip.iter()
+            .find(|f| {
+                f.source_range == (offset, offset) && matches!(f.content, FragmentContent::Spacer)
             })
-            .collect::<Vec<_>>()
+            .expect("edge anchor")
+            .rect
     };
-    let trailing = anchors(range.end());
-    assert!(trailing.len() > 1, "capsule wrapped: an anchor per row, got {}", trailing.len());
-
+    let (start, end) = (edge(range.start()), edge(range.end()));
     let start_line = ws
         .editor
         .edit
         .cursor_line(range.start())
         .expect("start caret");
     let end_line = ws.editor.edit.cursor_line(range.end()).expect("end caret");
-    assert!(
-        end_line[0].y > start_line[0].y,
-        "end caret on a later row: start {start_line:?} end {end_line:?}"
-    );
-    let true_end = trailing.last().unwrap().rect.max.x;
-    assert_eq!(end_line[0].x, true_end, "end caret at the last row's pill edge");
-    let true_start = anchors(range.start()).first().unwrap().rect.min.x;
-    assert_eq!(start_line[0].x, true_start, "start caret at the first row's pill edge");
+    assert_eq!(start_line[0].x, start.min.x, "start caret at the pill's left edge");
+    assert_eq!(end_line[0].x, end.max.x, "end caret at the pill's right edge");
 }
 
 /// A tap-selected capsule's selection rects hug the pill: one merged rect per

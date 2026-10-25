@@ -165,6 +165,8 @@ pub struct MdRender {
     /// Edge fades of scrolled tables and code blocks `(rect, left color,
     /// right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
+    /// Painted over the text this frame, as a cut chip's fade.
+    pub over_text: Vec<egui::Shape>,
     /// Code blocks' copy buttons, painted over the text.
     pub copy_buttons: Vec<widget::block::leaf::code_block::CopyButton>,
     pub render_events: Vec<input::Event>,
@@ -669,6 +671,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            over_text: Default::default(),
             copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
@@ -769,6 +772,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            over_text: Default::default(),
             copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
@@ -949,6 +953,7 @@ impl Editor {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            over_text: Default::default(),
             copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
