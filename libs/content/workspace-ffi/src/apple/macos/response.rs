@@ -28,15 +28,26 @@ impl From<Vec<u8>> for CBytes {
     }
 }
 
+/// Zero-sized when nothing takes IME input.
+#[repr(C)]
+pub struct CImeRect {
+    pub min_x: f32,
+    pub min_y: f32,
+    pub max_x: f32,
+    pub max_y: f32,
+}
+
 #[repr(C)]
 pub struct MacOSResponse {
     // platform response
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
+    pub copied_html: *mut c_char,
     pub copied_image: CBytes,
     pub urls_opened: CUrls,
     pub cursor: CCursorIcon,
     pub request_paste: bool,
+    pub ime_cursor: CImeRect,
 
     // widget response
     pub selected_file: CUuid,
@@ -64,14 +75,17 @@ impl From<crate::Response> for MacOSResponse {
                     markdown_editor_scroll_updated: _,
                     text_interaction_rect: _,
                     mobile_toolbar_shown: _,
+                    caret_covered: _,
                     tabs_changed,
                     failure_messages: _,
                     selected_folder_changed,
                     open_camera: _,
                     file_cache_updated: _,
+                    open_search: _,
                 },
             redraw_in,
             copied_text,
+            copied_html,
             copied_image,
             urls_opened,
             cursor,
@@ -79,6 +93,7 @@ impl From<crate::Response> for MacOSResponse {
             window_title: _,
             request_paste,
             context_menu: _,
+            ime_cursor,
         } = value;
 
         let doc_created = match file_created {
@@ -105,10 +120,19 @@ impl From<crate::Response> for MacOSResponse {
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text: CString::new(copied_text).unwrap().into_raw(),
+            copied_html: CString::new(copied_html).unwrap().into_raw(),
             copied_image: copied_image.into(),
             urls_opened,
             cursor: cursor.into(),
             request_paste,
+            ime_cursor: ime_cursor
+                .map(|r| CImeRect {
+                    min_x: r.min.x,
+                    min_y: r.min.y,
+                    max_x: r.max.x,
+                    max_y: r.max.y,
+                })
+                .unwrap_or(CImeRect { min_x: 0., min_y: 0., max_x: 0., max_y: 0. }),
             selected_folder_changed,
         }
     }

@@ -19,19 +19,17 @@ import java.util.ArrayDeque
 class WorkspaceViewModel(
     private val savedState: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
-    fun recordTabOrigin(
+    fun recordTabCloseBehavior(
         sessionId: String,
-        destination: WorkspaceReturnDestination,
+        closeDetailOnBack: Boolean,
     ) {
         if (sessionId == NULL_UUID) return
-        val destinations = savedState.get<HashMap<String, String>>("tab_origins") ?: hashMapOf()
-        savedState["tab_origins"] = HashMap(destinations).apply { put(sessionId, destination.name) }
+        val behaviors = savedState.get<HashMap<String, Boolean>>("tab_close_detail") ?: hashMapOf()
+        savedState["tab_close_detail"] = HashMap(behaviors).apply { put(sessionId, closeDetailOnBack) }
     }
 
-    fun returnDestination(sessionId: String): WorkspaceReturnDestination {
-        val name = savedState.get<HashMap<String, String>>("tab_origins")?.get(sessionId)
-        return WorkspaceReturnDestination.entries.firstOrNull { it.name == name } ?: WorkspaceReturnDestination.Files
-    }
+    fun shouldCloseDetailOnBack(sessionId: String): Boolean =
+        savedState.get<HashMap<String, Boolean>>("tab_close_detail")?.get(sessionId) ?: true
 
     /** request workspace to  open a file **/
     private val _openFile = SingleMutableLiveData<OpenFileRequest>()
@@ -66,6 +64,16 @@ class WorkspaceViewModel(
     val _keyboardVisible = MutableLiveData<Boolean>()
     val keyboardVisible: LiveData<Boolean>
         get() = _keyboardVisible
+
+    /** The open note has headings, so the app bar offers its outline. */
+    val _outlineAvailable = MutableLiveData(false)
+    val outlineAvailable: LiveData<Boolean>
+        get() = _outlineAvailable
+
+    /** The outline sheet is up: the bottom bar would cover it. */
+    val _outlineOpen = MutableLiveData(false)
+    val outlineOpen: LiveData<Boolean>
+        get() = _outlineOpen
 
     val _showKeyboard = MutableLiveData<Boolean>()
     val showKeyboard: LiveData<Boolean>
@@ -130,15 +138,11 @@ data class OpenFileRequest(
     val id: String,
     val newFile: Boolean,
     val presentation: OpenFilePresentation,
-    val returnDestination: WorkspaceReturnDestination = WorkspaceReturnDestination.Files,
+    /** The heading a link's `#fragment` names, to open at. */
+    val heading: String? = null,
+    /** False for welcome-screen documents: close the tab, but keep the detail pane open. */
+    val closeDetailOnBack: Boolean = true,
 )
-
-enum class WorkspaceReturnDestination {
-    Welcome,
-    Files,
-    Recents,
-    PendingShares,
-}
 
 enum class OpenFilePresentation {
     Preserve,

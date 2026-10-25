@@ -18,6 +18,7 @@ pub mod settings;
 mod settings_account;
 mod sheet_create;
 mod sheet_folder;
+mod sheet_links;
 mod sheet_onboard;
 mod sheet_share;
 mod sheets;
@@ -37,10 +38,11 @@ pub use crate::components::domain::{footer, sync_dots, tabs, tree};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
-use egui::{Area, CentralPanel, Frame, Id, Order, SidePanel};
+use egui::{Area, CentralPanel, Frame, Id, Order, Panel};
 use lb::Uuid;
 use lb::service::events::{self, Event};
 use workspace_rs::file_cache::FilesExt;
+use workspace_rs::search::SearchType;
 
 use crate::components::{
     self, Space, Spacer, Theme, ThemeExt, ThemeFamily, TypeRole, handle_toggle_shortcut,
@@ -346,9 +348,11 @@ impl ShellApp {
         match &self.session {
             Session::Loading { kind: session::LoadKind::Cold, .. } => {
                 // Opening local account — empty chrome, no plate / no spinner.
-                CentralPanel::default()
-                    .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
-                    .show(ctx, |_| {});
+                ctx.root_ui(|ui| {
+                    CentralPanel::default()
+                        .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
+                        .show(ui, |_| {});
+                });
                 titlebar::show(self, ctx, &t, &mut queue);
                 for a in queue {
                     apply::apply(self, ctx, a);
@@ -398,53 +402,59 @@ impl ShellApp {
             // Only after a slide: wipe uses exact_width down to 1px on this same
             // panel id. Don't restore every resting frame — that undoes drag.
             sidebar::restore_panel_width_if_collapsed(ctx);
-            let resize_style = sidebar::begin_resize_style(ctx, &t);
-            SidePanel::left(sidebar::PANEL_ID)
-                .resizable(false)
-                .default_width(sidebar::WIDTH_DEFAULT)
-                .width_range(sidebar::width_min()..=sidebar::width_max(ctx))
-                .show_separator_line(false)
-                .frame(side_frame)
-                .show(ctx, |ui| {
-                    // Same paint path as the slide so tree/recents scroll ids match.
-                    sidebar::show_sliding(self, ui, &t, &mut queue, ui.max_rect().width());
-                });
-            sidebar::end_resize_style(ctx, resize_style);
+            sidebar::sync_resizing_latch(ctx);
+            let width_range = sidebar::width_min()..=sidebar::width_max(ctx);
+            ctx.root_ui(|root| {
+                Panel::left(sidebar::PANEL_ID)
+                    .resizable(false)
+                    .default_size(sidebar::WIDTH_DEFAULT)
+                    .size_range(width_range)
+                    .show_separator_line(false)
+                    .frame(side_frame)
+                    .show(root, |ui| {
+                        // Same paint path as the slide so tree/recents scroll ids match.
+                        sidebar::show_sliding(self, ui, &t, &mut queue, ui.max_rect().width());
+                    });
+            });
             sidebar::resize_over_workspace(ctx, &t, titlebar::HEADER_H);
             if let Some(state) =
-                egui::containers::panel::PanelState::load(ctx, egui::Id::new(sidebar::PANEL_ID))
+                egui::containers::panel::PanelState::load(ctx, sidebar::panel_id(ctx))
             {
-                sidebar::remember_resting_width(ctx, state.rect.width());
+                sidebar::remember_resting_width(ctx, state.outer_rect.width());
             }
         } else if how > 0.0 {
             let full_w = sidebar::resting_width(ctx);
             let w = (how * full_w).max(1.0);
-            SidePanel::left(sidebar::PANEL_ID)
-                .resizable(false)
-                .exact_width(w)
-                .show_separator_line(false)
-                .frame(side_frame)
-                .show(ctx, |ui| {
-                    sidebar::show_sliding(self, ui, &t, &mut queue, full_w);
-                });
+            ctx.root_ui(|root| {
+                Panel::left(sidebar::PANEL_ID)
+                    .resizable(false)
+                    .exact_size(w)
+                    .show_separator_line(false)
+                    .frame(side_frame)
+                    .show(root, |ui| {
+                        sidebar::show_sliding(self, ui, &t, &mut queue, full_w);
+                    });
+            });
             sidebar::paint_split_line(ctx, &t, titlebar::HEADER_H);
         }
 
-        CentralPanel::default()
-            .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
-            .show(ctx, |ui| {
-                if self.product_open() {
-                    editor::show(self, ui, &t, &mut queue);
-                } else if !self.showing_backup() {
-                    ui.centered_and_justified(|ui| {
-                        ui.label(
-                            TypeRole::Body
-                                .rich("Create or import an account to continue.")
-                                .color(t.neutral_fg_secondary()),
-                        );
-                    });
-                }
-            });
+        ctx.root_ui(|root| {
+            CentralPanel::default()
+                .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
+                .show(root, |ui| {
+                    if self.product_open() {
+                        editor::show(self, ui, &t, &mut queue);
+                    } else if !self.showing_backup() {
+                        ui.centered_and_justified(|ui| {
+                            ui.label(
+                                TypeRole::Body
+                                    .rich("Create or import an account to continue.")
+                                    .color(t.neutral_fg_secondary()),
+                            );
+                        });
+                    }
+                });
+        });
 
         titlebar::show(self, ctx, &t, &mut queue);
 
@@ -663,14 +673,14 @@ impl ShellApp {
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::N)) {
                 self.queue.push(A::Create);
             }
-            if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::E)) {
+            if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::Backslash)) {
                 self.queue.push(A::ToggleSidebar);
             }
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::S)) {
                 self.queue.push(A::SaveAll);
             }
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::O)) {
-                self.queue.push(A::OpenSearch);
+                self.queue.push(A::OpenSearch(Some(SearchType::Path)));
             }
             // History: Cmd+[ ] on Apple (Option+arrows are word motion).
             // Elsewhere Alt+arrows (exact, so Alt+Shift still reaches the editor).
@@ -816,7 +826,7 @@ impl ShellApp {
         if dropped.is_empty() {
             return;
         }
-        let paths: Vec<_> = dropped.into_iter().filter_map(|f| f.path).collect();
+        let paths: Vec<_> = dropped.iter().map(|f| f.path().to_path_buf()).collect();
         if paths.is_empty() {
             return;
         }
@@ -847,11 +857,13 @@ pub(crate) fn reveal_and_scroll(r: &mut ReadyState, id: Uuid) {
 fn boot_screen(ctx: &egui::Context, t: &Theme, msg: &str, spinner: bool) {
     // Canvas under the plate (onboard sits on dimmed product chrome; here the
     // whole window is the canvas until we have a session).
-    CentralPanel::default()
-        .frame(Frame::new().fill(t.neutral_bg_secondary()))
-        .show(ctx, |_| {});
+    ctx.root_ui(|ui| {
+        CentralPanel::default()
+            .frame(Frame::new().fill(t.neutral_bg_secondary()))
+            .show(ui, |_| {});
+    });
 
-    Area::new(Id::new("shell_boot_plate"))
+    Area::new(Id::unique("shell_boot_plate"))
         .order(Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {

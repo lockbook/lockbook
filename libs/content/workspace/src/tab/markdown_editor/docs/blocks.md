@@ -18,7 +18,11 @@ Fenced blocks with a language. Syntax highlighting uses TreeSitter in the target
 Inside a fence, code should behave more like a code editor on a best-effort basis: tab inserting spaces, a following line inheriting indent ([edits](edits.md)).
 
 ## Tables
-Target: first-class, cell-by-cell like a spreadsheet — Tab and Return navigate like Excel; chrome to add and rearrange rows and columns. Sorts and charts are cool territory, not a promise. They wait on the toolbar until they are first-class.
+A table is a grid, cell-by-cell like a spreadsheet. The caret lives in cells and steps from one to the next, never onto a pipe, a cell's padding, or the delimiter row; Tab and Return navigate like Excel and extend the table at its end. A selection takes whole cells or whole rows once it leaves a cell ([selection](selection.md)), and no edit joins two cells or leaves a row that is not a row.
+
+Rows and columns are inserted, deleted, moved, and aligned from the toolbar or from handles on the table itself ([chrome](chrome.md), [reorder](reorder.md)). Each is one undo unit on the rows' source lines that leaves every other cell as it was written. Columns are as wide as their content; cells wrap before the table outgrows the note, and past that the table scrolls ([layout](layout.md)).
+
+The delimiter row has no place in the grid. A table shows as source only while the caret is on it: someone is typing a table by hand. Sorts and charts are cool territory, not a promise.
 
 ## Other
 **Front matter:** Obsidian-like table rendering is the product direction; a code-block stand-in is fine until then ([dialect](dialect.md)).

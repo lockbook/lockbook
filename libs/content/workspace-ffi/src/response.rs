@@ -1,5 +1,5 @@
 use egui::{
-    Context, CursorIcon, OutputCommand, PlatformOutput, ViewportCommand, ViewportIdMap,
+    Context, CursorIcon, OrderedViewportIdMap, OutputCommand, PlatformOutput, ViewportCommand,
     ViewportOutput,
 };
 use workspace_rs::tab::{ContextMenuTarget, ExtendedOutput};
@@ -16,6 +16,8 @@ pub struct Response {
     // platform response
     pub redraw_in: Option<u64>,
     pub copied_text: String,
+    /// Set with `copied_text` by a rendered copy; hosts write both flavors.
+    pub copied_html: String,
     pub copied_image: Vec<u8>,
     pub urls_opened: Vec<String>,
     pub cursor: CursorIcon,
@@ -23,12 +25,13 @@ pub struct Response {
     pub window_title: Option<String>,
     pub request_paste: bool,
     pub context_menu: Option<(egui::Pos2, ContextMenuTarget)>,
+    pub ime_cursor: Option<egui::Rect>,
 }
 
 impl Response {
     pub fn new(
-        context: &Context, platform: &PlatformOutput, viewport: &ViewportIdMap<ViewportOutput>,
-        workspace: workspace_rs::Response,
+        context: &Context, platform: &PlatformOutput,
+        viewport: &OrderedViewportIdMap<ViewportOutput>, workspace: workspace_rs::Response,
     ) -> Self {
         let mut redraw_in = None;
         let mut window_title = None;
@@ -46,16 +49,24 @@ impl Response {
             eprintln!("viewport missing: not redrawing or setting window title");
         }
 
+        let (copied_text, copied_html) = match context.pop_copied_rendered() {
+            Some(rendered) => (rendered.plain, rendered.html),
+            None => (
+                platform
+                    .commands
+                    .iter()
+                    .find_map(|c| {
+                        if let OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None }
+                    })
+                    .unwrap_or_default(),
+                String::new(),
+            ),
+        };
         Self {
             workspace,
             redraw_in,
-            copied_text: platform
-                .commands
-                .iter()
-                .find_map(
-                    |c| if let OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None },
-                )
-                .unwrap_or_default(),
+            copied_text,
+            copied_html,
             copied_image: platform
                 .commands
                 .iter()
@@ -80,6 +91,10 @@ impl Response {
             window_title,
             request_paste,
             context_menu: context.pop_context_menu(),
+            // in view points, as the host's text input client reports them
+            ime_cursor: platform
+                .ime
+                .map(|ime| ime.cursor_rect * context.zoom_factor()),
         }
     }
 }

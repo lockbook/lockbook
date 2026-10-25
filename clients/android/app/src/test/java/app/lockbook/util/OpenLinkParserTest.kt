@@ -43,6 +43,13 @@ class OpenLinkParserTest {
     }
 
     @Test
+    fun `keeps the heading a fragment names`() {
+        assertEquals("next-steps", OpenLinkParser.heading("https://app.lockbook.net/open/$id#next-steps"))
+        assertEquals("Next%20steps", OpenLinkParser.heading("lb://$id#Next%20steps"))
+        assertNull(OpenLinkParser.heading("https://app.lockbook.net/open/$id"))
+    }
+
+    @Test
     fun `validates file ids independently of link parsing`() {
         assertEquals(id, canonicalFileId(id.uppercase()))
         assertEquals("00000000-0000-0000-0000-000000000000", canonicalFileId("00000000-0000-0000-0000-000000000000"))

@@ -24,6 +24,9 @@ object OpenLinkParser {
         }
     }
 
+    /** The heading a link's `#fragment` names, still percent-encoded. */
+    fun heading(value: String): String? = runCatching { URI(value).rawFragment }.getOrNull()?.takeIf { it.isNotEmpty() }
+
     private fun parseOfficialWebLink(uri: URI): String? {
         if (!uri.host.equals("app.lockbook.net", ignoreCase = true)) return null
         val parts = uri.rawPath?.split('/') ?: return null

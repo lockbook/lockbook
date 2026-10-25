@@ -18,10 +18,10 @@ pub use foundation::{
     FG_HOVER, FG_PRESS, FixedPadContent, ModePreference, ROW_H, Radius, STROKE_HAIRLINE, Space,
     Spacer, Theme, ThemeExt, ThemeFamily, TypeRole, claim, control_height, display_file_name,
     file_row_icon, handle_toggle_shortcut, install, origin, paint_plate, paint_plate_stroke,
-    phosphor, phosphor_font_id, phosphor_ui_font_id, pin_shadow, place_at, plate_content,
-    remaining_height, sense_click, set_mode_preference, set_theme_family, shortcut_cmd_i,
-    shortcut_cmd_n, shortcut_enter, shortcut_esc, shortcut_return, tab_icon, ui_width, with_h_pad,
-    with_h_pad_in, with_pad_fit,
+    phosphor, phosphor_font_id, phosphor_ui_font_id, place_at, plate_content, remaining_height,
+    sense_click, set_mode_preference, set_theme_family, shortcut_cmd_i, shortcut_cmd_n,
+    shortcut_enter, shortcut_esc, shortcut_return, tab_icon, ui_width, with_h_pad, with_h_pad_in,
+    with_pad_fit,
 };
 #[cfg(test)]
 pub use foundation::{begin_spacer_record, take_spacer_record};

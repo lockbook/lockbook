@@ -17,7 +17,7 @@ use lb::Uuid;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use rfd::FileDialog;
-use workspace_rs::file_cache::FilesExt;
+use workspace_rs::file_cache::{Change, FilesExt};
 
 use super::ShellApp;
 use super::action::{
@@ -94,6 +94,15 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OpenFile(id) => open_documents(app, &[id], false),
         A::OpenFileNewTab(id) => open_documents(app, &[id], true),
         A::NavBack => nav_history(app, true),
+        A::ToggleSidecar => {
+            if let Some(md) = app
+                .session
+                .ready_mut()
+                .and_then(|r| r.workspace.current_tab_markdown_mut())
+            {
+                md.toggle_outline();
+            }
+        }
         A::NavForward => nav_history(app, false),
         A::OpenDocuments { ids, new_tab } => open_documents(app, &ids, new_tab),
         A::SelectTab(i) => {
@@ -192,8 +201,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::ConfirmDelete => {
             if let Some(Modal::Delete { ids }) = app.modal.take() {
                 if let Some(r) = app.session.ready_mut() {
+                    r.workspace
+                        .make_change(Change::Delete { ids: ids.clone() }, false);
                     for id in &ids {
-                        r.workspace.delete_file(*id);
                         r.selected.remove(id);
                     }
                     if let Some(id) = r.workspace.current_tab_id() {
@@ -218,7 +228,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 err: None,
             });
             ctx.data_mut(|d| {
-                d.insert_temp(egui::Id::new("shell_share_need_focus"), true);
+                d.remove::<bool>(super::sheet_links::share_linked_id());
+                d.insert_temp(egui::Id::unique("shell_share_need_focus"), true);
                 d.remove::<String>(share_verify_inflight_key());
                 d.remove::<Vec<ShareNetDone>>(share_verify_done_key());
             });
@@ -345,7 +356,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 });
                 // Fresh expand + scroll-to-selected for this move session.
                 ctx.data_mut(|d| {
-                    d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new((
+                    d.remove::<std::collections::HashSet<Uuid>>(egui::Id::unique((
                         "shell_folder_pick_exp",
                         "shell_move",
                     )));
@@ -362,9 +373,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::ConfirmMove => {
             if let Some(Modal::Move { ids, dest }) = app.modal.take() {
                 if let (Some(d), Some(r)) = (dest, app.session.ready_mut()) {
-                    for id in &ids {
-                        r.workspace.move_file((*id, d));
-                    }
+                    let update = r.workspace.cfg.get_update_links();
+                    r.workspace.make_change(Change::Move { ids, to: d }, update);
                     r.expanded.insert(d);
                 }
             }
@@ -390,7 +400,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 }
             }
             app.modal = Some(Modal::Rename { id, name: stem, ext });
-            ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_rename_need_focus"), true));
+            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_rename_need_focus"), true));
         }
         A::ConfirmRename => {
             if let Some(Modal::Rename { id, name, ext }) = app.modal.take() {
@@ -417,7 +427,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                         return;
                     }
                     // Core failure lands on workspace.failure_messages → toast in editor.
-                    r.workspace.rename_file((id, full), true);
+                    let update = r.workspace.cfg.get_update_links();
+                    r.workspace
+                        .make_change(Change::Rename { id, name: full }, update);
                 }
             }
         }
@@ -427,7 +439,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 .ready()
                 .map(|r| r.workspace.files.read().unwrap().root().id);
             ctx.data_mut(|d| {
-                d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new((
+                d.remove::<std::collections::HashSet<Uuid>>(egui::Id::unique((
                     "shell_folder_pick_exp",
                     "shell_accept",
                 )));
@@ -492,7 +504,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             match m {
                 OnboardMode::Create => {
                     ctx.data_mut(|d| {
-                        d.insert_temp(egui::Id::new("onboard_uname_need_focus"), true)
+                        d.insert_temp(egui::Id::unique("onboard_uname_need_focus"), true)
                     });
                 }
                 OnboardMode::Import => {
@@ -522,11 +534,21 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::TogglePinMany(ids) => toggle_pins(app, &ids),
         A::MoveInto { ids, parent } => {
             if let Some(r) = app.session.ready_mut() {
-                for id in &ids {
-                    if *id != parent {
-                        r.workspace.move_file((*id, parent));
-                    }
+                let ids: Vec<Uuid> = ids.into_iter().filter(|id| *id != parent).collect();
+                let change = Change::Move { ids: ids.clone(), to: parent };
+                // a drop that touches links asks first, in the move sheet
+                if !r.workspace.link_plan(&change).is_empty() {
+                    ctx.data_mut(|d| {
+                        d.remove::<std::collections::HashSet<Uuid>>(egui::Id::unique((
+                            "shell_folder_pick_exp",
+                            "shell_move",
+                        )));
+                        d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_move"));
+                    });
+                    app.modal = Some(Modal::Move { ids, dest: Some(parent) });
+                    return;
                 }
+                r.workspace.make_change(change, false);
                 r.expanded.insert(parent);
             }
         }
@@ -552,9 +574,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 import_paths(app, ctx, paths, parent);
             }
         }
-        A::OpenSearch => {
+        A::OpenSearch(search_type) => {
             if let Some(r) = app.session.ready_mut() {
-                r.workspace.upsert_search(None);
+                r.workspace.upsert_search(search_type);
             }
         }
         A::CancelSubscription => {
@@ -573,6 +595,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             let _ = app.settings.to_file();
         }
         // Workspace prefs: single store on `workspace.cfg`.
+        A::SetPrefUpdateLinks(v) => {
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.cfg.set_update_links(v);
+            }
+        }
         A::SetPrefLinkPreviews(v) => {
             if let Some(r) = app.session.ready_mut() {
                 r.workspace.cfg.set_contact_linked_sites(v);
@@ -657,7 +684,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 done: None,
             };
             app.phrase_cache = None;
-            ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_upgrade_need_focus"), true));
+            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_upgrade_need_focus"), true));
         }
         A::UpgradeBack => {
             match &app.account_panel {
@@ -714,7 +741,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::DeleteAccount { typed: String::new() };
             app.phrase_cache = None;
-            ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_delete_account_need_focus"), true));
+            ctx.data_mut(|d| {
+                d.insert_temp(egui::Id::unique("shell_delete_account_need_focus"), true)
+            });
         }
         A::ConfirmDeleteAccount => {
             let username = app
@@ -897,10 +926,11 @@ fn open_create_sheet(
     });
     // Focus name field + select-all; clear height lock + folder wizard state.
     ctx.data_mut(|d| {
-        d.insert_temp(egui::Id::new("shell_create_need_focus"), true);
-        d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new("shell_create_folder_exp"));
+        d.insert_temp(egui::Id::unique("shell_create_need_focus"), true);
+        d.remove::<std::collections::HashSet<Uuid>>(egui::Id::unique("shell_create_folder_exp"));
         d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_create_folder_tree"));
-        d.remove::<f32>(egui::Id::new("shell_create_inner_h"));
+        d.remove::<f32>(egui::Id::unique("shell_create_inner_h"));
+        d.remove::<f32>(egui::Id::unique("shell_create_last_h"));
     });
 }
 
@@ -1038,22 +1068,13 @@ fn confirm_create(app: &mut ShellApp) {
         if create_name_taken(r, parent_id, &full_name) {
             Err("A file with that name already exists".into())
         } else {
-            let result = if is_folder {
-                r.workspace
-                    .core
-                    .create_file(&full_name, &parent_id, FileType::Folder)
-            } else {
-                r.workspace
-                    .core
-                    .create_file(&full_name, &parent_id, FileType::Document)
-            };
+            let file_type = if is_folder { FileType::Folder } else { FileType::Document };
+            let update = r.workspace.cfg.get_update_links();
+            let result = r
+                .workspace
+                .create_file_at(parent_id, &full_name, file_type, update);
             match result {
                 Ok(file) => {
-                    r.workspace
-                        .files
-                        .write()
-                        .unwrap()
-                        .insert_created_file(file.clone());
                     note_files_changed(r);
                     r.expanded.insert(parent_id);
                     r.select_only(file.id);
@@ -1326,7 +1347,7 @@ fn import_pick(app: &mut ShellApp, ctx: &Context) {
 fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBuf>) {
     let dest = app.session.ready().map(dest_folder_for_import);
     ctx.data_mut(|d| {
-        d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new((
+        d.remove::<std::collections::HashSet<Uuid>>(egui::Id::unique((
             "shell_folder_pick_exp",
             "shell_import_parent",
         )));

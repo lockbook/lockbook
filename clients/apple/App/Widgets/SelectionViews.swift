@@ -1,6 +1,53 @@
 import SwiftUI
 import SwiftWorkspace
 
+#if os(iOS)
+    // Reject vertical pans before recognition so row swipes do not block scrolling.
+    private struct HorizontalDragGesture: UIGestureRecognizerRepresentable {
+        var onChanged: (CGFloat) -> Void
+        var onEnded: (_ cancelled: Bool) -> Void
+
+        func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+            let recognizer = UIPanGestureRecognizer()
+            recognizer.maximumNumberOfTouches = 1
+            recognizer.delegate = context.coordinator
+            return recognizer
+        }
+
+        func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+            Coordinator()
+        }
+
+        func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+            switch recognizer.state {
+            case .began, .changed:
+                onChanged(recognizer.translation(in: recognizer.view).x)
+            case .ended:
+                onEnded(false)
+            case .cancelled, .failed:
+                onEnded(true)
+            default:
+                break
+            }
+        }
+
+        final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+            func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+                guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return false }
+                let velocity = pan.velocity(in: pan.view)
+                return abs(velocity.x) > abs(velocity.y)
+            }
+
+            func gestureRecognizer(
+                _ gestureRecognizer: UIGestureRecognizer,
+                shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+            ) -> Bool {
+                otherGestureRecognizer is UIPanGestureRecognizer
+            }
+        }
+    }
+#endif
+
 private let swipeThreshold: CGFloat = 60
 
 private func rubberBand(_ value: CGFloat, threshold: CGFloat) -> CGFloat {
@@ -60,7 +107,6 @@ struct SelectableRowModifier: ViewModifier {
     let open: () -> Void
 
     @State private var swipeOffset: CGFloat = 0
-    @State private var swipeHorizontal: Bool? = nil
     @State private var swipePastThreshold = false
     @State private var actionsRevealed = false
     @State private var confirmDelete = false
@@ -242,7 +288,7 @@ struct SelectableRowModifier: ViewModifier {
                     }
                 }
                 .sensoryFeedback(.selection, trigger: swipePastThreshold)
-                .simultaneousGesture(swipeGesture)
+                .gesture(swipeGesture)
         #else
             content
         #endif
@@ -281,18 +327,11 @@ struct SelectableRowModifier: ViewModifier {
         .buttonStyle(.plain)
     }
 
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 20)
-            .onChanged { value in
-                if swipeHorizontal == nil {
-                    swipeHorizontal =
-                        abs(value.translation.width) > abs(value.translation.height)
-                }
-
-                guard swipeHorizontal == true else { return }
-
+    #if os(iOS)
+        private var swipeGesture: HorizontalDragGesture {
+            HorizontalDragGesture { translation in
                 let base: CGFloat = actionsRevealed ? -Self.actionsWidth : 0
-                let raw = base + value.translation.width
+                let raw = base + translation
 
                 if raw >= 0 {
                     swipeOffset = rubberBand(raw, threshold: swipeThreshold)
@@ -304,16 +343,12 @@ struct SelectableRowModifier: ViewModifier {
                             : -Self.actionsWidth + (raw + Self.actionsWidth) * 0.2
                     swipePastThreshold = false
                 }
-            }
-            .onEnded { _ in
-                defer { swipeHorizontal = nil }
-                guard swipeHorizontal == true else { return }
-
-                if swipePastThreshold {
+            } onEnded: { cancelled in
+                defer { swipePastThreshold = false }
+                if !cancelled, swipePastThreshold {
                     selection.toggleAndCollapse(id)
-                    swipePastThreshold = false
                     closeActions()
-                } else if swipeOffset < -Self.actionsWidth / 2 {
+                } else if !cancelled, swipeOffset < -Self.actionsWidth / 2 {
                     actionsRevealed = true
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         swipeOffset = -Self.actionsWidth
@@ -322,7 +357,8 @@ struct SelectableRowModifier: ViewModifier {
                     closeActions()
                 }
             }
-    }
+        }
+    #endif
 
     private func closeActions() {
         actionsRevealed = false
@@ -355,7 +391,6 @@ struct SelectSwipeModifier: ViewModifier {
     let id: UUID
 
     @State private var swipeOffset: CGFloat = 0
-    @State private var swipeHorizontal: Bool? = nil
     @State private var swipePastThreshold = false
 
     func body(content: Content) -> some View {
@@ -368,31 +403,20 @@ struct SelectSwipeModifier: ViewModifier {
                     }
                 }
                 .sensoryFeedback(.selection, trigger: swipePastThreshold)
-                .simultaneousGesture(swipeGesture)
+                .gesture(swipeGesture)
         #else
             content
         #endif
     }
 
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 20)
-            .onChanged { value in
-                if swipeHorizontal == nil {
-                    swipeHorizontal =
-                        abs(value.translation.width) > abs(value.translation.height)
-                }
-
-                guard swipeHorizontal == true else { return }
-
-                let width = max(value.translation.width, 0)
+    #if os(iOS)
+        private var swipeGesture: HorizontalDragGesture {
+            HorizontalDragGesture { translation in
+                let width = max(translation, 0)
                 swipeOffset = rubberBand(width, threshold: swipeThreshold)
                 swipePastThreshold = swipeOffset >= swipeThreshold
-            }
-            .onEnded { _ in
-                defer { swipeHorizontal = nil }
-                guard swipeHorizontal == true else { return }
-
-                if swipePastThreshold {
+            } onEnded: { cancelled in
+                if !cancelled, swipePastThreshold {
                     selection.toggleAndCollapse(id)
                 }
 
@@ -402,7 +426,8 @@ struct SelectSwipeModifier: ViewModifier {
                     swipeOffset = 0
                 }
             }
-    }
+        }
+    #endif
 }
 
 struct SelectionCommandsModifier: ViewModifier {

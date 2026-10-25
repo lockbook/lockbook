@@ -118,21 +118,21 @@ fn main() {
     }
 
     impl eframe::App for Winstaller {
-        fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
             while let Ok(result) = self.update_rx.try_recv() {
                 self.stage = Stage::Done(result);
             }
 
-            egui::SidePanel::left("side-panel")
+            egui::Panel::left("side-panel")
                 .resizable(false)
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     ui.vertical_centered(|ui| {
                         ui.add_space(25.0);
                         ui.image(egui::include_image!("../lockbook.png"));
                     });
                 });
 
-            egui::CentralPanel::default().show(ctx, |ui| {
+            egui::CentralPanel::default().show(ui, |ui| {
                 ui.add_space(25.0);
                 ui.label(egui::RichText::new("Lockbook").size(48.0));
                 ui.separator();

@@ -10,6 +10,8 @@ import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
+import android.os.Build
+import android.os.LocaleList
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
@@ -21,6 +23,7 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import android.widget.Magnifier
 import android.widget.OverScroller
 import android.widget.Toast
 import androidx.core.content.ContextCompat.startActivity
@@ -31,7 +34,6 @@ import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.model.WorkspaceReturnDestination
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -56,11 +58,19 @@ class WorkspaceView(
     private var surface: Surface? = null
 
     // The fragment may request a file before SurfaceView creates its native workspace.
-    private var deferredOpenDoc: Triple<String, Boolean, WorkspaceReturnDestination>? = null
+    private data class PendingDocumentOpen(
+        val id: String,
+        val newFile: Boolean,
+        val heading: String?,
+        val closeDetailOnBack: Boolean,
+    )
+
+    private var deferredOpenDoc: PendingDocumentOpen? = null
     private var safeInsets = Insets.NONE
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
+    private var magnifier: Magnifier? = null
 
     private var redrawTask: Runnable =
         Runnable {
@@ -211,6 +221,7 @@ class WorkspaceView(
             this,
             motionEventPredictor,
         )
+    val keyboardPull = KeyboardPull(this)
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -259,6 +270,8 @@ class WorkspaceView(
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val workspaceTheme = WorkspaceThemeHelper.materialTheme(context, darkMode)
 
+        // includes the app's own language choice, which the system property misses
+        Workspace.setPreferredLanguages(LocaleList.getDefault().toLanguageTags())
         wgpuObj =
             Workspace.initWSOffloaded(
                 surface!!,
@@ -273,9 +286,9 @@ class WorkspaceView(
 
         requestFocus()
 
-        deferredOpenDoc?.let { (id, newFile, returnDestination) ->
+        deferredOpenDoc?.let { (id, newFile, heading, closeDetailOnBack) ->
             deferredOpenDoc = null
-            openDoc(id, newFile, returnDestination)
+            openDoc(id, newFile, heading, closeDetailOnBack)
         }
         publishOpenTabCount()
     }
@@ -291,6 +304,7 @@ class WorkspaceView(
             (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val workspaceTheme = WorkspaceThemeHelper.materialTheme(context, darkMode)
         Workspace.setTheme(wgpuObj, workspaceTheme)
+        dismissMagnifier()
         invalidate()
     }
 
@@ -314,6 +328,7 @@ class WorkspaceView(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         handler?.removeCallbacks(redrawTask)
+        dismissMagnifier()
         surface = null
     }
 
@@ -397,9 +412,21 @@ class WorkspaceView(
             }
         }
 
+        // Insets need not change when another document becomes active or finishes loading.
+        Workspace.setKeyboardShown(wgpuObj, model.keyboardVisible.value ?: false)
+
         val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
         if (response.failureMessage.isNotEmpty()) {
             Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
+        }
+
+        val outline = Workspace.outlineAvailable(wgpuObj)
+        if (outline != model.outlineAvailable.value) {
+            model._outlineAvailable.value = outline
+        }
+        val outlineOpen = Workspace.outlineOpen(wgpuObj)
+        if (outlineOpen != model.outlineOpen.value) {
+            model._outlineOpen.value = outlineOpen
         }
 
         if (response.urlOpened.isNotEmpty()) {
@@ -412,11 +439,17 @@ class WorkspaceView(
         }
 
         if (response.copiedText.isNotEmpty()) {
+            val clip =
+                if (response.copiedHtml.isEmpty()) {
+                    ClipData.newPlainText("", response.copiedText)
+                } else {
+                    ClipData.newHtmlText("", response.copiedText, response.copiedHtml)
+                }
             (
                 App
                     .applicationContext()
                     .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            ).setPrimaryClip(ClipData.newPlainText("", response.copiedText))
+            ).setPrimaryClip(clip)
         }
 
         if (response.copiedImage.isNotEmpty()) {
@@ -453,6 +486,15 @@ class WorkspaceView(
             model.currentTab.value?.type == WorkspaceTabType.Chat
         ) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+                val density = context.resources.displayMetrics.scaledDensity
+                textInputWrapper.applyTextInteractionRect(
+                    response.hasTextInteractionRect,
+                    response.textInteractionMinX,
+                    response.textInteractionMinY,
+                    response.textInteractionMaxX,
+                    response.textInteractionMaxY,
+                    density,
+                )
 
                 if (response.textUpdated && contextMenu != null) {
                     contextMenu?.finish()
@@ -460,9 +502,14 @@ class WorkspaceView(
 
                 if (response.selectionUpdated) {
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                } else if (response.textUpdated || response.scrollUpdated) {
+                    textInputWrapper.wsInputConnection.onEditorGeometryChanged()
                 }
 
+                updateMagnifier(response, density)
+
                 response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
+                keyboardPull.selecting = response.hasMagnifier
 
                 if (response.hasEditMenu && contextMenu == null) {
                     val actionModeCallback =
@@ -479,6 +526,8 @@ class WorkspaceView(
                         )
                 }
             }
+        } else {
+            dismissMagnifier()
         }
 
         if (response.selectionUpdated || response.textUpdated) {
@@ -504,6 +553,32 @@ class WorkspaceView(
         val uri = FileProvider.getUriForFile(context, "app.lockbook.fileprovider", imageFile)
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newUri(context.contentResolver, "Image", uri))
+    }
+
+    @Suppress("DEPRECATION")
+    private fun updateMagnifier(
+        response: AndroidResponse,
+        density: Float,
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return
+        }
+        if (!response.hasMagnifier) {
+            magnifier?.dismiss()
+            return
+        }
+        // Deprecated ctor applies system text-magnifier defaults (5% white
+        // overlay). `Magnifier.Builder()` leaves overlay null.
+        val mag = magnifier ?: Magnifier(this).also { magnifier = it }
+        mag.show(response.magnifierX * density, response.magnifierY * density)
+        mag.update()
+    }
+
+    private fun dismissMagnifier() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            magnifier?.dismiss()
+        }
+        magnifier = null
     }
 
     override fun draw(canvas: Canvas) {
@@ -535,6 +610,7 @@ class WorkspaceView(
         }
 
         Workspace.setKeyboardShown(wgpuObj, shown)
+        invalidate()
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
@@ -544,20 +620,34 @@ class WorkspaceView(
     fun openDoc(
         id: String,
         newFile: Boolean,
-        returnDestination: WorkspaceReturnDestination = WorkspaceReturnDestination.Files,
+        heading: String? = null,
+        closeDetailOnBack: Boolean = true,
     ) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
-            deferredOpenDoc = Triple(id, newFile, returnDestination)
+            deferredOpenDoc = PendingDocumentOpen(id, newFile, heading, closeDetailOnBack)
             return
         }
 
         deferredOpenDoc = null
-        Workspace.openDoc(wgpuObj, id, newFile)
-        model.recordTabOrigin(Workspace.currentTab(wgpuObj).toModelTab().sessionId, returnDestination)
+        if (heading.isNullOrEmpty()) {
+            Workspace.openDoc(wgpuObj, id, newFile)
+        } else {
+            Workspace.openDocAtHeading(wgpuObj, id, heading)
+        }
+        model.recordTabCloseBehavior(Workspace.currentTab(wgpuObj).toModelTab().sessionId, closeDetailOnBack)
         publishOpenTabCount()
         invalidate()
 
         return
+    }
+
+    fun toggleOutline() {
+        if (wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        Workspace.toggleOutline(wgpuObj)
+        invalidate()
     }
 
     fun activateDoc(id: String) {
@@ -688,6 +778,8 @@ class WorkspaceView(
         const val OPEN_LINK_MENU_ID = 0x00E0170B
         const val COPY_LINK_MENU_ID = 0x00E0170C
         const val REFRESH_PREVIEW_MENU_ID = 0x00E0170D
+        const val COPY_HEADING_LINK_MENU_ID = 0x00E0170F
+        const val COPY_RENDERED_MENU_ID = 0x00E0170E
     }
 
     inner class FloatingTextEditorContextMenu(
@@ -793,6 +885,7 @@ class WorkspaceView(
     ) : ActionMode.Callback {
         // URL under the selection when the menu was built; feeds "Copy Link"
         private var openTarget: String? = null
+        private var headingLink: String? = null
 
         override fun onCreateActionMode(
             mode: ActionMode?,
@@ -815,12 +908,20 @@ class WorkspaceView(
             // link (or wikilink/image) in the selection → offer open + copy
             openTarget = Workspace.selectionOpenTarget(wgpuObj)
             if (openTarget != null) {
+                val open = if (Workspace.selectionTargetIsImage(wgpuObj)) "Open Image" else "Open Link"
                 menu
-                    .add(Menu.NONE, OPEN_LINK_MENU_ID, 0, "Open Link")
+                    .add(Menu.NONE, OPEN_LINK_MENU_ID, 0, open)
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
 
                 menu
                     .add(Menu.NONE, COPY_LINK_MENU_ID, 0, "Copy Link")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+
+            headingLink = Workspace.selectionHeadingLink(wgpuObj)
+            if (headingLink != null) {
+                menu
+                    .add(Menu.NONE, COPY_HEADING_LINK_MENU_ID, 0, "Copy Heading Link")
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
 
@@ -851,15 +952,19 @@ class WorkspaceView(
                     .add(Menu.NONE, android.R.id.copy, 1, "Copy")
                     .setAlphabeticShortcut('c')
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+
+                menu
+                    .add(Menu.NONE, COPY_RENDERED_MENU_ID, 2, "Copy Rendered")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
 
             menu
-                .add(Menu.NONE, android.R.id.paste, 2, "Paste")
+                .add(Menu.NONE, android.R.id.paste, 3, "Paste")
                 .setAlphabeticShortcut('v')
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
 
             menu
-                .add(Menu.NONE, android.R.id.selectAll, 3, "Select all")
+                .add(Menu.NONE, android.R.id.selectAll, 4, "Select all")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
         }
 
@@ -890,6 +995,21 @@ class WorkspaceView(
 
                     REFRESH_PREVIEW_MENU_ID -> {
                         Workspace.refreshSelectionPreviews(wgpuObj)
+                        invalidate()
+                    }
+
+                    COPY_HEADING_LINK_MENU_ID -> {
+                        headingLink?.let {
+                            (
+                                context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                    as ClipboardManager
+                            ).setPrimaryClip(ClipData.newPlainText("", it))
+                        }
+                    }
+
+                    COPY_RENDERED_MENU_ID -> {
+                        Workspace.copyRendered(wgpuObj)
+                        // the frame that processes the copy fills `response.copiedHtml`
                         invalidate()
                     }
 

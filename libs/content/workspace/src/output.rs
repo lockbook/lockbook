@@ -27,12 +27,16 @@ pub struct Response {
     /// Screen rect (egui points) for the native iOS text-interaction overlay.
     pub text_interaction_rect: Option<egui::Rect>,
     pub mobile_toolbar_shown: bool,
+    /// A popup is painted over the caret: a platform that draws its own
+    /// caret above the editor hides it.
+    pub caret_covered: bool,
 
     pub tabs_changed: bool,
 
     pub failure_messages: Vec<String>, // shown as toasts in egui client
 
     pub open_camera: bool,
+    pub open_search: bool,
 
     pub file_cache_updated: bool,
 }

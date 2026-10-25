@@ -3,6 +3,7 @@
 use egui::{Id, Rect, ScrollArea, Sense, Ui, pos2, vec2};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
+use workspace_rs::style::home_crumb;
 
 use crate::components::domain::pins;
 use crate::components::{
@@ -60,7 +61,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
     let geom = RowGeom::from_heights(&heights);
 
     let pad = LIST_PAD.pts();
-    let scroll_id = Id::new("shell_recents_scroll");
+    let scroll_id = Id::unique("shell_recents_scroll");
     with_overlay_scroll(ui, scroll_id, |ui| {
         let out = ScrollArea::vertical()
             .id_salt("shell_recents_scroll")
@@ -130,9 +131,10 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                         RecentItem::Doc { idx, h } => {
                             let (id, name, _mod, crumbs, pinned) = &docs[*idx];
                             let selected = selected_ids.contains(id) || cursor == Some(*id);
-                            let path = if crumbs.is_empty() { "Home" } else { crumbs.as_str() };
+                            let path =
+                                if crumbs.is_empty() { home_crumb() } else { crumbs.clone() };
                             let rect = Rect::from_min_size(pos2(text_left, top), vec2(inner_w, *h));
-                            let row_id = Id::new("shell_recents_row").with(*id);
+                            let row_id = Id::unique("shell_recents_row").with(*id);
                             // Docs only — always interactive (open).
                             let chrome = TreeRowChrome::new(0).selected(selected);
                             let resp = paint_tree_file_row(
@@ -210,7 +212,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                     }
                 }
             });
-        ((), out.state.offset.y, out.id)
+        ((), out.state.clamped_offset().y, out.id)
     });
 }
 

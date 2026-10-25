@@ -109,9 +109,13 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
             let (_, last_end) = self.renderer.bounds.source_lines[last_idx];
             return Some(if target > last_end { DocRowId::Trailing } else { DocRowId::Leading });
         }
-        for (i, node) in self.blocks.iter().enumerate() {
-            let (s, e) = self.renderer.node_range(node);
-            if target >= s && target <= e {
+        // blocks are in source order: the last starting at or before it
+        let after = self
+            .blocks
+            .partition_point(|node| self.renderer.node_range(node).0 <= target);
+        if let Some(i) = after.checked_sub(1) {
+            let (_, e) = self.renderer.node_range(self.blocks[i]);
+            if target <= e {
                 return Some(DocRowId::Block(i));
             }
         }

@@ -594,17 +594,14 @@ async fn test_share_link_write() {
         .await
         .unwrap();
     assert::all_paths(&cores[1], &["/", "/passalong.md"]).await;
-    assert_matches!(
-        cores[1]
-            .share_file(link.id, &accounts[2].username, ShareMode::Write)
-            .await
-            .unwrap_err()
-            .kind, // this succeeded and now correctly fails (was sharing link instead of target)
-        LbErrKind::InsufficientPermission
-    );
+    cores[1]
+        .share_file(link.id, &accounts[2].username, ShareMode::Write)
+        .await
+        .unwrap(); // shares the target, not the link
     cores[1].sync().await.unwrap();
 
     cores[2].sync().await.unwrap(); // this failed with FileNonexistent
+    assert::all_pending_shares(&cores[2], &["passalong.md"]).await;
 }
 
 #[tokio::test]
@@ -637,11 +634,158 @@ async fn test_share_link_read() {
         .await
         .unwrap();
     assert::all_paths(&cores[1], &["/", "/passalong.md"]).await;
-    cores[1]
-        .share_file(link.id, &accounts[2].username, ShareMode::Read)
+    assert_matches!(
+        cores[1]
+            .share_file(link.id, &accounts[2].username, ShareMode::Read)
+            .await
+            .unwrap_err()
+            .kind,
+        LbErrKind::InsufficientPermission
+    );
+}
+
+#[tokio::test]
+async fn downgrade_write_to_read_survives_owners_sync() {
+    let a = test_core_with_account().await;
+    let b = test_core_with_account().await;
+    let acct_b = b.get_account().unwrap().clone();
+
+    let doc = a.create_at_path("/doc.md").await.unwrap();
+    a.share_file(doc.id, &acct_b.username, ShareMode::Write)
         .await
         .unwrap();
-    cores[1].sync().await.unwrap();
+    a.sync().await.unwrap();
 
-    cores[2].sync().await.unwrap();
+    a.share_file(doc.id, &acct_b.username, ShareMode::Read)
+        .await
+        .unwrap();
+    a.sync().await.unwrap();
+
+    let shares = a.get_file_by_id(doc.id).await.unwrap().shares;
+    assert_eq!(shares.len(), 1);
+    assert_eq!(shares[0].mode, ShareMode::Read);
+}
+
+#[tokio::test]
+async fn rejected_share_survives_owners_concurrent_rename() {
+    let owner = test_core_with_account().await;
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let doc = owner.create_at_path("/doc.md").await.unwrap();
+    owner
+        .share_file(doc.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+
+    recipient.reject_share(&doc.id).await.unwrap();
+    recipient.sync().await.unwrap();
+
+    owner.rename_file(&doc.id, "renamed.md").await.unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+
+    assert::all_pending_shares(&recipient, &[]).await;
+}
+
+/// A deleted file keeps its owner when a collaborator moves its folder out of the share; the owner
+/// must still be able to push afterwards.
+#[tokio::test]
+async fn collaborator_moves_out_folder_holding_owners_deleted_file() {
+    let owner = test_core_with_account().await;
+    let collaborator = test_core_with_account().await;
+    let collaborator_name = collaborator.get_account().unwrap().username.clone();
+
+    let project = owner.create_at_path("/project/").await.unwrap();
+    let design = owner.create_at_path("/project/design/").await.unwrap();
+    let mockup = owner
+        .create_at_path("/project/design/mockup.png")
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    owner.delete(&mockup.id).await.unwrap();
+    owner
+        .share_file(project.id, &collaborator_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+
+    collaborator.sync().await.unwrap();
+    let collaborator_root = collaborator.root().await.unwrap().id;
+    collaborator
+        .move_file(&design.id, &collaborator_root)
+        .await
+        .unwrap();
+    collaborator.sync().await.unwrap();
+
+    owner.sync().await.unwrap();
+    owner.create_at_path("/notes.md").await.unwrap();
+    owner.sync().await.unwrap();
+}
+
+/// Same with a deleted folder that still has files inside it.
+#[tokio::test]
+async fn collaborator_moves_out_folder_holding_owners_deleted_folder() {
+    let owner = test_core_with_account().await;
+    let collaborator = test_core_with_account().await;
+    let collaborator_name = collaborator.get_account().unwrap().username.clone();
+
+    let project = owner.create_at_path("/project/").await.unwrap();
+    let design = owner.create_at_path("/project/design/").await.unwrap();
+    let old = owner.create_at_path("/project/design/old/").await.unwrap();
+    owner
+        .create_at_path("/project/design/old/mockup.png")
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    owner.delete(&old.id).await.unwrap();
+    owner
+        .share_file(project.id, &collaborator_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+
+    collaborator.sync().await.unwrap();
+    let collaborator_root = collaborator.root().await.unwrap().id;
+    collaborator
+        .move_file(&design.id, &collaborator_root)
+        .await
+        .unwrap();
+    collaborator.sync().await.unwrap();
+
+    owner.sync().await.unwrap();
+    owner.create_at_path("/notes.md").await.unwrap();
+    owner.sync().await.unwrap();
+}
+
+/// Declining a share with an unsynced edit inside it drops the edit rather than wedging sync.
+#[tokio::test]
+async fn reject_share_with_unsynced_create_inside_it() {
+    let owner = test_core_with_account().await;
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let folder = owner.create_at_path("/folder/").await.unwrap();
+    owner
+        .share_file(folder.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+
+    recipient
+        .create_file("notes.md", &folder.id, lb_rs::model::file_metadata::FileType::Document)
+        .await
+        .unwrap();
+    recipient.reject_share(&folder.id).await.unwrap();
+
+    recipient.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    assert::all_paths(&recipient, &["/"]).await;
+    assert::all_pending_shares(&recipient, &[]).await;
+
+    owner.sync().await.unwrap();
+    assert::all_paths(&owner, &["/", "/folder/"]).await;
 }

@@ -487,6 +487,33 @@ impl Layout {
         self.events
             .push((self.visible.len(), FlowEvent::InteractionClose));
     }
+
+    /// The visible text sourced from `clip` with its tabs back: one-to-one
+    /// segments are sliced by source byte (`byte_of` maps a grapheme to its
+    /// buffer byte), override text comes along whole when its source lies
+    /// in `clip`.
+    pub fn visible_in(
+        &self, clip: (Grapheme, Grapheme), byte_of: impl Fn(Grapheme) -> usize,
+    ) -> String {
+        let mut out = String::new();
+        for seg in &self.source_segments {
+            if seg.one_to_one {
+                let clipped = seg.source.trim(&clip);
+                if clipped.is_empty() {
+                    continue;
+                }
+                let base = byte_of(seg.source.start());
+                let start = seg.visible.start + byte_of(clipped.start()) - base;
+                let end = seg.visible.start + byte_of(clipped.end()) - base;
+                for (i, c) in self.visible[start..end].char_indices() {
+                    out.push(if self.tab_positions.contains(&(start + i)) { '\t' } else { c });
+                }
+            } else if !seg.visible.is_empty() && clip.contains_range(&seg.source, true, true) {
+                out.push_str(&self.visible[seg.visible.clone()]);
+            }
+        }
+        out
+    }
 }
 
 /// Sanitise BiDi paragraph-separator chars (LF, CR, FS, GS, RS,
@@ -569,6 +596,46 @@ impl MdRender {
             last.y_top + last.ascent + last.descent
         };
         WrapUnitLayout { source_range, rows, height, width, row_height }
+    }
+
+    /// How wide a wrap unit can usefully be made: at least its longest run
+    /// with nowhere to break, and at most all of it on one row. An embed
+    /// shrinks to fit what holds it, so it counts for no more than
+    /// `embed_min` of a run. Mirrors [`greedy_break`], which leaves room
+    /// for a background's padding around what it holds.
+    pub fn measure_layout(&self, layout: Layout, row_height: f32, embed_min: f32) -> (f32, f32) {
+        const UNBOUNDED: f32 = 100_000.0;
+        let inline_pad = self.layout.inline_padding;
+        let items =
+            shape_to_items(self, &layout, row_height, UNBOUNDED, inline_pad).unwrap_or_default();
+        let (mut run, mut widest_run, mut row, mut widest_row) = (0f32, 0f32, 0f32, 0f32);
+        let mut backgrounds: Vec<bool> = Vec::new();
+        for item in &items {
+            let room = if backgrounds.contains(&true) { 2.0 * inline_pad } else { 0.0 };
+            match item {
+                InlineItem::Box { advance, .. } | InlineItem::Pad { advance, .. } => {
+                    run += advance;
+                    row += advance;
+                }
+                InlineItem::Embed(spec) => {
+                    run += spec.advance.min(embed_min);
+                    row += spec.advance;
+                }
+                InlineItem::Glue { natural, .. } => {
+                    run = 0.0;
+                    row += natural;
+                }
+                InlineItem::Break { .. } => (run, row) = (0.0, 0.0),
+                InlineItem::StyleOpen(style) => {
+                    backgrounds.push(style.format.background != egui::Color32::TRANSPARENT)
+                }
+                InlineItem::StyleClose => drop(backgrounds.pop()),
+                InlineItem::InteractionOpen(..) | InlineItem::InteractionClose => {}
+            }
+            widest_run = widest_run.max(run + room);
+            widest_row = widest_row.max(row + room);
+        }
+        (widest_run, widest_row)
     }
 
     /// Convenience: lay out a single source range with one format
@@ -849,7 +916,13 @@ fn shape_to_items(
                     cluster_advances: Vec::new(),
                 });
             }
-            if advance > width
+            // inside a background the row is narrower by the span's pads
+            let budget = bg_scope_stack
+                .iter()
+                .flatten()
+                .last()
+                .map_or(width, |(_, pad)| width - 2.0 * pad);
+            if advance > budget
                 && !atomic
                 && source_range.end().0 > source_range.start().0 + 1
                 && cluster_advances.len() == source_range.end().0 - source_range.start().0
@@ -866,7 +939,7 @@ fn shape_to_items(
                     &format,
                     &cluster_advances,
                     row_height,
-                    width,
+                    budget,
                     ppi,
                 );
             } else {
@@ -915,9 +988,9 @@ fn shape_chunk(
         cache.lock().unwrap().get_or_shape(key, move || {
             let mut guard = fs.lock().unwrap();
             let mut b = glyphon::Buffer::new(&mut guard, glyphon::Metrics::new(metric, metric));
-            b.set_size(&mut guard, Some(w), None);
-            b.set_wrap(&mut guard, glyphon::Wrap::None);
-            b.set_tab_width(&mut guard, 4);
+            b.set_size(Some(w), None);
+            b.set_wrap(glyphon::Wrap::None);
+            b.set_tab_width(4);
             let attrs = format_to_attrs(&format, metric);
             // Per-grapheme: route emoji to Twemoji Mozilla so VS-16
             // (or SMP) codepoints render in color. Without this, e.g.
@@ -927,14 +1000,17 @@ fn shape_chunk(
                 &glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla")),
             );
             let text = text.to_string();
+            let points =
+                row_height * if format.superscript || format.subscript { 0.75 } else { 1. };
             let spans = text.graphemes(true).map(|g| {
                 if shape_as_emoji(&format.family, g) {
                     (g, emoji_attrs.as_attrs())
                 } else {
-                    (g, attrs.as_attrs())
+                    (g, crate::font::track(attrs.as_attrs(), g, points))
                 }
             });
-            b.set_rich_text(&mut guard, spans, &attrs.as_attrs(), glyphon::Shaping::Advanced, None);
+            b.set_rich_text(spans, &attrs.as_attrs(), glyphon::Shaping::Advanced, None);
+            b.shape_until_scroll(&mut guard, false);
             b
         })
     };
@@ -1385,6 +1461,18 @@ fn item_metrics(item: &InlineItem) -> Option<(f32, f32)> {
 
 // ─── row construction (items + breaks → Vec<Row>) ────────────────────
 
+/// The scope a fragment answers to: the innermost one that takes clicks, so a
+/// hover-only scope (a link's tip) never hides an enclosing click (a
+/// spoiler); else the innermost.
+fn active_interaction(stack: &[(egui::Id, egui::Sense)]) -> Option<(egui::Id, egui::Sense)> {
+    stack
+        .iter()
+        .rev()
+        .find(|(_, sense)| sense.senses_click())
+        .or(stack.last())
+        .copied()
+}
+
 /// Walk the broken stream, emitting one `Row` per break window with
 /// one fragment per Box/Glue/Pad (no coalescing). Style scope events
 /// update the running stack between fragments. The wrap-break-glue
@@ -1462,7 +1550,7 @@ pub fn build_rows(
                 style_stack: style_stack.clone(),
                 content: FragmentContent::Spacer,
                 atomic: false,
-                interaction: interaction_stack.last().copied(),
+                interaction: active_interaction(&interaction_stack),
                 far: false,
             });
             x += inline_pad;
@@ -1516,7 +1604,7 @@ pub fn build_rows(
                             cluster_advances: cluster_advances.clone(),
                         },
                         atomic: *atomic,
-                        interaction: interaction_stack.last().copied(),
+                        interaction: active_interaction(&interaction_stack),
                         far: false,
                     });
                     x += advance;
@@ -1573,7 +1661,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content,
                         atomic: false,
-                        interaction: interaction_stack.last().copied(),
+                        interaction: active_interaction(&interaction_stack),
                         far: false,
                     });
                     x += effective_advance;
@@ -1595,7 +1683,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Spacer,
                         atomic: false,
-                        interaction: interaction_stack.last().copied(),
+                        interaction: active_interaction(&interaction_stack),
                         far: false,
                     });
                     x += advance;
@@ -1616,7 +1704,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Embed { url: spec.url.clone(), kind: spec.kind },
                         atomic: true,
-                        interaction: interaction_stack.last().copied(),
+                        interaction: active_interaction(&interaction_stack),
                         far: false,
                     });
                     x += spec.advance;
@@ -1641,7 +1729,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Spacer,
                         atomic: false,
-                        interaction: interaction_stack.last().copied(),
+                        interaction: active_interaction(&interaction_stack),
                         far: false,
                     });
                 }
@@ -1690,7 +1778,7 @@ pub fn build_rows(
                 style_stack: style_stack.clone(),
                 content: FragmentContent::Spacer,
                 atomic: false,
-                interaction: interaction_stack.last().copied(),
+                interaction: active_interaction(&interaction_stack),
                 far: false,
             });
         }
@@ -1939,7 +2027,9 @@ impl MdRender {
                 if let Some(style) = frag.style_stack.last() {
                     let fmt = &style.format;
                     let baseline_top = screen_rect.min.y + frag.content_inset.top;
-                    let x = screen_rect.left()..=screen_rect.right();
+                    // painted later, outside this clip: a scrolled table's
+                    let clip = ui.clip_rect().x_range();
+                    let x = screen_rect.left().max(clip.min)..=screen_rect.right().min(clip.max);
                     if fmt.strikethrough {
                         self.deco_lines.push(DecoLine {
                             x: x.clone(),
@@ -1990,6 +2080,11 @@ impl MdRender {
             self.bounds.wrap_lines.push(row.source_range);
         }
     }
+}
+
+/// Whether a fragment is part of the table cell with span `cell`.
+fn in_cell(fragment: &Fragment, cell: &(Grapheme, Grapheme)) -> bool {
+    cell.contains_range(&fragment.source_range, true, true)
 }
 
 /// Per-corner rounding for smart-corner bg painting. Returns a
@@ -2058,7 +2153,7 @@ impl MdRender {
             std::collections::HashMap::new();
         let mut per_parent_rects: std::collections::HashMap<egui::Id, Vec<Rect>> =
             std::collections::HashMap::new();
-        let parent_base = ui.id();
+        let parent_base = ui.scope_id();
         for (i, f) in self.fragments.iter().enumerate() {
             let Some((salt, sense)) = f.interaction else {
                 continue;
@@ -2072,6 +2167,8 @@ impl MdRender {
             } else {
                 f.rect
             };
+            // less what a scrolled table hides of it
+            let Some(rect) = self.table_showing(rect) else { continue };
             let parent_id = parent_base.with(salt);
             let r = ui.interact(rect, parent_id.with(i), sense);
             let merged = match per_parent.remove(&parent_id) {
@@ -2102,10 +2199,15 @@ impl MdRender {
     /// box so a click resolves to "select the whole override" via
     /// `pos_to_range`'s atomic branch). Returns `None` only when
     /// `self.fragments` is empty.
+    ///
+    /// A point in a table cell resolves within that cell, however near a
+    /// neighbor's text is. What a scrolled code block hides is out of reach.
     pub fn closest_fragment_at_pos(&self, pos: Pos2) -> Option<usize> {
         if self.fragments.is_empty() {
             return None;
         }
+        let cell = self.table_cell_span_at_pos(pos);
+        let cell = cell.filter(|cell| self.fragments.iter().any(|f| in_cell(f, cell)));
 
         // y-distance is to the fragment's *row*, not the fragment: else a tall
         // image captures clicks across its full height, above its line's short
@@ -2115,7 +2217,11 @@ impl MdRender {
         let mut closest: Option<usize> = None;
         let mut closest_dist = (f32::INFINITY, f32::INFINITY);
         for (i, f) in self.fragments.iter().enumerate() {
-            if f.rect.contains(pos) {
+            if cell.is_some_and(|cell| !in_cell(f, &cell)) {
+                continue;
+            }
+            let rect = self.row_reachable(f.source_range, f.rect);
+            if rect.contains(pos) {
                 return Some(i);
             }
             let (rtop, rbottom) = row_span[i];
@@ -2128,13 +2234,15 @@ impl MdRender {
             if f.far && y_dist > 0.0 {
                 continue;
             }
-            let x_dist = if f.rect.x_range().contains(pos.x) {
+            let x_dist = if rect.x_range().contains(pos.x) {
                 0.0
             } else {
-                (pos.x - f.rect.left())
+                (pos.x - rect.left())
                     .abs()
-                    .min((pos.x - f.rect.right()).abs())
+                    .min((pos.x - rect.right()).abs())
             };
+            // at an equal distance, what shows wins over what is hidden
+            let x_dist = if rect != f.rect && rect.width() == 0.0 { x_dist + 0.5 } else { x_dist };
             let dist = (y_dist, x_dist);
             let prefer = dist == closest_dist
                 && (f.source_range.start() == f.source_range.end()
@@ -2323,5 +2431,16 @@ mod tests {
         let items = vec![embed(500.0)];
         let breaks = greedy_break(&items, width, 0.0);
         assert_eq!(breaks, vec![0, 1]);
+    }
+
+    #[test]
+    fn hover_scope_never_hides_enclosing_click() {
+        let spoiler = (egui::Id::unique("spoiler"), egui::Sense::click());
+        let link_tip = (egui::Id::unique("link"), egui::Sense::hover());
+        let link_click = (egui::Id::unique("link"), egui::Sense::click());
+        assert_eq!(super::active_interaction(&[spoiler, link_tip]), Some(spoiler));
+        assert_eq!(super::active_interaction(&[spoiler, link_click]), Some(link_click));
+        assert_eq!(super::active_interaction(&[link_tip]), Some(link_tip));
+        assert_eq!(super::active_interaction(&[]), None);
     }
 }

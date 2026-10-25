@@ -19,7 +19,7 @@ Lockbook's editor uses comrak, a pure Rust GFM markdown parser. It's oriented to
 All existing markdown constructs must survive if Lockbook chooses to invest in its own parser.
 
 ## Extensions
-* **Basics: highlights, spoilers, tasks, tables, alerts, underline, sub/superscript, strikethrough, link, image, autolink, wiki links, emoji shortcodes**. Wiki links follow Obsidian’s title-after-pipe and images follow Obsidian's width and height controls.
+* **Basics: highlights, spoilers, tasks, tables, alerts, underline, sub/superscript, strikethrough, link, image, autolink, wiki links, emoji shortcodes**. Wiki links follow Obsidian’s title-after-pipe, wiki embeds (`![[photo.png|300]]`) its image embeds, and images its width and height controls.
 * **Advanced: math, front matter, HTML**. In the target state, we render inline math, provide an Obsidian-like frontmatter experience, and support GitHub's HTML vocabulary.
 * **Not prioritized: footnotes**.
 * **Excluded: description lists, greentext, multiline block quotes**. These create compatibility issues, engineering complexity, or editing annoyances.

@@ -29,45 +29,12 @@ pub fn build() -> CliResult<()> {
 pub fn deploy() -> CliResult<()> {
     build_server()?;
     backup_old_server()?;
-    copy_static_files()?;
     replace_old_server()?;
     restart_server()?;
     check_server_status()?;
     upload();
 
     Ok(())
-}
-
-fn copy_static_files() -> CliResult<()> {
-    println!("Copying server static files");
-    Command::new("gcloud")
-        .args([
-            "compute",
-            "scp",
-            "--recurse",
-            "--zone",
-            "us-east4-c",
-            "--project",
-            "lockbook-net",
-            "server/static",
-            "lb-prod:~/",
-        ])
-        .current_dir(root())
-        .assert_success()?;
-
-    Command::new("gcloud")
-        .args([
-            "compute",
-            "ssh",
-            "--zone",
-            "us-east4-c",
-            "lb-prod",
-            "--project",
-            "lockbook-net",
-            "--command",
-            "sudo mkdir -p /usr/share/lockbook-server/static && sudo cp -R ~/static/. /usr/share/lockbook-server/static/",
-        ])
-        .assert_success()
 }
 
 fn build_server() -> CliResult<()> {

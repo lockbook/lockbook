@@ -119,7 +119,7 @@ impl ToastHost {
 
         ctx.request_repaint_after(Duration::from_millis(200));
 
-        let screen = ctx.screen_rect();
+        let screen = ctx.content_rect();
         let max_w = (screen.width() - Space::Xl.pts() * 2.0).clamp(200.0, 420.0);
         let pad = Space::Md.pts();
         let gap = Space::Sm.pts();
@@ -145,7 +145,7 @@ impl ToastHost {
             };
             let fill = t.neutral_bg_secondary();
 
-            let galley = ctx.fonts(|f| {
+            let galley = ctx.fonts_mut(|f| {
                 f.layout(
                     it.message.clone(),
                     TypeRole::Body.font_id(),
@@ -157,7 +157,7 @@ impl ToastHost {
             let plate_h = body_h + pad * 2.0;
             let plate_w = (galley.size().x + pad * 2.0).clamp(120.0, max_w);
 
-            let id = Id::new(("shell_toast", it.id));
+            let id = Id::unique(("shell_toast", it.id));
             Area::new(id)
                 .order(Order::Foreground)
                 .anchor(Align2::CENTER_BOTTOM, vec2(0.0, -(screen.bottom() - bottom_y)))

@@ -33,11 +33,15 @@ pub struct LbInitRes {
     lb: *mut Lb,
 }
 
+/// Initializes a regular core instance with configurable background work.
+/// Release the result with `lb_free_init`.
 #[unsafe(no_mangle)]
-pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRes {
+pub extern "C" fn lb_init(
+    writeable_path: *const c_char, logs: bool, background_work: bool,
+) -> LbInitRes {
     let config = Config {
         writeable_path: rstring(writeable_path),
-        background_work: true,
+        background_work,
         logs,
         stdout_logs: true,
         colored_logs: false,
@@ -1163,6 +1167,7 @@ pub struct LbEvent {
     pub pending_shares_changed: bool,
     pub doc_written: bool,
     pub doc_written_id: LbUuid,
+    pub ipc_changes_applied: bool,
 }
 
 pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
@@ -1191,6 +1196,9 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
                         doc_written_id: id.into(),
                         ..Default::default()
                     },
+                    Event::IpcChangesApplied => {
+                        LbEvent { ipc_changes_applied: true, ..Default::default() }
+                    }
                     _ => continue,
                 };
 

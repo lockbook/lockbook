@@ -68,7 +68,8 @@ impl Lb {
         &self, id: Uuid, user_activity: bool,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
         // get info + on-disk bytes so we can decrypt without holding the lock
-        let info: Option<(DocumentHmac, AESKey, Option<EncryptedDocument>)> = {
+        let mut retried = false;
+        let info: Option<(DocumentHmac, AESKey, Option<EncryptedDocument>)> = loop {
             let tx = self.ro_tx().await;
             let db = tx.db();
             let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
@@ -84,14 +85,17 @@ impl Lb {
             match hmac {
                 Some(hmac) => {
                     let key = tree.decrypt_key(&id, &self.keychain)?;
-                    let local_blob = if self.docs.exists(id, Some(hmac)) {
-                        Some(self.docs.get(id, Some(hmac)).await?)
-                    } else {
-                        None
-                    };
-                    Some((hmac, key, local_blob))
+                    let local_blob = self.docs.maybe_get(id, Some(hmac)).await?;
+                    if local_blob.is_none() && !retried {
+                        drop(tx);
+                        // catch up our local db and try to read again
+                        self.begin_tx().await.end();
+                        retried = true;
+                        continue;
+                    }
+                    break Some((hmac, key, local_blob));
                 }
-                None => None,
+                None => break None,
             }
         };
 

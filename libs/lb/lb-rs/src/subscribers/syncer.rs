@@ -6,6 +6,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+use std::{
+    fs::{File, TryLockError},
+    path::Path,
+};
+
 use futures::{StreamExt, stream};
 use tokio::sync::{Mutex, broadcast::error::TryRecvError};
 use tokio::time;
@@ -68,9 +74,12 @@ pub struct SyncState {
 //     is md or svg that descends from
 
 impl Lb {
+    /// Outside iOS and WASM, returns `AlreadySyncing` if another instance is syncing this data directory.
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn sync(&self) -> LbResult<()> {
         let mut sync_state = self.syncer.lock().await;
+        #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+        let _sync_lock = self.lock_sync()?;
         self.events.sync_update(SyncIncrement::SyncStarted);
 
         let pipeline: LbResult<()> = async {
@@ -98,6 +107,21 @@ impl Lb {
         Ok(())
     }
 
+    #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+    fn lock_sync(&self) -> LbResult<File> {
+        let file = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(Path::new(&self.config.writeable_path).join("sync.lock"))?;
+        match file.try_lock() {
+            Ok(()) => Ok(file),
+            Err(TryLockError::WouldBlock) => Err(LbErrKind::AlreadySyncing.into()),
+            Err(TryLockError::Error(err)) => Err(err.into()),
+        }
+    }
+
     pub(crate) async fn pull_updates(&self, sync_state: &mut SyncState) -> LbResult<()> {
         self.inital_sync_state(sync_state).await?;
         self.process_deletions().await?;
@@ -123,11 +147,13 @@ impl Lb {
     }
 
     async fn inital_sync_state(&self, state: &mut SyncState) -> LbResult<()> {
-        let tx = self.ro_tx().await;
+        // Catch up after acquiring the sync lock, before using the previous sync's cursor.
+        let mut tx = self.begin_tx().await;
         let db = tx.db();
 
         *state = Default::default();
         state.last_synced = db.last_synced.as_ref().copied().unwrap_or_default() as u64;
+        tx.end();
 
         Ok(())
     }
@@ -444,7 +470,7 @@ impl Lb {
                     // deletions (moves happen first in case a file is moved into a deleted folder)
                     for id in db.local_metadata.ids() {
                         let local_file = local.find(&id)?.clone();
-                        if local_file.explicitly_deleted() {
+                        if local_file.explicitly_deleted() && !lost_access(&local, me, &id)? {
                             // delete
                             deletions.delete_unvalidated(&id, &self.keychain)?;
                         }
@@ -463,6 +489,7 @@ impl Lb {
                             && !deletions.calculate_deleted(&id)?
                             && remote.maybe_find(&id).is_none()
                             && !links_to_delete.contains(&id)
+                            && !lost_access(&local, me, &id)?
                         {
                             creations.insert(id);
                         }
@@ -504,11 +531,14 @@ impl Lb {
                     // moves, renames, edits, and shares
                     // creations happen first in case a file is moved into a new folder
                     for id in db.local_metadata.ids() {
-                        // skip files that are already deleted or will be deleted
+                        // skip files that are already deleted, will be deleted, or are no
+                        // longer reachable from this device
                         if deletions.maybe_find(&id).is_none()
                             || deletions.calculate_deleted(&id)?
                             || (remote.maybe_find(&id).is_some()
                                 && remote.calculate_deleted(&id)?)
+                            || links_to_delete.contains(&id)
+                            || lost_access(&local, me, &id)?
                         {
                             continue;
                         }
@@ -537,6 +567,15 @@ impl Lb {
                         }
 
                         // share
+                        let mut base_keys = HashMap::new();
+                        if let Some(ref base_file) = maybe_base_file {
+                            for key in base_file.user_access_keys() {
+                                base_keys.insert(
+                                    (Owner(key.encrypted_by), Owner(key.encrypted_for)),
+                                    (key.mode, key.deleted),
+                                );
+                            }
+                        }
                         let mut remote_keys = HashMap::new();
                         if let Some(ref remote_file) = maybe_remote_file {
                             for key in remote_file.user_access_keys() {
@@ -551,8 +590,19 @@ impl Lb {
                             if let Some(&(remote_mode, remote_deleted)) =
                                 remote_keys.get(&(by, for_))
                             {
-                                // upgrade share
-                                if key.mode > remote_mode || !key.deleted && remote_deleted {
+                                // upgrade/downgrade/undelete share: replay what changed on this
+                                // device; a key with no base is a concurrent add and the higher
+                                // mode wins
+                                let base_key = base_keys.get(&(by, for_)).copied();
+                                let upgraded = key.mode > remote_mode
+                                    && base_key.is_none_or(|(base_mode, _)| key.mode > base_mode);
+                                let downgraded = !key.deleted
+                                    && key.mode < remote_mode
+                                    && base_key.is_some_and(|(base_mode, _)| key.mode < base_mode);
+                                let undeleted = !key.deleted
+                                    && remote_deleted
+                                    && base_key.is_some_and(|(_, base_deleted)| base_deleted);
+                                if upgraded || downgraded || undeleted {
                                     let mode = match key.mode {
                                         UserAccessMode::Read => ShareMode::Read,
                                         UserAccessMode::Write => ShareMode::Write,
@@ -1283,6 +1333,8 @@ impl Lb {
     #[doc(hidden)]
     pub async fn server_dirty_ids(&self) -> LbResult<Vec<Uuid>> {
         let mut state = self.syncer.lock().await;
+        #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+        let _sync_lock = self.lock_sync()?;
         self.inital_sync_state(&mut state).await?;
         self.process_deletions().await?;
         self.fetch_meta(&mut state).await?;
@@ -1442,4 +1494,16 @@ impl Lb {
 
         Ok(())
     }
+}
+
+/// A file this device has no access to, e.g. inside a share it declined. A share root carrying
+/// this device's own (possibly tombstoned) key is not lost: that tombstone is what gets pushed.
+fn lost_access<T: TreeLike>(tree: &LazyTree<T>, me: Owner, id: &Uuid) -> LbResult<bool> {
+    let is_my_share_root = tree
+        .find(id)?
+        .user_access_keys()
+        .iter()
+        .any(|k| k.encrypted_for == me.0);
+    let reachable = tree.access_mode(me, id)?.is_some();
+    Ok(!is_my_share_root && !reachable)
 }

@@ -12,7 +12,7 @@ use super::metrics::{
 pub fn window_controls(ctx: &egui::Context, t: &Theme) {
     use egui::Align2;
     let controls_w = caption_cluster_w();
-    let screen = ctx.screen_rect();
+    let screen = ctx.content_rect();
     block_window_drag(
         ctx,
         Rect::from_min_size(
@@ -20,7 +20,7 @@ pub fn window_controls(ctx: &egui::Context, t: &Theme) {
             vec2(controls_w, HEADER_H),
         ),
     );
-    Area::new(Id::new("shell_window_controls"))
+    Area::new(Id::unique("shell_window_controls"))
         .order(Order::Foreground)
         .anchor(Align2::RIGHT_TOP, vec2(0.0, 0.0))
         .show(ctx, |ui| {

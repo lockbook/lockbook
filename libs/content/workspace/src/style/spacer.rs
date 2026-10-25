@@ -21,7 +21,7 @@ pub struct SpacerHit {
 }
 
 fn record_id() -> Id {
-    Id::new("lb.design.spacer_record")
+    Id::unique("lb.design.spacer_record")
 }
 
 /// Start collecting every [`Spacer`] allocate this frame (tests / diagnostics).

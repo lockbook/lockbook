@@ -2,6 +2,7 @@ use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 
 pub(crate) mod code;
 pub(crate) mod emph;
@@ -24,19 +25,6 @@ pub(crate) mod superscript;
 pub(crate) mod text;
 pub(crate) mod underline;
 pub(crate) mod wiki_link;
-
-#[derive(Default, Debug)]
-pub struct Response {
-    pub clicked: bool,
-    pub hovered: bool,
-}
-
-impl std::ops::BitOrAssign for Response {
-    fn bitor_assign(&mut self, rhs: Self) {
-        self.clicked |= rhs.clicked;
-        self.hovered |= rhs.hovered;
-    }
-}
 
 impl<'ast> MdRender {
     /// Returns the range between the start of the node and the start of its
@@ -107,11 +95,15 @@ impl<'ast> MdRender {
         self.range_revealed(self.node_range(node), true)
     }
 
+    /// What reveals the syntax it touches. Nothing does while a table's
+    /// columns are measured: placing the caret does not move them.
     pub fn reveal_ranges(&self) -> impl Iterator<Item = (Grapheme, Grapheme)> + '_ {
+        let measuring = self.layout_cache.table_cell_measure.get().is_some();
         self.reveal_selection
             .into_iter()
             .chain(self.find_current_match)
             .chain(self.preview_match)
+            .filter(move |_| !measuring)
     }
 
     /// Returns true if `range` intersects any reveal range.
@@ -126,7 +118,8 @@ impl<'ast> MdRender {
     /// interior. Exception: `range` is the atom entered via `Event::EnterAtom`,
     /// whose whole-URL selection has no interior endpoint to offer.
     pub fn range_revealed_interior(&self, range: (Grapheme, Grapheme)) -> bool {
-        self.entered_atom == Some(range)
+        let measuring = self.layout_cache.table_cell_measure.get().is_some();
+        (self.entered_atom == Some(range) && !measuring)
             || self.reveal_ranges().any(|rr| {
                 range.contains(rr.start(), false, false) || range.contains(rr.end(), false, false)
             })
@@ -166,6 +159,8 @@ impl<'ast> MdRender {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             NodeValue::Alert(_)
+            | NodeValue::BlockDirective(_)
+            | NodeValue::MultilineComment(_)
             | NodeValue::BlockQuote
             | NodeValue::DescriptionItem(_)
             | NodeValue::DescriptionList
@@ -187,6 +182,8 @@ impl<'ast> MdRender {
             | NodeValue::ThematicBreak => {
                 unimplemented!("not an inline: {:?}", node.data.borrow().value)
             }
+            NodeValue::Insert => unimplemented!("extension disabled"),
+            NodeValue::CommentInline(_) => unimplemented!("extension disabled"),
             NodeValue::Subtext => unimplemented!("extension disabled"),
 
             NodeValue::Code(_) => self.layout_code(layout, node, range),
@@ -214,6 +211,9 @@ impl<'ast> MdRender {
             NodeValue::Superscript => self.layout_superscript(layout, node, range),
             NodeValue::Text(_) => self.layout_text(layout, node, range),
             NodeValue::Underline => self.layout_underline(layout, node, range),
+            NodeValue::WikiLink(_) if image_url(node).is_some() => {
+                self.layout_image(layout, node, range)
+            }
             NodeValue::WikiLink(_) => self.layout_wikilink(layout, node, range),
         }
     }

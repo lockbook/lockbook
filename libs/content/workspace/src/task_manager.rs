@@ -6,7 +6,7 @@ use web_time::{Duration, Instant};
 use egui::Context;
 use lb_rs::blocking::Lb;
 use lb_rs::model::crypto::DecryptedDocument;
-use lb_rs::model::errors::LbResult;
+use lb_rs::model::errors::{LbErr, LbResult};
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::{Uuid, spawn};
 use tracing::{Level, error, instrument, span, trace, warn};
@@ -49,7 +49,7 @@ impl Tasks {
     fn load_in_progress(&self, id: Uuid) -> bool {
         self.in_progress_loads
             .iter()
-            .any(|in_progress_load| in_progress_load.request.id == id)
+            .any(|in_progress_load| in_progress_load.requests[0].id == id)
     }
 
     fn save_in_progress(&self, id: Uuid) -> bool {
@@ -151,15 +151,25 @@ struct QueuedSave {
     timing: QueuedTiming,
 }
 
+/// One document read serving every request queued for that file; each
+/// request gets its own completion.
 pub struct InProgressLoad {
-    pub request: LoadRequest,
+    pub requests: Vec<LoadRequest>,
 
     pub timing: InProgressTiming,
 }
 
 impl InProgressLoad {
-    fn new(queued: QueuedLoad) -> Self {
-        Self { request: queued.request, timing: InProgressTiming::new(queued.timing) }
+    fn new(queued: Vec<QueuedLoad>) -> Self {
+        let queued_at = queued
+            .iter()
+            .map(|q| q.timing.queued_at)
+            .min()
+            .expect("in-progress load with no requests");
+        Self {
+            requests: queued.into_iter().map(|q| q.request).collect(),
+            timing: InProgressTiming::new(QueuedTiming { queued_at }),
+        }
     }
 }
 
@@ -296,13 +306,21 @@ impl TaskManager {
             if tasks.load_or_save_in_progress(id) {
                 continue;
             }
+            if tasks
+                .completed_saves
+                .iter()
+                .any(|completed_save| completed_save.request.id == id)
+            {
+                // a load that reads a save's content before the save is recorded re-applies the user's edits
+                continue;
+            }
             ids_to_load.push(id);
         }
 
         let mut ids_to_save = Vec::new();
         for queued_save in &tasks.queued_saves {
             let id = queued_save.request.id;
-            if tasks.load_or_save_in_progress(id) {
+            if tasks.load_or_save_in_progress(id) || ids_to_load.contains(&id) {
                 continue;
             }
             if tasks
@@ -318,15 +336,21 @@ impl TaskManager {
         }
 
         // Get launched things from the queue and remove duplicates (avoiding clones)
-        let mut loads_to_launch = HashMap::new();
+        let mut loads_to_launch: HashMap<Uuid, Vec<QueuedLoad>> = HashMap::new();
         let mut saves_to_launch = HashMap::new();
 
         for load in mem::take(&mut tasks.queued_loads) {
             if ids_to_load.contains(&load.request.id) {
-                // use earliest of duplicate ids
-                // this supports opening the same file twice in the same frame,
-                // which requires the `tab_created` value from the first request
-                loads_to_launch.entry(load.request.id).or_insert(load);
+                // one read per file, one completion per target; a target queued
+                // twice keeps its earliest request (its `tab_created`)
+                let group = loads_to_launch.entry(load.request.id).or_default();
+                let same_target = |q: &QueuedLoad| {
+                    q.request.target == load.request.target
+                        && q.request.is_preview == load.request.is_preview
+                };
+                if !group.iter().any(same_target) {
+                    group.push(load);
+                }
             } else {
                 tasks.queued_loads.push(load); // put back the ones we're not launching
             }
@@ -342,12 +366,11 @@ impl TaskManager {
         let any_to_launch = !loads_to_launch.is_empty() || !saves_to_launch.is_empty();
 
         // Launch the things
-        for queued_load in loads_to_launch.into_values() {
-            let span = span!(Level::TRACE, "load_launch", id = queued_load.request.id.to_string());
+        for (id, queued_loads) in loads_to_launch {
+            let span = span!(Level::TRACE, "load_launch", id = id.to_string());
             let _enter = span.enter();
 
-            let request = queued_load.request.clone();
-            let in_progress_load = InProgressLoad::new(queued_load);
+            let in_progress_load = InProgressLoad::new(queued_loads);
             let queue_time = in_progress_load
                 .timing
                 .started_at
@@ -358,7 +381,7 @@ impl TaskManager {
             tasks.in_progress_loads.push(in_progress_load);
 
             let self_clone = self.clone();
-            spawn!(self_clone.background_load(request));
+            spawn!(self_clone.background_load(id));
         }
 
         for queued_save in saves_to_launch.into_values() {
@@ -422,9 +445,8 @@ impl TaskManager {
     }
 
     /// Move a request to in-progress, then call this from a background thread
-    #[instrument(level = "trace", skip(self, request), fields(id = %request.id))]
-    fn background_load(&self, request: LoadRequest) {
-        let id = request.id;
+    #[instrument(level = "trace", skip(self), fields(id = %id))]
+    fn background_load(&self, id: Uuid) {
         let content_result = self.core.read_document_with_hmac(id, true);
 
         {
@@ -432,7 +454,7 @@ impl TaskManager {
 
             let mut in_progress_load = None;
             for load in mem::take(&mut tasks.in_progress_loads) {
-                if load.request.id == id {
+                if load.requests[0].id == id {
                     in_progress_load = Some(load); // use latest of duplicate ids
                 } else {
                     tasks.in_progress_loads.push(load); // put back the ones we're not completing
@@ -451,9 +473,19 @@ impl TaskManager {
                 );
             }
 
-            let completed_load =
-                CompletedLoad { request: in_progress_load.request, content_result, timing };
-            tasks.completed_loads.push(completed_load);
+            let requests = in_progress_load.requests;
+            let mut results: Vec<_> = (1..requests.len())
+                .map(|_| match &content_result {
+                    Ok(content) => Ok(content.clone()),
+                    Err(err) => Err(LbErr { kind: err.kind.clone(), backtrace: None }),
+                })
+                .collect();
+            results.push(content_result);
+            for (request, content_result) in requests.into_iter().zip(results) {
+                tasks
+                    .completed_loads
+                    .push(CompletedLoad { request, content_result, timing });
+            }
         }
 
         self.ctx.request_repaint();

@@ -103,7 +103,7 @@ const DIFF_BLOCK_SPACING: f32 = 8.0;
 /// Lay out plain tool-result text as one dim mono galley. Notes and diffs
 /// render as markdown via an `MdLabel` instead.
 fn body_galley(ui: &Ui, text: &str, wrap_w: f32, dim: egui::Color32) -> Arc<Galley> {
-    ui.fonts(|f| f.layout(text.into(), egui::FontId::monospace(TOOL_FONT), dim, wrap_w))
+    ui.fonts_mut(|f| f.layout(text.into(), egui::FontId::monospace(TOOL_FONT), dim, wrap_w))
 }
 
 /// Total height of stacked diff segments at `width`.
@@ -270,7 +270,7 @@ impl Chat {
         // The panel is inset past the keyboard but not the nav bar, so on
         // Android clear the nav bar only while the keyboard is down.
         let keyboard_up = ui
-            .memory(|m| m.data.get_temp::<f32>(Id::new("ws_keyboard_height")))
+            .memory(|m| m.data.get_temp::<f32>(Id::unique("ws_keyboard_height")))
             .unwrap_or(0.0)
             > 0.0;
         let composer_bottom_inset = if cfg!(target_os = "android") && !keyboard_up {
@@ -279,7 +279,7 @@ impl Chat {
             COMPOSER_BOTTOM_GAP
         };
 
-        let composer_id = Id::new("chat_composer");
+        let composer_id = Id::unique("chat_composer");
         // Focus when first shown or whenever nothing holds focus — the
         // editor's policy, and load-bearing on iOS: typing arrives as egui
         // events only a focused composer consumes, and taps place the cursor
@@ -366,7 +366,7 @@ impl Chat {
         // keyboard / completions / internal events. Routes to *one* editor:
         // the connect step's key field while it's open, else the composer.
         if self.key_entry.is_some() {
-            let key_field_id = Id::new("chat_key_field");
+            let key_field_id = Id::unique("chat_key_field");
             // No per-frame request_focus: the render block's one-shot focuses
             // the field, and its interaction + focus lock hold it after that.
             // Consume Return before handle_input so it submits rather than
@@ -482,7 +482,7 @@ impl Chat {
             if touch_os && !takeover {
                 let backdrop = ui.interact(
                     transcript_rect,
-                    Id::new("chat_transcript_backdrop"),
+                    Id::unique("chat_transcript_backdrop"),
                     Sense::click(),
                 );
                 backdrop_tapped = backdrop.clicked();
@@ -527,14 +527,14 @@ impl Chat {
                             *y += h + ROW_GAP;
                         };
                         if self.entries[i].msg.error {
-                            let header = ui.fonts(|f| {
+                            let header = ui.fonts_mut(|f| {
                                 f.layout_no_wrap(
                                     "error".into(),
                                     egui::FontId::proportional(11.0),
                                     error_color,
                                 )
                             });
-                            let galley = ui.fonts(|f| {
+                            let galley = ui.fonts_mut(|f| {
                                 f.layout(
                                     self.entries[i].msg.content.clone(),
                                     egui::FontId::monospace(NOTE_FONT),
@@ -571,7 +571,7 @@ impl Chat {
                             let id = self.entries[i].msg.id;
                             let viz = id.and_then(|id| self.tool_viz.get(&id));
                             let expanded = id.is_some_and(|id| self.expanded_tools.contains(&id));
-                            let summary = ui.fonts(|f| {
+                            let summary = ui.fonts_mut(|f| {
                                 f.layout_no_wrap(
                                     self.entries[i].msg.content.clone(),
                                     egui::FontId::monospace(TOOL_FONT),
@@ -608,9 +608,9 @@ impl Chat {
                                                 ..Default::default()
                                             },
                                         );
-                                        ui.fonts(|f| f.layout_job(job))
+                                        ui.fonts_mut(|f| f.layout_job(job))
                                     }
-                                    None => ui.fonts(|f| {
+                                    None => ui.fonts_mut(|f| {
                                         f.layout_no_wrap(v.metric.clone(), mono, metric_color)
                                     }),
                                 }
@@ -636,7 +636,7 @@ impl Chat {
                                         for row in rows {
                                             // PLACEHOLDER so paint can color
                                             // hovered rows.
-                                            let galley = ui.fonts(|f| {
+                                            let galley = ui.fonts_mut(|f| {
                                                 f.layout_no_wrap(
                                                     row.clone(),
                                                     egui::FontId::monospace(TOOL_FONT),
@@ -755,7 +755,7 @@ impl Chat {
                             } else {
                                 (from.clone(), theme.fg().get_color(username_color(&from)))
                             };
-                            Some(ui.fonts(|f| {
+                            Some(ui.fonts_mut(|f| {
                                 f.layout_no_wrap(name, egui::FontId::proportional(11.0), color)
                             }))
                         } else {
@@ -766,7 +766,7 @@ impl Chat {
                         // row — and only for human runs: an agent reply lands
                         // within the minute of the request above it.
                         let ts_galley = if last_in_run && !agent {
-                            Some(ui.fonts(|f| {
+                            Some(ui.fonts_mut(|f| {
                                 f.layout_no_wrap(
                                     format_ts(ts),
                                     egui::FontId::proportional(11.0),
@@ -828,7 +828,7 @@ impl Chat {
                     #[allow(unused_mut, unused_variables)]
                     let mut streaming_plan: Option<(Pos2, Arc<Galley>)> = None;
                     if agent_busy && !agent_streaming.is_empty() && !takeover {
-                        let name = ui.fonts(|f| {
+                        let name = ui.fonts_mut(|f| {
                             f.layout_no_wrap(
                                 "agent".into(),
                                 egui::FontId::proportional(11.0),
@@ -848,7 +848,7 @@ impl Chat {
                         && pending_tool.is_none()
                         && !takeover)
                         .then(|| {
-                            let galley = ui.fonts(|f| {
+                            let galley = ui.fonts_mut(|f| {
                                 f.layout(
                                     "thinking…".into(),
                                     egui::FontId::proportional(NOTE_FONT),
@@ -872,7 +872,7 @@ impl Chat {
 
                         // Header bar: the command summary, left-aligned. No
                         // right metric — the call hasn't been allowed to run.
-                        let summary = ui.fonts(|f| {
+                        let summary = ui.fonts_mut(|f| {
                             f.layout_no_wrap(
                                 summary_text.clone(),
                                 egui::FontId::monospace(TOOL_FONT),
@@ -887,7 +887,7 @@ impl Chat {
                         // Body: the permission request, wrapping. Dimmed mono,
                         // like the tool summary and result text.
                         let body_w = note_wrap_w - 2.0 * indent;
-                        let prose = ui.fonts(|f| {
+                        let prose = ui.fonts_mut(|f| {
                             f.layout(
                                 prose.clone(),
                                 egui::FontId::monospace(TOOL_FONT),
@@ -902,7 +902,7 @@ impl Chat {
                         // words — italic sans sets it apart from the ask
                         // sentence's dimmed mono.
                         let reason_plan = reason.as_ref().map(|r| {
-                            let galley = ui.fonts(|f| {
+                            let galley = ui.fonts_mut(|f| {
                                 f.layout(
                                     format!("“{r}”"),
                                     egui::FontId {
@@ -922,7 +922,7 @@ impl Chat {
                         // hardware keyboard is plausible (desktop, iPad).
                         cy += V_PAD;
                         let btn = |ui: &Ui, label: String, accent: bool| {
-                            ui.fonts(|f| {
+                            ui.fonts_mut(|f| {
                                 f.layout_no_wrap(
                                     label,
                                     egui::FontId::proportional(13.0),
@@ -1008,7 +1008,7 @@ impl Chat {
                         .map(|s| {
                             ui.interact(
                                 s.row_rect,
-                                Id::new(("chat_row", visible[s.vi].idx)),
+                                Id::unique(("chat_row", visible[s.vi].idx)),
                                 Sense::click(),
                             )
                         })
@@ -1151,7 +1151,7 @@ impl Chat {
                                     let areas = paint_segments(
                                         ui,
                                         &mut self.entries[i].label,
-                                        Id::new(("tool_body", i)),
+                                        Id::unique(("tool_body", i)),
                                         &segs,
                                         rpos,
                                         rwidth,
@@ -1240,8 +1240,9 @@ impl Chat {
                         if let Some(fork) = &visible[vi].fork {
                             let font = egui::FontId::proportional(NOTE_FONT);
                             let label = format!("{}/{}", fork.pos + 1, fork.siblings.len());
-                            let lg = ui
-                                .fonts(|f| f.layout_no_wrap(label, font.clone(), secondary_color));
+                            let lg = ui.fonts_mut(|f| {
+                                f.layout_no_wrap(label, font.clone(), secondary_color)
+                            });
                             // Near-edge-first placement; flip on right-laid
                             // strips so it always reads ‹ n/m › on screen.
                             let mut parts = [
@@ -1266,14 +1267,15 @@ impl Chat {
                                 let active = target.is_some() && can_mutate;
                                 let color = if active { text_color } else { secondary_color };
                                 let r = place(STRIP_H * 0.7);
-                                let g = ui
-                                    .fonts(|f| f.layout_no_wrap(glyph.into(), font.clone(), color));
+                                let g = ui.fonts_mut(|f| {
+                                    f.layout_no_wrap(glyph.into(), font.clone(), color)
+                                });
                                 ui.painter().galley(r.center() - g.size() / 2.0, g, color);
                                 if let Some(target) = target.filter(|_| can_mutate) {
                                     let resp = ui
                                         .interact(
                                             r,
-                                            Id::new(("chat_arrow", vi, glyph)),
+                                            Id::unique(("chat_arrow", vi, glyph)),
                                             Sense::click(),
                                         )
                                         .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -1321,11 +1323,11 @@ impl Chat {
                             for (bi, (icon, act)) in icons.iter().enumerate() {
                                 let r = place(STRIP_H);
                                 let resp = ui
-                                    .interact(r, Id::new(("chat_strip", i, bi)), Sense::click())
+                                    .interact(r, Id::unique(("chat_strip", i, bi)), Sense::click())
                                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                                 let color =
                                     if resp.hovered() { text_color } else { secondary_color };
-                                let g = ui.fonts(|f| {
+                                let g = ui.fonts_mut(|f| {
                                     f.layout_no_wrap(
                                         icon.icon.to_string(),
                                         egui::FontId::monospace(13.0),
@@ -1428,7 +1430,7 @@ impl Chat {
 
                         // Deny: bordered. Allow: accent-filled.
                         let deny = ui
-                            .interact(r.deny_rect, Id::new("chat_review_deny"), Sense::click())
+                            .interact(r.deny_rect, Id::unique("chat_review_deny"), Sense::click())
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
                         ui.painter().rect_stroke(
                             r.deny_rect,
@@ -1444,7 +1446,7 @@ impl Chat {
                         let approve = ui
                             .interact(
                                 r.approve_rect,
-                                Id::new("chat_review_approve"),
+                                Id::unique("chat_review_approve"),
                                 Sense::click(),
                             )
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -1510,7 +1512,7 @@ impl Chat {
                                 .map(|(_, e)| is_auth_error(e))
                         });
 
-                        let head = ui.fonts(|f| {
+                        let head = ui.fonts_mut(|f| {
                             f.layout_no_wrap(
                                 format!("Connect {label}"),
                                 egui::FontId::proportional(19.0),
@@ -1542,11 +1544,11 @@ impl Chat {
                                 card_w,
                             );
                             job.halign = egui::Align::Center;
-                            ui.fonts(|f| f.layout_job(job))
+                            ui.fonts_mut(|f| f.layout_job(job))
                         });
                         // Minimal: the field submits on return, so the only
                         // control is a centered text Cancel (like the picker).
-                        let cancel = ui.fonts(|f| {
+                        let cancel = ui.fonts_mut(|f| {
                             f.layout_no_wrap("Cancel".into(), body_font.clone(), secondary_color)
                         });
 
@@ -1600,7 +1602,7 @@ impl Chat {
                         // above is only where the masked text lays out).
                         self.key_field_hit_rect = field_rect;
                         if self.key_field.renderer.buffer.current.text.is_empty() {
-                            let hint = ui.fonts(|f| {
+                            let hint = ui.fonts_mut(|f| {
                                 f.layout_no_wrap(
                                     "Paste your API key".into(),
                                     egui::FontId::proportional(13.5),
@@ -1616,7 +1618,7 @@ impl Chat {
                         }
                         // Centered text-only Cancel, filling its reserved rect.
                         let cancel_resp = ui
-                            .interact(cancel_rect, Id::new("chat_key_cancel"), Sense::click())
+                            .interact(cancel_rect, Id::unique("chat_key_cancel"), Sense::click())
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
                         let cancel_color =
                             if cancel_resp.hovered() { text_color } else { secondary_color };
@@ -1640,7 +1642,7 @@ impl Chat {
                                 card_w,
                             );
                             job.halign = egui::Align::Center;
-                            ui.fonts(|f| f.layout_job(job))
+                            ui.fonts_mut(|f| f.layout_job(job))
                         };
 
                         match stage {
@@ -1654,7 +1656,7 @@ impl Chat {
                                 } else {
                                     "Chat with an AI agent"
                                 };
-                                let head = ui.fonts(|f| {
+                                let head = ui.fonts_mut(|f| {
                                     f.layout_no_wrap(
                                         headline.into(),
                                         egui::FontId::proportional(19.0),
@@ -1702,7 +1704,7 @@ impl Chat {
                                     .iter()
                                     .flatten()
                                     .map(|&(name, json)| {
-                                        ui.fonts(|f| {
+                                        ui.fonts_mut(|f| {
                                             f.layout_no_wrap(
                                                 template_label(name, json),
                                                 body_font.clone(),
@@ -1733,7 +1735,7 @@ impl Chat {
                                     + rows.saturating_sub(1) as f32 * row_gap;
 
                                 let cancel = summoned.then(|| {
-                                    ui.fonts(|f| {
+                                    ui.fonts_mut(|f| {
                                         f.layout_no_wrap(
                                             "Cancel".into(),
                                             body_font.clone(),
@@ -1765,7 +1767,7 @@ impl Chat {
                                         let resp = ui
                                             .interact(
                                                 cell,
-                                                Id::new(("chat_onboard", name)),
+                                                Id::unique(("chat_onboard", name)),
                                                 Sense::click(),
                                             )
                                             .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -1794,7 +1796,7 @@ impl Chat {
                                         // Right-aligned check for an already-
                                         // configured provider.
                                         if added(name) {
-                                            let check = ui.fonts(|f| {
+                                            let check = ui.fonts_mut(|f| {
                                                 f.layout_no_wrap(
                                                     Icon::DONE.icon.to_string(),
                                                     egui::FontId::monospace(check_sz),
@@ -1822,7 +1824,7 @@ impl Chat {
                                     let resp = ui
                                         .interact(
                                             rect,
-                                            Id::new("chat_chooser_cancel"),
+                                            Id::unique("chat_chooser_cancel"),
                                             Sense::click(),
                                         )
                                         .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -1884,7 +1886,7 @@ impl Chat {
                             .map(|m| m.label().to_string())
                             .unwrap_or_else(|| p.model.clone());
 
-                        let head = ui.fonts(|f| {
+                        let head = ui.fonts_mut(|f| {
                             f.layout_no_wrap(model, egui::FontId::proportional(16.0), text_color)
                         });
                         let sub_text = if local {
@@ -1900,7 +1902,7 @@ impl Chat {
                                 card_w,
                             );
                             job.halign = egui::Align::Center;
-                            ui.fonts(|f| f.layout_job(job))
+                            ui.fonts_mut(|f| f.layout_job(job))
                         };
 
                         let glyph_sz = 28.0;
@@ -2039,7 +2041,7 @@ impl Chat {
         // `focused_mdedit_mut` + the text-interaction rect already point here.
         use crate::tab::ExtendedOutput as _;
         if self.key_entry.is_some() && self.key_field_rect.is_finite() {
-            let key_field_id = Id::new("chat_key_field");
+            let key_field_id = Id::unique("chat_key_field");
             // Focus + keyboard modeled on the find bar (the other text field
             // that appears without a tap): one-shot on open, edge-triggered
             // re-summon — never per-frame, which fights UIKit's own
@@ -2155,12 +2157,12 @@ impl Chat {
                 pos2(text_rect.max.x - H_PAD, text_rect.max.y - V_PAD),
             );
             let resp = ui
-                .interact(btn_rect, Id::new("chat_add_key"), Sense::click())
+                .interact(btn_rect, Id::unique("chat_add_key"), Sense::click())
                 .on_hover_cursor(egui::CursorIcon::PointingHand);
             let accent = theme.bg().get_color(theme.prefs().primary);
             ui.painter()
                 .rect_filled(btn_rect, CornerRadius::same(8), accent);
-            let btn_label = ui.fonts(|f| {
+            let btn_label = ui.fonts_mut(|f| {
                 f.layout_no_wrap(
                     format!("Fix your {label} key"),
                     egui::FontId::proportional(15.0),
@@ -2209,7 +2211,7 @@ impl Chat {
             // Touch targets stay ~44pt even where the visual is smaller.
             let hit_rect = if touch_os { button_rect.expand(7.0) } else { button_rect };
             let active = (non_empty && send_block.is_none()) || agent_busy;
-            let resp = ui.interact(hit_rect, Id::new("chat_send"), Sense::click());
+            let resp = ui.interact(hit_rect, Id::unique("chat_send"), Sense::click());
             // A pointer cursor when it'll do something (send, or stop a turn).
             let resp =
                 if active { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
@@ -2231,7 +2233,7 @@ impl Chat {
                 );
                 stop_clicked = resp.clicked();
             } else {
-                let icon = ui.fonts(|f| {
+                let icon = ui.fonts_mut(|f| {
                     f.layout_no_wrap(
                         Icon::SEND.icon.to_string(),
                         egui::FontId::monospace(send_d * 0.55),
@@ -2251,7 +2253,7 @@ impl Chat {
         {
             let row_h = self.composer.row_height();
             let hint_text = send_block.as_deref().unwrap_or("Type a message");
-            let hint = ui.fonts(|f| {
+            let hint = ui.fonts_mut(|f| {
                 f.layout_no_wrap(
                     hint_text.into(),
                     egui::FontId::proportional(row_h * 0.85),
@@ -2334,7 +2336,7 @@ impl Chat {
                     ui.painter()
                         .add(egui::Shape::line(points, Stroke::new(2.0_f32, fill)));
                 }
-                ui.interact(rect, Id::new("chat_context_ring"), Sense::hover())
+                ui.interact(rect, Id::unique("chat_context_ring"), Sense::hover())
                     .on_hover_text(format!("{used} / {window} tokens ({:.0}%)", ratio * 100.0));
             }
 
@@ -2353,7 +2355,7 @@ impl Chat {
             // while the rest return None for the caller to fold into ⋯.
             let mut dropdown =
                 |ui: &mut Ui, id: &str, text: &str, must_fit: bool| -> Option<egui::Response> {
-                    let chevron = ui.fonts(|f| {
+                    let chevron = ui.fonts_mut(|f| {
                         f.layout_no_wrap(
                             Icon::CHEVRON_DOWN.icon.to_string(),
                             egui::FontId::monospace(12.0),
@@ -2372,7 +2374,7 @@ impl Chat {
                         break_anywhere: true,
                         overflow_character: Some('…'),
                     };
-                    let galley = ui.fonts(|f| f.layout_job(job));
+                    let galley = ui.fonts_mut(|f| f.layout_job(job));
                     let w = galley.size().x + chevron.size().x + 6.0;
                     if !must_fit && w > avail {
                         return None;
@@ -2381,7 +2383,7 @@ impl Chat {
                         Rect::from_min_size(pos2(cursor_x, toolbar_rect.min.y), vec2(w, TOOLBAR_H));
                     cursor_x = rect.max.x + STRIP_GAP;
                     let resp = ui
-                        .interact(rect, Id::new(id), Sense::click())
+                        .interact(rect, Id::unique(id), Sense::click())
                         .on_hover_cursor(egui::CursorIcon::PointingHand);
                     let text_top = rect.min.y + (TOOLBAR_H - galley.size().y) / 2.0;
                     ui.painter()
@@ -2649,10 +2651,10 @@ impl Chat {
             // lead the menu as submenus, above the standing actions.
             {
                 let more_resp = ui
-                    .interact(more_rect, Id::new("chat_more_btn"), Sense::click())
+                    .interact(more_rect, Id::unique("chat_more_btn"), Sense::click())
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 let color = if more_resp.hovered() { text_color } else { secondary_color };
-                let glyph = ui.fonts(|f| {
+                let glyph = ui.fonts_mut(|f| {
                     f.layout_no_wrap(
                         Icon::DOTS_HORIZONTAL.icon.to_string(),
                         egui::FontId::monospace(15.0),

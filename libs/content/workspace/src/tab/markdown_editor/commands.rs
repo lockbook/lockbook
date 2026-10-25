@@ -2,10 +2,11 @@
 //! events: taps on its touch targets, and a long-press reorder, decided by the
 //! platform's own gesture system.
 
+use super::input::{Location, Region};
 use egui::Pos2;
 use lb_rs::model::text::offset_types::Grapheme;
 
-use super::input::Event;
+use super::input::{Event, Gesture};
 use super::widget::block::drag::{BlockDragAction, TouchReorder};
 use super::{MdEdit, TouchTarget};
 
@@ -23,6 +24,15 @@ impl MdEdit {
     /// be, except a selection, which is the platform's to write: that range
     /// is returned instead.
     pub fn tap(&mut self, pos: Pos2) -> Option<(Grapheme, Grapheme)> {
+        // a tap that edits a table — on a cell its row lacks, or below a
+        // trailing table — is the next frame's to make; the host's own
+        // caret placement comes first and the edit's selection after it
+        let region = Region::Location(Location::Pos(pos));
+        if self.table_select_edits(region, &mut Vec::new()) {
+            self.renderer.render_events.push(Event::Select { region });
+            self.renderer.ctx.request_repaint();
+            return None;
+        }
         let Some(TouchTarget::Tap(event)) = self.touch_target_at(pos).cloned() else {
             return None;
         };
@@ -32,6 +42,40 @@ impl MdEdit {
             event => {
                 self.renderer.render_events.push(event);
                 None
+            }
+        }
+    }
+
+    /// Takes a horizontal pan that began at `pos` for the table or code
+    /// block wider than the note there, if any: the platform then drives it
+    /// with [`Self::row_pan_by`]. False while a lifted item or row is
+    /// dragged.
+    pub fn row_pan_begin(&mut self, pos: Pos2) -> bool {
+        let dragging = self.in_progress_block_drag.is_some()
+            || !matches!(self.touch_reorder, TouchReorder::Idle);
+        let scroller = self.renderer.row_scroller_at(pos).filter(|_| !dragging);
+        self.platform_row_pan = scroller;
+        scroller.is_some()
+    }
+
+    /// Pans the block taken by [`Self::row_pan_begin`] by `dx` points of
+    /// finger travel. The frame clamps it to the block's width.
+    pub fn row_pan_by(&mut self, dx: f32) {
+        let scroll = self
+            .platform_row_pan
+            .and_then(|key| self.renderer.row_scrolls.get_mut(&key));
+        if let Some(scroll) = scroll.filter(|_| dx.is_finite()) {
+            scroll.offset -= dx;
+            self.renderer.ctx.request_repaint();
+        }
+    }
+
+    /// The pan ended at `vx` points per second: the block coasts from it.
+    pub fn row_pan_end(&mut self, vx: f32) {
+        if let Some(key) = self.platform_row_pan.take() {
+            if let Some(scroll) = self.renderer.row_scrolls.get_mut(&key) {
+                scroll.velocity = if vx.is_finite() { -vx } else { 0.0 };
+                self.renderer.ctx.request_repaint();
             }
         }
     }
@@ -74,6 +118,28 @@ impl MdEdit {
         self.touch_reorder = TouchReorder::Idle;
         self.touch_reorder_driven = false;
         self.renderer.ctx.request_repaint();
+    }
+
+    /// A standalone field (the chat composer) scrolls its overflow; a note
+    /// scrolls its page.
+    pub fn apply_gesture(&mut self, gesture: Gesture) {
+        if self.standalone {
+            if let Gesture::Scroll { dy } | Gesture::Crawl { dy } = gesture {
+                self.overflow_scroll_by(-dy);
+            }
+            return;
+        }
+        match gesture {
+            Gesture::Scroll { dy } => self.scroll_area.gesture_scroll(-dy),
+            Gesture::Fling { vy } => self.scroll_area.gesture_fling(-vy),
+            Gesture::Crawl { dy } => self.crawl_by(-dy),
+            Gesture::ScrollbarBegin => self.scroll_area.gesture_scrollbar_begin(),
+            Gesture::ScrollbarDrag { dy } => self.scroll_area.gesture_scrollbar_drag(dy),
+            Gesture::RowPan { dx } => self.row_pan_by(dx),
+            Gesture::RowPanEnd { vx } => self.row_pan_end(vx),
+            Gesture::ReorderMove { pos } => self.reorder_move(pos),
+            Gesture::ReorderEnd { pos, cancelled } => self.reorder_end(pos, cancelled),
+        }
     }
 
     /// A crawl at the viewport's edge scrolls like a pan.

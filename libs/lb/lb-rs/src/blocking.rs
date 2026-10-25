@@ -388,11 +388,11 @@ impl Lb {
         self.rt.block_on(self.lb.debug_info(os_info, true))
     }
 
-    pub fn recent_panic(&self) -> LbResult<bool> {
+    pub fn recent_panic(&self) -> LbResult<Option<chrono::DateTime<chrono::Local>>> {
         #[cfg(not(target_family = "wasm"))]
         return self.block_on(self.lb.recent_panic());
         #[cfg(target_family = "wasm")]
-        Ok(false)
+        Ok(None)
     }
 
     #[cfg(not(target_family = "wasm"))]

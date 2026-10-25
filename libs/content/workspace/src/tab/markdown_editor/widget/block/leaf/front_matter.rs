@@ -4,7 +4,7 @@ use egui::{Pos2, Ui};
 use crate::tab::markdown_editor::MdRender;
 
 impl<'ast> MdRender {
-    fn frontmatter_as_code_block() -> NodeCodeBlock {
+    pub(crate) fn frontmatter_as_code_block() -> NodeCodeBlock {
         NodeCodeBlock {
             fenced: true,
             fence_char: b'-',

@@ -117,7 +117,7 @@ impl Toolbar {
                 mini_map_rect.min,
                 egui::vec2(MINI_MAP_WIDTH - SCROLLBAR_WIDTH, mini_map_rect.height()),
             ),
-            egui::Id::from("scroll_mini_map"),
+            egui::Id::unique("scroll_mini_map"),
             egui::Sense::click_and_drag(),
         );
 
@@ -200,7 +200,7 @@ impl Toolbar {
 
         let scrollarea_res = ui.interact(
             scrollarea_rect,
-            egui::Id::from("mini_map_scroll_area"),
+            egui::Id::unique("mini_map_scroll_area"),
             egui::Sense::click_and_drag(),
         );
 

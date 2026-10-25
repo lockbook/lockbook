@@ -16,6 +16,7 @@
         private(set) var text: TextInputView!
         private(set) var taps: TapLayer!
         let scrollPan = UIPanGestureRecognizer()
+        let rowPan = UIPanGestureRecognizer()
         let coastStop = CoastStopRecognizer()
         private var observedDrags: [UIGestureRecognizer] = []
 
@@ -58,6 +59,13 @@
             }
             scrollPan.delegate = self
             addGestureRecognizer(scrollPan)
+
+            // A pan along the rows of a table or code block wider than the note pans it.
+            rowPan.addTarget(self, action: #selector(handleRowPan(_:)))
+            rowPan.allowedScrollTypesMask = .all
+            rowPan.allowedTouchTypes = scrollPan.allowedTouchTypes
+            rowPan.delegate = self
+            addGestureRecognizer(rowPan)
 
             coastStop.stopCoast = { [weak self] in
                 guard let self, let wsHandle = self.wsHandle else { return false }
@@ -229,6 +237,12 @@
                 let dy = pan.translation(in: self).y
                 pan.setTranslation(.zero, in: self)
                 ios_scroll(wsHandle, Float(dy))
+                // A drag down into the keyboard puts it away, as in Notes.
+                if dy > 0, text.isSoftwareKeyboardUp,
+                   pan.location(in: mtkView).y >= mtkView.keyboardLayoutGuide.layoutFrame.minY
+                {
+                    text.resignFirstResponder()
+                }
                 mtkView.requestFrame()
             case .ended:
                 let dy = pan.translation(in: self).y
@@ -242,7 +256,40 @@
             }
         }
 
+        @objc private func handleRowPan(_ pan: UIPanGestureRecognizer) {
+            guard let wsHandle else { return }
+            switch pan.state {
+            case .began, .changed:
+                let dx = pan.translation(in: self).x
+                pan.setTranslation(.zero, in: self)
+                ios_row_pan(wsHandle, Float(dx))
+                mtkView.requestFrame()
+            case .ended:
+                let dx = pan.translation(in: self).x
+                pan.setTranslation(.zero, in: self)
+                ios_row_pan(wsHandle, Float(dx))
+                ios_row_pan_end(wsHandle, Float(pan.velocity(in: self).x))
+                mtkView.requestFrame()
+            case .cancelled, .failed:
+                ios_row_pan_end(wsHandle, 0)
+                mtkView.requestFrame()
+            default:
+                break
+            }
+        }
+
         override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            if gestureRecognizer === scrollPan {
+                let velocity = scrollPan.velocity(in: self)
+                return abs(velocity.y) > abs(velocity.x)
+            }
+            if gestureRecognizer === rowPan {
+                guard let wsHandle else { return false }
+                let velocity = rowPan.velocity(in: self)
+                guard abs(velocity.x) > abs(velocity.y) else { return false }
+                let p = convert(rowPan.location(in: self), to: mtkView)
+                return ios_row_pan_begin(wsHandle, Float(p.x), Float(p.y))
+            }
             if isInteractiveContentPop(gestureRecognizer) {
                 return false
             }
@@ -257,7 +304,8 @@
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            gestureRecognizer === scrollPan && otherGestureRecognizer.isRangeAdjustment
+            (gestureRecognizer === scrollPan || gestureRecognizer === rowPan)
+                && otherGestureRecognizer.isRangeAdjustment
         }
 
         /// Stopping a coast keeps the finger for a scroll or a handle drag,
@@ -272,7 +320,8 @@
                 return true
             }
             if gestureRecognizer === coastStop {
-                return otherGestureRecognizer === scrollPan || otherGestureRecognizer === scrollbar
+                return otherGestureRecognizer === scrollPan || otherGestureRecognizer === rowPan
+                    || otherGestureRecognizer === scrollbar
                     || otherGestureRecognizer.isRangeAdjustment || otherGestureRecognizer.isSelectionDrag
             }
             if gestureRecognizer === scrollbar {

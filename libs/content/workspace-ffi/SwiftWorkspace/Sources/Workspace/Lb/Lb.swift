@@ -58,7 +58,7 @@ public class Lb: LbAPI {
             DispatchQueue.main.async {
                 if event.status_updated {
                     self.events.status = self.getStatus()
-                } else if event.metadata_updated || event.pending_shares_changed {
+                } else if event.metadata_updated || event.pending_shares_changed || event.ipc_changes_applied {
                     self.events.metadataVersion += 1
                 } else if event.doc_written {
                     self.events.docWritten = DocWritten(
@@ -71,7 +71,7 @@ public class Lb: LbAPI {
     }
 
     public func start(writablePath: String, logs: Bool) -> Result<Void, LbError> {
-        let res = lb_init(writablePath, logs)
+        let res = lb_init(writablePath, logs, true)
         defer {
             lb_free_err(res.err)
         }

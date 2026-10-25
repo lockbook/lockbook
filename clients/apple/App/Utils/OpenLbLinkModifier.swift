@@ -44,12 +44,21 @@ struct OpenLbLinkModifier: ViewModifier {
                 return
             }
 
+            if url.host() == "search" {
+                #if os(iOS)
+                    workspaceOutput.openSearch = true
+                #else
+                    workspaceInput.showSearch()
+                #endif
+                return
+            }
+
             guard let host = url.host(), let id = UUID(uuidString: host) else {
                 AppState.shared.error = .custom(title: "Could not open link", msg: "Invalid link")
                 return
             }
 
-            syncAndOpen(id: id)
+            syncAndOpen(id: id, heading: url.fragment)
             return
         }
 
@@ -58,7 +67,7 @@ struct OpenLbLinkModifier: ViewModifier {
            url.pathComponents[1] == Self.openRoute,
            let id = UUID(uuidString: url.pathComponents[2])
         {
-            syncAndOpen(id: id)
+            syncAndOpen(id: id, heading: url.fragment)
             return
         }
 
@@ -98,7 +107,7 @@ struct OpenLbLinkModifier: ViewModifier {
         }
     }
 
-    private func syncAndOpen(id: UUID) {
+    private func syncAndOpen(id: UUID, heading: String?) {
         homeState.openingLink = true
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -111,14 +120,15 @@ struct OpenLbLinkModifier: ViewModifier {
 
                 switch file {
                 case let .success(file):
-                    workspaceInput.openFile(id: file.id)
+                    workspaceInput.openFile(id: file.id, heading: heading)
                     homeState.compactColumn = .detail
                 case .failure:
                     if case let .failure(err) = syncResult {
                         AppState.shared.error = .lb(error: err)
                     } else {
                         AppState.shared.error = .custom(
-                            title: "Could not open link", msg: "File not found"
+                            title: "Could not open link",
+                            msg: "This file was deleted or isn't shared with you."
                         )
                     }
                 }

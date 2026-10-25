@@ -17,8 +17,8 @@ use super::action::{Action, SidebarPane};
 use super::titlebar::HEADER_H;
 
 pub use crate::components::domain::sidebar_resize::{
-    PANEL_ID, WIDTH_DEFAULT, begin_resize_style, end_resize_style, open_t, paint_split_line,
-    remember_resting_width, resize_over_workspace, resting_width, restore_panel_width_if_collapsed,
+    PANEL_ID, WIDTH_DEFAULT, open_t, paint_split_line, panel_id, remember_resting_width,
+    resize_over_workspace, resting_width, restore_panel_width_if_collapsed, sync_resizing_latch,
     width_max, width_min,
 };
 
@@ -47,7 +47,7 @@ impl Default for SidebarHeadReadout {
 }
 
 fn head_readout_id() -> Id {
-    Id::new("shell_sidebar_head_readout")
+    Id::unique("shell_sidebar_head_readout")
 }
 
 #[cfg(test)]
@@ -85,7 +85,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
 
     let show_chips = matches!(app.pane, SidebarPane::Files | SidebarPane::Recents);
-    egui::TopBottomPanel::top("shell_sidebar_head")
+    egui::Panel::top("shell_sidebar_head")
         .resizable(false)
         .show_separator_line(false)
         .frame(
@@ -93,7 +93,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 .fill(t.neutral_bg_secondary())
                 .inner_margin(0.0),
         )
-        .show_inside(ui, |ui| {
+        .show(ui, |ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
             let mut head = SidebarHeadReadout::default();
             let (clear_rect, _) =
@@ -115,7 +115,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                         queue.push(A::Import);
                     }
                     if search {
-                        queue.push(A::OpenSearch);
+                        queue.push(A::OpenSearch(None));
                     }
                     head.chip_mid = ui.min_rect();
                     let [a, b, c] = chip_rects;
@@ -133,7 +133,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 .data_mut(|d| d.insert_temp(head_readout_id(), head));
         });
 
-    egui::TopBottomPanel::bottom("shell_sidebar_foot")
+    egui::Panel::bottom("shell_sidebar_foot")
         .resizable(false)
         .show_separator_line(false)
         .frame(
@@ -141,7 +141,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 .fill(t.neutral_bg_secondary())
                 .inner_margin(0.0),
         )
-        .show_inside(ui, |ui| {
+        .show(ui, |ui| {
             ui.set_min_width(ui_width(ui));
             show_sync_footer(app, ui, t, queue);
         });
@@ -152,7 +152,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 .fill(t.neutral_bg_secondary())
                 .inner_margin(0.0),
         )
-        .show_inside(ui, |ui| {
+        .show(ui, |ui| {
             let body = ui.max_rect();
             ui.set_clip_rect(body.intersect(ui.clip_rect()));
             ui.set_min_size(body.size());
@@ -173,7 +173,7 @@ mod head_diag {
         Space, ThemeExt, begin_spacer_record, control_height, install, take_spacer_record,
     };
     use crate::shell::ShellApp;
-    use egui::{Context, FullOutput, Pos2, RawInput, SidePanel, Vec2};
+    use egui::{Context, Panel, Pos2, RawInput, Vec2};
 
     fn fmt_rect(r: Rect) -> String {
         format!(
@@ -202,24 +202,31 @@ mod head_diag {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1200.0, 800.0))),
             ..Default::default()
         };
-        let FullOutput { .. } = ctx.run(input.clone(), |ctx| {
+        ctx.run_pass(input.clone(), |ctx| {
             install(ctx);
-        });
-        let FullOutput { .. } = ctx.run(input, |ctx| {
+        })
+        .textures_delta
+        .clear();
+        ctx.run_pass(input, |ctx| {
             install(ctx);
             begin_spacer_record(ctx);
             let t = ctx.get_lb_theme();
             let mut queue = Vec::new();
-            SidePanel::left(PANEL_ID)
-                .resizable(false)
-                .default_width(300.0)
-                .width_range(width_min()..=width_max(ctx))
-                .show_separator_line(false)
-                .frame(Frame::new().inner_margin(0.0))
-                .show(ctx, |ui| {
-                    show(&mut app, ui, &t, &mut queue);
-                });
-        });
+            let width_range = width_min()..=width_max(ctx);
+            ctx.root_ui(|root| {
+                Panel::left(PANEL_ID)
+                    .resizable(false)
+                    .default_size(300.0)
+                    .size_range(width_range)
+                    .show_separator_line(false)
+                    .frame(Frame::new().inner_margin(0.0))
+                    .show(root, |ui| {
+                        show(&mut app, ui, &t, &mut queue);
+                    });
+            });
+        })
+        .textures_delta
+        .clear();
 
         let head = take_head_readout(&ctx).expect("head readout");
         let hits = take_spacer_record(&ctx);

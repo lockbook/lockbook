@@ -47,10 +47,10 @@ fn open_nudge() -> Vec2 {
 }
 
 fn open_id() -> Id {
-    Id::new("lb_design_context_menu_open")
+    Id::unique("lb_design_context_menu_open")
 }
 fn area_id() -> Id {
-    Id::new("lb_design_context_menu_area")
+    Id::unique("lb_design_context_menu_area")
 }
 
 #[derive(Clone, Copy)]
@@ -77,6 +77,12 @@ impl<T> Entries<T> {
     pub fn item(&mut self, icon: &'static str, label: impl Into<String>, value: T) {
         self.rows
             .push(Row::Item { icon: Some(icon), label: label.into(), danger: false, value });
+    }
+
+    /// A row with no icon; a menu of only these drops the icon column.
+    pub fn item_plain(&mut self, label: impl Into<String>, value: T) {
+        self.rows
+            .push(Row::Item { icon: None, label: label.into(), danger: false, value });
     }
 
     pub fn item_danger(&mut self, icon: &'static str, label: impl Into<String>, value: T) {
@@ -152,24 +158,48 @@ pub fn show_click<T: Clone>(
     show_open(resp, t, resp.clicked(), build)
 }
 
+/// A menu a click on `resp` opens and a second click puts away; a right
+/// click opens it where it is.
+pub fn show_toggle<T: Clone>(
+    resp: &Response, t: &Theme, build: impl FnOnce(&mut Entries<T>),
+) -> Option<T> {
+    let open = (resp.clicked() && !is_open(resp)) || resp.secondary_clicked();
+    show_open(resp, t, open, build)
+}
+
+/// Puts the open menu away, whoever hosts it.
+pub fn close(ctx: &egui::Context) {
+    ctx.memory_mut(|m| m.data.remove::<OpenState>(open_id()));
+}
+
 /// True when this response is the host of the open menu.
 pub fn is_open(resp: &Response) -> bool {
     is_open_id(&resp.ctx, resp.id)
 }
 
+/// True while any menu is open (a canvas host stops panning under it).
+pub fn is_any_open(ctx: &egui::Context) -> bool {
+    ctx.memory(|m| m.data.get_temp::<OpenState>(open_id()).is_some())
+}
+
 /// True when `id` is the host of the open menu.
 pub fn is_open_id(ctx: &egui::Context, id: Id) -> bool {
-    ctx.memory(|m| {
-        m.data
-            .get_temp::<OpenState>(open_id())
-            .is_some_and(|s| s.host == id)
-    })
+    open_host(ctx) == Some(id)
+}
+
+/// The host of the open menu.
+pub fn open_host(ctx: &egui::Context) -> Option<Id> {
+    ctx.memory(|m| m.data.get_temp::<OpenState>(open_id()))
+        .map(|s| s.host)
 }
 
 fn show_open<T: Clone>(
     resp: &Response, t: &Theme, open: bool, build: impl FnOnce(&mut Entries<T>),
 ) -> Option<T> {
     let ctx = &resp.ctx;
+    if !open && !is_open(resp) {
+        return None;
+    }
 
     let mut menu = Entries::new();
     build(&mut menu);
@@ -221,7 +251,7 @@ fn show_open<T: Clone>(
                         ui,
                         t,
                         &menu.rows,
-                        Id::new(("lb_ctx_root", state.host)),
+                        Id::unique(("lb_ctx_root", state.host)),
                         content_w,
                         with_icons,
                     );

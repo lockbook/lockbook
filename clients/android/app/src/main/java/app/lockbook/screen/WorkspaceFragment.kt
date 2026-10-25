@@ -63,9 +63,7 @@ import app.lockbook.model.OpenFilePresentation
 import app.lockbook.model.OpenTab
 import app.lockbook.model.QuickCaptureViewModel
 import app.lockbook.model.SearchPresentation
-import app.lockbook.model.SidebarRoot
 import app.lockbook.model.WorkspaceDocumentItem
-import app.lockbook.model.WorkspaceReturnDestination
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
@@ -92,6 +90,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.File
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import java.io.File as JavaFile
 
 private const val MAX_PICKED_PHOTOS = 10
@@ -210,7 +209,12 @@ class WorkspaceFragment : Fragment() {
         model.openFile.observe(viewLifecycleOwner) { request ->
             finishPendingTabClose()
             model.isFileTreeSyncedToCurrentTab = true
-            workspaceWrapper.workspaceView.openDoc(request.id, request.newFile, request.returnDestination)
+            workspaceWrapper.workspaceView.openDoc(
+                request.id,
+                request.newFile,
+                heading = request.heading,
+                closeDetailOnBack = request.closeDetailOnBack,
+            )
 
             when (request.presentation) {
                 OpenFilePresentation.Preserve -> {
@@ -272,23 +276,18 @@ class WorkspaceFragment : Fragment() {
 
         model.workspaceBackRequested.observe(viewLifecycleOwner) {
             val view = workspaceWrapper.workspaceView
+            if (model.outlineOpen.value == true) {
+                view.toggleOutline()
+                return@observe
+            }
             if (view.back()) return@observe
             val tab = model.currentTab.value
-            val destination = tab?.let { model.returnDestination(it.sessionId) } ?: WorkspaceReturnDestination.Files
+            val closeDetailOnBack = tab?.let { model.shouldCloseDetailOnBack(it.sessionId) } ?: true
             val activity = requireActivity() as MainScreenActivity
-            val deferClose =
-                destination != WorkspaceReturnDestination.Welcome &&
-                    model.openTabCount.value == 1 && activity.isFocusingDetail()
+            val deferClose = closeDetailOnBack && model.openTabCount.value == 1 && activity.isFocusingDetail()
             if (tab?.type != WorkspaceTabType.Welcome) {
                 val closed = !deferClose && view.closeCurrentTabToWelcome()
-                if (destination == WorkspaceReturnDestination.Welcome && closed) return@observe
-                val sidebar =
-                    when (destination) {
-                        WorkspaceReturnDestination.Recents -> SidebarRoot.Recents
-                        WorkspaceReturnDestination.PendingShares -> SidebarRoot.PendingShares
-                        else -> SidebarRoot.Files
-                    }
-                mainScreenModel.navigate(MainNavigationAction.SelectSidebar(sidebar))
+                if (!closeDetailOnBack && closed) return@observe
             }
             if (deferClose) {
                 tab?.sessionId?.let { sessionId ->
@@ -453,7 +452,7 @@ class WorkspaceFragment : Fragment() {
                 hideEditorKeyboard()
             }
             filesListModel.reloadFiles()
-            mainScreenModel.navigate(MainNavigationAction.OpenDocument(note.id, newFile = false, returnToWelcome = true))
+            mainScreenModel.navigate(MainNavigationAction.OpenDocument(note.id, newFile = false, closeDetailOnBack = false))
         }
         val adapter =
             WorkspaceDocumentsAdapter(
@@ -462,7 +461,7 @@ class WorkspaceFragment : Fragment() {
                 openDocument = { file ->
                     if (captureExpansion != null) return@WorkspaceDocumentsAdapter
                     hideEditorKeyboard()
-                    mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false, returnToWelcome = true))
+                    mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false, closeDetailOnBack = false))
                 },
                 createStarter = { template ->
                     if (captureExpansion ==
@@ -599,6 +598,18 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun onCreateToolbar(workspaceWrapper: WorkspaceWrapperView) {
+        binding.outlineWs.setOnClickListener { workspaceWrapper.workspaceView.toggleOutline() }
+        model.outlineAvailable.observe(viewLifecycleOwner) { available ->
+            binding.outlineWs.isVisible = available
+        }
+        model.outlineOpen.observe(viewLifecycleOwner) { open ->
+            if (open) {
+                hideDocumentActions()
+                tabsDialog?.dismiss()
+            }
+            updateToolbarVisibility()
+            workspaceWrapper.updateNativeToolbar()
+        }
         binding.documentName.setOnClickListener {
             if (documentActionFile == null) showDocumentActions() else hideDocumentActions()
         }
@@ -627,6 +638,7 @@ class WorkspaceFragment : Fragment() {
     private fun canToolbarHideOnScroll(): Boolean = isWelcomeVisible() || model.currentTab.value?.type == WorkspaceTabType.Markdown
 
     private fun onWorkspaceScroll(distanceY: Float) {
+        if (model.outlineOpen.value == true) return
         if (distanceY > 0 && model.currentTab.value?.type == WorkspaceTabType.Markdown) hideDocumentActions()
         if (distanceY != 0f && canToolbarHideOnScroll() &&
             model.keyboardVisible.value != true && documentActionFile == null && captureExpansion == null
@@ -749,7 +761,7 @@ class WorkspaceFragment : Fragment() {
 
     private fun updateToolbarVisibility() {
         val hiddenByScroll = canToolbarHideOnScroll() && toolbarHiddenByScroll
-        val shouldShow = model.keyboardVisible.value != true && !hiddenByScroll
+        val shouldShow = model.keyboardVisible.value != true && model.outlineOpen.value != true && !hiddenByScroll
         if (toolbarVisible == shouldShow) return
         toolbarVisible = shouldShow
         val toolbar = binding.workspaceToolbar
@@ -1067,6 +1079,7 @@ class WorkspaceWrapperView(
 
     fun updateNativeToolbar() {
         val visible = shouldShowNativeToolbar()
+        if (visible) markdownToolbar.refreshEditorState()
         if (visible && markdownToolbar.isVisible && markdownToolbar.translationY == 0f) return
         if (!visible && !markdownToolbar.isVisible) return
         markdownToolbar.animate().cancel()
@@ -1096,7 +1109,7 @@ class WorkspaceWrapperView(
     }
 
     private fun shouldShowNativeToolbar(): Boolean =
-        model.keyboardVisible.value == true &&
+        model.keyboardVisible.value == true && model.outlineOpen.value != true &&
             workspaceView.canForwardTouches() &&
             model.currentTab.value?.type == WorkspaceTabType.Markdown &&
             Workspace.canEditMarkdown(WorkspaceView.wgpuObj)
@@ -1140,10 +1153,10 @@ class WorkspaceWrapperView(
             return
         }
 
-        val wrapper = WorkspaceTextInputWrapper(context, workspaceView, 0f)
+        val wrapper = WorkspaceTextInputWrapper(context, workspaceView)
         currentWrapper = wrapper
         workspaceView.wrapperView = wrapper
-        addView(wrapper, regLayoutParams)
+        addView(wrapper, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         markdownToolbar.bringToFront()
     }
 }
@@ -1152,9 +1165,52 @@ class WorkspaceWrapperView(
 class WorkspaceTextInputWrapper(
     context: Context,
     val workspaceView: WorkspaceView,
-    val touchYOffset: Float,
 ) : View(context) {
     val wsInputConnection = WorkspaceTextInputConnection(workspaceView, this)
+
+    var touchOffsetX = 0f
+    var touchOffsetY = 0f
+
+    fun applyTextInteractionRect(
+        hasRect: Boolean,
+        minX: Float,
+        minY: Float,
+        maxX: Float,
+        maxY: Float,
+        density: Float,
+    ) {
+        if (!hasRect) {
+            return
+        }
+
+        val left = (minX * density).roundToInt()
+        val top = (minY * density).roundToInt()
+        val width = ((maxX - minX) * density).roundToInt().coerceAtLeast(1)
+        val height = ((maxY - minY) * density).roundToInt().coerceAtLeast(1)
+
+        val lp =
+            (layoutParams as? FrameLayout.LayoutParams) ?: FrameLayout.LayoutParams(width, height)
+        if (lp.leftMargin == left &&
+            lp.topMargin == top &&
+            lp.width == width &&
+            lp.height == height
+        ) {
+            touchOffsetX = left.toFloat()
+            touchOffsetY = top.toFloat()
+            return
+        }
+
+        lp.leftMargin = left
+        lp.topMargin = top
+        lp.rightMargin = 0
+        lp.bottomMargin = 0
+        lp.width = width
+        lp.height = height
+        layoutParams = lp
+
+        touchOffsetX = left.toFloat()
+        touchOffsetY = top.toFloat()
+    }
 
     private var touchStartX = 0f
     private var touchStartY = 0f
@@ -1185,7 +1241,7 @@ class WorkspaceTextInputWrapper(
                     abs(event.x - touchStartX).toInt() < slopTouchThreshold &&
                         abs(event.y - touchStartY).toInt() < slopTouchThreshold
                 if (!keyboardShown && duration < 300 && nonSloppyTouch &&
-                    !workspaceView.willConsumeTouches(event.x, event.y + touchYOffset)
+                    !workspaceView.willConsumeTouches(event.x + touchOffsetX, event.y + touchOffsetY)
                 ) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
@@ -1194,7 +1250,7 @@ class WorkspaceTextInputWrapper(
         }
 
         if (event != null) {
-            workspaceView.touchForwarder.forward(event, touchYOffset)
+            workspaceView.touchForwarder.forward(event, touchOffsetX, touchOffsetY)
         }
 
         return true

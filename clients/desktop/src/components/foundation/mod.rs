@@ -23,7 +23,7 @@ pub use workspace_rs::style::{
 };
 pub use workspace_rs::style::{
     Radius, STROKE_HAIRLINE, control_height, display_file_name, file_row_icon, paint_plate,
-    paint_plate_stroke, phosphor, phosphor_font_id, phosphor_ui_font_id, pin_shadow, plate_content,
+    paint_plate_stroke, phosphor, phosphor_font_id, phosphor_ui_font_id, plate_content,
     shortcut_cmd_i, shortcut_cmd_n, shortcut_enter, shortcut_esc, shortcut_return, tab_icon,
 };
 #[cfg(test)]

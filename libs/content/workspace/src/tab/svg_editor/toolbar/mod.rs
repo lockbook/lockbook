@@ -281,9 +281,11 @@ impl Toolbar {
         } else {
             1.0
         };
-        let opacity =
-            ui.ctx()
-                .animate_value_with_time(egui::Id::new("overlay_opacity"), target_opacity, 0.3);
+        let opacity = ui.ctx().animate_value_with_time(
+            egui::Id::unique("overlay_opacity"),
+            target_opacity,
+            0.3,
+        );
 
         ui.set_opacity(opacity);
 

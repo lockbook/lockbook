@@ -12,14 +12,15 @@
 use std::sync::Arc;
 
 use egui::{
-    Color32, CornerRadius, FontFamily, FontId, Frame, Margin, Rect, Response, Shadow, Stroke,
-    StrokeKind, Ui,
+    Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, Rect,
+    Response, Sense, Shadow, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 
-use super::color::Theme;
+use super::color::{Theme, ThemeExt};
 use super::space::Space;
 use super::space::control as control_space;
 use super::typography::TypeRole;
+use crate::theme::palette_v2::Mode;
 
 /// Control transition duration (also `Style::animation_time`).
 pub const HOVER_ANIM_SECS: f32 = 0.20;
@@ -130,19 +131,42 @@ pub fn row_wash_inset() -> f32 {
     1.0
 }
 
-/// Ink for surface shadows: black at alpha 36/255 (~14%).
-/// Same mix for overlay and pin so they scale as one family.
-const SHADOW_INK: Color32 = Color32::from_black_alpha(36);
+/// Ink for surface shadows; one mix for overlay and pin so they scale as a
+/// family. Dark alpha lands a little under light's L* drop at the plate edge.
+fn shadow_ink(t: &Theme) -> Color32 {
+    match t.current {
+        Mode::Light => Color32::from_black_alpha(36),
+        Mode::Dark => Color32::from_black_alpha(160),
+    }
+}
 
 /// Soft float under menus, pickers, floating plates (islands).
-pub fn overlay_shadow() -> Shadow {
-    Shadow { offset: [0, 4], blur: 12, spread: 0, color: SHADOW_INK }
+pub fn overlay_shadow(t: &Theme) -> Shadow {
+    Shadow { offset: [0, 4], blur: 12, spread: 0, color: shadow_ink(t) }
+}
+
+/// How deep content fades out at an edge of its scroller with more beyond.
+pub const EDGE_FADE: Space = Space::Lg;
+
+/// Paints `rect` from `from` at its top (or left) edge to `to` at its bottom
+/// (or right): over content, `from` the surface and `to` clear fades it out
+/// toward that edge.
+pub fn paint_fade(painter: &egui::Painter, rect: Rect, from: Color32, to: Color32, vertical: bool) {
+    let (a, b, c, d) = if vertical { (from, from, to, to) } else { (from, to, from, to) };
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(rect.left_top(), a);
+    mesh.colored_vertex(rect.right_top(), b);
+    mesh.colored_vertex(rect.left_bottom(), c);
+    mesh.colored_vertex(rect.right_bottom(), d);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(1, 2, 3);
+    painter.add(egui::Shape::mesh(mesh));
 }
 
 /// Contact shadow for held-in-place chrome (sticky pins).
-/// Half of [`overlay_shadow`]: offset 2, blur 6, same ink.
-pub fn pin_shadow() -> Shadow {
-    Shadow { offset: [0, 2], blur: 6, spread: 0, color: SHADOW_INK }
+/// [`overlay_shadow`]'s blur and ink at half the lift: offset 2, blur 12.
+pub fn pin_shadow(t: &Theme) -> Shadow {
+    Shadow { offset: [0, 2], blur: 12, spread: 0, color: shadow_ink(t) }
 }
 
 /// Canvas plate frame for floating menus / pickers (fill + hairline + shadow).
@@ -157,7 +181,7 @@ pub fn canvas_overlay_frame(t: &Theme, inner_pad: Space) -> Frame {
         .stroke(Stroke::new(STROKE_HAIRLINE, t.neutral()))
         .corner_radius(Radius::Control.corner())
         .inner_margin(Margin::same(p))
-        .shadow(overlay_shadow())
+        .shadow(overlay_shadow(t))
 }
 
 /// Fill + hairline on a known rect. **`StrokeKind::Outside`** so later child
@@ -230,6 +254,8 @@ pub mod phosphor {
     /// Create-sheet “Alongside …” (`ph-arrow-bend-down-right`).
     pub const ARROW_BEND_DOWN_RIGHT: &str = "\u{e01a}";
     pub const FOLDER: &str = "\u{e24a}";
+    /// Account root (“Home”) wherever folders are named.
+    pub const HOUSE: &str = "\u{e2c2}";
     /// Open folder.
     pub const FOLDER_OPEN: &str = "\u{e256}";
     pub const FILE: &str = "\u{e230}";
@@ -290,6 +316,9 @@ pub mod phosphor {
     pub const CHECK_CIRCLE: &str = "\u{e184}";
     /// Horizontal ellipsis (`ph-dots-three`).
     pub const DOTS_THREE: &str = "\u{e1fe}";
+    /// Drag grips (`ph-dots-six` / `ph-dots-six-vertical`).
+    pub const DOTS_SIX: &str = "\u{e794}";
+    pub const DOTS_SIX_VERTICAL: &str = "\u{eae2}";
     /// GFM alert / status.
     pub const INFO: &str = "\u{e2ce}";
     pub const LIGHTBULB: &str = "\u{e2dc}";
@@ -338,8 +367,24 @@ pub mod phosphor {
     pub const TEXT_SUPERSCRIPT: &str = "\u{ec9a}";
     pub const TEXT_INDENT: &str = "\u{ea1e}";
     pub const TEXT_OUTDENT: &str = "\u{ea1c}";
+    pub const QUOTES: &str = "\u{e660}";
+    pub const TABLE: &str = "\u{e476}";
+    pub const ROWS_PLUS_TOP: &str = "\u{e5a0}";
+    pub const ROWS_PLUS_BOTTOM: &str = "\u{e59e}";
+    pub const COLUMNS_PLUS_LEFT: &str = "\u{e544}";
+    pub const COLUMNS_PLUS_RIGHT: &str = "\u{e542}";
+    pub const TEXT_ALIGN_LEFT: &str = "\u{e484}";
+    pub const TEXT_ALIGN_CENTER: &str = "\u{e480}";
+    pub const TEXT_ALIGN_RIGHT: &str = "\u{e486}";
+    /// Tab and back-tab (`ph-arrow-line-right` / `ph-arrow-line-left`).
+    pub const ARROW_LINE_RIGHT: &str = "\u{e064}";
+    pub const ARROW_LINE_LEFT: &str = "\u{e062}";
     /// Nested lines — document outline (`ph-list`).
     pub const LIST: &str = "\u{e2f0}";
+    /// Lines with dashes — the outline button (`ph-list-dashes`).
+    pub const LIST_DASHES: &str = "\u{e2f4}";
+    /// `#` — a note's headings in the link picker (`ph-hash`).
+    pub const HASH: &str = "\u{e2a2}";
     pub const LIST_BULLETS: &str = "\u{e2f2}";
     pub const LIST_NUMBERS: &str = "\u{e2f6}";
     pub const CHECK_SQUARE: &str = "\u{e186}";
@@ -359,6 +404,8 @@ pub mod phosphor {
     /// Titleband back / forward.
     pub const ARROW_LEFT: &str = "\u{e058}";
     pub const ARROW_RIGHT: &str = "\u{e06c}";
+    pub const ARROW_UP: &str = "\u{e08e}";
+    pub const ARROW_DOWN: &str = "\u{e03e}";
     pub const FOLDERS: &str = "\u{e260}";
     pub const PUSH_PIN: &str = "\u{e3e2}";
     pub const SCISSORS: &str = "\u{eae0}";
@@ -441,7 +488,7 @@ pub fn display_file_name(name: &str) -> &str {
 pub fn tab_icon(dest: &crate::tab::Destination, name: &str) -> &'static str {
     use crate::tab::Destination;
     match dest {
-        Destination::Search => phosphor::SEARCH,
+        Destination::Search(_) => phosphor::SEARCH,
         Destination::MindMap(_) => phosphor::GRAPH,
         Destination::SpaceInspector(_) => phosphor::CHART_PIE_SLICE,
         Destination::File(_) => file_row_icon(name, false),
@@ -459,6 +506,46 @@ pub fn phosphor_font_id(size: f32) -> FontId {
 /// Phosphor at body size (leading button icons / file rows).
 pub fn phosphor_ui_font_id() -> FontId {
     phosphor_font_id(TypeRole::Body.size())
+}
+
+/// Centered Phosphor spinner + muted caption. Call every frame while waiting.
+pub fn loading_indicator(ui: &mut Ui) {
+    let t = ui.ctx().get_lb_theme();
+    ui.ctx().request_repaint();
+    let angle = (ui.input(|i| i.time) * std::f64::consts::TAU) as f32;
+    centered_status(ui, phosphor::SPINNER_GAP, "Loading…", t.accent(), angle);
+}
+
+/// Centered muted Phosphor mark + caption (failed loads, empty states).
+pub fn message_indicator(ui: &mut Ui, icon: &'static str, caption: &str) {
+    let t = ui.ctx().get_lb_theme();
+    centered_status(ui, icon, caption, t.neutral_fg_secondary(), 0.0);
+}
+
+fn centered_status(ui: &mut Ui, icon: &'static str, caption: &str, ink: Color32, angle: f32) {
+    let t = ui.ctx().get_lb_theme();
+    let g = ui
+        .painter()
+        .layout_no_wrap(icon.into(), phosphor_ui_font_id(), ink);
+    let gap = Space::Xs.pts();
+    let cap_h = TypeRole::Body.line_height();
+    let content_h = g.size().y + gap + cap_h;
+    let rect = ui.available_rect_before_wrap();
+    let y = (rect.center().y - content_h / 2.0).max(rect.top());
+    let block = Rect::from_min_size(
+        pos2(rect.left(), y),
+        vec2(rect.width(), content_h.min(rect.height()).max(1.0)),
+    );
+    super::layout::place_at(ui, block, Layout::top_down(Align::Center), |ui| {
+        let (icon_rect, _) = ui.allocate_exact_size(g.size(), Sense::hover());
+        ui.painter().add(
+            egui::epaint::TextShape::new(icon_rect.min, g, ink)
+                .with_angle_and_anchor(angle, Align2::CENTER_CENTER),
+        );
+        ui.add_space(gap);
+        ui.label(TypeRole::Body.rich(caption).color(t.neutral_fg_secondary()));
+    });
+    let _ = ui.allocate_rect(rect, Sense::hover());
 }
 
 /// Commit shortcut badge (⌘⏎ on macOS, Ctrl+⏎ elsewhere).

@@ -6,6 +6,7 @@ use std::ops::Sub;
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::input::Bound;
+use super::table::TableBounds;
 
 pub type SourceLines = Vec<(Grapheme, Grapheme)>;
 pub type Words = Vec<(Grapheme, Grapheme)>;
@@ -59,6 +60,12 @@ pub struct Bounds {
     /// navigation: the cursor steps past a whole image rather than into its
     /// `![alt](url)` source, and a backspace against one selects it.
     pub images: Vec<(Grapheme, Grapheme)>,
+
+    /// One entry per table, in document order.
+    pub tables: Vec<TableBounds>,
+
+    /// Where each block drawn as code starts, in document order.
+    pub code_blocks: Vec<Grapheme>,
 }
 
 /// Tag + hidden-contents ranges of one actively folded section. Both act
@@ -98,6 +105,8 @@ impl Default for Bounds {
             inline_paragraphs: Paragraphs::default(),
             folds: Vec::default(),
             images: Vec::default(),
+            tables: Vec::default(),
+            code_blocks: Vec::default(),
         }
     }
 }

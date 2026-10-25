@@ -3,8 +3,12 @@ pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;
 pub mod landing;
+pub mod link_plan;
+pub mod links;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;
+pub mod note_index;
+pub mod open_guard;
 pub mod output;
 pub mod resolvers;
 pub mod safe_area;
@@ -19,6 +23,8 @@ pub mod theme;
 pub mod widgets;
 pub mod workspace;
 
+#[cfg(test)]
+mod file_cache_participant_tests;
 #[cfg(test)]
 mod file_cache_prop_tests;
 #[cfg(test)]

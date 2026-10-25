@@ -54,7 +54,9 @@ where
 
         let mut shares = Vec::new();
         for user_access_key in meta.user_access_keys() {
-            if user_access_key.encrypted_by == user_access_key.encrypted_for {
+            if user_access_key.encrypted_by == user_access_key.encrypted_for
+                || user_access_key.deleted
+            {
                 continue;
             }
             let mode = match user_access_key.mode {
@@ -214,7 +216,7 @@ where
             if let FileType::Link { target } = self.find(&id)?.file_type() { target } else { id };
         let mut file = self.find(&id)?.timestamped_value.value.clone();
         validate::not_root(&file)?;
-        if mode == ShareMode::Write && file.owner().0 != owner.0 {
+        if self.access_mode(owner, &id)? < Some(UserAccessMode::Write) {
             return Err(LbErrKind::InsufficientPermission.into());
         }
         // check for and remove duplicate shares

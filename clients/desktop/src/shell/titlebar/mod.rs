@@ -22,6 +22,8 @@ pub use metrics::{
     tab_right_inset, toolbar_cluster_w,
 };
 
+use metrics::sidecar_toggle_inset;
+
 #[cfg(not(target_os = "macos"))]
 use egui::Sense;
 use egui::{Area, Id, Order, Rect, pos2, vec2};
@@ -46,7 +48,7 @@ use windows::window_controls;
 /// (tabs, toolbar, window controls). Written during panel paint; read by
 /// [`drag_strip`] after panels (shell root order).
 fn window_drag_blockers_id() -> Id {
-    Id::new("shell_window_drag_blockers")
+    Id::unique("shell_window_drag_blockers")
 }
 
 /// Exclude `rect` from the window-move drag band for this frame.
@@ -74,7 +76,7 @@ fn pointer_in_blockers(pos: egui::Pos2, blockers: &[Rect]) -> bool {
 }
 
 fn window_menu_request_id() -> Id {
-    Id::new("shell_window_menu_at")
+    Id::unique("shell_window_menu_at")
 }
 
 fn request_window_menu(ctx: &egui::Context, pos: egui::Pos2) {
@@ -90,7 +92,7 @@ pub fn take_window_menu_request(ctx: &egui::Context) -> Option<egui::Pos2> {
 
 #[cfg(target_os = "macos")]
 fn titlebar_double_click_request_id() -> Id {
-    Id::new("shell_titlebar_double_click")
+    Id::unique("shell_titlebar_double_click")
 }
 
 #[cfg(target_os = "macos")]
@@ -106,7 +108,7 @@ pub fn take_titlebar_double_click(ctx: &egui::Context) -> bool {
 }
 
 fn titleband_last_click_id() -> Id {
-    Id::new("shell_titleband_last_click")
+    Id::unique("shell_titleband_last_click")
 }
 
 fn titleband_double_click_interval() -> f64 {
@@ -127,6 +129,7 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
     // Pane / history icons are workspace chrome — hide them on onboard.
     if app.product_open() {
         floating_toolbar(app, ctx, t, queue);
+        sidecar_toggle(app, ctx, t, queue);
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -154,13 +157,13 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
 fn drag_strip(ctx: &egui::Context) {
     use egui::{DragAndDrop, PointerButton, ViewportCommand};
 
-    let screen = ctx.screen_rect();
+    let screen = ctx.content_rect();
     let header = Rect::from_min_size(screen.min, vec2(screen.width(), HEADER_H));
     let blockers = take_window_drag_blockers(ctx);
     let free = |pos: egui::Pos2| header.contains(pos) && !pointer_in_blockers(pos, &blockers);
 
     // Always clear the one-shot arm when the primary button is up.
-    let armed_id = Id::new("shell_window_drag_armed");
+    let armed_id = Id::unique("shell_window_drag_armed");
     if !ctx.input(|i| i.pointer.primary_down()) {
         ctx.data_mut(|d| d.insert_temp(armed_id, false));
     }
@@ -251,7 +254,7 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
         .map(|r| (r.workspace.can_back(), r.workspace.can_forward()))
         .unwrap_or((false, false));
 
-    Area::new(Id::new("shell_sidebar_toolbar"))
+    Area::new(Id::unique("shell_sidebar_toolbar"))
         .order(Order::Foreground)
         .fixed_pos(pos2(TOGGLE_X, y))
         .show(ctx, |ui| {
@@ -295,6 +298,33 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
         });
 }
 
+/// The sidecar toggle at the titleband's right, before the window controls:
+/// the current note's outline, docked beside its text. Muted where there's
+/// no note to outline.
+fn sidecar_toggle(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+    let size = icon_size();
+    let y = HEADER_CENTER - size / 2.0;
+    let right = ctx.content_rect().right() - sidecar_toggle_inset();
+    let rect = Rect::from_min_size(pos2(right - size, y), vec2(size, size));
+    block_window_drag(ctx, rect);
+    let (enabled, active) = app
+        .session
+        .ready()
+        .and_then(|r| r.workspace.current_tab_markdown())
+        .map(|md| (md.outline_offered, md.outline_open()))
+        .unwrap_or_default();
+    let ground = t.neutral_bg_secondary();
+    Area::new(Id::unique("shell_sidecar_toggle"))
+        .order(Order::Foreground)
+        .fixed_pos(rect.min)
+        .show(ctx, |ui| {
+            let resp = titlebar_icon(ui, t, phosphor::INFO, active, enabled, ground, "Outline");
+            if enabled && resp.clicked() {
+                queue.push(A::ToggleSidecar);
+            }
+        });
+}
+
 /// Titleband icon: pane toggles (accent when selected) and back/forward
 /// (foreground when enabled; muted, no hover, when disabled).
 fn titlebar_icon(
@@ -323,7 +353,7 @@ fn titlebar_icon(
 #[cfg(not(target_os = "macos"))]
 fn window_resize_edges(ctx: &egui::Context) {
     use egui::{CursorIcon, PointerButton, ResizeDirection, ViewportCommand};
-    let r = ctx.screen_rect();
+    let r = ctx.content_rect();
     let b = 6.0;
     let zones = [
         (
@@ -388,7 +418,7 @@ fn window_resize_edges(ctx: &egui::Context) {
         ),
     ];
     for (id, rect, dir, cursor) in zones {
-        Area::new(Id::new(id))
+        Area::new(Id::unique(id))
             .order(Order::Foreground)
             .fixed_pos(rect.min)
             .show(ctx, |ui| {
@@ -405,10 +435,10 @@ fn window_resize_edges(ctx: &egui::Context) {
 
 #[cfg(all(test, not(target_os = "macos")))]
 mod tests {
-    use super::metrics::{caption_cluster_w, tab_right_inset};
+    use super::metrics::{caption_cluster_w, window_controls_inset};
 
     #[test]
     fn caption_inset_matches_cluster() {
-        assert!((tab_right_inset() - caption_cluster_w()).abs() < 0.01);
+        assert!((window_controls_inset() - caption_cluster_w()).abs() < 0.01);
     }
 }
