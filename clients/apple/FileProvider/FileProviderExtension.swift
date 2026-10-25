@@ -2,9 +2,6 @@ import Bridge
 import Darwin
 import FileProvider
 import OSLog
-#if os(iOS)
-import notify
-#endif
 
 final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     let domain: NSFileProviderDomain
@@ -14,11 +11,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     private let cache = FileProviderCache()
     private let coreLock = NSLock()
     private var sharedCore: FileProviderCore?
-    #if os(macOS)
     private var changeSource: DispatchSourceRead?
-    #else
-    private var changeToken = NOTIFY_TOKEN_INVALID
-    #endif
     private var invalidated = false
     private var syncTimer: DispatchSourceTimer?
 
@@ -45,52 +38,30 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         syncTimer = nil
         queue.async {
             self.invalidated = true
-            #if os(macOS)
             self.changeSource?.cancel()
             self.changeSource = nil
-            #else
-            if self.changeToken != NOTIFY_TOKEN_INVALID {
-                notify_cancel(self.changeToken)
-                self.changeToken = NOTIFY_TOKEN_INVALID
-            }
-            #endif
         }
     }
 
     deinit {
-        #if os(macOS)
         changeSource?.cancel()
-        #else
-        if changeToken != NOTIFY_TOKEN_INVALID { notify_cancel(changeToken) }
-        #endif
     }
 
     private func observeChanges() {
-        #if os(macOS)
         guard !invalidated, changeSource == nil else { return }
-        #else
-        guard !invalidated, changeToken == NOTIFY_TOKEN_INVALID else { return }
-        #endif
         do {
             let core = try core()
-            #if os(macOS)
             let url = core.ipcDirectory.appendingPathComponent("fp-\(UUID().uuidString.prefix(8))")
-            var address = sockaddr_un()
-            let path = Array(url.path.utf8CString)
-            guard path.count <= MemoryLayout.size(ofValue: address.sun_path) else {
+            let path = Array(url.path.utf8) + [0]
+            guard path.count + 2 <= Int(SOCK_MAXADDRLEN) else {
                 throw POSIXError(.ENAMETOOLONG)
             }
-            address.sun_family = sa_family_t(AF_UNIX)
-            address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
-            withUnsafeMutableBytes(of: &address.sun_path) { destination in
-                path.withUnsafeBytes { destination.copyBytes(from: $0) }
-            }
+            // Darwin supports longer paths than sockaddr_un's fixed buffer holds.
+            let address = [UInt8(path.count + 2), UInt8(AF_UNIX)] + path
             let fd = socket(AF_UNIX, SOCK_DGRAM, 0)
             guard fd >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
-            let bound = withUnsafePointer(to: &address) {
-                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-                }
+            let bound = address.withUnsafeBytes {
+                Darwin.bind(fd, $0.baseAddress!.assumingMemoryBound(to: sockaddr.self), socklen_t(address.count))
             }
             guard bound == 0 else {
                 let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
@@ -110,18 +81,6 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             }
             changeSource = source
             source.resume()
-            #else
-            let name = lb_change_notification_name(core.core.lb)
-            defer { lb_free_str(name) }
-            let status = notify_register_dispatch(name, &changeToken, queue) { [weak self] _ in
-                guard let self, !self.invalidated else { return }
-                self.signalChanges()
-            }
-            guard status == NOTIFY_STATUS_OK else {
-                changeToken = NOTIFY_TOKEN_INVALID
-                throw CocoaError(.featureUnsupported)
-            }
-            #endif
             // Cover commits before registration, including during extension startup.
             signalChanges()
         } catch {
