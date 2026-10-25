@@ -286,7 +286,6 @@ impl<'ast> MdRender {
             underline: false,
             strikethrough: false,
             background: egui::Color32::TRANSPARENT,
-            border: egui::Color32::TRANSPARENT,
             spoiler: false,
             superscript: false,
             subscript: false,

@@ -21,7 +21,6 @@ impl<'ast> MdRender {
             // Translucent fill that matches the opaque look over the page
             // but lets a selection behind it show through.
             background: translucent_over(background, theme.neutral_bg(), 0.5),
-            border: theme.neutral_bg_tertiary(),
             bold: false, // SF Mono does not have bold variants for numbers (it does have italic)
             ..self.text_format_code_block(parent)
         }
