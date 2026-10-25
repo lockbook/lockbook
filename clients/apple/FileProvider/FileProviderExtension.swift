@@ -8,6 +8,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     let manager: NSFileProviderManager
     private let queue = DispatchQueue(label: "app.lockbook.file-provider.notifications")
     private let cache = FileProviderCache()
+    private let coreLock = NSLock()
+    private var sharedCore: FileProviderCore?
     private var changeSource: DispatchSourceRead?
     private var invalidated = false
     private var syncTimer: DispatchSourceTimer?
@@ -97,7 +99,15 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     }
 
     func core() throws -> FileProviderCore {
-        try FileProviderCore(domain: domain, cache: cache)
+        // Only initialization is serialized; callbacks use the core concurrently.
+        let core = try coreLock.withLock {
+            if let sharedCore { return sharedCore }
+            let core = try FileProviderCore(domain: domain, cache: cache)
+            sharedCore = core
+            return core
+        }
+        lb_refresh(core.core.lb)
+        return core
     }
 
     func perform<T>(_ work: @escaping (FileProviderCore) throws -> T,

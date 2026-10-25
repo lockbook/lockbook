@@ -1,7 +1,7 @@
 import Bridge
 import FileProvider
 
-// Open a fresh database view for each callback; share only the in-memory cache.
+// Keep one core for the extension's lifetime and refresh its database between callbacks.
 // File locks and safe_write coordinate with other callbacks and the app/CLI.
 final class FileProviderCore {
     let core: LbInitRes

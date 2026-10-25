@@ -71,6 +71,11 @@ impl Lb {
         &self.lb
     }
 
+    /// Apply other processes' commits before reading from a core without background work.
+    pub fn refresh(&self) {
+        self.block_on(async { self.lb.begin_tx().await.end() });
+    }
+
     pub fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {

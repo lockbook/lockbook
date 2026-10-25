@@ -65,6 +65,12 @@ pub extern "C" fn lb_init(
     }
 }
 
+/// Apply other processes' commits to this core's in-memory database.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_refresh(lb: *mut Lb) {
+    rlb(lb).refresh();
+}
+
 #[repr(C)]
 pub struct LbAccountRes {
     err: *mut LbFfiErr,
