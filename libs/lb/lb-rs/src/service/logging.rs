@@ -193,9 +193,6 @@ pub fn init_for_client(config: &Config, client_name: Option<&str>) -> LbResult<(
     if !config.logs {
         return Ok(());
     }
-    // Extensions may initialize multiple core instances concurrently.
-    static INIT: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _guard = INIT.lock().map_err(core_err_unexpected)?;
     if tracing::dispatcher::has_been_set() {
         return Ok(());
     }
