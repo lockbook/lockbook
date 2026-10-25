@@ -46,6 +46,9 @@
         private var chromeMarkedLength = 0
         /// The chat composer with a hardware keyboard: Return sends.
         private var sendOnReturn = false
+        /// A link or shortcode completion is open: its arrows and Return
+        /// choose from it rather than move the caret or break the line.
+        private var completionsOpen = false
         private lazy var readOnlyInteraction = UITextInteraction(for: .nonEditable)
         private var documentEditable = true
         private let noKeyboard = UIView()
@@ -467,6 +470,11 @@
                 return true
             }
             let mods = key.modifierFlags
+            let chord = mods.intersection([.shift, .control, .alternate, .command])
+            if completionsOpen, chord.isEmpty,
+               [.keyboardUpArrow, .keyboardDownArrow, .keyboardReturnOrEnter].contains(key.keyCode) {
+                return true
+            }
             switch key.keyCode {
             case .keyboardEscape:
                 return true
@@ -594,6 +602,7 @@
             isSecureTextEntry = traits.secure
             returnKeyType = traits.single_line ? .done : .default
             sendOnReturn = traits.send_on_return
+            completionsOpen = traits.completions
             setEditable(traits.editable)
             if traitSummary != before, isFirstResponder {
                 // Outside UIKit's own insert or layout callback, which may be
