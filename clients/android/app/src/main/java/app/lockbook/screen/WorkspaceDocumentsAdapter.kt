@@ -16,16 +16,14 @@ import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.WorkspaceDocumentCardBinding
 import app.lockbook.model.MarkdownExcerpt
 import app.lockbook.model.WorkspaceDocumentItem
-import app.lockbook.model.documentCardAppearance
-import app.lockbook.model.documentCardCoverHeights
 import app.lockbook.util.DocumentPreview
 import app.lockbook.util.DocumentPreviewLoader
 import app.lockbook.util.harmonizedSeedColors
+import app.lockbook.util.identityColorBucket
 import com.google.android.material.color.ColorRoles
 import io.noties.markwon.AbstractMarkwonPlugin
 import io.noties.markwon.Markwon
@@ -78,7 +76,7 @@ internal class WorkspaceDocumentsAdapter(
 
         init {
             binding.root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-                binding.root.post { updateCoverHeight(binding.root.width) }
+                binding.root.post { updateCoverHeight() }
                 binding.markdownPreview.post { positionPreview() }
             }
         }
@@ -93,22 +91,12 @@ internal class WorkspaceDocumentsAdapter(
             view.scrollTo(0, top.coerceAtMost((layout.height - available).coerceAtLeast(0)))
         }
 
-        private fun updateCoverHeight(width: Int) {
-            if (width <= 0) return
+        private fun updateCoverHeight() {
             val position = bindingAdapterPosition
             if (position == RecyclerView.NO_POSITION) return
-            val grid = (binding.root.parent as? RecyclerView)?.layoutManager as? StaggeredGridLayoutManager ?: return
-            val density = binding.root.resources.displayMetrics.density
-            val footer = (binding.root.height - binding.coverArea.height).coerceAtLeast((56 * density).toInt())
-            val margins = binding.root.layoutParams as ViewGroup.MarginLayoutParams
-            val height =
-                documentCardCoverHeights(
-                    currentList.map { it.file.id },
-                    grid.spanCount,
-                    binding.root.resources.getDimensionPixelSize(R.dimen.workspace_card_preview_base_height),
-                    footer,
-                    margins.topMargin + margins.bottomMargin,
-                ).getOrNull(position) ?: return
+            // Repeat short, medium, and tall previews by position in the grid.
+            val baseHeight = binding.root.resources.getDimensionPixelSize(R.dimen.workspace_card_preview_base_height)
+            val height = baseHeight * (position % 3 + 1) / 3
             if (binding.coverArea.layoutParams.height != height) {
                 binding.coverArea.layoutParams = binding.coverArea.layoutParams.apply { this.height = height }
             }
@@ -133,15 +121,15 @@ internal class WorkspaceDocumentsAdapter(
             imageJob?.cancel()
             val context = itemView.context
             val file = item.file
-            val appearance = documentCardAppearance(file.id)
-            val colors = harmonizedSeedColors(context, Color.HSVToColor(floatArrayOf(appearance.hue, 0.475f, 0.7f)))
+            val hue = identityColorBucket(file.id) * 45f
+            val colors = harmonizedSeedColors(context, Color.HSVToColor(floatArrayOf(hue, 0.475f, 0.7f)))
             val coverColor = applyCardColors(colors)
             binding.cover.setImageDrawable(null)
             binding.cover.setPadding(0, 0, 0, 0)
             binding.markdownPreview.isVisible = false
             binding.markdownPreview.scrollTo(0, 0)
             binding.previewFade.isVisible = false
-            binding.root.post { updateCoverHeight(binding.root.width) }
+            binding.root.post { updateCoverHeight() }
             binding.title.text = item.name
             binding.coverMenu.contentDescription = context.getString(R.string.workspace_cover_options, item.name)
             binding.coverMenu.setOnClickListener { showCoverMenu(file, binding.coverMenu) }
