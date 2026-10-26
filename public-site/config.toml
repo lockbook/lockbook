@@ -11,3 +11,6 @@ feed_filenames = ["atom.xml"]
 lazy_async_image = true
 
 [extra]
+seo_title = "Lockbook — Private, Encrypted Markdown Notes"
+social_image = "shots/mac-editor.png"
+social_image_alt = "Lockbook on macOS, with a Markdown note open beside the file tree"

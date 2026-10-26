@@ -1,6 +1,7 @@
 +++
 title = "Lockbook 0.9 🚀"
 date = 2024-03-02
+description = "Lockbook 0.9 brings Workspace to iOS, an experimental filesystem to the CLI, image support in Canvas, and fixes across the apps."
 [extra]
 author = "parth"
 author_link = "https://github.com/Parth"

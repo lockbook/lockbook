@@ -1,6 +1,7 @@
 +++
 title = "Introducing Lockbook"
 date = 2022-11-29
+description = "The origins of Lockbook: building a native, open-source notes app around privacy, end-to-end encryption, and user control."
 [extra]
 author = "parth"
 author_link = "https://github.com/Parth"
