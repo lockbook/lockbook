@@ -11,7 +11,7 @@ final class MetricKitCrashReporter {
     }
 
     func start() {
-        guard task == nil else { return }
+        guard #available(iOS 27.0, macOS 27.0, *), task == nil else { return }
 
         // One manager and consumer for the app's lifetime. Persist serially off
         // the main actor, without retaining this reporter through the task.

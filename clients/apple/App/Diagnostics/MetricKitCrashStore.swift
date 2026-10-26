@@ -7,6 +7,7 @@ import MetricKit
 struct MetricKitCrashStore {
     let directory: () -> URL
 
+    @available(iOS 27.0, macOS 27.0, *)
     func save(_ report: DiagnosticReport) throws {
         guard case .crash = report.result else { return }
 
