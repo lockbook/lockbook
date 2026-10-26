@@ -180,6 +180,10 @@ impl Lb {
         self.block_on(self.lb.share_file(id, username, mode))
     }
 
+    pub fn unshare_file(&self, id: Uuid, username: &str) -> LbResult<()> {
+        self.block_on(self.lb.unshare_file(id, username))
+    }
+
     pub fn get_pending_shares(&self) -> LbResult<Vec<File>> {
         self.block_on(self.lb.get_pending_shares())
     }

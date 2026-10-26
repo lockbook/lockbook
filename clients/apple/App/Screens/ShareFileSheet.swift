@@ -122,6 +122,16 @@ struct ShareFileSheet: View {
                             Text(share.mode == .write ? "Can edit" : "Can view")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
+
+                            Button(role: .destructive) {
+                                removePerson(share.with)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .padding(6)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Stop sharing with \(share.with)")
+                            .help("Stop sharing with \(share.with)")
                         }
                         .padding(.vertical, 6)
                     }
@@ -161,6 +171,17 @@ struct ShareFileSheet: View {
         switch AppState.lb.shareFile(id: id, username: name, mode: mode) {
         case .success:
             username = ""
+            error = ""
+            workspaceInput.requestSync()
+            filesModel.loadFiles()
+        case let .failure(err):
+            error = err.msg
+        }
+    }
+
+    private func removePerson(_ name: String) {
+        switch AppState.lb.unshareFile(id: id, username: name) {
+        case .success:
             error = ""
             workspaceInput.requestSync()
             filesModel.loadFiles()
