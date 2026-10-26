@@ -59,31 +59,14 @@
             android:paddingEnd="4dp"
             android:paddingVertical="4dp">
 
-            <LinearLayout
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/title"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical"
-                android:paddingVertical="8dp">
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/title"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textAppearance="?attr/textAppearanceTitleMedium" />
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/subtitle"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
-            </LinearLayout>
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAppearance="?attr/textAppearanceTitleMedium" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/cover_menu"

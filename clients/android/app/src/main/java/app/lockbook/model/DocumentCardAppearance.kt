@@ -11,7 +11,7 @@ internal data class DocumentCardAppearance(
 
 /** Shared eight-color identity palette, with UUID-seeded heights in thirds of a fixed base height. */
 internal fun documentCardAppearance(identity: String): DocumentCardAppearance {
-    val uuid = runCatching { UUID.fromString(identity) }.getOrElse { UUID.nameUUIDFromBytes(identity.toByteArray()) }
+    val uuid = UUID.fromString(identity)
     val random = Random(uuid.mostSignificantBits xor java.lang.Long.rotateLeft(uuid.leastSignificantBits, 17))
     // Preserve the existing height sequence now that colors no longer consume this random value.
     random.nextFloat()

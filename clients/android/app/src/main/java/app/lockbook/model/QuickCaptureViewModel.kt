@@ -33,8 +33,8 @@ class QuickCaptureViewModel(
     val isSaving: LiveData<Boolean> = saving
     private val saveError = MutableLiveData<String?>(null)
     val error: LiveData<String?> = saveError
-    private val savedNote = SingleMutableLiveData<CapturedNote>()
-    val createdNote: LiveData<CapturedNote> = savedNote
+    private val savedNote = SingleMutableLiveData<String>()
+    val createdNote: LiveData<String> = savedNote
 
     private var folderRefresh: Job? = null
 
@@ -87,24 +87,7 @@ class QuickCaptureViewModel(
         val content = draft.value.orEmpty()
         if (content.isBlank()) return
         val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        saveNote("$date.md", content, "pendingNote", clearDraft = true)
-    }
-
-    fun createStarter(template: StarterDocument) {
-        val context = getApplication<Application>()
-        val name = context.getString(template.fileName)
-        val content = context.getString(template.content)
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val fileName = if (template == StarterDocument.Journal) "$date.md" else name
-        saveNote(fileName, content, "pendingStarter${template.name}", clearDraft = false)
-    }
-
-    private fun saveNote(
-        name: String,
-        content: String,
-        pendingKey: String,
-        clearDraft: Boolean,
-    ) {
+        val name = "$date.md"
         if (saving.value == true) return
         saving.value = true
         saveError.value = null
@@ -112,21 +95,21 @@ class QuickCaptureViewModel(
             try {
                 // Reuse a created file on retry if writing failed, rather than creating duplicates.
                 val id =
-                    savedState.get<String>(pendingKey) ?: withContext(Dispatchers.IO) {
+                    savedState.get<String>("pendingNote") ?: withContext(Dispatchers.IO) {
                         val parent = resolveSaveFolder()
                         folder.postValue(parent)
                         Lb.createFile(Lb.nextName(parent.id, name), parent.id, true).id
-                    }.also { savedState[pendingKey] = it }
+                    }.also { savedState["pendingNote"] = it }
                 var written = content
                 while (true) {
                     withContext(Dispatchers.IO) { Lb.writeDocument(id, written) }
-                    val latest = if (clearDraft) draft.value.orEmpty() else written
+                    val latest = draft.value.orEmpty()
                     if (latest == written) break
                     written = latest
                 }
-                savedState[pendingKey] = null
-                if (clearDraft) savedState["draft"] = ""
-                savedNote.value = CapturedNote(id, clearDraft)
+                savedState["pendingNote"] = null
+                savedState["draft"] = ""
+                savedNote.value = id
             } catch (error: LbError) {
                 saveError.value = error.msg
             } finally {
@@ -135,8 +118,3 @@ class QuickCaptureViewModel(
         }
     }
 }
-
-data class CapturedNote(
-    val id: String,
-    val fromQuickCapture: Boolean,
-)

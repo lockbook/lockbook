@@ -100,6 +100,7 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/document_section"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
@@ -108,7 +109,8 @@
                 android:orientation="vertical"
                 android:paddingHorizontal="16dp"
                 android:paddingTop="24dp"
-                android:paddingBottom="112dp">
+                android:paddingBottom="112dp"
+                android:visibility="gone">
 
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/continue_heading"

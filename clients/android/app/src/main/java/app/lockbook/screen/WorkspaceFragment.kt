@@ -62,7 +62,6 @@ import app.lockbook.model.OpenFilePresentation
 import app.lockbook.model.OpenTab
 import app.lockbook.model.QuickCaptureViewModel
 import app.lockbook.model.SearchPresentation
-import app.lockbook.model.WorkspaceDocumentItem
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
@@ -430,21 +429,17 @@ class WorkspaceFragment : Fragment() {
                 empty.captureText.isEnabled = true
             }
         }
-        quickCapture.createdNote.observe(viewLifecycleOwner) { note ->
-            if (note.fromQuickCapture) {
-                captureEditorId = note.id
-                binding.workspaceEmpty.captureText.performHapticFeedback(
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        HapticFeedbackConstants.CONFIRM
-                    } else {
-                        HapticFeedbackConstants.KEYBOARD_TAP
-                    },
-                )
-            } else {
-                hideEditorKeyboard()
-            }
+        quickCapture.createdNote.observe(viewLifecycleOwner) { id ->
+            captureEditorId = id
+            binding.workspaceEmpty.captureText.performHapticFeedback(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    HapticFeedbackConstants.CONFIRM
+                } else {
+                    HapticFeedbackConstants.KEYBOARD_TAP
+                },
+            )
             filesListModel.reloadFiles()
-            mainScreenModel.navigate(MainNavigationAction.OpenDocument(note.id, newFile = false, closeDetailOnBack = false))
+            mainScreenModel.navigate(MainNavigationAction.OpenDocument(id, newFile = false, closeDetailOnBack = false))
         }
         val adapter =
             WorkspaceDocumentsAdapter(
@@ -454,13 +449,6 @@ class WorkspaceFragment : Fragment() {
                     if (captureExpansion != null) return@WorkspaceDocumentsAdapter
                     hideEditorKeyboard()
                     mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false, closeDetailOnBack = false))
-                },
-                createStarter = { template ->
-                    if (captureExpansion ==
-                        null
-                    ) {
-                        quickCapture.createStarter(template)
-                    }
                 },
                 showCoverMenu = ::showCoverMenu,
             )
@@ -483,26 +471,16 @@ class WorkspaceFragment : Fragment() {
     private fun updateWorkspaceDocuments() {
         if (!isWelcomeVisible()) return
         val items = workspaceDocumentItems(filesListModel.pinnedFiles.value.orEmpty(), filesListModel.recentFiles.value.orEmpty())
-        val heading =
-            if (items.firstOrNull() is WorkspaceDocumentItem.Starter) {
-                R.string.workspace_starter_documents
-            } else {
-                R.string.workspace_continue_heading
-            }
-        binding.workspaceEmpty.continueHeading.setText(heading)
-        val pins =
-            filesListModel.pinnedFiles.value
-                .orEmpty()
-                .toList()
-        val files =
-            filesListModel.recentFiles.value
-                .orEmpty()
-                .toList()
+        binding.workspaceEmpty.documentSection.isVisible = items.isNotEmpty()
         previewRefresh?.cancel()
+        if (items.isEmpty()) {
+            documentsAdapter?.submitList(emptyList())
+            return
+        }
         previewRefresh =
             viewLifecycleOwner.lifecycleScope.launch {
                 val cursors = documentPreviews.cursorPositions()
-                documentsAdapter?.submitList(workspaceDocumentItems(pins, files, cursors))
+                documentsAdapter?.submitList(items.map { it.copy(cursor = cursors[it.file.id] ?: 0) })
             }
     }
 
