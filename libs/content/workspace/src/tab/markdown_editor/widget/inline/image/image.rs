@@ -11,7 +11,6 @@ use crate::style::ThemeExt;
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
-use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
@@ -53,10 +52,7 @@ impl MdRender {
                 Some(ResolvedLink::External(url)) => url,
                 _ => continue,
             };
-            let Some(arc) = self.layout_cache.link_meta.borrow().get(&resolved).cloned() else {
-                continue;
-            };
-            let LinkMetaState::Loaded(meta) = &*arc.lock().unwrap() else {
+            let Some(meta) = self.previews.loaded(&resolved) else {
                 continue;
             };
             if let Some(url) = meta.thumbnail_url.as_deref() {
@@ -269,7 +265,11 @@ impl<'ast> MdEdit {
                 true => self.renderer.link_state_for_wikilink(dest),
                 false => self.renderer.link_state_for_url(dest),
             };
-            self.renderer.show_link_tip(ui.ctx(), &response, state);
+            // a block card already shows everything its preview would
+            let card = !is_image && self.renderer.link_renders_as_card(node);
+            let preview = (!is_image && !wikilink && !card).then_some((url, false));
+            self.renderer
+                .show_link_tip(ui.ctx(), &response, state, preview);
         }
         if withheld && response.clicked() {
             self.renderer.embeds.load_anyway(url);

@@ -77,7 +77,8 @@ impl Grid {
 }
 
 impl MindMap {
-    pub fn new(core: &Lb) -> Self {
+    /// `contact`: the reader lets linked sites be fetched for their titles.
+    pub fn new(core: &Lb, contact: bool) -> Self {
         let graph = lockbook_data(core);
         let positions = vec![egui::Pos2::ZERO; graph.len()];
         let thread_positions = vec![egui::Pos2::ZERO; graph.len()];
@@ -100,7 +101,7 @@ impl MindMap {
             last_fps_update: Instant::now(),
             inside: None,
             inside_found: false,
-            urls_complete: false,
+            urls_complete: !contact,
             names_uploaded: false,
             url_titles: vec!["".to_string(); graph.len()],
             touch_positions: HashMap::new(),

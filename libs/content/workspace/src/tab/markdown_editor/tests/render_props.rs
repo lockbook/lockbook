@@ -160,7 +160,29 @@ fn cached_font_system() -> Arc<Mutex<glyphon::FontSystem>> {
 /// Builds a minimally-configured `MdRender` suitable for test calls. Mirrors
 /// the setup `MdLabel` expects from its caller (theme + font system).
 pub(super) fn test_renderer(md: &str) -> MdRender {
-    let r = MdRender::test(md);
+    let mut r = MdRender::test(md);
+    // every web link the generator writes has a preview, so its chips and
+    // cards lay out; seeded, so nothing is fetched
+    let mut persistence = crate::workspace::WsPersistentStore::new(
+        false,
+        format!("/tmp/{}", lb_rs::Uuid::new_v4()).into(),
+        false,
+    );
+    persistence.set_contact_linked_sites(true);
+    r.previews =
+        crate::link_preview::LinkPreviews::new(r.ctx.clone(), Default::default(), persistence);
+    r.contact_linked_sites = true;
+    for (url, title) in [
+        ("https://x.test", "A title long enough that its chip is cut short and fades out"),
+        ("https://example.com/very/long/path/to/resource", "Resource"),
+    ] {
+        let meta = crate::link_preview::LinkMeta {
+            title: title.into(),
+            favicon_url: Some("https://x.test/favicon.ico".into()),
+            ..Default::default()
+        };
+        r.previews.insert(url, meta);
+    }
     r.ctx.set_lb_theme(Theme::default(Mode::Dark));
     r.ctx
         .data_mut(|d| d.insert_temp(egui::Id::NULL, cached_font_system()));
@@ -173,10 +195,18 @@ pub(super) fn test_renderer(md: &str) -> MdRender {
 /// Returns the rendered height of `md` at `width`, using a fresh renderer.
 fn render_height(md: &str, width: f32) -> f32 {
     let mut r = test_renderer(md);
-    r.set_width(width);
-    let arena = Arena::new();
-    let root = r.reparse(&arena);
-    r.height(root)
+    let ctx = r.ctx.clone();
+    let mut height = 0.0;
+    // inside a frame, as the app measures: a card lays out off screen
+    ctx.run_pass(RawInput::default(), |_| {
+        r.set_width(width);
+        let arena = Arena::new();
+        let root = r.reparse(&arena);
+        height = r.height(root);
+    })
+    .textures_delta
+    .clear();
+    height
 }
 
 /// Runs one headless render frame for `md` at `width` (optionally with a

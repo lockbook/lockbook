@@ -50,6 +50,9 @@ pub struct GlyphonLabel<'a> {
     /// single unbounded line.
     max_width: f32,
     text_overflow: TextOverflow,
+    /// With [`TextOverflow::EndEllipsis`], wrap to this many lines before the
+    /// ellipsis instead of one.
+    max_lines: usize,
     sense: Sense,
 }
 
@@ -124,6 +127,7 @@ impl<'a> GlyphonLabel<'a> {
             line_height: None,
             max_width: f32::MAX,
             text_overflow: TextOverflow::Clip,
+            max_lines: 1,
             sense: Sense::hover(),
         }
     }
@@ -142,6 +146,7 @@ impl<'a> GlyphonLabel<'a> {
             line_height: None,
             max_width: f32::MAX,
             text_overflow: TextOverflow::Clip,
+            max_lines: 1,
             sense: Sense::hover(),
         }
     }
@@ -160,6 +165,7 @@ impl<'a> GlyphonLabel<'a> {
             line_height: None,
             max_width: f32::MAX,
             text_overflow: TextOverflow::Clip,
+            max_lines: 1,
             sense: Sense::hover(),
         }
     }
@@ -203,6 +209,10 @@ impl<'a> GlyphonLabel<'a> {
 
     pub fn text_overflow(self, text_overflow: TextOverflow) -> Self {
         Self { text_overflow, ..self }
+    }
+
+    pub fn max_lines(self, max_lines: usize) -> Self {
+        Self { max_lines: max_lines.max(1), ..self }
     }
 
     pub fn sense(self, sense: Sense) -> Self {
@@ -274,6 +284,11 @@ impl<'a> GlyphonLabel<'a> {
                     return self.owned_spans();
                 };
 
+                if self.max_lines > 1 {
+                    let text = self.end_ellipsis_lines(ctx, ppi, text, *style, line_height);
+                    return vec![OwnedSpan { text, style: *style }];
+                }
+
                 if Self::measure_text_width(ctx, ppi, text, *style, self.font_size, line_height)
                     <= self.max_width
                 {
@@ -339,6 +354,39 @@ impl<'a> GlyphonLabel<'a> {
         }
 
         ELLIPSIS.to_owned()
+    }
+
+    /// The longest start of `text`, ellipsis added when cut, that wraps to
+    /// at most `max_lines` lines at `max_width`.
+    fn end_ellipsis_lines(
+        &self, ctx: &egui::Context, ppi: f32, text: &str, style: SpanStyle, line_height: f32,
+    ) -> String {
+        let fits = |candidate: &str| {
+            let shaped = Self::shape_buffer(
+                ctx,
+                ppi,
+                &[(candidate, style)],
+                egui::Color32::default(),
+                self.font_size,
+                line_height,
+                self.max_width,
+            );
+            shaped.size.y <= line_height * self.max_lines as f32 + 0.5
+        };
+        if fits(text) {
+            return text.to_owned();
+        }
+        let chars: Vec<char> = text.chars().collect();
+        let (mut low, mut high) = (0, chars.len());
+        while low < high {
+            let keep = (low + high).div_ceil(2);
+            if fits(&end_ellipsis_candidate(&chars, keep)) {
+                low = keep;
+            } else {
+                high = keep - 1;
+            }
+        }
+        end_ellipsis_candidate(&chars, low)
     }
 
     fn measure_text_width(

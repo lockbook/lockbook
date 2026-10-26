@@ -34,10 +34,10 @@ pub use atoms::{
 };
 
 pub use compounds::{
-    LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, SheetFooterOpts, ack_row, fixed_height_list, footnote,
-    form_group, form_picker, form_row, form_row_detail, form_segmented, form_toggle,
-    form_toggle_detail, form_value, paint_list_section, section_label, sheet_band,
-    sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer, sheet_panel_fit,
+    LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, SheetFooterOpts, TIP_MARGIN, ack_row,
+    fixed_height_list, footnote, form_group, form_picker, form_row, form_row_detail,
+    form_segmented, form_toggle, form_toggle_detail, form_value, paint_list_section, section_label,
+    sheet_band, sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer, sheet_panel_fit,
     sheet_panel_fixed, sheet_title_muted, tip_card_placed, tip_text, with_overlay_scroll,
 };
 pub use domain::{show_recents, show_shared, show_sync_footer, show_tree};

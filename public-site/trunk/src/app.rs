@@ -138,6 +138,11 @@ impl eframe::App for LbWebApp {
                         None,
                         MdResources {
                             ctx: ctx.clone(),
+                            previews: workspace_rs::link_preview::LinkPreviews::new(
+                                ctx.clone(),
+                                HttpClient::default(),
+                                self.cfg.clone(),
+                            ),
                             core: self.core.clone(),
                             persistence: self.cfg.clone(),
                             files,

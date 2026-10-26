@@ -494,6 +494,10 @@ pub mod phosphor {
     pub const RECTANGLE: &str = "\u{e3f0}";
     pub const CIRCLE: &str = "\u{e18a}";
     pub const LINE_SEGMENT: &str = "\u{e6d2}";
+    /// Where a linked issue or pull request stands (with `CIRCLE`, `CHECK_CIRCLE`).
+    pub const GIT_MERGE: &str = "\u{e280}";
+    pub const GIT_PULL_REQUEST: &str = "\u{e282}";
+    pub const PROHIBIT: &str = "\u{e3de}";
     /// Layer order (`ph-arrow-line-up` / `ph-arrow-line-down`).
     pub const ARROW_LINE_UP: &str = "\u{e066}";
     pub const ARROW_LINE_DOWN: &str = "\u{e05c}";

@@ -11,9 +11,7 @@
 //!
 //! Anchored to the host control (not the cursor). Canvas plate + hairline.
 
-use egui::{
-    Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Response, Sense, Ui, Vec2, vec2,
-};
+use egui::{Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Response, Ui, Vec2, vec2};
 
 use super::chrome::{Radius, TIP_CHAIN_GRACE_SECS};
 use super::color::ThemeExt;
@@ -27,6 +25,10 @@ const MAX_W: f32 = 280.0;
 const LAST_TIP_TIME: &str = "design_tip_last_shown";
 /// Host `Response::id` currently showing a tip — stay open without delay.
 const OPEN_TIP_HOST: &str = "design_tip_open_host";
+/// Where the pointer last was over a reachable card's host.
+const REACH_EXIT: &str = "design_tip_reach_exit";
+/// The host whose reachable card holds the pointer, and the frame it did.
+const REACH_HELD: &str = "design_tip_reach_held";
 
 /// One-line chrome tip (toolbar, footer).
 pub fn tip_text(ctx: &Context, resp: &Response, text: impl Into<String>) {
@@ -47,16 +49,68 @@ pub fn tip_text(ctx: &Context, resp: &Response, text: impl Into<String>) {
 
 /// Multi-line tip — hover/delay use `hit`, placement uses `place`
 /// (e.g. footer: tip only over status text, centered on full strip).
-/// `max_w` caps **content** width (frame pad is outside that).
+/// `max_w` caps **content** width (frame pad, `margin`, is outside that).
 pub fn tip_card_placed(
-    ctx: &Context, hit: &Response, place: egui::Rect, max_w: f32,
+    ctx: &Context, hit: &Response, place: egui::Rect, max_w: f32, margin: Margin,
     add_contents: impl FnOnce(&mut Ui),
 ) {
     if !should_show_tip(ctx, hit) {
         return;
     }
     note_tip_shown(ctx, hit.id);
-    show_anchored_at(ctx, hit.id, place, max_w.max(1.0), add_contents);
+    show_anchored_at(ctx, hit.id, place, max_w.max(1.0), margin, add_contents);
+}
+
+/// A card tip the pointer can move onto to use what's on it. It stays while
+/// the pointer is on the card, inside the triangle from where it left the
+/// host to the card's near edge, or in a menu the card opened.
+pub fn tip_card_reachable(
+    ctx: &Context, hit: &Response, place: egui::Rect, max_w: f32, margin: Margin,
+    add_contents: impl FnOnce(&mut Ui),
+) {
+    let id = hit.id.with("design_tip");
+    let pointer = ctx.input(|i| i.pointer.latest_pos());
+    let exit_id = Id::unique(REACH_EXIT);
+    if hit.contains_pointer() {
+        ctx.data_mut(|d| d.insert_temp(exit_id, pointer));
+    }
+    let open = ctx.data(|d| d.get_temp::<Id>(Id::unique(OPEN_TIP_HOST))) == Some(hit.id);
+    let card = ctx.memory(|m| m.area_rect(id));
+    let exit = ctx.data(|d| d.get_temp::<Option<Pos2>>(exit_id)).flatten();
+    let held = open
+        && !hit.contains_pointer()
+        && (crate::style::context_menu::is_any_open(ctx)
+            || matches!((pointer, card), (Some(p), Some(c)) if c.contains(p)
+                || exit.is_some_and(|e| in_reach(p, e, c))));
+    if held {
+        let frame = ctx.cumulative_frame_nr();
+        ctx.data_mut(|d| d.insert_temp(Id::unique(REACH_HELD), (hit.id, frame)));
+    } else if !should_show_tip(ctx, hit) {
+        return;
+    }
+    note_tip_shown(ctx, hit.id);
+    show_area(ctx, hit.id, place, max_w, margin, true, add_contents);
+}
+
+/// Puts away whatever tip is open, as a click does.
+pub fn dismiss_tip(ctx: &Context) {
+    chill_tip_session(ctx);
+}
+
+/// Within the triangle from `exit` to `card`'s nearer horizontal edge.
+fn in_reach(p: Pos2, exit: Pos2, card: egui::Rect) -> bool {
+    let y = if exit.y <= card.top() { card.top() } else { card.bottom() };
+    let (a, b) = (Pos2::new(card.left(), y), Pos2::new(card.right(), y));
+    let side = |u: Pos2, v: Pos2| (v - u).x * (p - u).y - (v - u).y * (p - u).x;
+    let (d1, d2, d3) = (side(exit, a), side(a, b), side(b, exit));
+    !((d1 < 0.0 || d2 < 0.0 || d3 < 0.0) && (d1 > 0.0 || d2 > 0.0 || d3 > 0.0))
+}
+
+/// `host`'s reachable card held the pointer this frame or last.
+fn reach_held(ctx: &Context, host: Id) -> bool {
+    let now = ctx.cumulative_frame_nr();
+    ctx.data(|d| d.get_temp::<(Id, u64)>(Id::unique(REACH_HELD)))
+        .is_some_and(|(held, frame)| held == host && frame + 1 >= now)
 }
 
 fn note_tip_shown(ctx: &Context, host: Id) {
@@ -126,25 +180,29 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
         return false;
     }
 
-    if time_since_last_scroll < tooltip_delay {
-        ctx.request_repaint_after_secs(tooltip_delay - time_since_last_scroll);
-        return false;
-    }
-
     let (last_shown, open_host) = ctx.data_mut(|d| {
         let last = *d.get_temp_mut_or_insert_with(Id::unique(LAST_TIP_TIME), || f64::NEG_INFINITY);
         let host = d.get_temp::<Id>(Id::unique(OPEN_TIP_HOST));
         (last, host)
     });
 
-    let is_our_tip_open = open_host == Some(resp.id);
+    // an open tip rides out a scroll that leaves its host under the pointer
+    if open_host == Some(resp.id) {
+        return true;
+    }
+    // the pointer is on its way to a card it can reach
+    if open_host.is_some_and(|host| reach_held(ctx, host)) {
+        return false;
+    }
+
+    if time_since_last_scroll < tooltip_delay {
+        ctx.request_repaint_after_secs(tooltip_delay - time_since_last_scroll);
+        return false;
+    }
+
     let seconds_since_last_tip = now - last_shown;
     let chain_window = f64::from(tooltip_grace_time).max(f64::from(TIP_CHAIN_GRACE_SECS));
     let in_tip_chain = seconds_since_last_tip < chain_window;
-
-    if is_our_tip_open {
-        return true;
-    }
 
     if in_tip_chain {
         return true;
@@ -177,17 +235,33 @@ fn end_open_if_host(ctx: &Context, host: Id) {
     });
 }
 
+/// A one- or few-line tip's frame pad.
+pub const TIP_MARGIN: Margin = Margin::symmetric(Space::Sm.pts() as i8, Space::Xs.pts() as i8);
+
 fn show_anchored(ctx: &Context, resp: &Response, max_w: f32, add_contents: impl FnOnce(&mut Ui)) {
-    show_anchored_at(ctx, resp.id, resp.rect, max_w, add_contents);
+    show_anchored_at(ctx, resp.id, resp.rect, max_w, TIP_MARGIN, add_contents);
 }
 
 fn show_anchored_at(
-    ctx: &Context, host_id: Id, host: egui::Rect, max_w: f32, add_contents: impl FnOnce(&mut Ui),
+    ctx: &Context, host_id: Id, host: egui::Rect, max_w: f32, margin: Margin,
+    add_contents: impl FnOnce(&mut Ui),
+) {
+    show_area(ctx, host_id, host, max_w, margin, false, add_contents);
+}
+
+/// `reachable`: the card takes the pointer, above the page but under menus.
+fn show_area(
+    ctx: &Context, host_id: Id, host: egui::Rect, max_w: f32, margin: Margin, reachable: bool,
+    add_contents: impl FnOnce(&mut Ui),
 ) {
     let t = ctx.get_lb_theme();
     let screen = ctx.content_rect();
-    let prefer_below = screen.bottom() - host.bottom() >= 72.0;
     let gap = Space::Xs.pts();
+    let id = host_id.with("design_tip");
+    // below when it fits, by its height last frame; else the roomier side
+    let height = ctx.memory(|m| m.area_rect(id)).map_or(72.0, |r| r.height());
+    let (below, above) = (screen.bottom() - host.bottom(), host.top() - screen.top());
+    let prefer_below = below >= height + gap || below >= above;
 
     let (pos, pivot) = if prefer_below {
         (Pos2::new(host.center().x, host.bottom() + gap), Align2::CENTER_TOP)
@@ -195,12 +269,13 @@ fn show_anchored_at(
         (Pos2::new(host.center().x, host.top() - gap), Align2::CENTER_BOTTOM)
     };
 
-    Area::new(host_id.with("design_tip"))
-        .order(Order::Tooltip)
+    Area::new(id)
+        .order(if reachable { Order::Foreground } else { Order::Tooltip })
         .fixed_pos(pos)
         .pivot(pivot)
         .constrain(true)
-        .sense(Sense::hover())
+        // a tip pushed over its host mustn't take the pointer from it
+        .interactable(reachable)
         .default_size(vec2(0.0, 0.0))
         .fade_in(false)
         .show(ctx, |ui| {
@@ -208,7 +283,7 @@ fn show_anchored_at(
                 .fill(t.neutral_bg())
                 .shadow(crate::style::overlay_shadow(&t))
                 .corner_radius(Radius::Control.corner())
-                .inner_margin(Margin::symmetric(Space::Sm.pts() as i8, Space::Xs.pts() as i8))
+                .inner_margin(margin)
                 .show(ui, |ui| {
                     ui.set_max_width(max_w);
                     add_contents(ui);

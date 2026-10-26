@@ -15,4 +15,4 @@ pub use sheet::{
     SheetFooterOpts, sheet_band, sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer,
     sheet_panel_fit, sheet_panel_fixed, sheet_title_muted,
 };
-pub use tip::{tip_card_placed, tip_text};
+pub use tip::{TIP_MARGIN, tip_card_placed, tip_text};

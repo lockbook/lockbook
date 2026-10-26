@@ -1,37 +1,29 @@
 pub(crate) mod card;
-pub(crate) mod meta;
+mod hover;
 
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
+use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
-use lb_rs::{Uuid, spawn};
-use std::collections::hash_map::Entry;
-use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
 
 use lb_rs::model::text::operation_types::Operation;
 
-use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
+use crate::link_preview::{self, LinkMeta, Preview, Status};
 use crate::show::DocType;
 use crate::style::{TypeRole, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::fragment::slugify;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::image::image::image_url;
-use crate::tab::markdown_editor::widget::inline::link::meta::{
-    LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
-};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{
+    BG_ROW_GAP, CHIP_SIDE_PAD, Format, FragmentContent, Layout, StyleInfo,
+};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
 use crate::theme::palette_v2::ThemeExt as _;
-
-enum DestinationTitle {
-    Ready(String),
-    Absent,
-}
+use unicode_segmentation::UnicodeSegmentation as _;
 
 pub use crate::resolvers::LinkState;
 use crate::resolvers::rich_spans;
@@ -155,10 +147,7 @@ impl<'ast> MdRender {
 
         let trimmed = node_range.trim(&range);
         let title = if is_auto && !revealed && !trimmed.is_empty() {
-            match self.get_link_title(&url) {
-                DestinationTitle::Ready(t) => Some(t),
-                DestinationTitle::Absent => None,
-            }
+            self.get_link_title(&url)
         } else {
             None
         };
@@ -180,17 +169,15 @@ impl<'ast> MdRender {
                 format: pill_fmt.clone(),
                 source_range: node_range,
                 chip: !internal,
+                wrap: internal,
             });
             // Leading em-space reserves the favicon slot (painted in
             // `show_capsule_overlays`); it's in the title's source range, so the
-            // selection covers the favicon like text — no separate embed. The
-            // WORD JOINER removes the break opportunity after the em space
-            // (UAX#14 LB11) so the slot wraps with the title's first word
-            // instead of orphaning at the end of a line.
-            let text = if self.capsule_favicon_url(&url).is_some() {
-                format!("\u{2003}\u{2060}{t}")
-            } else {
-                t
+            // selection covers the favicon like text — no separate embed.
+            let lead = if self.capsule_favicon_url(&url).is_some() { FAVICON_SLOT } else { "" };
+            let text = match internal {
+                true => t,
+                false => format!("{lead}{}", self.chip_title(node, lead, &t, &pill_fmt).0),
             };
             layout.push_override(trimmed, &text, pill_fmt);
             layout.style_close();
@@ -231,39 +218,140 @@ impl<'ast> MdRender {
     }
 
     /// The hover card explaining a yellow or red link: what's wrong, then the
-    /// fix in quieter ink. `state` is worked out only under the pointer.
+    /// fix in quieter ink; for any other web link, its preview card.
+    /// `state` is worked out only under the pointer. `preview` is the link's
+    /// URL and whether its text is that URL, for links that may preview.
     pub fn show_link_tip(
         &self, ctx: &egui::Context, response: &egui::Response, state: impl FnOnce() -> LinkState,
+        preview: Option<(&str, bool)>,
     ) {
         if !response.contains_pointer() {
+            // the pointer may be on its way to the preview's buttons
+            if let Some((url, shows_url)) = preview {
+                if self.show_link_preview(ctx, response, url, shows_url) {
+                    return;
+                }
+            }
             // still called, so the tip's dwell timing sees the pointer leave
-            crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |_| {});
+            crate::style::tip_card_placed(
+                ctx,
+                response,
+                response.rect,
+                LINK_TIP_W,
+                crate::style::TIP_MARGIN,
+                |_| {},
+            );
             return;
         }
         let (LinkState::Warning { message }
         | LinkState::Broken { message }
         | LinkState::Placeholder { message }) = state()
         else {
+            if let Some((url, shows_url)) = preview {
+                self.show_link_preview(ctx, response, url, shows_url);
+            }
             return;
         };
         let mut lines = message.lines();
         let Some(what) = lines.next() else { return };
         let fixes: Vec<&str> = lines.collect();
-        crate::style::tip_card_placed(ctx, response, response.rect, LINK_TIP_W, |ui| {
-            let t = ui.ctx().get_lb_theme();
-            let line = |ui: &mut egui::Ui, text: &str, ink| {
-                ui.add(
-                    GlyphonLabel::new_rich(rich_spans(text), ink)
-                        .font_size(TypeRole::Body.size())
-                        .line_height(TypeRole::Body.line_height())
-                        .max_width(LINK_TIP_W),
-                );
-            };
-            line(ui, what, t.neutral_fg());
-            for fix in fixes {
-                line(ui, fix, t.neutral_fg_secondary());
-            }
+        crate::style::tip_card_placed(
+            ctx,
+            response,
+            response.rect,
+            LINK_TIP_W,
+            crate::style::TIP_MARGIN,
+            |ui| {
+                let t = ui.ctx().get_lb_theme();
+                let line = |ui: &mut egui::Ui, text: &str, ink| {
+                    ui.add(
+                        GlyphonLabel::new_rich(rich_spans(text), ink)
+                            .font_size(TypeRole::Body.size())
+                            .line_height(TypeRole::Body.line_height())
+                            .max_width(LINK_TIP_W),
+                    );
+                };
+                line(ui, what, t.neutral_fg());
+                for fix in fixes {
+                    line(ui, fix, t.neutral_fg_secondary());
+                }
+            },
+        );
+    }
+
+    /// A chip's title cut to fit on one row; `true` when cut short. `lead`
+    /// comes before it.
+    pub(crate) fn chip_title(
+        &self, node: &'ast AstNode<'ast>, lead: &str, title: &str, fmt: &Format,
+    ) -> (String, bool) {
+        let Some(block) = node
+            .ancestors()
+            .find(|a| a.data.borrow().value.is_leaf_block())
+        else {
+            return (title.into(), false);
+        };
+        let em = self.row_height(block);
+        let room = (CHIP_MAX_EMS * em).min(self.width(block)) - 2.0 * em * CHIP_SIDE_PAD;
+        let fits = |t: &str| self.text_advance(&format!("{lead}{t}"), fmt, em) <= room;
+        if fits(title) {
+            return (title.into(), false);
+        }
+        let graphemes: Vec<&str> = title.graphemes(true).collect();
+        let cut = |n: usize| graphemes[..n].concat().trim_end().to_string();
+        let (mut lo, mut hi) = (0, graphemes.len());
+        while lo < hi {
+            let mid = (lo + hi).div_ceil(2);
+            if fits(&cut(mid)) { lo = mid } else { hi = mid - 1 }
+        }
+        (cut(lo), true)
+    }
+
+    /// A cut chip's text fading into its fill over its last ems, then the
+    /// fill over the pill's rounded end, painted over the text; and the x the
+    /// fade begins at.
+    fn cut_chip_fade(
+        &self, node: &'ast AstNode<'ast>, url: &str, node_range: (Grapheme, Grapheme),
+    ) -> Option<(Vec<egui::Shape>, f32)> {
+        let title = self.get_link_title(url)?;
+        let block = node
+            .ancestors()
+            .find(|a| a.data.borrow().value.is_leaf_block())?;
+        let lead = if self.capsule_favicon_url(url).is_some() { FAVICON_SLOT } else { "" };
+        let fmt = self.text_format_link_pill(node.parent()?, self.link_state_for_url(url));
+        if !self.chip_title(node, lead, &title, &fmt).1 {
+            return None;
+        }
+        let chip = self.fragments.iter().filter(|f| {
+            f.source_range.intersects(&node_range, true)
+                && f.style_stack.last().is_some_and(|s| s.chip)
         });
+        let text = chip
+            .clone()
+            .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
+            .map(|f| f.rect)
+            .reduce(egui::Rect::union)?;
+        let right = chip.map(|f| f.rect.right()).fold(text.right(), f32::max);
+        // the pill as `show_wrap_layout` paints it
+        let pill = egui::Rect::from_x_y_ranges(
+            text.left()..=right,
+            text.y_range()
+                .expand(self.layout.inline_padding - BG_ROW_GAP / 2.0),
+        );
+        let cap = pill.height() / 2.0;
+        let end = (pill.right() - cap).min(text.right());
+        let from = end - CHIP_FADE_EMS * self.row_height(block);
+        let fill = fmt.background;
+        let mut mesh = egui::Mesh::default();
+        let clear = egui::Color32::TRANSPARENT;
+        mesh.colored_vertex(egui::pos2(from, pill.top()), clear);
+        mesh.colored_vertex(egui::pos2(end, pill.top()), fill);
+        mesh.colored_vertex(egui::pos2(from, pill.bottom()), clear);
+        mesh.colored_vertex(egui::pos2(end, pill.bottom()), fill);
+        mesh.add_triangle(0, 1, 2);
+        mesh.add_triangle(1, 2, 3);
+        let rest = egui::Rect::from_x_y_ranges(end..=pill.right(), pill.y_range());
+        let rounded = egui::CornerRadius { ne: cap as u8, se: cap as u8, ..Default::default() };
+        Some((vec![egui::Shape::mesh(mesh), egui::Shape::rect_filled(rest, rounded, fill)], from))
     }
 
     /// Favicon URL for a capsule preview's external link when previews are on
@@ -336,7 +424,15 @@ impl<'ast> MdRender {
                     egui::Vec2::splat(size),
                 );
                 self.embeds.prefetch(&favicon_url);
-                if self.embeds.is_loaded(&favicon_url) {
+                // an issue or pull request shows where it stands instead
+                let status = match self.get_link_meta(&url) {
+                    LinkMetaLookup::Loaded(meta) => meta.status,
+                    _ => None,
+                };
+                if let Some(status) = status.filter(|s| *s != Status::Answered) {
+                    let mark = icon_rect.expand(chip.height() * 0.06);
+                    hover::paint_status(ui.painter(), mark, status, &self.ctx.get_lb_theme());
+                } else if self.embeds.is_loaded(&favicon_url) {
                     // Dark mode: a near-white tile behind the icon so dark
                     // monochrome marks (e.g. GitHub) read against the dark pill;
                     // opaque favicons simply hide it.
@@ -361,6 +457,14 @@ impl<'ast> MdRender {
             }
             ui.set_clip_rect(row_clip);
 
+            // a cut chip's fade, and where it begins
+            let fade =
+                if frag_start == 0 { self.cut_chip_fade(node, &url, node_range) } else { None };
+            let fade_from = fade.as_ref().map(|(_, x)| *x);
+            if let Some((shapes, _)) = fade {
+                self.over_text.extend(shapes);
+            }
+
             if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
                 let accent = theme.bg().get_color(theme.prefs().primary);
@@ -375,8 +479,18 @@ impl<'ast> MdRender {
                         None => rows.push(*r),
                     }
                 }
-                for r in rows.iter().filter_map(|r| self.table_showing(*r)) {
-                    ui.painter().rect_filled(r, 2.0, tint);
+                let shown: Vec<_> = rows.iter().filter_map(|r| self.table_showing(*r)).collect();
+                for r in shown {
+                    let Some(x) = fade_from.filter(|x| r.x_range().contains(*x)) else {
+                        ui.painter().rect_filled(r, 2.0, tint);
+                        continue;
+                    };
+                    // over the fade, the tint goes on after it
+                    let left = egui::CornerRadius { nw: 2, sw: 2, ..Default::default() };
+                    let right = egui::CornerRadius { ne: 2, se: 2, ..Default::default() };
+                    ui.painter().rect_filled(r.with_max_x(x), left, tint);
+                    self.over_text
+                        .push(egui::Shape::rect_filled(r.with_min_x(x), right, tint));
                 }
             }
         }
@@ -619,9 +733,10 @@ impl<'ast> MdRender {
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.scope_id();
         for node in root.descendants() {
-            let (url, is_wikilink) = match &node.data.borrow().value {
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
-                NodeValue::Link(nl) | NodeValue::Image(nl) => (nl.url.clone(), false),
+            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                NodeValue::Link(nl) => (nl.url.clone(), false, false),
+                NodeValue::Image(nl) => (nl.url.clone(), false, true),
                 _ => continue,
             };
             let id = parent_base.with(Self::link_interaction_id_salt(self.node_range(node)));
@@ -641,13 +756,20 @@ impl<'ast> MdRender {
             if response.hovered() && response.sense.senses_click() {
                 crate::style::link_cursor(ui.ctx());
             }
-            self.show_link_tip(ui.ctx(), response, || {
-                if is_wikilink {
-                    self.link_state_for_wikilink(&url)
-                } else {
-                    self.link_state_for_url(&url)
-                }
-            });
+            let preview =
+                (!is_wikilink && !is_image).then(|| (url.as_str(), self.link_is_auto(node, &url)));
+            self.show_link_tip(
+                ui.ctx(),
+                response,
+                || {
+                    if is_wikilink {
+                        self.link_state_for_wikilink(&url)
+                    } else {
+                        self.link_state_for_url(&url)
+                    }
+                },
+                preview,
+            );
 
             if response.clicked() && (self.readonly || !self.touch_mode) {
                 self.render_events.push(open);
@@ -656,21 +778,24 @@ impl<'ast> MdRender {
         }
     }
 
-    /// The title an autolink swaps in for its URL — a thin view over
-    /// [`Self::get_link_meta`].
-    fn get_link_title(&self, url: &str) -> DestinationTitle {
+    /// The text an autolink shows in place of its URL: a file's name, what a
+    /// known site's URL says it is, or the page's title once fetched. With
+    /// sites off a web link shows its URL, so it reads as previews being off.
+    fn get_link_title(&self, url: &str) -> Option<String> {
         match self.get_link_meta(url) {
-            LinkMetaLookup::Internal(title) => DestinationTitle::Ready(title),
-            LinkMetaLookup::Loaded(meta) => DestinationTitle::Ready(meta.title),
-            LinkMetaLookup::Loading | LinkMetaLookup::Unavailable => DestinationTitle::Absent,
+            LinkMetaLookup::Internal(title) => Some(title),
+            LinkMetaLookup::Loaded(meta) => Some(link_preview::label(url).unwrap_or(meta.title)),
+            LinkMetaLookup::Loading | LinkMetaLookup::Unavailable => {
+                link_preview::label(url).filter(|_| self.contact_linked_sites)
+            }
         }
     }
 
     /// Resolve a link's preview metadata. Internal links (lb:// / relative
     /// paths) resolve synchronously to a title from the file cache. External
     /// http(s) links are fetched asynchronously (gated by `contact_linked_sites`)
-    /// and cached in [`LayoutCache::link_meta`]; `External(None)` until a fetch
-    /// completes, the site is uncacheable, or fetching is off.
+    /// and shared through [`crate::link_preview::LinkPreviews`]; `Unavailable`
+    /// while a fetch failed or fetching is off.
     pub fn get_link_meta(&self, url: &str) -> LinkMetaLookup {
         let Some(resolved) = self.resolve_link(url) else {
             return LinkMetaLookup::Unavailable;
@@ -693,162 +818,22 @@ impl<'ast> MdRender {
             ResolvedLink::External(_) => return LinkMetaLookup::Unavailable,
         };
 
-        let now = web_time::Instant::now();
-        let arc = match self
-            .layout_cache
-            .link_meta
-            .borrow_mut()
-            .entry(resolved_url.clone())
-        {
-            Entry::Occupied(mut e) => {
-                // A failure whose next-retry timestamp has passed is eligible
-                // again (still behind the fetch opt-in).
-                let retry_attempts = match &*e.get().lock().unwrap() {
-                    LinkMetaState::Failed { retry_at: Some(t), attempts } if *t <= now => {
-                        Some(*attempts)
-                    }
-                    _ => None,
-                };
-                match retry_attempts {
-                    Some(attempts) if self.contact_linked_sites => {
-                        let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
-                        e.insert(arc.clone());
-                        self.spawn_meta_fetch(resolved_url, arc.clone(), attempts);
-                        arc
-                    }
-                    _ => e.get().clone(),
-                }
-            }
-            Entry::Vacant(e) => {
-                // Opt-out: don't contact the site unless preview fetching is on.
-                // (Occupied/cached metadata above still displays — no new request.)
-                if !self.contact_linked_sites {
-                    return LinkMetaLookup::Unavailable;
-                }
-                let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
-                e.insert(arc.clone());
-                self.spawn_meta_fetch(resolved_url, arc.clone(), 0);
-                arc
-            }
-        };
-
-        let state = arc.lock().unwrap();
-        match &*state {
-            LinkMetaState::Loaded(meta) => LinkMetaLookup::Loaded(meta.clone()),
-            LinkMetaState::Loading => LinkMetaLookup::Loading,
-            LinkMetaState::Failed { retry_at: Some(until), .. } if *until > now => {
-                // Wake a frame when the cooldown lapses — an idle editor never
-                // repaints, so without this the retry waits for user input.
-                self.ctx.request_repaint_after(*until - now);
-                LinkMetaLookup::Unavailable
-            }
-            LinkMetaState::Failed { .. } => LinkMetaLookup::Unavailable,
+        match self.previews.get(&resolved_url) {
+            Preview::Loaded(meta) => LinkMetaLookup::Loaded(meta),
+            Preview::Loading => LinkMetaLookup::Loading,
+            Preview::Unavailable => LinkMetaLookup::Unavailable,
         }
-    }
-
-    /// Fetch + scrape `resolved_url`'s metadata into `meta_state` off-thread,
-    /// then bump `link_seq` and request a repaint. `attempts` counts prior
-    /// consecutive failures — it drives the transient-failure backoff.
-    fn spawn_meta_fetch(
-        &self, resolved_url: String, meta_state: Arc<Mutex<LinkMetaState>>, attempts: u32,
-    ) {
-        /// Self-assigned retry-after for network-level failures; doubles per
-        /// consecutive failure up to the cap.
-        const TRANSIENT_RETRY_BASE: std::time::Duration = std::time::Duration::from_secs(60);
-        const TRANSIENT_RETRY_CAP: std::time::Duration = std::time::Duration::from_secs(15 * 60);
-        /// Bot walls outlive short retries — a site's posture changes slowly.
-        const BLOCKED_RETRY: std::time::Duration = std::time::Duration::from_secs(6 * 60 * 60);
-
-        let client = self.client.clone();
-        let ctx = self.ctx.clone();
-        let link_seq = self.layout_cache.link_seq.clone();
-        let ws_seq = self.ws_seq.clone();
-        spawn!({
-            const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-            const GOOGLEBOT: &str =
-                "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
-
-            #[cfg(not(target_arch = "wasm32"))]
-            let mut html = fetch_html(&client, &resolved_url, CHROME);
-            #[cfg(target_arch = "wasm32")]
-            let mut html = fetch_html(&client, &resolved_url, CHROME).await;
-
-            // Some sites (e.g. Twitter/X) only serve static content to known
-            // crawlers, and bot walls often whitelist them — but never burn a
-            // second request on a host that's rate-limiting us.
-            let good = |h: &str| {
-                extract_link_meta(h, &resolved_url)
-                    .is_some_and(|m| !is_junk_meta(h, &m, &resolved_url))
-            };
-            if !matches!(html, Err(FetchError::RateLimited { .. }))
-                && !html.as_deref().is_ok_and(good)
-            {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    html = fetch_html(&client, &resolved_url, GOOGLEBOT);
-                }
-                #[cfg(target_arch = "wasm32")]
-                {
-                    html = fetch_html(&client, &resolved_url, GOOGLEBOT).await;
-                }
-            }
-
-            let now = web_time::Instant::now();
-            *meta_state.lock().unwrap() = match html {
-                Ok(h) => match extract_link_meta(&h, &resolved_url) {
-                    Some(meta) if !is_junk_meta(&h, &meta, &resolved_url) => {
-                        LinkMetaState::Loaded(meta)
-                    }
-                    // Junk describes the wall, not the page — treat like a
-                    // bot wall rather than rendering it.
-                    Some(_) => LinkMetaState::Failed {
-                        retry_at: Some(now + BLOCKED_RETRY),
-                        attempts: attempts + 1,
-                    },
-                    None => LinkMetaState::Failed { retry_at: None, attempts: attempts + 1 },
-                },
-                Err(FetchError::RateLimited { until }) => {
-                    LinkMetaState::Failed { retry_at: Some(until), attempts: attempts + 1 }
-                }
-                Err(FetchError::Blocked(_)) => LinkMetaState::Failed {
-                    retry_at: Some(now + BLOCKED_RETRY),
-                    attempts: attempts + 1,
-                },
-                Err(FetchError::Transient(_)) => {
-                    let backoff =
-                        (TRANSIENT_RETRY_BASE * 2u32.pow(attempts.min(4))).min(TRANSIENT_RETRY_CAP);
-                    LinkMetaState::Failed { retry_at: Some(now + backoff), attempts: attempts + 1 }
-                }
-                Err(FetchError::Permanent(_)) => {
-                    LinkMetaState::Failed { retry_at: None, attempts: attempts + 1 }
-                }
-            };
-            link_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
-            ctx.request_repaint();
-        });
     }
 
     /// Drop `url`'s cached metadata and fetch it fresh — the context menu's
     /// "Refresh Preview". Explicitly user-invoked, but still behind the
     /// contact-linked-sites opt-in (previews don't render without it anyway).
     pub fn refresh_link_meta(&self, url: &str) {
-        if !self.contact_linked_sites {
-            return;
-        }
-        let resolved_url = match self.resolve_link(url) {
-            Some(ResolvedLink::External(u))
-                if u.starts_with("http://") || u.starts_with("https://") =>
-            {
-                u
+        if let Some(ResolvedLink::External(u)) = self.resolve_link(url) {
+            if u.starts_with("http://") || u.starts_with("https://") {
+                self.previews.refresh(&u);
             }
-            _ => return,
-        };
-        let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
-        self.layout_cache
-            .link_meta
-            .borrow_mut()
-            .insert(resolved_url.clone(), arc.clone());
-        self.spawn_meta_fetch(resolved_url, arc, 0);
+        }
     }
 
     /// Re-fetch preview metadata for every link intersecting the selection —
@@ -876,7 +861,7 @@ pub enum LinkMetaLookup {
     /// Internal file link — a title from the file cache (never a card/capsule).
     Internal(String),
     /// Fetched external metadata.
-    Loaded(LinkMeta),
+    Loaded(Box<LinkMeta>),
     /// External fetch in progress — a card holds a skeleton until it resolves.
     Loading,
     /// No metadata and none coming (fetch failed, fetching off, or
@@ -940,6 +925,13 @@ pub enum LinkMenuAction {
 }
 
 /// What a desktop context menu over a link-like node acts on.
+/// The space a chip's favicon is painted over, before its title.
+const FAVICON_SLOT: &str = "\u{2003}";
+/// Chips longer than this many ems are cut short.
+const CHIP_MAX_EMS: f32 = 24.0;
+/// How far a cut chip's fade reaches back into its text, in ems.
+const CHIP_FADE_EMS: f32 = 1.5;
+
 #[derive(Clone)]
 pub struct LinkMenuTarget {
     pub url: String,
