@@ -505,7 +505,7 @@ impl ShellApp {
                             }
                         }
                         parts.reverse();
-                        parts.join(" / ")
+                        parts.join(workspace_rs::style::file_row::CRUMB_SEP)
                     };
                     (f.id, f.name.clone(), f.last_modified as i64, crumbs, pinned.contains(&f.id))
                 })

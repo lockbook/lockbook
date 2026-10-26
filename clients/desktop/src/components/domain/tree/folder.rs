@@ -64,7 +64,13 @@ pub fn show_delete_tree(
         ui.set_height(list_h);
         ui.set_max_height(list_h);
         let (slot, _) = ui.allocate_exact_size(vec2(w, list_h), egui::Sense::hover());
-        crate::components::paint_plate_stroke(ui, slot, radius, t.neutral());
+        crate::components::paint_plate_shadow(
+            ui,
+            slot,
+            radius,
+            t.neutral_bg(),
+            crate::components::pin_shadow(t),
+        );
         ui.scope_builder(egui::UiBuilder::new().max_rect(slot), |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             ui.set_clip_rect(slot.intersect(ui.clip_rect()));

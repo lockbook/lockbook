@@ -55,12 +55,18 @@ pub fn sheet_panel(
     ui: &mut Ui, t: &Theme, content_w: f32, content: &mut impl PadContent,
 ) -> Response {
     let pad = SHEET_PAD.pts();
-    super::chrome::plate_content(ui, t.neutral_bg(), t.neutral(), Radius::Surface.corner(), |ui| {
-        ui.set_width((content_w + pad * 2.0).max(1.0));
-        ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-        let mut wrap = SheetPadWrap { content_w: content_w.max(1.0), inner: content };
-        with_pad(ui, SHEET_PAD, &mut wrap);
-    })
+    super::chrome::plate_content_shadow(
+        ui,
+        t.neutral_bg(),
+        super::overlay_shadow(t),
+        Radius::Surface.corner(),
+        |ui| {
+            ui.set_width((content_w + pad * 2.0).max(1.0));
+            ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+            let mut wrap = SheetPadWrap { content_w: content_w.max(1.0), inner: content };
+            with_pad(ui, SHEET_PAD, &mut wrap);
+        },
+    )
 }
 
 /// [`sheet_panel`] when inner height is already known (locked create plate, etc.).
@@ -81,11 +87,17 @@ pub fn sheet_panel_fit(
 ) -> Response {
     let pad = SHEET_PAD.pts();
     let content_w = content_w.max(1.0);
-    super::chrome::plate_content(ui, t.neutral_bg(), t.neutral(), Radius::Surface.corner(), |ui| {
-        ui.set_width((content_w + pad * 2.0).max(1.0));
-        ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-        with_pad_fit(ui, SHEET_PAD, add);
-    })
+    super::chrome::plate_content_shadow(
+        ui,
+        t.neutral_bg(),
+        super::overlay_shadow(t),
+        Radius::Surface.corner(),
+        |ui| {
+            ui.set_width((content_w + pad * 2.0).max(1.0));
+            ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+            with_pad_fit(ui, SHEET_PAD, add);
+        },
+    )
 }
 
 struct SheetPadWrap<'a, C: PadContent> {

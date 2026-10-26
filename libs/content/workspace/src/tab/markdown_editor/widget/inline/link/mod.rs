@@ -639,8 +639,7 @@ impl<'ast> MdRender {
             };
 
             if response.hovered() && response.sense.senses_click() {
-                ui.ctx()
-                    .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+                crate::style::link_cursor(ui.ctx());
             }
             self.show_link_tip(ui.ctx(), response, || {
                 if is_wikilink {

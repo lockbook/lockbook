@@ -187,7 +187,13 @@ pub fn show_folder_tree_plate(
     let list_h = list_h.max(ROW_H);
     let w = super::layout::ui_width(ui).max(1.0);
     let (slot, _) = ui.allocate_exact_size(egui::vec2(w, list_h), egui::Sense::hover());
-    super::chrome::paint_plate_stroke(ui, slot, Radius::Control.corner(), t.neutral());
+    super::chrome::paint_plate_shadow(
+        ui,
+        slot,
+        Radius::Control.corner(),
+        t.neutral_bg(),
+        super::pin_shadow(t),
+    );
     let mut picked = None;
     ui.scope_builder(egui::UiBuilder::new().max_rect(slot), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;

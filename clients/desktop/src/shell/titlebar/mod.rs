@@ -333,8 +333,7 @@ fn titlebar_icon(
 ) -> egui::Response {
     let hit = icon_hit_size();
     if enabled {
-        let resp = icon_button_glyph(ui, t, icon, active, ground, hit, titlebar_glyph())
-            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        let resp = icon_button_glyph(ui, t, icon, active, ground, hit, titlebar_glyph());
         tip_text(ui.ctx(), &resp, tip);
         resp
     } else {

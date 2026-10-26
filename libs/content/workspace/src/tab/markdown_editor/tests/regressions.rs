@@ -11,8 +11,8 @@ use super::super::input::{Advance, Bound, Event, Location, Region};
 use super::super::widget::utils::wrap_layout::FragmentContent;
 use super::harness::TestEditor;
 use super::render_props::{
-    assert_bg_rows_meet_within_inline_code, fragment_rect_disjoint_check_md,
-    galley_rect_in_render_area, glyph_in_render_area_check_md, render_frame, test_renderer,
+    fragment_rect_disjoint_check_md, galley_rect_in_render_area, glyph_in_render_area_check_md,
+    render_frame, test_renderer,
 };
 
 // ── renderer ──
@@ -504,18 +504,6 @@ fn reveal_toggle_preserves_content_coverage() {
         });
         assert!(covered, "content uncovered at cursor offset {cursor}");
     }
-}
-
-#[test]
-fn inline_code_wrap_bgs_meet_at_row_seam() {
-    // Long inline code that's wider than the column → wraps. Each
-    // visual row gets its own bg fragment; they should meet exactly
-    // at the row seam (bottom of upper = top of lower) because
-    // `row_spacing = 2 × inline_padding` is sized so the inline_pad
-    // each side extends fills the spacing exactly.
-    let md = "`one two three four five six seven eight nine ten`\n";
-    // Narrow width forces wrap.
-    assert_bg_rows_meet_within_inline_code(md, 200.0).unwrap();
 }
 
 #[test]

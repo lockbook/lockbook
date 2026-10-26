@@ -1,7 +1,7 @@
 use std::ops::Deref as _;
 
 use egui::os::OperatingSystem;
-use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, Stroke, Ui, Vec2};
+use egui::{Align2, Color32, CornerRadius, Pos2, Rect, Ui, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 
@@ -154,7 +154,8 @@ impl EmbedResolver for ImageEmbedResolver {
     }
 }
 
-/// A quiet box: hairline frame, icon and caption in secondary ink. `dot`
+/// A quiet box: icon over caption in secondary ink, laid out as a hidden
+/// image is ([`paint_icon_caption`]). `dot`
 /// marks one that waits or names nothing, in the color its link draws in,
 /// as the completion picker marks files past the scope.
 fn show_placeholder(
@@ -163,35 +164,30 @@ fn show_placeholder(
     let theme = ui.ctx().get_lb_theme();
     let color = theme.neutral_fg_secondary();
     // Clip so a tiny thumbnail's icon/caption can't spill over the card or text.
+    crate::style::paint_doc_border(ui.painter(), rect, 2, &theme);
     let painter = ui.painter().with_clip_rect(rect);
 
-    let icon_size = (rect.width().min(rect.height()) * 0.6).clamp(10.0, 48.0);
-    painter.text(rect.center(), Align2::CENTER_CENTER, icon, phosphor_font_id(icon_size), color);
-    // Caption only where it fits; otherwise the icon alone.
-    let font = FontId::proportional(TypeRole::Mono.size());
-    let fits = painter
-        .layout_no_wrap(caption.into(), font.clone(), color)
-        .size()
-        .x
-        <= rect.width() - 12.0;
-    if fits && rect.height() >= 64.0 {
-        painter.text(
-            rect.center_bottom() - Vec2::new(0.0, 8.0),
-            Align2::CENTER_BOTTOM,
-            caption,
-            font,
-            color,
-        );
-    }
-    painter.rect_stroke(
-        rect,
-        2.,
-        Stroke { width: 1., color: theme.neutral_bg_tertiary() },
-        egui::epaint::StrokeKind::Inside,
-    );
+    paint_icon_caption(&painter, rect, icon, caption, color);
     if let Some(dot) = dot {
         let inset = DOT + crate::style::Space::Xs.pts();
         painter.circle_filled(rect.right_top() + Vec2::new(-inset, inset), DOT, dot);
+    }
+}
+
+/// An icon over its caption, centred together in `rect`; the caption only
+/// where it fits.
+fn paint_icon_caption(
+    painter: &egui::Painter, rect: Rect, icon: &str, caption: &str, ink: Color32,
+) {
+    let glyph = (rect.width().min(rect.height()) * 0.3).clamp(14.0, 32.0);
+    let galley = painter.layout_no_wrap(caption.into(), TypeRole::Mono.font_id(), ink);
+    let fits = galley.size().x <= rect.width() - 12.0 && rect.height() >= glyph * 2.4;
+    let icon_at = if fits { rect.center() - Vec2::new(0.0, glyph * 0.4) } else { rect.center() };
+    painter.text(icon_at, Align2::CENTER_CENTER, icon, phosphor_font_id(glyph), ink);
+    if fits {
+        let at =
+            rect.center() + Vec2::new(-galley.size().x / 2.0, glyph * 0.6 - galley.size().y / 2.0);
+        painter.galley(at, galley, ink);
     }
 }
 
@@ -214,22 +210,14 @@ fn show_hidden(ui: &mut Ui, rect: Rect, rounding: CornerRadius, caption: &str, w
     let ink = theme.neutral_fg_secondary();
     let painter = ui.painter().with_clip_rect(rect);
     painter.rect_filled(rect, rounding, theme.neutral_bg_secondary());
-    let glyph = (rect.width().min(rect.height()) * 0.3).clamp(14.0, 32.0);
-    painter.text(
-        rect.center() - Vec2::new(0.0, glyph * 0.4),
-        Align2::CENTER_CENTER,
+    paint_icon_caption(
+        &painter,
+        rect,
         match why {
             Hidden::Reader => crate::style::phosphor::EYE_SLASH,
             Hidden::Web => crate::style::phosphor::GLOBE,
         },
-        crate::style::phosphor_font_id(glyph),
-        ink,
-    );
-    painter.text(
-        rect.center() + Vec2::new(0.0, glyph * 0.6),
-        Align2::CENTER_CENTER,
         caption,
-        FontId::proportional(TypeRole::Mono.size()),
         ink,
     );
     if why == Hidden::Reader {

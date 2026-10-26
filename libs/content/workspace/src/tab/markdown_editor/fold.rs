@@ -154,10 +154,6 @@ impl<'ast> MdRender {
                 Event::Replace { region: fold.tag.into(), text: "".into(), advance_cursor: false };
             self.touch_consume_interaction(id, TouchTarget::Tap(unfold.clone()));
 
-            if response.hovered() {
-                ui.ctx()
-                    .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            }
             if response.clicked() {
                 self.render_events.push(unfold);
             }

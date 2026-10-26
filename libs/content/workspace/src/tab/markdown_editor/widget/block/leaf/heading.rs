@@ -287,9 +287,6 @@ impl<'ast> MdRender {
         );
         ui.painter()
             .galley(space.center() - galley.size() / 2.0, galley, color);
-        if resp.hovered() {
-            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-        }
         tip_text(ui.ctx(), &resp, if copied { "Copied" } else { "Copy Heading Link" });
         if copied {
             ui.ctx()
@@ -537,9 +534,6 @@ impl<'ast> MdRender {
             .scope_id()
             .with(("md_fold_btn", range.start().0, range.end().0));
         let resp = ui.interact(space, id, sense_click());
-        if resp.hovered() {
-            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-        }
 
         let t = self.ctx.get_lb_theme();
         let over = resp.hovered() || ui.ctx().rect_contains_pointer(ui.layer_id(), space);

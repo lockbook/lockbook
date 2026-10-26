@@ -1,4 +1,4 @@
-use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use lb_rs::Uuid;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
@@ -8,34 +8,25 @@ use std::sync::{Arc, RwLock};
 
 use lb_rs::model::file::File;
 
-use crate::TextBufferArea;
 use crate::file_cache::{
-    FileCache, FilesExt as _, Reach, link_id, relative_path, split_fragment, strip_ext, web_link,
+    FileCache, FilesExt as _, link_id, relative_path, split_fragment, strip_ext, web_link,
     wiki_fragment, wiki_title,
 };
-use crate::style::{
-    Space, ThemeExt as _, TypeRole, crumb_label, ellipsize_path, ellipsize_path_tail, parent_crumbs,
-};
+use crate::style::tree_metrics::{INDENT_BASE, INDENT_STEP};
+use crate::style::{FileRow, Space, ThemeExt as _, TypeRole, file_row_icon, parent_crumbs};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
-use crate::tab::markdown_editor::fragment::{Heading, crumbs, document_headings, wiki_token};
+use crate::tab::markdown_editor::fragment::{Heading, document_headings, wiki_token};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
-use crate::tab::markdown_editor::widget::{
-    completion_chrome_w, completion_font, completion_line_h, completion_line_rects,
-    completion_path_font, completion_popup_rect, completion_popup_size, completion_row_h,
-    completion_text_rect,
-};
+use crate::tab::markdown_editor::widget::completion_popup_rect;
 use crate::widgets::GlyphonLabel;
 use crate::widgets::glyphon_label::TextOverflow;
 
 const MAX_RESULTS: usize = 7;
-const TARGET_POPUP_WIDTH: f32 = 320.0; // soft target per row; popup grows to fit actual content
-const MIN_HINT_WIDTH: f32 = 60.0; // always leave at least this much room for the hint
-const OUTSIDE_DOT: f32 = 3.0; // radius of the dot before the path of a file outside the note's scope
-const HEADINGS_SLOT: f32 = 32.0; // the `#` button at the end of a note's row
-const HEADINGS_SLOT_TOUCH: f32 = 44.0; // the same, a thumb wide
+/// The popup's width, narrower where the window is.
+const POPUP_WIDTH: f32 = 360.0;
 
 #[derive(Default, Clone, Copy, PartialEq)]
 pub enum CompletionMode {
@@ -105,6 +96,10 @@ impl LinkCompletions {
         let qr = query_range(buffer, range, mode);
         let query = &buffer[qr];
         if self.is_suppressed(buffer, query) {
+            return;
+        }
+        // past a wikilink's `|` is its display text, which nothing completes
+        if mode == CompletionMode::WikiLink && query.contains('|') {
             return;
         }
         // `[` is the markdown-link opener (`[title](path)`), but an empty
@@ -202,61 +197,87 @@ impl LinkCompletions {
             return;
         }
 
-        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) && self.selected > 0 {
+        let up = ctx.input_mut(|i| {
+            i.consume_key(Modifiers::NONE, Key::ArrowUp) || i.consume_key(Modifiers::CTRL, Key::P)
+        });
+        if up && self.selected > 0 {
             self.selected -= 1;
         }
-        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown))
-            && self.selected + 1 < results.len()
-        {
+        let down = ctx.input_mut(|i| {
+            i.consume_key(Modifiers::NONE, Key::ArrowDown) || i.consume_key(Modifiers::CTRL, Key::N)
+        });
+        if down && self.selected + 1 < results.len() {
             self.selected += 1;
         }
 
-        let display_for = |r: &FileResult| -> String {
-            if matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest) {
-                existing_title(&buffer[(bracket_start, replace_end)], mode)
-            } else {
-                r.name.clone()
-            }
-        };
-
-        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
-            let idx = self.selected;
-            let r = &results[idx];
-            self.apply_completion(
-                events,
-                bracket_start,
-                replace_end,
-                &display_for(r),
-                &r.insert,
-                mode,
-            );
+        let r = &results[self.selected];
+        let accept = ctx.input_mut(|i| {
+            i.consume_key(Modifiers::NONE, Key::Enter) || i.consume_key(Modifiers::NONE, Key::Tab)
+        });
+        if accept {
+            let display =
+                if matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest) {
+                    existing_title(&buffer[(bracket_start, replace_end)], mode)
+                } else {
+                    r.name.clone()
+                };
+            let r = r.clone();
+            self.apply_completion(events, bracket_start, replace_end, &display, &r.insert, mode);
             return;
         }
 
-        let num_modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
-            Modifiers::COMMAND
-        } else {
-            Modifiers::CTRL
-        };
-        for (idx, key) in
-            [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7]
-                .iter()
-                .enumerate()
-                .take(results.len())
-        {
-            if ctx.input_mut(|i| i.consume_key(num_modifier, *key)) {
-                let r = &results[idx];
-                self.apply_completion(
-                    events,
-                    bracket_start,
-                    replace_end,
-                    &display_for(r),
-                    &r.insert,
-                    mode,
-                );
+        // `#` and `|` take the highlighted row and go on: to its note's
+        // headings, or to the link's display text
+        let next =
+            if !query.contains('#') && r.headings && r.group.is_none() { Some('#') } else { None };
+        let display = (mode == CompletionMode::WikiLink).then_some('|');
+        for key in [next, display].into_iter().flatten() {
+            let typed = |e: &egui::Event| matches!(e, egui::Event::Text(t) if t.len() == 1 && t.starts_with(key));
+            if ctx.input(|i| i.events.iter().any(typed)) {
+                ctx.input_mut(|i| i.events.retain(|e| !typed(e)));
+                let r = r.clone();
+                self.continue_with(events, (bracket_start, replace_end), qr, &r, mode, key);
                 return;
             }
         }
+    }
+
+    /// Takes `r` and goes on to the next part of the link after `key`: its
+    /// note's headings after `#`, the display text after `|`.
+    fn continue_with(
+        &mut self, events: &mut Vec<Event>, (bracket_start, replace_end): (Grapheme, Grapheme),
+        qr: (Grapheme, Grapheme), r: &FileResult, mode: CompletionMode, key: char,
+    ) {
+        if key == '#' && mode == CompletionMode::Link {
+            // the query is the link's text: write the whole link, the caret
+            // in its destination after the `#`
+            let text = format!("[{}]({}#)", r.name, r.insert);
+            let caret = Grapheme(bracket_start.0 + text.graphemes(true).count() - 1);
+            events.push(Event::Replace {
+                region: Region::BetweenLocations {
+                    start: Location::Grapheme(bracket_start),
+                    end: Location::Grapheme(replace_end),
+                },
+                text,
+                advance_cursor: true,
+            });
+            events.push(Event::Select {
+                region: Region::BetweenLocations {
+                    start: Location::Grapheme(caret),
+                    end: Location::Grapheme(caret),
+                },
+            });
+        } else {
+            events.push(Event::Replace {
+                region: Region::BetweenLocations {
+                    start: Location::Grapheme(qr.0),
+                    end: Location::Grapheme(qr.1),
+                },
+                text: format!("{}{key}", r.insert),
+                advance_cursor: true,
+            });
+        }
+        self.selected = 0;
     }
 
     fn is_suppressed(&self, buffer: &Buffer, query: &str) -> bool {
@@ -622,26 +643,14 @@ struct FileResult {
     /// True if this file is outside the scope of the current file, so the
     /// link won't open the same file for every reader.
     outside: bool,
-    /// How `insert` reaches the file for this reader: past the scope, or not
-    /// at all. None inside the scope.
-    reach: Option<Option<Reach>>,
     /// The file's path, for its folder crumbs.
     path: String,
-    /// A heading's own crumbs, the headings above it, shown in place of
-    /// the folders.
-    crumbs: Option<String>,
     /// A note whose headings the row's `#` button lists.
     headings: bool,
     /// For a heading, the note it is in, which heads its group of rows.
     group: Option<String>,
-}
-
-impl FileResult {
-    fn crumbs(&self) -> String {
-        self.crumbs
-            .clone()
-            .unwrap_or_else(|| parent_crumbs(&self.path))
-    }
+    /// A heading's level, 1 for `#`; 0 for a file.
+    level: u8,
 }
 
 /// A file a completion could link to, with what ranking it takes.
@@ -820,42 +829,29 @@ impl LinkCompletions {
                 // a wikilink title, or a link destination: a relative path in
                 // the scope, the external URL out of it, never an absolute
                 // path; a title past the scope is unique in the reader's tree
-                let (insert, located) =
-                    if matches!(mode, CompletionMode::WikiLink | CompletionMode::WikiEmbed) {
-                        let title = cache
-                            .wikilink_title(f.id, file_id)
-                            .or_else(|| cache.wikilink_title_in(f.id, cache.tree_root(file_id)))
-                            .unwrap_or_else(|| wiki_title(&f.name).to_string());
-                        // resolved as the note will read it, escapes undone
-                        let located = cache.locate_wikilink(&unescape_wiki_title(&title), file_id);
-                        (title, located)
-                    } else {
-                        let destination = match cache.link_destination(f.id, file_id) {
-                            Some(path) => path,
-                            None => format!("{origin}/open/{}", f.id),
-                        };
-                        let located = cache.locate_link(&destination, file_id);
-                        (destination, located)
-                    };
-                let (outside, path) = (candidate.outside, cache.path(f.id));
-                // the dot is the color the link will draw in: none where it
-                // opens this file for everyone, red where it opens no file or
-                // another one
-                let reach = match located.filter(|(id, _)| *id == f.id) {
-                    Some((_, Reach::Scope)) => None,
-                    located => outside.then_some(located.map(|(_, reach)| reach)),
+                let insert = if matches!(mode, CompletionMode::WikiLink | CompletionMode::WikiEmbed)
+                {
+                    cache
+                        .wikilink_title(f.id, file_id)
+                        .or_else(|| cache.wikilink_title_in(f.id, cache.tree_root(file_id)))
+                        .unwrap_or_else(|| wiki_title(&f.name).to_string())
+                } else {
+                    match cache.link_destination(f.id, file_id) {
+                        Some(path) => path,
+                        None => format!("{origin}/open/{}", f.id),
+                    }
                 };
+                let (outside, path) = (candidate.outside, cache.path(f.id));
                 let headings = !image && f.name.to_lowercase().ends_with(".md");
                 Some(FileResult {
                     id: f.id,
                     name,
                     insert,
                     outside,
-                    reach,
                     path,
-                    crumbs: None,
                     headings,
                     group: None,
+                    level: 0,
                 })
             })
             .collect();
@@ -971,18 +967,17 @@ impl LinkCompletions {
                 let headings = &per_note[rank];
                 let h = &headings[i];
                 let token = if wiki { wiki_token(h) } else { h.slug.clone() };
-                // the slug names it, repeats included; the headings above
-                // place it; its note heads the group
+                // its text names it; its level indents it; its note heads
+                // the group
                 FileResult {
                     id: *id,
-                    name: h.slug.clone(),
+                    name: h.text.clone(),
                     insert: format!("{insert}#{token}"),
                     outside: false,
-                    reach: None,
                     path: String::new(),
-                    crumbs: Some(crumbs(headings, i)),
                     headings: false,
                     group: Some(labels[rank].clone()),
+                    level: h.level,
                 }
             })
             .collect()
@@ -1001,36 +996,15 @@ impl LinkCompletions {
     }
 }
 
-/// Groups characters into `(text, bold)` spans based on match flags.
-fn build_bold_spans(text: &str, flags: &[bool]) -> Vec<(String, bool)> {
-    let mut spans = Vec::new();
-    let mut cur = String::new();
-    let mut cur_bold = false;
-    for (ch, &matched) in text.chars().zip(flags.iter()) {
-        if matched != cur_bold && !cur.is_empty() {
-            spans.push((cur.clone(), cur_bold));
-            cur.clear();
-        }
-        cur_bold = matched;
-        cur.push(ch);
+/// A faint dot in each step of a heading row's indent, as an editor marks
+/// whitespace, so its depth reads without a level label.
+fn paint_indent_dots(ui: &Ui, row: Rect, depth: usize, theme: &crate::style::Theme) {
+    let ink = theme.neutral_fg_secondary().gamma_multiply(0.45);
+    for step in 0..depth {
+        let x = row.left() + INDENT_BASE + (step as f32 + 0.5) * INDENT_STEP;
+        ui.painter()
+            .circle_filled(Pos2::new(x, row.center().y), 1.0, ink);
     }
-    if !cur.is_empty() {
-        spans.push((cur, cur_bold));
-    }
-    spans
-}
-
-/// Returns a bool per filename character: true if consumed by the subsequence match.
-fn match_positions(query: &str, name: &str) -> Vec<bool> {
-    let mut result = vec![false; name.chars().count()];
-    let mut qi = query.chars().peekable();
-    for (i, nc) in name.chars().enumerate() {
-        if qi.peek() == Some(&nc) {
-            result[i] = true;
-            qi.next();
-        }
-    }
-    result
 }
 
 impl MdEdit {
@@ -1057,6 +1031,11 @@ impl MdEdit {
         let results = self
             .link_completions
             .search(&cache, self.file_id, &query, mode, note);
+        let scope = cache.scope_top(self.file_id);
+        let scope = cache
+            .get_by_id(scope)
+            .map(|f| f.name.clone())
+            .unwrap_or_default();
         drop(cache);
         if results.is_empty() {
             return;
@@ -1066,373 +1045,100 @@ impl MdEdit {
             return;
         };
 
-        // -- Measure content -------------------------------------------------------
         let theme = ui.ctx().get_lb_theme();
-        let text_color = theme.neutral_fg();
-        let hint_color = theme.neutral_fg_secondary();
-        let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) { "⌘" } else { "^" };
-        // what the row names was typed after the `#` for a heading
-        let lq = match query.split_once('#') {
-            Some((_, needle)) if results[0].group.is_some() => {
-                crate::tab::markdown_editor::fragment::slugify(needle)
+        let pad = Space::Xs.pts();
+        // a heading's note heads its group, when there's more than one
+        let groups = results.iter().filter_map(|r| r.group.as_deref());
+        let grouped = groups
+            .clone()
+            .any(|g| Some(g) != results[0].group.as_deref());
+        // a section title sits with the rows it heads: air above it, little
+        // below
+        let title_above = |i: usize| if i == 0 { Space::Xs.pts() } else { Space::Sm.pts() };
+        let title_h =
+            |i: usize| title_above(i) + TypeRole::Caption.line_height() + Space::Xxs.pts();
+        // each group's headings indent from its shallowest
+        let top_level = |group: Option<&str>| {
+            results
+                .iter()
+                .filter(|r| r.group.as_deref() == group)
+                .map(|r| r.level)
+                .min()
+                .unwrap_or(1)
+        };
+        let row_h = |r: &FileResult| {
+            let subtitle = r.group.is_none() && !parent_crumbs(&r.path).is_empty();
+            FileRow::height_for(subtitle)
+        };
+        // what heads row `i`: its heading's note, or the files outside the scope
+        let header = |i: usize| -> Option<String> {
+            let r = &results[i];
+            let first = i == 0 || results[i - 1].group != r.group;
+            if grouped && first {
+                return r.group.clone();
             }
-            _ => strip_ext(&query).to_lowercase(),
+            let outside = r.outside && (i == 0 || !results[i - 1].outside);
+            outside.then(|| format!("Outside {scope}"))
         };
-
-        let shortcuts: Vec<String> = if self.phone_mode {
-            Vec::new()
-        } else {
-            (0..results.len())
-                .map(|i| format!("{}{}", modifier, i + 1))
-                .collect()
-        };
-
-        let measure = |text: &str, size: f32, line_height: f32| -> f32 {
-            GlyphonLabel::new(text, hint_color)
-                .font_size(size)
-                .line_height(line_height)
-                .measure(ui)
-                .x
-        };
-        let measure_path =
-            |text: &str| measure(text, completion_path_font(), TypeRole::Mono.line_height());
-        let name_widths: Vec<f32> = results
-            .iter()
-            .map(|r| measure(&r.name, completion_font(), completion_line_h()))
-            .collect();
-        // the shortcut at the row's right edge, and the gap before it
-        let tails: Vec<f32> = (0..results.len())
-            .map(|i| {
-                shortcuts.get(i).map_or(0.0, |s| {
-                    measure(s, completion_path_font(), completion_line_h()) + Space::Xs.pts()
-                })
-            })
-            .collect();
-        let path_gap = Space::Sm.pts();
-        // the dot and the gap after it, before the path of a file outside
-        // the scope: the color the link will be drawn in
-        let lead =
-            |r: &FileResult| if r.outside { 2.0 * OUTSIDE_DOT + Space::Xs.pts() } else { 0.0 };
-        // a note's `#` button, past the shortcut
-        let can_list_headings = matches!(
-            mode,
-            CompletionMode::WikiLink | CompletionMode::Link | CompletionMode::LinkDest
-        );
-        let touch = self.renderer.touch_mode;
-        let slot_w = if touch { HEADINGS_SLOT_TOUCH } else { HEADINGS_SLOT };
-        let headings_slot = |r: &FileResult| {
-            if can_list_headings && r.headings { slot_w } else { 0.0 }
-        };
-        let text_rect = |row: Rect, r: &FileResult| {
-            let rect = completion_text_rect(row);
-            rect.with_max_x(rect.max.x - headings_slot(r))
-        };
-
-        // Folders shorten in the middle (as Files and search do); the headings
-        // above a heading from the outside in, its nearest parent kept.
-        let path_hint = |r: &FileResult, budget: f32| -> String {
-            match r.group {
-                Some(_) => ellipsize_path_tail(ui, &r.crumbs(), budget.max(1.0)),
-                None => ellipsize_path(ui, &r.crumbs(), budget.max(1.0)),
+        let mut height = 2.0 * pad;
+        for (i, r) in results.iter().enumerate() {
+            if header(i).is_some() {
+                height += title_h(i);
             }
-        };
-        // a heading's note heads its group of rows
-        let headers: Vec<(usize, &str)> = results
-            .iter()
-            .enumerate()
-            .filter_map(|(i, r)| {
-                let group = r.group.as_deref()?;
-                let first = i == 0 || results[i - 1].group.as_deref() != Some(group);
-                first.then_some((i, group))
-            })
-            .collect();
-        let path_hints: Vec<String> = results
-            .iter()
-            .enumerate()
-            .map(|(i, r)| {
-                let taken = name_widths[i]
-                    + path_gap
-                    + lead(r)
-                    + tails[i]
-                    + headings_slot(r)
-                    + completion_chrome_w();
-                path_hint(r, (TARGET_POPUP_WIDTH - taken).max(MIN_HINT_WIDTH))
-            })
-            .collect();
-
-        // -- Position popup --------------------------------------------------------
-        // Width = the widest row: name, gap, dot, path hint, shortcut, padding.
-        let popup_width = path_hints
-            .iter()
-            .zip(&results)
-            .enumerate()
-            .map(|(i, (hint, r))| {
-                name_widths[i]
-                    + path_gap
-                    + lead(r)
-                    + measure_path(hint)
-                    + tails[i]
-                    + headings_slot(r)
-                    + completion_chrome_w()
-            })
-            .chain(
-                headers
-                    .iter()
-                    .map(|(_, group)| measure_path(group) + completion_chrome_w()),
-            )
-            .fold(0.0_f32, f32::max);
-
-        // a header is a short line, its label low, so it sits with the rows
-        // it names; the rule above it parts it from the group before
-        let header_h = TypeRole::Mono.line_height() + Space::Xs.pts();
-        let mut size = completion_popup_size(popup_width - completion_chrome_w(), results.len());
-        size.y += headers.len() as f32 * header_h;
+            height += row_h(r);
+        }
+        let size = Vec2::new(POPUP_WIDTH, height);
         let popup_rect =
             completion_popup_rect(cursor_top, cursor_bot, size, ui.ctx().content_rect());
         self.renderer
             .touch_targets
             .push((popup_rect, TouchTarget::Popup));
+        self.renderer.draw_completion_popup(ui, popup_rect);
 
-        // each header takes a line above its group's first row
-        let heights: Vec<f32> = (0..results.len())
-            .flat_map(|i| {
-                let header = headers.iter().any(|(at, _)| *at == i);
-                header
-                    .then_some(header_h)
-                    .into_iter()
-                    .chain([completion_row_h()])
-            })
-            .collect();
-        let mut lines = completion_line_rects(popup_rect, &heights).into_iter();
-        let mut row_rects = Vec::with_capacity(results.len());
-        let mut header_rects: Vec<(Rect, &str)> = vec![];
-        for i in 0..results.len() {
-            if let Some((_, group)) = headers.iter().find(|(at, _)| *at == i) {
-                header_rects.push((lines.next().unwrap_or(Rect::NOTHING), group));
-            }
-            row_rects.push(lines.next().unwrap_or(Rect::NOTHING));
-        }
-
-        // Re-ellipsize crumbs against the clamped row so name / path / shortcut
-        // don't overlap when the window is narrower than the target popup.
-        let mut row_fit: Vec<(String, f32, bool)> = Vec::with_capacity(results.len());
-        for (idx, result) in results.iter().enumerate() {
-            let content_rect = text_rect(row_rects[idx], result);
-            let available = (content_rect.width() - tails[idx] - lead(result)).max(1.0);
-            let name_w = name_widths[idx];
-            let path_budget = if name_w + MIN_HINT_WIDTH + path_gap <= available {
-                available - name_w - path_gap
-            } else {
-                MIN_HINT_WIDTH
-            };
-            let path = path_hint(result, path_budget.max(1.0));
-            let path_w = measure_path(&path);
-            let name_max = (available - path_w - path_gap).max(40.0);
-            row_fit.push((path, name_max, name_w > name_max + 0.5));
-        }
-
-        // -- Interaction -----------------------------------------------------------
-        let hover_pos = ui.input(|i| i.pointer.hover_pos());
         let mut clicked = None;
-        for (idx, result) in results.iter().enumerate() {
-            let resp = ui.interact(
-                row_rects[idx],
-                Id::unique("link_item").with((result.id, idx)),
-                Sense::click(),
-            );
-            if resp.hovered() {
-                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            }
-            if resp.clicked() {
-                clicked = Some(idx);
-            }
-        }
-        let mut list_headings = None;
-        let mut hash_buttons = vec![];
-        for (idx, result) in results.iter().enumerate() {
-            if headings_slot(result) == 0.0 {
-                continue;
-            }
-            let row = row_rects[idx];
-            let rect = Rect::from_min_max(Pos2::new(row.right() - slot_w, row.top()), row.max);
-            let id = Id::unique("link_item_headings").with((result.id, idx));
-            let resp = ui.interact(rect, id, Sense::click());
-            crate::style::tip_text(ui.ctx(), &resp, "Headings");
-            if resp.hovered() {
-                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            }
-            if resp.clicked() {
-                list_headings = Some(idx);
-                clicked = None;
-            }
-            // a mouse finds it by hovering; on touch it shows while pressed
-            let active = if touch { resp.is_pointer_button_down_on() } else { resp.hovered() };
-            hash_buttons.push((rect, active));
-        }
-
-        // -- Draw backgrounds ------------------------------------------------------
-        self.renderer.draw_completion_popup(
-            ui,
-            popup_rect,
-            &row_rects,
-            self.link_completions.selected,
-            hover_pos,
-        );
-
-        // a rule above the first file outside the note's scope
-        if let Some(idx) = results.iter().position(|r| r.outside).filter(|i| *i > 0) {
-            let row = row_rects[idx];
-            ui.painter().hline(
-                row.x_range(),
-                row.top(),
-                egui::Stroke::new(crate::style::STROKE_HAIRLINE, theme.neutral()),
-            );
-        }
-
-        // On touch the `#` is its own cell, a hairline between it and the
-        // row, in text ink so it doesn't read as the last crumb.
-        for (rect, active) in hash_buttons {
-            if active {
-                let wash = theme.wash_toward_neutral_fg(theme.neutral_bg(), crate::style::FG_HOVER);
-                ui.painter()
-                    .rect_filled(rect.shrink(2.0), crate::style::Radius::Sm.corner(), wash);
-            }
-            if touch {
-                let inset = rect.height() * 0.25;
-                ui.painter().vline(
-                    rect.left(),
-                    (rect.top() + inset)..=(rect.bottom() - inset),
-                    egui::Stroke::new(crate::style::STROKE_HAIRLINE, theme.neutral()),
+        let mut y = popup_rect.top() + pad;
+        let (left, right) = (popup_rect.left() + pad, popup_rect.right() - pad);
+        for (i, r) in results.iter().enumerate() {
+            if let Some(label) = header(i) {
+                let at = Rect::from_min_max(
+                    Pos2::new(left, y + title_above(i)),
+                    Pos2::new(right, y + title_h(i)),
                 );
+                let label = TypeRole::caps(&label);
+                let label =
+                    GlyphonLabel::new(&label, theme.neutral_fg_secondary()).role(TypeRole::Caption);
+                let label = label
+                    .max_width(at.width() - 2.0 * INDENT_BASE)
+                    .text_overflow(TextOverflow::EndEllipsis);
+                let size = label.measure(ui);
+                let slot = Rect::from_min_size(Pos2::new(at.left() + INDENT_BASE, at.top()), size);
+                ui.put(slot, label);
+                y += title_h(i);
             }
-            let ink = if active || touch { text_color } else { hint_color };
-            ui.painter().text(
-                rect.center(),
-                egui::Align2::CENTER_CENTER,
-                crate::style::phosphor::HASH,
-                crate::style::phosphor_font_id(completion_font()),
-                ink,
-            );
-        }
-
-        // -- Render text -----------------------------------------------------------
-        let clip_rect = ui.clip_rect();
-        let mut text_areas: Vec<TextBufferArea> = Vec::new();
-
-        // group headers: the note's name, quiet, a rule above all but the first
-        for (idx, (rect, group)) in header_rects.iter().enumerate() {
-            if idx > 0 {
-                ui.painter().hline(
-                    rect.x_range(),
-                    rect.top(),
-                    egui::Stroke::new(crate::style::STROKE_HAIRLINE, theme.neutral()),
-                );
-            }
-            let label_h = TypeRole::Mono.line_height();
-            let content_rect = completion_text_rect(*rect);
-            let content_rect = Rect::from_min_max(
-                Pos2::new(content_rect.left(), rect.bottom() - label_h),
-                Pos2::new(content_rect.right(), rect.bottom()),
-            );
-            let shaped = GlyphonLabel::new(group, hint_color)
-                .font_size(completion_path_font())
-                .line_height(label_h)
-                .max_width(content_rect.width())
-                .text_overflow(TextOverflow::EndEllipsis)
-                .build(ui.ctx());
-            text_areas.extend(shaped.text_areas(content_rect, ui.ctx(), clip_rect));
-        }
-
-        for (idx, result) in results.iter().enumerate() {
-            let content_rect = text_rect(row_rects[idx], result);
-            let (path, name_max, ellipsize_name) = &row_fit[idx];
-            let shortcut = shortcuts.get(idx).map(String::as_str);
-
-            let flags = match_positions(&lq, &result.name.to_lowercase());
-            let spans = build_bold_spans(&result.name, &flags);
-            let span_refs: Vec<(&str, bool)> =
-                spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
-            let mut label = if *ellipsize_name {
-                GlyphonLabel::new(&result.name, text_color)
-                    .font_size(completion_font())
-                    .line_height(completion_line_h())
-                    .max_width(*name_max)
-                    .text_overflow(TextOverflow::EndEllipsis)
+            let rect = Rect::from_min_max(Pos2::new(left, y), Pos2::new(right, y + row_h(r)));
+            let id = Id::unique("link_item").with((r.id, i));
+            let selected = i == self.link_completions.selected;
+            let resp = if r.group.is_some() {
+                let depth = r.level.saturating_sub(top_level(r.group.as_deref())) as usize;
+                let resp = FileRow::new(&theme, &r.name)
+                    .icon("")
+                    .depth(depth)
+                    .highlighted(selected)
+                    .paint_at_hit(ui, rect, rect, id);
+                paint_indent_dots(ui, rect, depth, &theme);
+                resp
             } else {
-                GlyphonLabel::new_rich(span_refs, text_color)
-                    .font_size(completion_font())
-                    .line_height(completion_line_h())
+                let file = r.path.rsplit('/').next().unwrap_or(&r.name);
+                FileRow::new(&theme, &r.name)
+                    .icon(file_row_icon(file, false))
+                    .subtitle(parent_crumbs(&r.path))
+                    .highlighted(selected)
+                    .paint_at_hit(ui, rect, rect, id)
             };
-            if let Some(s) = shortcut {
-                label = label.hint(s, hint_color);
+            if resp.clicked() {
+                clicked = Some(i);
             }
-            let shaped = label.build(ui.ctx());
-            let tail = shaped.hint_size().map_or(0.0, |s| s.x + Space::Xs.pts());
-            text_areas.extend(shaped.text_areas(content_rect, ui.ctx(), clip_rect));
-
-            let shaped = crumb_label(path, hint_color, theme.accent())
-                .font_size(completion_path_font())
-                .line_height(TypeRole::Mono.line_height())
-                .build(ui.ctx());
-            let path_h = TypeRole::Mono.line_height();
-            let path_rect = Rect::from_min_size(
-                Pos2::new(
-                    content_rect.max.x - tail - shaped.size.x,
-                    content_rect.center().y - path_h / 2.0,
-                ),
-                Vec2::new(shaped.size.x, path_h),
-            );
-            text_areas.push(shaped.text_area(path_rect, ui.ctx(), clip_rect));
-            if let Some(reach) = result.reach {
-                let center = Pos2::new(
-                    path_rect.min.x - Space::Xs.pts() - OUTSIDE_DOT,
-                    path_rect.center().y,
-                );
-                let color = if reach.is_some() { theme.fg().yellow } else { theme.fg().red };
-                ui.painter().circle_filled(center, OUTSIDE_DOT, color);
-            }
-        }
-
-        // Submit after the editor's main text callback so the popup composites on top.
-        ui.painter()
-            .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                ui.max_rect(),
-                crate::GlyphonRendererCallback::new(text_areas),
-            ));
-
-        // -- Apply clicked result --------------------------------------------------
-        // `#` on a note's row: its headings, the picker kept open
-        if let Some(idx) = list_headings {
-            let r = &results[idx];
-            let events = &mut self.event.internal_events;
-            if mode == CompletionMode::Link {
-                let text = format!("[{}]({}#)", r.name, r.insert);
-                let caret = Grapheme(bracket_start.0 + text.graphemes(true).count() - 1);
-                events.push(Event::Replace {
-                    region: Region::BetweenLocations {
-                        start: Location::Grapheme(bracket_start),
-                        end: Location::Grapheme(replace_end),
-                    },
-                    text,
-                    advance_cursor: true,
-                });
-                events.push(Event::Select {
-                    region: Region::BetweenLocations {
-                        start: Location::Grapheme(caret),
-                        end: Location::Grapheme(caret),
-                    },
-                });
-            } else {
-                events.push(Event::Replace {
-                    region: Region::BetweenLocations {
-                        start: Location::Grapheme(qr.0),
-                        end: Location::Grapheme(qr.1),
-                    },
-                    text: format!("{}#", r.insert),
-                    advance_cursor: true,
-                });
-            }
-            self.link_completions.selected = 0;
+            y += row_h(r);
         }
 
         if let Some(idx) = clicked {
@@ -1458,8 +1164,6 @@ impl MdEdit {
 #[cfg(test)]
 mod tests {
     use lb_rs::Uuid;
-
-    use lb_rs::model::file::File;
 
     use super::{CompletionMode, LinkCompletions};
     use crate::file_cache::{FileCache, FilesExt as _, Reach, ResolvedLink};
@@ -1553,8 +1257,8 @@ mod tests {
     }
 
     /// After a `#`, the rows pair a note the part before it names with a
-    /// heading that has what follows: named by slug, placed by the headings
-    /// above, grouped under the note, inserting what resolves back (the text
+    /// heading that has what follows: named by its text, at its level,
+    /// grouped under the note, inserting what resolves back (the text
     /// in a wiki link, the slug in a destination or for a repeat). A part
     /// that resolves names that note alone; a partial title or a tie, every
     /// note that has it, told apart by folder where names match.
@@ -1576,36 +1280,36 @@ mod tests {
                 .into_iter()
                 .map(|r| {
                     let group = r.group.unwrap_or_default();
-                    (group, r.name, r.insert, r.crumbs.unwrap_or_default())
+                    (group, r.name, r.insert, r.level)
                 })
                 .collect::<Vec<_>>()
         };
-        let row = |group: &str, slug: &str, insert: &str, above: &str| {
-            (group.to_string(), slug.to_string(), insert.to_string(), above.to_string())
+        let row = |group: &str, text: &str, insert: &str, level: u8| {
+            (group.to_string(), text.to_string(), insert.to_string(), level)
         };
         assert_eq!(
             rows("#", CompletionMode::WikiLink),
             [
-                row("editing", "launch", "#Launch", ""),
-                row("editing", "goals", "#Goals", "Launch"),
-                row("editing", "open", "#Open", "Launch / Goals"),
-                row("editing", "goals-1", "#goals-1", "Launch"),
+                row("editing", "Launch", "#Launch", 1),
+                row("editing", "Goals", "#Goals", 2),
+                row("editing", "Open", "#Open", 3),
+                row("editing", "Goals", "#goals-1", 2),
             ]
         );
         assert_eq!(
             rows("editing.md#op", CompletionMode::LinkDest),
-            [row("editing", "open", "editing.md#open", "Launch / Goals")]
+            [row("editing", "Open", "editing.md#open", 3)]
         );
         assert_eq!(
             rows("floo#", CompletionMode::WikiLink),
-            [row("Floor plan", "kitchen", "Floor plan#Kitchen", "")]
+            [row("Floor plan", "Kitchen", "Floor plan#Kitchen", 1)]
         );
         assert_eq!(
             rows("Plan#go", CompletionMode::WikiLink),
             [
-                row("design/Plan", "goals", "design/Plan#Goals", ""),
-                row("research/Plan", "goals", "research/Plan#Goals", ""),
-                row("research/Plan", "gone", "research/Plan#Gone", "Goals"),
+                row("design/Plan", "Goals", "design/Plan#Goals", 1),
+                row("research/Plan", "Goals", "research/Plan#Goals", 1),
+                row("research/Plan", "Gone", "research/Plan#Gone", 2),
             ],
             "a tie lists both notes' headings"
         );
@@ -1732,7 +1436,7 @@ mod tests {
     /// Every completion offered resolves back to the file it was for, in the
     /// scope as a relative path or a wiki title, out of it as the external
     /// URL or a title unique in the reader's tree, and never as an absolute
-    /// path. Out of the scope it reaches as [`Reach::Reader`], and says so.
+    /// path.
     #[test]
     fn inserts_resolve_back_and_wiki_titles_are_shortest() {
         let (cache, editing) = shared_project();
@@ -1740,7 +1444,6 @@ mod tests {
         for mode in [CompletionMode::WikiLink, CompletionMode::Link] {
             for query in ["plan", "road", "p", ""] {
                 for r in lc.search(&cache, editing, query, mode, "") {
-                    assert_eq!(r.reach, r.outside.then_some(Some(Reach::Reader)), "{:?}", r.insert);
                     let resolved = if mode == CompletionMode::WikiLink {
                         cache.resolve_wikilink(&r.insert, editing)
                     } else {
@@ -1771,10 +1474,9 @@ mod tests {
 
     /// A link to a file outside the note's scope inserts the external URL,
     /// a wiki title enough of its folders to be unique in the reader's tree;
-    /// both resolve back to the file, marked as differing by reader. A file
-    /// in another tree has no wiki title that reaches it: red.
+    /// both resolve back to the file.
     #[test]
-    fn out_of_scope_rows_say_how_they_reach() {
+    fn out_of_scope_rows_insert_what_reaches_them() {
         let (cache, [note, _, own_budget, ..]) = crate::file_cache::tests::alice();
         let mut lc = LinkCompletions::new(Some("http://localhost:8100".into()));
         let results = lc.search(&cache, note, "budget", CompletionMode::Link, "");
@@ -1783,48 +1485,12 @@ mod tests {
             .find(|r| r.id == own_budget)
             .expect("offered");
         assert_eq!(own.insert, format!("http://localhost:8100/open/{own_budget}"));
-        assert_eq!(own.reach, Some(Some(Reach::Reader)));
         assert_eq!(cache.locate_link(&own.insert, note), Some((own_budget, Reach::Reader)));
 
         let wiki = lc.search(&cache, note, "budget", CompletionMode::WikiLink, "");
         let own = wiki.iter().find(|r| r.id == own_budget).expect("offered");
         assert_eq!(own.insert, "personal/Budget");
-        assert_eq!(own.reach, Some(Some(Reach::Reader)));
         assert_eq!(cache.locate_wikilink(&own.insert, note), Some((own_budget, Reach::Reader)));
-
-        // bob's memo, shared with alice and still pending: its own tree
-        let root = cache.root().clone();
-        let rows: Vec<File> = cache.all_files().cloned().collect();
-        let memo_file = File {
-            id: Uuid::from_u128(77),
-            parent: Uuid::from_u128(78),
-            owner: "bob".into(),
-            ..tree("bob", &["/Memo.md"]).pop().unwrap()
-        };
-        let cache = FileCache::from_owned_and_shared(root, rows, [memo_file]);
-        let mut lc = LinkCompletions::default();
-        let wiki = lc.search(&cache, note, "memo", CompletionMode::WikiLink, "");
-        assert_eq!(
-            wiki.iter()
-                .map(|r| (r.insert.as_str(), r.reach))
-                .collect::<Vec<_>>(),
-            [("Memo", Some(None))]
-        );
-        let link = lc.search(&cache, note, "memo", CompletionMode::Link, "");
-        assert_eq!(link[0].reach, Some(Some(Reach::Reader)));
-
-        // every title for /notes/Plan.md also names /project/notes/Plan.md,
-        // which the note reaches first: the pick would open another file
-        let files = tree(
-            "alice",
-            &["/notes/Plan.md", "/project/ @bob", "/project/x.md", "/project/notes/Plan.md"],
-        );
-        let (x, outside) = (at(&files, "/project/x.md"), at(&files, "/notes/Plan.md"));
-        let files = crate::test_utils::files::cache(files);
-        let wiki =
-            LinkCompletions::default().search(&files, x, "plan", CompletionMode::WikiLink, "");
-        let row = wiki.iter().find(|r| r.id == outside).expect("offered");
-        assert_eq!(row.reach, Some(None), "{} opens another file", row.insert);
     }
 
     /// Filename search matches the full path; completions should too

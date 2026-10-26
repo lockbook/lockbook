@@ -169,7 +169,7 @@ pub fn pin_shadow(t: &Theme) -> Shadow {
     Shadow { offset: [0, 2], blur: 12, spread: 0, color: shadow_ink(t) }
 }
 
-/// Canvas plate frame for floating menus / pickers (fill + hairline + shadow).
+/// Canvas plate frame for floating menus / pickers (fill + shadow).
 ///
 /// Uses real `inner_margin` so kids are not flush to the edge; Frame’s hardcoded
 /// Inside stroke is acceptable here. For **flush** plates prefer
@@ -178,7 +178,6 @@ pub fn canvas_overlay_frame(t: &Theme, inner_pad: Space) -> Frame {
     let p = inner_pad.pts() as i8;
     Frame::new()
         .fill(t.neutral_bg())
-        .stroke(Stroke::new(STROKE_HAIRLINE, t.neutral()))
         .corner_radius(Radius::Control.corner())
         .inner_margin(Margin::same(p))
         .shadow(overlay_shadow(t))
@@ -225,6 +224,59 @@ pub fn plate_content(
         .show(ui, add);
     paint_plate_stroke(ui, out.response.rect, radius, hairline);
     out.response
+}
+
+/// Fill on a known rect, lifted off what's under it by `shadow`.
+pub fn paint_plate_shadow(
+    ui: &Ui, rect: Rect, radius: impl Into<CornerRadius>, fill: Color32, shadow: Shadow,
+) {
+    let radius = radius.into();
+    ui.painter().add(shadow.as_shape(rect, radius));
+    ui.painter().rect_filled(rect, radius, fill);
+}
+
+/// The hairline around a surface that is part of the note (a code block, a
+/// table, a link card, an image's box), painted over its content.
+pub fn paint_doc_border(
+    painter: &egui::Painter, rect: Rect, radius: impl Into<CornerRadius>, t: &Theme,
+) {
+    let stroke = egui::Stroke::new(1.0, t.neutral_bg_tertiary());
+    painter.rect_stroke(rect, radius, stroke, egui::StrokeKind::Inside);
+}
+
+/// [`plate_content`] lifted by `shadow` instead of outlined.
+pub fn plate_content_shadow(
+    ui: &mut Ui, fill: Color32, shadow: Shadow, radius: impl Into<CornerRadius>,
+    add: impl FnOnce(&mut Ui),
+) -> Response {
+    Frame::new()
+        .fill(fill)
+        .shadow(shadow)
+        .corner_radius(radius)
+        .inner_margin(0.0)
+        .show(ui, add)
+        .response
+}
+
+/// The slot something was lifted out of: shaded in from its edges, most
+/// under the top one, as if pressed into the surface.
+pub fn paint_inset_shadow(
+    painter: &egui::Painter, rect: Rect, radius: impl Into<CornerRadius>, t: &Theme,
+) {
+    let radius = radius.into();
+    let ink = shadow_ink(t);
+    let painter = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
+    let depth = 6;
+    for i in 0..depth {
+        let fade = 1.0 - i as f32 / depth as f32;
+        let r = rect.shrink(i as f32).translate(vec2(0.0, i as f32 * 0.5));
+        painter.rect_stroke(
+            r,
+            radius,
+            Stroke::new(1.0, ink.gamma_multiply(fade * fade)),
+            StrokeKind::Inside,
+        );
+    }
 }
 
 /// One chip in a shortcut badge.

@@ -1,4 +1,4 @@
-//! Type scale: 22 title, 16 heading, 14 body, 12 mono.
+//! Type scale: 22 title, 16 heading, 14 body, 12 mono, 11 caption.
 
 use egui::{FontFamily, FontId, RichText, TextStyle};
 
@@ -13,11 +13,13 @@ pub enum TypeRole {
     Body,
     /// Code, token names, kbd badges — 12 mono.
     Mono,
+    /// Section titles in a list, set in capitals ([`TypeRole::caps`]) — 11.
+    Caption,
 }
 
 impl TypeRole {
-    pub const ALL: [TypeRole; 4] =
-        [TypeRole::Title, TypeRole::Heading, TypeRole::Body, TypeRole::Mono];
+    pub const ALL: [TypeRole; 5] =
+        [TypeRole::Title, TypeRole::Heading, TypeRole::Body, TypeRole::Mono, TypeRole::Caption];
 
     /// Page / document title size.
     pub const TITLE_SIZE: f32 = 22.0;
@@ -27,6 +29,8 @@ impl TypeRole {
     pub const UI_SIZE: f32 = 14.0;
     /// Monospace size.
     pub const MONO_SIZE: f32 = 12.0;
+    /// Caption size.
+    pub const CAPTION_SIZE: f32 = 11.0;
 
     pub const fn size(self) -> f32 {
         match self {
@@ -34,7 +38,13 @@ impl TypeRole {
             TypeRole::Heading => Self::HEADING_SIZE,
             TypeRole::Body => Self::UI_SIZE,
             TypeRole::Mono => Self::MONO_SIZE,
+            TypeRole::Caption => Self::CAPTION_SIZE,
         }
+    }
+
+    /// `text` as a caption shows it, in capitals.
+    pub fn caps(text: &str) -> String {
+        text.to_uppercase()
     }
 
     /// Line box (em × 1.4) — matches Glyphon / control metrics.
@@ -60,6 +70,7 @@ impl TypeRole {
             TypeRole::Heading => None, // use font_id / rich only
             TypeRole::Body => Some(TextStyle::Body),
             TypeRole::Mono => Some(TextStyle::Monospace),
+            TypeRole::Caption => None,
         }
     }
 

@@ -20,8 +20,8 @@
 use crate::components::{
     Button, FixedPadContent, NavItem, Radius, STROKE_HAIRLINE, Space, Spacer, Theme, ThemeFamily,
     TypeRole, control_height, form_group, form_picker, form_row, form_segmented, form_toggle,
-    form_toggle_detail, form_value, icon_button, paint_plate, phosphor, section_label, sheet_dim,
-    ui_width, with_h_pad, with_overlay_scroll,
+    form_toggle_detail, form_value, icon_button, phosphor, section_label, sheet_dim, ui_width,
+    with_h_pad, with_overlay_scroll,
 };
 use egui::{
     Align, Area, CornerRadius, Id, Label, Layout, Order, Pos2, Rect, ScrollArea, Sense, Stroke,
@@ -123,14 +123,12 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
                 ui.allocate_exact_size(vec2(settings_w, settings_h), Sense::hover());
             readout.plate = plate_rect;
 
-            // Outside stroke lives outside the fill, so rail/content paints
-            // (flush to plate_rect) cannot cover it — draw once, up front.
-            paint_plate(
+            crate::components::paint_plate_shadow(
                 ui,
                 plate_rect,
                 Radius::Surface.corner(),
                 t.neutral_bg_secondary(),
-                t.neutral(),
+                crate::components::overlay_shadow(t),
             );
 
             let header_h = header_band_h().min(settings_h * 0.45).max(1.0);
@@ -495,10 +493,10 @@ fn page_debug(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
             // Elevated surface + Outside hairline. Natural height (newlines);
             // horizontal scroll for long lines — outer settings body scrolls
             // vertically (no nested vertical / fixed 320 box that overflowed).
-            crate::components::plate_content(
+            crate::components::plate_content_shadow(
                 ui,
                 t.neutral_bg_secondary(),
-                t.neutral(),
+                crate::components::pin_shadow(t),
                 Radius::Control.corner(),
                 |ui| {
                     ui.set_width(ui_width(ui).max(1.0));

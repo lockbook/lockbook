@@ -607,7 +607,13 @@ fn create_location_body(
         ui.set_width(w);
         ui.set_height(tree_h);
         let (slot, _) = ui.allocate_exact_size(egui::vec2(w, tree_h), egui::Sense::hover());
-        crate::components::paint_plate_stroke(ui, slot, radius, t.neutral());
+        crate::components::paint_plate_shadow(
+            ui,
+            slot,
+            radius,
+            t.neutral_bg(),
+            crate::components::pin_shadow(t),
+        );
         ui.scope_builder(egui::UiBuilder::new().max_rect(slot), |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             ui.set_clip_rect(slot.intersect(ui.clip_rect()));

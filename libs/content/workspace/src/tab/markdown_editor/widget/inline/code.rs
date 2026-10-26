@@ -3,25 +3,20 @@ use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as 
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
-use crate::theme::palette_v2::{ThemeExt as _, contrast_ratio, translucent_over};
+use crate::theme::palette_v2::{ThemeExt as _, translucent_over};
 
 impl<'ast> MdRender {
     pub fn text_format_code(&self, parent: &AstNode<'_>) -> Format {
         let theme = self.ctx.get_lb_theme();
         let background = theme.neutral_bg_secondary();
-        let accent = theme.fg().get_color(theme.prefs().primary);
-        let color = if contrast_ratio(accent, background).passes_normal_text() {
-            accent
-        } else {
-            theme.neutral_fg()
-        };
+        // the theme's accents read on its secondary background
+        let color = theme.fg().get_color(theme.prefs().primary);
 
         Format {
             color,
             // Translucent fill that matches the opaque look over the page
             // but lets a selection behind it show through.
             background: translucent_over(background, theme.neutral_bg(), 0.5),
-            border: theme.neutral_bg_tertiary(),
             bold: false, // SF Mono does not have bold variants for numbers (it does have italic)
             ..self.text_format_code_block(parent)
         }

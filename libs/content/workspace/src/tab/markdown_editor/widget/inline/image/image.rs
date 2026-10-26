@@ -262,8 +262,7 @@ impl<'ast> MdEdit {
             .touch_consume_interaction(ui.scope_id().with(salt), TouchTarget::Tap(tap));
 
         if (open || withheld) && response.hovered() {
-            ui.ctx()
-                .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+            crate::style::link_cursor(ui.ctx());
         }
         if !is_image || !self.renderer.embeds.is_loaded(url) {
             let state = || match wikilink {

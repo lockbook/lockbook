@@ -239,70 +239,51 @@ pub fn translucent_over(target: Color32, background: Color32, alpha: f32) -> Col
     )
 }
 
-pub fn ensure_normal_text_contrast(color: Color32, background: Color32) -> Color32 {
-    if contrast_ratio(color, background).passes_normal_text() {
+/// Accents must reach this APCA lightness contrast (|Lc|) against their
+/// mode's page to read as text.
+pub const MIN_TEXT_LC: f32 = 50.0;
+
+/// APCA (0.0.98G-4g) lightness contrast of `text` on `background`, as
+/// |Lc|, 0 to about 106. Unlike WCAG's ratio it weighs which is text and
+/// which is ground, so light-on-dark and dark-on-light score differently.
+pub fn apca(text: Color32, background: Color32) -> f32 {
+    fn luminance(c: Color32) -> f32 {
+        let channel = |v: u8| (v as f32 / 255.0).powf(2.4);
+        let y = 0.2126729 * channel(c.r()) + 0.7151522 * channel(c.g()) + 0.072175 * channel(c.b());
+        // soft clamp near black
+        if y < 0.022 { y + (0.022 - y).powf(1.414) } else { y }
+    }
+    let (t, b) = (luminance(text), luminance(background));
+    let c = if b > t {
+        (b.powf(0.56) - t.powf(0.57)) * 1.14
+    } else {
+        (b.powf(0.65) - t.powf(0.62)) * 1.14
+    };
+    if c.abs() < 0.1 { 0.0 } else { (c.abs() - 0.027) * 100.0 }
+}
+
+/// `color`, moved toward black or white (whichever reads better on
+/// `background`) just far enough to read as text on it.
+pub fn readable_on(color: Color32, background: Color32) -> Color32 {
+    let lc = MIN_TEXT_LC;
+    if apca(color, background) >= lc {
         return color;
     }
-
-    let toward_black = contrast_ratio(Color32::BLACK, background);
-    let toward_white = contrast_ratio(Color32::WHITE, background);
-    let target = if toward_black >= toward_white { Color32::BLACK } else { Color32::WHITE };
-
-    let mut lo = 0.0f32;
-    let mut hi = 1.0f32;
+    let target = if apca(Color32::BLACK, background) >= apca(Color32::WHITE, background) {
+        Color32::BLACK
+    } else {
+        Color32::WHITE
+    };
+    let (mut lo, mut hi) = (0.0f32, 1.0f32);
     for _ in 0..12 {
         let mid = (lo + hi) / 2.0;
-        if contrast_ratio(color.lerp_to_gamma(target, mid), background).passes_normal_text() {
+        if apca(color.lerp_to_gamma(target, mid), background) >= lc {
             hi = mid;
         } else {
             lo = mid;
         }
     }
     color.lerp_to_gamma(target, hi)
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ContrastRatio {
-    /// Below the 3:1 threshold used for large text and non-text UI.
-    Low,
-    /// Meets 3:1, used for large text and non-text UI.
-    LargeText,
-    /// Meets 4.5:1, used for normal text.
-    NormalText,
-    /// Maximum 21:1 contrast, pure black against pure white.
-    Maximum,
-}
-
-impl ContrastRatio {
-    pub fn passes_normal_text(self) -> bool {
-        self >= Self::NormalText
-    }
-}
-
-/// WCAG contrast threshold between two opaque colors.
-pub fn contrast_ratio(a: Color32, b: Color32) -> ContrastRatio {
-    let a = relative_luminance(a);
-    let b = relative_luminance(b);
-    let (lighter, darker) = if a >= b { (a, b) } else { (b, a) };
-    let ratio = (lighter + 0.05) / (darker + 0.05);
-    if (ratio - 21.0).abs() < 0.01 {
-        ContrastRatio::Maximum
-    } else if ratio >= 4.5 {
-        ContrastRatio::NormalText
-    } else if ratio >= 3.0 {
-        ContrastRatio::LargeText
-    } else {
-        ContrastRatio::Low
-    }
-}
-
-fn relative_luminance(color: Color32) -> f32 {
-    fn channel(c: u8) -> f32 {
-        let c = c as f32 / 255.0;
-        if c <= 0.03928 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
-    }
-
-    0.2126 * channel(color.r()) + 0.7152 * channel(color.g()) + 0.0722 * channel(color.b())
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -367,7 +348,24 @@ impl Theme {
         current: Mode, dim: ThemeVariant, light_prefs: Preferences, bright: ThemeVariant,
         dark_prefs: Preferences,
     ) -> Self {
-        Self { current, dim, light_prefs, bright, dark_prefs, code: None }
+        Self { current, dim, light_prefs, bright, dark_prefs, code: None }.readable()
+    }
+
+    /// The theme with each accent moved just far enough to read as text on
+    /// its mode's page ([`readable_on`]): `dim` is light mode's ink on
+    /// `bright.white`, `bright` dark mode's on `dim.black`.
+    pub fn readable(mut self) -> Self {
+        let read_on = |v: &mut ThemeVariant, ground: Color32| {
+            for c in
+                [&mut v.red, &mut v.green, &mut v.yellow, &mut v.blue, &mut v.magenta, &mut v.cyan]
+            {
+                *c = readable_on(*c, ground);
+            }
+        };
+        let (light_page, dark_page) = (self.bright.white, self.dim.black);
+        read_on(&mut self.dim, light_page);
+        read_on(&mut self.bright, dark_page);
+        self
     }
 
     pub fn with_mode(mut self, mode: Mode) -> Self {
@@ -415,6 +413,7 @@ impl Theme {
             },
             code: None,
         }
+        .readable()
     }
 
     pub fn apple(current: Mode) -> Self {
@@ -477,12 +476,13 @@ impl Theme {
                 },
             }),
         }
+        .readable()
     }
 
     pub fn apple_macos(current: Mode) -> Self {
         let mut theme = Self::apple(current);
         theme.dim.black = hex_color!("#101010");
-        theme
+        theme.readable()
     }
 
     pub fn darcula(current: Mode) -> Self {
@@ -524,6 +524,7 @@ impl Theme {
             },
             code: None,
         }
+        .readable()
     }
 
     pub fn intellij(current: Mode) -> Self {
@@ -565,6 +566,7 @@ impl Theme {
             },
             code: None,
         }
+        .readable()
     }
 
     pub fn vscode(current: Mode) -> Self {
@@ -606,6 +608,7 @@ impl Theme {
             },
             code: None,
         }
+        .readable()
     }
 
     pub fn catppuccin(current: Mode) -> Self {
@@ -647,6 +650,7 @@ impl Theme {
             },
             code: None,
         }
+        .readable()
     }
 }
 
@@ -776,23 +780,36 @@ mod tests {
     }
 
     #[test]
-    fn contrast_ratio_classifies_wcag_thresholds() {
-        assert_eq!(contrast_ratio(Color32::BLACK, Color32::WHITE), ContrastRatio::Maximum);
-        assert_eq!(contrast_ratio(Color32::WHITE, Color32::WHITE), ContrastRatio::Low);
-    }
-
-    #[test]
-    fn apple_theme_accent_passes_inline_code_contrast() {
-        for mode in [Mode::Light, Mode::Dark] {
-            let theme = Theme::apple(mode);
-            let accent = theme.fg().get_color(theme.prefs().primary);
-            let background = theme.neutral_bg_secondary();
-            assert!(contrast_ratio(accent, background).passes_normal_text());
+    fn theme_accents_read_on_the_page() {
+        let themes: [fn(Mode) -> Theme; 7] = [
+            Theme::default,
+            Theme::apple,
+            Theme::apple_macos,
+            Theme::darcula,
+            Theme::intellij,
+            Theme::vscode,
+            Theme::catppuccin,
+        ];
+        for make in themes {
+            for mode in [Mode::Light, Mode::Dark] {
+                let theme = make(mode);
+                let ground = theme.neutral_bg();
+                for palette in [
+                    Palette::Red,
+                    Palette::Green,
+                    Palette::Yellow,
+                    Palette::Blue,
+                    Palette::Magenta,
+                    Palette::Cyan,
+                ] {
+                    assert!(apca(theme.fg().get_color(palette), ground) >= MIN_TEXT_LC);
+                }
+            }
         }
     }
 
     #[test]
-    fn system_accents_adjust_to_pass_normal_text() {
+    fn system_accents_adjust_to_read_as_text() {
         let light_accents = [
             hex_color!("#FF383C"),
             hex_color!("#FF8D28"),
@@ -815,19 +832,14 @@ mod tests {
         ];
 
         let theme = Theme::apple(Mode::Light);
-        for accent in light_accents {
-            let adjusted = ensure_normal_text_contrast(accent, theme.bright.grey);
-            assert!(contrast_ratio(adjusted, theme.bright.grey).passes_normal_text());
+        for (accents, ground) in
+            [(light_accents, theme.bright.grey), (dark_accents, theme.dim.grey)]
+        {
+            for accent in accents {
+                assert!(apca(readable_on(accent, ground), ground) >= MIN_TEXT_LC);
+            }
         }
-        for accent in dark_accents {
-            let adjusted = ensure_normal_text_contrast(accent, theme.dim.grey);
-            assert!(contrast_ratio(adjusted, theme.dim.grey).passes_normal_text());
-        }
-
-        assert_eq!(ensure_normal_text_contrast(theme.dim.blue, theme.bright.grey), theme.dim.blue);
-        assert_eq!(
-            ensure_normal_text_contrast(theme.bright.blue, theme.dim.grey),
-            theme.bright.blue
-        );
+        // one that already reads is left alone
+        assert_eq!(readable_on(theme.dim.blue, theme.bright.grey), theme.dim.blue);
     }
 }

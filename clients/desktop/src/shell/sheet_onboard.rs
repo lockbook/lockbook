@@ -2,8 +2,8 @@ use egui::{Align, Area, Id, Layout, Order};
 
 use crate::components::{
     Button, Field, Radius, SheetFooterOpts, Space, Spacer, Theme, TypeRole, control_height,
-    phosphor, plate_content, sense_click, sheet_dim, sheet_footer, sheet_panel_fit, shortcut_cmd_i,
-    shortcut_cmd_n, shortcut_return, ui_width, with_pad_fit,
+    phosphor, plate_content_shadow, sense_click, sheet_dim, sheet_footer, sheet_panel_fit,
+    shortcut_cmd_i, shortcut_cmd_n, shortcut_return, ui_width, with_pad_fit,
 };
 
 use super::ShellApp;
@@ -386,13 +386,19 @@ fn onboard_backup(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut 
     }
     let phrase = app.phrase_cache.as_deref().unwrap_or("");
     let phrase_ok = phrase.split_whitespace().count() == 24;
-    plate_content(ui, t.neutral_bg_secondary(), t.neutral(), Radius::Control.corner(), |ui| {
-        ui.set_width(ui_width(ui));
-        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-        with_pad_fit(ui, Space::Md, |ui| {
-            onboard_phrase_columns(ui, t, phrase);
-        });
-    });
+    plate_content_shadow(
+        ui,
+        t.neutral_bg_secondary(),
+        egui::Shadow::NONE,
+        Radius::Control.corner(),
+        |ui| {
+            ui.set_width(ui_width(ui));
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            with_pad_fit(ui, Space::Md, |ui| {
+                onboard_phrase_columns(ui, t, phrase);
+            });
+        },
+    );
 
     ui.add(Spacer::new(Space::Md));
     {

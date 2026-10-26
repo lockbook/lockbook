@@ -13,9 +13,9 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use egui::{Align2, Area, Frame, Id, Order, Sense, Stroke, vec2};
+use egui::{Align2, Area, Frame, Id, Order, Sense, vec2};
 
-use crate::components::{Radius, STROKE_HAIRLINE, Space, Theme, TypeRole};
+use crate::components::{Radius, Space, Theme, TypeRole, overlay_shadow};
 
 const LIFETIME: Duration = Duration::from_secs(4);
 const MAX_VISIBLE: usize = 3;
@@ -139,10 +139,6 @@ impl ToastHost {
                 ToastKind::Error => t.danger(),
                 ToastKind::Info => t.neutral_fg(),
             };
-            let border = match it.kind {
-                ToastKind::Error => t.danger(),
-                ToastKind::Info => t.neutral(),
-            };
             let fill = t.neutral_bg_secondary();
 
             let galley = ctx.fonts_mut(|f| {
@@ -167,7 +163,7 @@ impl ToastHost {
                     ui.set_opacity(a);
                     Frame::new()
                         .fill(fill)
-                        .stroke(Stroke::new(STROKE_HAIRLINE, border))
+                        .shadow(overlay_shadow(t))
                         .corner_radius(Radius::Control.corner())
                         .inner_margin(pad)
                         .show(ui, |ui| {

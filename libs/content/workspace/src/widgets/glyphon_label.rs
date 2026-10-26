@@ -4,6 +4,7 @@ use egui::{Response, Sense, Ui};
 use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Weight};
 use unicode_segmentation::UnicodeSegmentation as _;
 
+use crate::style::TypeRole;
 use crate::widgets::glyphon_cache::{
     GlyphonCache, GlyphonCacheKey, GlyphonCacheSpan, GlyphonFontFamily,
 };
@@ -21,6 +22,7 @@ pub enum TextOverflow {
 pub struct SpanStyle {
     pub bold: bool,
     pub color: Option<egui::Color32>,
+    pub mono: bool,
 }
 
 /// A text label rendered through glyphon so that emoji, non-Latin scripts, and
@@ -115,7 +117,7 @@ impl<'a> GlyphonLabel<'a> {
     /// Plain text label.
     pub fn new(text: &'a str, color: egui::Color32) -> Self {
         Self {
-            spans: vec![(text, SpanStyle { bold: false, color: None })],
+            spans: vec![(text, SpanStyle { bold: false, color: None, mono: false })],
             color,
             hint: None,
             font_size: 14.0,
@@ -132,7 +134,7 @@ impl<'a> GlyphonLabel<'a> {
         Self {
             spans: spans
                 .into_iter()
-                .map(|(t, bold)| (t, SpanStyle { bold, color: None }))
+                .map(|(t, bold)| (t, SpanStyle { bold, color: None, mono: false }))
                 .collect(),
             color,
             hint: None,
@@ -150,7 +152,7 @@ impl<'a> GlyphonLabel<'a> {
         Self {
             spans: spans
                 .into_iter()
-                .map(|(t, c)| (t, SpanStyle { bold: false, color: c }))
+                .map(|(t, c)| (t, SpanStyle { bold: false, color: c, mono: false }))
                 .collect(),
             color,
             hint: None,
@@ -170,6 +172,21 @@ impl<'a> GlyphonLabel<'a> {
 
     pub fn font_size(self, font_size: f32) -> Self {
         Self { font_size, ..self }
+    }
+
+    /// Size, line height and face from the design system's `role`;
+    /// [`TypeRole::Mono`] is set in the monospace face.
+    pub fn role(self, role: TypeRole) -> Self {
+        let label = self.font_size(role.size()).line_height(role.line_height());
+        if role == TypeRole::Mono { label.mono() } else { label }
+    }
+
+    /// Sets every span in the monospace face.
+    pub fn mono(mut self) -> Self {
+        self.spans
+            .iter_mut()
+            .for_each(|(_, style)| style.mono = true);
+        self
     }
 
     /// Set the row height used for glyph metrics and allocation.
@@ -222,7 +239,7 @@ impl<'a> GlyphonLabel<'a> {
             Self::shape_buffer(
                 ctx,
                 ppi,
-                &[(text, SpanStyle { bold: false, color: None })],
+                &[(text, SpanStyle { bold: false, color: None, mono: false })],
                 color,
                 hint_font_size,
                 line_height,
@@ -350,7 +367,11 @@ impl<'a> GlyphonLabel<'a> {
                 .iter()
                 .map(|&(text, style)| GlyphonCacheSpan {
                     text: text.to_string(),
-                    family: GlyphonFontFamily::SansSerif,
+                    family: if style.mono {
+                        GlyphonFontFamily::Monospace
+                    } else {
+                        GlyphonFontFamily::SansSerif
+                    },
                     bold: style.bold,
                     italic: false,
                     color: style.color.map(|c| c.to_array()),
@@ -382,11 +403,14 @@ impl<'a> GlyphonLabel<'a> {
                 // span's own attrs. Mirrors the editor's `shape_chunk`.
                 buf.set_rich_text(
                     spans.iter().flat_map(|&(text, style)| {
-                        let mut attrs = if style.bold {
-                            base.clone().weight(Weight::BOLD)
+                        let mut attrs = if style.mono {
+                            base.clone().family(Family::Monospace)
                         } else {
                             base.clone()
                         };
+                        if style.bold {
+                            attrs = attrs.weight(Weight::BOLD);
+                        }
                         if let Some(c) = style.color {
                             attrs = attrs.color(glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()));
                         }

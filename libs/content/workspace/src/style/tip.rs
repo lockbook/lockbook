@@ -15,7 +15,7 @@ use egui::{
     Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Response, Sense, Ui, Vec2, vec2,
 };
 
-use super::chrome::{Radius, STROKE_HAIRLINE, TIP_CHAIN_GRACE_SECS};
+use super::chrome::{Radius, TIP_CHAIN_GRACE_SECS};
 use super::color::ThemeExt;
 use super::space::Space;
 use super::typography::TypeRole;
@@ -206,7 +206,7 @@ fn show_anchored_at(
         .show(ctx, |ui| {
             Frame::new()
                 .fill(t.neutral_bg())
-                .stroke(egui::Stroke::new(STROKE_HAIRLINE, t.neutral()))
+                .shadow(crate::style::overlay_shadow(&t))
                 .corner_radius(Radius::Control.corner())
                 .inner_margin(Margin::symmetric(Space::Sm.pts() as i8, Space::Xs.pts() as i8))
                 .show(ui, |ui| {

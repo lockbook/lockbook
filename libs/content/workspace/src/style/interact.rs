@@ -32,6 +32,12 @@ pub fn sense_click() -> Sense {
     Sense::CLICK
 }
 
+/// The pointing hand, for what goes somewhere: a link in content. Controls,
+/// rows, and menus keep the arrow, as native apps do.
+pub fn link_cursor(ctx: &egui::Context) {
+    ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
+}
+
 /// Pointer-driven control state (drives which fill is desired).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IxState {

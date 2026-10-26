@@ -1,4 +1,4 @@
-use egui::{Pos2, Rect, Stroke, Ui, Vec2, vec2};
+use egui::{Pos2, Rect, Ui, Vec2, vec2};
 
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -90,7 +90,6 @@ pub struct Format {
     pub underline: bool,
     pub strikethrough: bool,
     pub background: egui::Color32,
-    pub border: egui::Color32,
     pub spoiler: bool,
     pub superscript: bool,
     pub subscript: bool,
@@ -662,6 +661,9 @@ impl MdRender {
 
 // ─── shape (Layout → Vec<InlineItem>) ────────────────────────────────
 
+/// Space left between backgrounds (chips, inline code) on adjacent rows.
+const BG_ROW_GAP: f32 = 2.0;
+
 /// Side padding inside a chip capsule, as a fraction of row height.
 /// Shared by the walker (which lays the pads between the glyph and
 /// the capsule edges) and by cursor math (which backs them out so the
@@ -1118,7 +1120,6 @@ fn default_format() -> Format {
         underline: false,
         strikethrough: false,
         background: egui::Color32::TRANSPARENT,
-        border: egui::Color32::TRANSPARENT,
         spoiler: false,
         superscript: false,
         subscript: false,
@@ -1871,11 +1872,6 @@ impl MdRender {
                     continue;
                 };
                 let chip = chip_of(&row.fragments[i]);
-                let border = row.fragments[i]
-                    .style_stack
-                    .last()
-                    .map(|s| s.format.border)
-                    .unwrap_or(egui::Color32::TRANSPARENT);
                 let chain_start = i;
                 let mut chain_end = i + 1;
                 while chain_end < row.fragments.len()
@@ -1888,9 +1884,12 @@ impl MdRender {
                 let chain_right = row.fragments[chain_end - 1].rect.right() + paint_top_left.x;
                 let row_top = row.fragments[chain_start].rect.top() + paint_top_left.y;
                 let row_bottom = row.fragments[chain_start].rect.bottom() + paint_top_left.y;
+                // backgrounds stop short of the row spacing so ones on
+                // adjacent rows stay apart
+                let pad = inline_pad - BG_ROW_GAP / 2.0;
                 let bg_rect = Rect::from_min_max(
-                    egui::Pos2::new(chain_left, row_top - inline_pad),
-                    egui::Pos2::new(chain_right, row_bottom + inline_pad),
+                    egui::Pos2::new(chain_left, row_top - pad),
+                    egui::Pos2::new(chain_right, row_bottom + pad),
                 );
                 let mut left_radius = 2.0;
                 let mut right_radius = 2.0;
@@ -1925,14 +1924,6 @@ impl MdRender {
                 if ui.clip_rect().intersects(bg_rect) {
                     let rounding = corner_rounding(left_radius, right_radius);
                     ui.painter().rect_filled(bg_rect, rounding, bg);
-                    if border != egui::Color32::TRANSPARENT {
-                        ui.painter().rect_stroke(
-                            bg_rect,
-                            rounding,
-                            Stroke::new(1.0_f32, border),
-                            egui::StrokeKind::Inside,
-                        );
-                    }
                 }
                 i = chain_end;
             }
