@@ -1,0 +1,18 @@
+{{#unless (or is_print is_toc_html (eq path "404.md"))}}
+{{! mdBook publishes the first chapter at both book.html and index.html. }}
+{{#if (or is_index (eq path "book.md"))}}
+<link rel="canonical" href="https://lockbook.net/docs/">
+<meta property="og:url" content="https://lockbook.net/docs/">
+{{/if}}
+<meta property="og:site_name" content="Lockbook">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{title}}">
+<meta property="og:description" content="{{description}}">
+<meta property="og:image" content="https://lockbook.net/shots/mac-editor.png">
+<meta property="og:image:alt" content="Lockbook on macOS, with a Markdown note open beside the file tree">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{title}}">
+<meta name="twitter:description" content="{{description}}">
+<meta name="twitter:image" content="https://lockbook.net/shots/mac-editor.png">
+<meta name="twitter:image:alt" content="Lockbook on macOS, with a Markdown note open beside the file tree">
+{{/unless}}
