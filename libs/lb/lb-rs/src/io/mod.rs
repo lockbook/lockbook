@@ -58,9 +58,9 @@ pub struct CoreV5 {
     pub id: DbOption<LbID>,
     pub pinned_files: DbVec<Uuid>,
 
-    /// Fingerprint of crash-report files from the last successful debug-info upload.
-    /// `None` means never sent; zero means no reports; negative values fingerprint
-    /// file metadata. Positive legacy timestamps trigger one upload on upgrade.
+    /// Sentinel for `send_debug_info` throttling: the millisecond timestamp of the
+    /// most recent panic file we've already uploaded. `None` means we have never
+    /// sent debug info; `Some(0)` means we've sent before but no panic file existed.
     pub last_extracted_panic: DbOption<i64>,
 }
 

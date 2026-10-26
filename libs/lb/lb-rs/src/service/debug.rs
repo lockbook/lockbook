@@ -110,7 +110,10 @@ impl Lb {
     /// When we last crashed, to the second, if a panic log survives.
     #[cfg(not(target_family = "wasm"))]
     pub async fn recent_panic(&self) -> LbResult<Option<DateTime<Local>>> {
-        recent_panic(&self.config.writeable_path).await
+        let panics = self.collect_panics(false).await?;
+        Ok(panics
+            .first()
+            .and_then(|panic| Local.from_local_datetime(&panic.time).single()))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -202,18 +205,6 @@ impl PanicFiles {
 
         while let Some(entry) = self.entries.next_entry().await? {
             let file_name = entry.file_name().into_string().unwrap_or_default();
-            if !entry.file_type().await?.is_file() {
-                continue;
-            }
-            if is_metrickit_filename(&file_name) {
-                // This is the receipt time. The diagnostic itself retains Apple's
-                // reporting interval and the version of the app that crashed.
-                let received: chrono::DateTime<Local> = entry.metadata().await?.modified()?.into();
-                return Ok(Some(PanicFile {
-                    time: received.naive_local(),
-                    file_path: self.base_path.join(file_name),
-                }));
-            }
             if !file_name.starts_with(PREFIX) || !file_name.ends_with(SUFFIX) {
                 continue;
             }
@@ -230,40 +221,10 @@ impl PanicFiles {
 
 #[cfg(not(target_family = "wasm"))]
 impl PanicFile {
-    fn is_metrickit(&self) -> bool {
-        self.file_path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(is_metrickit_filename)
-    }
-
     pub async fn content(&self) -> LbResult<String> {
         let contents = fs::read_to_string(&self.file_path).await?;
-        let time_label = if self.is_metrickit() { "received" } else { "time" };
-        Ok(format!("{time_label}: {}: contents: {}", self.time, contents))
+        Ok(format!("time: {}: contents: {}", self.time, contents))
     }
-}
-
-#[cfg(not(target_family = "wasm"))]
-fn is_metrickit_filename(name: &str) -> bool {
-    name.strip_prefix("metrickit---")
-        .and_then(|name| name.strip_suffix(".log"))
-        .is_some_and(|id| id.len() == 64 && id.bytes().all(|b| b.is_ascii_hexdigit()))
-}
-
-#[cfg(not(target_family = "wasm"))]
-async fn recent_panic(path: &str) -> LbResult<Option<DateTime<Local>>> {
-    let mut iter = iter_panic_files(path).await?;
-    let mut latest = None;
-    while let Some(panic) = iter.next().await? {
-        // Delayed MetricKit delivery must not disable workspace restoration as
-        // though the app had just crashed. Its receipt time is not a crash time.
-        if panic.is_metrickit() {
-            continue;
-        }
-        latest = latest.max(Some(panic.time));
-    }
-    Ok(latest.and_then(|time| Local.from_local_datetime(&time).single()))
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -273,40 +234,23 @@ pub(crate) async fn iter_panic_files(path: &str) -> LbResult<PanicFiles> {
     Ok(PanicFiles { entries, base_path })
 }
 
-/// Fingerprint report filenames, lengths and modification times without reading
-/// every backtrace on every sync. This also detects delayed MetricKit reports,
-/// multiple imports at the same time, and appends to a Rust panic log.
-/// Negative values distinguish fingerprints from legacy timestamp markers.
+/// Millisecond UTC timestamp of the most recent panic file on disk, if any.
 #[cfg(not(target_family = "wasm"))]
-pub(crate) async fn crash_report_marker(path: &str) -> LbResult<i64> {
-    use sha2::{Digest, Sha256};
-    use std::time::UNIX_EPOCH;
-
+pub(crate) async fn latest_panic_time(path: &str) -> LbResult<Option<i64>> {
     let mut iter = iter_panic_files(path).await?;
-    let mut reports = Vec::new();
+    let mut max: Option<i64> = None;
     while let Some(entry) = iter.next().await? {
-        let metadata = fs::metadata(&entry.file_path).await?;
-        let modified = metadata
-            .modified()?
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        reports.push((entry.file_path, metadata.len(), modified.as_nanos()));
+        let new_ts = entry.time.and_utc().timestamp_millis();
+        match &mut max {
+            Some(ts) => {
+                if new_ts > *ts {
+                    *ts = new_ts;
+                }
+            }
+            None => max = Some(new_ts),
+        }
     }
-    if reports.is_empty() {
-        return Ok(0);
-    }
-    reports.sort();
-    let mut hash = Sha256::new();
-    hash.update(b"lockbook-crash-reports-v1");
-    for (path, len, modified) in reports {
-        let name = path.file_name().unwrap().to_string_lossy();
-        hash.update((name.len() as u64).to_le_bytes());
-        hash.update(name.as_bytes());
-        hash.update(len.to_le_bytes());
-        hash.update(modified.to_le_bytes());
-    }
-    let digest = hash.finalize();
-    Ok(i64::from_le_bytes(digest[..8].try_into().unwrap()) | i64::MIN)
+    Ok(max)
 }
 
 pub fn generate_panic_filename(path: &str) -> String {
