@@ -90,11 +90,10 @@ class QuickCaptureViewModel(
         saveNote("$date.md", content, "pendingNote", clearDraft = true)
     }
 
-    fun createStarter(
-        template: StarterDocument,
-        name: String,
-        content: String,
-    ) {
+    fun createStarter(template: StarterDocument) {
+        val context = getApplication<Application>()
+        val name = context.getString(template.fileName)
+        val content = context.getString(template.content)
         val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         val fileName = if (template == StarterDocument.Journal) "$date.md" else name
         saveNote(fileName, content, "pendingStarter${template.name}", clearDraft = false)

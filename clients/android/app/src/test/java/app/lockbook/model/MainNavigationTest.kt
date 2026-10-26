@@ -3,6 +3,7 @@ package app.lockbook.model
 import androidx.lifecycle.SavedStateHandle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -43,19 +44,21 @@ class MainNavigationTest {
                 MainNavigationAction.OpenSearch(SearchPresentation.SidebarMorph),
             ).state
 
+        val request = MainNavigationAction.OpenDocument("document-id", newFile = false, closeDetailOnBack = false)
         val transition =
             reduceMainNavigation(
                 searching,
-                MainNavigationAction.OpenDocument("document-id", newFile = false),
+                request,
             )
 
         assertEquals(SidebarDestination.Files, transition.state.sidebar)
         assertEquals(PaneIntent.Detail, transition.state.paneIntent)
         assertEquals(null, transition.state.searchOverlay)
-        assertEquals(
-            MainNavigationEffect.OpenDocument("document-id", newFile = false),
-            transition.effect,
-        )
+        assertSame(request, transition.documentToOpen)
+
+        val repeated = reduceMainNavigation(transition.state, request)
+        assertEquals(transition.state, repeated.state)
+        assertSame(request, repeated.documentToOpen)
     }
 
     @Test

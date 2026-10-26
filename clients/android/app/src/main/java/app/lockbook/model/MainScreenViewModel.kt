@@ -36,7 +36,7 @@ class MainScreenViewModel(
                 defaultRoot = navigationPreferences.getLastSidebarRoot(),
             ),
         )
-    private val _navigationEffects = Channel<MainNavigationEffect>(Channel.BUFFERED)
+    private val _documentOpenRequests = Channel<MainNavigationAction.OpenDocument>(Channel.BUFFERED)
 
     val launchActivityScreen: LiveData<ActivityScreen?>
         get() = _launchActivityScreen
@@ -48,7 +48,7 @@ class MainScreenViewModel(
         get() = _mainUiEffect
 
     val navigationState: StateFlow<MainNavigationState> = _navigationState.asStateFlow()
-    val navigationEffects = _navigationEffects.receiveAsFlow()
+    val documentOpenRequests = _documentOpenRequests.receiveAsFlow()
 
     fun launchActivityScreen(screen: ActivityScreen) {
         activityScreen = screen
@@ -68,7 +68,7 @@ class MainScreenViewModel(
                 putString(LAST_SIDEBAR_DESTINATION_KEY, transition.state.sidebar.persistedRootDestination())
             }
         }
-        transition.effect?.let { _navigationEffects.trySend(it) }
+        transition.documentToOpen?.let { _documentOpenRequests.trySend(it) }
         return transition.handled
     }
 

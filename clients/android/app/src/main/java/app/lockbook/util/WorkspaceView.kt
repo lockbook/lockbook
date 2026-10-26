@@ -34,6 +34,7 @@ import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.model.OpenFileRequest
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -58,14 +59,7 @@ class WorkspaceView(
     private var surface: Surface? = null
 
     // The fragment may request a file before SurfaceView creates its native workspace.
-    private data class PendingDocumentOpen(
-        val id: String,
-        val newFile: Boolean,
-        val heading: String?,
-        val closeDetailOnBack: Boolean,
-    )
-
-    private var deferredOpenDoc: PendingDocumentOpen? = null
+    private var deferredOpenDoc: OpenFileRequest? = null
     private var safeInsets = Insets.NONE
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
@@ -286,10 +280,7 @@ class WorkspaceView(
 
         requestFocus()
 
-        deferredOpenDoc?.let { (id, newFile, heading, closeDetailOnBack) ->
-            deferredOpenDoc = null
-            openDoc(id, newFile, heading, closeDetailOnBack)
-        }
+        deferredOpenDoc?.let(::openDoc)
         publishOpenTabCount()
     }
 
@@ -617,28 +608,22 @@ class WorkspaceView(
         drawImmediately()
     }
 
-    fun openDoc(
-        id: String,
-        newFile: Boolean,
-        heading: String? = null,
-        closeDetailOnBack: Boolean = true,
-    ) {
+    fun openDoc(request: OpenFileRequest) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
-            deferredOpenDoc = PendingDocumentOpen(id, newFile, heading, closeDetailOnBack)
+            deferredOpenDoc = request
             return
         }
 
         deferredOpenDoc = null
+        val heading = request.heading
         if (heading.isNullOrEmpty()) {
-            Workspace.openDoc(wgpuObj, id, newFile)
+            Workspace.openDoc(wgpuObj, request.id, request.newFile)
         } else {
-            Workspace.openDocAtHeading(wgpuObj, id, heading)
+            Workspace.openDocAtHeading(wgpuObj, request.id, heading)
         }
-        model.recordTabCloseBehavior(Workspace.currentTab(wgpuObj).toModelTab().sessionId, closeDetailOnBack)
+        model.recordTabCloseBehavior(Workspace.currentTab(wgpuObj).toModelTab().sessionId, request.closeDetailOnBack)
         publishOpenTabCount()
         invalidate()
-
-        return
     }
 
     fun toggleOutline() {

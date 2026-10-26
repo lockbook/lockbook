@@ -316,7 +316,7 @@ class MainScreenActivity : AppCompatActivity() {
                     mainScreenModel.navigationState.collect(::renderNavigation)
                 }
                 launch {
-                    mainScreenModel.navigationEffects.collect(::handleNavigationEffect)
+                    mainScreenModel.documentOpenRequests.collect(::openDocument)
                 }
                 launch {
                     fileSelectionModel.uiState.collect(fileSelectionBottomBarController::render)
@@ -662,19 +662,15 @@ class MainScreenActivity : AppCompatActivity() {
         renderSearchOverlay(state.searchOverlay)
     }
 
-    private fun handleNavigationEffect(effect: MainNavigationEffect) {
-        when (effect) {
-            is MainNavigationEffect.OpenDocument -> {
-                workspaceModel.openFile(
-                    OpenFileRequest(
-                        id = effect.id,
-                        newFile = effect.newFile,
-                        closeDetailOnBack = effect.closeDetailOnBack,
-                        presentation = OpenFilePresentation.Preserve,
-                    ),
-                )
-            }
-        }
+    private fun openDocument(request: MainNavigationAction.OpenDocument) {
+        workspaceModel.openFile(
+            OpenFileRequest(
+                id = request.id,
+                newFile = request.newFile,
+                closeDetailOnBack = request.closeDetailOnBack,
+                presentation = OpenFilePresentation.Preserve,
+            ),
+        )
     }
 
     private fun renderPaneIntent(intent: PaneIntent) {

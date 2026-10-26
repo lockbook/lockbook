@@ -54,7 +54,6 @@ import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
 import app.lockbook.databinding.WorkspaceTabsDialogBinding
-import app.lockbook.model.FileOperationsViewModel
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.MainNavigationAction
@@ -100,7 +99,6 @@ class WorkspaceFragment : Fragment() {
     val binding get() = _binding!!
 
     private val mainScreenModel: MainScreenViewModel by activityViewModels()
-    private val fileOperations: FileOperationsViewModel by activityViewModels()
     private val model: WorkspaceViewModel by activityViewModels()
     private val quickCapture: QuickCaptureViewModel by viewModels()
 
@@ -173,7 +171,6 @@ class WorkspaceFragment : Fragment() {
 
     companion object {
         val TAG = "WorkspaceFragment"
-        val BACKSTACK_TAG = "WorkspaceBackstack"
         private const val QUICK_CAPTURE_FOLDER = "quick_capture_folder"
     }
 
@@ -209,12 +206,7 @@ class WorkspaceFragment : Fragment() {
         model.openFile.observe(viewLifecycleOwner) { request ->
             finishPendingTabClose()
             model.isFileTreeSyncedToCurrentTab = true
-            workspaceWrapper.workspaceView.openDoc(
-                request.id,
-                request.newFile,
-                heading = request.heading,
-                closeDetailOnBack = request.closeDetailOnBack,
-            )
+            workspaceWrapper.workspaceView.openDoc(request)
 
             when (request.presentation) {
                 OpenFilePresentation.Preserve -> {
@@ -467,7 +459,7 @@ class WorkspaceFragment : Fragment() {
                     if (captureExpansion ==
                         null
                     ) {
-                        quickCapture.createStarter(template, getString(template.fileName), getString(template.content))
+                        quickCapture.createStarter(template)
                     }
                 },
                 showCoverMenu = ::showCoverMenu,
