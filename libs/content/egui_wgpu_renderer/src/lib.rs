@@ -373,6 +373,11 @@ impl<'w> RenderBackend<'w> {
                 return; // todo: could this be the source of a bug if some
                 // response has a default value of true or something
             }
+            // a covered window has nothing to show; wgpu skips its frames
+            wgpu::CurrentSurfaceTexture::Occluded => {
+                self.free_textures(textures);
+                return;
+            }
             other => {
                 eprintln!("Dropped frame: {other:?}");
                 self.free_textures(textures);
