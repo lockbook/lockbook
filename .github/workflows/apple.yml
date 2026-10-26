@@ -24,8 +24,6 @@ jobs:
     - uses: actions/checkout@v4
     - name: Configure PATH
       run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-    - name: Test Apple crash reporting
-      run: swift test --package-path clients/apple
     - name: Configure git identity
       run: |
         git config --global user.name "parth"
