@@ -11,7 +11,6 @@ struct ShareFileSheet: View {
     @State private var mode: ShareMode = .write
     @State private var error = ""
     @State private var linkCopied = false
-    @State private var exportedURL: URL? = nil
     @State private var copyResetTask: Task<Void, Never>? = nil
     @FocusState private var usernameFocused: Bool
 
@@ -92,7 +91,6 @@ struct ShareFileSheet: View {
         .padding()
         .onAppear {
             usernameFocused = true
-            exportForSharing()
         }
         #if os(iOS)
             .presentationDetents([.medium, .large])
@@ -135,8 +133,11 @@ struct ShareFileSheet: View {
 
     @ViewBuilder
     private var shareExternally: some View {
-        if let exportedURL {
-            ShareLink(item: exportedURL) {
+        if let file {
+            ShareLink(
+                item: DraggedFile(file: file, filesModel: filesModel),
+                preview: SharePreview(file.name)
+            ) {
                 Label("Share externally", systemImage: "square.and.arrow.up")
                     .frame(maxWidth: .infinity)
             }
@@ -178,24 +179,6 @@ struct ShareFileSheet: View {
 
             if !Task.isCancelled {
                 linkCopied = false
-            }
-        }
-    }
-
-    private func exportForSharing() {
-        guard let file else {
-            return
-        }
-
-        let filesModel = filesModel
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            guard let url = try? FileExporter.exportToTemp(file, edit: true, filesModel: filesModel) else {
-                return
-            }
-
-            DispatchQueue.main.async {
-                exportedURL = url
             }
         }
     }
