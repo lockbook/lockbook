@@ -53,15 +53,21 @@ class MarkdownToolbarView(
         Table("Table"),
     }
 
+    private enum class NativeAction {
+        InsertPhoto,
+        Outline,
+    }
+
     private data class ToolbarAction(
         val command: MarkdownToolbarAction?,
         val label: String,
         val icon: Int,
         val category: ToolbarCategory,
         val checkable: Boolean = true,
+        val nativeAction: NativeAction? = null,
     ) {
         val preferenceKey: String
-            get() = command?.name ?: "InsertPhoto"
+            get() = command?.name ?: requireNotNull(nativeAction).name
     }
 
     private data class SettingsRow(
@@ -74,6 +80,14 @@ class MarkdownToolbarView(
         listOf(
             ToolbarAction(MarkdownToolbarAction.Undo, "Undo", R.drawable.ic_md_undo_24, ToolbarCategory.History, false),
             ToolbarAction(MarkdownToolbarAction.Redo, "Redo", R.drawable.ic_md_redo_24, ToolbarCategory.History, false),
+            ToolbarAction(
+                null,
+                context.getString(R.string.outline),
+                R.drawable.ic_md_toc_24,
+                ToolbarCategory.History,
+                false,
+                NativeAction.Outline,
+            ),
             ToolbarAction(MarkdownToolbarAction.Heading, "Heading", R.drawable.ic_md_title_24, ToolbarCategory.TextStyle),
             ToolbarAction(MarkdownToolbarAction.Bold, "Bold", R.drawable.ic_md_format_bold_24, ToolbarCategory.TextStyle),
             ToolbarAction(MarkdownToolbarAction.Italic, "Italic", R.drawable.ic_md_format_italic_24, ToolbarCategory.TextStyle),
@@ -106,7 +120,14 @@ class MarkdownToolbarView(
             ToolbarAction(MarkdownToolbarAction.Table, "Table", R.drawable.ic_md_table_24, ToolbarCategory.Lists, false),
             ToolbarAction(MarkdownToolbarAction.Link, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments),
             ToolbarAction(MarkdownToolbarAction.Image, "Image", R.drawable.ic_outline_image_24, ToolbarCategory.Attachments),
-            ToolbarAction(null, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments, false),
+            ToolbarAction(
+                null,
+                "Insert photo",
+                R.drawable.ic_outline_camera_24,
+                ToolbarCategory.Attachments,
+                false,
+                NativeAction.InsertPhoto,
+            ),
             ToolbarAction(
                 MarkdownToolbarAction.Indent,
                 "Indent",
@@ -165,7 +186,6 @@ class MarkdownToolbarView(
     private val inflater = LayoutInflater.from(context)
     private val binding = ViewMarkdownToolbarBinding.inflate(inflater, this, true)
     private val buttons = mutableMapOf<ToolbarAction, MaterialButton>()
-    private var outlineGroup: MaterialButtonGroup? = null
     private var orderedActions = mutableListOf<ToolbarAction>()
     private var enabledActions = mutableSetOf<ToolbarAction>()
     private var inTable = false
@@ -223,7 +243,6 @@ class MarkdownToolbarView(
         val ptr = WorkspaceView.wgpuObj
         if (ptr == Long.MAX_VALUE || !editor.canForwardTouches()) return
         val state = Workspace.markdownToolbarState(ptr)
-        outlineGroup?.isVisible = Workspace.outlineAvailable(ptr)
         if (state.inTable != inTable) {
             // rebuilding refreshes, by when the two agree
             inTable = state.inTable
@@ -233,7 +252,8 @@ class MarkdownToolbarView(
         }
         for ((action, control) in buttons) {
             val active = action.command in state.active
-            control.isEnabled = action.command !in state.disabled
+            control.isEnabled =
+                if (action.nativeAction == NativeAction.Outline) Workspace.outlineAvailable(ptr) else action.command !in state.disabled
             control.alpha = if (control.isEnabled) 1f else 0.38f
             control.isChecked = active
             val color =
@@ -273,17 +293,29 @@ class MarkdownToolbarView(
         setIconResource(action.icon)
         isCheckable = action.checkable
         setOnClickListener { anchor ->
-            if (action.command == null) {
-                showPhotoMenu(anchor)
-                return@setOnClickListener
+            when (action.nativeAction) {
+                NativeAction.InsertPhoto -> {
+                    showPhotoMenu(anchor)
+                    return@setOnClickListener
+                }
+
+                NativeAction.Outline -> {
+                    editor.toggleOutline()
+                    return@setOnClickListener
+                }
+
+                null -> {
+                    Unit
+                }
             }
+            val command = requireNotNull(action.command)
             if (action.command == MarkdownToolbarAction.Table) {
                 showTablePicker(anchor)
                 return@setOnClickListener
             }
             val ptr = WorkspaceView.wgpuObj
             if (editor.canForwardTouches()) {
-                Workspace.markdownToolbarAction(ptr, action.command)
+                Workspace.markdownToolbarAction(ptr, command)
                 editor.invalidate()
                 editor.wrapperView?.requestFocus()
             }
@@ -334,16 +366,6 @@ class MarkdownToolbarView(
     private fun rebuild() {
         binding.actionGroups.removeAllViews()
         buttons.clear()
-        val outline = connectedGroup()
-        outline.isVisible = false
-        val outlineButton = MarkdownToolbarIconButtonBinding.inflate(inflater, outline, false).root
-        outlineButton.contentDescription = context.getString(R.string.outline)
-        outlineButton.setIconResource(R.drawable.ic_md_toc_24)
-        outlineButton.isCheckable = false
-        outlineButton.setOnClickListener { editor.toggleOutline() }
-        outline.addView(outlineButton)
-        binding.actionGroups.addView(outline)
-        outlineGroup = outline
         for (category in categories) {
             // a table has no place for the block styles: the table set stands in for them
             val blockStyles = category == ToolbarCategory.Lists || category == ToolbarCategory.Indentation

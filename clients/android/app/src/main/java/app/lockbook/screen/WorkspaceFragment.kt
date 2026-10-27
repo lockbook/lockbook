@@ -568,10 +568,6 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun onCreateToolbar(workspaceWrapper: WorkspaceWrapperView) {
-        binding.outlineWs.setOnClickListener { workspaceWrapper.workspaceView.toggleOutline() }
-        model.outlineAvailable.observe(viewLifecycleOwner) { available ->
-            binding.outlineWs.isVisible = available
-        }
         model.outlineOpen.observe(viewLifecycleOwner) { open ->
             if (open) {
                 hideDocumentActions()

@@ -411,10 +411,6 @@ class WorkspaceView(
             Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
         }
 
-        val outline = Workspace.outlineAvailable(wgpuObj)
-        if (outline != model.outlineAvailable.value) {
-            model._outlineAvailable.value = outline
-        }
         val outlineOpen = Workspace.outlineOpen(wgpuObj)
         if (outlineOpen != model.outlineOpen.value) {
             model._outlineOpen.value = outlineOpen

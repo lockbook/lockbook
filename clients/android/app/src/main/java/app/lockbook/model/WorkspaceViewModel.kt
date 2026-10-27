@@ -65,11 +65,6 @@ class WorkspaceViewModel(
     val keyboardVisible: LiveData<Boolean>
         get() = _keyboardVisible
 
-    /** The open note has headings, so the app bar offers its outline. */
-    val _outlineAvailable = MutableLiveData(false)
-    val outlineAvailable: LiveData<Boolean>
-        get() = _outlineAvailable
-
     /** The outline sheet is up: the bottom bar would cover it. */
     val _outlineOpen = MutableLiveData(false)
     val outlineOpen: LiveData<Boolean>

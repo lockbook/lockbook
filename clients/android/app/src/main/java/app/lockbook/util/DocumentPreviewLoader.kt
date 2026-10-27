@@ -5,9 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.core.graphics.scale
-import app.lockbook.model.MarkdownExcerpt
-import app.lockbook.model.markdownExcerpt
-import app.lockbook.model.savedMarkdownCursors
+import app.lockbook.workspace.MarkdownExcerpt
 import app.lockbook.workspace.Workspace
 import com.google.android.material.color.DynamicColorsOptions
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +13,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import net.lockbook.Lb
 import java.io.File
 
@@ -105,12 +108,34 @@ internal class DocumentPreviewLoader(
                             ?.let(::coverPreview)
                     } else if (name.endsWith(".md", ignoreCase = true)) {
                         val content = Lb.readDocument(id)
-                        val offset = Workspace.markdownCursorUtf16Native(content, cursor)
-                        DocumentPreview.Markdown(markdownExcerpt(content, offset))
+                        DocumentPreview.Markdown(Workspace.markdownExcerpt(content, cursor))
                     } else {
                         null
                     }
                 preview?.also { cache.put(key, it) }
             }
         }
+}
+
+/** Reads the same per-document selection schema used by WsPersistentStore. Values are grapheme offsets. */
+private fun savedMarkdownCursors(content: String): Map<String, Int> {
+    val files =
+        Json
+            .parseToJsonElement(content)
+            .jsonObject["markdown"]
+            ?.jsonObject
+            ?.get("file")
+            ?.jsonObject ?: return emptyMap()
+    return files
+        .mapNotNull { (id, value) ->
+            runCatching {
+                val cursor =
+                    value.jsonObject["selection"]
+                        ?.jsonArray
+                        ?.lastOrNull()
+                        ?.jsonPrimitive
+                        ?.intOrNull
+                cursor?.let { id to it.coerceAtLeast(0) }
+            }.getOrNull()
+        }.toMap()
 }

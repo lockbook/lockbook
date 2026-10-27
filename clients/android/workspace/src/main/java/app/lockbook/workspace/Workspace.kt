@@ -168,7 +168,9 @@ object Workspace {
     // text input
     external fun setSelection(rustObj: Long, start: Int, end: Int)
     external fun getSelection(rustObj: Long): JTextRange
-    external fun markdownCursorUtf16Native(text: String, cursor: Int): Int
+    private external fun markdownExcerptNative(text: String, cursor: Int): String
+    fun markdownExcerpt(text: String, cursor: Int): MarkdownExcerpt =
+        Json.decodeFromString(markdownExcerptNative(text, cursor))
     external fun getTextLength(rustObj: Long): Int
     external fun clear(rustObj: Long)
     external fun replace(rustObj: Long, start: Int, end: Int, text: String)
@@ -203,6 +205,12 @@ object Workspace {
     external fun refreshSelectionPreviews(rustObj: Long)
     external fun setContactLinkedSites(rustObj: Long, value: Boolean)
 }
+
+@Serializable
+data class MarkdownExcerpt(
+    val markdown: String,
+    val focusLine: String,
+)
 
 data class NativeWorkspaceTab(
     val id: String,

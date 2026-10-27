@@ -18,12 +18,12 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.databinding.WorkspaceDocumentCardBinding
-import app.lockbook.model.MarkdownExcerpt
 import app.lockbook.model.WorkspaceDocumentItem
 import app.lockbook.util.DocumentPreview
 import app.lockbook.util.DocumentPreviewLoader
 import app.lockbook.util.harmonizedSeedColors
 import app.lockbook.util.identityColorBucket
+import app.lockbook.workspace.MarkdownExcerpt
 import com.google.android.material.color.ColorRoles
 import io.noties.markwon.AbstractMarkwonPlugin
 import io.noties.markwon.Markwon

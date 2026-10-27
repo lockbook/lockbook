@@ -70,15 +70,6 @@
                 tools:ignore="InefficientWeight" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/outline_ws"
-                style="@style/Widget.Material3.FloatingToolbar.IconButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:contentDescription="@string/outline"
-                android:visibility="gone"
-                app:icon="@drawable/ic_md_toc_24" />
-
-            <com.google.android.material.button.MaterialButton
                 android:id="@+id/search_ws"
                 style="@style/Widget.Material3.FloatingToolbar.IconButton"
                 android:layout_width="48dp"
