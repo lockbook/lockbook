@@ -1719,27 +1719,19 @@ impl Editor {
                     && !r.plaintext
                     && r.interactive
                     && self.persistence.get_sidecar_open();
-                // The card docks while the text beside it is wide enough: the
-                // text keeps the canvas's center while the card fits in the
-                // margin, then slides left, then narrows. Narrower, the card
-                // floats where it would have docked, over the full text.
+                // The text keeps its width for the card and only slides: left,
+                // as far as the margin allows, to dock the card beside it;
+                // without room the card floats over the text's right side.
+                // Where the text stands follows the canvas without a step, so
+                // crossing from docked to floating moves nothing.
                 let edge = crate::style::Space::Md.pts();
                 let side = SIDECAR_GAP + SIDECAR_W + edge;
-                let full_col = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
-                let docked_col = (canvas_width - layout_margin - side).min(max_width);
-                let docks = docked_col >= SIDECAR_MIN_TEXT;
-                // the column's left and width closed and open, and the
-                // motion between them; both ends follow the canvas
-                let closed = (((canvas_width - full_col) / 2.0).max(0.0), full_col);
-                let open = match docks {
-                    true => (
-                        ((canvas_width - docked_col) / 2.0)
-                            .min(canvas_width - side - docked_col)
-                            .max(layout_margin),
-                        docked_col,
-                    ),
-                    false => closed,
-                };
+                let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
+                let centered = ((canvas_width - col_width) / 2.0).max(0.0);
+                let beside = canvas_width - side - col_width;
+                let docks = beside >= layout_margin;
+                let open_left = beside.max(layout_margin).min(centered);
+                self.edit.renderer.set_width(col_width);
                 // `shown` fades the card; the text eases the same both
                 // ways, so a reversal starts where it is
                 let shown = ui.ctx().animate_bool_with_time(
@@ -1748,14 +1740,12 @@ impl Editor {
                     widget::outline::MOTION_SECS,
                 );
                 let t = egui::emath::easing::quadratic_in_out(shown);
-                let col_width = egui::lerp(closed.1..=open.1, t);
-                self.edit.renderer.set_width(col_width);
 
                 // affine render: widget body spans the full canvas
                 // (scrollbar at canvas right); content centers within
                 // that body via `content_x`.
                 let touch_scroll = self.edit.renderer.touch_mode;
-                let content_x = canvas_rect.min.x + egui::lerp(closed.0..=open.0, t);
+                let content_x = canvas_rect.min.x + egui::lerp(centered..=open_left, t);
                 self.card = (shown > 0.0).then(|| {
                     let width = SIDECAR_W.min(canvas_width - 2.0 * edge).max(0.0);
                     let x = match docks {
@@ -2222,15 +2212,9 @@ impl Editor {
             self.outline
                 .show(ui.ctx(), id.with("sheet"), &rows, current, &linked)
         } else {
-            let (chosen, rect, dismissed) = self.outline.card(
-                ui.ctx(),
-                id.with("card"),
-                self.card,
-                canvas,
-                &rows,
-                current,
-                &linked,
-            );
+            let (chosen, rect, dismissed) =
+                self.outline
+                    .card(ui.ctx(), id.with("card"), self.card, &rows, current, &linked);
             if dismissed {
                 self.persistence.set_sidecar_open(false);
             }
@@ -2545,7 +2529,6 @@ const HEADING_FLASH_SECS: f32 = 0.9;
 /// it docks beside; in narrower windows it floats over the text.
 const SIDECAR_W: f32 = 260.0;
 const SIDECAR_GAP: f32 = 24.0;
-const SIDECAR_MIN_TEXT: f32 = 560.0;
 
 /// Where a heading link lands.
 #[derive(Clone, Copy)]
