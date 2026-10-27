@@ -16,12 +16,17 @@ use crate::WgpuWorkspace;
 use workspace_rs::tab::markdown_editor::MarkdownToolbarAction;
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownCursorUtf16Native(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownExcerptNative(
     mut env: JNIEnv, _: JClass, text: JString, cursor: jint,
-) -> jint {
-    let Ok(text) = env.get_string(&text) else { return 0 };
-    workspace_rs::document_preview::cursor_utf16(&String::from(text), cursor.max(0) as usize)
-        .min(i32::MAX as usize) as jint
+) -> jstring {
+    let Ok(text) = env.get_string(&text) else { return std::ptr::null_mut() };
+    let excerpt = workspace_rs::document_preview::markdown_excerpt(
+        &String::from(text),
+        cursor.max(0) as usize,
+    );
+    env.new_string(serde_json::to_string(&excerpt).expect("serialize Markdown excerpt"))
+        .expect("create Markdown excerpt")
+        .into_raw()
 }
 
 #[unsafe(no_mangle)]
