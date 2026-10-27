@@ -50,11 +50,13 @@ pub struct ServerV6 {
     pub egress_by_owner: DbHashMap<Owner, BandwidthReport>,
     pub scheduled_file_cleanups: DbHashMap<(Uuid, DocumentHmac), i64>,
     pub debug_info: DbHashMapMap<Owner, LbID, DebugInfo>,
+    // Keep new views at the end: existing positions are persistent table IDs.
+    pub user_os: DbHashMapSet<Owner, crate::user_os::OS>,
 }
 
 impl Schema for ServerV6 {
     fn views_mut(&mut self) -> impl AsMut<[&mut dyn View]> {
-        let views: [&mut dyn View; 14] = [
+        let views: [&mut dyn View; 15] = [
             &mut self.usernames,
             &mut self.metas,
             &mut self.google_play_ids,
@@ -69,6 +71,7 @@ impl Schema for ServerV6 {
             &mut self.egress_by_owner,
             &mut self.scheduled_file_cleanups,
             &mut self.debug_info,
+            &mut self.user_os,
         ];
         views
     }
