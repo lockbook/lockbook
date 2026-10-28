@@ -39,9 +39,21 @@ jobs:
     - name: deploy iOS
       if: ${{ !inputs.release }}
       run: cargo r -p lbdev releaser apple ios
+    - name: Upload iOS dSYMs
+      uses: actions/upload-artifact@v4
+      with:
+        name: lockbook-ios-dsyms
+        path: clients/apple/build/Lockbook-iOS.xcarchive/dSYMs
+        if-no-files-found: error
     - name: deploy macOS
       if: ${{ !inputs.release }}
       run: cargo r -p lbdev releaser apple mac-app-store
+    - name: Upload macOS dSYMs
+      uses: actions/upload-artifact@v4
+      with:
+        name: lockbook-macos-dsyms
+        path: clients/apple/build/Lockbook-macOS.xcarchive/dSYMs
+        if-no-files-found: error
     - name: build CLI
       if: ${{ !inputs.release }}
       run: cargo r -p lbdev releaser apple cli-build
