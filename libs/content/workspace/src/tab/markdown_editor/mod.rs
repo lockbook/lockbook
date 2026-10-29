@@ -1813,6 +1813,7 @@ impl Editor {
                         // entries. The immutable `DocScrollContent`
                         // borrow is released here before phase 2's
                         // mutable renderer paint.
+                        self.land_before_paint(root, canvas_rect);
                         self.edit.renderer.landing_heading = self.landing.and_then(Landing::start);
                         let (visible, neighbors, far, scrollbar_grab) = {
                             use crate::widgets::affine_scroll::{Offset, Rows as _, VisibleRow};
@@ -2439,6 +2440,39 @@ impl Editor {
             None => rows.precise(&row),
         };
         Some(Offset::new(row, intra))
+    }
+
+    /// Lands where it can without painting: the note's top, or a heading that
+    /// is a block of its own, whose line starts below its row's spacing. The
+    /// frame then paints there once; any other landing waits for its row.
+    fn land_before_paint<'ast>(&mut self, root: &'ast AstNode<'ast>, canvas_rect: Rect) {
+        use scroll_content::DocRowId;
+        if !matches!(self.edit.pending_scroll, Some(ScrollTarget::Heading)) {
+            return;
+        }
+        let Some(landing) = self.landing else { return };
+        let content = scroll_content::DocScrollContent::for_frame(
+            &self.edit.renderer,
+            root,
+            canvas_rect.height(),
+        );
+        let target = match landing {
+            Landing::Top => Offset::at_top_of(DocRowId::Leading),
+            Landing::Heading((start, _)) => {
+                let Some(row @ DocRowId::Block(i)) = content.find_text_row(start) else { return };
+                let Some(node) = root.children().nth(i) else { return };
+                if !matches!(node.data.borrow().value, comrak::nodes::NodeValue::Heading(_)) {
+                    return;
+                }
+                let intra = self.edit.renderer.block_pre_spacing_height(node);
+                heading_scroll(&self.edit.scroll_area.state, &content, Offset::new(row, intra))
+            }
+        };
+        self.landing = None;
+        self.edit.pending_scroll = None;
+        self.edit
+            .scroll_area
+            .reveal(&content, Reveal::point_at(target), Align::Top);
     }
 
     /// The landing's line on the reading line, with room above it so it
