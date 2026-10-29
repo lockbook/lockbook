@@ -4102,8 +4102,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6971da4d9c3aa03c3d8f3ff0f4155b534aad021292003895a469716b2a230378"
 dependencies = [
  "base64 0.21.7",
- "pem",
+ "pem 1.1.1",
  "ring 0.16.20",
+ "serde",
+ "serde_json",
+ "simple_asn1",
+]
+
+[[package]]
+name = "jsonwebtoken"
+version = "9.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a87cc7a48537badeae96744432de36f4be2b4a34a05a5ef32e9dd8a1c169dde"
+dependencies = [
+ "base64 0.22.1",
+ "js-sys",
+ "pem 3.0.6",
+ "ring 0.17.14",
  "serde",
  "serde_json",
  "simple_asn1",
@@ -4251,7 +4266,7 @@ dependencies = [
  "base64 0.21.7",
  "chrono",
  "flate2",
- "jsonwebtoken",
+ "jsonwebtoken 8.3.0",
  "lazy_static",
  "macaroon",
  "prometheus",
@@ -4332,6 +4347,7 @@ dependencies = [
  "gh_release",
  "google-androidpublisher3",
  "hex",
+ "jsonwebtoken 9.3.1",
  "regex",
  "reqwest",
  "serde",
@@ -4599,7 +4615,7 @@ dependencies = [
  "futures",
  "google-androidpublisher3",
  "itertools 0.10.5",
- "jsonwebtoken",
+ "jsonwebtoken 8.3.0",
  "lazy_static",
  "lb-rs",
  "libsecp256k1",
@@ -5725,6 +5741,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8835c273a76a90455d7344889b0964598e3316e2a79ede8e36f16bdcf2228b8"
 dependencies = [
  "base64 0.13.1",
+]
+
+[[package]]
+name = "pem"
+version = "3.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d30c53c26bc5b31a98cd02d20f25a7c8567146caf63ed593a9d87b2775291be"
+dependencies = [
+ "base64 0.22.1",
+ "serde_core",
 ]
 
 [[package]]
