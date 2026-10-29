@@ -1,5 +1,3 @@
-@file:Suppress("ktlint:standard:backing-property-naming")
-
 package app.lockbook.ui
 
 import android.os.Bundle
@@ -36,16 +34,16 @@ import com.vanniktech.emoji.search.SearchEmojiResult
 import com.vanniktech.emoji.variant.VariantEmojiManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class PinEmojiBottomSheetFragment : BottomSheetDialogFragment() {
-    private var _binding: SheetPinEmojiBinding? = null
-    private val binding get() = _binding!!
+    private var viewBinding: SheetPinEmojiBinding? = null
+    private val binding get() = viewBinding!!
     private val model: FileTreeViewModel by activityViewModels()
     private val search = SearchEmojiManager()
     private var searchJob: Job? = null
+    private var pickerReady = false
     private lateinit var recentEmoji: RecentEmojiManager
     private lateinit var variantEmoji: VariantEmojiManager
     private val resultsAdapter = PinEmojiSearchAdapter(::selectSearchResult)
@@ -55,7 +53,7 @@ class PinEmojiBottomSheetFragment : BottomSheetDialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?,
     ): View {
-        _binding = SheetPinEmojiBinding.inflate(inflater, container, false)
+        viewBinding = SheetPinEmojiBinding.inflate(inflater, container, false)
         return binding.root
     }
 
@@ -73,6 +71,32 @@ class PinEmojiBottomSheetFragment : BottomSheetDialogFragment() {
             insets
         }
         binding.fileName.text = requireArguments().getString(FILE_NAME)
+        val cellWidth = (56 * resources.displayMetrics.density).toInt()
+        val grid = GridLayoutManager(requireContext(), 6)
+        binding.emojiResults.layoutManager = grid
+        binding.emojiResults.addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
+            if (right - left != oldRight - oldLeft) {
+                grid.spanCount = ((right - left) / cellWidth).coerceAtLeast(1)
+            }
+        }
+        binding.emojiResults.adapter = resultsAdapter
+        binding.emojiResults.itemAnimator = null
+        binding.emojiSearch.addTextChangedListener { updateSearch(it?.toString().orEmpty()) }
+        viewLifecycleOwner.lifecycleScope.launch {
+            EmojiPickerInitializer.ensureInitialized()
+            setUpPicker(view)
+            pickerReady = true
+            binding.emojiLoading.isVisible = false
+            binding.emojiSearch.isEnabled = true
+            val query =
+                binding.emojiSearch.text
+                    ?.toString()
+                    .orEmpty()
+            updateSearch(query)
+        }
+    }
+
+    private fun setUpPicker(view: View) {
         recentEmoji = RecentEmojiManager(requireContext())
         variantEmoji = VariantEmojiManager(requireContext())
         binding.emojiPicker.setUp(
@@ -90,16 +114,6 @@ class PinEmojiBottomSheetFragment : BottomSheetDialogFragment() {
             searchEmoji = NoSearchEmoji,
             variantEmoji = variantEmoji,
         )
-        val cellWidth = (56 * resources.displayMetrics.density).toInt()
-        binding.emojiResults.layoutManager = GridLayoutManager(requireContext(), 6)
-        binding.emojiResults.addOnLayoutChangeListener { _, left, _, right, _, oldLeft, _, oldRight, _ ->
-            if (right - left != oldRight - oldLeft) {
-                (binding.emojiResults.layoutManager as GridLayoutManager).spanCount = ((right - left) / cellWidth).coerceAtLeast(1)
-            }
-        }
-        binding.emojiResults.adapter = resultsAdapter
-        binding.emojiResults.itemAnimator = null
-        binding.emojiSearch.addTextChangedListener { updateSearch(it?.toString().orEmpty()) }
     }
 
     override fun onStart() {
@@ -115,30 +129,41 @@ class PinEmojiBottomSheetFragment : BottomSheetDialogFragment() {
     }
 
     private fun updateSearch(query: String) {
+        if (!pickerReady) return
         searchJob?.cancel()
         val trimmed = query.trim()
-        binding.emojiPicker.isVisible = trimmed.isEmpty()
-        binding.emojiResults.isVisible = false
-        binding.searchStatus.isVisible = trimmed.length == 1
-        binding.searchStatus.setText(R.string.pin_emoji_search_minimum)
+        renderSearch(trimmed)
         if (trimmed.length < 2) return
 
         searchJob =
             viewLifecycleOwner.lifecycleScope.launch {
-                delay(100)
                 val results = withContext(Dispatchers.Default) { search.search(trimmed) }
                 resultsAdapter.submitList(results) {
-                    val currentBinding = _binding ?: return@submitList
+                    val currentBinding = viewBinding ?: return@submitList
                     val currentQuery =
                         currentBinding.emojiSearch.text
                             .toString()
                             .trim()
                     if (currentQuery != trimmed) return@submitList
-                    currentBinding.emojiResults.isVisible = results.isNotEmpty()
-                    currentBinding.searchStatus.setText(R.string.pin_emoji_search_empty)
-                    currentBinding.searchStatus.isVisible = results.isEmpty()
+                    renderSearch(trimmed, results)
                 }
             }
+    }
+
+    private fun renderSearch(
+        query: String,
+        results: List<SearchEmojiResult>? = null,
+    ) {
+        val message =
+            when {
+                query.length == 1 -> R.string.pin_emoji_search_minimum
+                results?.isEmpty() == true -> R.string.pin_emoji_search_empty
+                else -> null
+            }
+        binding.emojiPicker.isVisible = query.isEmpty()
+        binding.emojiResults.isVisible = !results.isNullOrEmpty()
+        binding.searchStatus.isVisible = message != null
+        message?.let { binding.searchStatus.setText(it) }
     }
 
     private fun selectSearchResult(emoji: Emoji) {
@@ -153,10 +178,10 @@ class PinEmojiBottomSheetFragment : BottomSheetDialogFragment() {
     }
 
     override fun onDestroyView() {
-        searchJob?.cancel()
-        binding.emojiPicker.tearDown()
+        if (pickerReady) binding.emojiPicker.tearDown()
+        pickerReady = false
         binding.emojiResults.adapter = null
-        _binding = null
+        viewBinding = null
         super.onDestroyView()
     }
 

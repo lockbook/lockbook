@@ -39,12 +39,13 @@
             android:id="@+id/emoji_search"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:enabled="false"
             android:imeOptions="actionSearch"
             android:inputType="text"
             android:maxLines="1" />
     </com.google.android.material.textfield.TextInputLayout>
 
-    <FrameLayout
+    <app.lockbook.ui.PinEmojiContentLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="12dp"
@@ -53,13 +54,23 @@
         <com.vanniktech.emoji.EmojiView
             android:id="@+id/emoji_picker"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/emoji_loading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:contentDescription="@string/loading_emojis"
+            android:indeterminate="true" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/emoji_results"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
+            android:nestedScrollingEnabled="false"
             android:visibility="gone" />
 
         <com.google.android.material.textview.MaterialTextView
@@ -72,5 +83,5 @@
             android:padding="16dp"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:visibility="gone" />
-    </FrameLayout>
+    </app.lockbook.ui.PinEmojiContentLayout>
 </LinearLayout>
