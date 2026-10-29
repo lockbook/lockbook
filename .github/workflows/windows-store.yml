@@ -1,8 +1,18 @@
 name: Windows Store Package
 
 on:
+  # releases submit automatically; a manual dispatch just builds unless you opt in
   workflow_dispatch:
+    inputs:
+      submit:
+        description: submit the bundle to the Microsoft Store
+        type: boolean
+        default: false
   workflow_call:
+    inputs:
+      submit:
+        type: boolean
+        default: true
 
 jobs:
   pack-x64:
@@ -50,3 +60,27 @@ jobs:
         with:
           name: lockbook-msixbundle
           path: windows-build/Lockbook.msixbundle
+
+  submit:
+    if: github.repository == 'lockbook/lockbook' && inputs.submit
+    needs: bundle
+    runs-on: windows-latest
+    steps:
+      - name: Download msixbundle
+        uses: actions/download-artifact@v4
+        with:
+          name: lockbook-msixbundle
+          path: windows-build
+      - name: Install the Microsoft Store CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+      - name: Configure store credentials
+        run: >-
+          msstore reconfigure
+          --tenantId ${{ secrets.AZURE_AD_TENANT_ID }}
+          --sellerId ${{ secrets.SELLER_ID }}
+          --clientId ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          --clientSecret ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+      - name: Submit to the Microsoft Store
+        run: >-
+          msstore publish '${{ github.workspace }}/windows-build/Lockbook.msixbundle'
+          -id ${{ vars.STORE_PRODUCT_ID }}
