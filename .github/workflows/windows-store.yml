@@ -85,4 +85,4 @@ jobs:
       - name: Submit to the Microsoft Store
         run: >-
           msstore publish '${{ github.workspace }}/windows-build/Lockbook.msixbundle'
-          -id ${{ vars.STORE_PRODUCT_ID }}
+          -id ${{ secrets.STORE_PRODUCT_ID }}
