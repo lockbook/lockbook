@@ -15,7 +15,7 @@ use egui::{
     Align2, Area, Context, Frame, Id, LayerId, Margin, Order, Pos2, Response, Ui, Vec2, vec2,
 };
 
-use super::chrome::{Radius, TIP_CHAIN_GRACE_SECS};
+use super::chrome::{Radius, TIP_CHAIN_DWELL_SECS, TIP_CHAIN_GRACE_SECS};
 use super::color::ThemeExt;
 use super::space::Space;
 use super::typography::TypeRole;
@@ -218,10 +218,17 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
     }
 
     let seconds_since_last_tip = now - last_shown;
-    let chain_window = f64::from(tooltip_grace_time).max(f64::from(TIP_CHAIN_GRACE_SECS));
+    let chain_window = f64::from(tooltip_grace_time).max(f64::from(TIP_CHAIN_GRACE_SECS))
+        + f64::from(TIP_CHAIN_DWELL_SECS);
     let in_tip_chain = seconds_since_last_tip < chain_window;
 
     if in_tip_chain {
+        let since_still = time_since_last_pointer_movement.min(time_since_last_scroll);
+        let wait = TIP_CHAIN_DWELL_SECS - since_still;
+        if wait > 0.0 {
+            ctx.request_repaint_after_secs(wait);
+            return false;
+        }
         return true;
     }
 

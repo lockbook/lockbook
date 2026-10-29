@@ -32,6 +32,8 @@ pub const TOGGLE_ANIM_SECS: f32 = 0.14;
 /// After leaving a tip host, stay “hot” this long so the next host can chain
 /// without a second dwell (see [`super::tip`]).
 pub const TIP_CHAIN_GRACE_SECS: f32 = 0.40;
+/// The shorter dwell a chained tip waits for.
+pub const TIP_CHAIN_DWELL_SECS: f32 = 0.15;
 
 /// Corner radius steps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
