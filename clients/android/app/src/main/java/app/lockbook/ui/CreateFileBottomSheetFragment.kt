@@ -218,9 +218,11 @@ class CreateFileBottomSheetFragment : BottomSheetDialogFragment() {
             }
         if (binding.locationGroup.checkedChipId != locationId) binding.locationGroup.check(locationId)
 
+        binding.folderPickerError.text = state.error?.let { getString(R.string.create_file_choose_another_location, it) }.orEmpty()
+        binding.folderPickerError.isVisible = state.parentId == null && !state.error.isNullOrBlank()
         binding.createFileError.text = state.error.orEmpty()
         binding.createFileError.isVisible = !state.error.isNullOrBlank()
-        binding.createFile.isEnabled = !state.isLoading && !state.isCreating && state.name.isNotBlank()
+        binding.createFile.isEnabled = !state.isLoading && !state.isCreating && state.parentId != null && state.name.isNotBlank()
         binding.fileNameLayout.isEnabled = !state.isCreating
         binding.fileTypeGroup.children.forEach { it.isEnabled = !state.isCreating }
         binding.locationGroup.children.forEach { it.isEnabled = !state.isCreating }

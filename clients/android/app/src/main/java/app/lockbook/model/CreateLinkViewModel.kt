@@ -16,11 +16,11 @@ import net.lockbook.File.FileType
 import net.lockbook.Lb
 import net.lockbook.LbError
 
-// todo: refactor to use the file model instead of using lb. get children
 class CreateLinkViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
     lateinit var currentParent: File
+    val hasParent: Boolean get() = ::currentParent.isInitialized
 
     var files = emptyDataSourceTyped<File>()
 
@@ -40,12 +40,15 @@ class CreateLinkViewModel(
     init {
         viewModelScope.launch(Dispatchers.IO) {
             startAtRoot()
+            FileMetadataStore.folderSnapshots.collect { snapshot ->
+                if (::currentParent.isInitialized) refreshOverFolder()
+            }
         }
     }
 
-    private fun startAtRoot() {
+    private suspend fun startAtRoot() {
         try {
-            currentParent = Lb.getRoot()
+            currentParent = FileMetadataStore.awaitLoaded().root
             refreshOverFolder()
         } catch (err: LbError) {
             _notifyError.postValue(err)
@@ -54,7 +57,9 @@ class CreateLinkViewModel(
 
     private fun refreshOverFolder() {
         try {
-            val children = Lb.getChildren(currentParent.id)
+            val snapshot = FileMetadataStore.current()
+            currentParent = snapshot.idsAndFiles[currentParent.id]?.takeIf { it.type == FileType.Folder } ?: snapshot.root
+            val children = snapshot.children(currentParent.id)
             _updateTitle.postValue(currentParent.name)
             val tempFiles = children.filter { file -> file.type == FileType.Folder }.toMutableList()
 
@@ -68,11 +73,11 @@ class CreateLinkViewModel(
 
     fun refreshOverParent() {
         viewModelScope.launch(Dispatchers.IO) {
-            if (currentParent.isRoot()) {
+            if (!::currentParent.isInitialized || currentParent.isRoot()) {
                 _closeFragment.postValue(Unit)
             } else {
                 try {
-                    currentParent = Lb.getFileById(currentParent.parent)
+                    currentParent = FileMetadataStore.requireFile(currentParent.parent)
                     refreshOverFolder()
                 } catch (err: LbError) {
                     _notifyError.postValue(err)

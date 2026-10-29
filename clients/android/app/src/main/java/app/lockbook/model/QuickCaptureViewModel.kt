@@ -2,6 +2,7 @@ package app.lockbook.model
 
 import android.app.Application
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -10,15 +11,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import app.lockbook.util.SingleMutableLiveData
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbError
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class QuickCaptureViewModel(
     application: Application,
@@ -29,76 +26,72 @@ class QuickCaptureViewModel(
     val saveFolder: LiveData<File?> = folder
 
     val draft: LiveData<String> = savedState.getLiveData("draft", "")
-    private val saving = MutableLiveData(false)
-    val isSaving: LiveData<Boolean> = saving
-    private val saveError = MutableLiveData<String?>(null)
-    val error: LiveData<String?> = saveError
+    var isSaving = false
+        private set
+    private val saveError = SingleMutableLiveData<String>()
+    val error: LiveData<String> = saveError
     private val savedNote = SingleMutableLiveData<String>()
     val createdNote: LiveData<String> = savedNote
 
-    private var folderRefresh: Job? = null
+    private val preferenceListener =
+        SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            updateSaveFolder()
+        }
 
     init {
-        refreshSaveFolder()
+        preferences.registerOnSharedPreferenceChangeListener(preferenceListener)
+        viewModelScope.launch {
+            FileMetadataStore.snapshots.collect { updateSaveFolder() }
+        }
     }
 
-    private fun resolveSaveFolder(): File {
-        val root = Lb.getRoot()
-        val id = preferences.getString("${root.id}.folder", null)
-        return id
-            ?.let { runCatching { Lb.getFileById(it) }.getOrNull() }
-            ?.takeIf { it.type == File.FileType.Folder } ?: root
+    private fun resolveSaveFolder(snapshot: FileMetadataSnapshot): File {
+        val id = preferences.getString("${snapshot.root.id}.folder", null)
+        return snapshot.idsAndFiles[id]?.takeIf { it.type == File.FileType.Folder } ?: snapshot.root
     }
 
-    fun refreshSaveFolder() {
-        folderRefresh?.cancel()
-        folderRefresh =
-            viewModelScope.launch {
-                val selected = withContext(Dispatchers.IO) { runCatching { resolveSaveFolder() }.getOrNull() }
-                if (selected != null) folder.value = selected
-            }
+    private fun updateSaveFolder() {
+        folder.value = FileMetadataStore.snapshots.value?.let(::resolveSaveFolder)
     }
 
     fun selectSaveFolder(id: String) {
-        if (saving.value == true) return
-        folderRefresh?.cancel()
+        if (isSaving) return
         viewModelScope.launch {
             try {
-                folder.value =
-                    withContext(Dispatchers.IO) {
-                        val selected = Lb.getFileById(id)
-                        require(selected.type == File.FileType.Folder)
-                        val root = Lb.getRoot()
-                        preferences.edit { putString("${root.id}.folder", selected.id) }
-                        selected
-                    }
+                val snapshot = FileMetadataStore.current()
+                val selected = FileMetadataStore.requireFile(id)
+                if (selected.type != File.FileType.Folder) return@launch
+                withContext(Dispatchers.IO) {
+                    preferences.edit { putString("${snapshot.root.id}.folder", selected.id) }
+                }
             } catch (error: LbError) {
                 saveError.value = error.msg
             }
         }
     }
 
+    override fun onCleared() {
+        preferences.unregisterOnSharedPreferenceChangeListener(preferenceListener)
+        super.onCleared()
+    }
+
     fun setDraft(text: String) {
         savedState["draft"] = text
-        saveError.value = null
     }
 
     fun save() {
         val content = draft.value.orEmpty()
         if (content.isBlank()) return
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val name = "$date.md"
-        if (saving.value == true) return
-        saving.value = true
-        saveError.value = null
+        if (isSaving) return
+        isSaving = true
         viewModelScope.launch {
             try {
                 // Reuse a created file on retry if writing failed, rather than creating duplicates.
                 val id =
                     savedState.get<String>("pendingNote") ?: withContext(Dispatchers.IO) {
-                        val parent = resolveSaveFolder()
-                        folder.postValue(parent)
-                        Lb.createFile(Lb.nextName(parent.id, name), parent.id, true).id
+                        val parent = resolveSaveFolder(FileMetadataStore.current())
+                        val type = NewFileType.Note
+                        FileCreation.create(parent.id, type, FileCreation.suggestBaseName(parent.id, type)).id
                     }.also { savedState["pendingNote"] = it }
                 var written = content
                 while (true) {
@@ -113,7 +106,7 @@ class QuickCaptureViewModel(
             } catch (error: LbError) {
                 saveError.value = error.msg
             } finally {
-                saving.value = false
+                isSaving = false
             }
         }
     }

@@ -4,7 +4,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Paint
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -12,7 +11,6 @@ import android.os.Handler
 import android.os.Looper
 import android.text.InputType
 import android.view.GestureDetector
-import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -28,11 +26,9 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.widget.PopupMenu
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -40,36 +36,27 @@ import androidx.core.view.inputmethod.EditorInfoCompat
 import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
 import androidx.core.view.isVisible
-import androidx.core.view.updatePadding
-import androidx.core.widget.NestedScrollView
-import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.fragment.app.viewModels
 import androidx.interpolator.view.animation.FastOutLinearInInterpolator
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
 import app.lockbook.databinding.WorkspaceTabsDialogBinding
+import app.lockbook.model.FileMetadataStore
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
 import app.lockbook.model.OpenFilePresentation
 import app.lockbook.model.OpenTab
-import app.lockbook.model.QuickCaptureViewModel
 import app.lockbook.model.SearchPresentation
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
-import app.lockbook.model.workspaceDocumentItems
-import app.lockbook.ui.CreateFileBottomSheetFragment
 import app.lockbook.util.AttachmentStager
-import app.lockbook.util.DocumentCoverStore
-import app.lockbook.util.DocumentPreviewLoader
 import app.lockbook.util.MAX_ATTACHMENT_SIZE_BYTES
 import app.lockbook.util.MarkdownToolbarView
 import app.lockbook.util.VerticalTabItemHolder
@@ -80,7 +67,6 @@ import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -99,7 +85,6 @@ class WorkspaceFragment : Fragment() {
 
     private val mainScreenModel: MainScreenViewModel by activityViewModels()
     private val model: WorkspaceViewModel by activityViewModels()
-    private val quickCapture: QuickCaptureViewModel by viewModels()
 
     private var toolbarVisible: Boolean? = null
     private var systemControlInsets = Insets.NONE
@@ -113,26 +98,7 @@ class WorkspaceFragment : Fragment() {
     private var pendingTabClose: String? = null
     private var pendingTabCloseJob: Job? = null
     private var cameraFile: JavaFile? = null
-    private var captureExpansion: QuickCaptureExpansion? = null
-    private var captureStart: Runnable? = null
-    private var captureEditorId: String? = null
-    private var coverFileId: String? = null
-    private var documentsAdapter: WorkspaceDocumentsAdapter? = null
-    private val documentCovers by lazy { DocumentCoverStore(requireContext().applicationContext) }
-    private val documentPreviews by lazy { DocumentPreviewLoader(requireContext().applicationContext, documentCovers) }
-    private var previewRefresh: Job? = null
-
-    private val chooseCover =
-        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-            val id = coverFileId
-            coverFileId = null
-            if (uri != null && id != null) {
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val saved = withContext(Dispatchers.IO) { runCatching { documentCovers.save(id, uri) }.isSuccess }
-                    if (saved) documentsAdapter?.refreshCover(id) else toast(R.string.workspace_cover_error)
-                }
-            }
-        }
+    private val welcomeScreen = WorkspaceWelcomeScreen(this, ::onWorkspaceScroll, ::hideEditorKeyboard)
 
     private val cameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -157,20 +123,17 @@ class WorkspaceFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cameraFile = savedInstanceState?.getString("cameraPath")?.let(::JavaFile)
-        coverFileId = savedInstanceState?.getString("coverFileId")
-        captureEditorId = savedInstanceState?.getString("captureEditorId")
+        welcomeScreen.restoreState(savedInstanceState)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         cameraFile?.let { outState.putString("cameraPath", it.absolutePath) }
-        coverFileId?.let { outState.putString("coverFileId", it) }
-        captureEditorId?.let { outState.putString("captureEditorId", it) }
+        welcomeScreen.saveState(outState)
     }
 
     companion object {
         val TAG = "WorkspaceFragment"
-        private const val QUICK_CAPTURE_FOLDER = "quick_capture_folder"
     }
 
     private val filesListModel: FileTreeViewModel by activityViewModels()
@@ -198,9 +161,15 @@ class WorkspaceFragment : Fragment() {
 
         binding.workspaceRoot.addView(workspaceWrapper, layoutParams)
 
-        onCreateEmptyWorkspace()
+        welcomeScreen.bind(binding.root, binding.workspaceEmpty)
         onCreateToolbar(workspaceWrapper)
         onCreateDocumentActions()
+        viewLifecycleOwner.lifecycleScope.launch {
+            FileMetadataStore.snapshots.collect { snapshot ->
+                val tab = model.currentTab.value
+                if (snapshot != null && tab != null) updateCurrentTab(workspaceWrapper, tab, metadataOnly = true)
+            }
+        }
 
         model.openFile.observe(viewLifecycleOwner) { request ->
             finishPendingTabClose()
@@ -249,7 +218,7 @@ class WorkspaceFragment : Fragment() {
             if (documentActionFile?.id != tab.id) hideDocumentActions()
             updateCurrentTab(workspaceWrapper, tab)
             workspaceWrapper.updateNativeToolbar()
-            finishCaptureHandoff(workspaceWrapper, tab)
+            welcomeScreen.finishCaptureHandoff(workspaceWrapper, tab)
         }
 
         model.bottomInset.observe(viewLifecycleOwner) {
@@ -310,17 +279,6 @@ class WorkspaceFragment : Fragment() {
 
                 is FinishedAction.Rename -> {
                     workspaceWrapper.workspaceView.fileRenamed(action.id, action.name)
-                    if (getCurrentFile()?.id == action.id) updateDocumentName(action.name)
-                    val tabIndex = model.tabs.indexOfFirst { it.file.id == action.id }
-                    if (tabIndex != -1) {
-                        val updatedTab = model.tabs.get(tabIndex)
-                        updatedTab.file.name = action.name
-
-                        model.tabs.removeAt(tabIndex)
-                        model.tabs.insert(tabIndex, updatedTab)
-
-                        tabsContent?.tabsList?.adapter?.notifyItemChanged(tabIndex)
-                    }
                 }
             }
         }
@@ -376,197 +334,6 @@ class WorkspaceFragment : Fragment() {
         context?.let { Toast.makeText(it, id, Toast.LENGTH_SHORT).show() }
     }
 
-    private fun onCreateEmptyWorkspace() {
-        val empty = binding.workspaceEmpty
-        empty.captureFolder.paintFlags = empty.captureFolder.paintFlags or Paint.UNDERLINE_TEXT_FLAG
-        childFragmentManager.setFragmentResultListener(QUICK_CAPTURE_FOLDER, viewLifecycleOwner) { _, result ->
-            result.getString(CreateFileBottomSheetFragment.SELECTED_FOLDER_ID)?.let(quickCapture::selectSaveFolder)
-        }
-        empty.captureFolder.setOnClickListener {
-            if (captureExpansion == null && quickCapture.isSaving.value != true &&
-                childFragmentManager.findFragmentByTag(QUICK_CAPTURE_FOLDER) == null
-            ) {
-                hideEditorKeyboard()
-                CreateFileBottomSheetFragment
-                    .folderPicker(quickCapture.saveFolder.value?.id, QUICK_CAPTURE_FOLDER)
-                    .show(childFragmentManager, QUICK_CAPTURE_FOLDER)
-            }
-        }
-        quickCapture.saveFolder.observe(viewLifecycleOwner) { folder ->
-            val name = if (folder == null || folder.isRoot) getString(R.string.home) else folder.name
-            empty.captureFolder.text = name
-            empty.captureFolder.contentDescription = getString(R.string.quick_capture_change_folder, name)
-        }
-        empty.emptyScroll.setOnScrollChangeListener(
-            NestedScrollView.OnScrollChangeListener { _, _, y, _, oldY -> onWorkspaceScroll((y - oldY).toFloat()) },
-        )
-        val surface = MaterialColors.getColor(empty.root, com.google.android.material.R.attr.colorSurface)
-        val captureColor =
-            if (MaterialColors.isColorLight(surface)) {
-                com.google.android.material.R.attr.colorSurfaceContainerLowest
-            } else {
-                com.google.android.material.R.attr.colorSurfaceContainerHigh
-            }
-        empty.captureSurface.setCardBackgroundColor(MaterialColors.getColor(empty.root, captureColor))
-        empty.captureSurface.strokeColor =
-            ColorUtils.blendARGB(
-                empty.captureSurface.cardBackgroundColor.defaultColor,
-                MaterialColors.getColor(empty.root, androidx.appcompat.R.attr.colorPrimary),
-                0.18f,
-            )
-        empty.captureText.setText(quickCapture.draft.value)
-        empty.captureText.doAfterTextChanged { text -> quickCapture.setDraft(text.toString()) }
-        quickCapture.draft.observe(viewLifecycleOwner) { text ->
-            if (empty.captureText.text.toString() != text) empty.captureText.setText(text)
-            if (text.isNotEmpty() || quickCapture.isSaving.value != true) captureExpansion?.updateText(text)
-            scheduleCaptureExpansion(text)
-        }
-        quickCapture.error.observe(viewLifecycleOwner) { error ->
-            empty.captureInput.error = error
-            if (error != null) {
-                captureExpansion?.cancel()
-                captureExpansion = null
-                empty.captureText.isEnabled = true
-            }
-        }
-        quickCapture.createdNote.observe(viewLifecycleOwner) { id ->
-            captureEditorId = id
-            binding.workspaceEmpty.captureText.performHapticFeedback(
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    HapticFeedbackConstants.CONFIRM
-                } else {
-                    HapticFeedbackConstants.KEYBOARD_TAP
-                },
-            )
-            filesListModel.reloadFiles()
-            mainScreenModel.navigate(MainNavigationAction.OpenDocument(id, newFile = false, closeDetailOnBack = false))
-        }
-        val adapter =
-            WorkspaceDocumentsAdapter(
-                scope = viewLifecycleOwner.lifecycleScope,
-                previews = documentPreviews,
-                openDocument = { file ->
-                    if (captureExpansion != null) return@WorkspaceDocumentsAdapter
-                    hideEditorKeyboard()
-                    mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false, closeDetailOnBack = false))
-                },
-                showCoverMenu = ::showCoverMenu,
-            )
-        documentsAdapter = adapter
-        val grid = StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL)
-        empty.documentGrid.layoutManager = grid
-        empty.documentGrid.adapter = adapter
-        empty.documentGrid.itemAnimator = null
-        empty.documentGrid.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
-            val columns = (view.width / (180 * resources.displayMetrics.density)).toInt().coerceIn(2, 4)
-            if (grid.spanCount != columns) grid.spanCount = columns
-        }
-        filesListModel.recentFiles.observe(viewLifecycleOwner) { updateWorkspaceDocuments() }
-        filesListModel.pinnedFiles.observe(viewLifecycleOwner) { updateWorkspaceDocuments() }
-        model.bottomInset.observe(viewLifecycleOwner) { inset ->
-            empty.root.updatePadding(bottom = inset)
-        }
-    }
-
-    private fun updateWorkspaceDocuments() {
-        if (!isWelcomeVisible()) return
-        val items = workspaceDocumentItems(filesListModel.pinnedFiles.value.orEmpty(), filesListModel.recentFiles.value.orEmpty())
-        binding.workspaceEmpty.documentSection.isVisible = items.isNotEmpty()
-        previewRefresh?.cancel()
-        if (items.isEmpty()) {
-            documentsAdapter?.submitList(emptyList())
-            return
-        }
-        previewRefresh =
-            viewLifecycleOwner.lifecycleScope.launch {
-                val cursors = documentPreviews.cursorPositions()
-                documentsAdapter?.submitList(items.map { it.copy(cursor = cursors[it.file.id] ?: 0) })
-            }
-    }
-
-    private fun scheduleCaptureExpansion(text: String) {
-        val input = binding.workspaceEmpty.captureText
-        captureStart?.let(input::removeCallbacks)
-        captureStart = null
-        if (text.isBlank() || captureExpansion != null || quickCapture.isSaving.value == true || !isWelcomeVisible()) return
-        captureStart =
-            Runnable {
-                captureStart = null
-                if (_binding == null || !binding.root.isShown ||
-                    !isWelcomeVisible() || quickCapture.isSaving.value == true
-                ) {
-                    return@Runnable
-                }
-                val expansion = QuickCaptureExpansion(binding.root, binding.workspaceEmpty.captureSurface, input)
-                captureExpansion = expansion
-                expansion.start {
-                    if (quickCapture.draft.value
-                            .orEmpty()
-                            .isBlank()
-                    ) {
-                        expansion.cancel()
-                        captureExpansion = null
-                    } else {
-                        input.clearComposingText()
-                        quickCapture.save()
-                    }
-                }
-            }.also { input.postDelayed(it, 350) }
-    }
-
-    private fun finishCaptureHandoff(
-        wrapper: WorkspaceWrapperView,
-        tab: WorkspaceTab,
-    ) {
-        if (captureEditorId != tab.id || tab.type != WorkspaceTabType.Markdown) return
-        val editor = wrapper.currentWrapper ?: return
-        val input = binding.workspaceEmpty.captureText
-        val keepKeyboard = input.hasFocus() && model.keyboardVisible.value == true
-        input.clearComposingText()
-        val pendingText = quickCapture.draft.value.orEmpty()
-        val length = Workspace.getTextLength(WorkspaceView.wgpuObj)
-        Workspace.setSelection(WorkspaceView.wgpuObj, length, length)
-        if (pendingText.isNotEmpty()) Workspace.insert(WorkspaceView.wgpuObj, length, pendingText)
-
-        // Transfer the IME connection before hiding its old editor, so the keyboard stays open.
-        editor.requestFocus()
-        captureEditorId = null
-        binding.workspaceEmpty.root.isVisible = false
-        if (pendingText.isNotEmpty()) quickCapture.setDraft("")
-        val keyboard = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        keyboard.restartInput(editor)
-        if (keepKeyboard) {
-            editor.post {
-                if (editor.hasFocus()) keyboard.showSoftInput(editor, InputMethodManager.SHOW_IMPLICIT)
-            }
-        }
-        wrapper.workspaceView.drawImmediately()
-        captureExpansion?.finish { captureExpansion = null }
-    }
-
-    private fun showCoverMenu(
-        file: File,
-        anchor: View,
-    ) {
-        PopupMenu(requireContext(), anchor).apply {
-            menu.add(0, 1, 0, R.string.workspace_choose_cover)
-            if (documentCovers.file(file.id).exists()) menu.add(0, 2, 1, R.string.workspace_remove_cover)
-            setOnMenuItemClickListener { item ->
-                if (item.itemId == 1) {
-                    coverFileId = file.id
-                    chooseCover.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                } else {
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        val removed = withContext(Dispatchers.IO) { documentCovers.file(file.id).delete() }
-                        if (removed) documentsAdapter?.refreshCover(file.id) else toast(R.string.workspace_cover_error)
-                    }
-                }
-                true
-            }
-            show()
-        }
-    }
-
     private fun onCreateToolbar(workspaceWrapper: WorkspaceWrapperView) {
         model.outlineOpen.observe(viewLifecycleOwner) { open ->
             if (open) {
@@ -596,10 +363,7 @@ class WorkspaceFragment : Fragment() {
         workspaceWrapper.onVerticalScroll = ::onWorkspaceScroll
     }
 
-    private fun isWelcomeVisible(): Boolean =
-        model.currentTab.value
-            ?.type
-            .let { it == null || it == WorkspaceTabType.Welcome }
+    private fun isWelcomeVisible(): Boolean = welcomeScreen.isVisible
 
     private fun canToolbarHideOnScroll(): Boolean = isWelcomeVisible() || model.currentTab.value?.type == WorkspaceTabType.Markdown
 
@@ -607,7 +371,7 @@ class WorkspaceFragment : Fragment() {
         if (model.outlineOpen.value == true) return
         if (distanceY > 0 && model.currentTab.value?.type == WorkspaceTabType.Markdown) hideDocumentActions()
         if (distanceY != 0f && canToolbarHideOnScroll() &&
-            model.keyboardVisible.value != true && documentActionFile == null && captureExpansion == null
+            model.keyboardVisible.value != true && documentActionFile == null && !welcomeScreen.isExpanding
         ) {
             toolbarHiddenByScroll = distanceY > 0
             updateToolbarVisibility()
@@ -618,16 +382,9 @@ class WorkspaceFragment : Fragment() {
         if (tabCount == 0) tabsDialog?.dismiss()
         val empty = isWelcomeVisible()
         binding.switchTabs.isVisible = tabCount > 0
-        binding.workspaceEmpty.root.isVisible = empty || captureExpansion != null
+        welcomeScreen.updateVisibility()
         binding.workspaceRoot.importantForAccessibility =
             if (empty) View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS else View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
-        if (empty) {
-            binding.workspaceEmpty.captureText.isEnabled = true
-            quickCapture.refreshSaveFolder()
-            filesListModel.reloadFiles()
-        } else if (captureExpansion == null) {
-            binding.workspaceEmpty.captureText.clearFocus()
-        }
         if (tabCount > 0) {
             binding.documentName.setIconResource(R.drawable.ic_baseline_arrow_down_24)
         } else {
@@ -766,14 +523,7 @@ class WorkspaceFragment : Fragment() {
 
     override fun onDestroyView() {
         finishPendingTabClose()
-        previewRefresh?.cancel()
-        previewRefresh = null
-        captureStart?.let { binding.workspaceEmpty.captureText.removeCallbacks(it) }
-        captureStart = null
-        captureExpansion?.cancel()
-        captureExpansion = null
-        binding.workspaceEmpty.documentGrid.adapter = null
-        documentsAdapter = null
+        welcomeScreen.unbind()
         tabsDialog?.dismiss()
         tabsDialog = null
         tabsContent = null
@@ -868,32 +618,38 @@ class WorkspaceFragment : Fragment() {
     private fun updateCurrentTab(
         workspaceWrapper: WorkspaceWrapperView,
         newTab: WorkspaceTab,
+        metadataOnly: Boolean = false,
     ) {
         val nativeTabs = workspaceWrapper.workspaceView.getTabs()
 
-        var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
-        if (isMissingTab(tabTitle, newTab)) {
-            filesListModel.fileModel.refreshFiles()
-            tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
-        }
+        val files = FileMetadataStore.snapshots.value?.idsAndFiles ?: return
+        val tabTitle = files[newTab.id]?.name
 
         val openTabs =
             nativeTabs.mapNotNull { raw ->
                 val parts = raw.split(' ', limit = 2)
                 val sessionId = parts[0]
                 val destId = parts.getOrElse(1) { sessionId }
-                filesListModel.fileModel.idsAndFiles[destId]?.let { file ->
+                files[destId]?.let { file ->
                     OpenTab(sessionId, file)
                 }
             }
-        model.tabs.set(openTabs)
-        notifyTabListsChanged()
-
-        updateTabControls(nativeTabs.size)
-        updateDocumentName(tabTitle)
+        val previousTabs = model.tabs.toList()
+        val tabsChanged =
+            previousTabs.size != openTabs.size ||
+                previousTabs.zip(openTabs).any { (old, new) ->
+                    old.sessionId != new.sessionId || old.file.id != new.file.id || old.file.name != new.file.name ||
+                        old.file.type != new.file.type
+                }
+        if (tabsChanged) model.tabs.set(openTabs)
+        if (tabsChanged || !metadataOnly) {
+            notifyTabListsChanged()
+            updateTabControls(nativeTabs.size)
+        }
+        if (!metadataOnly || binding.documentName.text.toString() != tabTitle.orEmpty()) updateDocumentName(tabTitle)
         if (isMissingTab(tabTitle, newTab)) return
         workspaceWrapper.updateWrapperBasedOnTab(newTab.type)
-        toolbarHiddenByScroll = false
+        if (!metadataOnly) toolbarHiddenByScroll = false
         updateToolbarVisibility()
     }
 
@@ -904,7 +660,9 @@ class WorkspaceFragment : Fragment() {
 
     private fun getCurrentFile(): File? {
         val currentTab = model.currentTab.value ?: return null
-        return filesListModel.fileModel.idsAndFiles[currentTab.id]
+        return FileMetadataStore.snapshots.value
+            ?.idsAndFiles
+            ?.get(currentTab.id)
     }
 
     private fun showTabPicker(workspaceWrapper: WorkspaceWrapperView) {

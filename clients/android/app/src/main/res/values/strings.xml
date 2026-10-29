@@ -356,4 +356,7 @@
     <string name="workspace_cover_error">Couldn’t update the cover image. Please try again.</string>
     <string name="quick_capture_save_location">Files will be saved in</string>
     <string name="quick_capture_change_folder">Save quick captures in %1$s. Change folder</string>
+    <string name="metadata_loading">Loading your files…</string>
+    <string name="metadata_retry">Try again</string>
+    <string name="create_file_choose_another_location">%1$s Choose another location.</string>
 </resources>

@@ -10,7 +10,7 @@ pub struct ControlInsets {
 
 impl ControlInsets {
     pub fn set(self, ctx: &egui::Context) {
-        ctx.data_mut(|data| data.insert_temp(egui::Id::new("workspace_control_insets"), self));
+        ctx.data_mut(|data| data.insert_temp(egui::Id::unique("workspace_control_insets"), self));
     }
 
     pub fn inset(self, bounds: egui::Rect) -> egui::Rect {
@@ -31,7 +31,7 @@ pub fn controls_rect(ui: &egui::Ui) -> egui::Rect {
 }
 
 pub fn inset_rect(ctx: &egui::Context, bounds: egui::Rect) -> egui::Rect {
-    ctx.data(|data| data.get_temp::<ControlInsets>(egui::Id::new("workspace_control_insets")))
+    ctx.data(|data| data.get_temp::<ControlInsets>(egui::Id::unique("workspace_control_insets")))
         .unwrap_or_default()
         .inset(bounds)
 }

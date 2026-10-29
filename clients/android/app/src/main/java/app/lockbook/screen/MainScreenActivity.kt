@@ -25,6 +25,7 @@ import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.*
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
@@ -43,7 +44,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.Lb
 import net.lockbook.LbError
-import net.lockbook.LbStatus
+import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -167,14 +168,24 @@ class MainScreenActivity : AppCompatActivity() {
                 onVisibilityChanged = ::setFileSelectionActive,
             )
         binding.createFileFab.setOnClickListener {
+            val parentId = fileTreeViewModel.fileModel?.parent?.id ?: return@setOnClickListener
             mainScreenModel.launchTransientScreen(
-                TransientScreen.Create(fileTreeViewModel.fileModel.parent.id),
+                TransientScreen.Create(parentId),
             )
         }
         binding.toggleDetailsFab.setOnClickListener {
             if (!isFileSelectionActive) mainScreenModel.navigate(MainNavigationAction.FocusDetail)
         }
         workspaceShell = binding.workspaceShell
+        binding.metadataRetry.setOnClickListener { FileMetadataStore.requestRefresh() }
+        FileMetadataStore.loadState.asLiveData().observe(this) { state ->
+            val initialLoad = FileMetadataStore.snapshots.value == null
+            binding.metadataLoadingOverlay.isVisible = initialLoad
+            binding.metadataLoadingProgress.isVisible = state == MetadataLoadState.Loading
+            binding.metadataRetry.isVisible = state is MetadataLoadState.Failed
+            binding.metadataLoadingMessage.text =
+                if (state is MetadataLoadState.Failed) state.error.msg else getString(R.string.metadata_loading)
+        }
         setUpSearch()
         setUpNavigationDrawer()
         workspaceShell.setOnModeChangedListener { mode ->
@@ -257,7 +268,7 @@ class MainScreenActivity : AppCompatActivity() {
                     CreateFileBottomSheetFragment
                         .newInstance(
                             initialParentId = screen.parentId,
-                            focusedFolderId = fileTreeViewModel.fileModel.parent.id,
+                            focusedFolderId = fileTreeViewModel.fileModel?.parent?.id,
                         ).show(
                             supportFragmentManager,
                             CreateFileBottomSheetFragment.TAG,
@@ -424,18 +435,25 @@ class MainScreenActivity : AppCompatActivity() {
         fileId: String,
         heading: String?,
     ) {
-        if (fileTreeViewModel.fileModel.idsAndFiles.containsKey(fileId)) {
-            workspaceModel.openFile(
-                OpenFileRequest(
-                    id = fileId,
-                    newFile = false,
-                    presentation = OpenFilePresentation.ShowDetail,
-                    heading = heading,
-                ),
-            )
-            mainScreenModel.navigate(MainNavigationAction.FocusDetail)
-        } else {
-            alertModel.notify(getString(R.string.open_link_not_found))
+        lifecycleScope.launch {
+            try {
+                val snapshot = FileMetadataStore.awaitLoaded()
+                if (snapshot.idsAndFiles.containsKey(fileId)) {
+                    workspaceModel.openFile(
+                        OpenFileRequest(
+                            id = fileId,
+                            newFile = false,
+                            presentation = OpenFilePresentation.ShowDetail,
+                            heading = heading,
+                        ),
+                    )
+                    mainScreenModel.navigate(MainNavigationAction.FocusDetail)
+                } else {
+                    alertModel.notify(getString(R.string.open_link_not_found))
+                }
+            } catch (error: LbError) {
+                alertModel.notifyError(error)
+            }
         }
     }
 
@@ -918,15 +936,12 @@ class MainScreenActivity : AppCompatActivity() {
 
     private fun subscribeToLbEvents() {
         lifecycleScope.launch {
-            while (true) {
-                val lbEvent =
-                    withContext(Dispatchers.IO) {
-                        Lb.subscribe(Lb.eventsReceiver)
-                    }
-
-                lbEvent?.let { event ->
-                    val status: LbStatus = Lb.getStatus()
-                    fileTreeViewModel.hydrateStatusUpdate(status, event)
+            LbEvents.events.collect {
+                try {
+                    val status = withContext(Dispatchers.IO) { Lb.getStatus() }
+                    fileTreeViewModel.hydrateStatusUpdate(status)
+                } catch (error: LbError) {
+                    Timber.e(error, "Unable to refresh account status.")
                 }
             }
         }

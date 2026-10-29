@@ -7,7 +7,10 @@ internal data class WorkspaceDocumentItem(
     val name: String = file.name,
     val modified: Long = file.lastModified,
     val cursor: Int = 0,
-)
+) {
+    fun sameContentAs(other: WorkspaceDocumentItem): Boolean =
+        file.id == other.file.id && name == other.name && modified == other.modified && cursor == other.cursor
+}
 
 internal fun workspaceDocumentItems(
     pins: List<PinnedFile>,

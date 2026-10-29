@@ -11,8 +11,7 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.asLiveData
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import app.lockbook.R
@@ -24,12 +23,10 @@ import app.lockbook.ui.*
 import app.lockbook.util.*
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
-import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import net.lockbook.File
 import net.lockbook.File.FileType
-import net.lockbook.Lb
-import net.lockbook.LbError
-import java.lang.ref.WeakReference
 import java.util.Locale
 import kotlin.collections.component1
 import kotlin.collections.component2
@@ -40,12 +37,12 @@ import kotlin.getValue
 class PendingSharesFragment : Fragment() {
     lateinit var binding: FragmentPendingSharesBinding
 
-    private val alertModel by lazy {
-        AlertModel(WeakReference(requireActivity()), view)
-    }
-
     private var tabMediator: TabLayoutMediator? = null
-    val idsAndFiles = MutableLiveData<Map<String, File>>()
+    val idsAndFiles =
+        FileMetadataStore.snapshots
+            .map { snapshot -> snapshot?.pendingShares.orEmpty().associateBy { it.id } }
+            .distinctUntilChanged()
+            .asLiveData()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -67,9 +64,6 @@ class PendingSharesFragment : Fragment() {
 
                 override fun onTabReselected(tab: TabLayout.Tab?) {
                     tab ?: return
-                    if (tab.position == 0) {
-                        populatePendingShares()
-                    }
                     (childFragmentManager.findFragmentByTag("f${tab.position}") as? TabFragment)
                         ?.setTabDefaultFiles()
                 }
@@ -119,40 +113,6 @@ class PendingSharesFragment : Fragment() {
         return binding.root
     }
 
-    override fun onViewCreated(
-        view: View,
-        savedInstanceState: Bundle?,
-    ) {
-        super.onViewCreated(view, savedInstanceState)
-        populatePendingShares()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        populatePendingShares()
-    }
-
-    private fun populatePendingShares() {
-        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val pendingShares = Lb.getPendingShareFiles().toList()
-
-                withContext(Dispatchers.Main) {
-                    idsAndFiles.value = pendingShares.associateBy { item -> item.id }
-                }
-            } catch (err: LbError) {
-                alertModel.notifyError(err)
-            }
-        }
-    }
-
-    fun handleShareRejected(deletedFileId: String) {
-        val currentMap = idsAndFiles.value?.toMutableMap() ?: return
-
-        currentMap.remove(deletedFileId)
-        idsAndFiles.value = currentMap
-    }
-
     fun onBackPressed(): Boolean =
         (childFragmentManager.findFragmentByTag("f${binding.viewPager.currentItem}") as? TabFragment)
             ?.onBackPressed() ?: false
@@ -189,8 +149,9 @@ class TabFragment : Fragment() {
 
         pendingSharesFragment?.idsAndFiles?.observe(
             viewLifecycleOwner,
-            { it ->
-                setTabDefaultFiles()
+            { files ->
+                currentParent = files[currentParent?.id]
+                setFilesGroupedByDate()
             },
         )
 
@@ -206,13 +167,6 @@ class TabFragment : Fragment() {
         (requireActivity() as MainScreenActivity).configureBottomNavigationFor(binding.sharedFilesList) { height ->
             if (_binding == null) return@configureBottomNavigationFor
             binding.sharedFilesList.updatePadding(bottom = originalListPaddingBottom + height)
-        }
-
-        parentFragmentManager.setFragmentResultListener(DeleteSharedDialogFragment.DELETE_SHARE_REQUEST_KEY, this) { _, bundle ->
-            val deletedFileId = bundle.getString(DeleteSharedDialogFragment.DELETE_SHARE_BUNDLE_KEY)
-            deletedFileId?.let { id ->
-                pendingSharesFragment?.handleShareRejected(id)
-            }
         }
 
         val backPressedCallback =

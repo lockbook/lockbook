@@ -26,12 +26,15 @@ import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.SheetShareFileBinding
+import app.lockbook.model.FileMetadataStore
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.util.harmonizedIdentityColors
+import app.lockbook.util.withFileMetadata
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -51,7 +54,7 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
     private var _binding: SheetShareFileBinding? = null
     private val binding get() = _binding!!
     private val fileTreeViewModel: FileTreeViewModel by activityViewModels()
-    private val file: File by lazy { Lb.getFileById(requireArguments().getString(FILE_ID_KEY)!!) }
+    private val file: File by lazy { FileMetadataStore.requireFile(requireArguments().getString(FILE_ID_KEY)!!) }
     private var sharedUsernames: List<String> = emptyList()
 
     companion object {
@@ -79,8 +82,23 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         savedInstanceState: Bundle?,
     ) {
         super.onViewCreated(view, savedInstanceState)
+        withFileMetadata(viewLifecycleOwner) { configureShareView(savedInstanceState) }
+    }
+
+    private fun configureShareView(savedInstanceState: Bundle?) {
         binding.shareFileName.text = file.name
         binding.shareFileInviteName.text = file.name
+        FileMetadataStore.snapshots.asLiveData().observe(viewLifecycleOwner) { snapshot ->
+            if (snapshot != null) {
+                val current = snapshot.idsAndFiles[requireArguments().getString(FILE_ID_KEY)]
+                if (current == null) {
+                    dismissAllowingStateLoss()
+                } else {
+                    binding.shareFileName.text = current.name
+                    binding.shareFileInviteName.text = current.name
+                }
+            }
+        }
         fileTreeViewModel.sharingContacts.observe(viewLifecycleOwner) { contacts ->
             sharedUsernames = contacts.map { it.username }
             updateAccessRow()

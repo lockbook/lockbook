@@ -216,6 +216,6 @@ internal class WorkspaceDocumentsAdapter(
         override fun areContentsTheSame(
             oldItem: WorkspaceDocumentItem,
             newItem: WorkspaceDocumentItem,
-        ): Boolean = oldItem.name == newItem.name && oldItem.modified == newItem.modified && oldItem.cursor == newItem.cursor
+        ): Boolean = oldItem.sameContentAs(newItem)
     }
 }

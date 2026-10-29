@@ -9,15 +9,18 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.FragmentCreateLinkBinding
 import app.lockbook.model.*
+import app.lockbook.model.FileMetadataStore
 import app.lockbook.util.FileMetadataRowInfo
 import app.lockbook.util.FileMetadataViewHolder
 import app.lockbook.util.getIconResource
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.listitem.ListItemLayout
+import kotlinx.coroutines.launch
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbError
@@ -70,6 +73,7 @@ class CreateLinkFragment : Fragment() {
             viewLifecycleOwner,
         ) { title ->
             binding.createLinkToolbar.title = title
+            binding.createLinkCreate.isEnabled = true
         }
 
         model.closeFragment.observe(
@@ -92,29 +96,31 @@ class CreateLinkFragment : Fragment() {
             return binding.root
         }
 
-        try {
-            val file = Lb.getFileById(fileId)
-            binding.createLinkFileFor.setText(getString(R.string.create_link_file_for, file.name))
-            binding.createLinkName.setText(file.name)
+        binding.createLinkCancel.setOnClickListener { popBackStack() }
+        binding.createLinkCreate.isEnabled = false
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                FileMetadataStore.awaitLoaded()
+                binding.createLinkCreate.isEnabled = model.hasParent
+                val file = FileMetadataStore.requireFile(fileId)
+                binding.createLinkFileFor.setText(getString(R.string.create_link_file_for, file.name))
+                binding.createLinkName.setText(file.name)
 
-            binding.createLinkCreate.setOnClickListener {
-                val name = binding.createLinkName.text.toString()
+                binding.createLinkCreate.setOnClickListener {
+                    val name = binding.createLinkName.text.toString()
 
-                try {
-                    Lb.createLink(name, file.id, model.currentParent.id)
-                    alertModel.notifyWithToast(getString(R.string.created_link))
-                    popBackStack()
-                } catch (err: LbError) {
-                    alertModel.notifyError(err)
+                    try {
+                        Lb.createLink(name, file.id, model.currentParent.id)
+                        alertModel.notifyWithToast(getString(R.string.created_link))
+                        popBackStack()
+                    } catch (err: LbError) {
+                        alertModel.notifyError(err)
+                    }
                 }
+            } catch (err: LbError) {
+                alertModel.notifyError(err)
+                popBackStack()
             }
-        } catch (err: LbError) {
-            alertModel.notifyError(err)
-            popBackStack()
-        }
-
-        binding.createLinkCancel.setOnClickListener {
-            popBackStack()
         }
 
         return binding.root

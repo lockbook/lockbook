@@ -12,13 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.File
-import net.lockbook.Lb
 import net.lockbook.LbError
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-private fun defaultFileName(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
 enum class NewFileType(
     @param:StringRes val labelRes: Int,
@@ -56,7 +50,7 @@ data class FolderChoice(
 data class CreateFileUiState(
     val page: CreateFilePage = CreateFilePage.Details,
     val type: NewFileType = NewFileType.Note,
-    val name: String = defaultFileName(),
+    val name: String = FileCreation.defaultBaseName(),
     val location: CreateLocation = CreateLocation.FocusedFolder,
     val parentId: String? = null,
     val focusedFolderId: String? = null,
@@ -82,7 +76,7 @@ class CreateFileViewModel : ViewModel() {
     val createdFile: LiveData<File> = _createdFile
 
     private var initialized = false
-    private var lastAutoName = defaultFileName()
+    private var lastAutoName = _state.value!!.name
     private var nameRequest = 0
 
     fun initialize(
@@ -95,9 +89,9 @@ class CreateFileViewModel : ViewModel() {
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val listedFiles = Lb.listMetadatas().toList()
-                val root = listedFiles.firstOrNull { it.isRoot } ?: Lb.getRoot()
-                val files = if (listedFiles.any { it.id == root.id }) listedFiles else listedFiles + root
+                val snapshot = FileMetadataStore.awaitLoaded()
+                val root = snapshot.root
+                val files = snapshot.files
                 val byId = files.associateBy { it.id }
                 val alongsideFile = alongsideFileId?.let(byId::get)
                 val alongsideParent = alongsideFile?.parent?.let(byId::get)
@@ -117,18 +111,7 @@ class CreateFileViewModel : ViewModel() {
                         alongsideParent?.id -> CreateLocation.Alongside
                         else -> CreateLocation.Custom
                     }
-                val childCounts = files.filter { !it.isRoot }.groupingBy { it.parent }.eachCount()
-                val pickerEntries =
-                    files
-                        .map {
-                            val path = buildPath(it, byId)
-                            FolderChoice(
-                                file = it,
-                                path = path,
-                                depth = path.count { character -> character == '/' },
-                                hasChildren = childCounts.getOrDefault(it.id, 0) > 0,
-                            )
-                        }.sortedBy { it.path.lowercase() }
+                val pickerEntries = buildFolderPickerEntries(files)
                 val expandedFolderIds = ancestorIds(initialParent, byId) + root.id
 
                 withContext(Dispatchers.Main) {
@@ -155,6 +138,17 @@ class CreateFileViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    private fun buildFolderPickerEntries(files: List<File>): List<FolderChoice> {
+        val folders = files.filter { it.type == File.FileType.Folder }
+        val byId = folders.associateBy { it.id }
+        val childCounts = folders.filter { !it.isRoot }.groupingBy { it.parent }.eachCount()
+        return folders
+            .map { file ->
+                val path = buildPath(file, byId)
+                FolderChoice(file, path, path.count { it == '/' }, childCounts.getOrDefault(file.id, 0) > 0)
+            }.sortedBy { it.path.lowercase() }
     }
 
     fun setType(type: NewFileType) {
@@ -226,6 +220,7 @@ class CreateFileViewModel : ViewModel() {
 
     fun create() {
         val state = _state.value ?: return
+        if (state.isCreating) return
         val parentId = state.parentId ?: return
         val baseName = state.name.trim()
         if (baseName.isEmpty()) {
@@ -236,17 +231,53 @@ class CreateFileViewModel : ViewModel() {
         _state.value = state.copy(isCreating = true, error = null)
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val file =
-                    Lb.createFile(
-                        state.type.completeName(baseName),
-                        parentId,
-                        state.type.isDocument,
-                    )
+                val file = FileCreation.create(parentId, state.type, baseName)
                 _createdFile.postValue(file)
             } catch (error: LbError) {
-                withContext(Dispatchers.Main) {
-                    _state.value = _state.value!!.copy(isCreating = false, error = error.msg)
+                when (error.kind) {
+                    LbError.LbEC.FileNonexistent,
+                    LbError.LbEC.FileParentNonexistent,
+                    LbError.LbEC.FileNotFolder,
+                    LbError.LbEC.InsufficientPermission,
+                    -> {
+                        recoverFromInvalidDestination(error)
+                    }
+
+                    else -> {
+                        withContext(Dispatchers.Main) {
+                            _state.value = _state.value!!.copy(isCreating = false, error = error.msg)
+                        }
+                    }
                 }
+            }
+        }
+    }
+
+    private suspend fun recoverFromInvalidDestination(creationError: LbError) {
+        try {
+            val snapshot = FileMetadataStore.refreshAndAwait()
+            val entries = buildFolderPickerEntries(snapshot.files)
+            withContext(Dispatchers.Main) {
+                val state = _state.value!!
+                nameRequest++ // Discard any filename suggestion for the failed destination.
+                _state.value =
+                    CreateFileUiState(
+                        page = CreateFilePage.FolderPicker,
+                        type = state.type,
+                        name = state.name,
+                        location = CreateLocation.Custom,
+                        focusedFolderId = snapshot.root.id,
+                        focusedFolderLabel = "Home",
+                        focusedFolderIsRoot = true,
+                        pickerEntries = entries,
+                        expandedFolderIds = setOf(snapshot.root.id),
+                        isLoading = false,
+                        error = creationError.msg,
+                    )
+            }
+        } catch (error: LbError) {
+            withContext(Dispatchers.Main) {
+                _state.value = _state.value!!.copy(isCreating = false, error = error.msg)
             }
         }
     }
@@ -273,14 +304,10 @@ class CreateFileViewModel : ViewModel() {
         val parentId = state.parentId ?: return
         if (state.name != lastAutoName) return
 
-        val desired = defaultFileName() + (state.type.extension ?: "")
         val request = ++nameRequest
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                var next = Lb.nextName(parentId, desired)
-                state.type.extension?.let { extension ->
-                    if (next.endsWith(extension)) next = next.dropLast(extension.length)
-                }
+                val next = FileCreation.suggestBaseName(parentId, state.type)
                 withContext(Dispatchers.Main) {
                     if (request == nameRequest && _state.value?.name == lastAutoName) {
                         lastAutoName = next
