@@ -20,9 +20,6 @@ use crate::egress::{FetchError, fetch_html, fetch_json};
 use crate::tab::markdown_editor::HttpClient;
 use crate::workspace::WsPersistentStore;
 
-/// A preview this old is fetched again the next time it's shown; the old one
-/// stays up until the new one lands.
-const STALE_AFTER: Duration = Duration::from_secs(10 * 60);
 /// Self-assigned retry-after for network-level failures; doubles per
 /// consecutive failure up to the cap.
 const TRANSIENT_RETRY_BASE: Duration = Duration::from_secs(60);
@@ -43,12 +40,6 @@ enum State {
     },
 }
 
-struct Entry {
-    state: State,
-    /// When `state` was last set or a refresh of it began.
-    at: Instant,
-}
-
 /// What a link's preview is right now.
 pub enum Preview {
     Loaded(Box<LinkMeta>),
@@ -62,7 +53,7 @@ pub enum Preview {
 /// handle to the same cache.
 #[derive(Clone)]
 pub struct LinkPreviews {
-    entries: Arc<Mutex<HashMap<String, Entry>>>,
+    entries: Arc<Mutex<HashMap<String, State>>>,
     seq: Arc<AtomicU64>,
     ws_seq: Arc<AtomicU64>,
     ctx: Context,
@@ -107,9 +98,9 @@ impl LinkPreviews {
             .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
     }
 
-    /// `url`'s preview, starting a fetch when there is none yet, an earlier
-    /// failure's retry time has passed, or the one shown has gone stale —
-    /// and only when the reader lets sites be contacted.
+    /// `url`'s preview, starting a fetch when there is none yet or an earlier
+    /// failure's retry time has passed, and only when the reader lets sites
+    /// be contacted. A loaded one stays for the session.
     pub fn get(&self, url: &str) -> Preview {
         // what came from a site isn't shown once the reader turns sites off
         if !self.contact() {
@@ -117,24 +108,15 @@ impl LinkPreviews {
         }
         let now = Instant::now();
         let mut entries = self.entries.lock().unwrap();
-        let fetch = match entries.get_mut(url) {
-            None => {
-                entries.insert(url.into(), Entry { state: State::Loading, at: now });
-                Some(0)
-            }
-            Some(entry) => match entry.state {
-                State::Failed { retry_at: Some(t), attempts } if t <= now => {
-                    *entry = Entry { state: State::Loading, at: now };
-                    Some(attempts)
-                }
-                State::Loaded(_) if now - entry.at >= STALE_AFTER => {
-                    entry.at = now;
-                    Some(0)
-                }
-                _ => None,
-            },
+        let fetch = match entries.get(url) {
+            None => Some(0),
+            Some(&State::Failed { retry_at: Some(t), attempts }) if t <= now => Some(attempts),
+            _ => None,
         };
-        let preview = match &entries[url].state {
+        if fetch.is_some() {
+            entries.insert(url.into(), State::Loading);
+        }
+        let preview = match &entries[url] {
             State::Loaded(meta) => Preview::Loaded(meta.clone()),
             State::Loading => Preview::Loading,
             State::Failed { retry_at: Some(until), .. } if *until > now => {
@@ -154,7 +136,7 @@ impl LinkPreviews {
 
     /// `url`'s preview if one has loaded; never fetches.
     pub fn loaded(&self, url: &str) -> Option<LinkMeta> {
-        match &self.entries.lock().unwrap().get(url)?.state {
+        match self.entries.lock().unwrap().get(url)? {
             State::Loaded(meta) => Some((**meta).clone()),
             _ => None,
         }
@@ -165,8 +147,10 @@ impl LinkPreviews {
         if !self.contact() {
             return;
         }
-        let entry = Entry { state: State::Loading, at: Instant::now() };
-        self.entries.lock().unwrap().insert(url.into(), entry);
+        self.entries
+            .lock()
+            .unwrap()
+            .insert(url.into(), State::Loading);
         self.fetch(url.into(), 0);
     }
 
@@ -188,12 +172,11 @@ impl LinkPreviews {
 
     #[cfg(test)]
     pub fn is_loading(&self, url: &str) -> bool {
-        matches!(self.entries.lock().unwrap()[url].state, State::Loading)
+        matches!(self.entries.lock().unwrap()[url], State::Loading)
     }
 
     fn set(&self, url: &str, state: State) {
-        let entry = Entry { state, at: Instant::now() };
-        self.entries.lock().unwrap().insert(url.into(), entry);
+        self.entries.lock().unwrap().insert(url.into(), state);
         self.bump();
     }
 
@@ -227,16 +210,7 @@ impl LinkPreviews {
                     page_state(html, &url, attempts)
                 }
             };
-            let now = Instant::now();
-            let mut entries = this.entries.lock().unwrap();
-            let entry = entries
-                .entry(url)
-                .or_insert(Entry { state: State::Loading, at: now });
-            // a stale preview beats none when its refresh fails
-            if matches!(state, State::Loaded(_)) || !matches!(entry.state, State::Loaded(_)) {
-                *entry = Entry { state, at: now };
-            }
-            drop(entries);
+            this.entries.lock().unwrap().insert(url, state);
             this.bump();
             ctx.request_repaint();
         });
