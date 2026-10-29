@@ -296,6 +296,11 @@ class WorkspaceView(
 
         // includes the app's own language choice, which the system property misses
         Workspace.setPreferredLanguages(LocaleList.getDefault().toLanguageTags())
+        // a new surface gets a new workspace; the last one goes with its surface
+        if (wgpuObj != Long.MAX_VALUE) {
+            Workspace.dropWS(wgpuObj)
+            wgpuObj = Long.MAX_VALUE
+        }
         val repaint = ViewRepaintCallback(this)
         repaintCallback = repaint
         wgpuObj =
