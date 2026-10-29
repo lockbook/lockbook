@@ -74,12 +74,14 @@ jobs:
       - name: Install the Microsoft Store CLI
         uses: microsoft/microsoft-store-apppublisher@v1.1
       - name: Configure store credentials
+        # quoted: an unquoted client secret is a bare powershell token, so any of ( ) { } @ $ & ; , in it
+        # would be parsed rather than passed through
         run: >-
           msstore reconfigure
-          --tenantId ${{ secrets.AZURE_AD_TENANT_ID }}
-          --sellerId ${{ secrets.SELLER_ID }}
-          --clientId ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
-          --clientSecret ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+          --tenantId '${{ secrets.AZURE_AD_TENANT_ID }}'
+          --sellerId '${{ secrets.SELLER_ID }}'
+          --clientId '${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}'
+          --clientSecret '${{ secrets.AZURE_AD_APPLICATION_SECRET }}'
       - name: Submit to the Microsoft Store
         run: >-
           msstore publish '${{ github.workspace }}/windows-build/Lockbook.msixbundle'
