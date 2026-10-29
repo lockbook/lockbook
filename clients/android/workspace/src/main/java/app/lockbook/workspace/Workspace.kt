@@ -109,6 +109,8 @@ object Workspace {
 
     external fun initWSOffloaded(surface: Surface, core: Long, theme: Any): Long
 
+    external fun dropWS(rustObj: Long)
+
     // comma-separated BCP 47 tags, before the first initWS
     external fun setPreferredLanguages(tags: String)
     external fun setTheme(rustObj: Long, theme: Any)

@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, RwLock, mpsc};
+use std::sync::{Arc, RwLock, Weak, mpsc};
 use tracing::{debug, error, info, instrument, trace_span, warn};
 use web_time::{Duration, Instant};
 
@@ -280,11 +280,12 @@ impl Workspace {
 
         let core = ws.core.clone();
         let ctx = ctx.clone();
+        let owner = Arc::downgrade(&ws.files);
 
         #[cfg(not(target_family = "wasm"))]
         {
-            crate::note_index::NoteIndex::keep(ws.files.clone(), core.clone(), ctx.clone());
-            spawn!(lb_bg_worker(ctx, core, ws_tx));
+            crate::note_index::NoteIndex::keep(&ws.files, core.clone(), ctx.clone());
+            spawn!(lb_bg_worker(ctx, core, ws_tx, owner));
         }
 
         ws
@@ -2428,11 +2429,20 @@ fn persist_ws_file(data: &Arc<RwLock<WsPresistentData>>, path: &Path) {
     }
 }
 
-pub fn lb_bg_worker(ctx: Context, lb: Lb, ws_tx: Sender<WsUpdates>) {
+/// Ends at the first event after the workspace owning `owner` is dropped;
+/// sync attempts send one every few seconds while the app is in use.
+pub fn lb_bg_worker(
+    ctx: Context, lb: Lb, ws_tx: Sender<WsUpdates>, owner: Weak<RwLock<FileCache>>,
+) {
     let mut events = lb.subscribe();
 
     loop {
-        match events.blocking_recv() {
+        let event = events.blocking_recv();
+        if owner.strong_count() == 0 {
+            info!("workspace dropped, lb_bg_worker exiting");
+            return;
+        }
+        match event {
             Ok(evt) => match evt {
                 Event::MetadataChanged(_) | Event::IpcChangesApplied => {
                     if ws_tx
