@@ -2721,7 +2721,13 @@ fn endpoint_offset(
     canvas_rect: Rect, side: EndpointSide, pad: f32,
 ) -> Option<Offset<DocRowId>> {
     use crate::widgets::affine_scroll::Rows as _;
-    if let Some(frag) = renderer.fragment_at_offset(target).filter(|f| !f.far) {
+    let frag = renderer.fragment_at_offset(target).or_else(|| {
+        // a table row's pipes aren't drawn; its last cell stands in for them
+        let table = renderer.bounds.table_at(target)?;
+        let row = &table.rows[table.row_at(target)?];
+        renderer.fragment_at_offset(row.cells.last()?.content.1)
+    });
+    if let Some(frag) = frag.filter(|f| !f.far) {
         let y_range = frag.rect.y_range().expand(pad);
         let y = match side {
             EndpointSide::Top => y_range.min - android_top_overlay(content),
