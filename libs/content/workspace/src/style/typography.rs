@@ -1,4 +1,4 @@
-//! Type scale: 22 title, 16 heading, 14 body, 12 mono, 11 caption.
+//! Type scale: 22 title, 16 heading, 14 body, 12 mono, 12 caption.
 
 use egui::{FontFamily, FontId, RichText, TextStyle};
 
@@ -13,7 +13,7 @@ pub enum TypeRole {
     Body,
     /// Code, token names, kbd badges — 12 mono.
     Mono,
-    /// Section titles in a list, set in capitals ([`TypeRole::caps`]) — 11.
+    /// Section titles in a list, set in capitals ([`TypeRole::caps`]) — 12.
     Caption,
 }
 
@@ -30,7 +30,7 @@ impl TypeRole {
     /// Monospace size.
     pub const MONO_SIZE: f32 = 12.0;
     /// Caption size.
-    pub const CAPTION_SIZE: f32 = 11.0;
+    pub const CAPTION_SIZE: f32 = 12.0;
 
     pub const fn size(self) -> f32 {
         match self {

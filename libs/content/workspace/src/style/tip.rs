@@ -11,9 +11,11 @@
 //!
 //! Anchored to the host control (not the cursor). Canvas plate + hairline.
 
-use egui::{Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Response, Ui, Vec2, vec2};
+use egui::{
+    Align2, Area, Context, Frame, Id, LayerId, Margin, Order, Pos2, Response, Ui, Vec2, vec2,
+};
 
-use super::chrome::{Radius, TIP_CHAIN_GRACE_SECS};
+use super::chrome::{Radius, TIP_CHAIN_DWELL_SECS, TIP_CHAIN_GRACE_SECS};
 use super::color::ThemeExt;
 use super::space::Space;
 use super::typography::TypeRole;
@@ -29,6 +31,8 @@ const OPEN_TIP_HOST: &str = "design_tip_open_host";
 const REACH_EXIT: &str = "design_tip_reach_exit";
 /// The host whose reachable card holds the pointer, and the frame it did.
 const REACH_HELD: &str = "design_tip_reach_held";
+/// The layer of the last reachable card shown.
+const REACH_LAYER: &str = "design_tip_reach_layer";
 
 /// One-line chrome tip (toolbar, footer).
 pub fn tip_text(ctx: &Context, resp: &Response, text: impl Into<String>) {
@@ -77,11 +81,14 @@ pub fn tip_card_reachable(
     let open = ctx.data(|d| d.get_temp::<Id>(Id::unique(OPEN_TIP_HOST))) == Some(hit.id);
     let card = ctx.memory(|m| m.area_rect(id));
     let exit = ctx.data(|d| d.get_temp::<Option<Pos2>>(exit_id)).flatten();
+    // a scroll that takes the host from under the pointer puts the card away
+    let scrolling = ctx.input(|i| i.smooth_scroll_delta != Vec2::ZERO);
     let held = open
         && !hit.contains_pointer()
         && (crate::style::context_menu::is_any_open(ctx)
-            || matches!((pointer, card), (Some(p), Some(c)) if c.contains(p)
-                || exit.is_some_and(|e| in_reach(p, e, c))));
+            || !scrolling
+                && matches!((pointer, card), (Some(p), Some(c)) if c.contains(p)
+                    || exit.is_some_and(|e| in_reach(p, e, c))));
     if held {
         let frame = ctx.cumulative_frame_nr();
         ctx.data_mut(|d| d.insert_temp(Id::unique(REACH_HELD), (hit.id, frame)));
@@ -89,7 +96,17 @@ pub fn tip_card_reachable(
         return;
     }
     note_tip_shown(ctx, hit.id);
+    let layer = LayerId::new(Order::Foreground, id);
+    ctx.data_mut(|d| d.insert_temp(Id::unique(REACH_LAYER), layer));
     show_area(ctx, hit.id, place, max_w, margin, true, add_contents);
+}
+
+/// The pointer is in `rect` with a reachable card on top: the wheel scrolls
+/// what's under the card.
+pub fn scrolls_through_card(ctx: &Context, rect: egui::Rect) -> bool {
+    let card = ctx.data(|d| d.get_temp::<LayerId>(Id::unique(REACH_LAYER)));
+    ctx.input(|i| i.pointer.latest_pos())
+        .is_some_and(|p| rect.contains(p) && card.is_some() && ctx.layer_id_at(p) == card)
 }
 
 /// Puts away whatever tip is open, as a click does.
@@ -201,10 +218,17 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
     }
 
     let seconds_since_last_tip = now - last_shown;
-    let chain_window = f64::from(tooltip_grace_time).max(f64::from(TIP_CHAIN_GRACE_SECS));
+    let chain_window = f64::from(tooltip_grace_time).max(f64::from(TIP_CHAIN_GRACE_SECS))
+        + f64::from(TIP_CHAIN_DWELL_SECS);
     let in_tip_chain = seconds_since_last_tip < chain_window;
 
     if in_tip_chain {
+        let since_still = time_since_last_pointer_movement.min(time_since_last_scroll);
+        let wait = TIP_CHAIN_DWELL_SECS - since_still;
+        if wait > 0.0 {
+            ctx.request_repaint_after_secs(wait);
+            return false;
+        }
         return true;
     }
 

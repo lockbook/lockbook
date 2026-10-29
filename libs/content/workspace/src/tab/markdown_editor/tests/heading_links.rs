@@ -36,43 +36,41 @@ fn opening_at_a_heading() {
 }
 
 /// A heading lands at one spot below the top of the view whether it starts
-/// on screen or far down the note, in the frame that scrolls to it: its row
-/// is laid out before the scroll, never landed by estimate and corrected.
-/// Reading on touch, so the caret stays behind and its row can't stand in.
+/// on screen or far down the note. One that is a block of its own is there
+/// in the first frame it paints; one inside a quote waits a frame for its row
+/// to be laid out, and the two spots agree. Reading on touch, so the caret
+/// stays behind and its row can't stand in.
 #[test]
 fn a_far_heading_lands_where_a_near_one_does() {
     let filler = "line\n\n".repeat(300);
-    let md = format!("intro\n\n# Near\n\n{filler}# Far\n\n{filler}");
+    let md = format!("intro\n\n# Near\n\n{filler}# Far\n\n{filler}> # Quoted\n\n{filler}");
     let mut ws = TestEditor::new(&md);
     ws.editor.edit.renderer.touch_mode = true;
     ws.editor.keyboard_visible = false;
     ws.enter_frame();
-    let landed_top = |ws: &mut TestEditor, heading: &str| {
+    let landed_top = |ws: &mut TestEditor, heading: &str, frames: usize| {
         ws.editor.open_at_heading(&heading.to_lowercase());
-        ws.enter_frame(); // lays out its row and scrolls
-        ws.enter_frame(); // paints there
+        for _ in 0..frames {
+            ws.enter_frame();
+        }
         let at = Grapheme(md.find(&format!("# {heading}")).unwrap() + 2);
-        let top = ws
-            .editor
-            .edit
-            .renderer
-            .fragment_at_offset(at)
-            .unwrap()
-            .rect
-            .top();
+        let top = |ws: &TestEditor| {
+            ws.editor
+                .edit
+                .renderer
+                .fragment_at_offset(at)
+                .unwrap()
+                .rect
+                .top()
+        };
+        let landed = top(ws);
         ws.enter_frame();
-        let again = ws
-            .editor
-            .edit
-            .renderer
-            .fragment_at_offset(at)
-            .unwrap()
-            .rect
-            .top();
-        assert_eq!(top, again, "{heading} moved after landing");
-        top
+        assert_eq!(landed, top(ws), "{heading} moved after landing");
+        landed
     };
-    let near = landed_top(&mut ws, "Near");
-    let far = landed_top(&mut ws, "Far");
+    let near = landed_top(&mut ws, "Near", 1);
+    let far = landed_top(&mut ws, "Far", 1);
+    let quoted = landed_top(&mut ws, "Quoted", 2);
     assert!((near - far).abs() < 0.5, "near {near}, far {far}");
+    assert!((near - quoted).abs() < 0.5, "near {near}, quoted {quoted}");
 }

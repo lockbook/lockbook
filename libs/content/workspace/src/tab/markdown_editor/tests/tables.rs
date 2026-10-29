@@ -518,3 +518,29 @@ fn a_table_the_parser_places_oddly_shows_as_its_source() {
         assert_eq!(editor.get_text(), md.replacen('a', "xa", 1));
     }
 }
+
+#[test]
+fn selecting_a_row_in_view_leaves_the_page_where_it_is() {
+    let mut md = String::new();
+    for n in 0..60 {
+        md += &format!("above {n}\n\n");
+    }
+    md += "| a | b |\n| - | - |\n";
+    for n in 0..5 {
+        md += &format!("| cell {n} | cell {n} |\n");
+    }
+    for n in 0..80 {
+        md += &format!("\nbelow {n}\n");
+    }
+    let mut editor = TestEditor::new(&md);
+    editor.enter_frame();
+    // the table's top just above the view
+    let below = md.find("below 5").unwrap();
+    editor.push(Event::Select { region: Region::Location(Location::Grapheme(Grapheme(below))) });
+    editor.enter_frame();
+    let row = editor.editor.edit.renderer.bounds.tables[0].rows[3].line;
+    let before = editor.editor.edit.scroll_area.stored_offset();
+    editor.push(Event::Select { region: row.into() });
+    editor.enter_frame();
+    assert_eq!(editor.editor.edit.scroll_area.stored_offset(), before);
+}

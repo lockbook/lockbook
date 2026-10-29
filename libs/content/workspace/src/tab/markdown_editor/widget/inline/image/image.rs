@@ -173,10 +173,11 @@ impl<'ast> MdRender {
         let Some(url) = image_url(node) else { return };
         // Always interactive: a plain tap selects, a cmd/keyboard-hidden tap opens.
         layout.interaction_open(Self::image_interaction_id_salt(node_range), egui::Sense::click());
+        let (ascent, descent) = small_image_metrics(size.y, self.row_height(node));
         layout.push_embed(EmbedSpec {
             advance: size.x,
-            ascent: size.y,
-            descent: 0.0,
+            ascent,
+            descent,
             source_range: node_range,
             url,
             kind: EmbedKind::Image,
@@ -396,6 +397,17 @@ impl<'ast> MdEdit {
 pub struct ImageDims {
     pub width: Option<f32>,
     pub height: Option<f32>,
+}
+
+/// An image's `(ascent, descent)` about the text baseline: one up to two
+/// text rows tall centers on the text, growing its row evenly; a taller one
+/// stands on the baseline.
+pub fn small_image_metrics(height: f32, row_height: f32) -> (f32, f32) {
+    if height > 2.0 * row_height {
+        return (height, 0.0);
+    }
+    let ascent = 0.3 * row_height + height / 2.0;
+    (ascent, height - ascent)
 }
 
 /// Parse Obsidian's `|W` / `|WxH` size suffix off an image's alt text. Only a
