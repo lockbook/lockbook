@@ -9,6 +9,8 @@ import android.os.StrictMode
 import android.os.StrictMode.ThreadPolicy
 import android.os.StrictMode.VmPolicy
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.emoji2.bundled.BundledEmojiCompatConfig
+import androidx.emoji2.text.EmojiCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -20,6 +22,8 @@ import app.lockbook.billing.StoreBillingManager
 import app.lockbook.util.*
 import app.lockbook.workspace.Workspace
 import com.google.android.material.color.DynamicColors
+import com.vanniktech.emoji.EmojiManager
+import com.vanniktech.emoji.androidxemoji2.AndroidxEmoji2Provider
 import net.lockbook.Lb
 import net.lockbook.LbError
 import timber.log.Timber
@@ -40,6 +44,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        EmojiManager.install(AndroidxEmoji2Provider(EmojiCompat.init(BundledEmojiCompatConfig(this))))
         DynamicColors.applyToActivitiesIfAvailable(this)
         Timber.plant(Timber.DebugTree())
         Workspace.init()

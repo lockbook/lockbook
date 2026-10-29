@@ -128,7 +128,9 @@
     <string name="undo">Undo</string>
     <string name="show_in_folder">Show in folder</string>
     <string name="choose_pin_emoji">Choose an emoji for your pin</string>
-    <string name="pin_emoji_hint">Emoji</string>
+    <string name="search_pin_emoji">Search emojis</string>
+    <string name="pin_emoji_search_minimum">Type at least two letters to search</string>
+    <string name="pin_emoji_search_empty">No emojis found</string>
 
     <string name="settings_open_new_document_automatically">Automatically open new files.</string>
 
