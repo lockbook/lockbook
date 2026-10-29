@@ -372,8 +372,9 @@ impl<'ast> MdRender {
     /// Containers normally yield to a more specific descendant (the cursor
     /// inside `* a`'s paragraph picks the paragraph, not the item).
     /// Containers that *fully contain* the selection are picked only when
-    /// no proper descendant block intersects — the empty-container case
-    /// (`* ` with no body), where there's nothing deeper to target.
+    /// they hold no blocks at all — the empty-container case (`* ` with no
+    /// body). A selection in a gap between a container's blocks (a blank
+    /// line between list items) picks nothing.
     pub fn selected_block(&self, node: &'ast AstNode<'ast>) -> bool {
         // the document is never selected
         let Some(parent) = node.parent() else {
@@ -389,11 +390,11 @@ impl<'ast> MdRender {
             return false;
         }
         // multi-block selection that extends past this container, OR
-        // empty container (deepest, no descendant blocks to target)
+        // empty container (no blocks to target)
         !self.node_contains_selection(node)
-            || !node.descendants().skip(1).any(|d| {
-                (d.is_leaf_block() || d.is_container_block()) && self.node_intersects_selection(d)
-            })
+            || !node
+                .children()
+                .any(|c| c.is_leaf_block() || c.is_container_block())
     }
 
     /// Returns the portion of the line that's within the node, excluding line

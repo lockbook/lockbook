@@ -1526,6 +1526,7 @@ fn toggle_block_style_nests_inside_other_containers() {
         ("unapply quote around a bullet", "> - item\n", 5, quote(), "- item\n"),
         ("unapply bullet inside quote", "> - item\n", 5, bullet(), "> item\n"),
         ("type change across a quote", "- > quoted\n", 5, task(), "* [ ] > quoted\n"),
+        ("quote on a blank line between items", "- a\n\n- b\n", 4, quote(), "- a\n> \n- b\n"),
     ];
     for (desc, input, cursor, ev, expected) in cases {
         let mut ws = TestEditor::new(input);
