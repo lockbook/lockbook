@@ -1239,7 +1239,9 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         // Wheel: precise pixels. egui convention: positive y = scroll up
         // (content moves down). We want offset to grow when user scrolls
         // down (content moves up), so negate.
-        let smooth_scroll_delta = if ui.rect_contains_pointer(rect) {
+        let smooth_scroll_delta = if ui.rect_contains_pointer(rect)
+            || crate::style::tip::scrolls_through_card(ui.ctx(), rect)
+        {
             ui.input(|i| i.smooth_scroll_delta.y)
         } else {
             0.0
