@@ -67,7 +67,7 @@ class RecentFilesFragment :
             selectionModel.reconcile(FileSelectionSource.Recents, recentFiles)
             adapter.submitRecentFiles(
                 files = recentFiles,
-                filesById = fileTreeModel.fileModel.idsAndFiles,
+                filesById = fileTreeModel.fileModel?.idsAndFiles.orEmpty(),
             )
             adapter.setSelectedFileIds(selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Recents))
             binding.recentFilesEmpty.isVisible = recentFiles.isEmpty()

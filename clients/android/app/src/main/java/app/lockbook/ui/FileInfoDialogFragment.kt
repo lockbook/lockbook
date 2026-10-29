@@ -3,9 +3,13 @@ package app.lockbook.ui
 import android.app.Dialog
 import android.os.Bundle
 import androidx.fragment.app.DialogFragment
+import androidx.lifecycle.asLiveData
 import app.lockbook.R
 import app.lockbook.databinding.DialogFileInfoBinding
+import app.lockbook.model.FileMetadataStore
+import app.lockbook.util.withFileMetadata
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import net.lockbook.File
 import net.lockbook.Lb
 
 class FileInfoDialogFragment : DialogFragment() {
@@ -26,17 +30,21 @@ class FileInfoDialogFragment : DialogFragment() {
             .setTitle(R.string.popup_info_title)
             .apply {
                 binding = DialogFileInfoBinding.inflate(layoutInflater)
-                setUpInfo()
+                FileMetadataStore.snapshots.asLiveData().observe(this@FileInfoDialogFragment) { snapshot ->
+                    if (snapshot != null) {
+                        val file = snapshot.idsAndFiles[requireArguments().getString(FILE_ID_KEY)]
+                        if (file != null) setUpInfo(file) else dismissAllowingStateLoss()
+                    }
+                }
                 setView(binding.root)
                 setPositiveButton(R.string.done, null)
             }.create()
             .apply {
                 setCanceledOnTouchOutside(false)
+                withFileMetadata { setUpInfo(FileMetadataStore.requireFile(requireArguments().getString(FILE_ID_KEY)!!)) }
             }
 
-    private fun setUpInfo() {
-        val file = Lb.getFileById(requireArguments().getString(FILE_ID_KEY)!!)
-
+    private fun setUpInfo(file: File) {
         binding.popupInfoLastModified.text = Lb.getTimestampHumanString(file.lastModified)
         binding.popupInfoName.text = file.name
         binding.popupInfoId.text = file.id

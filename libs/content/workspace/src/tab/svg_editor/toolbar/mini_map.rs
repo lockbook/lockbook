@@ -29,12 +29,10 @@ impl Toolbar {
         }
         let bounded_rect = tlbr_ctx.viewport_settings.bounded_rect.unwrap();
 
-        let mini_map_size =
-            egui::vec2(MINI_MAP_WIDTH, tlbr_ctx.viewport_settings.container_rect.height());
+        let mini_map_size = egui::vec2(MINI_MAP_WIDTH, tlbr_ctx.controls_rect.height());
 
         let mini_map_rect = egui::Rect::from_min_size(
-            tlbr_ctx.viewport_settings.container_rect.right_top()
-                - egui::vec2(mini_map_size.x, 0.0),
+            tlbr_ctx.controls_rect.right_top() - egui::vec2(mini_map_size.x, 0.0),
             mini_map_size,
         );
 

@@ -329,8 +329,6 @@
     <string name="home_navbar_item">Home</string>
     <string name="shared_navbar_item">Shared</string>
 
-    <string name="expand_tabs_list">View more info about your tabs</string>
-    <string name="collapse_tabs_list">Show fewer tabs controls</string>
     <string name="workspace_forward">Go forward in workspace</string>
     <string name="close_tab">Close a tab</string>
     <string name="close_all_tabs">Clear tabs</string>
@@ -346,4 +344,19 @@
         <item>@string/share_mode_write</item>
     </array>
 
+    <string name="workspace_switch_tabs">Switch tabs</string>
+    <string name="workspace_open_tabs_count">OPEN TABS (%1$d)</string>
+    <string name="workspace_document_actions">Actions for %1$s</string>
+    <string name="quick_capture_hint">What’s on your mind? Start typing…</string>
+    <string name="workspace_continue_heading">Jump back in</string>
+    <string name="workspace_blank_note_preview">Start writing…</string>
+    <string name="workspace_cover_options">Cover options for %1$s</string>
+    <string name="workspace_choose_cover">Choose cover image</string>
+    <string name="workspace_remove_cover">Remove cover image</string>
+    <string name="workspace_cover_error">Couldn’t update the cover image. Please try again.</string>
+    <string name="quick_capture_save_location">Files will be saved in</string>
+    <string name="quick_capture_change_folder">Save quick captures in %1$s. Change folder</string>
+    <string name="metadata_loading">Loading your files…</string>
+    <string name="metadata_retry">Try again</string>
+    <string name="create_file_choose_another_location">%1$s Choose another location.</string>
 </resources>

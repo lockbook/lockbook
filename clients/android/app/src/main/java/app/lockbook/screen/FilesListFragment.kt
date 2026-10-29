@@ -167,15 +167,7 @@ class FilesListFragment :
             }
         }
 
-        workspaceModel.currentTab.observe(viewLifecycleOwner) {
-            if (workspaceModel.isFileTreeSyncedToCurrentTab && currentTab != it) {
-                model.fileModel.ownedParentOf(it.id)?.let { parent ->
-                    enterFolder(parent, animate = false)
-                }
-            }
-
-            currentTab = it
-        }
+        workspaceModel.currentTab.observe(viewLifecycleOwner, ::syncCurrentTab)
 
         return binding.root
     }
@@ -207,6 +199,15 @@ class FilesListFragment :
             )
     }
 
+    private fun syncCurrentTab(tab: WorkspaceTab) {
+        val navigation = model.fileModel ?: return
+        val previousTab = currentTab
+        currentTab = tab
+        if (workspaceModel.isFileTreeSyncedToCurrentTab && previousTab != tab) {
+            navigation.ownedParentOf(tab.id)?.let { enterFolder(it, animate = false) }
+        }
+    }
+
     private fun observeFilesList() {
         model.files.observe(viewLifecycleOwner) { files ->
             val currentFiles = files.orEmpty()
@@ -216,6 +217,7 @@ class FilesListFragment :
                 currentFiles.map { item -> item.fileMetadata },
             )
             renderSortedFiles()
+            workspaceModel.currentTab.value?.let(::syncCurrentTab)
         }
     }
 
@@ -246,10 +248,11 @@ class FilesListFragment :
     }
 
     internal fun navigateToRoot(): Boolean {
-        if (model.fileModel.isAtRoot()) return false
+        val navigation = model.fileModel ?: return false
+        if (navigation.isAtRoot()) return false
 
         unselectFiles()
-        enterFolder(model.fileModel.root, animate = false)
+        enterFolder(navigation.root, animate = false)
         recyclerView.scrollToPosition(0)
         return true
     }
@@ -286,7 +289,10 @@ class FilesListFragment :
         model.pinnedFiles.observe(viewLifecycleOwner) { pins ->
             val items =
                 pins.mapNotNull { pin ->
-                    model.fileModel.idsAndFiles[pin.id]?.let { file -> PinnedFileItem(pin, file) }
+                    model.fileModel
+                        ?.idsAndFiles
+                        ?.get(pin.id)
+                        ?.let { file -> PinnedFileItem(pin, file) }
                 }
             pinnedFilesAdapter.submitList(items)
             binding.pinnedFilesSection.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
@@ -354,7 +360,8 @@ class FilesListFragment :
     }
 
     private fun showPinnedFileInFolder(file: File) {
-        val parent = model.fileModel.idsAndFiles[file.parent] ?: model.fileModel.root
+        val navigation = model.fileModel ?: return
+        val parent = navigation.idsAndFiles[file.parent] ?: navigation.root
         enterFolder(parent)
     }
 
@@ -418,7 +425,8 @@ class FilesListFragment :
     }
 
     private fun enterParent() {
-        val parent = model.fileModel.idsAndFiles[model.fileModel.parent.parent] ?: model.fileModel.root
+        val navigation = model.fileModel ?: return
+        val parent = navigation.idsAndFiles[navigation.parent.parent] ?: navigation.root
         enterFolder(parent)
     }
 
@@ -443,7 +451,8 @@ class FilesListFragment :
 
         val isMovingUpTree =
             model.fileModel
-                .getFileDir()
+                ?.getFileDir()
+                .orEmpty()
                 .dropLast(1)
                 .any { it.id == newParent.id }
         val translationDistance = resources.displayMetrics.density * FOLDER_TRANSITION_TRANSLATION_DP
@@ -625,7 +634,8 @@ class FilesListFragment :
 
     private fun getBreadcrumbItems(): MutableList<BreadCrumbItem> =
         model.fileModel
-            .getFileDir()
+            ?.getFileDir()
+            .orEmpty()
             .map { BreadCrumbItem(it) }
             .toMutableList()
 
@@ -638,7 +648,7 @@ class FilesListFragment :
                 false
             }
 
-            !model.fileModel.isAtRoot() -> {
+            model.fileModel?.isAtRoot() == false -> {
                 enterParent()
                 false
             }

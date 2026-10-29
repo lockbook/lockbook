@@ -21,7 +21,7 @@ use crate::widgets::image_cache::{ImageCache, ImageKey, ImageState};
 const MIN_ZOOM_LEVEL: f32 = 0.1;
 const ZOOM_STEP: f32 = 10.0;
 const SCREEN_PADDING: egui::Pos2 =
-    if cfg!(target_os = "android") { egui::pos2(10.0, 50.0) } else { egui::pos2(20.0, 20.0) };
+    if cfg!(target_os = "android") { egui::pos2(10.0, 10.0) } else { egui::pos2(20.0, 20.0) };
 const BACK_LABEL: &str = "Back to image";
 
 pub struct ImageViewer {
@@ -139,6 +139,7 @@ impl ImageViewer {
     /// Zoom island at the top right; "Back to image" beside it while the
     /// image is panned out of view.
     fn show_viewport_controls(&mut self, ui: &mut egui::Ui, available: Rect, image_rect: Rect) {
+        let controls = crate::safe_area::controls_rect(ui).shrink2(SCREEN_PADDING.to_vec2());
         let t = ui.ctx().get_lb_theme();
         let hit = control_height();
         let font = TypeRole::Body.font_id();
@@ -152,12 +153,13 @@ impl ImageViewer {
         };
         let pct_w = text_w("000%");
 
+        let zoom_size = egui::vec2(island::width(2.0 * hit + pct_w), island::height());
+        if controls.width() < zoom_size.x || controls.height() < zoom_size.y {
+            return;
+        }
         let zoom_rect = Rect::from_min_size(
-            egui::pos2(
-                available.right() - SCREEN_PADDING.x - island::width(2.0 * hit + pct_w),
-                available.top() + SCREEN_PADDING.y,
-            ),
-            egui::vec2(island::width(2.0 * hit + pct_w), island::height()),
+            egui::pos2(controls.right() - island::width(2.0 * hit + pct_w), controls.top()),
+            zoom_size,
         );
         self.islands.push(zoom_rect);
 
@@ -226,10 +228,17 @@ impl ImageViewer {
             return;
         }
         let back_w = island::width(text_w(BACK_LABEL));
-        let back_rect = Rect::from_min_size(
-            egui::pos2(zoom_rect.left() - Space::Sm.pts() - back_w, zoom_rect.top()),
-            egui::vec2(back_w, island::height()),
-        );
+        let beside = zoom_rect.left() - Space::Sm.pts() - back_w;
+        let back_pos = if beside >= controls.left() {
+            egui::pos2(beside, zoom_rect.top())
+        } else {
+            // Stack the return action on narrow screens instead of crossing the safe edge.
+            egui::pos2(controls.right() - back_w, zoom_rect.bottom() + Space::Sm.pts())
+        };
+        let back_rect = Rect::from_min_size(back_pos, egui::vec2(back_w, island::height()));
+        if !controls.contains_rect(back_rect) {
+            return;
+        }
         self.islands.push(back_rect);
         if island::island(ui, back_rect, |ui| Button::secondary(&t, BACK_LABEL).show(ui)).clicked()
         {
