@@ -71,6 +71,7 @@ impl Workspace {
             )
         });
         self.update_window_title();
+        self.keep_note_index();
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg
                 .set_tabs(&self.tab_strip, &self.current_tab, &self.last_search);

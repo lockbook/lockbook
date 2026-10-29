@@ -2254,6 +2254,7 @@ impl Editor {
     fn linked_notes(&mut self) -> (u64, Vec<widget::outline::LinkedNote>) {
         use crate::file_cache::FilesExt as _;
         let files = self.edit.renderer.files.read().unwrap();
+        files.notes.want();
         let version = files.notes.version();
         if let Some((at, linked)) = self.linked.take() {
             if at == version {
