@@ -92,6 +92,7 @@ dependencies {
 
     // Ui Libraries
     implementation "com.google.android.material:material:$material_ui_version"
+    implementation "com.vanniktech:emoji-androidx-emoji2:$emoji_picker_version"
     implementation "androidx.preference:preference-ktx:$preference_version"
     implementation "androidx.fragment:fragment-ktx:$fragment_version"
     implementation "androidx.activity:activity-ktx:1.8.0"
