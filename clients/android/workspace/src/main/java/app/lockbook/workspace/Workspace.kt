@@ -155,6 +155,8 @@ object Workspace {
     external fun closeDoc(rustObj: Long, id: String)
     external fun closeSession(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
+
+    external fun saveAll(rustObj: Long)
     external fun back(rustObj: Long): Boolean
     external fun forward(rustObj: Long): Boolean
     external fun canForward(rustObj: Long): Boolean

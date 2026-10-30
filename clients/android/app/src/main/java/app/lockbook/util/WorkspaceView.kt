@@ -320,6 +320,10 @@ class WorkspaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        // no frame runs the autosave until a new workspace replaces this one
+        if (wgpuObj != Long.MAX_VALUE) {
+            Workspace.saveAll(wgpuObj)
+        }
         handler?.removeCallbacks(redrawTask)
         dismissMagnifier()
         surface = null
