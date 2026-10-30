@@ -1,5 +1,6 @@
 package app.lockbook.ui
 
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -106,7 +107,7 @@ class PinEmojiBottomSheetFragment : BottomSheetDialogFragment() {
             editText = null,
             theming =
                 EmojiTheming.from(requireContext()).copy(
-                    backgroundColor = MaterialColors.getColor(view, com.google.android.material.R.attr.colorSurface),
+                    backgroundColor = Color.TRANSPARENT,
                     primaryColor = MaterialColors.getColor(view, com.google.android.material.R.attr.colorOnSurfaceVariant),
                     secondaryColor = MaterialColors.getColor(view, androidx.appcompat.R.attr.colorPrimary),
                 ),
