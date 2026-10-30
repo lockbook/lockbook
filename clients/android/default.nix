@@ -2,6 +2,7 @@
 
 let
   buildToolsVersion = "36.0.0";
+  androidNdkVersion = "29.0.14206865";
   androidComposition = pkgs.androidenv.composeAndroidPackages {
     cmdLineToolsVersion = "8.0";
     toolsVersion = "26.1.1";
@@ -16,7 +17,7 @@ let
     abiVersions = [ "armeabi-v7a" "arm64-v8a" ];
     cmakeVersions = [ "3.10.2" ];
     includeNDK = true;
-    # ndkVersions = [ "22.0.7026061" ];
+    ndkVersions = [ androidNdkVersion ];
     useGoogleAPIs = false;
     useGoogleTVAddOns = false;
     includeExtras = [
@@ -30,7 +31,8 @@ pkgs.mkShell rec {
   ];
 
   ANDROID_HOME = "${androidComposition.androidsdk}/libexec/android-sdk";
-  ANDROID_NDK_ROOT = "${ANDROID_HOME}/ndk-bundle";
+  ANDROID_NDK_ROOT = "${ANDROID_HOME}/ndk/${androidNdkVersion}";
+  ANDROID_NDK_HOME = ANDROID_NDK_ROOT;
 
   # Use the same buildToolsVersion here
   GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_HOME}/build-tools/${buildToolsVersion}/aapt2";
