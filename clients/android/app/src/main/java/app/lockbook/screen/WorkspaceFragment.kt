@@ -616,7 +616,10 @@ class WorkspaceFragment : Fragment() {
         tabTitle: String?,
     ) {
         when (newTab) {
-            WorkspaceTabType.Loading -> {}
+            // also a tab that refused to open
+            WorkspaceTabType.Loading -> {
+                binding.workspaceToolbar.setTitle(tabTitle)
+            }
 
             WorkspaceTabType.Welcome,
             WorkspaceTabType.Graph,

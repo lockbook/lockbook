@@ -398,17 +398,6 @@ impl Scroll {
             let at = Align2::LEFT_CENTER
                 .align_size_within_rect(m.galley.size(), text_rect)
                 .min;
-            // a faint dot in each step of a heading's indent, beside its first line
-            if matches!(m.choice, Choice::Heading(_)) {
-                let line = m.galley.rows.first().map_or(0.0, |r| r.rect().height());
-                let y = at.y + line / 2.0;
-                let ink = t.neutral_fg_secondary().gamma_multiply(0.45);
-                let steps = (m.indent / Space::Md.pts()).round() as usize;
-                for step in 0..steps {
-                    let x = rect.left() + Space::Sm.pts() + (step as f32 + 0.5) * Space::Md.pts();
-                    painter.circle_filled(pos2(x, y), 1.0, ink);
-                }
-            }
             painter.galley(at, m.galley.clone(), Color32::PLACEHOLDER);
             if m.galley.elided {
                 tip_text(ui.ctx(), &resp, m.tip.clone());
