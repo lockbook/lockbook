@@ -1,7 +1,7 @@
 //! Every markdown note's headings and links, for the link picker, backlinks,
 //! and the edits a rename, move, or share would call for. The file cache
-//! holds it; a thread reads every note once, then each note again when it's
-//! written.
+//! holds it; once something first asks, a thread reads every note, then each
+//! note again when it's written.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -26,6 +26,8 @@ pub struct NoteIndex {
     version: AtomicU64,
     /// Every note has been read once.
     ready: AtomicBool,
+    /// Something has asked; the workspace starts the reading.
+    wanted: AtomicBool,
     /// The last change planned for, until the notes or the tree change.
     pub(crate) planned: Mutex<Option<(Change, Arc<Plan>)>>,
 }
@@ -71,6 +73,15 @@ impl NoteIndex {
     /// links is whole.
     pub fn is_ready(&self) -> bool {
         self.ready.load(Ordering::Relaxed)
+    }
+
+    /// Asks for the index to be filled.
+    pub fn want(&self) {
+        self.wanted.store(true, Ordering::Relaxed);
+    }
+
+    pub fn is_wanted(&self) -> bool {
+        self.wanted.load(Ordering::Relaxed)
     }
 
     pub fn set_ready(&self) {

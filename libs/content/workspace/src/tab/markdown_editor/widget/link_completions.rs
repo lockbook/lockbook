@@ -940,7 +940,10 @@ impl LinkCompletions {
             .iter()
             .map(|(id, _)| match *id == file_id {
                 true => self.own_headings(note),
-                false => cache.notes.headings(*id).unwrap_or_default(),
+                false => {
+                    cache.notes.want();
+                    cache.notes.headings(*id).unwrap_or_default()
+                }
             })
             .collect();
         let mut hits: Vec<(u8, usize, usize)> = vec![];

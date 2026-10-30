@@ -122,6 +122,9 @@ pub struct Workspace {
 
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
+    /// Starts the note index's reader, the first time something wants it.
+    #[cfg(not(target_family = "wasm"))]
+    note_index: std::sync::Once,
 
     /// Touch hosts type through the software keyboard. iOS clears this while
     /// a hardware keyboard keeps the software one away.
@@ -226,6 +229,8 @@ impl Workspace {
             interrupted,
             opened_anyway: Vec::new(),
             core: core.clone(),
+            #[cfg(not(target_family = "wasm"))]
+            note_index: std::sync::Once::new(),
 
             software_keyboard_in_use: true,
             desktop_tab_policy: false,
@@ -283,7 +288,6 @@ impl Workspace {
 
         #[cfg(not(target_family = "wasm"))]
         {
-            crate::note_index::NoteIndex::keep(ws.files.clone(), core.clone(), ctx.clone());
             spawn!(lb_bg_worker(ctx, core, ws_tx));
         }
 
@@ -1992,7 +1996,23 @@ impl Workspace {
 
     /// What `change` would do to links, worked out once per change and tree.
     pub fn link_plan(&self, change: &Change) -> Arc<Plan> {
-        crate::link_plan::planned(&self.files.read().unwrap(), change)
+        let plan = crate::link_plan::planned(&self.files.read().unwrap(), change);
+        self.keep_note_index();
+        plan
+    }
+
+    /// Fills the note index from here on if anything has asked for it.
+    pub(crate) fn keep_note_index(&self) {
+        #[cfg(not(target_family = "wasm"))]
+        if self.files.read().unwrap().notes.is_wanted() {
+            self.note_index.call_once(|| {
+                crate::note_index::NoteIndex::keep(
+                    self.files.clone(),
+                    self.core.clone(),
+                    self.ctx.clone(),
+                );
+            });
+        }
     }
 
     /// Makes `change`, and if `update_links`, the edits that keep links
