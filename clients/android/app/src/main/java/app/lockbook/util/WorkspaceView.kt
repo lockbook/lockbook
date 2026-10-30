@@ -263,6 +263,11 @@ class WorkspaceView(
 
         // includes the app's own language choice, which the system property misses
         Workspace.setPreferredLanguages(LocaleList.getDefault().toLanguageTags())
+        // a new surface gets a new workspace; the last one goes with its surface
+        if (wgpuObj != Long.MAX_VALUE) {
+            Workspace.dropWS(wgpuObj)
+            wgpuObj = Long.MAX_VALUE
+        }
         wgpuObj =
             Workspace.initWSOffloaded(
                 surface!!,
@@ -315,6 +320,10 @@ class WorkspaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        // no frame runs the autosave until a new workspace replaces this one
+        if (wgpuObj != Long.MAX_VALUE) {
+            Workspace.saveAll(wgpuObj)
+        }
         handler?.removeCallbacks(redrawTask)
         dismissMagnifier()
         surface = null

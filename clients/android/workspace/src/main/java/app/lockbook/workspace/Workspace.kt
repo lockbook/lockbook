@@ -109,6 +109,8 @@ object Workspace {
 
     external fun initWSOffloaded(surface: Surface, core: Long, theme: Any): Long
 
+    external fun dropWS(rustObj: Long)
+
     // comma-separated BCP 47 tags, before the first initWS
     external fun setPreferredLanguages(tags: String)
     external fun setTheme(rustObj: Long, theme: Any)
@@ -153,6 +155,8 @@ object Workspace {
     external fun closeDoc(rustObj: Long, id: String)
     external fun closeSession(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
+
+    external fun saveAll(rustObj: Long)
     external fun back(rustObj: Long): Boolean
     external fun forward(rustObj: Long): Boolean
     external fun canForward(rustObj: Long): Boolean

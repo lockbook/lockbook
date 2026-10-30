@@ -160,16 +160,22 @@ impl NoteIndex {
     /// changes, and every note when another process changed them. Which
     /// files are notes comes from `lb`, not `files`: sync announces a change
     /// before the workspace has rebuilt its cache, and a note new to this
-    /// device arrives with no write announced at all.
+    /// device arrives with no write announced at all. Ends with the
+    /// workspace that owns `files`.
     #[cfg(not(target_family = "wasm"))]
-    pub fn keep(files: Arc<RwLock<FileCache>>, lb: Lb, ctx: egui::Context) {
+    pub fn keep(files: &Arc<RwLock<FileCache>>, lb: Lb, ctx: egui::Context) {
+        let owner = Arc::downgrade(files);
         thread::spawn(move || {
             let mut events = lb.subscribe();
+            let Some(files) = owner.upgrade() else { return };
             read_notes(&files, &lb, false);
             files.read().unwrap().notes.set_ready();
+            drop(files);
             ctx.request_repaint();
             loop {
-                match events.blocking_recv() {
+                let event = events.blocking_recv();
+                let Some(files) = owner.upgrade() else { return };
+                match event {
                     Ok(Event::DocumentWritten(id, _)) => {
                         let markdown = lb.get_file_by_id(id).is_ok_and(|f| is_note(&f));
                         if let Some(note) = read(&lb, id).filter(|_| markdown) {

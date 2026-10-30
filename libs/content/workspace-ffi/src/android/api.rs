@@ -761,6 +761,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_navigateDoc(
     get_current_tab(obj)
 }
 
+/// Starts saving every edited tab now, without waiting for the next frame's
+/// autosave.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_saveAll(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.save_all_tabs();
+    obj.workspace.tasks.check_launch(&mut obj.workspace.tabs);
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
     mut _env: JNIEnv, _: JClass, obj: jlong,
