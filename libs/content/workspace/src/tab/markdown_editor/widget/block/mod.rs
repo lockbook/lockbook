@@ -372,9 +372,10 @@ impl<'ast> MdRender {
     /// Containers normally yield to a more specific descendant (the cursor
     /// inside `* a`'s paragraph picks the paragraph, not the item).
     /// Containers that *fully contain* the selection are picked only when
-    /// they hold no blocks at all — the empty-container case (`* ` with no
-    /// body). A selection in a gap between a container's blocks (a blank
-    /// line between list items) picks nothing.
+    /// no proper descendant block intersects — the empty-container case
+    /// (`* ` with no body), or the caret on the container's marker. A
+    /// selection in a gap between two of its blocks (a blank line between
+    /// list items) picks nothing.
     pub fn selected_block(&self, node: &'ast AstNode<'ast>) -> bool {
         // the document is never selected
         let Some(parent) = node.parent() else {
@@ -389,12 +390,25 @@ impl<'ast> MdRender {
         if !node.is_container_block() {
             return false;
         }
-        // multi-block selection that extends past this container, OR
-        // empty container (no blocks to target)
-        !self.node_contains_selection(node)
-            || !node
-                .children()
-                .any(|c| c.is_leaf_block() || c.is_container_block())
+        // multi-block selection that extends past this container
+        if !self.node_contains_selection(node) {
+            return true;
+        }
+        let blocks = || {
+            node.children()
+                .filter(|c| c.is_leaf_block() || c.is_container_block())
+        };
+        let deeper = node.descendants().skip(1).any(|d| {
+            (d.is_leaf_block() || d.is_container_block()) && self.node_intersects_selection(d)
+        });
+        let selection = self.buffer.current.selection;
+        // a block ends before the selection and another starts on a later line
+        let gap = blocks().any(|c| self.node_range(c).end() <= selection.start())
+            && blocks().any(|c| {
+                let start = self.node_range(c).start();
+                start >= selection.end() && self.buffer[(selection.end(), start)].contains('\n')
+            });
+        !deeper && !gap
     }
 
     /// Returns the portion of the line that's within the node, excluding line
