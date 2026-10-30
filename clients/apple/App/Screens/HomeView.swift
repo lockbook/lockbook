@@ -456,7 +456,7 @@ struct HomeView: View {
             Button {
                 workspaceInput.toggleOutline()
             } label: {
-                Image(systemName: "list.bullet.indent")
+                Image(systemName: "info.circle")
                     .frame(width: 26, height: 26)
             }
             .buttonStyle(.glass)
