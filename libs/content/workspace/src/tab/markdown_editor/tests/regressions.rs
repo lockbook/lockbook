@@ -252,6 +252,25 @@ fn enter_atom_selects_image_url() {
     assert!(ws.editor.edit.renderer.range_revealed_interior(img), "source revealed");
 }
 
+/// Backspace with a diagram ending the note, no newline after it.
+#[test]
+fn backspace_beside_diagram_at_note_end() {
+    use super::super::input::Increment;
+    let mut ws = TestEditor::new("a\n\n```mermaid\ngraph TD\nA-->B\n```");
+    ws.enter_frame();
+    assert_eq!(ws.editor.edit.renderer.bounds.diagrams.len(), 1);
+    ws.push(Event::Select { region: (Grapheme(1), Grapheme(1)).into() });
+    ws.enter_frame();
+    ws.push(Event::Delete {
+        region: Region::SelectionOrAdvance {
+            advance: Advance::By(Increment::Char),
+            backwards: true,
+        },
+    });
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), "\n\n```mermaid\ngraph TD\nA-->B\n```");
+}
+
 /// Mobile edit-menu "Edit" on a labeled link: with the selection exactly
 /// covering `[title](url)`, `Event::EnterAtom` selects the destination —
 /// the hidden part, mirroring [`enter_atom_selects_image_url`].

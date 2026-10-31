@@ -112,7 +112,9 @@ pub enum Event {
     DecrementBaseFontSize,
     Camera,                                            // launch camera on platform
     ToggleFold { node: Option<(Grapheme, Grapheme)> }, // the block whose range this is, else the selection's blocks
+    CopyImage,                                         // the selected image or diagram, as pixels
     EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
+    OpenDiagram, // the selected diagram, in the image viewer
     ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
     OpenLink { url: String, wikilink: bool }, // navigate, on the platform
     LoadImage { url: String }, // show an image that waited past the note's scope
