@@ -269,7 +269,7 @@ impl Toolbar {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) -> bool {
-        let mut res = self.handle_keyboard_shortcuts(ui, tlbr_ctx);
+        let mut res = false;
 
         self.show_tool_popovers_at_cursor(ui, tlbr_ctx);
 
@@ -355,41 +355,6 @@ impl Toolbar {
             .collect::<Vec<egui::Rect>>()
     }
 
-    fn handle_keyboard_shortcuts(
-        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
-    ) -> bool {
-        let mut res = false;
-
-        if ui.input_mut(|r| {
-            r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
-        }) {
-            tlbr_ctx.history.redo(tlbr_ctx.buffer);
-            res = true;
-        }
-
-        if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-            tlbr_ctx.history.undo(tlbr_ctx.buffer);
-            res = true;
-        }
-
-        if ui.input(|r| r.key_pressed(egui::Key::E)) {
-            set_tool!(self, Tool::Eraser);
-        }
-
-        if ui.input(|r| r.key_pressed(egui::Key::S)) {
-            set_tool!(self, Tool::Selection);
-        }
-
-        if ui.input(|r| r.key_pressed(egui::Key::B)) {
-            set_tool!(self, Tool::Pen);
-        }
-
-        if ui.input(|r| r.key_pressed(egui::Key::Tab)) {
-            self.toggle_at_cursor_tool_popover();
-        }
-        res
-    }
-
     pub fn toggle_at_cursor_tool_popover(&mut self) {
         // If there's a popover then hide it. If there's no popover then show it.
         self.show_at_cursor_tool_popover =
@@ -435,6 +400,9 @@ impl Toolbar {
                 .show(ui, |ui| {
                     let icon =
                         if self.hide_overlay { Icon::FULLSCREEN_EXIT } else { Icon::FULLSCREEN };
+                    ui.menu_button("Shortcuts", |ui| {
+                        super::keyboard_shortcuts::show_help(ui);
+                    });
                     let toggle_btn = Button::default().icon(&icon).show(ui);
                     if toggle_btn.clicked() || toggle_btn.drag_started() {
                         self.hide_overlay = !self.hide_overlay;

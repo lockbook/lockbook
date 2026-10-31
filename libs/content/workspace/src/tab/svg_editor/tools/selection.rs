@@ -197,6 +197,7 @@ pub enum SelectionEvent {
     EndTransform,
     Delete,
     Copy,
+    Cut,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BuildPayload {
@@ -511,6 +512,7 @@ impl InputControllerTool for Selection {
                 self.delete_selection(selection_ctx);
             }
             SelectionEvent::Copy => self.copy_selection(ui, selection_ctx),
+            SelectionEvent::Cut => self.cut_selection(ui, selection_ctx),
         }
     }
 
@@ -539,6 +541,9 @@ impl InputControllerTool for Selection {
 }
 impl Selection {
     fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
+        if self.selected_elements.is_empty() {
+            return;
+        }
         let elements = self
             .selected_elements
             .iter()
@@ -806,6 +811,9 @@ impl Selection {
     }
 
     fn copy_selection(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext<'_>) {
+        if self.selected_elements.is_empty() {
+            return;
+        }
         let id_map = &selection_ctx.buffer.id_map;
         let elements: IndexMap<Uuid, Element> = self
             .selected_elements
@@ -1325,4 +1333,65 @@ pub fn snap_scale(pos: egui::Pos2, selected_rect: egui::Rect) -> Transform {
     };
 
     scale_from_center(factor, selected_rect)
+}
+
+#[cfg(test)]
+mod keyboard_tests {
+    use super::*;
+    use crate::tab::svg_editor::{CanvasSettings, ViewportSettings, history::History};
+
+    #[test]
+    fn cut_and_delete_only_selected_elements_and_undo_once() {
+        for cut in [false, true] {
+            let ctx = egui::Context::default();
+            let mut buffer = Buffer::new(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><path d="M0 0 L10 10" stroke="black"/><path d="M20 20 L30 30" stroke="black"/></svg>"#,
+            );
+            assert_eq!(buffer.elements.len(), 2);
+            let selected = *buffer.elements.first().unwrap().0;
+            let mut selection = Selection::default();
+            selection
+                .selected_elements
+                .push(SelectedElement { id: selected, transform: Transform::identity() });
+            let mut history = History::default();
+            let mut settings = CanvasSettings::default();
+            let mut viewport = ViewportSettings::default();
+            let output = ctx.run_ui(Default::default(), |ui| {
+                let mut painter = ui.painter().clone();
+                let mut tool_ctx = ToolContext {
+                    painter: &mut painter,
+                    buffer: &mut buffer,
+                    history: &mut history,
+                    settings: &mut settings,
+                    viewport_settings: &mut viewport,
+                };
+                selection.handle_tool_event(
+                    ui,
+                    if cut { SelectionEvent::Cut } else { SelectionEvent::Delete },
+                    &mut tool_ctx,
+                );
+                // An empty selection must not add another undo step.
+                selection.handle_tool_event(ui, SelectionEvent::Delete, &mut tool_ctx);
+            });
+            assert!(buffer.elements[&selected].deleted());
+            assert_eq!(buffer.elements.values().filter(|el| !el.deleted()).count(), 1);
+            assert!(selection.selected_elements.is_empty());
+            if cut {
+                let svg = output
+                    .platform_output
+                    .commands
+                    .iter()
+                    .find_map(|command| match command {
+                        egui::OutputCommand::CopyText(svg) => Some(svg),
+                        _ => None,
+                    })
+                    .expect("cut must write the selected SVG to the clipboard");
+                assert_eq!(Buffer::new(svg).elements.len(), 1);
+            }
+            output.drop_without_applying_deltas();
+            history.undo(&mut buffer);
+            assert!(buffer.elements.values().all(|el| !el.deleted()));
+            assert!(!history.has_undo());
+        }
+    }
 }
