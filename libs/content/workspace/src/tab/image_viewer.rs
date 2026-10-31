@@ -238,8 +238,7 @@ impl ImageViewer {
     }
 
     fn show_image_context_menu(&mut self, ui: &mut egui::Ui, available: Rect, image_rect: Rect) {
-        // a tap that dismisses an open menu shouldn't also open the native one
-        if self.menu_open || !available.intersects(image_rect) {
+        if !available.intersects(image_rect) {
             return;
         }
 
@@ -250,7 +249,8 @@ impl ImageViewer {
         );
 
         if cfg!(any(target_os = "ios", target_os = "android")) {
-            if response.clicked() {
+            // a tap that dismisses an open menu shouldn't also open the native one
+            if response.clicked() && !self.menu_open {
                 if let Some(pos) = response.interact_pointer_pos() {
                     ui.ctx().set_context_menu(pos, ContextMenuTarget::Image);
                 }
