@@ -366,6 +366,30 @@ pub unsafe extern "C" fn toggle_outline(obj: *mut c_void) {
     }
 }
 
+/// Whether the current file has a rendered form to trade for its source.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn source_available(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.source_offered()
+}
+
+/// Whether files with a rendered form show as source.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn source_on(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.source_on()
+}
+
+/// Shows files with a rendered form as source, or rendered again.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn toggle_source(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.toggle_source();
+}
+
 /// A link to the heading on the caret's line, or null, for the edit menu's
 /// "Copy Heading Link". The returned string must be freed with `free_text`.
 /// # Safety

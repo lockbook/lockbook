@@ -10,6 +10,14 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/menu_text_editor_source"
+        android:icon="@drawable/ic_md_code_24"
+        android:orderInCategory="0"
+        android:title="@string/source"
+        android:visible="false"
+        app:showAsAction="always" />
+
+    <item
         android:id="@+id/menu_text_editor_share"
         android:icon="@drawable/outline_person_add_24"
         android:orderInCategory="1"

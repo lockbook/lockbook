@@ -498,6 +498,22 @@ impl<'ast> MdRender {
         ui.set_clip_rect(entry_clip);
     }
 
+    pub fn calc_source_links<'a>(&mut self, root: &'a AstNode<'a>) {
+        self.bounds.source_links.clear();
+        if !self.plaintext {
+            return;
+        }
+        for node in root.descendants() {
+            if matches!(
+                node.data.borrow().value,
+                NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_)
+            ) {
+                self.bounds.source_links.push(self.node_range(node));
+            }
+        }
+        self.bounds.source_links.sort_unstable();
+    }
+
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
         self.link_resolver.resolve_link(url)
     }
@@ -904,7 +920,7 @@ impl MdEdit {
     /// [`Self::heading_link`] for the heading on the caret's line, for the
     /// platform edit menu's "Copy Heading Link".
     pub fn selection_heading_link(&mut self) -> Option<String> {
-        if self.renderer.plaintext {
+        if !self.renderer.is_markdown() {
             return None;
         }
         let arena = Arena::new();

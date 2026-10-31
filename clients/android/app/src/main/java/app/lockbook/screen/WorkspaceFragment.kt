@@ -5,6 +5,7 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -28,6 +29,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.view.MenuItemCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.inputmethod.EditorInfoCompat
@@ -65,6 +67,7 @@ import app.lockbook.util.getIconResource
 import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -332,6 +335,10 @@ class WorkspaceFragment : Fragment() {
                     workspaceWrapper.workspaceView.toggleOutline()
                 }
 
+                R.id.menu_text_editor_source -> {
+                    workspaceWrapper.workspaceView.toggleSource()
+                }
+
                 R.id.menu_text_editor_share -> {
                     (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
@@ -355,6 +362,19 @@ class WorkspaceFragment : Fragment() {
             binding.workspaceToolbar.menu
                 .findItem(R.id.menu_text_editor_outline)
                 .isVisible = available
+        }
+        model.sourceAvailable.observe(viewLifecycleOwner) { available ->
+            binding.workspaceToolbar.menu
+                .findItem(R.id.menu_text_editor_source)
+                .isVisible = available
+        }
+        // the accent marks source on; a note's own toolbar follows the switch
+        model.sourceOn.observe(viewLifecycleOwner) { on ->
+            val attr = if (on) androidx.appcompat.R.attr.colorPrimary else androidx.appcompat.R.attr.colorControlNormal
+            val tint = MaterialColors.getColor(binding.root, attr)
+            val item = binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_source)
+            MenuItemCompat.setIconTintList(item, ColorStateList.valueOf(tint))
+            workspaceWrapper.updateNativeToolbar()
         }
         model.outlineOpen.observe(viewLifecycleOwner) { open ->
             if (open) hideBottomSheet() else showBottomSheet()

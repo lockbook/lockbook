@@ -55,6 +55,16 @@ class WorkspaceViewModel : ViewModel() {
     val outlineAvailable: LiveData<Boolean>
         get() = _outlineAvailable
 
+    /** The open file has a rendered form, so the app bar offers its source. */
+    val _sourceAvailable = MutableLiveData(false)
+    val sourceAvailable: LiveData<Boolean>
+        get() = _sourceAvailable
+
+    /** Files with a rendered form show as source. */
+    val _sourceOn = MutableLiveData(false)
+    val sourceOn: LiveData<Boolean>
+        get() = _sourceOn
+
     /** The outline sheet is up: the bottom bar would cover it. */
     val _outlineOpen = MutableLiveData(false)
     val outlineOpen: LiveData<Boolean>

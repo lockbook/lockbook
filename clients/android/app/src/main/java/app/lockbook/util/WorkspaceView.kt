@@ -403,6 +403,14 @@ class WorkspaceView(
         if (outlineOpen != model.outlineOpen.value) {
             model._outlineOpen.value = outlineOpen
         }
+        val source = Workspace.sourceAvailable(wgpuObj)
+        if (source != model.sourceAvailable.value) {
+            model._sourceAvailable.value = source
+        }
+        val sourceOn = Workspace.sourceOn(wgpuObj)
+        if (sourceOn != model.sourceOn.value) {
+            model._sourceOn.value = sourceOn
+        }
 
         if (response.urlOpened.isNotEmpty()) {
             try {
@@ -610,6 +618,15 @@ class WorkspaceView(
         invalidate()
 
         return
+    }
+
+    fun toggleSource() {
+        if (wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        Workspace.toggleSource(wgpuObj)
+        invalidate()
     }
 
     fun toggleOutline() {
