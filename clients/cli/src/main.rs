@@ -198,6 +198,14 @@ fn run() -> CliResult<()> {
                         .handler(|target, username, ro| share::new(target.get(), username.get(), ro.get()))
                 )
                 .subcommand(
+                    Command::name("remove").description("stop sharing a file with someone")
+                        .input(Arg::str("target").description("lockbook file path or ID of the shared file")
+                            .completor(|prompt| input::file_completor(prompt, None)))
+                        .input(Arg::str("username")
+                            .completor(input::username_completor))
+                        .handler(|target, username| share::remove(target.get(), username.get()))
+                )
+                .subcommand(
                     Command::name("pending").description("list pending shares")
                         .handler(share::pending)
                 )
