@@ -65,11 +65,13 @@ fn results_for(query: &str) -> Vec<&'static str> {
 }
 
 impl LanguageCompletions {
-    /// Recomputes whether the popup shows; runs before `handle_input`.
-    pub fn update_active_state(&mut self, buffer: &Buffer) {
-        self.active = detect_query(buffer).is_some_and(|(_, query)| {
-            self.suppressed.as_deref() != Some(&query) && !results_for(&query).is_empty()
-        });
+    /// Recomputes whether the popup shows, never unless the text has fences
+    /// to type; runs before `handle_input`.
+    pub fn update_active_state(&mut self, buffer: &Buffer, fenced: bool) {
+        self.active = fenced
+            && detect_query(buffer).is_some_and(|(_, query)| {
+                self.suppressed.as_deref() != Some(&query) && !results_for(&query).is_empty()
+            });
     }
 
     /// Takes the popup's keys, as the emoji popup does: Escape dismisses,

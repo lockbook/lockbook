@@ -2,6 +2,7 @@
 //! keeps the indent and adds a level after an open bracket, and a closing
 //! bracket typed at a line's start outdents to its match.
 
+use std::ops::Range;
 use std::sync::Arc;
 
 use comrak::nodes::{AstNode, NodeValue};
@@ -184,14 +185,20 @@ impl<'ast> MdRender {
         at + (self.offset_to_byte(offset.max(start)) - self.offset_to_byte(start)).0
     }
 
-    /// The buffer offset of byte `at` in `scope`'s text.
-    pub fn code_offset(&self, scope: &CodeScope, at: usize) -> Grapheme {
-        let idx = scope.lines.partition_point(|(_, byte)| *byte <= at) - 1;
-        let (start, byte) = scope.lines[idx];
-        self.buffer
-            .current
-            .segs
-            .offset_to_char(self.offset_to_byte(start) + (at - byte))
+    /// The buffer offsets around bytes `range` of `scope`'s text, out to
+    /// whole graphemes: a node can end inside one, like a comment before
+    /// the `\n` of a `\r\n`.
+    pub fn code_range(&self, scope: &CodeScope, range: Range<usize>) -> (Grapheme, Grapheme) {
+        let buffer_byte = |at: usize| {
+            let idx = scope.lines.partition_point(|(_, byte)| *byte <= at) - 1;
+            let (start, byte) = scope.lines[idx];
+            self.offset_to_byte(start) + (at - byte)
+        };
+        let segs = &self.buffer.current.segs;
+        (
+            segs.byte_to_char_floor(buffer_byte(range.start)),
+            segs.byte_to_char_ceil(buffer_byte(range.end)),
+        )
     }
 }
 
@@ -254,6 +261,10 @@ impl<'ast> MdEdit {
         };
         let line = self.renderer.line_at_offset(selection.start());
         let Some(code_start) = scope.line_start(line) else { return false };
+        let end_line = self.renderer.line_at_offset(selection.end());
+        if scope.line_start(end_line).is_none() {
+            return false;
+        }
         let (prefix, content) = if self.renderer.plaintext {
             (String::new(), line)
         } else {
@@ -333,6 +344,10 @@ impl<'ast> MdEdit {
             return false;
         }
         let at = self.renderer.code_byte(&scope, range.start());
+        // a line of a string or comment, the byte before it its line break
+        if !scope.is_bracket(at.saturating_sub(1)) {
+            return false;
+        }
         let Some(open) = scope.matching_open_before(close, at) else { return false };
         let open_line = scope.text[..open]
             .rfind('\n')
@@ -369,10 +384,11 @@ impl<'ast> MdEdit {
         scope.line_start(self.renderer.line_at_offset(to))?;
         let range = self.renderer.code_byte(&scope, from)..self.renderer.code_byte(&scope, to);
         let node = scope.lang?.enclosing(&scope.text, range)?;
-        // the code's last line ends without the newline the scope adds
-        let end = node.end.min(scope.text.trim_end_matches('\n').len());
-        let grown =
-            (self.renderer.code_offset(&scope, node.start), self.renderer.code_offset(&scope, end));
+        // the code ends before its last line break
+        let end = node
+            .end
+            .min(scope.text.trim_end_matches(['\r', '\n']).len());
+        let grown = self.renderer.code_range(&scope, node.start..end);
         if grown == selection {
             return None;
         }
@@ -416,7 +432,7 @@ impl<'ast> MdEdit {
         let other = scope
             .matching_close(byte)
             .or_else(|| scope.matching_open(byte))?;
-        let other = self.renderer.code_offset(&scope, other);
-        Some([(at, at + 1), (other, other + 1)])
+        let other = self.renderer.code_range(&scope, other..other + 1);
+        Some([(at, at + 1), other])
     }
 }

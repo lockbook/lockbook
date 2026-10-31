@@ -559,7 +559,9 @@ impl<'ast> MdRender {
         let regions = roles_in(&unit.spans, offset..offset + len)
             .into_iter()
             .map(|(role, r)| {
-                (role, self.range_to_char((start + (r.start - offset), start + (r.end - offset))))
+                // a token can end inside a grapheme, like a digit before a keycap's marks
+                let r = (start + (r.start - offset), start + (r.end - offset));
+                (role, self.range_to_char_ceil(r))
             })
             .collect();
         Some(regions)

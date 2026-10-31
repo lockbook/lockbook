@@ -171,3 +171,34 @@ fn brackets_pair_past_strings() {
         [(Grapheme(close), Grapheme(close + 1)), (Grapheme(open), Grapheme(open + 1))]
     );
 }
+
+#[test]
+fn enter_with_a_selection_leaving_the_block() {
+    let doc = "```rust\nfn a() {|\n}\n```\n\npara|";
+    run(doc, None, vec![enter()]);
+}
+
+#[test]
+fn expand_to_a_whole_crlf_file() {
+    let doc = "fn a() {\r\n    |b();\r\n}\r\n";
+    run(doc, Some("rs"), (0..8).map(|_| syntax(true)).collect());
+}
+
+#[test]
+fn expand_from_a_crlf_comment() {
+    let doc = "x = 1  # no|te\r\ny = 2\r\n";
+    run(doc, Some("py"), (0..4).map(|_| syntax(true)).collect());
+}
+
+#[test]
+fn highlight_edge_inside_a_grapheme() {
+    let doc = "```python\nprint(1\u{fe0f}\u{20e3})\n```\n|";
+    run(doc, None, vec![]);
+}
+
+#[test]
+fn close_bracket_in_a_string_is_typed_as_is() {
+    let doc = "```python\nf(\"\"\"\n    |\n\"\"\")\n```";
+    let want = "```python\nf(\"\"\"\n    )|\n\"\"\")\n```";
+    assert_eq!(run(doc, None, vec![typed(")")]), want);
+}

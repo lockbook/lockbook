@@ -94,8 +94,9 @@ impl MdEdit {
         // pass below doesn't see those keys.
         self.emoji_completions
             .update_active_state(&self.renderer.buffer, &self.renderer.bounds.inline_paragraphs);
+        let fenced = !self.renderer.readonly && !self.renderer.plaintext;
         self.language_completions
-            .update_active_state(&self.renderer.buffer);
+            .update_active_state(&self.renderer.buffer, fenced);
         let files = self.renderer.files.clone();
         let file_id = self.file_id;
         self.link_completions.update_active_state(

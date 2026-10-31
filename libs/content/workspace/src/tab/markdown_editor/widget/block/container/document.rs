@@ -102,7 +102,8 @@ impl<'ast> MdRender {
             });
             let bytes = self.range_to_byte(line);
             for (role, region) in roles_in(&unit.spans, bytes.0.0..bytes.1.0) {
-                let region = self.range_to_char((region.start.into(), region.end.into()));
+                // a token can end inside a grapheme, like a digit before a keycap's marks
+                let region = self.range_to_char_ceil((region.start.into(), region.end.into()));
                 text_format.color = self.syntax_color(role);
                 if !region.is_empty() {
                     layout.push_source(region, &self.buffer[region], text_format.clone());
