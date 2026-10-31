@@ -544,6 +544,14 @@
             if outlineOpen != workspaceOutput?.outlineOpen {
                 workspaceOutput?.outlineOpen = outlineOpen
             }
+            let source = source_available(wsHandle)
+            if source != workspaceOutput?.sourceAvailable {
+                workspaceOutput?.sourceAvailable = source
+            }
+            let sourceOn = source_on(wsHandle)
+            if sourceOn != workspaceOutput?.sourceOn {
+                workspaceOutput?.sourceOn = sourceOn
+            }
             if currentTab == .Welcome || currentTab == .Search, currentOpenDoc != nil {
                 currentOpenDoc = nil
                 workspaceOutput?.openDoc = nil

@@ -106,6 +106,17 @@ struct HomeView: View {
                         if openDocFile != nil {
                             ToolbarItem(placement: sharePlacement) {
                                 Button {
+                                    workspaceInput.toggleSource()
+                                } label: {
+                                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                        .foregroundStyle(workspaceOutput.sourceOn ? Color.accentColor : Color.primary)
+                                }
+                                .disabled(!workspaceOutput.sourceAvailable)
+                                .help("Source")
+                                .accessibilityLabel("Source")
+                            }
+                            ToolbarItem(placement: sharePlacement) {
+                                Button {
                                     workspaceInput.toggleOutline()
                                 } label: {
                                     Image(systemName: "info.circle")
@@ -174,6 +185,10 @@ struct HomeView: View {
                         if !hideFloatingButtons {
                             HStack {
                                 detailSearchButton
+
+                                if workspaceOutput.sourceAvailable {
+                                    detailSourceButton
+                                }
 
                                 if workspaceOutput.outlineAvailable {
                                     detailOutlineButton
@@ -463,6 +478,21 @@ struct HomeView: View {
             .buttonBorderShape(.circle)
             .tint(.primary)
             .accessibilityLabel("Outline")
+        }
+
+        /// The file as its text, for files with a rendered form.
+        private var detailSourceButton: some View {
+            Button {
+                workspaceInput.toggleSource()
+            } label: {
+                Image(systemName: "chevron.left.forwardslash.chevron.right")
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .tint(workspaceOutput.sourceOn ? .accentColor : .primary)
+            .accessibilityLabel("Source")
+            .accessibilityAddTraits(workspaceOutput.sourceOn ? .isSelected : [])
         }
 
         private var detailCreateButton: some View {
