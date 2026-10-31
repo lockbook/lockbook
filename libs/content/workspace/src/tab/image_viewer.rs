@@ -268,8 +268,13 @@ impl ImageViewer {
     }
 
     pub fn copy_image(&self, ctx: &egui::Context) {
-        match self.images.color_image(self.id) {
-            Ok(image) => ctx.copy_image(image),
+        match self.images.copied_image(self.id) {
+            Ok((image, bytes)) => {
+                if image::guess_format(&bytes).is_ok_and(|f| f == image::ImageFormat::Gif) {
+                    ctx.set_copied_gif(bytes);
+                }
+                ctx.copy_image(image);
+            }
             Err(err) => error!("failed to copy image to clipboard: {err}"),
         }
     }
