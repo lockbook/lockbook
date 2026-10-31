@@ -12,7 +12,7 @@
 //! Anchored to the host control (not the cursor). Canvas plate + hairline.
 
 use egui::{
-    Align2, Area, Context, Frame, Id, LayerId, Margin, Order, Pos2, Response, Ui, Vec2, vec2,
+    Align2, Area, Context, Frame, Id, LayerId, Margin, Order, Pos2, Rect, Response, Ui, Vec2, vec2,
 };
 
 use super::chrome::{Radius, TIP_CHAIN_DWELL_SECS, TIP_CHAIN_GRACE_SECS};
@@ -282,23 +282,27 @@ fn show_area(
     let screen = ctx.content_rect();
     let gap = Space::Xs.pts();
     let id = host_id.with("design_tip");
-    // below when it fits, by its height last frame; else the roomier side
-    let height = ctx.memory(|m| m.area_rect(id)).map_or(72.0, |r| r.height());
-    let (below, above) = (screen.bottom() - host.bottom(), host.top() - screen.top());
-    let prefer_below = below >= height + gap || below >= above;
-
-    let (pos, pivot) = if prefer_below {
-        (Pos2::new(host.center().x, host.bottom() + gap), Align2::CENTER_TOP)
+    // measured by the area's sizing pass before it's first seen
+    let height = ctx.memory(|m| m.area_rect(id)).map_or(0.0, |r| r.height());
+    let (below, above) = (screen.bottom() - host.bottom() - gap, host.top() - screen.top() - gap);
+    // below if it fits, else above if it fits, else the roomier side
+    let side = if height <= below || height > above && below >= above {
+        Rect::from_min_max(Pos2::new(screen.left(), host.bottom() + gap), screen.max)
     } else {
-        (Pos2::new(host.center().x, host.top() - gap), Align2::CENTER_BOTTOM)
+        Rect::from_min_max(screen.min, Pos2::new(screen.right(), host.top() - gap))
+    };
+    let (pos, pivot) = if side.top() > host.top() {
+        (Pos2::new(host.center().x, side.top()), Align2::CENTER_TOP)
+    } else {
+        (Pos2::new(host.center().x, side.bottom()), Align2::CENTER_BOTTOM)
     };
 
     Area::new(id)
         .order(if reachable { Order::Foreground } else { Order::Tooltip })
         .fixed_pos(pos)
         .pivot(pivot)
-        .constrain(true)
-        // a tip pushed over its host mustn't take the pointer from it
+        // a card too tall for its side runs off the screen's edge, never over its host
+        .constrain_to(side)
         .interactable(reachable)
         .default_size(vec2(0.0, 0.0))
         .fade_in(false)
@@ -313,4 +317,50 @@ fn show_area(
                     add_contents(ui);
                 });
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use egui::{Event, RawInput, Sense, pos2};
+
+    use super::*;
+    use crate::theme::palette_v2::{Mode, Theme};
+
+    /// A card taller than the room on either side of its host stays open on
+    /// the roomier side, never over the host, while the pointer rests there.
+    #[test]
+    fn tall_card_stays_off_its_host() {
+        let ctx = Context::default();
+        ctx.set_lb_theme(Theme::default(Mode::Light));
+        let screen = Rect::from_min_size(Pos2::ZERO, vec2(400.0, 400.0));
+        let host = Rect::from_min_size(pos2(150.0, 280.0), vec2(100.0, 20.0));
+        let card = Id::unique("host").with("design_tip");
+        let mut shown = vec![];
+        for frame in 0..40 {
+            let events = vec![Event::PointerMoved(host.center())];
+            let input = RawInput {
+                screen_rect: Some(screen),
+                time: Some(frame as f64 * 0.1),
+                events: if frame == 0 { events } else { vec![] },
+                ..Default::default()
+            };
+            let mut drawn = false;
+            let mut out = ctx.run_ui(input, |ui| {
+                let resp = ui.interact(host, Id::unique("host"), Sense::hover());
+                tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, |ui| {
+                    ui.allocate_space(vec2(200.0, 330.0));
+                    drawn = true;
+                });
+            });
+            out.textures_delta.clear();
+            shown.push(drawn.then(|| ctx.memory(|m| m.area_rect(card)).unwrap()));
+        }
+        let settled = &shown[20..];
+        assert!(
+            settled
+                .iter()
+                .all(|c| c.is_some_and(|c| !c.intersects(host))),
+            "{shown:?}"
+        );
+    }
 }
