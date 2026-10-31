@@ -1089,6 +1089,11 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         }
     }
 
+    /// Derives the bar's ids from `salt`.
+    pub fn set_salt(&mut self, salt: egui::Id) {
+        self.id_salt = salt;
+    }
+
     /// Scroll from a platform pan. Positive moves content up. Ignored while
     /// a block drag owns the finger.
     pub fn gesture_scroll(&mut self, precise_pixels: f32) {

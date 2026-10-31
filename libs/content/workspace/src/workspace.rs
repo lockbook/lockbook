@@ -8,16 +8,13 @@ use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
-use lb_rs::model::svg;
-use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::service::events::{self, Actor, Event};
-use lb_rs::{LbResult, Uuid, spawn};
+use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, RwLock, mpsc};
+use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, instrument, trace_span, warn};
 use web_time::{Duration, Instant};
 
@@ -25,20 +22,12 @@ use crate::file_cache::{Change, FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::link_plan::Plan;
 use crate::link_preview::LinkPreviews;
-use crate::open_guard::{self, OpenGuard};
+use crate::open_guard::OpenGuard;
 use crate::output::Response;
-use crate::resolvers::FileCacheLinkResolver;
-use crate::resolvers::image_embed::ImageEmbedResolver;
-use crate::search::{Search, SearchState, SearchType};
+use crate::search::{SearchState, SearchType};
 use crate::show::DocType;
-use crate::space_inspector::show::SpaceInspector;
-#[cfg(not(target_family = "wasm"))]
-use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown_editor::{
-    Editor as Markdown, HttpClient, MdConfig, MdEdit, MdPersistence, MdResources,
-};
-use crate::tab::pdf_viewer::PdfViewer;
+use crate::tab::markdown_editor::{Editor as Markdown, HttpClient, MdEdit, MdPersistence};
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{
     ContentState, Destination, ExtendedInput as _, Fragment, Place, Reveal, Session, SessionId,
@@ -53,8 +42,6 @@ use crate::widgets::image_cache::ImageCache;
 use crate::widgets::tab_cache::TabCache;
 use lb_rs::model::file::ShareMode;
 
-#[cfg(not(target_family = "wasm"))]
-use crate::mind_map::show::MindMap;
 #[cfg(not(target_family = "wasm"))]
 use tokio::sync::broadcast::error::TryRecvError;
 
@@ -114,17 +101,12 @@ pub struct Workspace {
     // Resources & configuration
     pub cfg: WsPersistentStore,
     pub ctx: Context,
-    pub(crate) open_guard: OpenGuard,
-    /// The open the previous launch never finished; that document is refused this session.
-    interrupted: Option<open_guard::Interrupted>,
-    /// Refused documents the user opened anyway this session.
-    opened_anyway: Vec<Uuid>,
+    pub(crate) open_guard: Arc<OpenGuard>,
 
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
-    /// Starts the note index's reader, the first time something wants it.
-    #[cfg(not(target_family = "wasm"))]
-    note_index: std::sync::Once,
+    /// The file cache's generation last seen.
+    files_generation: u64,
 
     /// Touch hosts type through the software keyboard. iOS clears this while
     /// a hardware keyboard keeps the software one away.
@@ -143,12 +125,6 @@ pub struct Workspace {
     // Transient rename state for the landing page file table
     pub landing_rename_target: Option<lb_rs::Uuid>,
     pub landing_rename_buffer: String,
-
-    pub ws_rx: Receiver<WsUpdates>,
-}
-
-pub enum WsUpdates {
-    FileCacheComputed(LbResult<FileCache>),
 }
 
 #[derive(Clone, Copy)]
@@ -186,15 +162,15 @@ impl Workspace {
             Err(_) => (true, None),
         };
         let cfg = WsPersistentStore::new(recent_crash, writeable_path, persist);
-        let (open_guard, interrupted) = OpenGuard::new(writeable_dir, persist, last_panic);
+        let open_guard = Arc::new(OpenGuard::new(writeable_dir, persist, last_panic));
         let http = HttpClient::default();
         let previews = LinkPreviews::new(ctx.clone(), http.clone(), cfg.clone());
         let images =
             ImageCache::new(ctx.clone(), http, core.clone(), Arc::clone(&files), cfg.clone());
         ctx.set_zoom_factor(cfg.get_zoom_factor());
 
-        let (ws_tx, ws_rx) = mpsc::channel();
-
+        #[cfg(not(target_family = "wasm"))]
+        FileCache::keep(&files, core, ctx);
         let mut ws = Self {
             tabs: TabCache::new(),
             tab_strip: Vec::new(),
@@ -216,11 +192,8 @@ impl Workspace {
             cfg,
             ctx: ctx.clone(),
             open_guard,
-            interrupted,
-            opened_anyway: Vec::new(),
             core: core.clone(),
-            #[cfg(not(target_family = "wasm"))]
-            note_index: std::sync::Once::new(),
+            files_generation: 0,
 
             software_keyboard_in_use: true,
             desktop_tab_policy: false,
@@ -241,7 +214,6 @@ impl Workspace {
             link_sheets: Default::default(),
             link_sheet_tab: None,
             link_sheet_keys: (false, false),
-            ws_rx,
         };
 
         {
@@ -272,15 +244,7 @@ impl Workspace {
             }
         }
         ws.last_search = ws.cfg.get_last_search();
-
-        let core = ws.core.clone();
-        let ctx = ctx.clone();
-
-        #[cfg(not(target_family = "wasm"))]
-        {
-            spawn!(lb_bg_worker(ctx, core, ws_tx));
-        }
-
+        ws.files_generation = ws.files.read().unwrap().generation;
         ws
     }
 
@@ -310,56 +274,24 @@ impl Workspace {
             self.persist_tab_content(tab_id);
         }
         let file_id = dest.id();
-        let mut needs_load = false;
-        let content = match dest {
-            Destination::File(id) => {
-                if let Some(interrupted) = self.interrupted.as_ref().filter(|i| i.id == *id) {
-                    ContentState::Failed(TabFailure::Refused(interrupted.refusal()))
-                } else if self.is_image(*id) {
-                    self.image_content(*id)
-                } else {
-                    needs_load = true;
-                    ContentState::Loading(*id)
-                }
-            }
-            #[cfg(not(target_family = "wasm"))]
-            Destination::MindMap(_) => ContentState::Open(TabContent::MindMap(MindMap::new(
-                &self.core,
-                self.cfg.get_contact_linked_sites(),
-            ))),
-            #[cfg(target_family = "wasm")]
-            Destination::MindMap(_) => return,
-            Destination::SpaceInspector(root_id) => {
-                let file = self.files.read().unwrap().get_by_id(*root_id).cloned();
-                ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
-                    &self.core,
-                    file,
-                    self.ctx.clone(),
-                )))
-            }
-            Destination::Search(state) => {
-                ContentState::Open(TabContent::Search(Search::new(&self.core, &self.ctx, state)))
-            }
-        };
-        let now = Instant::now();
-        self.tabs.insert(
-            tab_id,
-            Tab {
-                destination: dest.clone(),
-                content,
-                last_changed: now,
-                last_saved: now,
-                read_only: false,
-                rename: None,
-                first_draw: true,
-                reveal: self
-                    .tab_strip
-                    .iter()
-                    .find(|s| s.id == tab_id)
-                    .and_then(|s| s.fragment.clone())
-                    .map(|fragment| Reveal { fragment: Some(fragment), flash: false }),
+        let res = self.resources();
+        let salt = egui::Id::unique(tab_id.as_uuid());
+        let (content, needs_load) = match dest {
+            Destination::File(id) => match self.open_guard.refusal_before_load(*id) {
+                Some(refusal) => (ContentState::Failed(TabFailure::Refused(refusal)), false),
+                None if res.is_image(*id) => (open_content(dest, None, &res, salt, false), false),
+                None => (ContentState::Loading(*id), true),
             },
-        );
+            _ => (open_content(dest, None, &res, salt, false), false),
+        };
+        let mut tab = Tab::new(dest.clone(), content, salt, false);
+        tab.reveal = self
+            .tab_strip
+            .iter()
+            .find(|s| s.id == tab_id)
+            .and_then(|s| s.fragment.clone())
+            .map(|fragment| Reveal { fragment: Some(fragment), flash: false });
+        self.tabs.insert(tab_id, tab);
         if needs_load {
             self.tasks.queue_load(LoadRequest {
                 id: file_id,
@@ -412,8 +344,7 @@ impl Workspace {
 
     /// Reloads a refused document without its refusal; `target` is `None` for the preview.
     pub(crate) fn open_anyway(&mut self, id: Uuid, target: Option<SessionId>) {
-        self.opened_anyway.push(id);
-        self.interrupted.take_if(|i| i.id == id);
+        self.open_guard.open_anyway(id);
         let tab = match target {
             Some(sid) => self.tabs.get_mut(&sid),
             None => self.preview.as_mut(),
@@ -457,17 +388,12 @@ impl Workspace {
             return;
         }
 
-        let now = Instant::now();
-        self.preview_pending = Some(Tab {
-            destination: Destination::File(id),
-            content: ContentState::Loading(id),
-            last_changed: now,
-            last_saved: now,
-            read_only: true,
-            rename: None,
-            first_draw: true,
-            reveal: None,
-        });
+        self.preview_pending = Some(Tab::new(
+            Destination::File(id),
+            ContentState::Loading(id),
+            egui::Id::unique(lb_rs::Uuid::new_v4()),
+            true,
+        ));
         self.tasks.queue_load(LoadRequest {
             id,
             tab_created: true,
@@ -754,17 +680,18 @@ impl Workspace {
         self.tasks.check_launch(&mut self.tabs);
     }
 
-    fn image_content(&self, id: Uuid) -> ContentState {
-        ContentState::Open(TabContent::Image(ImageViewer::new(id, self.images.clone())))
-    }
-
-    fn is_image(&self, id: Uuid) -> bool {
-        self.files
-            .read()
-            .unwrap()
-            .get_by_id(id)
-            .map(|f| DocType::from_name(&f.name) == DocType::Image)
-            .unwrap_or(false)
+    /// What tab content is built from, for this workspace's context.
+    pub fn resources(&self) -> crate::tab::TabResources {
+        crate::tab::TabResources {
+            ctx: self.ctx.clone(),
+            core: self.core.clone(),
+            files: Arc::clone(&self.files),
+            images: self.images.clone(),
+            previews: self.previews.clone(),
+            persistence: self.cfg.clone(),
+            account: self.account.clone(),
+            guard: Arc::clone(&self.open_guard),
+        }
     }
 
     pub(crate) fn is_folder(&self, id: Uuid) -> bool {
@@ -1250,52 +1177,32 @@ impl Workspace {
         self.closed_tabs.iter().rev().map(|c| &c.slot).collect()
     }
 
-    /// Puts `cache` in place of the file cache, keeping the headings of the
-    /// notes it still has.
-    fn replace_files(&self, mut cache: FileCache) {
-        let mut files = self.files.write().unwrap();
-        let mut notes = std::mem::take(&mut files.notes);
-        notes.retain_in(&cache);
-        cache.notes = notes;
-        *files = cache;
-    }
-
+    /// Catches up with a file cache swapped in since the last frame:
+    /// recents, link previews, and tabs whose files are gone.
     pub fn process_bg_tasks(&mut self) {
-        loop {
-            match self.ws_rx.try_recv() {
-                Ok(WsUpdates::FileCacheComputed(file_cache)) => {
-                    let file_cache = file_cache.unwrap();
-                    self.landing_page.update_recent_files(&file_cache);
-                    self.replace_files(file_cache);
-                    self.out.file_cache_updated = true;
-
-                    self.previews.bump();
-                    let files = self.files.read().unwrap();
-                    let mut ids_to_delete = vec![];
-                    for slot in &self.tab_strip {
-                        if let Destination::File(id) = slot.dest {
-                            // A background snapshot can predate a newly opened file.
-                            if files.get_by_id(id).is_none()
-                                && self.core.get_file_by_id(id).is_err()
-                            {
-                                info!(%id, "file gone after cache refresh");
-                                ids_to_delete.push(slot.id);
-                            }
-                        }
-                    }
-                    drop(files);
-
-                    for tab_id in ids_to_delete {
-                        if let Some(idx) = self.tab_strip.iter().position(|s| s.id == tab_id) {
-                            self.close_tab(idx);
-                        }
-                    }
+        let files = self.files.read().unwrap();
+        if files.generation == self.files_generation {
+            return;
+        }
+        self.files_generation = files.generation;
+        self.landing_page.update_recent_files(&files);
+        self.out.file_cache_updated = true;
+        self.previews.bump();
+        let mut ids_to_delete = vec![];
+        for slot in &self.tab_strip {
+            if let Destination::File(id) = slot.dest {
+                // A background snapshot can predate a newly opened file.
+                if files.get_by_id(id).is_none() && self.core.get_file_by_id(id).is_err() {
+                    info!(%id, "file gone after cache refresh");
+                    ids_to_delete.push(slot.id);
                 }
-                Err(mpsc::TryRecvError::Empty) => break,
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    error!("ws_rx disconnected");
-                    break;
-                }
+            }
+        }
+        drop(files);
+
+        for tab_id in ids_to_delete {
+            if let Some(idx) = self.tab_strip.iter().position(|s| s.id == tab_id) {
+                self.close_tab(idx);
             }
         }
     }
@@ -1435,7 +1342,7 @@ impl Workspace {
                     continue;
                 };
                 let link = crate::tab::imported_image_link(&cache, file_id, &file);
-                self.replace_files(cache);
+                self.files.write().unwrap().replace(cache);
                 match link {
                     Ok(link) => {
                         self.ctx
@@ -1467,8 +1374,8 @@ impl Workspace {
                     timing: _,
                 } = load;
 
-                let ctx = self.ctx.clone();
                 let core = self.core.clone();
+                let res = self.resources();
 
                 let tab_opt = if is_preview {
                     self.preview_pending
@@ -1479,9 +1386,6 @@ impl Workspace {
                     self.tabs.find_for_load_mut(id, target)
                 };
                 if let Some(tab) = tab_opt {
-                    let files_clone = self.files.clone();
-                    let files_guard = files_clone.read().unwrap();
-
                     // The async-rebuilt cache can trail a create or rename;
                     // the name that picks the editor comes from core.
                     let Ok(file) = core.get_file_by_id(id) else {
@@ -1493,15 +1397,8 @@ impl Workspace {
                         self.out.failure_messages.push(msg);
                         continue;
                     };
-                    let name = file.name;
-                    let read_only = files_guard.get_by_id(id).is_some()
-                        && files_guard.access(id, &self.account) == UserAccessMode::Read;
-
-                    let doc_type = DocType::from_name(&name);
-                    let ext = name.split('.').next_back().unwrap_or_default().to_owned();
-
-                    let (maybe_hmac, bytes) = match content_result {
-                        Ok((hmac, bytes)) => (hmac, bytes),
+                    let (hmac, bytes) = match content_result {
+                        Ok(loaded) => loaded,
                         Err(err) => {
                             let msg = format!("failed to load file: {err:?}");
                             error!(msg);
@@ -1510,143 +1407,33 @@ impl Workspace {
                             continue;
                         }
                     };
-
+                    let files = self.files.read().unwrap();
+                    let read_only = files.get_by_id(id).is_some()
+                        && files.access(id, &self.account) == UserAccessMode::Read;
+                    drop(files);
                     tab.read_only = read_only || is_preview;
 
-                    let is_text = matches!(
-                        doc_type,
-                        DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
-                    ) && content_inspector::inspect(&bytes).is_text();
                     // a reload keeps the open editor and its unsaved edits, so it isn't refused
-                    let reload = !tab_created && matches!(tab.content, ContentState::Open(_));
-                    let refusal = if reload || self.opened_anyway.contains(&id) {
-                        None
-                    } else if let Some(interrupted) =
-                        self.interrupted.as_ref().filter(|i| i.id == id)
-                    {
-                        Some(interrupted.refusal())
-                    } else if is_text {
-                        open_guard::text_refusal(&bytes, doc_type == DocType::Markdown)
-                    } else {
-                        None
-                    };
-                    if let Some(refusal) = refusal {
-                        warn!(%id, ?refusal, "refusing to open");
-                        tab.content = ContentState::Failed(TabFailure::Refused(refusal));
-                        self.out.tabs_changed |= !is_preview;
-                        continue;
+                    let reloaded = !tab_created
+                        && content_fits_name(&tab.content, &file.name)
+                        && match &mut tab.content {
+                            ContentState::Open(content) => content.reload(hmac, &bytes),
+                            _ => false,
+                        };
+                    if !reloaded {
+                        let doc = crate::tab::Doc { name: file.name, hmac, bytes };
+                        let dest = tab.destination.clone();
+                        tab.content = open_content(&dest, Some(doc), &res, tab.salt, tab.read_only);
+                        if matches!(tab.content, ContentState::Failed(TabFailure::Refused(_))) {
+                            self.out.tabs_changed |= !is_preview;
+                            continue;
+                        }
                     }
-
-                    self.open_guard.enter(id);
-                    match doc_type {
-                        DocType::Image => {
-                            tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
-                                id,
-                                self.images.clone(),
-                            )));
-                        }
-                        DocType::PDF => {
-                            tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
-                                id, bytes, &ctx,
-                            )));
-                        }
-                        DocType::SVG => {
-                            let reload = if tab.svg().is_some() { !tab_created } else { false };
-                            if !reload {
-                                tab.content = ContentState::Open(TabContent::Svg(SVGEditor::new(
-                                    &bytes,
-                                    &ctx,
-                                    core.clone(),
-                                    id,
-                                    maybe_hmac,
-                                    &self.cfg,
-                                    tab.read_only,
-                                )));
-                            } else {
-                                let svg = tab.svg_mut().unwrap();
-
-                                Buffer::reload(
-                                    &mut svg.buffer.elements,
-                                    &mut svg.buffer.weak_images,
-                                    &mut svg.buffer.weak_path_pressures,
-                                    &mut svg.buffer.weak_viewport_settings,
-                                    &svg.opened_content,
-                                    &svg::buffer::Buffer::new(
-                                        String::from_utf8_lossy(&bytes).as_ref(),
-                                    ),
-                                );
-
-                                svg.open_file_hmac = maybe_hmac;
-                            }
-                        }
-                        #[cfg(not(target_family = "wasm"))]
-                        DocType::Chat => {
-                            let reload = tab.chat().is_some() && !tab_created;
-                            if !reload {
-                                tab.content = ContentState::Open(TabContent::Chat(Chat::new(
-                                    &bytes,
-                                    id,
-                                    maybe_hmac,
-                                    self.account.clone(),
-                                    self.ctx.clone(),
-                                    Arc::clone(&self.files),
-                                    &self.core,
-                                )));
-                            } else {
-                                let chat = tab.chat_mut().unwrap();
-                                chat.reload(&bytes, maybe_hmac);
-                            }
-                        }
-                        _ if is_text => {
-                            let reload =
-                                if tab.markdown().is_some() { !tab_created } else { false };
-                            if !reload {
-                                tab.content =
-                                    ContentState::Open(TabContent::Markdown(Markdown::new(
-                                        &String::from_utf8_lossy(&bytes),
-                                        id,
-                                        maybe_hmac,
-                                        MdResources {
-                                            ctx: self.ctx.clone(),
-                                            previews: self.previews.clone(),
-                                            core: core.clone(),
-                                            persistence: self.cfg.clone(),
-                                            link_resolver: Box::new(
-                                                FileCacheLinkResolver::new(
-                                                    Arc::clone(&self.files),
-                                                    id,
-                                                )
-                                                .creating_notes(!tab.read_only),
-                                            ),
-                                            files: Arc::clone(&self.files),
-                                            embeds: Box::new(ImageEmbedResolver::new(
-                                                self.images.clone(),
-                                                id,
-                                            )),
-                                        },
-                                        MdConfig { readonly: tab.read_only, ext: ext.clone() },
-                                    )));
-                            } else {
-                                let md = tab.markdown_mut().unwrap();
-                                md.apply_disk_version(
-                                    String::from_utf8_lossy(&bytes).into(),
-                                    maybe_hmac,
-                                );
-                            }
-                        }
-                        _ => {
-                            tab.content = ContentState::Failed(TabFailure::SimpleMisc(format!(
-                                "Unsupported file extension: {ext}"
-                            )));
-                        }
-                    };
-                    self.open_guard.exit();
                     tab.first_draw = true;
 
                     if is_preview {
                         if let Some(md) = tab.markdown_mut() {
                             md.initialized = true;
-                            md.id_salt = egui::Id::unique("search_preview");
                             md.in_preview = true;
                         }
                         // A chat's first frame would focus its composer,
@@ -2050,23 +1837,7 @@ impl Workspace {
 
     /// What `change` would do to links, worked out once per change and tree.
     pub fn link_plan(&self, change: &Change) -> Arc<Plan> {
-        let plan = crate::link_plan::planned(&self.files.read().unwrap(), change);
-        self.keep_note_index();
-        plan
-    }
-
-    /// Fills the note index from here on if anything has asked for it.
-    pub(crate) fn keep_note_index(&self) {
-        #[cfg(not(target_family = "wasm"))]
-        if self.files.read().unwrap().notes.is_wanted() {
-            self.note_index.call_once(|| {
-                crate::note_index::NoteIndex::keep(
-                    self.files.clone(),
-                    self.core.clone(),
-                    self.ctx.clone(),
-                );
-            });
-        }
+        crate::link_plan::planned(&self.files.read().unwrap(), change)
     }
 
     /// Makes `change`, and if `update_links`, the edits that keep links
@@ -2104,12 +1875,8 @@ impl Workspace {
         }
         // the next change plans against this one, before the rebuild lands
         let mut files = self.files.write().unwrap();
-        let mut after = files.after(&made);
-        let mut notes = std::mem::take(&mut files.notes);
-        notes.retain_in(&after);
-        after.notes = notes;
-        *files = after;
-        self.out.file_cache_updated = true;
+        let after = files.after(&made);
+        files.replace(after);
     }
 
     /// Shares `id` with each of `users`, and if `share_linked`, also the
@@ -2187,6 +1954,17 @@ pub struct WsPersistentStore {
     pub path: PathBuf,
     pub data: Arc<RwLock<WsPresistentData>>,
     enabled: bool,
+}
+
+/// Content for `dest`, or why it failed to open.
+fn open_content(
+    dest: &Destination, doc: Option<crate::tab::Doc>, res: &crate::tab::TabResources,
+    salt: egui::Id, read_only: bool,
+) -> ContentState {
+    match TabContent::open(dest, doc, res, salt, read_only) {
+        Ok(content) => ContentState::Open(content),
+        Err(failure) => ContentState::Failed(failure),
+    }
 }
 
 /// Whether `content` was built for a file named `name`. Loading content picks
@@ -2499,37 +2277,6 @@ fn persist_ws_file(data: &Arc<RwLock<WsPresistentData>>, path: &Path) {
     let content = serde_json::to_string(&data).unwrap();
     if let Err(err) = fs::write(path, content) {
         error!(?path, "ws persistence write failed: {err:?}");
-    }
-}
-
-pub fn lb_bg_worker(ctx: Context, lb: Lb, ws_tx: Sender<WsUpdates>) {
-    let mut events = lb.subscribe();
-
-    loop {
-        match events.blocking_recv() {
-            Ok(evt) => match evt {
-                Event::MetadataChanged(_) | Event::IpcChangesApplied => {
-                    if ws_tx
-                        .send(WsUpdates::FileCacheComputed(FileCache::new(&lb)))
-                        .is_err()
-                    {
-                        info!("workspace dropped, lb_bg_worker exiting");
-                        return;
-                    }
-                    ctx.request_repaint();
-                }
-                Event::Sync(events::SyncIncrement::SyncFinished(_)) => {
-                    ctx.request_repaint();
-                }
-                _ => {
-                    continue;
-                }
-            },
-            Err(e) => {
-                error!("lb_frames died: {:?}", e);
-                return;
-            }
-        }
     }
 }
 

@@ -4,7 +4,7 @@ use crate::widgets::Button;
 use color_art;
 use colors_transform::{self, Color};
 use egui::{
-    self, Color32, Context, Id, LayerId, MenuBar, Pos2, Rect, Sense, Stroke, TextWrapMode, Ui,
+    self, Color32, Context, LayerId, MenuBar, Pos2, Rect, Sense, Stroke, TextWrapMode, Ui,
     UiBuilder,
 };
 use lb_rs::blocking::Lb;
@@ -174,8 +174,10 @@ impl SpaceInspector {
 
         // Top buttons
         ui.scope_builder(
-            UiBuilder::new()
-                .layer_id(LayerId { order: egui::Order::Foreground, id: Id::unique(1) }),
+            UiBuilder::new().layer_id(LayerId {
+                order: egui::Order::Foreground,
+                id: ui.scope_id().with("space_top"),
+            }),
             |ui| {
                 let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
                 ui.scope_builder(UiBuilder::new().max_rect(top_left_rect), |ui| {
@@ -235,7 +237,8 @@ impl SpaceInspector {
 
         // Hover interaction
 
-        let response = ui.interact(root_draw_anchor, Id::unique(-1), Sense::hover());
+        let response =
+            ui.interact(root_draw_anchor, ui.scope_id().with("space_root"), Sense::hover());
 
         response.on_hover_text(
             "Name:\n".to_owned()
@@ -457,7 +460,8 @@ impl SpaceInspector {
                     + "\nSize:\n"
                     + &display_size;
 
-                let response = ui.interact(paint_rect, Id::unique(i), Sense::click());
+                let response =
+                    ui.interact(paint_rect, ui.scope_id().with(("space_row", i)), Sense::click());
 
                 if response.clicked() && item_filerow.file.is_folder() {
                     changed_focused_folder = Some(item.id);

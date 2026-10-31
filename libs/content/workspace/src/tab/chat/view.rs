@@ -279,7 +279,7 @@ impl Chat {
             COMPOSER_BOTTOM_GAP
         };
 
-        let composer_id = Id::unique("chat_composer");
+        let composer_id = self.salt.with("chat_composer");
         // Focus when first shown or whenever nothing holds focus — the
         // editor's policy, and load-bearing on iOS: typing arrives as egui
         // events only a focused composer consumes, and taps place the cursor
@@ -366,7 +366,7 @@ impl Chat {
         // keyboard / completions / internal events. Routes to *one* editor:
         // the connect step's key field while it's open, else the composer.
         if self.key_entry.is_some() {
-            let key_field_id = Id::unique("chat_key_field");
+            let key_field_id = self.salt.with("chat_key_field");
             // No per-frame request_focus: the render block's one-shot focuses
             // the field, and its interaction + focus lock hold it after that.
             // Consume Return before handle_input so it submits rather than
@@ -482,7 +482,7 @@ impl Chat {
             if touch_os && !takeover {
                 let backdrop = ui.interact(
                     transcript_rect,
-                    Id::unique("chat_transcript_backdrop"),
+                    self.salt.with("chat_transcript_backdrop"),
                     Sense::click(),
                 );
                 backdrop_tapped = backdrop.clicked();
@@ -1022,7 +1022,7 @@ impl Chat {
                         .map(|s| {
                             ui.interact(
                                 s.row_rect,
-                                Id::unique(("chat_row", visible[s.vi].idx)),
+                                self.salt.with(("chat_row", visible[s.vi].idx)),
                                 Sense::click(),
                             )
                         })
@@ -1171,7 +1171,7 @@ impl Chat {
                                     let areas = paint_segments(
                                         ui,
                                         &mut self.entries[i].label,
-                                        Id::unique(("tool_body", i)),
+                                        self.salt.with(("tool_body", i)),
                                         &segs,
                                         rpos,
                                         rwidth,
@@ -1286,7 +1286,7 @@ impl Chat {
                                 if let Some(target) = target.filter(|_| can_mutate) {
                                     let resp = ui.interact(
                                         r,
-                                        Id::unique(("chat_arrow", vi, glyph)),
+                                        self.salt.with(("chat_arrow", vi, glyph)),
                                         Sense::click(),
                                     );
                                     if resp.clicked() {
@@ -1334,7 +1334,7 @@ impl Chat {
                                 let r = place(STRIP_H);
                                 let resp = ui.interact(
                                     r,
-                                    Id::unique(("chat_strip", i, bi)),
+                                    self.salt.with(("chat_strip", i, bi)),
                                     Sense::click(),
                                 );
                                 let color =
@@ -1453,7 +1453,7 @@ impl Chat {
                         // Deny: bordered. Allow: accent-filled.
                         let deny = ui.interact(
                             r.deny_rect,
-                            Id::unique("chat_review_deny"),
+                            self.salt.with("chat_review_deny"),
                             Sense::click(),
                         );
                         ui.painter().rect_stroke(
@@ -1469,7 +1469,7 @@ impl Chat {
                         );
                         let approve = ui.interact(
                             r.approve_rect,
-                            Id::unique("chat_review_approve"),
+                            self.salt.with("chat_review_approve"),
                             Sense::click(),
                         );
                         ui.painter()
@@ -1632,8 +1632,11 @@ impl Chat {
                             );
                         }
                         // Centered text-only Cancel, filling its reserved rect.
-                        let cancel_resp =
-                            ui.interact(cancel_rect, Id::unique("chat_key_cancel"), Sense::click());
+                        let cancel_resp = ui.interact(
+                            cancel_rect,
+                            self.salt.with("chat_key_cancel"),
+                            Sense::click(),
+                        );
                         let cancel_color =
                             if cancel_resp.hovered() { text_color } else { secondary_color };
                         ui.painter().galley(cancel_rect.min, cancel, cancel_color);
@@ -1780,7 +1783,7 @@ impl Chat {
                                         );
                                         let resp = ui.interact(
                                             cell,
-                                            Id::unique(("chat_onboard", name)),
+                                            self.salt.with(("chat_onboard", name)),
                                             Sense::click(),
                                         );
                                         if resp.hovered() {
@@ -1835,7 +1838,7 @@ impl Chat {
                                     let rect = rects[1];
                                     let resp = ui.interact(
                                         rect,
-                                        Id::unique("chat_chooser_cancel"),
+                                        self.salt.with("chat_chooser_cancel"),
                                         Sense::click(),
                                     );
                                     let color =
@@ -2051,7 +2054,7 @@ impl Chat {
         // `focused_mdedit_mut` + the text-interaction rect already point here.
         use crate::tab::ExtendedOutput as _;
         if self.key_entry.is_some() && self.key_field_rect.is_finite() {
-            let key_field_id = Id::unique("chat_key_field");
+            let key_field_id = self.salt.with("chat_key_field");
             // Focus + keyboard modeled on the find bar (the other text field
             // that appears without a tap): one-shot on open, edge-triggered
             // re-summon — never per-frame, which fights UIKit's own
@@ -2166,7 +2169,7 @@ impl Chat {
                 text_rect.min + vec2(H_PAD, V_PAD),
                 pos2(text_rect.max.x - H_PAD, text_rect.max.y - V_PAD),
             );
-            let resp = ui.interact(btn_rect, Id::unique("chat_add_key"), Sense::click());
+            let resp = ui.interact(btn_rect, self.salt.with("chat_add_key"), Sense::click());
             let accent = theme.bg().get_color(theme.prefs().primary);
             ui.painter()
                 .rect_filled(btn_rect, CornerRadius::same(8), accent);
@@ -2219,7 +2222,7 @@ impl Chat {
             // Touch targets stay ~44pt even where the visual is smaller.
             let hit_rect = if touch_os { button_rect.expand(7.0) } else { button_rect };
             let active = (non_empty && send_block.is_none()) || agent_busy;
-            let resp = ui.interact(hit_rect, Id::unique("chat_send"), Sense::click());
+            let resp = ui.interact(hit_rect, self.salt.with("chat_send"), Sense::click());
 
             let painter = ui.painter();
             // The markdown-toolbar icon idiom — no filled disc, just the mark
@@ -2341,7 +2344,7 @@ impl Chat {
                     ui.painter()
                         .add(egui::Shape::line(points, Stroke::new(2.0_f32, fill)));
                 }
-                ui.interact(rect, Id::unique("chat_context_ring"), Sense::hover())
+                ui.interact(rect, self.salt.with("chat_context_ring"), Sense::hover())
                     .on_hover_text(format!("{used} / {window} tokens ({:.0}%)", ratio * 100.0));
             }
 
@@ -2387,7 +2390,7 @@ impl Chat {
                     let rect =
                         Rect::from_min_size(pos2(cursor_x, toolbar_rect.min.y), vec2(w, TOOLBAR_H));
                     cursor_x = rect.max.x + STRIP_GAP;
-                    let resp = ui.interact(rect, Id::unique(id), Sense::click());
+                    let resp = ui.interact(rect, self.salt.with(id), Sense::click());
                     let text_top = rect.min.y + (TOOLBAR_H - galley.size().y) / 2.0;
                     ui.painter()
                         .galley(pos2(rect.min.x, text_top), galley, text_color);
@@ -2653,7 +2656,8 @@ impl Chat {
             // away from the per-message controls. Chips the budget folded
             // lead the menu as submenus, above the standing actions.
             {
-                let more_resp = ui.interact(more_rect, Id::unique("chat_more_btn"), Sense::click());
+                let more_resp =
+                    ui.interact(more_rect, self.salt.with("chat_more_btn"), Sense::click());
                 let color = if more_resp.hovered() { text_color } else { secondary_color };
                 let glyph = ui.fonts_mut(|f| {
                     f.layout_no_wrap(

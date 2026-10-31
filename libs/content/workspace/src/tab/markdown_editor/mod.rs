@@ -1124,6 +1124,12 @@ impl Editor {
         Id::unique(self.edit.file_id).with(self.id_salt)
     }
 
+    /// Derives the editor's widget ids from `salt`.
+    pub fn set_salt(&mut self, salt: Id) {
+        self.id_salt = salt;
+        self.edit.scroll_area.set_salt(self.id());
+    }
+
     /// Last disk hmac adopted with the displayed buffer.
     pub fn hmac(&self) -> Option<DocumentHmac> {
         self.hmac
@@ -1744,7 +1750,7 @@ impl Editor {
                 // `shown` fades the card; the text eases the same both
                 // ways, so a reversal starts where it is
                 let shown = ui.ctx().animate_bool_with_time(
-                    Id::unique("md_sidecar_glide").with(self.edit.file_id),
+                    Id::unique("md_sidecar_glide").with(self.id()),
                     sidecar,
                     widget::outline::MOTION_SECS,
                 );
@@ -2217,7 +2223,7 @@ impl Editor {
         };
         let (seq, rows) = self.outline_rows.take().unwrap_or_default();
 
-        let id = Id::unique("md_outline").with(self.edit.file_id);
+        let id = Id::unique("md_outline").with(self.id());
         let (version, linked) = self.linked_notes();
         let (chosen, popup) = if self.edit.renderer.touch_mode {
             self.outline

@@ -30,6 +30,7 @@ pub mod chat;
 pub mod image_viewer;
 pub mod input_controller;
 pub mod markdown_editor;
+pub mod open;
 pub mod pdf_viewer;
 pub mod svg_editor;
 
@@ -352,9 +353,14 @@ pub fn index_of_dest_to_activate(
     strip.iter().position(|s| s.dest == *dest)
 }
 
+pub use open::{Doc, TabResources};
+
 pub struct Tab {
     pub destination: Destination,
     pub content: ContentState,
+    /// Every widget id inside the tab derives from this: the session id for
+    /// a tab in the strip, a fresh id for an embed or a preview.
+    pub salt: Id,
 
     pub last_changed: Instant,
     pub last_saved: Instant,
@@ -380,6 +386,21 @@ pub struct Reveal {
 }
 
 impl Tab {
+    pub fn new(destination: Destination, content: ContentState, salt: Id, read_only: bool) -> Self {
+        let now = Instant::now();
+        Self {
+            destination,
+            content,
+            salt,
+            last_changed: now,
+            last_saved: now,
+            read_only,
+            rename: None,
+            first_draw: true,
+            reveal: None,
+        }
+    }
+
     pub fn id(&self) -> Option<Uuid> {
         match self.destination {
             Destination::Search(_) => None,
@@ -527,7 +548,7 @@ impl Tab {
 
     #[tracing::instrument(name = "Tab::show", level = "trace", skip_all, fields(kind = self.kind_name()))]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
-        self.show_inner(ui)
+        ui.push_id(self.salt, |ui| self.show_inner(ui)).inner
     }
 
     /// Applies the pending reveal if the content can take it yet.

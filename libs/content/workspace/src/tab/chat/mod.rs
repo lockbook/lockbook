@@ -336,6 +336,8 @@ impl Entry {
 
 pub struct Chat {
     pub id: Uuid,
+    /// What the chat's widget ids derive from.
+    pub salt: Id,
     pub hmac: Option<DocumentHmac>,
     pub entries: Vec<Entry>,
     pub composer: MdEdit,
@@ -674,6 +676,7 @@ impl Chat {
         });
         Self {
             id,
+            salt: Id::unique(id),
             hmac,
             entries,
             composer,
