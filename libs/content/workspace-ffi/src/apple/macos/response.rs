@@ -48,6 +48,8 @@ pub struct MacOSResponse {
     pub cursor: CCursorIcon,
     pub request_paste: bool,
     pub ime_cursor: CImeRect,
+    /// Find or replace has focus, so the note's text is not the input target.
+    pub chrome_text_focused: bool,
 
     // widget response
     pub selected_file: CUuid,
@@ -125,6 +127,7 @@ impl From<crate::Response> for MacOSResponse {
             urls_opened,
             cursor: cursor.into(),
             request_paste,
+            chrome_text_focused: false,
             ime_cursor: ime_cursor
                 .map(|r| CImeRect {
                     min_x: r.min.x,

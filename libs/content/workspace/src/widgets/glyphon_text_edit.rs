@@ -65,6 +65,7 @@ fn step_right(text: &str, from: usize, m: &Modifiers) -> usize {
 /// should surrender focus on the widget id so that `lost_focus()` fires.
 fn apply_event(event: Event, state: &mut State, text: &mut String, ctx: &Context) -> (bool, bool) {
     let (mut changed, mut submitted) = (false, false);
+    let (ime, before) = (matches!(event, Event::Ime(_)), (state.cursor, state.anchor));
     match event {
         Event::Key { key: Key::Enter, pressed: true, .. } => {
             submitted = true;
@@ -78,13 +79,14 @@ fn apply_event(event: Event, state: &mut State, text: &mut String, ctx: &Context
             state.anchor = state.cursor;
             changed = true;
         }
+        Event::Ime(ImeEvent::Preedit { text: s, .. }) => {
+            state.replace_composition(text, &s);
+            state.composition = (!s.is_empty()).then_some((state.cursor - s.len(), state.cursor));
+            changed = true;
+        }
         Event::Ime(ImeEvent::Commit(s)) => {
-            if state.has_selection() {
-                state.delete_selection(text);
-            }
-            text.insert_str(state.cursor, &s);
-            state.cursor += s.len();
-            state.anchor = state.cursor;
+            state.replace_composition(text, &s);
+            state.composition = None;
             changed = true;
         }
         Event::Key { key: Key::Backspace, pressed: true, modifiers, .. } => {
@@ -160,6 +162,9 @@ fn apply_event(event: Event, state: &mut State, text: &mut String, ctx: &Context
         }
         _ => {}
     }
+    if !ime && (changed || (state.cursor, state.anchor) != before) {
+        state.composition = None;
+    }
     (changed, submitted)
 }
 
@@ -175,6 +180,8 @@ struct State {
     /// Whether the widget was focused last frame, used to detect focus-gained.
     was_focused: bool,
     last_interaction_time: Option<f64>,
+    /// Byte range of the input method's in-progress text, shown in the buffer until committed.
+    composition: Option<(usize, usize)>,
 }
 
 impl State {
@@ -191,6 +198,24 @@ impl State {
         text.drain(lo..hi);
         self.cursor = lo;
         self.anchor = lo;
+    }
+
+    /// Replaces the composition, or else the selection, with `s` and puts the caret after it.
+    fn replace_composition(&mut self, text: &mut String, s: &str) {
+        match self.composition.take() {
+            Some((lo, hi))
+                if hi <= text.len() && text.is_char_boundary(lo) && text.is_char_boundary(hi) =>
+            {
+                text.drain(lo..hi);
+                self.cursor = lo;
+                self.anchor = lo;
+            }
+            _ if self.has_selection() => self.delete_selection(text),
+            _ => {}
+        }
+        text.insert_str(self.cursor, s);
+        self.cursor += s.len();
+        self.anchor = self.cursor;
     }
 
     fn move_cursor(&mut self, to: usize, extend: bool) {
@@ -294,6 +319,7 @@ impl<'a> GlyphonTextEdit<'a> {
         let mut state: State = ui.data(|d| d.get_temp(id)).unwrap_or_default();
         state.cursor = cursor;
         state.anchor = anchor;
+        state.composition = None;
         state.last_interaction_time = Some(ui.ctx().input(|i| i.time));
         ui.data_mut(|d| d.insert_temp(id, state));
     }
@@ -318,6 +344,7 @@ impl<'a> GlyphonTextEdit<'a> {
         *text = new_text;
         state.cursor = new_cursor;
         state.anchor = new_anchor;
+        state.composition = None;
         ui.data_mut(|d| d.insert_temp(id, state));
     }
 
@@ -439,6 +466,9 @@ impl<'a> GlyphonTextEdit<'a> {
             state.last_interaction_time = Some(now);
         }
         state.was_focused = focused;
+        if !focused {
+            state.composition = None;
+        }
 
         // Keyboard / text input. Completion Tab is applied in
         // `process_events_*` before show; filter re-asserted here.
@@ -949,5 +979,20 @@ mod tests {
         let (text, c, a) =
             run("foo bar", 7, &[select.clone(), select, key(Key::Backspace, Modifiers::ALT)]);
         assert_eq!((text.as_str(), c, a), ("foo b", 5, 5));
+    }
+
+    #[test]
+    fn composition_shows_in_place_and_commits_once() {
+        let preedit =
+            |s: &str| Event::Ime(ImeEvent::Preedit { text: s.into(), active_range_chars: None });
+        let commit = |s: &str| Event::Ime(ImeEvent::Commit(s.into()));
+        assert_eq!(run("ab", 1, &[preedit("ü"), preedit("üx")]), ("aüxb".into(), 4, 4));
+        assert_eq!(
+            run("ab", 1, &[preedit("ü"), preedit("üx"), commit("üxy")]),
+            ("aüxyb".into(), 5, 5)
+        );
+        assert_eq!(run("ab", 1, &[preedit("ü"), preedit("")]), ("ab".into(), 1, 1));
+        let typed = Event::Text("c".into());
+        assert_eq!(run("ab", 1, &[preedit("ü"), typed, preedit("x")]), ("aücxb".into(), 5, 5));
     }
 }
