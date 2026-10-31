@@ -9991,6 +9991,8 @@ dependencies = [
  "memmap2",
  "ndk-sys 0.4.1+23.1.7779620",
  "num_cpus",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "pollster 0.2.5",
  "rand 0.8.7",
  "raw-window-handle",

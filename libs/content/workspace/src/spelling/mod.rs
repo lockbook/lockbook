@@ -11,6 +11,9 @@ use std::sync::{Arc, Mutex};
 
 use egui::{Context, Id};
 
+#[cfg(target_os = "macos")]
+mod macos;
+
 /// A platform spell checker, in the system's language and with the
 /// system's learned words.
 pub trait SpellCheck: Send + Sync {
@@ -70,6 +73,8 @@ impl Spelling {
     /// The platform's checker, if it has one.
     fn system(ctx: &Context) -> Option<Self> {
         let _ = ctx;
+        #[cfg(target_os = "macos")]
+        return Some(Self::new(Box::new(macos::AppKit)));
         #[allow(unreachable_code)]
         None
     }
