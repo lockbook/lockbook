@@ -1,5 +1,6 @@
 pub mod advance;
 pub mod canonical;
+pub mod code;
 pub mod cursor;
 pub mod events;
 pub mod mutation;
@@ -89,6 +90,10 @@ pub enum Region {
 
     /// Word/line/paragraph/doc at a location, preferring previous word if `backwards`
     BoundAt { bound: Bound, location: Location, backwards: bool },
+
+    /// In code, the smallest syntax node larger than the selection, or if not
+    /// `larger`, the selection it grew from
+    Syntax { larger: bool },
 }
 
 /// Standardized edits to any editor state e.g. buffer, clipboard, debug state.

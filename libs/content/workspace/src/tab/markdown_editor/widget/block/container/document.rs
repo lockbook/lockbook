@@ -1,11 +1,10 @@
-use crate::tab::markdown_editor::{syntax_set, syntax_theme};
 use comrak::nodes::AstNode;
-use egui::{Color32, Pos2, Ui};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
-use syntect::easy::HighlightLines;
 
-use crate::show::syntax_ext_for;
+use crate::syntax::{Lang, Role, roles_in};
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::block::leaf::code_block::CodeUnit;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Layout};
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -93,39 +92,33 @@ impl<'ast> MdRender {
             }
             return layout;
         }
-        let highlighter_syntax = syntax_set().find_syntax_by_extension(syntax_ext_for(&self.ext));
-        if let Some(syntax) = highlighter_syntax {
-            let mut highlighter = HighlightLines::new(syntax, syntax_theme());
-            let line_text = &self.buffer[line];
-            let regions = if let Some(regions) = self.syntax.get(line_text, line) {
-                regions
-            } else {
-                let mut regions = Vec::new();
-                let mut region_start = self.offset_to_byte(line.start());
-                for (style, region_str) in
-                    highlighter.highlight_line(line_text, syntax_set()).unwrap()
-                {
-                    let region_end = region_start + region_str.len();
-                    let region = self.range_to_char((region_start, region_end));
-                    regions.push((style, region));
-                    region_start = region_end;
-                }
-                self.syntax.insert(line_text.into(), line, regions.clone());
-                regions
-            };
-            let mut text_format = self.text_format_syntax();
-            for (style, region) in regions {
-                let hex =
-                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b)
-                        .to_hex();
-                let hex = hex.strip_suffix("ff").unwrap();
-                text_format.color = self.syntax_color_for_hex(hex);
+        let mut text_format = self.text_format_syntax();
+        text_format.color = self.syntax_color(Role::Text);
+        if let Some(lang) = Lang::from_extension(&self.ext) {
+            let key = ((Grapheme(0), self.last_cursor_position()), self.text_seq);
+            let unit = self.syntax.unit_for(key, || CodeUnit {
+                highlights: self
+                    .syntax
+                    .highlights(lang, self.buffer.current.text.clone()),
+                lines: Vec::new(),
+            });
+            let bytes = self.range_to_byte(line);
+            let bytes = bytes.0.0..bytes.1.0;
+            let spans = unit
+                .highlights
+                .as_ref()
+                .map(|h| h.spans(bytes.clone()))
+                .unwrap_or_default();
+            for (role, region) in roles_in(&spans, bytes) {
+                // a token can end inside a grapheme, like a digit before a keycap's marks
+                let region = self.range_to_char_ceil((region.start.into(), region.end.into()));
+                text_format.color = self.syntax_color(role);
                 if !region.is_empty() {
                     layout.push_source(region, &self.buffer[region], text_format.clone());
                 }
             }
         } else if !line.is_empty() {
-            layout.push_source(line, &self.buffer[line], self.text_format_syntax());
+            layout.push_source(line, &self.buffer[line], text_format);
         }
         layout
     }

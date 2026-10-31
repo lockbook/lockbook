@@ -1,0 +1,438 @@
+//! Typing in code, inside a fence or in a code file: Tab indents, Enter
+//! keeps the indent and adds a level after an open bracket, and a closing
+//! bracket typed at a line's start outdents to its match.
+
+use std::ops::Range;
+use std::sync::Arc;
+
+use comrak::nodes::{AstNode, NodeValue};
+use lb_rs::model::text::offset_types::{
+    Grapheme, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, ToRangeExt as _,
+};
+use lb_rs::model::text::operation_types::{Operation, Replace};
+
+use crate::syntax::{Highlights, Lang, Role};
+use crate::tab::markdown_editor::bounds::RangesExt as _;
+use crate::tab::markdown_editor::{MdEdit, MdRender};
+
+/// A bracket and the one it pairs with.
+pub type BracketPair = [(Grapheme, Grapheme); 2];
+
+/// The text seq and selection a bracket pair was found at, and the pair.
+pub type BracketPairAt = ((u64, (Grapheme, Grapheme)), Option<BracketPair>);
+
+/// The code around an offset: one code block's code or a whole code file,
+/// as one text.
+pub struct CodeScope {
+    pub text: String,
+    /// Where each code line starts: its grapheme in the buffer and its byte
+    /// in `text`, in order.
+    pub lines: Vec<(Grapheme, usize)>,
+    pub highlights: Option<Arc<Highlights>>,
+}
+
+impl CodeScope {
+    /// Where the code on `line` starts, if `line` is one of ours.
+    pub fn line_start(&self, line: (Grapheme, Grapheme)) -> Option<Grapheme> {
+        let idx = self
+            .lines
+            .partition_point(|(start, _)| *start < line.start());
+        self.lines
+            .get(idx)
+            .map(|(start, _)| *start)
+            .filter(|start| *start <= line.end())
+    }
+
+    /// What an indent level is here: a tab where lines start with tabs,
+    /// else the narrowest indent of two or more spaces up to four, else four.
+    pub fn indent_unit(&self) -> String {
+        let lines = self.text.lines().filter(|line| !line.trim().is_empty());
+        if self.text.lines().any(|line| line.starts_with('\t')) {
+            return "\t".into();
+        }
+        let width = lines
+            .map(|line| line.len() - line.trim_start_matches(' ').len())
+            .filter(|width| *width >= 2)
+            .min()
+            .map_or(4, |width| width.min(4));
+        " ".repeat(width)
+    }
+
+    /// The role of the byte at `at`, read from the window of spans around
+    /// it so a scan queries each window once.
+    pub fn role_at(&self, at: usize) -> Role {
+        const WINDOW: usize = 4096;
+        let Some(highlights) = &self.highlights else { return Role::Text };
+        let start = at / WINDOW * WINDOW;
+        let spans = highlights.spans(start..(start + WINDOW).min(self.text.len()));
+        let idx = spans.partition_point(|(_, span)| span.end <= at);
+        match spans.get(idx) {
+            Some((role, span)) if span.contains(&at) => *role,
+            _ => Role::Text,
+        }
+    }
+
+    /// Whether the byte at `at` is a bracket, rather than part of a string
+    /// or comment.
+    pub fn is_bracket(&self, at: usize) -> bool {
+        !matches!(self.role_at(at), Role::String | Role::Comment)
+    }
+
+    /// The open bracket the close bracket at `at` pairs with.
+    pub fn matching_open(&self, at: usize) -> Option<usize> {
+        self.matching_open_before(*self.text.as_bytes().get(at)?, at)
+    }
+
+    /// The open bracket a `close` bracket at `at` would pair with.
+    pub fn matching_open_before(&self, close: u8, at: usize) -> Option<usize> {
+        let open = opener_of(close)?;
+        let mut depth = 0;
+        for (idx, b) in self.text.as_bytes()[..at].iter().enumerate().rev() {
+            if (*b != close && *b != open) || !self.is_bracket(idx) {
+                continue;
+            }
+            if *b == close {
+                depth += 1;
+            } else if *b == open {
+                if depth == 0 {
+                    return Some(idx);
+                }
+                depth -= 1;
+            }
+        }
+        None
+    }
+
+    /// The close bracket the open bracket at `at` pairs with.
+    pub fn matching_close(&self, at: usize) -> Option<usize> {
+        let open = *self.text.as_bytes().get(at)?;
+        let close = closer_of(open)?;
+        let mut depth = 0;
+        for (idx, b) in self.text.as_bytes().iter().enumerate().skip(at + 1) {
+            if (*b != close && *b != open) || !self.is_bracket(idx) {
+                continue;
+            }
+            if *b == open {
+                depth += 1;
+            } else if *b == close {
+                if depth == 0 {
+                    return Some(idx);
+                }
+                depth -= 1;
+            }
+        }
+        None
+    }
+}
+
+pub fn opener_of(close: u8) -> Option<u8> {
+    match close {
+        b')' => Some(b'('),
+        b']' => Some(b'['),
+        b'}' => Some(b'{'),
+        _ => None,
+    }
+}
+
+pub fn closer_of(open: u8) -> Option<u8> {
+    match open {
+        b'(' => Some(b')'),
+        b'[' => Some(b']'),
+        b'{' => Some(b'}'),
+        _ => None,
+    }
+}
+
+impl<'ast> MdRender {
+    /// The code `offset` is in: a code file's, or a code block's when
+    /// `offset` is on one of its code lines. A plain text file isn't code.
+    pub fn code_scope_at(&self, root: &'ast AstNode<'ast>, offset: Grapheme) -> Option<CodeScope> {
+        if self.plaintext {
+            let text = self.buffer.current.text.clone();
+            let lines = self
+                .bounds
+                .source_lines
+                .iter()
+                .map(|line| (line.start(), self.offset_to_byte(line.start()).0))
+                .collect();
+            let highlights = Lang::from_extension(&self.ext)
+                .and_then(|lang| self.syntax.highlights(lang, text.clone()));
+            return Some(CodeScope { text, lines, highlights });
+        }
+        let (line_idx, _) = self.bounds.source_lines.find_containing(offset, true, true);
+        let node = root.descendants().find(|node| {
+            matches!(node.data.borrow().value, NodeValue::CodeBlock(_))
+                && self.node_first_line_idx(node) <= line_idx
+                && line_idx <= self.node_last_line_idx(node)
+        })?;
+        let NodeValue::CodeBlock(code_block) = &node.data.borrow().value else { return None };
+        let (text, lines) = self.code_block_text(node, code_block, false);
+        let highlights = Lang::from_info(&code_block.info)
+            .and_then(|lang| self.syntax.highlights(lang, text.clone()));
+        let scope = CodeScope { text, lines, highlights };
+        scope.line_start(self.line_at_offset(offset))?;
+        Some(scope)
+    }
+
+    /// `offset`'s byte in `scope`'s text, `offset` brought forward to the
+    /// code of its line.
+    pub fn code_byte(&self, scope: &CodeScope, offset: Grapheme) -> usize {
+        let idx = scope
+            .lines
+            .partition_point(|(start, _)| *start <= offset)
+            .saturating_sub(1);
+        let (start, at) = scope.lines[idx];
+        at + (self.offset_to_byte(offset.max(start)) - self.offset_to_byte(start)).0
+    }
+
+    /// The buffer offsets around bytes `range` of `scope`'s text, out to
+    /// whole graphemes: a node can end inside one, like a comment before
+    /// the `\n` of a `\r\n`.
+    pub fn code_range(&self, scope: &CodeScope, range: Range<usize>) -> (Grapheme, Grapheme) {
+        let buffer_byte = |at: usize| {
+            let idx = scope.lines.partition_point(|(_, byte)| *byte <= at) - 1;
+            let (start, byte) = scope.lines[idx];
+            self.offset_to_byte(start) + (at - byte)
+        };
+        let segs = &self.buffer.current.segs;
+        (
+            segs.byte_to_char_floor(buffer_byte(range.start)),
+            segs.byte_to_char_ceil(buffer_byte(range.end)),
+        )
+    }
+}
+
+impl<'ast> MdEdit {
+    /// Tab and Shift-Tab when every selected line is code. A caret gets an
+    /// indent level; a selection's lines each gain or lose one.
+    pub fn indent_in_code(
+        &self, root: &'ast AstNode<'ast>, deindent: bool, operations: &mut Vec<Operation>,
+    ) -> bool {
+        let selection = self.renderer.buffer.current.selection;
+        let Some(scope) = self.renderer.code_scope_at(root, selection.start()) else {
+            return false;
+        };
+        let source_lines = &self.renderer.bounds.source_lines;
+        let mut starts = Vec::new();
+        for line_idx in source_lines.find_intersecting(selection, true).iter() {
+            let line = source_lines[line_idx];
+            let Some(start) = scope.line_start(line) else { return false };
+            starts.push((start, line));
+        }
+        let unit = scope.indent_unit();
+        if !deindent && selection.is_empty() {
+            operations.push(Operation::Replace(Replace { range: selection, text: unit }));
+            operations.push(Operation::Select(selection));
+            return true;
+        }
+        for (start, line) in starts {
+            let code = &self.renderer.buffer[(start, line.end())];
+            if deindent {
+                let width = if code.starts_with('\t') {
+                    1
+                } else {
+                    let spaces = code.len() - code.trim_start_matches(' ').len();
+                    spaces.min(unit.len().max(1))
+                };
+                if width > 0 {
+                    let range = (start, start + width);
+                    operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                }
+            } else if !code.trim().is_empty() {
+                operations.push(Operation::Replace(Replace {
+                    range: start.into_range(),
+                    text: unit.clone(),
+                }));
+            }
+        }
+        operations.push(Operation::Select(selection));
+        true
+    }
+
+    /// Enter in code: the new line keeps the indent, gains a level after an
+    /// open bracket, and between a pair of brackets puts the close on a line
+    /// of its own.
+    pub fn newline_in_code(
+        &self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>,
+    ) -> bool {
+        let selection = self.renderer.buffer.current.selection;
+        let Some(scope) = self.renderer.code_scope_at(root, selection.start()) else {
+            return false;
+        };
+        let line = self.renderer.line_at_offset(selection.start());
+        let Some(code_start) = scope.line_start(line) else { return false };
+        let end_line = self.renderer.line_at_offset(selection.end());
+        if scope.line_start(end_line).is_none() {
+            return false;
+        }
+        let (prefix, content) = if self.renderer.plaintext {
+            (String::new(), line)
+        } else {
+            let container = self
+                .renderer
+                .deepest_container_block_at_offset(root, selection.start());
+            let prefix = self
+                .renderer
+                .extension_prefix(container)
+                .unwrap_or_default();
+            (prefix, self.renderer.line_content(container, line))
+        };
+        // the line's leading whitespace, fence indent included, up to the caret
+        let content_text = &self.renderer.buffer[content];
+        let mut indent =
+            content_text[..content_text.len() - content_text.trim_start().len()].to_string();
+        let before =
+            &self.renderer.buffer[(content.start(), selection.start().max(content.start()))];
+        if before.trim().is_empty() {
+            indent.truncate(before.len());
+        }
+
+        let caret = self
+            .renderer
+            .code_byte(&scope, selection.start().max(code_start));
+        let after = self
+            .renderer
+            .code_byte(&scope, selection.end().max(code_start));
+        let opens = scope.text[..caret]
+            .trim_end_matches([' ', '\t'])
+            .len()
+            .checked_sub(1)
+            .filter(|at| closer_of(scope.text.as_bytes()[*at]).is_some() && scope.is_bracket(*at));
+        let closes = opens.is_some_and(|open| {
+            let rest = scope.text[after..].trim_start_matches([' ', '\t']);
+            let at = scope.text.len() - rest.len();
+            scope.matching_close(open) == Some(at)
+        });
+
+        let mut text = format!("\n{prefix}{indent}");
+        if opens.is_some() {
+            text += &scope.indent_unit();
+        }
+        // the caret is placed between the inserts: one inserted at the
+        // caret lands after it
+        operations.push(Operation::Replace(Replace { range: selection, text }));
+        operations.push(Operation::Select(selection.start().to_range()));
+        if closes {
+            let range = selection.end().into_range();
+            operations
+                .push(Operation::Replace(Replace { range, text: format!("\n{prefix}{indent}") }));
+        }
+        true
+    }
+
+    /// A close bracket typed where its line has only whitespace before it
+    /// lands at the indent of the line its match is on.
+    pub fn replace_in_code(
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), text: &str,
+        advance_cursor: bool, operations: &mut Vec<Operation>,
+    ) -> bool {
+        let close = match text.as_bytes() {
+            [close] if opener_of(*close).is_some() => *close,
+            _ => return false,
+        };
+        if !range.is_empty() {
+            return false;
+        }
+        let Some(scope) = self.renderer.code_scope_at(root, range.start()) else { return false };
+        let line = self.renderer.line_at_offset(range.start());
+        let Some(code_start) = scope.line_start(line) else { return false };
+        if code_start > range.start()
+            || !self.renderer.buffer[(code_start, range.start())]
+                .trim()
+                .is_empty()
+        {
+            return false;
+        }
+        let at = self.renderer.code_byte(&scope, range.start());
+        // a line of a string or comment, the byte before it its line break
+        if !scope.is_bracket(at.saturating_sub(1)) {
+            return false;
+        }
+        let Some(open) = scope.matching_open_before(close, at) else { return false };
+        let open_line = scope.text[..open]
+            .rfind('\n')
+            .map_or(0, |newline| newline + 1);
+        let open_code = &scope.text[open_line..];
+        let indent =
+            &open_code[..open_code.len() - open_code.trim_start_matches([' ', '\t']).len()];
+        let range = (code_start, range.start());
+        operations.push(Operation::Replace(Replace { range, text: format!("{indent}{text}") }));
+        if advance_cursor {
+            operations.push(Operation::Select(range.end().to_range()));
+        }
+        true
+    }
+
+    /// Expand selection grows the selection to the smallest syntax node
+    /// around it; shrink selection goes back to what that grew from.
+    pub fn syntax_select(
+        &mut self, root: &'ast AstNode<'ast>, larger: bool,
+    ) -> Option<(Grapheme, Grapheme)> {
+        let selection = self.renderer.buffer.current.selection;
+        if self
+            .syntax_grown
+            .last()
+            .is_none_or(|(_, to)| *to != selection)
+        {
+            self.syntax_grown.clear();
+        }
+        if !larger {
+            return self.syntax_grown.pop().map(|(from, _)| from);
+        }
+        let (from, to) = (selection.start(), selection.end());
+        let scope = self.renderer.code_scope_at(root, from)?;
+        scope.line_start(self.renderer.line_at_offset(to))?;
+        let range = self.renderer.code_byte(&scope, from)..self.renderer.code_byte(&scope, to);
+        let node = scope.highlights.as_ref()?.enclosing(range)?;
+        // the code ends before its last line break
+        let end = node
+            .end
+            .min(scope.text.trim_end_matches(['\r', '\n']).len());
+        let grown = self.renderer.code_range(&scope, node.start..end);
+        if grown == selection {
+            return None;
+        }
+        self.syntax_grown.push((selection, grown));
+        Some(grown)
+    }
+
+    /// The bracket beside the caret and the one it pairs with, in code,
+    /// kept until the text or the selection changes.
+    pub fn bracket_pair(&mut self, root: &'ast AstNode<'ast>) -> Option<BracketPair> {
+        let at = (self.renderer.text_seq, self.renderer.buffer.current.selection);
+        match self.bracket_pair_at {
+            Some((cached_at, pair)) if cached_at == at => pair,
+            _ => {
+                let pair = self.find_bracket_pair(root);
+                self.bracket_pair_at = Some((at, pair));
+                pair
+            }
+        }
+    }
+
+    fn find_bracket_pair(&self, root: &'ast AstNode<'ast>) -> Option<BracketPair> {
+        let caret = self.renderer.selection_offset()?;
+        let beside = [caret.0.checked_sub(1).map(Grapheme), Some(caret)];
+        let at = beside.into_iter().flatten().find(|at| {
+            *at < self.renderer.last_cursor_position()
+                && matches!(
+                    &self.renderer.buffer[(*at, *at + 1)],
+                    "(" | ")" | "[" | "]" | "{" | "}"
+                )
+        })?;
+        let scope = self.renderer.code_scope_at(root, caret)?;
+        let line = self.renderer.line_at_offset(at);
+        if scope.line_start(line)? > at {
+            return None;
+        }
+        let byte = self.renderer.code_byte(&scope, at);
+        if !scope.is_bracket(byte) {
+            return None;
+        }
+        let other = scope
+            .matching_close(byte)
+            .or_else(|| scope.matching_open(byte))?;
+        let other = self.renderer.code_range(&scope, other..other + 1);
+        Some([(at, at + 1), other])
+    }
+}

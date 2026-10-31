@@ -1,16 +1,15 @@
-use crate::tab::markdown_editor::{syntax_set, syntax_theme};
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Align2, Color32, Pos2, Rangef, Rect, Sense, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt};
-use syntect::easy::HighlightLines;
-use syntect::highlighting::Style;
 
 use comrak::nodes::NodeValue;
 
 use crate::style::{FG_HOVER, Radius, phosphor, phosphor_font_id, tip_text};
+use crate::syntax::{Highlights, Lang, Role, agreeing, roles_in};
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
@@ -71,56 +70,6 @@ impl CopyButton {
         let size = self.rect.height() * 0.6;
         painter.text(self.rect.center(), Align2::CENTER_CENTER, glyph, phosphor_font_id(size), ink);
     }
-}
-
-/// Language tokens whose bundled syntect grammar panics inside
-/// `highlight_line` — fancy-regex can't compile features the
-/// grammars use (`\g` backrefs, non-constant lookbehinds, escape
-/// sequences inside character classes).
-const SKIP_HIGHLIGHT_TOKENS: &[&str] = &[
-    // ARM Assembly. `s` is the file extension, so a user typing the
-    // opening fence `` ``` `` then `s` momentarily fences an ARM
-    // Assembly block.
-    "s",
-    // Command Help
-    "cmd-help",
-    "help",
-    // JavaScript (Babel)
-    "js",
-    "javascript",
-    "mjs",
-    "jsx",
-    "babel",
-    "es6",
-    "cjs",
-    // JavaScript (Rails)
-    "js.erb",
-    // LiveScript
-    "ls",
-    "Slakefile",
-    "ls.erb",
-    // PowerShell
-    "ps1",
-    "psm1",
-    "psd1",
-    // QML
-    "qml",
-    "qmlproject",
-    // Regular Expressions (Elixir)
-    "ex.re",
-    // SCSS / Sass
-    "scss",
-    "sass",
-    // Salt State (SLS)
-    "sls",
-    // VimHelp
-    "vimhelp",
-];
-
-pub fn should_skip_highlight(info: &str) -> bool {
-    SKIP_HIGHLIGHT_TOKENS
-        .iter()
-        .any(|t| t.eq_ignore_ascii_case(info))
 }
 
 impl<'ast> MdRender {
@@ -546,7 +495,7 @@ impl<'ast> MdRender {
     /// actual content of a code-block line (fence indent stripped for
     /// fenced; 4-col indent stripped for indented, combined with parent
     /// item padding if any).
-    fn code_line_range(
+    pub(crate) fn code_line_range(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         node_line: (Grapheme, Grapheme), synthetic: bool,
     ) -> (Grapheme, Grapheme) {
@@ -588,34 +537,62 @@ impl<'ast> MdRender {
         }
     }
 
-    /// Compute syntax-highlighted regions for a code line, or `None`
-    /// if no highlighter applies. Caches into `self.syntax`.
+    /// The roles over a code line in order, or `None` if the block's
+    /// language isn't one we know.
     fn code_line_regions(
-        &self, info: &str, code_line: (Grapheme, Grapheme), code_line_text: &str,
-    ) -> Option<SyntaxHighlightResult> {
-        if should_skip_highlight(info) {
-            return None;
-        }
-        let mut highlighter = syntax_set()
-            .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme()))?;
-        self.syntax.get(code_line_text, code_line).or_else(|| {
-            let line_start = self.offset_to_byte(code_line.start());
-            let highlighted = highlighter
-                .highlight_line(code_line_text, syntax_set())
-                .ok()?;
-            let mut regions = Vec::new();
-            let mut region_start = line_start;
-            for (style, region_str) in highlighted {
-                let region_end = region_start + region_str.len();
-                let region = self.range_to_char((region_start, region_end));
-                regions.push((style, region));
-                region_start = region_end;
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+        code_line: (Grapheme, Grapheme), synthetic: bool,
+    ) -> Option<Vec<(Role, (Grapheme, Grapheme))>> {
+        let lang = Lang::from_info(&node_code_block.info)?;
+        let key = (self.node_range(node), self.text_seq);
+        let unit = self.syntax.unit_for(key, || {
+            let (text, lines) = self.code_block_text(node, node_code_block, synthetic);
+            CodeUnit { highlights: self.syntax.highlights(lang, text), lines }
+        });
+        let idx = unit
+            .lines
+            .binary_search_by_key(&code_line.start(), |(start, _)| *start)
+            .ok()?;
+        let offset = unit.lines[idx].1;
+        let start = self.offset_to_byte(code_line.start());
+        let len = self.buffer[code_line].len();
+        let spans = unit.highlights.as_ref()?.spans(offset..offset + len);
+        let regions = roles_in(&spans, offset..offset + len)
+            .into_iter()
+            .map(|(role, r)| {
+                // a token can end inside a grapheme, like a digit before a keycap's marks
+                let r = (start + (r.start - offset), start + (r.end - offset));
+                (role, self.range_to_char_ceil(r))
+            })
+            .collect();
+        Some(regions)
+    }
+
+    /// A code block's code as one text, a line per code line, with where in
+    /// it each code line starts.
+    pub(crate) fn code_block_text(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, synthetic: bool,
+    ) -> (String, Vec<(Grapheme, usize)>) {
+        let mut text = String::new();
+        let mut lines = Vec::new();
+        let first_line_idx = self.node_first_line_idx(node);
+        let last_line_idx = self.node_last_line_idx(node);
+        for line_idx in first_line_idx..=last_line_idx {
+            let line = self.bounds.source_lines[line_idx];
+            let fence = node_code_block.fenced
+                && (line_idx == first_line_idx
+                    || line_idx == last_line_idx
+                        && self.is_closing_fence(node, node_code_block, line));
+            if fence {
+                continue;
             }
-            self.syntax
-                .insert(code_line_text.into(), code_line, regions.clone());
-            Some(regions)
-        })
+            let node_line = self.node_line(node, line);
+            let code_line = self.code_line_range(node, node_code_block, node_line, synthetic);
+            lines.push((code_line.start(), text.len()));
+            text.push_str(&self.buffer[code_line]);
+            text.push('\n');
+        }
+        (text, lines)
     }
 
     /// Build a `Layout` for one code-block line. Each highlighted
@@ -630,15 +607,11 @@ impl<'ast> MdRender {
         let code_line = self.code_line_range(node, node_code_block, node_line, synthetic);
         let code_line_text = &self.buffer[code_line];
         let mut layout = Layout::new(code_line);
-        let regions = self.code_line_regions(&node_code_block.info, code_line, code_line_text);
+        let regions = self.code_line_regions(node, node_code_block, code_line, synthetic);
         if let Some(regions) = regions {
             let mut text_format = self.text_format(node);
-            for (style, region) in regions {
-                let hex =
-                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b)
-                        .to_hex();
-                let hex = hex.strip_suffix("ff").unwrap();
-                text_format.color = self.syntax_color_for_hex(hex);
+            for (role, region) in regions {
+                text_format.color = self.syntax_color(role);
                 if !region.is_empty() {
                     layout.push_source(region, &self.buffer[region], text_format.clone());
                 }
@@ -720,69 +693,73 @@ impl<'ast> MdRender {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-struct SyntaxCacheKey {
-    text: String,
-    range: (Grapheme, Grapheme),
+/// A unit of code parsed, and where each of its lines starts in it: by a
+/// code line's first grapheme, its byte in the unit.
+pub struct CodeUnit {
+    pub highlights: Option<Arc<Highlights>>,
+    pub lines: Vec<(Grapheme, usize)>,
 }
 
-pub type SyntaxHighlightResult = Vec<(Style, (Grapheme, Grapheme))>;
-
-#[derive(Clone)]
+/// Highlights kept while they're used: parsed units by language and text,
+/// so a unit reparses only when its code changes, and units by their range
+/// and text version, so a unit's text is gathered once per edit.
+#[derive(Clone, Default)]
 pub struct SyntaxHighlightCache {
-    map: RefCell<HashMap<SyntaxCacheKey, SyntaxHighlightResult>>,
-    /// Hashes of keys touched this frame. `u64` instead of full keys
-    /// avoids per-lookup `String` clones for the bookkeeping side.
-    used_this_frame: RefCell<HashSet<u64>>,
-    hasher: std::collections::hash_map::RandomState,
+    highlights: KeptWhileUsed<(Lang, String), Option<Arc<Highlights>>>,
+    units: KeptWhileUsed<((Grapheme, Grapheme), u64), Arc<CodeUnit>>,
 }
 
-impl Default for SyntaxHighlightCache {
-    fn default() -> Self {
-        Self {
-            map: RefCell::default(),
-            used_this_frame: RefCell::default(),
-            hasher: std::collections::hash_map::RandomState::new(),
-        }
-    }
-}
+/// Entries, each marked whether it was used since the last collection.
+type KeptWhileUsed<K, V> = RefCell<HashMap<K, (V, bool)>>;
 
 impl SyntaxHighlightCache {
-    pub fn insert(&self, text: String, range: (Grapheme, Grapheme), value: SyntaxHighlightResult) {
-        let key = SyntaxCacheKey { text, range };
-        self.used_this_frame
+    /// `text` parsed as `lang`; a new text reparses from the kept version
+    /// it agrees with most, as an edited unit's last version does.
+    pub fn highlights(&self, lang: Lang, text: String) -> Option<Arc<Highlights>> {
+        let key = (lang, text);
+        if let Some((highlights, used)) = self.highlights.borrow_mut().get_mut(&key) {
+            *used = true;
+            return highlights.clone();
+        }
+        let closest = self
+            .highlights
+            .borrow()
+            .iter()
+            .filter_map(|((kept_lang, kept), (highlights, _))| {
+                let highlights = highlights.as_ref().filter(|_| *kept_lang == lang)?;
+                Some((agreeing(kept, &key.1), highlights.clone()))
+            })
+            .max_by_key(|(agree, _)| *agree)
+            .map(|(_, highlights)| highlights);
+        let highlights = match closest {
+            Some(closest) => closest.edited(key.1.clone()),
+            None => lang.highlights(key.1.clone()),
+        }
+        .map(Arc::new);
+        self.highlights
             .borrow_mut()
-            .insert(self.hash_key(&key));
-        self.map.borrow_mut().insert(key, value);
+            .insert(key, (highlights.clone(), true));
+        highlights
     }
 
-    pub fn get(&self, text: &str, range: (Grapheme, Grapheme)) -> Option<SyntaxHighlightResult> {
-        // std HashMap doesn't expose raw_entry stably, so the lookup
-        // still needs an owned key — but the used_this_frame side
-        // gets a u64 instead of a second clone.
-        let key = SyntaxCacheKey { text: text.to_string(), range };
-        self.used_this_frame
-            .borrow_mut()
-            .insert(self.hash_key(&key));
-        self.map.borrow().get(&key).cloned()
+    pub fn unit_for(
+        &self, key: ((Grapheme, Grapheme), u64), unit: impl FnOnce() -> CodeUnit,
+    ) -> Arc<CodeUnit> {
+        if let Some((unit, used)) = self.units.borrow_mut().get_mut(&key) {
+            *used = true;
+            return unit.clone();
+        }
+        let unit = Arc::new(unit());
+        self.units.borrow_mut().insert(key, (unit.clone(), true));
+        unit
     }
 
     pub fn garbage_collect(&self) {
-        let used = self.used_this_frame.borrow();
-        self.map
+        self.highlights
             .borrow_mut()
-            .retain(|key, _| used.contains(&self.hash_key(key)));
-        drop(used);
-        self.used_this_frame.borrow_mut().clear();
-    }
-
-    pub fn clear(&self) {
-        self.map.borrow_mut().clear();
-        self.used_this_frame.borrow_mut().clear();
-    }
-
-    fn hash_key(&self, key: &SyntaxCacheKey) -> u64 {
-        use std::hash::BuildHasher;
-        self.hasher.hash_one(key)
+            .retain(|_, (_, used)| std::mem::take(used));
+        self.units
+            .borrow_mut()
+            .retain(|_, (_, used)| std::mem::take(used));
     }
 }

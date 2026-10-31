@@ -3,6 +3,7 @@ use egui::{Pos2, Rect, Sense, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::style::{Space, ThemeExt as _};
+use crate::syntax::Role;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
 use super::MdRender;
@@ -14,6 +15,7 @@ pub(crate) mod debug;
 pub(crate) mod emoji_completions;
 pub(crate) mod find;
 pub(crate) mod inline;
+pub(crate) mod language_completions;
 pub(crate) mod link_completions;
 pub(crate) mod outline;
 pub(crate) mod toolbar;
@@ -250,28 +252,26 @@ impl<'ast> MdRender {
         }
     }
 
-    pub fn syntax_color_for_hex(&self, hex: &str) -> egui::Color32 {
+    pub fn syntax_color(&self, role: Role) -> egui::Color32 {
         let theme = self.ctx.get_lb_theme();
         if let Some(code) = theme.code_variant() {
-            return match hex {
-                "#000000" => code.text,
-                "#111111" => code.comment,
-                "#222222" => code.class,
-                "#333333" => code.function,
-                "#444444" => code.keyword,
-                "#555555" => code.string,
-                "#666666" => code.number,
-                _ => code.text,
+            return match role {
+                Role::Text => code.text,
+                Role::Comment => code.comment,
+                Role::Class => code.class,
+                Role::Function => code.function,
+                Role::Keyword => code.keyword,
+                Role::String => code.string,
+                Role::Number => code.number,
             };
         }
-        match hex {
-            "#000000" => theme.neutral_fg(),
-            "#111111" => theme.neutral_fg_secondary(),
-            "#222222" => theme.fg().get_color(theme.prefs().primary),
-            "#333333" => theme.fg().get_color(theme.prefs().secondary),
-            "#444444" => theme.fg().get_color(theme.prefs().tertiary),
-            "#555555" | "#666666" => theme.fg().get_color(theme.prefs().quaternary),
-            _ => theme.neutral_fg(),
+        match role {
+            Role::Text => theme.neutral_fg(),
+            Role::Comment => theme.neutral_fg_secondary(),
+            Role::Class => theme.fg().get_color(theme.prefs().primary),
+            Role::Function => theme.fg().get_color(theme.prefs().secondary),
+            Role::Keyword => theme.fg().get_color(theme.prefs().tertiary),
+            Role::String | Role::Number => theme.fg().get_color(theme.prefs().quaternary),
         }
     }
 
