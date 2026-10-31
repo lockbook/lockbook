@@ -6,6 +6,7 @@
 use super::*;
 use crate::file_cache::path_segments;
 use crate::show::InputStateExt as _;
+use egui::scroll_area::{ScrollBarVisibility, ScrollSource};
 
 /// A vertically-stacked, horizontally-centered column painted as one block in
 /// a rect — the shared skeleton of the onboarding chooser, connect step,
@@ -214,7 +215,10 @@ impl Chat {
         // First-run guidance, only in an empty chat and once config has
         // loaded (else it flashes before the background load lands). A
         // summoned chooser reuses the same surface over an existing chat.
-        let onboard = if self.chooser_open {
+        let embedded = self.embedded;
+        let onboard = if embedded {
+            None
+        } else if self.chooser_open {
             Some(Onboard::Choose)
         } else {
             (self.unshared && self.config_loaded && visible.is_empty())
@@ -227,7 +231,11 @@ impl Chat {
         // button — the fix always sits where you'd type. Computed regardless
         // of chat emptiness (an established chat keeps its history above) and
         // suppressed while the masked field or the roster is up.
-        let need_key = (self.unshared && self.config_loaded && !connect_open && !self.chooser_open)
+        let need_key = (self.unshared
+            && self.config_loaded
+            && !connect_open
+            && !self.chooser_open
+            && !embedded)
             .then(|| match self.onboard_stage() {
                 Some(Onboard::NeedKey { name, label }) => Some((name, label)),
                 _ => None,
@@ -239,7 +247,7 @@ impl Chat {
         // the composer surface (its text field becomes the "add key" button);
         // everything past a valid key (Connecting/Unreachable/PickModel) keeps
         // the composer too — PickModel picks its model from the toolbar.
-        let hide_composer = connect_open || matches!(onboard, Some(Onboard::Choose));
+        let hide_composer = connect_open || matches!(onboard, Some(Onboard::Choose)) || embedded;
 
         // Retry the last turn when it errored and the agent is idle.
         let can_retry = !agent_busy
@@ -286,10 +294,10 @@ impl Chat {
         // via the text FFI without touching egui focus, so lost focus must
         // self-heal here. (The touch keyboard tracks UIKit first-responder
         // state, not egui focus — the re-grab never summons it.)
-        if !self.initialized || ui.memory(|m| m.focused().is_none()) {
+        if !embedded && (!self.initialized || ui.memory(|m| m.focused().is_none())) {
             ui.memory_mut(|m| m.request_focus(composer_id));
-            self.initialized = true;
         }
+        self.initialized = true;
 
         // The connect step closes itself (validation lands in the background),
         // so no click refocuses anything — hand focus back to the composer.
@@ -394,7 +402,7 @@ impl Chat {
                 self.key_field.set_text(&cleaned);
                 key_submit = true;
             }
-        } else {
+        } else if !embedded {
             let workspace_events = self.composer.drain_workspace_events(ui.ctx());
             self.composer.event.internal_events.extend(workspace_events);
             let _ = self.composer.handle_input(ui.ctx(), composer_id);
@@ -418,13 +426,16 @@ impl Chat {
         // The composer bubble carries a toolbar row at its bottom; the model
         // dropdowns appear there for agent chats.
         let indicator = if self.unshared { self.provider.clone() } else { None };
-        let transcript_rect = Rect::from_min_max(
-            full_rect.min,
-            pos2(
-                full_rect.max.x,
-                full_rect.max.y - composer_height - TOOLBAR_H - composer_bottom_inset,
+        let transcript_rect = match embedded {
+            true => full_rect,
+            false => Rect::from_min_max(
+                full_rect.min,
+                pos2(
+                    full_rect.max.x,
+                    full_rect.max.y - composer_height - TOOLBAR_H - composer_bottom_inset,
+                ),
             ),
-        );
+        };
         let mut text_areas = Vec::new();
         let mut retry_clicked = false;
         let mut onboard_pick: Option<&'static str> = None;
@@ -437,7 +448,7 @@ impl Chat {
         // turn being in flight, and the agent-rerunning actions additionally
         // on this being an agent chat.
         let mut action: Option<RowAction> = None;
-        let can_mutate = !agent_busy;
+        let can_mutate = !agent_busy && !embedded;
         let agent_actions = self.harness.is_some();
         // The call awaiting a decision, rendered as a trailing approval card:
         // its adapted permission prose, the diff (edits), and Approve / Deny.
@@ -479,7 +490,7 @@ impl Chat {
         let mut backdrop_tapped = false;
         ui.scope_builder(egui::UiBuilder::new().max_rect(transcript_rect), |ui| {
             ui.set_clip_rect(transcript_rect.intersect(ui.clip_rect()));
-            if touch_os && !takeover {
+            if touch_os && !takeover && !embedded {
                 let backdrop = ui.interact(
                     transcript_rect,
                     self.salt.with("chat_transcript_backdrop"),
@@ -492,9 +503,23 @@ impl Chat {
                     i.smooth_scroll_delta != egui::Vec2::ZERO
                         || i.pointer.is_decidedly_dragging() && touch_os
                 });
-            ScrollArea::vertical()
+            // an embed stays within its entry
+            let was = self.transcript_view.min.y;
+            let mut top = was;
+            if let Some(row) = self.region_rect().filter(|_| embedded) {
+                top =
+                    top.clamp(row.top(), (row.bottom() - transcript_rect.height()).max(row.top()));
+            }
+            let (source, bar) = match embedded {
+                true => (ScrollSource::NONE, ScrollBarVisibility::AlwaysHidden),
+                false => (ScrollSource::default(), ScrollBarVisibility::VisibleWhenNeeded),
+            };
+            let out = ScrollArea::vertical()
                 .id_salt("chat_messages")
-                .stick_to_bottom(!branch_anchored)
+                .stick_to_bottom(!branch_anchored && self.region.is_none())
+                .scroll_source(source)
+                .scroll_bar_visibility(bar)
+                .offset_to((was.is_finite() && top != was).then_some(top))
                 .show(ui, |ui| {
                     let origin = ui.cursor().min;
                     let col_pad = (available_width - col_width) / 2.0;
@@ -998,6 +1023,14 @@ impl Chat {
                     let total_h = (y - origin.y) + BOTTOM_PAD;
                     let _ = ui.allocate_exact_size(vec2(available_width, total_h), Sense::hover());
 
+                    self.entry_rows = strips
+                        .iter()
+                        .filter_map(|s| {
+                            let id = self.entries[visible[s.vi].idx].msg.id?;
+                            Some((id, s.row_rect.translate(-origin.to_vec2())))
+                        })
+                        .collect();
+                    self.rows_width = available_width;
                     if let Some(id) = self.reveal_entry.take() {
                         let row = strips
                             .iter()
@@ -1927,6 +1960,9 @@ impl Chat {
                         col.show(ui, transcript_rect, center_x);
                     }
                 });
+            self.transcript_view =
+                Rect::from_min_size(out.state.clamped_offset().to_pos2(), out.inner_rect.size());
+            self.transcript_h = out.content_size.y;
         });
 
         // A bare-canvas tap dismisses the keyboard (composer surrenders
@@ -2114,7 +2150,7 @@ impl Chat {
             {
                 self.connect_provider_key();
             }
-        } else if hide_composer && self.key_entry.is_none() {
+        } else if hide_composer && self.key_entry.is_none() && !embedded {
             // The chooser has no text input — keyboard away (also the connect
             // step's dismissal path). Not while the step awaits first layout:
             // that would race the one-shot summon right behind it.
@@ -2835,5 +2871,19 @@ impl Chat {
             composer_updated,
             composer_text_updated,
         )
+    }
+}
+
+trait OffsetTo {
+    /// Scrolls to `y` this frame, when there is one.
+    fn offset_to(self, y: Option<f32>) -> Self;
+}
+
+impl OffsetTo for ScrollArea {
+    fn offset_to(self, y: Option<f32>) -> Self {
+        match y {
+            Some(y) => self.vertical_scroll_offset(y),
+            None => self,
+        }
     }
 }

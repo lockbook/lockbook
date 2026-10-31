@@ -115,6 +115,25 @@ pub enum Fragment {
 }
 
 impl Fragment {
+    /// A fragment as a URL writes it: `page=3` names a pdf's third page, a
+    /// uuid a chat's entry, anything else a heading. Empty names nothing.
+    pub fn from_url(fragment: &str) -> Option<Self> {
+        let fragment = fragment.trim_start_matches('#');
+        if fragment.is_empty() {
+            return None;
+        }
+        if let Some(page) = fragment
+            .strip_prefix("page=")
+            .and_then(|n| n.parse::<usize>().ok())
+        {
+            return Some(Self::Page(page.saturating_sub(1)));
+        }
+        if let Ok(id) = Uuid::parse_str(fragment) {
+            return Some(Self::Entry(id));
+        }
+        Some(Self::Heading(fragment.into()))
+    }
+
     /// A place outlives the app; a text range is a moment and is never
     /// written down.
     pub fn persists(&self) -> bool {
@@ -361,6 +380,7 @@ pub struct Tab {
     /// Every widget id inside the tab derives from this: the session id for
     /// a tab in the strip, a fresh id for an embed or a preview.
     pub salt: Id,
+    pub presentation: Presentation,
 
     pub last_changed: Instant,
     pub last_saved: Instant,
@@ -369,11 +389,29 @@ pub struct Tab {
     /// Transient tab-title edit. Not part of the session.
     pub rename: Option<String>,
 
-    /// Content hasn't been drawn since it opened; see [`crate::open_guard`].
+    /// Content hasn't been drawn since it opened.
     pub first_draw: bool,
+    /// When the open guard began watching the content, until it settles.
+    pub watch: Option<Instant>,
 
     /// Where the content lands once it can: its session's fragment.
     pub reveal: Option<Reveal>,
+}
+
+/// Height over width for content with no height of its own: a drawing, a
+/// mind map, the space inspector.
+pub const FIXED_ASPECT: f32 = 0.75;
+
+/// How a tab draws.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Presentation {
+    /// As the tab strip shows it, chrome and all.
+    #[default]
+    Full,
+    /// The content alone, read-only and still interactive: no toolbars,
+    /// sidebars, composer, or caret. It never takes focus, reports no text
+    /// interaction rect, and doesn't scroll: a slot shows its region whole.
+    Embedded,
 }
 
 /// A place for a tab's content to show once it has loaded.
@@ -392,11 +430,13 @@ impl Tab {
             destination,
             content,
             salt,
+            presentation: Presentation::Full,
             last_changed: now,
             last_saved: now,
             read_only,
             rename: None,
             first_draw: true,
+            watch: None,
             reveal: None,
         }
     }
@@ -548,25 +588,79 @@ impl Tab {
 
     #[tracing::instrument(name = "Tab::show", level = "trace", skip_all, fields(kind = self.kind_name()))]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
-        ui.push_id(self.salt, |ui| self.show_inner(ui)).inner
+        let embedded = self.presentation == Presentation::Embedded;
+        if let ContentState::Open(content) = &mut self.content {
+            content.set_embedded(embedded);
+        }
+        let resp = ui.push_id(self.salt, |ui| self.show_inner(ui)).inner;
+        self.first_draw = false;
+        match embedded {
+            // a host takes nothing from an embed but a file to open
+            true => Response { open_file: resp.open_file, ..Default::default() },
+            false => resp,
+        }
+    }
+
+    /// How tall `fragment`'s region stands at `width`: a heading's section,
+    /// a page, an entry's row, or the whole content, laid out for real.
+    /// Content with no height of its own takes a fixed aspect. None until
+    /// there is something to measure.
+    pub fn region_height(&mut self, fragment: Option<&Fragment>, width: f32) -> Option<f32> {
+        let ContentState::Open(content) = &mut self.content else { return None };
+        let fixed = Some(width * FIXED_ASPECT);
+        match content {
+            TabContent::Markdown(md) => Some(md.region_height(fragment, width)),
+            TabContent::Pdf(pdf) => {
+                let page = match fragment {
+                    Some(Fragment::Page(page)) => Some(*page),
+                    _ => None,
+                };
+                pdf.region_height(page, width)
+            }
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Chat(chat) => {
+                let entry = match fragment {
+                    Some(Fragment::Entry(id)) => Some(*id),
+                    _ => None,
+                };
+                chat.region_height(entry, width)
+            }
+            TabContent::Image(img) => img.aspect().map(|aspect| width * aspect).or(fixed),
+            _ => fixed,
+        }
+    }
+
+    /// Whether the frame just drawn shows the content as it will remain
+    /// without further input. Every pending state ends, failure included.
+    pub fn settled(&self) -> bool {
+        match &self.content {
+            ContentState::Loading(_) => false,
+            ContentState::Failed(_) => true,
+            ContentState::Open(content) => {
+                !self.first_draw && self.reveal.is_none() && content.settled()
+            }
+        }
     }
 
     /// Applies the pending reveal if the content can take it yet.
     fn apply_reveal(&mut self) {
-        let (Some(reveal), ContentState::Open(content)) = (&self.reveal, &mut self.content) else {
-            return;
-        };
-        if content.reveal(reveal) {
-            self.reveal = None;
+        let Some(reveal) = &self.reveal else { return };
+        match &mut self.content {
+            ContentState::Open(content) => {
+                if content.reveal(reveal) {
+                    self.reveal = None;
+                }
+            }
+            // nothing opened to land in
+            ContentState::Failed(_) => self.reveal = None,
+            ContentState::Loading(_) => {}
         }
     }
 
     /// Where the content is, as a fragment: the heading or page being read.
     pub fn here(&mut self) -> Option<Fragment> {
         match &mut self.content {
-            ContentState::Open(TabContent::Markdown(md)) => {
-                md.scrolled_heading_slug().map(Fragment::Heading)
-            }
+            ContentState::Open(TabContent::Markdown(md)) => md.here(),
             ContentState::Open(TabContent::Pdf(pdf)) => Some(Fragment::Page(pdf.current_page())),
             _ => None,
         }
@@ -576,7 +670,10 @@ impl Tab {
         self.apply_reveal();
         match &mut self.content {
             ContentState::Loading(_) => {
-                ui.spinner();
+                // an embed's host draws its own placeholder
+                if self.presentation == Presentation::Full {
+                    ui.spinner();
+                }
                 Response::default()
             }
             ContentState::Failed(TabFailure::Refused(refusal)) => Response {
@@ -726,10 +823,64 @@ impl TabContent {
         }
     }
 
+    fn set_embedded(&mut self, embedded: bool) {
+        match self {
+            TabContent::Markdown(md) => {
+                md.embedded = embedded;
+                md.edit.takes_focus = !embedded;
+                md.edit.clip_to_host = embedded;
+                md.edit.renderer.interactive = !embedded;
+            }
+            TabContent::Image(img) => img.embedded = embedded,
+            TabContent::Pdf(pdf) => pdf.embedded = embedded,
+            TabContent::Svg(svg) => svg.embedded = embedded,
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Chat(chat) => chat.embedded = embedded,
+            _ => {}
+        }
+    }
+
+    /// See [`Tab::settled`]. A chat or a drawing is settled once drawn.
+    pub fn settled(&self) -> bool {
+        match self {
+            TabContent::Markdown(md) => md.settled(),
+            TabContent::Image(img) => img.settled(),
+            TabContent::Pdf(pdf) => pdf.settled(),
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::MindMap(mm) => mm.settled(),
+            TabContent::SpaceInspector(sv) => sv.settled(),
+            _ => true,
+        }
+    }
+
     /// Lands on `reveal` if the content can yet; returns whether it's done
     /// with it. Content without fragments is done at once.
     pub fn reveal(&mut self, reveal: &Reveal) -> bool {
         match self {
+            // an embed shows its region from the region's top, unwashed
+            TabContent::Markdown(md) if md.embedded => {
+                md.region = reveal
+                    .fragment
+                    .clone()
+                    .filter(|f| matches!(f, Fragment::Heading(_)));
+                true
+            }
+            TabContent::Pdf(pdf) if pdf.embedded => {
+                let page = match reveal.fragment {
+                    Some(Fragment::Page(page)) => Some(page),
+                    _ => None,
+                };
+                pdf.region = page;
+                pdf.reveal_page(page.unwrap_or(0))
+            }
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Chat(chat) if chat.embedded => {
+                if let Some(Fragment::Entry(id)) = reveal.fragment {
+                    chat.region = Some(id);
+                    chat.reveal_entry = Some(id);
+                }
+                chat.initialized
+            }
             TabContent::Markdown(md) => {
                 if !md.initialized {
                     return false;

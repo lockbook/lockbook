@@ -26,7 +26,7 @@ use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdResources};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
-use crate::tab::{Destination, TabContent, TabFailure};
+use crate::tab::{Destination, Fragment, TabContent, TabFailure};
 use crate::widgets::image_cache::ImageCache;
 use crate::workspace::WsPersistentStore;
 
@@ -43,6 +43,9 @@ pub struct TabResources {
     pub persistence: WsPersistentStore,
     pub account: Account,
     pub guard: Arc<OpenGuard>,
+    /// Opens mark the guard's marker: off on a preview's own thread, where a
+    /// hang can't freeze the app and a kill mustn't refuse the document.
+    pub watched: bool,
 }
 
 /// A document as loaded: what it's called, its version, and its bytes.
@@ -52,7 +55,35 @@ pub struct Doc {
     pub bytes: Vec<u8>,
 }
 
+/// What a region's remembered height is filed under, if it's remembered:
+/// a place is, a moment isn't.
+pub fn region_key(dest: &Destination, fragment: Option<&Fragment>, width: f32) -> Option<String> {
+    if fragment.is_some_and(|f| !f.persists()) {
+        return None;
+    }
+    let fragment = fragment.map(|f| serde_json::to_string(f).unwrap_or_default());
+    let dest = serde_json::to_string(dest).unwrap_or_default();
+    Some(format!("{dest}|{}|{}", fragment.unwrap_or_default(), width.round() as i32))
+}
+
 impl TabResources {
+    /// The height `fragment`'s region had at `width` when last measured
+    /// settled, so a slot lays out right before its tab loads.
+    pub fn remembered_height(
+        &self, dest: &Destination, fragment: Option<&Fragment>, width: f32,
+    ) -> Option<f32> {
+        self.persistence
+            .region_height(&region_key(dest, fragment, width)?)
+    }
+
+    pub fn remember_height(
+        &self, dest: &Destination, fragment: Option<&Fragment>, width: f32, height: f32,
+    ) {
+        if let Some(key) = region_key(dest, fragment, width) {
+            self.persistence.set_region_height(key, height);
+        }
+    }
+
     /// The name the editor is picked by. The cache can trail a create or
     /// rename, so core has the last word.
     pub fn name(&self, id: Uuid) -> Option<String> {
@@ -136,7 +167,9 @@ impl TabContent {
             return Err(TabFailure::Refused(refusal));
         }
 
-        res.guard.enter(id);
+        if res.watched {
+            res.guard.enter(id);
+        }
         let Doc { hmac, bytes, .. } = doc;
         let content = match doc_type {
             DocType::Image => Ok(TabContent::Image(ImageViewer::new(id, res.images.clone()))),
@@ -187,11 +220,15 @@ impl TabContent {
                     MdConfig { readonly: read_only, ext },
                 );
                 md.set_salt(salt);
+                md.edit.renderer.tab_embeds.res = Some(res.clone());
+                md.edit.renderer.tab_embeds.path = vec![id];
                 Ok(TabContent::Markdown(md))
             }
             _ => Err(TabFailure::SimpleMisc(format!("Unsupported file extension: {ext}"))),
         };
-        res.guard.exit(id);
+        if res.watched {
+            res.guard.exit(id);
+        }
         content
     }
 
