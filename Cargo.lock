@@ -9977,6 +9977,7 @@ dependencies = [
  "emojis",
  "epaint",
  "futures",
+ "gif 0.14.2",
  "glam",
  "glyphon",
  "hayro",
