@@ -51,6 +51,7 @@ pub struct RequestContext<TRequest> {
     pub request: TRequest,
     pub public_key: PublicKey,
     pub ip: Option<SocketAddr>,
+    pub os: user_os::OS,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -115,4 +116,5 @@ pub mod loggers;
 pub mod metrics;
 pub mod router_service;
 pub mod schema;
+pub mod user_os;
 pub mod utils;
