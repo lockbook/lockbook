@@ -1176,3 +1176,53 @@ pub unsafe extern "C" fn ios_text_traits(obj: *mut c_void) -> CTextTraits {
         None => CTextTraits::default(),
     }
 }
+
+/// Words for the host to spell check, one per line, or null when there are
+/// none. The returned string must be freed with `free_text`.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn spelling_requests(obj: *mut c_void) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let words = workspace_rs::spelling::get(&obj.renderer.context)
+        .map(|s| s.take_requests())
+        .unwrap_or_default();
+    if words.is_empty() {
+        return std::ptr::null();
+    }
+    CString::new(words.join("\n"))
+        .map(|s| s.into_raw() as *const c_char)
+        .unwrap_or(std::ptr::null())
+}
+
+/// Whether `word` is spelled right, as the host's checker says, or that the
+/// person learned it.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn spelling_answer(obj: *mut c_void, word: *const c_char, correct: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Ok(word) = CStr::from_ptr(word).to_str() else { return };
+    if let Some(spelling) = workspace_rs::spelling::get(&obj.renderer.context) {
+        spelling.answer(word, correct);
+    }
+}
+
+/// Accepts `word` until the app quits.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn spelling_ignore(obj: *mut c_void, word: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Ok(word) = CStr::from_ptr(word).to_str() else { return };
+    if let Some(spelling) = workspace_rs::spelling::get(&obj.renderer.context) {
+        spelling.ignore(word);
+    }
+}
+
+/// The misspelled word the selection is in, for the edit menu's fixes.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn selection_misspelling(obj: *mut c_void) -> CTextRange {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CTextRange::default() };
+    let Some(word) = md.renderer.selection_misspelling() else { return CTextRange::default() };
+    CTextRange { none: false, start: position(md, word.start()), end: position(md, word.end()) }
+}

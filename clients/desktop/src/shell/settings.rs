@@ -412,6 +412,25 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
             queue.push(A::SetPrefLinkPreviews(previews));
         }
     });
+    section_label(ui, t, "Writing");
+    form_group(ui, t, |ui| {
+        let mut spell_check = app
+            .session
+            .ready()
+            .map(|r| r.workspace.cfg.get_spell_check())
+            .unwrap_or(true);
+        if form_toggle_detail(
+            ui,
+            t,
+            "Check spelling",
+            "Misspelled words get a red dotted underline.",
+            &mut spell_check,
+        )
+        .changed()
+        {
+            queue.push(A::SetPrefSpellCheck(spell_check));
+        }
+    });
 }
 
 fn page_debug(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {

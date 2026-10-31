@@ -7740,6 +7740,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "spellbook"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d204abcbdf8e88729306a8d0ca01a79d8a49969fe1f84696909d6dbc4321c1a"
+dependencies = [
+ "foldhash 0.2.0",
+ "hashbrown 0.17.1",
+]
+
+[[package]]
 name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9991,6 +10001,8 @@ dependencies = [
  "memmap2",
  "ndk-sys 0.4.1+23.1.7779620",
  "num_cpus",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "pollster 0.2.5",
  "rand 0.8.7",
  "raw-window-handle",
@@ -10002,6 +10014,7 @@ dependencies = [
  "serde",
  "serde_json",
  "similar",
+ "spellbook",
  "syntect",
  "syntect-assets",
  "sys-locale",
@@ -10017,6 +10030,7 @@ dependencies = [
  "urlencoding",
  "wasm-bindgen-futures",
  "web-time",
+ "windows",
 ]
 
 [[package]]

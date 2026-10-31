@@ -37,6 +37,7 @@ import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
+import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import app.lockbook.workspace.toModelTab
@@ -71,6 +72,8 @@ class WorkspaceView(
 
     private val prefs by lazy { PreferenceManager.getDefaultSharedPreferences(context) }
     private val contactLinkedSitesKey by lazy { context.getString(R.string.contact_linked_sites_key) }
+    private val spellCheckKey by lazy { context.getString(R.string.spell_check_key) }
+    private val spelling by lazy { WorkspaceSpelling(context) { invalidate() } }
 
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -361,6 +364,7 @@ class WorkspaceView(
         pendingFocusY = 0f
 
         Workspace.setContactLinkedSites(wgpuObj, prefs.getBoolean(contactLinkedSitesKey, false))
+        Workspace.setSpellCheck(wgpuObj, prefs.getBoolean(spellCheckKey, true))
 
         model.nextAttachment()?.let { attachment ->
             when (Workspace.currentTab(wgpuObj).toModelTab().type) {
@@ -507,6 +511,8 @@ class WorkspaceView(
         if (response.selectionUpdated || response.textUpdated) {
             onMarkdownToolbarStateChanged?.invoke()
         }
+
+        spelling.check(wgpuObj)
 
         if (response.redrawIn < 100) {
             invalidate()
@@ -734,6 +740,9 @@ class WorkspaceView(
         const val REFRESH_PREVIEW_MENU_ID = 0x00E0170D
         const val COPY_HEADING_LINK_MENU_ID = 0x00E0170F
         const val COPY_RENDERED_MENU_ID = 0x00E0170E
+        const val ADD_TO_DICTIONARY_MENU_ID = 0x00E01710
+        const val IGNORE_SPELLING_MENU_ID = 0x00E01711
+        const val SPELLING_GUESS_GROUP_ID = 0x00E01712
     }
 
     inner class FloatingTextEditorContextMenu(
@@ -841,6 +850,10 @@ class WorkspaceView(
         private var openTarget: String? = null
         private var headingLink: String? = null
 
+        // the misspelled word under the selection
+        private var misspelling: JTextRange? = null
+        private var misspelled: String? = null
+
         override fun onCreateActionMode(
             mode: ActionMode?,
             menu: Menu?,
@@ -858,7 +871,31 @@ class WorkspaceView(
             return true
         }
 
+        private fun populateSpellingItems(menu: Menu) {
+            val range = Workspace.selectionMisspelling(wgpuObj)
+            if (range.none) {
+                misspelling = null
+                return
+            }
+            val word = Workspace.getTextInRange(wgpuObj, range.start, range.end)
+            misspelling = range
+            misspelled = word
+            spelling.guesses(word).forEachIndexed { i, guess ->
+                menu
+                    .add(SPELLING_GUESS_GROUP_ID, SPELLING_GUESS_GROUP_ID + 1 + i, 0, guess)
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+            menu
+                .add(Menu.NONE, ADD_TO_DICTIONARY_MENU_ID, 0, "Add to dictionary")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+            menu
+                .add(Menu.NONE, IGNORE_SPELLING_MENU_ID, 0, "Ignore")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+        }
+
         private fun populateMenuWithItems(menu: Menu) {
+            populateSpellingItems(menu)
+
             // link (or wikilink/image) in the selection → offer open + copy
             openTarget = Workspace.selectionOpenTarget(wgpuObj)
             if (openTarget != null) {
@@ -932,7 +969,38 @@ class WorkspaceView(
             item: MenuItem?,
         ): Boolean {
             if (item != null) {
+                val range = misspelling
+                val word = misspelled
                 when (item.itemId) {
+                    in (SPELLING_GUESS_GROUP_ID + 1)..(SPELLING_GUESS_GROUP_ID + WorkspaceSpelling.MAX_GUESSES) -> {
+                        // the word may have moved while the menu was open
+                        if (range != null && Workspace.getTextInRange(wgpuObj, range.start, range.end) == word) {
+                            textInputWrapper.wsInputConnection.wsEditable
+                                .replace(range.start, range.end, item.title)
+                            invalidate()
+                        }
+                    }
+
+                    ADD_TO_DICTIONARY_MENU_ID -> {
+                        if (word != null) {
+                            Workspace.spellingAnswer(wgpuObj, word, true)
+                            context.startActivity(
+                                android.content
+                                    .Intent("com.android.settings.USER_DICTIONARY_INSERT")
+                                    .putExtra("word", word)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                            invalidate()
+                        }
+                    }
+
+                    IGNORE_SPELLING_MENU_ID -> {
+                        if (word != null) {
+                            Workspace.spellingIgnore(wgpuObj, word)
+                            invalidate()
+                        }
+                    }
+
                     EDIT_ATOM_MENU_ID -> {
                         Workspace.enterSelectedAtom(wgpuObj)
                         // schedule the frame that processes the event, whose selection

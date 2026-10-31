@@ -15,6 +15,7 @@ pub mod search;
 pub mod seq;
 pub mod show;
 pub mod space_inspector;
+pub mod spelling;
 pub mod style;
 pub mod tab;
 pub mod task_manager;

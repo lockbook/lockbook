@@ -84,3 +84,24 @@ ndk-sys = "0.4"
 raw-window-handle = "0.6"
 jni = "0.21.0"
 pollster = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSSpellChecker",
+] }
+objc2-foundation = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSArray",
+    "NSRange",
+    "NSString",
+] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Globalization",
+    "Win32_System_Com",
+] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+spellbook = "0.4"
