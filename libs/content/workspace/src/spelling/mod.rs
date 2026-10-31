@@ -11,6 +11,8 @@ use std::sync::{Arc, Mutex};
 
 use egui::{Context, Id};
 
+#[cfg(target_os = "linux")]
+mod hunspell;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(windows)]
@@ -79,6 +81,8 @@ impl Spelling {
         return Some(Self::new(Box::new(macos::AppKit)));
         #[cfg(windows)]
         return windows::Windows::new().map(|c| Self::new(Box::new(c)));
+        #[cfg(target_os = "linux")]
+        return Some(Self::new(Box::new(hunspell::Hunspell::load(ctx.clone()))));
         #[allow(unreachable_code)]
         None
     }
