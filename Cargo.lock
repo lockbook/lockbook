@@ -10361,6 +10361,7 @@ dependencies = [
  "urlencoding",
  "wasm-bindgen-futures",
  "web-time",
+ "windows",
 ]
 
 [[package]]
