@@ -97,6 +97,12 @@ data class MarkdownToolbarState(
     val onHeader: Boolean = false,
 )
 
+// called from any thread, under the workspace's lock, when it wants a frame in delayMs;
+// implementations hand off (post) and never call back into the workspace
+fun interface RepaintCallback {
+    fun repaint(delayMs: Long)
+}
+
 object Workspace {
     init {
         System.loadLibrary("workspace")
@@ -107,7 +113,7 @@ object Workspace {
         print("do nothing")
     }
 
-    external fun initWSOffloaded(surface: Surface, core: Long, theme: Any): Long
+    external fun initWSOffloaded(surface: Surface, core: Long, theme: Any, repaint: RepaintCallback): Long
 
     // comma-separated BCP 47 tags, before the first initWS
     external fun setPreferredLanguages(tags: String)
