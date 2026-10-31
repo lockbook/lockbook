@@ -249,6 +249,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
         }
         A::ShareInvite => share_invite(app, ctx),
+        A::ShareRemove(user) => share_remove(app, &user),
         A::OpenCreate { folder, alongside, is_folder } => {
             open_create_sheet(app, ctx, folder, alongside, is_folder)
         }
