@@ -1,13 +1,16 @@
 package app.lockbook.screen
 
+import android.content.res.Configuration
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.model.PinnedFile
+import app.lockbook.util.Previews
 import com.google.android.material.textview.MaterialTextView
 import net.lockbook.File
 
@@ -36,6 +39,10 @@ class PinnedFilesAdapter(
         holder.title.text = item.file.name
         holder.emoji.text = item.pin.emoji
         holder.emoji.visibility = if (item.pin.emoji == null) View.GONE else View.VISIBLE
+        val night = holder.itemView.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        val preview = Previews.get(item.file.id, night == Configuration.UI_MODE_NIGHT_YES)
+        holder.preview.setImageBitmap(preview)
+        holder.preview.visibility = if (preview == null) View.GONE else View.VISIBLE
         holder.itemView.setOnClickListener { onItemClick(item) }
         holder.itemView.setOnLongClickListener {
             onItemLongClick(item)
@@ -48,6 +55,7 @@ class PinnedFilesAdapter(
     ) : RecyclerView.ViewHolder(itemView) {
         val emoji: MaterialTextView = itemView.findViewById(R.id.pinned_file_emoji)
         val title: MaterialTextView = itemView.findViewById(R.id.pinned_file_title)
+        val preview: ImageView = itemView.findViewById(R.id.pinned_file_preview)
     }
 }
 

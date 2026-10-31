@@ -115,6 +115,31 @@ object Workspace {
     external fun defaultTheme(isDark: Boolean): Any
 
     external fun enterFrameOffloaded(rustObj: Long): AndroidResponse
+
+    // A tab drawn to a PNG in a WorkspaceTheme's mode: take the job on the UI thread, render it off it.
+    // A job is 0 when there's nothing to draw; renderPreview is null if it failed.
+    external fun previewSession(
+        rustObj: Long,
+        session: String,
+        width: Float,
+        height: Float,
+        scale: Float,
+        padding: Float,
+        theme: Any,
+    ): Long
+
+    external fun previewDocument(
+        rustObj: Long,
+        id: String,
+        fragment: String,
+        width: Float,
+        height: Float,
+        scale: Float,
+        padding: Float,
+        theme: Any,
+    ): Long
+
+    external fun renderPreview(job: Long): ByteArray?
     private external fun markdownToolbarStateNative(rustObj: Long): String
     fun markdownToolbarState(rustObj: Long): MarkdownToolbarState =
         Json.decodeFromString(markdownToolbarStateNative(rustObj))
