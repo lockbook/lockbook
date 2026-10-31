@@ -76,7 +76,9 @@ class FileTreeViewModel(
 
     private var pinnedFileEntries = mutableListOf<PinnedFile>()
     private var persistPinnedFilesJob: Job? = null
-    val _pinnedFiles = MutableLiveData<List<PinnedFile>>(emptyList())
+
+    // unset until the saved pins are read, so a reader can tell none from not yet
+    val _pinnedFiles = MutableLiveData<List<PinnedFile>>()
     val pinnedFiles: LiveData<List<PinnedFile>>
         get() = _pinnedFiles
 

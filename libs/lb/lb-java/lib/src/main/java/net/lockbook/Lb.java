@@ -25,6 +25,7 @@ public class Lb {
     public static native File[] getChildren(String id) throws LbError;
     public static native File getFileById(String id) throws LbError;
     public static native String getFileLinkUrl(String id) throws LbError;
+    public static native String documentVersion(String id) throws LbError;
     public static native String nextName(String parentId, String desired) throws LbError;
     public static native void renameFile(String id, String name) throws LbError;
     public static native File duplicateFile(String id) throws LbError;
