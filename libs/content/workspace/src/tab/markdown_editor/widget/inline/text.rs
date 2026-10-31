@@ -14,6 +14,18 @@ impl<'ast> MdRender {
             return;
         }
         self.layout_source(layout, node, node_range, self.text_format(node), true);
+        if !self.in_autolink(node) {
+            layout.push_prose(node_range);
+        }
+    }
+
+    /// An autolink's text is its URL.
+    fn in_autolink(&self, node: &'ast AstNode<'ast>) -> bool {
+        node.parent()
+            .is_some_and(|parent| match &parent.data.borrow().value {
+                NodeValue::Link(link) => self.link_is_auto(parent, &link.url),
+                _ => false,
+            })
     }
 
     /// Lays out `range` of the source as it is written, in `format`, with

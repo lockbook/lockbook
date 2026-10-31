@@ -45,6 +45,7 @@ pub mod md_label;
 pub mod row_scroll;
 mod scroll_content;
 pub mod show;
+mod spelling;
 pub mod table;
 pub mod text_units;
 mod theme;
@@ -125,6 +126,9 @@ pub struct MdRender {
     /// The user moved the selection since the last frame was painted: a
     /// table wider than the note scrolls to show its end.
     pub caret_moved: bool,
+    /// The last change to the buffer edited its text; moving the caret
+    /// alone ends it. The word being typed is not spell checked.
+    pub typing: bool,
 
     // document
     pub buffer: Buffer,
@@ -138,6 +142,8 @@ pub struct MdRender {
     pub text_areas: Vec<TextBufferArea>,
     /// Strikethroughs and underlines painted on top of text
     pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
+    /// Words marked misspelled this frame, in source order of their units.
+    pub misspelled: Vec<(Grapheme, Grapheme)>,
     /// Edge fades of scrolled tables and code blocks `(rect, left color,
     /// right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
@@ -216,6 +222,7 @@ pub struct MdRender {
     pub single_line: bool,
     pub disable_images: bool, // skip image rendering (e.g. for the mobile toolbar)
     pub contact_linked_sites: bool, // mirror of the persisted pref; gates outbound link fetching
+    pub spell_check: bool,    // mirror of the persisted pref; marks misspelled words
 
     pub reveal_selection: Option<(Grapheme, Grapheme)>,
     /// A preview atom entered via `Event::EnterAtom` whose whole range is
@@ -375,6 +382,11 @@ pub struct MdEdit {
     pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
     /// The slug of the heading under the context menu, captured likewise.
     pub context_menu_heading: Option<String>,
+    /// The misspelled word under the context menu and its suggestions,
+    /// captured likewise.
+    pub context_menu_spelling: Option<((Grapheme, Grapheme), String, Vec<String>)>,
+    /// A word the person taught the system, under the menu's click.
+    pub context_menu_learned: Option<String>,
 
     /// When "Paste as table" was last chosen: the paste it requested from
     /// the platform, which arrives as any other does, is to be a table.
@@ -436,6 +448,8 @@ impl MdEdit {
             link_completions: Default::default(),
             context_menu_link: None,
             context_menu_heading: None,
+            context_menu_spelling: None,
+            context_menu_learned: None,
             paste_as_table: Default::default(),
             row_pan: None,
             platform_row_pan: None,
@@ -496,6 +510,7 @@ pub struct Editor {
     pub unprocessed_scroll: Option<Instant>,
     prev_dimensions: Option<Vec2>,
     prev_virtual_keyboard_shown: bool,
+    prev_keyboard_visible: bool,
     /// The find bar's height while open; opening and closing scroll the
     /// page by it so the content stays put on screen.
     find_bar_height: f32,
@@ -647,6 +662,7 @@ impl MdRender {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            typing: false,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
@@ -661,6 +677,7 @@ impl MdRender {
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
+            misspelled: Default::default(),
             edge_fades: Default::default(),
             over_text: Default::default(),
             copy_buttons: Default::default(),
@@ -683,6 +700,7 @@ impl MdRender {
             single_line: false,
             disable_images: false,
             contact_linked_sites: false,
+            spell_check: false,
             reveal_selection: None,
             entered_atom: None,
             reveal_seq: 0,
@@ -749,6 +767,7 @@ impl MdRender {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            typing: false,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
@@ -762,6 +781,7 @@ impl MdRender {
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
+            misspelled: Default::default(),
             edge_fades: Default::default(),
             over_text: Default::default(),
             copy_buttons: Default::default(),
@@ -777,6 +797,7 @@ impl MdRender {
             ime_marked: None,
             disable_images: false,
             contact_linked_sites: false,
+            spell_check: false,
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
@@ -955,6 +976,7 @@ impl Editor {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            typing: false,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -970,6 +992,7 @@ impl Editor {
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
+            misspelled: Default::default(),
             edge_fades: Default::default(),
             over_text: Default::default(),
             copy_buttons: Default::default(),
@@ -997,6 +1020,7 @@ impl Editor {
             ime_marked: None,
             disable_images: false,
             contact_linked_sites: false,
+            spell_check: false,
 
             embeds,
             link_resolver,
@@ -1051,6 +1075,8 @@ impl Editor {
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
                 context_menu_heading: None,
+                context_menu_spelling: None,
+                context_menu_learned: None,
                 paste_as_table: Default::default(),
                 row_pan: None,
                 platform_row_pan: None,
@@ -1092,6 +1118,7 @@ impl Editor {
 
             prev_dimensions: None,
             prev_virtual_keyboard_shown: false,
+            prev_keyboard_visible: false,
             find_bar_height: 0.0,
 
             next_resp: Default::default(),
@@ -1307,6 +1334,17 @@ impl Editor {
 
         // Mirror the opt-in fetch preference onto the renderer each frame.
         self.edit.renderer.contact_linked_sites = self.persistence.get_contact_linked_sites();
+        // On touch, spelling is marked while the keyboard is up, and the
+        // host checks the words again as it comes up.
+        let touch = self.edit.renderer.touch_mode;
+        self.edit.renderer.spell_check =
+            self.persistence.get_spell_check() && (!touch || self.keyboard_visible);
+        if touch && self.keyboard_visible && !self.prev_keyboard_visible {
+            if let Some(spelling) = crate::spelling::get(ui.ctx()) {
+                spelling.recheck();
+            }
+        }
+        self.prev_keyboard_visible = self.keyboard_visible;
 
         let start = web_time::Instant::now();
 
@@ -1904,6 +1942,7 @@ impl Editor {
                         self.edit.renderer.bounds.wrap_lines.clear();
                         self.edit.renderer.text_areas.clear();
                         self.edit.renderer.deco_lines.clear();
+                        self.edit.renderer.misspelled.clear();
                         self.edit.renderer.clear_row_scroll_frame();
 
                         // Phase 1: drive scroll math + scrollbar, and
@@ -3210,6 +3249,8 @@ pub(crate) fn test_egui_ctx() -> Context {
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     ctx.set_fonts(fonts);
+    // tests that check spelling install their own checker
+    crate::spelling::install(&ctx, None);
     ctx
 }
 

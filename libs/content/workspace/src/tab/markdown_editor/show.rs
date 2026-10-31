@@ -15,8 +15,7 @@
 use comrak::Arena;
 use egui::os::OperatingSystem;
 use egui::{
-    Context, EventFilter, Id, ImeEvent, Key, Pos2, Rect, Sense, Stroke, Ui, UiBuilder,
-    ViewportCommand,
+    Context, EventFilter, Id, ImeEvent, Key, Pos2, Rect, Sense, Ui, UiBuilder, ViewportCommand,
 };
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
@@ -35,6 +34,10 @@ use super::{ImeMarked, MdEdit, MdRender};
 
 #[derive(Clone)]
 enum EditorMenuCmd {
+    Suggestion(String),
+    LearnSpelling,
+    IgnoreSpelling,
+    UnlearnSpelling,
     Link(LinkMenuAction),
     HeadingLink,
     Cut,
@@ -237,6 +240,8 @@ impl MdEdit {
             self.caret_moved = true;
         }
         self.renderer.caret_moved |= buf_resp.selection_user_moved;
+        self.renderer
+            .note_typing(buf_resp.text_updated, buf_resp.selection_user_moved);
 
         buf_resp
     }
@@ -390,6 +395,8 @@ impl MdEdit {
             self.caret_moved = true;
             self.renderer.caret_moved |= resp.selection_user_moved;
         }
+        self.renderer
+            .note_typing(resp.text_updated, resp.selection_user_moved);
         ctx.request_repaint();
         resp
     }
@@ -464,6 +471,7 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
+        self.renderer.misspelled.clear();
         self.renderer.clear_row_scroll_frame();
         self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
@@ -782,7 +790,7 @@ impl MdEdit {
                 ));
         }
         for d in floating_deco {
-            ui.painter().hline(d.x, d.y, Stroke::new(1.0_f32, d.color));
+            d.paint(ui.painter());
         }
     }
 
@@ -845,13 +853,51 @@ impl MdEdit {
                     let offset = self.location_to_char_offset(Location::Pos(pos));
                     self.renderer.heading_slug_at(root, offset)
                 });
+                self.context_menu_spelling = pos.and_then(|pos| {
+                    let offset = self.location_to_char_offset(Location::Pos(pos));
+                    let word = self.renderer.misspelled_at(offset)?;
+                    let spelling = crate::spelling::get(ui.ctx())?;
+                    let text = self.renderer.buffer[word].to_string();
+                    let suggestions = spelling.suggest(&text);
+                    Some((word, text, suggestions))
+                });
+                self.context_menu_learned = pos
+                    .filter(|_| self.renderer.spelling_marked())
+                    .and_then(|pos| {
+                        let offset = self.location_to_char_offset(Location::Pos(pos));
+                        let word = self.renderer.word_at(offset)?;
+                        let spelling = crate::spelling::get(ui.ctx())?;
+                        let text = &self.renderer.buffer[word];
+                        spelling.learned(text).then(|| text.to_string())
+                    });
             }
             let link_target = self.context_menu_link.clone();
             let heading = self.context_menu_heading.clone();
+            let spelling = self.context_menu_spelling.clone();
+            let learned = self.context_menu_learned.clone();
             let (readonly, markdown) =
                 (self.renderer.readonly, self.renderer.kind == Syntax::Markdown);
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
+                if let Some((_, _, suggestions)) = &spelling {
+                    for suggestion in suggestions {
+                        e.item_plain(
+                            suggestion.clone(),
+                            EditorMenuCmd::Suggestion(suggestion.clone()),
+                        );
+                    }
+                    e.item(phosphor::CHECK, "Learn Spelling", EditorMenuCmd::LearnSpelling);
+                    e.item(phosphor::EYE_SLASH, "Ignore Spelling", EditorMenuCmd::IgnoreSpelling);
+                    e.separator();
+                }
+                if learned.is_some() {
+                    e.item(
+                        phosphor::ARROW_COUNTER_CLOCKWISE,
+                        "Unlearn Spelling",
+                        EditorMenuCmd::UnlearnSpelling,
+                    );
+                    e.separator();
+                }
                 if let Some(link) = &link_target {
                     // plain links never render a preview — nothing to refresh
                     fill_link_menu(e, link.is_image, !readonly, false, EditorMenuCmd::Link);
@@ -874,7 +920,41 @@ impl MdEdit {
                 }
             });
             let mut menu_events: Vec<Event> = Vec::new();
+            let spelled = spelling.map(|(word, text, _)| (word, text));
             match chosen {
+                // an edit, which is the next input pass's to make; skipped
+                // if the word moved while the menu was open
+                Some(EditorMenuCmd::Suggestion(text)) => {
+                    if let Some((word, _)) =
+                        spelled.filter(|(w, t)| self.renderer.buffer[*w] == **t)
+                    {
+                        self.event.internal_events.push(Event::Replace {
+                            region: word.into(),
+                            text,
+                            advance_cursor: true,
+                        });
+                        ui.ctx().request_repaint();
+                    }
+                }
+                Some(EditorMenuCmd::UnlearnSpelling) => {
+                    if let (Some(spelling), Some(word)) = (crate::spelling::get(ui.ctx()), learned)
+                    {
+                        spelling.unlearn(&word);
+                        ui.ctx().request_repaint();
+                    }
+                }
+                Some(cmd @ (EditorMenuCmd::LearnSpelling | EditorMenuCmd::IgnoreSpelling)) => {
+                    if let (Some(spelling), Some((_, word))) =
+                        (crate::spelling::get(ui.ctx()), spelled)
+                    {
+                        if matches!(cmd, EditorMenuCmd::LearnSpelling) {
+                            spelling.learn(&word);
+                        } else {
+                            spelling.ignore(&word);
+                        }
+                        ui.ctx().request_repaint();
+                    }
+                }
                 Some(EditorMenuCmd::HeadingLink) => {
                     if let Some(slug) = &heading {
                         ui.ctx().copy_text(self.heading_link(slug));
@@ -1085,6 +1165,8 @@ impl MdEdit {
             self.caret_moved = true;
         }
         self.renderer.caret_moved |= pointer_resp.selection_user_moved;
+        self.renderer
+            .note_typing(pointer_resp.text_updated, pointer_resp.selection_user_moved);
         // Pointer only emits Select ops (no text change), so no re-parse
         // needed — but reveal must reflect the applied ops (and any
         // `entered_atom` a menu "Edit" set) in this frame's paint: iOS
@@ -1235,8 +1317,7 @@ impl MdEdit {
         }
         // strikethroughs and underlines painted on top of text
         for deco in std::mem::take(&mut self.renderer.deco_lines) {
-            ui.painter()
-                .hline(deco.x, deco.y, Stroke::new(1.0_f32, deco.color));
+            deco.paint(ui.painter());
         }
 
         // A reorder selects the dragged section; its handles would clutter
