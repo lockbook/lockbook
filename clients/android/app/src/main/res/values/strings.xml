@@ -310,6 +310,7 @@
     <string name="copy_lockbook_link">Copy Lockbook link</string>
     <string name="invalid_lockbook_link">This Lockbook link is invalid.</string>
     <string name="outline">Outline</string>
+    <string name="source">Source</string>
     <string name="open_link_not_found">This file was deleted or isn\'t shared with you.</string>
     <string name="username">Username</string>
 
