@@ -8,7 +8,7 @@ use crate::model::secret_filename::SecretFileName;
 use crate::model::server_file::ServerFile;
 use crate::model::signed_file::SignedFile;
 
-use super::meta::Meta;
+use super::meta::{AttachmentsOf, Meta};
 use super::server_meta::ServerMeta;
 use super::signed_meta::SignedMeta;
 
@@ -23,6 +23,7 @@ pub trait FileLike: PartialEq + Debug + Clone {
     fn user_access_keys(&self) -> &Vec<UserAccessInfo>;
     fn folder_access_key(&self) -> &EncryptedFolderAccessKey;
     fn doc_size(&self) -> Option<usize>;
+    fn attachments_of(&self) -> Option<&AttachmentsOf>;
 
     fn display(&self) -> String {
         match self.file_type() {
@@ -66,61 +67,74 @@ pub trait FileLike: PartialEq + Debug + Clone {
 impl FileLike for Meta {
     fn id(&self) -> &Uuid {
         match self {
-            Meta::V1 { id, .. } => id,
+            Meta::V1 { id, .. } | Meta::V2 { id, .. } => id,
         }
     }
 
     fn file_type(&self) -> FileType {
         match self {
-            Meta::V1 { file_type, .. } => *file_type,
+            Meta::V1 { file_type, .. } | Meta::V2 { file_type, .. } => *file_type,
         }
     }
 
     fn parent(&self) -> &Uuid {
         match self {
-            Meta::V1 { parent, .. } => parent,
+            Meta::V1 { parent, .. } | Meta::V2 { parent, .. } => parent,
         }
     }
 
     fn secret_name(&self) -> &SecretFileName {
         match self {
-            Meta::V1 { name, .. } => name,
+            Meta::V1 { name, .. } | Meta::V2 { name, .. } => name,
         }
     }
 
     fn owner(&self) -> Owner {
         match self {
-            Meta::V1 { owner, .. } => *owner,
+            Meta::V1 { owner, .. } | Meta::V2 { owner, .. } => *owner,
         }
     }
 
     fn explicitly_deleted(&self) -> bool {
         match self {
-            Meta::V1 { is_deleted, .. } => *is_deleted,
+            Meta::V1 { is_deleted, .. } | Meta::V2 { is_deleted, .. } => *is_deleted,
         }
     }
 
     fn document_hmac(&self) -> Option<&DocumentHmac> {
         match self {
-            Meta::V1 { doc_hmac: document_hmac, .. } => document_hmac.as_ref(),
+            Meta::V1 { doc_hmac: document_hmac, .. } | Meta::V2 { doc_hmac: document_hmac, .. } => {
+                document_hmac.as_ref()
+            }
         }
     }
 
     fn user_access_keys(&self) -> &Vec<UserAccessInfo> {
         match self {
-            Meta::V1 { user_access_keys, .. } => user_access_keys,
+            Meta::V1 { user_access_keys, .. } | Meta::V2 { user_access_keys, .. } => {
+                user_access_keys
+            }
         }
     }
 
     fn folder_access_key(&self) -> &EncryptedFolderAccessKey {
         match self {
-            Meta::V1 { folder_access_key, .. } => folder_access_key,
+            Meta::V1 { folder_access_key, .. } | Meta::V2 { folder_access_key, .. } => {
+                folder_access_key
+            }
         }
     }
 
     fn doc_size(&self) -> Option<usize> {
         match self {
-            Meta::V1 { doc_size, .. } => *doc_size,
+            Meta::V1 { doc_size, .. } | Meta::V2 { doc_size, .. } => *doc_size,
+        }
+    }
+
+    fn attachments_of(&self) -> Option<&AttachmentsOf> {
+        match self {
+            Meta::V1 { .. } => None,
+            Meta::V2 { attachments_of, .. } => attachments_of.as_ref(),
         }
     }
 }
@@ -176,6 +190,10 @@ where
 
     fn doc_size(&self) -> Option<usize> {
         // FileMetadata doesn't have doc_size field
+        None
+    }
+
+    fn attachments_of(&self) -> Option<&AttachmentsOf> {
         None
     }
 }
@@ -238,6 +256,10 @@ impl FileLike for SignedMeta {
     fn doc_size(&self) -> Option<usize> {
         *self.timestamped_value.value.doc_size()
     }
+
+    fn attachments_of(&self) -> Option<&AttachmentsOf> {
+        self.timestamped_value.value.attachments_of()
+    }
 }
 
 impl FileLike for ServerMeta {
@@ -279,5 +301,9 @@ impl FileLike for ServerMeta {
 
     fn doc_size(&self) -> Option<usize> {
         *self.file.timestamped_value.value.doc_size()
+    }
+
+    fn attachments_of(&self) -> Option<&AttachmentsOf> {
+        self.file.timestamped_value.value.attachments_of()
     }
 }

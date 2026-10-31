@@ -23,7 +23,7 @@ async fn get_document() {
     let mut new = old.clone();
     new.timestamped_value
         .value
-        .set_hmac_and_size(Some([0; 32]), Some(1));
+        .set_hmac_and_size(Some([0; 32]), Some(1), None);
 
     // update document content
     core.client
@@ -71,7 +71,7 @@ async fn get_document_not_found() {
     let mut new = old;
     new.timestamped_value
         .value
-        .set_hmac_and_size(Some([0; 32]), Some(0));
+        .set_hmac_and_size(Some([0; 32]), Some(0), None);
 
     // get document we never created
     let result = core

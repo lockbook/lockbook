@@ -1,6 +1,6 @@
 use crate::model::access_info::{UserAccessInfo, UserAccessMode};
 use crate::model::api::METADATA_FEE;
-use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
+use crate::model::crypto::{AESEncrypted, AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
@@ -192,13 +192,35 @@ where
         Ok(result)
     }
 
-    pub fn delete_op(&self, id: &Uuid, keychain: &Keychain) -> LbResult<SignedMeta> {
+    pub fn delete_op(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<Vec<SignedMeta>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
-
         file.set_deleted(true);
-        let file = file.sign(keychain)?;
+        let mut result = vec![file.sign(keychain)?];
 
-        Ok(file)
+        // deleted documents take their attachments folders along, and those folders' documents
+        // take theirs
+        let folders = self.attachments_folders()?;
+        if folders.is_empty() {
+            return Ok(result);
+        }
+        let mut deleting = self.descendants(id)?;
+        deleting.insert(*id);
+        let mut to_check: Vec<Uuid> = deleting.iter().copied().collect();
+        while let Some(document) = to_check.pop() {
+            let Some(&folder) = folders.get(&document) else { continue };
+            if deleting.contains(&folder) {
+                continue;
+            }
+            let mut meta = self.find(&folder)?.timestamped_value.value.clone();
+            meta.set_deleted(true);
+            result.push(meta.sign(keychain)?);
+            for id in self.descendants(&folder)?.into_iter().chain([folder]) {
+                if deleting.insert(id) {
+                    to_check.push(id);
+                }
+            }
+        }
+        Ok(result)
     }
 
     pub fn add_share_op(
@@ -309,9 +331,10 @@ where
             mac.finalize().into_bytes()
         }
         .into();
+        let content_size = symkey::encrypt(&key, &(document.len() as u64))?;
         let document = compression_service::compress(document)?;
         let document = symkey::encrypt(&key, &document)?;
-        file.set_hmac_and_size(Some(hmac), Some(document.value.len()));
+        file.set_hmac_and_size(Some(hmac), Some(document.value.len()), Some(content_size));
         let file = file.sign(keychain)?;
 
         Ok((file, document))
@@ -319,7 +342,7 @@ where
 
     pub fn overwrite_document_hmac_op(
         &mut self, id: &Uuid, new_hmac: Option<DocumentHmac>, new_size: Option<usize>,
-        keychain: &Keychain,
+        new_content_size: Option<AESEncrypted<u64>>, keychain: &Keychain,
     ) -> LbResult<SignedMeta> {
         let id = match self.find(id)?.file_type() {
             FileType::Document | FileType::Folder => *id,
@@ -327,7 +350,7 @@ where
         };
         let mut file = self.find(&id)?.timestamped_value.value.clone();
         validate::is_document(&file)?;
-        file.set_hmac_and_size(new_hmac, new_size);
+        file.set_hmac_and_size(new_hmac, new_size, new_content_size);
         file.sign(keychain)
     }
 }
@@ -393,13 +416,13 @@ where
 
     pub fn delete_unvalidated(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<()> {
         let op = self.delete_op(id, keychain)?;
-        self.stage_and_promote(Some(op))?;
+        self.stage_and_promote(op)?;
         Ok(())
     }
 
     pub fn delete(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<()> {
         let op = self.delete_op(id, keychain)?;
-        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
+        self.stage_validate_and_promote(op, Owner(keychain.get_pk()?))?;
         Ok(())
     }
 
@@ -445,9 +468,10 @@ where
 
     pub fn overwrite_document_hmac_unvalidated(
         &mut self, id: &Uuid, new_hmac: Option<DocumentHmac>, new_size: Option<usize>,
-        keychain: &Keychain,
+        new_content_size: Option<AESEncrypted<u64>>, keychain: &Keychain,
     ) -> LbResult<()> {
-        let op = self.overwrite_document_hmac_op(id, new_hmac, new_size, keychain)?;
+        let op =
+            self.overwrite_document_hmac_op(id, new_hmac, new_size, new_content_size, keychain)?;
         self.stage_and_promote(Some(op))?;
         Ok(())
     }
@@ -462,9 +486,10 @@ where
 
     pub fn overwrite_document_hmac(
         &mut self, id: &Uuid, new_hmac: Option<DocumentHmac>, new_size: Option<usize>,
-        keychain: &Keychain,
+        new_content_size: Option<AESEncrypted<u64>>, keychain: &Keychain,
     ) -> LbResult<()> {
-        let op = self.overwrite_document_hmac_op(id, new_hmac, new_size, keychain)?;
+        let op =
+            self.overwrite_document_hmac_op(id, new_hmac, new_size, new_content_size, keychain)?;
         self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
         Ok(())
     }

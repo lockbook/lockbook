@@ -42,6 +42,7 @@ impl Lb {
         // do the operations
         let (hmac, encrypted) = compress_encrypt_document(&key, content)?;
         let encrypted_size = encrypted.value.len();
+        let content_size = symkey::encrypt(&key, &(content.len() as u64))?;
         self.docs.insert_pending(id, hmac, &encrypted).await?;
 
         // commit the result
@@ -52,7 +53,13 @@ impl Lb {
                 .to_staged(&mut db.local_metadata)
                 .to_lazy();
             self.docs.promote_pending(id, hmac).await?;
-            tree.overwrite_document_hmac(&id, Some(hmac), Some(encrypted_size), &self.keychain)?;
+            tree.overwrite_document_hmac(
+                &id,
+                Some(hmac),
+                Some(encrypted_size),
+                Some(content_size),
+                &self.keychain,
+            )?;
             tx.end();
         }
 
@@ -146,6 +153,7 @@ impl Lb {
         // do the operations
         let (hmac, encrypted) = compress_encrypt_document(&key, &content)?;
         let encrypted_size = encrypted.value.len();
+        let content_size = symkey::encrypt(&key, &(content.len() as u64))?;
         self.docs
             .insert_pending(target_id, hmac, &encrypted)
             .await?;
@@ -165,6 +173,7 @@ impl Lb {
                 &target_id,
                 Some(hmac),
                 Some(encrypted_size),
+                Some(content_size),
                 &self.keychain,
             )?;
             tx.end();
