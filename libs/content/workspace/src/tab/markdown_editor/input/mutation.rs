@@ -100,9 +100,8 @@ impl<'ast> MdEdit {
                 }
             }
             Event::ToggleStyle { region, style } => {
-                // ToggleStyle inserts markdown syntax (e.g. `**…**`); the
-                // syntax would render as literal text in plaintext mode.
-                if !self.renderer.plaintext {
+                // ToggleStyle inserts markdown syntax (e.g. `**…**`)
+                if self.renderer.is_markdown() {
                     self.toggle_style(root, region, style, current_selection, operations);
                 }
             }
@@ -609,12 +608,12 @@ impl<'ast> MdEdit {
                 }
             }
             Event::Table(action) => {
-                if !self.renderer.readonly && !self.renderer.plaintext {
+                if !self.renderer.readonly && self.renderer.is_markdown() {
                     self.table_action(root, action, operations);
                 }
             }
             Event::PasteGrid(grid) => {
-                if !self.renderer.readonly && !self.renderer.plaintext {
+                if !self.renderer.readonly && self.renderer.is_markdown() {
                     self.paste_grid(root, &grid, operations);
                 }
             }

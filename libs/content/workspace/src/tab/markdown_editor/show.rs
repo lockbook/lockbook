@@ -102,7 +102,7 @@ impl MdEdit {
             &files,
             file_id,
         );
-        if !self.renderer.readonly && !self.renderer.plaintext {
+        if !self.renderer.readonly && self.renderer.is_markdown() {
             self.emoji_completions.handle_input(
                 ctx,
                 &self.renderer.buffer,
@@ -838,7 +838,7 @@ impl MdEdit {
             }
             let link_target = self.context_menu_link.clone();
             let heading = self.context_menu_heading.clone();
-            let (readonly, plaintext) = (self.renderer.readonly, self.renderer.plaintext);
+            let (readonly, markdown) = (self.renderer.readonly, self.renderer.is_markdown());
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
                 if let Some(link) = &link_target {
@@ -858,7 +858,7 @@ impl MdEdit {
                 if !readonly {
                     e.item(phosphor::CLIPBOARD_TEXT, "Paste", EditorMenuCmd::Paste);
                 }
-                if !readonly && !plaintext {
+                if !readonly && markdown {
                     e.item(phosphor::TABLE, "Paste as table", EditorMenuCmd::PasteTable);
                 }
             });
@@ -1276,7 +1276,7 @@ impl MdEdit {
     /// clip — so popup text lands on a later glyphon layer and can extend
     /// past the editor's viewport (e.g. over a toolbar above the cursor).
     pub fn show_completions(&mut self, ui: &mut Ui) {
-        if self.renderer.plaintext {
+        if !self.renderer.is_markdown() {
             return;
         }
         self.show_emoji_completions(ui);

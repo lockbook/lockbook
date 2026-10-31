@@ -61,6 +61,11 @@ pub struct Bounds {
     /// `![alt](url)` source, and a backspace against one selects it.
     pub images: Vec<(Grapheme, Grapheme)>,
 
+    /// Source range of each link, wikilink and image while source shows,
+    /// sorted; empty when rendered. Each gets the click area its rendered
+    /// form has.
+    pub source_links: Vec<(Grapheme, Grapheme)>,
+
     /// One entry per table, in document order.
     pub tables: Vec<TableBounds>,
 
@@ -105,6 +110,7 @@ impl Default for Bounds {
             inline_paragraphs: Paragraphs::default(),
             folds: Vec::default(),
             images: Vec::default(),
+            source_links: Vec::default(),
             tables: Vec::default(),
             code_blocks: Vec::default(),
         }

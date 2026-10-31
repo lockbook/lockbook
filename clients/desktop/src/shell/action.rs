@@ -282,6 +282,8 @@ pub enum Action {
     NavForward,
     /// Show or hide the sidecar beside the current note.
     ToggleSidecar,
+    /// Show files with a rendered form as source, or rendered again.
+    ToggleSource,
     /// Open documents (filters folders). Multi: first reuses tab path unless
     /// `new_tab`; further docs always open as new tabs.
     OpenDocuments {
@@ -455,6 +457,7 @@ impl Action {
             Self::NavBack => "NavBack",
             Self::NavForward => "NavForward",
             Self::ToggleSidecar => "ToggleSidecar",
+            Self::ToggleSource => "ToggleSource",
             Self::OpenDocuments { .. } => "OpenDocuments",
             Self::SelectTab(_) => "SelectTab",
             Self::CloseTab(_) => "CloseTab",

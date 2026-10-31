@@ -1970,6 +1970,7 @@ fn masked_plaintext_mdedit_renders_glyphs() {
     edit.renderer.plaintext = true;
     edit.renderer.mask = true;
     edit.renderer.single_line = true;
+    assert!(!edit.renderer.is_markdown(), "a key never takes markdown edits");
     // Long enough that a 300px field must overflow (~8px/char mono).
     let key = "sk-test-".repeat(16);
     edit.set_text(&key);

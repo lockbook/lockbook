@@ -95,7 +95,9 @@ impl MdRender {
                 .value,
             NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) | NodeValue::FrontMatter(_)
         );
-        if self.plaintext || self.readonly || literal || (at_table && !in_table) {
+        // source pastes text as it is unless asked for a table
+        let as_text = !self.is_markdown() || self.plaintext && !as_table;
+        if as_text || self.readonly || literal || (at_table && !in_table) {
             return None;
         }
 
