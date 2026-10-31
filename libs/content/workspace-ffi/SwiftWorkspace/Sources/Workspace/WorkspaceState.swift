@@ -306,6 +306,49 @@ import Observation
         }
     }
 
+    /// A preview of document `id` at `fragment` as a URL writes it (a heading,
+    /// `page=3`), `size` points at `scale` with `padding` points around its
+    /// content: render it off the main thread with ``renderPreview(_:)``. Nil
+    /// before the workspace is up.
+    public func previewDocument(
+        id: UUID, fragment: String? = nil, size: CGSize, scale: CGFloat, padding: CGFloat,
+        dark: Bool
+    ) -> PreviewJob? {
+        guard let wsHandle else { return nil }
+        let job = preview_document(
+            wsHandle, CUuid(_0: id.uuid), fragment, Float(size.width), Float(size.height),
+            Float(scale), Float(padding), dark
+        )
+        return job.map(PreviewJob.init)
+    }
+
+    /// A preview of open tab `session` where it's parked; nil for a search or
+    /// a session that's gone.
+    public func previewSession(
+        _ session: UUID, size: CGSize, scale: CGFloat, padding: CGFloat, dark: Bool
+    ) -> PreviewJob? {
+        guard let wsHandle else { return nil }
+        let job = preview_session(
+            wsHandle, CUuid(_0: session.uuid), Float(size.width), Float(size.height),
+            Float(scale), Float(padding), dark
+        )
+        return job.map(PreviewJob.init)
+    }
+
+    /// Draws a preview until its tab settles and returns it as PNG data; nil
+    /// if it failed. Blocks, so call it off the main thread, once per job.
+    public static func renderPreview(_ job: PreviewJob) -> Data? {
+        let png = render_preview(job.handle)
+        defer { free_png(png) }
+        guard let bytes = png.data, png.len > 0 else { return nil }
+        return Data(bytes: bytes, count: Int(png.len))
+    }
+
+    /// Frees a preview that won't be rendered.
+    public static func discardPreview(_ job: PreviewJob) {
+        free_preview(job.handle)
+    }
+
     private func tabInfos(from result: CTabs) -> [WorkspaceTabInfo] {
         let buffer: [CTabInfo] = Array(
             UnsafeBufferPointer(start: result.tabs, count: Int(result.size))
@@ -361,4 +404,9 @@ public extension WorkspaceOutputState {
     static var preview: WorkspaceOutputState {
         WorkspaceOutputState()
     }
+}
+
+/// A preview taken from the workspace on the main thread, to render on any.
+public struct PreviewJob: @unchecked Sendable {
+    let handle: UnsafeMutableRawPointer
 }

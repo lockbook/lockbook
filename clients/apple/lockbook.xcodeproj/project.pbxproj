@@ -89,6 +89,7 @@
 			membershipExceptions = (
 				Assets.xcassets,
 				Utils/FileIconHelper.swift,
+				Utils/WidgetPreviewFiles.swift,
 			);
 			target = AC00000000000000000000E0 /* PinnedDocumentsWidget */;
 		};
