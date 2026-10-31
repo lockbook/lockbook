@@ -66,6 +66,7 @@ where
         self.assert_no_duplicate_links()?;
         self.assert_no_broken_links()?;
         self.assert_no_owned_links()?;
+        self.assert_valid_attachments()?;
 
         // authorization check
         self.assert_changes_authorized(owner)?;
@@ -78,6 +79,7 @@ where
     pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> LbResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(&id)) {
             if self.maybe_find_parent(file).is_none()
+                && self.maybe_find_attached(file).is_none()
                 && !file.explicitly_deleted()
                 && !file
                     .user_access_keys()
@@ -131,6 +133,33 @@ where
         Ok(())
     }
 
+    pub fn assert_valid_attachments(&mut self) -> LbResult<()> {
+        let mut documents = HashSet::new();
+        for id in self.ids() {
+            let Some(document) = self.find(&id)?.attachments_of().map(|of| of.id) else {
+                continue;
+            };
+            if self.find(&id)?.explicitly_deleted() || self.calculate_deleted(&id)? {
+                continue;
+            }
+            let folder = self.find(&id)?;
+            let failure = match self.maybe_find(&document) {
+                _ if !folder.is_folder() => Some(ValidationFailure::InvalidAttachmentsFolder(id)),
+                Some(document) if !document.is_document() => {
+                    Some(ValidationFailure::InvalidAttachmentsFolder(id))
+                }
+                _ if !documents.insert(document) => {
+                    Some(ValidationFailure::DuplicateAttachments { document })
+                }
+                _ => None,
+            };
+            if let Some(failure) = failure {
+                Err(LbErrKind::Validation(failure))?;
+            }
+        }
+        Ok(())
+    }
+
     // assumption: no orphans
     pub fn assert_no_cycles(&mut self) -> LbResult<()> {
         let mut owners_with_found_roots = HashSet::new();
@@ -159,6 +188,7 @@ where
                     None => {
                         if !current_file.user_access_keys().is_empty()
                             || current_file.explicitly_deleted()
+                            || self.maybe_find_attached(current_file).is_some()
                         {
                             break;
                         } else {
@@ -339,16 +369,21 @@ where
                             if let Some(ref old) = file_diff.old { old } else { &file_diff.new };
                         // parent folder new -> rely on parent folder check
                         if !new_files.contains(file.parent()) {
-                            // must have parent and have write access to parent
-                            if let Some(parent) = self.maybe_find(file.parent()) {
-                                if base.access_mode(owner, parent.id())?
-                                    < Some(UserAccessMode::Write)
-                                {
-                                    // parent is shared with access < write
-                                    Err(LbErrKind::InsufficientPermission)?;
+                            // must have write access to the parent, or to the document an
+                            // attachments folder belongs to
+                            let through_parent = match self.maybe_find(file.parent()) {
+                                Some(parent) => base.access_mode(owner, parent.id())?,
+                                None => None, // this file is shared and its parent is not
+                            };
+                            let through_document = match base.maybe_find_attached(file) {
+                                Some(document) if field_diff != Diff::New => {
+                                    base.access_mode(owner, document.id())?
                                 }
-                            } else {
-                                // this file is shared and its parent is not
+                                _ => None,
+                            };
+                            if through_parent < Some(UserAccessMode::Write)
+                                && through_document < Some(UserAccessMode::Write)
+                            {
                                 Err(LbErrKind::InsufficientPermission)?;
                             }
                         }

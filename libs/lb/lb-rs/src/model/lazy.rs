@@ -36,24 +36,42 @@ impl<T: TreeLike> LazyTree<T> {
 
 impl<T: TreeLike> LazyTree<T> {
     pub fn access_mode(&self, owner: Owner, id: &Uuid) -> LbResult<Option<UserAccessMode>> {
-        let mut file = self.find(id)?;
         let mut max_access_mode = None;
         let mut visited_ids = vec![];
-        while !visited_ids.contains(file.id()) {
-            visited_ids.push(*file.id());
+        let mut to_visit = vec![*id];
+        while let Some(id) = to_visit.pop() {
+            if visited_ids.contains(&id) {
+                continue;
+            }
+            visited_ids.push(id);
+            let file = self.find(&id)?;
             let access_mode = file.access_mode(&owner);
             if access_mode > max_access_mode {
                 max_access_mode = access_mode;
             }
-            if file.parent() == file.id() {
-                break; // root
-            } else if let Some(parent) = self.maybe_find(file.parent()) {
-                file = parent
-            } else {
-                break; // share root
+            if let Some(parent) = self.maybe_find_parent(file) {
+                to_visit.push(*parent.id());
+            }
+            // an attachments folder grants what its document grants
+            if let Some(document) = self.maybe_find_attached(file) {
+                to_visit.push(*document.id());
             }
         }
         Ok(max_access_mode)
+    }
+
+    /// Each document's attachments folder, among those not deleted.
+    pub fn attachments_folders(&mut self) -> LbResult<HashMap<Uuid, Uuid>> {
+        let mut result = HashMap::new();
+        for id in self.ids() {
+            let Some(document) = self.find(&id)?.attachments_of().map(|of| of.id) else {
+                continue;
+            };
+            if !self.find(&id)?.explicitly_deleted() && !self.calculate_deleted(&id)? {
+                result.insert(document, id);
+            }
+        }
+        Ok(result)
     }
 
     pub fn in_pending_share(&mut self, id: &Uuid) -> LbResult<bool> {
@@ -180,22 +198,38 @@ impl<T: TreeLike> LazyTree<T> {
                 break;
             }
 
+            // an attachments folder whose parent we can't see takes its key from its document
+            let file = self.find(&file_id)?;
+            let next = match self.maybe_find_parent(file) {
+                Some(parent) => *parent.id(),
+                None => *self
+                    .maybe_find_attached(file)
+                    .ok_or(LbErrKind::FileParentNonexistent)?
+                    .id(),
+            };
             visited_ids.push(file_id);
-            file_id = *self.find_parent(self.find(&file_id)?)?.id();
+            if visited_ids.contains(&next) {
+                return Err(LbErrKind::FileParentNonexistent.into());
+            }
+            file_id = next;
         }
 
         for id in visited_ids.iter().rev() {
             let decrypted_key = {
                 let file = self.find(id)?;
-                let parent = self.find_parent(file)?;
-                let parent_key =
-                    keychain
-                        .get_aes_key(parent.id())?
-                        .ok_or(LbErrKind::Unexpected(
-                            "parent key should have been populated by prior routine".to_string(),
-                        ))?;
-                let encrypted_key = file.folder_access_key();
-                symkey::decrypt(&parent_key, encrypted_key)?
+                let (source, encrypted_key) = match self.maybe_find_parent(file) {
+                    Some(parent) => (*parent.id(), file.folder_access_key()),
+                    None => {
+                        let attachments_of = file
+                            .attachments_of()
+                            .ok_or(LbErrKind::FileParentNonexistent)?;
+                        (attachments_of.id, &attachments_of.key)
+                    }
+                };
+                let source_key = keychain.get_aes_key(&source)?.ok_or(LbErrKind::Unexpected(
+                    "parent key should have been populated by prior routine".to_string(),
+                ))?;
+                symkey::decrypt(&source_key, encrypted_key)?
             };
             keychain.insert_aes_key(*id, decrypted_key)?;
         }
@@ -461,6 +495,14 @@ pub enum ValidationFailure {
     FileWithDifferentOwnerParent(Uuid),
     NonDecryptableFileName(Uuid),
     DeletedFileUpdated(Uuid),
+
+    /// An attachments folder that isn't a folder, or whose document isn't a document
+    InvalidAttachmentsFolder(Uuid),
+
+    /// A document with more than one attachments folder
+    DuplicateAttachments {
+        document: Uuid,
+    },
 }
 
 impl<T> LazyTree<T>

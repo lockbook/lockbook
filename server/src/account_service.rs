@@ -57,6 +57,10 @@ where
             return Err(ClientError(NewAccountError::Disabled));
         }
 
+        if crate::file_service::writes_v2(&request.root_folder) {
+            return Err(internal!("new account root is V2 metadata"));
+        }
+
         let root = request.root_folder.clone();
         let now = get_time().0 as u64;
         let root = root.add_time(now);
