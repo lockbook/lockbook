@@ -85,6 +85,24 @@ impl<'ast> MdEdit {
                     },
                 })
             }
+            egui::Event::Key {
+                key: key @ (Key::ArrowRight | Key::ArrowLeft),
+                pressed: true,
+                modifiers,
+                ..
+            } if modifiers.shift
+                && if cfg!(target_vendor = "apple") {
+                    modifiers.ctrl && modifiers.mac_cmd
+                } else {
+                    modifiers.alt && !modifiers.ctrl
+                }
+                && self
+                    .renderer
+                    .code_scope_at(root, self.renderer.buffer.current.selection.start())
+                    .is_some_and(|scope| scope.lang.is_some()) =>
+            {
+                Some(Event::Select { region: Region::Syntax { larger: key == Key::ArrowRight } })
+            }
             egui::Event::Key { key, pressed: true, modifiers, .. }
                 if matches!(key, Key::ArrowRight | Key::ArrowLeft | Key::Home | Key::End) =>
             {
