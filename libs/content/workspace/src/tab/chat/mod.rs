@@ -374,6 +374,10 @@ pub struct Chat {
     /// Sending while scrolled up jumps back to the bottom (which also
     /// re-sticks the scroll). Set on submit, consumed next frame.
     scroll_to_bottom: bool,
+    /// The entry to scroll to the top of the transcript next frame.
+    pub reveal_entry: Option<Uuid>,
+    /// The user scrolled the transcript this frame.
+    pub user_scrolled: bool,
     /// Chosen child per fork (parent id → child id), for the ‹ 2/3 › arrows.
     /// View state: per-device, unsynced, defaults to the newest sibling.
     branch_choice: HashMap<Uuid, Uuid>,
@@ -685,6 +689,8 @@ impl Chat {
             composer_text_seq: 0,
             key_field_shown: false,
             scroll_to_bottom: false,
+            reveal_entry: None,
+            user_scrolled: false,
             branch_choice: HashMap::new(),
             branch_anchor: None,
             hide_children_of: None,

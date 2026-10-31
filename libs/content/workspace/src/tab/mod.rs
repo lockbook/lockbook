@@ -98,31 +98,163 @@ impl Default for SessionId {
     }
 }
 
+/// Where within a destination a session is parked.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Fragment {
+    /// A note's heading, by the slug its `#fragment` names.
+    Heading(String),
+    /// A pdf's page, from zero.
+    Page(usize),
+    /// A chat's entry, by message id.
+    Entry(Uuid),
+    /// Text landed on as on a heading: a link followed from a backlink.
+    Text(std::ops::Range<usize>),
+    /// Text selected: a search hit, a placeholder to type over.
+    Selection(std::ops::Range<usize>),
+}
+
+impl Fragment {
+    /// A place outlives the app; a text range is a moment and is never
+    /// written down.
+    pub fn persists(&self) -> bool {
+        matches!(self, Self::Heading(_) | Self::Page(_) | Self::Entry(_))
+    }
+}
+
+/// A destination and where within it: a session's history entry.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Place {
+    pub dest: Destination,
+    pub fragment: Option<Fragment>,
+}
+
+impl Place {
+    pub fn new(dest: Destination) -> Self {
+        Self { dest, fragment: None }
+    }
+
+    pub fn at(dest: Destination, fragment: Option<Fragment>) -> Self {
+        Self { dest, fragment }
+    }
+}
+
 /// A persistable navigation journey: the current dest plus back/forward stacks.
-/// Changes to `dest` are navigation; stacks are the undo/redo of those changes.
-/// `id` identifies this session/tab instance and is not persisted.
+/// Changes to `dest` or `fragment` are navigation; stacks are the undo/redo of
+/// those changes. `id` identifies this session/tab instance and is not persisted.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "PersistedSession", into = "PersistedSession")]
 pub struct Session {
-    #[serde(skip, default = "SessionId::new")]
     pub id: SessionId,
     pub dest: Destination,
+    pub fragment: Option<Fragment>,
+    pub back: Vec<Place>,
+    pub forward: Vec<Place>,
+}
+
+/// History entries are written as plain destinations, so older builds read
+/// the file; their fragments ride alongside.
+#[derive(Serialize, Deserialize)]
+struct PersistedSession {
+    dest: Destination,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fragment: Option<Fragment>,
     #[serde(default)]
-    pub back: Vec<Destination>,
+    back: Vec<Destination>,
     #[serde(default)]
-    pub forward: Vec<Destination>,
+    forward: Vec<Destination>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    back_fragments: Vec<Option<Fragment>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    forward_fragments: Vec<Option<Fragment>>,
+}
+
+fn persisted(fragment: &Option<Fragment>) -> Option<Fragment> {
+    fragment.clone().filter(Fragment::persists)
+}
+
+impl From<Session> for PersistedSession {
+    fn from(s: Session) -> Self {
+        let split = |places: Vec<Place>| -> (Vec<Destination>, Vec<Option<Fragment>>) {
+            let fragments: Vec<_> = places.iter().map(|p| persisted(&p.fragment)).collect();
+            let fragments = if fragments.iter().all(Option::is_none) { vec![] } else { fragments };
+            (places.into_iter().map(|p| p.dest).collect(), fragments)
+        };
+        let (back, back_fragments) = split(s.back);
+        let (forward, forward_fragments) = split(s.forward);
+        Self {
+            dest: s.dest,
+            fragment: persisted(&s.fragment),
+            back,
+            forward,
+            back_fragments,
+            forward_fragments,
+        }
+    }
+}
+
+impl From<PersistedSession> for Session {
+    fn from(p: PersistedSession) -> Self {
+        let join = |dests: Vec<Destination>, mut fragments: Vec<Option<Fragment>>| {
+            fragments.resize(dests.len(), None);
+            dests
+                .into_iter()
+                .zip(fragments)
+                .map(|(d, f)| Place::at(d, f))
+                .collect()
+        };
+        Self {
+            id: SessionId::new(),
+            dest: p.dest,
+            fragment: p.fragment,
+            back: join(p.back, p.back_fragments),
+            forward: join(p.forward, p.forward_fragments),
+        }
+    }
 }
 
 impl Session {
     pub fn new(dest: Destination) -> Self {
-        Self { id: SessionId::new(), dest, back: Vec::new(), forward: Vec::new() }
+        Self::at(Place::new(dest))
     }
 
-    /// Push `from` onto back, clear forward, and move to `to`.
+    pub fn at(place: Place) -> Self {
+        Self {
+            id: SessionId::new(),
+            dest: place.dest,
+            fragment: place.fragment,
+            back: Vec::new(),
+            forward: Vec::new(),
+        }
+    }
+
+    pub fn place(&self) -> Place {
+        Place::at(self.dest.clone(), self.fragment.clone())
+    }
+
+    fn swap_place(&mut self, to: Place) -> Place {
+        let from = self.place();
+        self.dest = to.dest;
+        self.fragment = to.fragment;
+        from
+    }
+
+    /// Push the current place onto back, clear forward, and move to `to`.
+    /// `to` without a fragment at the current dest goes nowhere.
     pub fn navigate(&mut self, to: Destination) {
-        if self.dest == to {
+        self.navigate_to(Place::new(to), None);
+    }
+
+    /// [`Self::navigate`] to a place. `here` names where the session is
+    /// when it has no fragment, so Back from a jump within the dest returns.
+    pub fn navigate_to(&mut self, to: Place, here: Option<Fragment>) {
+        if self.dest == to.dest && (to.fragment.is_none() || self.fragment == to.fragment) {
             return;
         }
-        self.back.push(std::mem::replace(&mut self.dest, to));
+        let mut from = self.swap_place(to);
+        if from.dest == self.dest && from.fragment.is_none() {
+            from.fragment = here;
+        }
+        self.back.push(from);
         self.forward.clear();
     }
 
@@ -130,7 +262,8 @@ impl Session {
         let Some(prev) = self.back.pop() else {
             return false;
         };
-        self.forward.push(std::mem::replace(&mut self.dest, prev));
+        let from = self.swap_place(prev);
+        self.forward.push(from);
         true
     }
 
@@ -138,7 +271,8 @@ impl Session {
         let Some(next) = self.forward.pop() else {
             return false;
         };
-        self.back.push(std::mem::replace(&mut self.dest, next));
+        let from = self.swap_place(next);
+        self.back.push(from);
         true
     }
 
@@ -152,7 +286,11 @@ impl Session {
 
     /// Fresh history at `dest`, same session/tab id.
     pub fn replace(&mut self, dest: Destination) {
-        self.dest = dest;
+        self.replace_at(Place::new(dest));
+    }
+
+    pub fn replace_at(&mut self, place: Place) {
+        self.swap_place(place);
         self.back.clear();
         self.forward.clear();
     }
@@ -161,8 +299,8 @@ impl Session {
 /// A tab that has only ever shown search: safe to close when leaving search.
 pub fn session_is_disposable_search(s: &Session) -> bool {
     std::iter::once(&s.dest)
-        .chain(&s.back)
-        .chain(&s.forward)
+        .chain(s.back.iter().map(|p| &p.dest))
+        .chain(s.forward.iter().map(|p| &p.dest))
         .all(|d| matches!(d, Destination::Search(_)))
 }
 
@@ -227,6 +365,18 @@ pub struct Tab {
 
     /// Content hasn't been drawn since it opened; see [`crate::open_guard`].
     pub first_draw: bool,
+
+    /// Where the content lands once it can: its session's fragment.
+    pub reveal: Option<Reveal>,
+}
+
+/// A place for a tab's content to show once it has loaded.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Reveal {
+    /// `None` is the content's start.
+    pub fragment: Option<Fragment>,
+    /// Wash the landing briefly so the eye finds it.
+    pub flash: bool,
 }
 
 impl Tab {
@@ -380,7 +530,29 @@ impl Tab {
         self.show_inner(ui)
     }
 
+    /// Applies the pending reveal if the content can take it yet.
+    fn apply_reveal(&mut self) {
+        let (Some(reveal), ContentState::Open(content)) = (&self.reveal, &mut self.content) else {
+            return;
+        };
+        if content.reveal(reveal) {
+            self.reveal = None;
+        }
+    }
+
+    /// Where the content is, as a fragment: the heading or page being read.
+    pub fn here(&mut self) -> Option<Fragment> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Markdown(md)) => {
+                md.scrolled_heading_slug().map(Fragment::Heading)
+            }
+            ContentState::Open(TabContent::Pdf(pdf)) => Some(Fragment::Page(pdf.current_page())),
+            _ => None,
+        }
+    }
+
     fn show_inner(&mut self, ui: &mut egui::Ui) -> Response {
+        self.apply_reveal();
         match &mut self.content {
             ContentState::Loading(_) => {
                 ui.spinner();
@@ -405,6 +577,7 @@ impl Tab {
                         if sent {
                             self.last_changed = Instant::now();
                         }
+                        resp.left_fragment = sent || chat.user_scrolled;
                         // App-driven composer edits (send-clear, prefill) must
                         // re-sync the native text view. `text_updated` is the
                         // document replacement; selection-only is the caret.
@@ -420,9 +593,12 @@ impl Tab {
                     TabContent::Markdown(md) => {
                         let initialized = md.initialized;
                         let md_resp = md.show(ui);
-                        if !self.read_only && md_resp.text_updated && initialized {
+                        let edited = md_resp.text_updated && initialized;
+                        if !self.read_only && edited {
                             self.last_changed = Instant::now();
                         }
+                        let selected = md_resp.user_selected && initialized;
+                        resp.left_fragment = edited || selected || md_resp.user_scrolled;
                         resp.open_camera = md_resp.open_camera;
                         resp.text_updated = md_resp.text_updated;
                         resp.selection_updated = md_resp.selection_updated;
@@ -432,7 +608,10 @@ impl Tab {
                         resp.caret_covered = md_resp.caret_covered;
                     }
                     TabContent::Image(img) => img.show(ui),
-                    TabContent::Pdf(pdf) => pdf.show(ui),
+                    TabContent::Pdf(pdf) => {
+                        pdf.show(ui);
+                        resp.left_fragment = pdf.user_scrolled;
+                    }
                     TabContent::Svg(svg) => {
                         let res = svg.show(ui);
                         if res.request_save {
@@ -526,6 +705,45 @@ impl TabContent {
         }
     }
 
+    /// Lands on `reveal` if the content can yet; returns whether it's done
+    /// with it. Content without fragments is done at once.
+    pub fn reveal(&mut self, reveal: &Reveal) -> bool {
+        match self {
+            TabContent::Markdown(md) => {
+                if !md.initialized {
+                    return false;
+                }
+                match &reveal.fragment {
+                    Some(Fragment::Heading(slug)) => md.open_at_heading(slug),
+                    Some(Fragment::Text(range)) => md.open_at_text(range.clone()),
+                    Some(Fragment::Selection(range)) => md.open_navigate(range.clone()),
+                    Some(Fragment::Page(_) | Fragment::Entry(_)) => {}
+                    None => md.open_at_top(),
+                }
+                if !reveal.flash {
+                    md.stop_flash();
+                }
+                true
+            }
+            TabContent::Pdf(pdf) => match reveal.fragment {
+                Some(Fragment::Page(page)) => pdf.reveal_page(page),
+                None => pdf.reveal_page(0),
+                _ => true,
+            },
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Chat(chat) => {
+                if !chat.initialized {
+                    return false;
+                }
+                if let Some(Fragment::Entry(id)) = reveal.fragment {
+                    chat.reveal_entry = Some(id);
+                }
+                true
+            }
+            _ => true,
+        }
+    }
+
     pub fn seq(&self) -> usize {
         match self {
             #[cfg(not(target_family = "wasm"))]
@@ -580,6 +798,8 @@ pub struct Response {
     pub caret_covered: bool,
     pub open_file: Option<Uuid>,
     pub open_anyway: Option<Uuid>,
+    /// The user scrolled or edited, so the tab no longer shows its fragment.
+    pub left_fragment: bool,
 }
 
 #[derive(Debug)]
@@ -1102,12 +1322,12 @@ mod nav_tests {
         let mut session = Session::new(a.clone());
         session.navigate(b.clone());
         assert_eq!(session.dest, b);
-        assert_eq!(session.back, vec![a.clone()]);
+        assert_eq!(session.back, vec![Place::new(a.clone())]);
         assert!(session.forward.is_empty());
 
         assert!(session.go_back());
         assert_eq!(session.dest, a);
-        assert_eq!(session.forward, vec![b.clone()]);
+        assert_eq!(session.forward, vec![Place::new(b.clone())]);
 
         assert!(session.go_forward());
         assert_eq!(session.dest, b);
@@ -1244,6 +1464,29 @@ mod nav_tests {
         assert_eq!(restored.forward, session.forward);
         assert!(!restored.id.is_nil());
         assert_ne!(restored.id, session.id);
+    }
+
+    /// A jump within a note is history, and only places are written down:
+    /// older builds read plain destinations.
+    #[test]
+    fn fragment_history_and_persistence() {
+        let a = file(1);
+        let heading = |s: &str| Some(Fragment::Heading(s.into()));
+        let mut session = Session::new(a.clone());
+        session.navigate_to(Place::at(a.clone(), heading("x")), heading("here"));
+        session.navigate_to(Place::at(a.clone(), Some(Fragment::Text(3..5))), None);
+        assert_eq!(session.back.len(), 2);
+        assert_eq!(session.back[0].fragment, heading("here"));
+
+        let json = serde_json::to_value(&session).unwrap();
+        assert_eq!(json["back"], serde_json::to_value(vec![&a, &a]).unwrap());
+        let restored: Session = serde_json::from_value(json).unwrap();
+        assert_eq!(restored.fragment, None);
+        assert_eq!(restored.back, session.back);
+
+        assert!(session.go_back());
+        assert_eq!(session.fragment, heading("x"));
+        assert_eq!(session.forward[0].fragment, Some(Fragment::Text(3..5)));
     }
 
     #[test]

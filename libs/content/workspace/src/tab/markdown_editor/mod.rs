@@ -94,6 +94,10 @@ pub struct Response {
     pub text_updated: bool,
     pub selection_updated: bool,
     pub scroll_updated: bool,
+    /// The user scrolled: wheel, drag, fling, or scrollbar.
+    pub user_scrolled: bool,
+    /// The selection moved by input this frame, not from outside.
+    pub user_selected: bool,
     pub open_camera: bool,
 
     /// Screen rect (egui points) where the native text-input overlay should
@@ -504,6 +508,8 @@ pub struct Editor {
     outline_follows_caret: bool,
     /// The heading just landed on, washed briefly so the eye finds it.
     heading_flash: Option<((Grapheme, Grapheme), web_time::Instant)>,
+    /// The user scrolled this frame.
+    user_scrolled: bool,
 
     // change detection
     pub unprocessed_scroll: Option<Instant>,
@@ -1056,6 +1062,7 @@ impl Editor {
             outline_from_typing: false,
             outline_follows_caret: false,
             heading_flash: None,
+            user_scrolled: false,
             embeds_seq: 0,
             link_seq: 0,
 
@@ -1245,12 +1252,12 @@ impl Editor {
                 .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
             ui.ctx().request_repaint();
         }
-        resp.selection_updated = std::mem::take(&mut self.selection_moved)
-            || prior_selection
-                != self
-                    .edit
-                    .in_progress_selection
-                    .unwrap_or(self.edit.renderer.buffer.current.selection);
+        resp.user_selected = prior_selection
+            != self
+                .edit
+                .in_progress_selection
+                .unwrap_or(self.edit.renderer.buffer.current.selection);
+        resp.selection_updated = std::mem::take(&mut self.selection_moved) || resp.user_selected;
         // Loads completing (embeds, link meta) and atom enter/exit reflow
         // layout, moving the selection's rects without moving the selection.
         // Report as a scroll: iOS re-fetches geometry on either signal, but a
@@ -1479,11 +1486,12 @@ impl Editor {
         // Selection can change both in `handle_input` and later during
         // `MdEdit::show` pointer handling (e.g. double-click word select on
         // Android). Compute this after render so the response sees both paths.
-        resp.selection_updated |= prior_selection
+        resp.user_selected |= prior_selection
             != self
                 .edit
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
+        resp.selection_updated |= resp.user_selected;
 
         // Completion popups render last, outside the scroll area's clip, so
         // they composite over the toolbar / find widget when the cursor is
@@ -1639,6 +1647,7 @@ impl Editor {
         }
 
         self.initialized = true;
+        resp.user_scrolled = std::mem::take(&mut self.user_scrolled);
 
         resp
     }
@@ -1826,6 +1835,7 @@ impl Editor {
                             let resp = self.edit.scroll_area.finish(ui, begun, &content);
                             if resp.user_scrolled {
                                 self.outline_follows_caret = false;
+                                self.user_scrolled = true;
                             }
 
                             let viewport_height = canvas_rect.height();
@@ -2350,6 +2360,32 @@ impl Editor {
         }
         self.landing = Some(Landing::Heading((start, caret)));
         self.heading_flash = Some(((start, caret), web_time::Instant::now()));
+    }
+
+    /// Lands at the note's top, as a link to a heading it lacks does.
+    pub fn open_at_top(&mut self) {
+        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        self.landing = Some(Landing::Top);
+    }
+
+    /// Ends the wash over a heading just landed on.
+    pub fn stop_flash(&mut self) {
+        self.heading_flash = None;
+    }
+
+    /// The slug of the heading scrolled to, if the view is past one and not
+    /// at the note's top.
+    pub fn scrolled_heading_slug(&mut self) -> Option<String> {
+        let at_top = self.edit.scroll_area.stored_offset().is_none_or(|off| {
+            off.anchor == scroll_content::DocRowId::Leading && off.intra_precise <= 0.0
+        });
+        if at_top {
+            return None;
+        }
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        let i = self.scrolled_to_heading(root)?;
+        self.outline_rows(root).get(i).map(|row| row.slug.clone())
     }
 
     /// The heading `fragment` names: where its text starts (its markup may

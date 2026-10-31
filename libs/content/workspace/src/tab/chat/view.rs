@@ -487,6 +487,11 @@ impl Chat {
                 );
                 backdrop_tapped = backdrop.clicked();
             }
+            self.user_scrolled = ui.rect_contains_pointer(transcript_rect)
+                && ui.input(|i| {
+                    i.smooth_scroll_delta != egui::Vec2::ZERO
+                        || i.pointer.is_decidedly_dragging() && touch_os
+                });
             ScrollArea::vertical()
                 .id_salt("chat_messages")
                 .stick_to_bottom(!branch_anchored)
@@ -992,6 +997,15 @@ impl Chat {
                     // height (stick-to-bottom depends on this).
                     let total_h = (y - origin.y) + BOTTOM_PAD;
                     let _ = ui.allocate_exact_size(vec2(available_width, total_h), Sense::hover());
+
+                    if let Some(id) = self.reveal_entry.take() {
+                        let row = strips
+                            .iter()
+                            .find(|s| self.entries[visible[s.vi].idx].msg.id == Some(id));
+                        if let Some(row) = row {
+                            ui.scroll_to_rect(row.row_rect, Some(egui::Align::TOP));
+                        }
+                    }
 
                     if std::mem::take(&mut self.scroll_to_bottom) {
                         ui.scroll_to_rect(

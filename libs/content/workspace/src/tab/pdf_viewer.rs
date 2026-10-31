@@ -86,6 +86,11 @@ pub struct PdfViewer {
 
     /// Phone, iPad compact, or Android: no page sidebar.
     pub compact: bool,
+
+    /// The pages' scroll offset last frame.
+    last_offset: Vec2,
+    /// The user scrolled the pages this frame.
+    pub user_scrolled: bool,
 }
 
 struct SideBar {
@@ -185,7 +190,27 @@ impl PdfViewer {
             current_viewport: Rect::ZERO,
             viewport_adjustment: Default::default(),
             render_area: Rect::ZERO,
+            last_offset: Vec2::ZERO,
+            user_scrolled: false,
         }
+    }
+
+    /// The page with the most area in view.
+    pub fn current_page(&self) -> usize {
+        self.current_page
+    }
+
+    /// Scrolls `page` to the top once the pages are laid out; returns whether
+    /// it's done with the request.
+    pub fn reveal_page(&mut self, page: usize) -> bool {
+        if self.parse_failed {
+            return true;
+        }
+        if self.page_bounds.is_empty() {
+            return false;
+        }
+        self.scroll_to = Some(page.min(self.page_bounds.len() - 1));
+        true
     }
 
     fn setup_sidebar(&mut self) {
@@ -638,6 +663,7 @@ impl PdfViewer {
         let available_width = fit_width * 0.95;
         let available_height = (rect.height() - top) * 0.95;
         self.render_area = rect;
+        self.user_scrolled = false;
 
         if self.page_bounds.is_empty() {
             place_at(ui, rect, Layout::top_down(Align::Center), |ui| {
@@ -659,6 +685,7 @@ impl PdfViewer {
                 // a rescale's anchor lands as an absolute offset the frame after,
                 // clamped against the new content size
                 let mut area = ScrollArea::both().animated(false);
+                let programmatic = self.scroll_to.is_some() || self.viewport_adjustment.is_some();
                 if let Some(adj) = self.viewport_adjustment.take() {
                     area = area.scroll_offset(self.current_viewport.min.to_vec2() - adj);
                     ui.ctx().request_repaint();
@@ -747,6 +774,9 @@ impl PdfViewer {
                         .map(|t| t.0)
                         .unwrap_or_default();
                 });
+                let offset = out.state.unclamped_offset();
+                self.user_scrolled = offset != self.last_offset && !programmatic;
+                self.last_offset = offset;
                 ((), out.state.clamped_offset().y, out.id)
             });
         });

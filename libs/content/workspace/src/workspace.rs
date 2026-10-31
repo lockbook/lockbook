@@ -41,9 +41,9 @@ use crate::tab::markdown_editor::{
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{
-    ContentState, Destination, ExtendedInput as _, Session, SessionId, Tab, TabAction, TabContent,
-    TabFailure, TabSaveContent, index_of_dest_to_activate, session_is_disposable_search,
-    tab_action_for_open,
+    ContentState, Destination, ExtendedInput as _, Fragment, Place, Reveal, Session, SessionId,
+    Tab, TabAction, TabContent, TabFailure, TabSaveContent, index_of_dest_to_activate,
+    session_is_disposable_search, tab_action_for_open,
 };
 use crate::task_manager;
 use crate::task_manager::{
@@ -90,8 +90,8 @@ pub struct Workspace {
     /// A new search starts where the last one left off.
     pub last_search: SearchState,
 
-    /// Where a file being opened puts its caret once its editor has loaded.
-    pending_reveal: Option<(Uuid, Reveal)>,
+    /// A session's fragment changed without the strip changing; persist it.
+    sessions_changed: bool,
     /// Sheets explaining links the reader tried to open, the first showing.
     pub(crate) link_sheets: std::collections::VecDeque<crate::tab::LinkSheet>,
     /// The tab the sheets belong to; they close when it stops being current.
@@ -153,16 +153,6 @@ pub enum WsUpdates {
 
 #[derive(Clone, Copy)]
 struct UserPresent(bool);
-
-#[derive(Clone)]
-enum Reveal {
-    /// Select these bytes: a search hit, a placeholder to type over.
-    Range(std::ops::Range<usize>),
-    /// Pin the heading this `#fragment` names to the top.
-    Heading(String),
-    /// Land on these bytes as on a heading: a link followed from a backlink.
-    Text(std::ops::Range<usize>),
-}
 
 impl Workspace {
     pub fn set_user_present(&self) {
@@ -247,7 +237,7 @@ impl Workspace {
             preview: None,
             preview_pending: None,
             last_search: SearchState::default(),
-            pending_reveal: None,
+            sessions_changed: false,
             link_sheets: Default::default(),
             link_sheet_tab: None,
             link_sheet_keys: (false, false),
@@ -362,6 +352,12 @@ impl Workspace {
                 read_only: false,
                 rename: None,
                 first_draw: true,
+                reveal: self
+                    .tab_strip
+                    .iter()
+                    .find(|s| s.id == tab_id)
+                    .and_then(|s| s.fragment.clone())
+                    .map(|fragment| Reveal { fragment: Some(fragment), flash: false }),
             },
         );
         if needs_load {
@@ -379,8 +375,8 @@ impl Workspace {
     pub fn resume_session(&mut self, session: Session, make_current: bool) {
         let dest = session.dest.clone();
         let tab_id = session.id;
-        self.open_dest(tab_id, &dest);
         self.tab_strip.push(session);
+        self.open_dest(tab_id, &dest);
         self.out.tabs_changed = true;
         if make_current {
             self.set_current_tab(Some(tab_id));
@@ -390,6 +386,22 @@ impl Workspace {
     #[instrument(level = "trace", skip_all)]
     pub fn create_tab(&mut self, dest: Destination, make_current: bool) {
         self.resume_session(Session::new(dest), make_current);
+    }
+
+    /// Lands session `tab_id`'s content on `fragment` once it can.
+    fn land(&mut self, tab_id: SessionId, fragment: Option<Fragment>, flash: bool) {
+        if let Some(tab) = self.tabs.get_mut(&tab_id) {
+            tab.reveal = Some(Reveal { fragment, flash });
+        }
+    }
+
+    /// The current session left its fragment: the user scrolled or edited.
+    fn leave_fragment(&mut self, tab_id: SessionId) {
+        if let Some(session) = self.tab_strip.iter_mut().find(|s| s.id == tab_id) {
+            if session.fragment.take().is_some() {
+                self.sessions_changed = true;
+            }
+        }
     }
 
     pub fn clear_tab_rename(&mut self, tab_id: SessionId) {
@@ -454,6 +466,7 @@ impl Workspace {
             read_only: true,
             rename: None,
             first_draw: true,
+            reveal: None,
         });
         self.tasks.queue_load(LoadRequest {
             id,
@@ -473,11 +486,6 @@ impl Workspace {
         {
             self.preview = self.preview_pending.take();
         }
-    }
-
-    pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
-        let tab_id = self.tab_strip.iter().find(|s| s.dest.id() == id)?.id;
-        self.tabs.get_mut(&tab_id)
     }
 
     pub fn current_slot_index(&self) -> Option<usize> {
@@ -787,51 +795,80 @@ impl Workspace {
     pub fn open_dest_as_session(
         &mut self, dest: Destination, make_current: bool, in_new_tab: bool,
     ) {
-        let action = self.tab_action_for_open(&dest, in_new_tab);
-        self.open_dest_with(dest, make_current, action);
+        self.open_place(Place::new(dest), make_current, in_new_tab);
     }
 
-    fn open_dest_with(&mut self, dest: Destination, make_current: bool, action: TabAction) {
+    /// Opens `place` as the file tree does, landing on its fragment with a
+    /// flash, as following a link does.
+    pub fn open_place(&mut self, place: Place, make_current: bool, in_new_tab: bool) {
+        let action = self.tab_action_for_open(&place.dest, in_new_tab);
+        self.open_place_with(place, make_current, action);
+    }
+
+    fn open_place_with(&mut self, place: Place, make_current: bool, action: TabAction) {
         match action {
             TabAction::Activate => {
                 if let Some(pos) = index_of_dest_to_activate(
                     &self.tab_strip,
                     self.current_tab,
                     &self.activation_history,
-                    &dest,
+                    &place.dest,
                 ) {
+                    if place.fragment.is_some() {
+                        self.navigate_session(pos, place);
+                    }
                     if make_current {
                         self.make_current(pos);
                     }
                 } else {
-                    self.create_tab(dest, make_current);
+                    self.create_session(place, make_current);
                 }
             }
-            TabAction::Create => self.create_tab(dest, make_current),
-            TabAction::Replace => self.replace_current_session(dest, make_current),
-            TabAction::Navigate => self.navigate_to(dest),
+            TabAction::Create => self.create_session(place, make_current),
+            TabAction::Replace => self.replace_current_session_at(place, make_current),
+            TabAction::Navigate => self.navigate_to_place(place),
+        }
+    }
+
+    fn create_session(&mut self, place: Place, make_current: bool) {
+        let session = Session::at(place);
+        let (tab_id, fragment) = (session.id, session.fragment.clone());
+        self.resume_session(session, make_current);
+        if fragment.is_some() {
+            self.land(tab_id, fragment, true);
         }
     }
 
     /// Reuse the current tab for a fresh session at `dest` (empty history).
     /// Creates a tab if the strip is empty.
     pub fn replace_current_session(&mut self, dest: Destination, make_current: bool) {
+        self.replace_current_session_at(Place::new(dest), make_current);
+    }
+
+    fn replace_current_session_at(&mut self, place: Place, make_current: bool) {
         let Some(slot_idx) = self.current_slot_index() else {
-            self.create_tab(dest, make_current);
+            self.create_session(place, make_current);
             return;
         };
         let tab_id = self.tab_strip[slot_idx].id;
-        if self.tab_strip[slot_idx].dest == dest
+        let fragment = place.fragment.clone();
+        if self.tab_strip[slot_idx].dest == place.dest
             && self.tab_strip[slot_idx].back.is_empty()
             && self.tab_strip[slot_idx].forward.is_empty()
         {
+            if fragment.is_some() {
+                self.navigate_session(slot_idx, place);
+            }
             if make_current {
                 self.make_current(slot_idx);
             }
             return;
         }
-        self.tab_strip[slot_idx].replace(dest.clone());
-        self.open_dest(tab_id, &dest);
+        self.tab_strip[slot_idx].replace_at(place.clone());
+        self.open_dest(tab_id, &place.dest);
+        if fragment.is_some() {
+            self.land(tab_id, fragment, true);
+        }
         self.out.tabs_changed = true;
         if make_current {
             self.set_current_tab(Some(tab_id));
@@ -841,17 +878,54 @@ impl Workspace {
     /// Navigate the current tab to `dest`, pushing the previous dest onto
     /// its back stack. Used for links and setting-off chrome.
     pub fn navigate_to(&mut self, dest: Destination) {
+        self.navigate_to_place(Place::new(dest));
+    }
+
+    /// [`Self::navigate_to`] a place, landing on its fragment with a flash.
+    /// A fragment within the current dest is a navigation of its own.
+    pub fn navigate_to_place(&mut self, place: Place) {
         let Some(slot_idx) = self.current_slot_index() else {
-            self.create_tab(dest, true);
+            self.create_session(place, true);
             return;
         };
-        if self.tab_strip[slot_idx].dest == dest {
+        if self.tab_strip[slot_idx].dest == place.dest && place.fragment.is_none() {
             self.make_current(slot_idx);
             return;
         }
         let tab_id = self.tab_strip[slot_idx].id;
-        self.tab_strip[slot_idx].navigate(dest.clone());
+        self.navigate_session(slot_idx, place);
+        self.set_current_tab(Some(tab_id));
+    }
+
+    /// Moves session `i` to `place` with history, and lands there.
+    fn navigate_session(&mut self, i: usize, place: Place) {
+        let tab_id = self.tab_strip[i].id;
+        let here = match self.tab_strip[i].dest == place.dest {
+            true => self.tabs.get_mut(&tab_id).and_then(|t| t.here()),
+            false => None,
+        };
+        let fragment = place.fragment.clone();
+        self.tab_strip[i].navigate_to(place.clone(), here);
+        self.open_dest(tab_id, &place.dest);
+        if fragment.is_some() {
+            self.land(tab_id, fragment, true);
+        }
+        self.out.tabs_changed = true;
+    }
+
+    /// Opens session `i`'s current place after a move through its history.
+    /// Within one dest that's a landing; the start stands for no fragment.
+    fn open_history_place(&mut self, i: usize) {
+        let (tab_id, dest) = (self.tab_strip[i].id, self.tab_strip[i].dest.clone());
+        let fragment = self.tab_strip[i].fragment.clone();
+        let same = self
+            .tabs
+            .get(&tab_id)
+            .is_some_and(|t| t.destination == dest);
         self.open_dest(tab_id, &dest);
+        if same {
+            self.land(tab_id, fragment, false);
+        }
         self.out.tabs_changed = true;
         self.set_current_tab(Some(tab_id));
     }
@@ -882,16 +956,13 @@ impl Workspace {
             .back
             .iter()
             .rev()
-            .position(|d| !matches!(d, Destination::Search(_)));
+            .position(|p| !matches!(p.dest, Destination::Search(_)));
         match other {
             Some(n) => {
                 for _ in 0..=n {
                     self.tab_strip[i].go_back();
                 }
-                let (tab_id, dest) = (self.tab_strip[i].id, self.tab_strip[i].dest.clone());
-                self.open_dest(tab_id, &dest);
-                self.out.tabs_changed = true;
-                self.set_current_tab(Some(tab_id));
+                self.open_history_place(i);
             }
             None if session_is_disposable_search(session) => self.close_tab(i),
             None => {}
@@ -925,65 +996,55 @@ impl Workspace {
     pub fn open_file_at_range(
         &mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool,
     ) {
-        self.open_file(id, true, in_new_tab);
-        self.pending_reveal = Some((id, Reveal::Range(byte_range)));
+        let fragment = Some(Fragment::Selection(byte_range));
+        self.open_place(Place::at(Destination::File(id), fragment), true, in_new_tab);
     }
 
     pub fn navigate_to_range(&mut self, id: Uuid, byte_range: std::ops::Range<usize>) {
-        self.navigate_to(Destination::File(id));
-        self.pending_reveal = Some((id, Reveal::Range(byte_range)));
+        let fragment = Some(Fragment::Selection(byte_range));
+        self.navigate_to_place(Place::at(Destination::File(id), fragment));
     }
 
     /// Opens a file a link names, with the heading its `#fragment` names at
     /// the top of the view. In place unless `in_new_tab`, so Back returns.
     pub fn open_link(&mut self, id: Uuid, heading: Option<String>, in_new_tab: bool) {
-        if in_new_tab {
-            self.open_file(id, true, true);
-        } else {
-            self.navigate_to(Destination::File(id));
-        }
-        if let Some(heading) = heading.filter(|h| !h.is_empty()) {
-            self.pending_reveal = Some((id, Reveal::Heading(heading)));
-        }
+        let fragment = heading.filter(|h| !h.is_empty()).map(Fragment::Heading);
+        self.follow_link(Place::at(Destination::File(id), fragment), in_new_tab);
     }
 
     /// Opens note `id` landing on the link at `byte_range`, as a heading
     /// link lands. In place unless `in_new_tab`, so Back returns.
     pub fn open_link_at(&mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool) {
-        if in_new_tab {
-            self.open_file(id, true, true);
-        } else {
-            self.navigate_to(Destination::File(id));
+        let fragment = Some(Fragment::Text(byte_range));
+        self.follow_link(Place::at(Destination::File(id), fragment), in_new_tab);
+    }
+
+    fn follow_link(&mut self, place: Place, in_new_tab: bool) {
+        match in_new_tab {
+            true => self.open_place_with(place, true, TabAction::Create),
+            false => self.navigate_to_place(place),
         }
-        self.pending_reveal = Some((id, Reveal::Text(byte_range)));
     }
 
     /// Opens a file from outside the app (an `open/` URL) at the heading its
     /// `#fragment` names.
     pub fn open_file_at_heading(&mut self, id: Uuid, heading: String, in_new_tab: bool) {
-        self.open_file(id, true, in_new_tab);
-        self.pending_reveal = Some((id, Reveal::Heading(heading)));
+        let fragment = Some(heading)
+            .filter(|h| !h.is_empty())
+            .map(Fragment::Heading);
+        self.open_place(Place::at(Destination::File(id), fragment), true, in_new_tab);
     }
 
-    pub(crate) fn apply_pending_reveal(&mut self) {
-        let Some((id, reveal)) = self.pending_reveal.clone() else { return };
-        // the current tab when the note is open in more than one
-        let tab = match self.current_tab_id() == Some(id) {
-            true => self.current_tab_mut(),
-            false => self.get_mut_tab_by_id(id),
-        };
-        if let Some(md) = tab.and_then(|t| t.markdown_mut()) {
-            if md.initialized {
-                match reveal {
-                    Reveal::Range(range) => md.open_navigate(range),
-                    Reveal::Heading(heading) => md.open_at_heading(&heading),
-                    Reveal::Text(range) => md.open_at_text(range),
-                }
-                self.pending_reveal = None;
-            }
-        } else if self.tab_strip.iter().all(|s| s.dest.id() != id) {
-            self.pending_reveal = None;
+    /// Records what the current tab reported about its fragment this frame.
+    pub(crate) fn note_fragment_left(&mut self, left: bool) {
+        if let (true, Some(tab_id)) = (left, self.current_tab) {
+            self.leave_fragment(tab_id);
         }
+    }
+
+    /// Persists a session whose fragment changed, if any did this frame.
+    pub(crate) fn take_sessions_changed(&mut self) -> bool {
+        std::mem::take(&mut self.sessions_changed)
     }
 
     pub fn back(&mut self) {
@@ -991,11 +1052,7 @@ impl Workspace {
         if !self.tab_strip[slot_idx].go_back() {
             return;
         }
-        let tab_id = self.tab_strip[slot_idx].id;
-        let dest = self.tab_strip[slot_idx].dest.clone();
-        self.open_dest(tab_id, &dest);
-        self.out.tabs_changed = true;
-        self.set_current_tab(Some(tab_id));
+        self.open_history_place(slot_idx);
     }
 
     pub fn can_back(&self) -> bool {
@@ -1009,11 +1066,7 @@ impl Workspace {
         if !self.tab_strip[slot_idx].go_forward() {
             return;
         }
-        let tab_id = self.tab_strip[slot_idx].id;
-        let dest = self.tab_strip[slot_idx].dest.clone();
-        self.open_dest(tab_id, &dest);
-        self.out.tabs_changed = true;
-        self.set_current_tab(Some(tab_id));
+        self.open_history_place(slot_idx);
     }
 
     pub fn can_forward(&self) -> bool {
@@ -1164,8 +1217,8 @@ impl Workspace {
         }
 
         let at = self.reopen_insert_index(&closed);
-        self.open_dest(tab_id, &dest);
         self.tab_strip.insert(at, closed.slot);
+        self.open_dest(tab_id, &dest);
         self.out.tabs_changed = true;
         self.make_current(at);
         true
@@ -1877,7 +1930,8 @@ impl Workspace {
                 self.desktop_tab_policy,
                 self.cfg.get_open_in_new_tab(),
             );
-            self.open_dest_with(Destination::Search(self.last_search.clone()), true, action);
+            let search = Destination::Search(self.last_search.clone());
+            self.open_place_with(Place::new(search), true, action);
         }
         // refocus the query field each time the tab is opened/focused
         if let Some(tab) = self.current_tab_mut() {
@@ -2489,5 +2543,86 @@ impl InstantExt for Instant {
         if elapsed > duration {
             warn!("{} took {:?}", work, elapsed);
         }
+    }
+}
+
+#[cfg(test)]
+mod fragment_tests {
+    use crate::tab::{Fragment, SessionId};
+    use crate::test_utils::ws::TestWs;
+
+    fn offset(t: &mut TestWs, sid: SessionId) -> String {
+        let md = t.ws.tabs.get(&sid).and_then(|tab| tab.markdown()).unwrap();
+        format!("{:?}", md.edit.scroll_area.stored_offset())
+    }
+
+    /// With a note open twice, a heading link lands in the tab that followed
+    /// it, as a navigation Back undoes; the user scrolling leaves the place.
+    #[test]
+    fn heading_link_lands_in_its_own_tab() {
+        let mut t = TestWs::new();
+        let text = format!("# Top\n\n{}# Far\n\nend\n", "line\n\n".repeat(200));
+        let id = t.doc("a.md", &text);
+        t.ws.open_file(id, true, true);
+        t.settle();
+        t.ws.open_file(id, true, true);
+        t.settle();
+        let (first, second) = (t.ws.tab_strip[0].id, t.ws.tab_strip[1].id);
+        let at_top = offset(&mut t, second);
+
+        t.ws.open_link(id, Some("far".into()), false);
+        t.settle();
+        let session = &t.ws.tab_strip[1];
+        assert_eq!(session.fragment, Some(Fragment::Heading("far".into())));
+        assert_eq!(session.back.len(), 1);
+        assert_ne!(offset(&mut t, second), at_top);
+        t.ws.make_current_by_session(first);
+        t.settle();
+        assert_eq!(offset(&mut t, first), at_top);
+
+        t.ws.make_current_by_session(second);
+        t.ws.back();
+        t.settle();
+        assert_eq!(t.ws.tab_strip[1].fragment, None);
+        assert_eq!(offset(&mut t, second), at_top);
+
+        t.ws.forward();
+        t.settle();
+        assert!(t.ws.tab_strip[1].fragment.is_some());
+        let wheel = egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -40.0),
+            modifiers: Default::default(),
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
+        };
+        t.frame_with(vec![egui::Event::PointerMoved(egui::pos2(400.0, 300.0)), wheel]);
+        t.settle();
+        assert_eq!(t.ws.tab_strip[1].fragment, None);
+    }
+
+    /// A click that moves the caret leaves the place too, so a reopened tab
+    /// keeps where the user went rather than landing back on the heading.
+    #[test]
+    fn moving_the_caret_leaves_the_place() {
+        let mut t = TestWs::new();
+        let text = format!("# Top\n\n{}# Far\n\nend\n", "line\n\n".repeat(200));
+        let id = t.doc("a.md", &text);
+        t.ws.open_file(id, true, false);
+        t.settle();
+        t.ws.open_link(id, Some("far".into()), false);
+        t.settle();
+        assert!(t.ws.tab_strip[0].fragment.is_some());
+        let at = egui::pos2(400.0, 400.0);
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        t.frame_with(vec![egui::Event::PointerMoved(at), button(true)]);
+        t.frame_with(vec![button(false)]);
+        t.settle();
+        assert_eq!(t.ws.tab_strip[0].fragment, None);
     }
 }
