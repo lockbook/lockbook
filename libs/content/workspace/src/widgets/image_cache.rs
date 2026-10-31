@@ -7,16 +7,27 @@
 //!
 //! The cache loads lockbook files and http(s) URLs, rasterizes SVG via
 //! resvg, and corrects EXIF orientation. Decoded images are uploaded as
-//! egui textures.
+//! egui textures. Animated gifs, WebPs and PNGs play: a [`Player`] swaps
+//! each frame into the image's one texture as the frame clock reaches it.
 
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::ops::Deref;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::Duration;
 
-use egui::{ColorImage, Context, TextureId, Vec2};
-use image::{DynamicImage, ImageDecoder, ImageEncoder as _};
+use egui::{ColorImage, Context, ImageData, TextureId, Vec2};
+use epaint::ImageDelta;
+use futures::channel::mpsc;
+use image::codecs::gif::GifDecoder;
+use image::codecs::png::PngDecoder;
+use image::codecs::webp::WebPDecoder;
+use image::metadata::LoopCount;
+use image::{
+    AnimationDecoder as _, DynamicImage, Frames, ImageDecoder, ImageEncoder as _, ImageFormat,
+    ImageResult,
+};
 use lb_rs::blocking::Lb;
 use lb_rs::{Uuid, spawn};
 use resvg::tiny_skia::Pixmap;
@@ -33,13 +44,13 @@ use crate::workspace::WsPersistentStore;
 #[cfg(target_arch = "wasm32")]
 macro_rules! async_on_wasm {
     ($block:block) => {
-        (async || -> Result<TextureId, String> { $block })
+        (async || -> Result<Decoded, String> { $block })
     };
 }
 #[cfg(not(target_arch = "wasm32"))]
 macro_rules! async_on_wasm {
     ($block:block) => {
-        (|| -> Result<TextureId, String> { $block })
+        (|| -> Result<Decoded, String> { $block })
     };
 }
 
@@ -76,6 +87,8 @@ struct Inner {
     began_this_frame: bool,
     /// Images that wait the reader asked to see, by the note showing them.
     shown_anyway: HashSet<(Uuid, ImageKey)>,
+    /// Animations that are loaded and still playing; evicted with their texture.
+    players: HashMap<ImageKey, Player>,
 }
 
 #[derive(Clone)]
@@ -117,15 +130,57 @@ impl ImageCache {
     }
 
     pub fn begin_frame(&self) {
+        let now = self.ctx.input(|i| i.time);
         let mut inner = self.inner.lock().unwrap();
         if !inner.began_this_frame {
             inner.began_this_frame = true;
             inner.previous = std::mem::take(&mut inner.current);
+            self.advance_players(&mut inner, now);
+        }
+    }
+
+    /// Shows each animation's next frame once the clock reaches it, and asks
+    /// for a repaint when the soonest one is due.
+    fn advance_players(&self, inner: &mut Inner, now: f64) {
+        let mut ended = Vec::new();
+        let mut soonest = f64::INFINITY;
+        for (key, player) in &mut inner.players {
+            let due = *player.due.get_or_insert(now + player.delay);
+            if now >= due {
+                // set before looking, so a frame sent meanwhile still repaints
+                player.starved.store(true, Ordering::SeqCst);
+                match player.frames.try_recv() {
+                    Ok(frame) => {
+                        player.starved.store(false, Ordering::SeqCst);
+                        self.ctx
+                            .tex_manager()
+                            .write()
+                            .set(player.texture, ImageDelta::full(frame.image, Default::default()));
+                        // a frame later than one delay sets the clock from now
+                        let next = due + frame.delay;
+                        player.due = Some(if next > now { next } else { now + frame.delay });
+                        player.delay = frame.delay;
+                    }
+                    Err(mpsc::TryRecvError::Closed) => {
+                        ended.push(key.clone());
+                        continue;
+                    }
+                    Err(mpsc::TryRecvError::Empty) => continue,
+                }
+            }
+            soonest = soonest.min(player.due.unwrap_or(now));
+        }
+        for key in ended {
+            inner.players.remove(&key);
+        }
+        if soonest.is_finite() {
+            self.ctx.request_repaint_after_secs((soonest - now) as f32);
         }
     }
 
     pub fn end_frame(&self) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut guard = self.inner.lock().unwrap();
+        let inner = &mut *guard;
         // Unused Loaded textures are freed. Failed is dropped so a later
         // lookup can retry. Loading stays so we don't spawn a second
         // in-flight request.
@@ -140,6 +195,7 @@ impl ImageCache {
             if keep_loading {
                 keep.push((key, state));
             } else if let Some(id) = free_id {
+                inner.players.remove(&key);
                 texture_manager.write().free(id);
             }
         }
@@ -268,24 +324,20 @@ impl ImageCache {
 
     fn spawn_load(&self, key: &ImageKey, user_activity: bool, state: Arc<Mutex<ImageState>>) {
         let key = key.clone();
-        let ctx = self.ctx.clone();
         let client = self.client.clone();
         let core = self.core.clone();
-        let embeds_seq = self.seq.clone();
-        let ws_seq = self.ws_seq.clone();
-        let persistence = self.persistence.clone();
+        let loader = self.loader();
 
         // viewport width is used to scale SVG rasterization — use the screen
         // width as a reasonable upper bound since we load asynchronously
         // before we know the precise render width
-        let viewport_width = ctx.content_rect().width();
-        let pixels_per_point = ctx.pixels_per_point();
+        let viewport_width = self.ctx.content_rect().width();
+        let pixels_per_point = self.ctx.pixels_per_point();
 
         spawn!({
-            let _span = tracing::trace_span!("ImageCache::load").entered();
-            let texture_manager = ctx.tex_manager();
+            let span = tracing::trace_span!("ImageCache::load").entered();
 
-            let texture_closure = async_on_wasm!({
+            let decode_closure = async_on_wasm!({
                 let (image_bytes, is_svg) = match &key {
                     ImageKey::File(id) => {
                         let bytes = core
@@ -318,40 +370,263 @@ impl ImageCache {
                     image_bytes
                 };
 
-                let image = decode_with_orientation(&image_bytes)?;
-                let size_pixels = [image.width() as usize, image.height() as usize];
-                let color_image =
-                    ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8());
-                let image_data = egui::ImageData::Color(color_image.into());
-                Ok(texture_manager
-                    .write()
-                    .alloc(key.persisted(), image_data, Default::default()))
+                decode(image_bytes)
             });
 
             #[cfg(target_arch = "wasm32")]
-            let result = texture_closure().await;
+            let result = decode_closure().await;
             #[cfg(not(target_arch = "wasm32"))]
-            let result = texture_closure();
+            let result = decode_closure();
 
-            match result {
-                Ok(texture_id) => {
-                    if let Some(meta) = texture_manager.read().meta(texture_id) {
-                        let [w, h] = meta.size;
-                        persistence.merge_image_dims(HashMap::from([(
-                            key.persisted(),
-                            [w as f32, h as f32],
-                        )]));
-                    }
-                    *state.lock().unwrap() = ImageState::Loaded(texture_id);
-                }
-                Err(err) => {
-                    *state.lock().unwrap() = ImageState::Failed(err);
-                }
+            let playback = loader.install(&key, &state, result);
+            // a player outlives its loader, so dropping the cache closes the channel
+            drop((span, loader));
+            if let Some(playback) = playback {
+                #[cfg(target_arch = "wasm32")]
+                play(playback).await;
+                #[cfg(not(target_arch = "wasm32"))]
+                futures::executor::block_on(play(playback));
             }
-
-            embeds_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
-            ctx.request_repaint();
         });
+    }
+
+    fn loader(&self) -> Loader {
+        Loader {
+            ctx: self.ctx.clone(),
+            inner: self.inner.clone(),
+            seq: self.seq.clone(),
+            ws_seq: self.ws_seq.clone(),
+            persistence: self.persistence.clone(),
+        }
+    }
+
+    /// Test helper: load `bytes` as `key` on a worker, as a fetch would.
+    #[cfg(test)]
+    pub fn load_bytes(&self, key: &ImageKey, bytes: Vec<u8>) {
+        let state: Arc<Mutex<ImageState>> = Default::default();
+        self.inner
+            .lock()
+            .unwrap()
+            .current
+            .insert(key.clone(), state.clone());
+        let (key, loader) = (key.clone(), self.loader());
+        std::thread::spawn(move || {
+            let playback = loader.install(&key, &state, decode(bytes));
+            drop(loader);
+            if let Some(playback) = playback {
+                futures::executor::block_on(play(playback));
+            }
+        });
+    }
+}
+
+/// What a finished load needs from the cache.
+struct Loader {
+    ctx: Context,
+    inner: Arc<Mutex<Inner>>,
+    seq: Arc<AtomicU64>,
+    ws_seq: Arc<AtomicU64>,
+    persistence: WsPersistentStore,
+}
+
+impl Loader {
+    /// Shows a decoded image: its first frame becomes its texture. Returns
+    /// the rest of an animation, for [`play`] to feed the texture.
+    fn install(
+        &self, key: &ImageKey, state: &Mutex<ImageState>, result: Result<Decoded, String>,
+    ) -> Option<Playback> {
+        let mut playback = None;
+        let shown = result.map(|decoded| {
+            let (image, rest) = match decoded {
+                Decoded::Still(image) => (image, None),
+                Decoded::Animated(first, rest) => (first.image, Some((first.delay, rest))),
+            };
+            let [w, h] = image.size;
+            self.persistence
+                .merge_image_dims(HashMap::from([(key.persisted(), [w as f32, h as f32])]));
+            let texture = self.ctx.tex_manager().write().alloc(
+                key.persisted(),
+                ImageData::Color(image),
+                Default::default(),
+            );
+            if let Some((delay, rest)) = rest {
+                let (tx, frames) = mpsc::channel(1);
+                let starved = Arc::new(AtomicBool::new(false));
+                let player = Player { texture, frames, due: None, delay, starved: starved.clone() };
+                self.inner
+                    .lock()
+                    .unwrap()
+                    .players
+                    .insert(key.clone(), player);
+                playback = Some(Playback { rest, tx, starved, ctx: self.ctx.clone() });
+            }
+            texture
+        });
+        *state.lock().unwrap() = match shown {
+            Ok(texture) => ImageState::Loaded(texture),
+            Err(err) => ImageState::Failed(err),
+        };
+        self.seq
+            .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+        self.ctx.request_repaint();
+        playback
+    }
+}
+
+/// A decoded image: a still, or an animation's first frame and the rest.
+enum Decoded {
+    Still(Arc<ColorImage>),
+    Animated(Frame, Rest),
+}
+
+/// One frame of an animation, ready to upload.
+struct Frame {
+    image: Arc<ColorImage>,
+    /// Seconds it stays up.
+    delay: f64,
+}
+
+impl From<image::Frame> for Frame {
+    fn from(frame: image::Frame) -> Self {
+        let delay = Duration::from(frame.delay()).as_secs_f64();
+        let buffer = frame.into_buffer();
+        let size = [buffer.width() as usize, buffer.height() as usize];
+        let image = ColorImage::from_rgba_unmultiplied(size, buffer.as_raw());
+        // browsers play the shortest delays at a tenth of a second
+        Frame { image: Arc::new(image), delay: if delay <= 0.01 { 0.1 } else { delay } }
+    }
+}
+
+/// An animation past its first frame: the frames still to decode, and the
+/// bytes to decode them again for the next play.
+struct Rest {
+    bytes: Arc<[u8]>,
+    frames: Frames<'static>,
+    next: Frame,
+    /// Times it plays in all; `None` plays forever.
+    plays: Option<u32>,
+}
+
+/// A loaded animation's frame clock. Its texture shows the current frame;
+/// [`play`] decodes ahead into `frames`.
+struct Player {
+    texture: TextureId,
+    frames: mpsc::Receiver<Frame>,
+    /// Frame-clock time the current frame comes down; set on the first tick.
+    due: Option<f64>,
+    /// How long the current frame stays up.
+    delay: f64,
+    /// The clock found no frame ready; the next one sent repaints.
+    starved: Arc<AtomicBool>,
+}
+
+struct Playback {
+    rest: Rest,
+    tx: mpsc::Sender<Frame>,
+    starved: Arc<AtomicBool>,
+    ctx: Context,
+}
+
+/// Decodes an animation's frames into its player's channel, as far ahead as
+/// the channel holds, until the player is evicted or the plays run out.
+async fn play(playback: Playback) {
+    use futures::SinkExt as _;
+
+    let Playback { rest: Rest { bytes, mut frames, next, plays }, mut tx, starved, ctx } = playback;
+    let mut played = 1;
+    let mut pending = Some(next);
+    loop {
+        let frame = match pending.take() {
+            Some(frame) => frame,
+            None => match frames.next() {
+                Some(Ok(frame)) => frame.into(),
+                Some(Err(err)) => {
+                    tracing::warn!(%err, "animation stopped");
+                    return;
+                }
+                None if plays.is_some_and(|n| played >= n) => return,
+                None => {
+                    played += 1;
+                    match animation(&bytes) {
+                        Ok(Some((again, _))) => frames = again,
+                        _ => return,
+                    }
+                    continue;
+                }
+            },
+        };
+        if tx.send(frame).await.is_err() {
+            return; // evicted
+        }
+        if starved.swap(false, Ordering::SeqCst) {
+            ctx.request_repaint();
+        }
+    }
+}
+
+/// Decodes `bytes` as an animation if it has more than one frame, else as a
+/// still with its EXIF orientation applied.
+fn decode(bytes: Vec<u8>) -> Result<Decoded, String> {
+    let bytes: Arc<[u8]> = bytes.into();
+    if let Some((mut frames, plays)) = animation(&bytes).map_err(|e| e.to_string())? {
+        let first: Frame = frames
+            .next()
+            .ok_or("image has no frames")?
+            .map_err(|e| e.to_string())?
+            .into();
+        // a file cut short after its first frame shows that frame
+        return Ok(match frames.next() {
+            Some(Ok(next)) => {
+                Decoded::Animated(first, Rest { bytes, frames, next: next.into(), plays })
+            }
+            _ => Decoded::Still(first.image),
+        });
+    }
+    let image = decode_with_orientation(&bytes)?;
+    let size = [image.width() as usize, image.height() as usize];
+    Ok(Decoded::Still(Arc::new(ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()))))
+}
+
+/// The frames of an animated gif, WebP or PNG, and the times it plays
+/// (`None` forever). `None` for any other image.
+fn animation(bytes: &Arc<[u8]>) -> ImageResult<Option<(Frames<'static>, Option<u32>)>> {
+    let plays = |count| match count {
+        LoopCount::Infinite => None,
+        LoopCount::Finite(n) => Some(u32::from(n)),
+    };
+    let reader = Cursor::new(bytes.clone());
+    Ok(match image::guess_format(bytes)? {
+        ImageFormat::Gif => Some((GifDecoder::new(reader)?.into_frames(), gif_plays(bytes))),
+        ImageFormat::WebP => {
+            let decoder = WebPDecoder::new(reader)?;
+            if !decoder.has_animation() {
+                return Ok(None);
+            }
+            let plays = plays(decoder.loop_count());
+            Some((decoder.into_frames(), plays))
+        }
+        ImageFormat::Png => {
+            let decoder = PngDecoder::new(reader)?;
+            if !decoder.is_apng()? {
+                return Ok(None);
+            }
+            let decoder = decoder.apng()?;
+            let plays = plays(decoder.loop_count());
+            Some((decoder.into_frames(), plays))
+        }
+        _ => None,
+    })
+}
+
+/// Times a gif plays, as Firefox and WebKit read its loop block: once
+/// without one, else one more than its count; `None` forever.
+fn gif_plays(bytes: &[u8]) -> Option<u32> {
+    let repeat = gif::DecodeOptions::new()
+        .read_info(bytes)
+        .map_or(gif::Repeat::Finite(0), |decoder| decoder.repeat());
+    match repeat {
+        gif::Repeat::Infinite => None,
+        gif::Repeat::Finite(n) => Some(u32::from(n) + 1),
     }
 }
 
@@ -449,7 +724,119 @@ async fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, Strin
 
 #[cfg(test)]
 mod tests {
-    use super::{bytes_look_like_svg, rasterize_svg};
+    use std::sync::{Arc, RwLock};
+    use std::time::{Duration, Instant};
+
+    use egui::{Color32, ImageData, RawInput, TextureId};
+    use lb_rs::Uuid;
+
+    use super::{ImageCache, ImageKey, bytes_look_like_svg, rasterize_svg};
+    use crate::file_cache::FileCache;
+    use crate::workspace::WsPersistentStore;
+
+    /// A 4×4 gif of solid frames, each with its delay in centiseconds.
+    fn solid_gif(frames: &[(Color32, u16)], repeat: Option<gif::Repeat>) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut encoder = gif::Encoder::new(&mut out, 4, 4, &[]).unwrap();
+        if let Some(repeat) = repeat {
+            encoder.set_repeat(repeat).unwrap();
+        }
+        for &(color, delay) in frames {
+            let mut pixels = color.to_array().repeat(16);
+            let mut frame = gif::Frame::from_rgba(4, 4, &mut pixels);
+            frame.delay = delay;
+            encoder.write_frame(&frame).unwrap();
+        }
+        drop(encoder);
+        out
+    }
+
+    /// A gif plays as encoded: each frame goes up once the delays before it
+    /// have passed and not before, in order, for as many plays as its loop
+    /// block asks, however late the frame clock ticks. A delay of 0 plays as
+    /// 10 centiseconds.
+    #[test]
+    fn gif_plays_on_the_frame_clock() {
+        let frames = [(Color32::RED, 2), (Color32::GREEN, 0), (Color32::BLUE, 5)];
+        let delay = |cs: u16| if cs == 0 { 0.1 } else { cs as f64 / 100.0 };
+        // (loop block, plays checked, whether it stops after them)
+        let cases = [
+            (None, 1, true),
+            (Some(gif::Repeat::Finite(1)), 2, true),
+            (Some(gif::Repeat::Infinite), 3, false),
+        ];
+        for (repeat, plays, stops) in cases {
+            let ctx = crate::tab::markdown_editor::test_egui_ctx();
+            let persistence =
+                WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+            let images = ImageCache::new(
+                ctx.clone(),
+                Default::default(),
+                crate::tab::markdown_editor::tests::harness::build_lb(),
+                Arc::new(RwLock::new(FileCache::empty())),
+                persistence,
+            );
+            let key = ImageKey::Web("https://example.com/solid.gif".into());
+            images.load_bytes(&key, solid_gif(&frames, repeat));
+
+            // the colors uploaded in one frame at `time`; the font atlas
+            // aside, the gif's is the only texture
+            let run = |time: f64| -> Vec<Color32> {
+                let mut out =
+                    ctx.run_pass(RawInput { time: Some(time), ..Default::default() }, |_| {
+                        images.begin_frame();
+                        images.get_or_load(&key, false);
+                        images.end_frame();
+                    });
+                let shown = out
+                    .textures_delta
+                    .set
+                    .iter()
+                    .filter(|(id, _)| **id != TextureId::default())
+                    .flat_map(|(_, deltas)| deltas)
+                    .map(|delta| match &delta.image {
+                        ImageData::Color(image) => image.pixels[0],
+                    })
+                    .collect();
+                out.textures_delta.clear();
+                shown
+            };
+            // frames at `time` until one uploads, waiting on the decoder
+            let run_until_upload = |time: f64| -> Vec<Color32> {
+                let start = Instant::now();
+                loop {
+                    let shown = run(time);
+                    if !shown.is_empty() || start.elapsed() > Duration::from_secs(5) {
+                        return shown;
+                    }
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+            };
+
+            // the first frame goes up as the texture, then the clock starts
+            assert_eq!(run_until_upload(0.0), vec![frames[0].0]);
+            run(0.0);
+
+            let mut due = 0.0;
+            let mut shown_delay = delay(frames[0].1);
+            for (i, &(color, cs)) in frames.iter().cycle().enumerate().skip(1) {
+                if i == plays * frames.len() {
+                    break;
+                }
+                due += shown_delay;
+                // a frame shown late leaves the next one's time alone
+                let late = if i % 2 == 1 { 0.004 } else { 0.0 };
+                assert!(run(due - 0.001).is_empty(), "frame {i} early");
+                assert_eq!(run_until_upload(due + late), vec![color], "frame {i}");
+                shown_delay = delay(cs);
+            }
+            if stops {
+                std::thread::sleep(Duration::from_millis(20));
+                assert!(run(due + 10.0).is_empty());
+                assert!(run(due + 20.0).is_empty());
+            }
+        }
+    }
 
     /// At ppi>1 the SVG fills the whole upscaled pixmap, not just a
     /// top-left `1/ppi × 1/ppi` quadrant.
