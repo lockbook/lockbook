@@ -36,6 +36,7 @@ use crate::{
         file_like::FileLike,
         file_metadata::{DocumentHmac, FileDiff, FileType, Owner},
         filename::{DocumentType, NameComponents},
+        json,
         lazy::LazyTree,
         signed_meta::SignedMeta,
         staged::StagedTreeLikeMut,
@@ -747,7 +748,23 @@ impl Lb {
                                         let hmac = merge.find(&id)?.document_hmac().copied();
                                         self.docs.insert(id, hmac, &encrypted_document).await?;
                                     }
-                                    DocumentType::Other => {
+                                    DocumentType::Json
+                                        if let Some(merged_document) = json::merge_bytes(
+                                            &base_document,
+                                            &local_document,
+                                            &remote_document,
+                                        ) =>
+                                    {
+                                        let encrypted_document = merge
+                                            .update_document_unvalidated(
+                                                &id,
+                                                &merged_document,
+                                                &self.keychain,
+                                            )?;
+                                        let hmac = merge.find(&id)?.document_hmac().copied();
+                                        self.docs.insert(id, hmac, &encrypted_document).await?;
+                                    }
+                                    DocumentType::Json | DocumentType::Other => {
                                         // duplicate file
                                         let merge_parent = *merge.find(&id)?.parent();
                                         let (duplicate_id, duplicate_key) =

@@ -8,6 +8,8 @@ pub enum DocumentType {
     Text,
     Drawing,
     Chat,
+    /// Merged structurally (see [crate::model::json]).
+    Json,
     Other,
 }
 
@@ -18,6 +20,7 @@ impl DocumentType {
             Some("md") | Some("txt") => DocumentType::Text,
             Some("svg") => DocumentType::Drawing,
             Some("chat") => DocumentType::Chat,
+            Some("json") | Some("metrics") => DocumentType::Json,
             _ => DocumentType::Other,
         }
     }
