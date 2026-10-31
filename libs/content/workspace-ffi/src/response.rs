@@ -67,16 +67,23 @@ impl Response {
             redraw_in,
             copied_text,
             copied_html,
-            copied_image: platform
-                .commands
-                .iter()
-                .find_map(|c| if let OutputCommand::CopyImage(i) = c { Some(i) } else { None })
-                .and_then(|i| match encode_png(i) {
-                    Ok(png) => Some(png),
-                    Err(err) => {
-                        eprintln!("failed to encode copied image: {err}");
-                        None
-                    }
+            // a gif copies as itself, else as a png of its pixels
+            copied_image: context
+                .pop_copied_gif()
+                .or_else(|| {
+                    platform
+                        .commands
+                        .iter()
+                        .find_map(
+                            |c| if let OutputCommand::CopyImage(i) = c { Some(i) } else { None },
+                        )
+                        .and_then(|i| match encode_png(i) {
+                            Ok(png) => Some(png),
+                            Err(err) => {
+                                eprintln!("failed to encode copied image: {err}");
+                                None
+                            }
+                        })
                 })
                 .unwrap_or_default(),
             urls_opened: platform

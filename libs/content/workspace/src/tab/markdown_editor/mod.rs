@@ -75,7 +75,7 @@ mod theme;
 pub(crate) mod widget;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use input::Event;
 pub use md_label::MdLabel;
