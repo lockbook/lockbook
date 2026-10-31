@@ -11,13 +11,10 @@ fn git(args: &[&str]) -> Option<String> {
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src");
-    // HEAD changes when switching branches; its symbolic ref changes when committing.
-    for reference in [Some("HEAD".to_owned()), git(&["symbolic-ref", "-q", "HEAD"])]
-        .into_iter()
-        .flatten()
-    {
-        if let Some(path) = git(&["rev-parse", "--git-path", &reference]) {
-            println!("cargo:rerun-if-changed={path}");
+    // git appends to the HEAD reflog on every commit, checkout and reset, packed refs or not.
+    if let Some(reflog) = git(&["rev-parse", "--git-path", "logs/HEAD"]) {
+        if std::path::Path::new(&reflog).exists() {
+            println!("cargo:rerun-if-changed={reflog}");
         }
     }
     let mut commit = git(&["rev-parse", "HEAD"]).unwrap_or_else(|| "unknown".to_owned());
