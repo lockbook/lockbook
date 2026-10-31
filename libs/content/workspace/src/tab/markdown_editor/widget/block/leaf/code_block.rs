@@ -9,7 +9,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt};
 use comrak::nodes::NodeValue;
 
 use crate::style::{FG_HOVER, Radius, phosphor, phosphor_font_id, tip_text};
-use crate::syntax::{Lang, Role, Spans, roles_in};
+use crate::syntax::{Highlights, Lang, Role, agreeing, roles_in};
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
@@ -547,7 +547,7 @@ impl<'ast> MdRender {
         let key = (self.node_range(node), self.text_seq);
         let unit = self.syntax.unit_for(key, || {
             let (text, lines) = self.code_block_text(node, node_code_block, synthetic);
-            CodeUnit { spans: self.syntax.spans(lang, text), lines }
+            CodeUnit { highlights: self.syntax.highlights(lang, text), lines }
         });
         let idx = unit
             .lines
@@ -556,7 +556,8 @@ impl<'ast> MdRender {
         let offset = unit.lines[idx].1;
         let start = self.offset_to_byte(code_line.start());
         let len = self.buffer[code_line].len();
-        let regions = roles_in(&unit.spans, offset..offset + len)
+        let spans = unit.highlights.as_ref()?.spans(offset..offset + len);
+        let regions = roles_in(&spans, offset..offset + len)
             .into_iter()
             .map(|(role, r)| {
                 // a token can end inside a grapheme, like a digit before a keycap's marks
@@ -692,19 +693,19 @@ impl<'ast> MdRender {
     }
 }
 
-/// A unit of code's spans, and where each of its lines starts in it: by a
+/// A unit of code parsed, and where each of its lines starts in it: by a
 /// code line's first grapheme, its byte in the unit.
 pub struct CodeUnit {
-    pub spans: Arc<Spans>,
+    pub highlights: Option<Arc<Highlights>>,
     pub lines: Vec<(Grapheme, usize)>,
 }
 
-/// Highlights kept while they're used: spans by language and text, so a
-/// unit reparses only when its code changes, and units by their range and
-/// text version, so a unit's text is gathered once per edit.
+/// Highlights kept while they're used: parsed units by language and text,
+/// so a unit reparses only when its code changes, and units by their range
+/// and text version, so a unit's text is gathered once per edit.
 #[derive(Clone, Default)]
 pub struct SyntaxHighlightCache {
-    spans: KeptWhileUsed<(Lang, String), Arc<Spans>>,
+    highlights: KeptWhileUsed<(Lang, String), Option<Arc<Highlights>>>,
     units: KeptWhileUsed<((Grapheme, Grapheme), u64), Arc<CodeUnit>>,
 }
 
@@ -712,15 +713,33 @@ pub struct SyntaxHighlightCache {
 type KeptWhileUsed<K, V> = RefCell<HashMap<K, (V, bool)>>;
 
 impl SyntaxHighlightCache {
-    pub fn spans(&self, lang: Lang, text: String) -> Arc<Spans> {
+    /// `text` parsed as `lang`; a new text reparses from the kept version
+    /// it agrees with most, as an edited unit's last version does.
+    pub fn highlights(&self, lang: Lang, text: String) -> Option<Arc<Highlights>> {
         let key = (lang, text);
-        if let Some((spans, used)) = self.spans.borrow_mut().get_mut(&key) {
+        if let Some((highlights, used)) = self.highlights.borrow_mut().get_mut(&key) {
             *used = true;
-            return spans.clone();
+            return highlights.clone();
         }
-        let spans = Arc::new(lang.highlight(&key.1));
-        self.spans.borrow_mut().insert(key, (spans.clone(), true));
-        spans
+        let closest = self
+            .highlights
+            .borrow()
+            .iter()
+            .filter_map(|((kept_lang, kept), (highlights, _))| {
+                let highlights = highlights.as_ref().filter(|_| *kept_lang == lang)?;
+                Some((agreeing(kept, &key.1), highlights.clone()))
+            })
+            .max_by_key(|(agree, _)| *agree)
+            .map(|(_, highlights)| highlights);
+        let highlights = match closest {
+            Some(closest) => closest.edited(key.1.clone()),
+            None => lang.highlights(key.1.clone()),
+        }
+        .map(Arc::new);
+        self.highlights
+            .borrow_mut()
+            .insert(key, (highlights.clone(), true));
+        highlights
     }
 
     pub fn unit_for(
@@ -736,7 +755,7 @@ impl SyntaxHighlightCache {
     }
 
     pub fn garbage_collect(&self) {
-        self.spans
+        self.highlights
             .borrow_mut()
             .retain(|_, (_, used)| std::mem::take(used));
         self.units

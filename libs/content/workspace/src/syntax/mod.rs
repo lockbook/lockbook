@@ -3,7 +3,10 @@
 //! one code file). The web build has no grammars, so it knows no language.
 
 use std::ops::Range;
+use std::sync::Arc;
 
+#[cfg(not(target_family = "wasm"))]
+mod highlight;
 #[cfg(not(target_family = "wasm"))]
 mod languages;
 
@@ -54,26 +57,50 @@ impl Lang {
         languages::name(self.0)
     }
 
-    /// Spans of `text` read as this language; none if its queries don't
-    /// compile.
-    pub fn highlight(self, text: &str) -> Spans {
-        languages::highlight(self.0, text)
+    /// `text` parsed as this language; none if its grammar won't load.
+    pub fn highlights(self, text: String) -> Option<Highlights> {
+        highlight::Highlights::new(self.0, text).map(Highlights)
     }
 
-    /// Whether [`Self::definitions`] finds anything in this language.
+    /// Whether [`Highlights::definitions`] finds anything in this language.
     pub fn has_definitions(self) -> bool {
         languages::has_definitions(self.0)
     }
+}
 
-    /// The functions, types, and the like in `text`, in order.
-    pub fn definitions(self, text: &str) -> Vec<Definition> {
-        languages::definitions(self.0, text)
+/// A version of a unit of code, parsed, with the spans asked of it.
+#[cfg(not(target_family = "wasm"))]
+pub struct Highlights(highlight::Highlights);
+
+#[cfg(not(target_family = "wasm"))]
+impl Highlights {
+    /// `text` parsed again from this version, for the next version of the
+    /// same unit.
+    pub fn edited(&self, text: String) -> Option<Self> {
+        self.0.edited(text).map(Self)
     }
 
-    /// The smallest syntax node in `text` larger than `range` and covering it.
-    pub fn enclosing(self, text: &str, range: Range<usize>) -> Option<Range<usize>> {
-        languages::enclosing(self.0, text, range)
+    /// The spans within `range` of the text, clipped to it.
+    pub fn spans(&self, range: Range<usize>) -> Arc<Spans> {
+        self.0.spans(range)
     }
+
+    /// The functions, types, and the like, in order.
+    pub fn definitions(&self) -> Vec<Definition> {
+        languages::definitions(self.0.lang(), self.0.tree(), self.0.text())
+    }
+
+    /// The smallest syntax node larger than `range` and covering it.
+    pub fn enclosing(&self, range: Range<usize>) -> Option<Range<usize>> {
+        languages::enclosing(self.0.tree(), range)
+    }
+}
+
+/// How many bytes two texts agree on at their start, plus at their end.
+#[cfg(not(target_family = "wasm"))]
+pub fn agreeing(a: &str, b: &str) -> usize {
+    let (start, end) = highlight::agreeing(a, b);
+    start + end
 }
 
 #[cfg(target_family = "wasm")]
@@ -90,21 +117,41 @@ impl Lang {
         unreachable!("no language exists on the web")
     }
 
-    pub fn highlight(self, _text: &str) -> Spans {
+    pub fn highlights(self, _text: String) -> Option<Highlights> {
         unreachable!("no language exists on the web")
     }
 
     pub fn has_definitions(self) -> bool {
         unreachable!("no language exists on the web")
     }
+}
 
-    pub fn definitions(self, _text: &str) -> Vec<Definition> {
-        unreachable!("no language exists on the web")
+/// No code is parsed on the web.
+#[cfg(target_family = "wasm")]
+pub enum Highlights {}
+
+#[cfg(target_family = "wasm")]
+impl Highlights {
+    pub fn edited(&self, _text: String) -> Option<Self> {
+        match *self {}
     }
 
-    pub fn enclosing(self, _text: &str, _range: Range<usize>) -> Option<Range<usize>> {
-        unreachable!("no language exists on the web")
+    pub fn spans(&self, _range: Range<usize>) -> Arc<Spans> {
+        match *self {}
     }
+
+    pub fn definitions(&self) -> Vec<Definition> {
+        match *self {}
+    }
+
+    pub fn enclosing(&self, _range: Range<usize>) -> Option<Range<usize>> {
+        match *self {}
+    }
+}
+
+#[cfg(target_family = "wasm")]
+pub fn agreeing(_a: &str, _b: &str) -> usize {
+    0
 }
 
 /// Language names a fence's info could be completing `query` toward, best

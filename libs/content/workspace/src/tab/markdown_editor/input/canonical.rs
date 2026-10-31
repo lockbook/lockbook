@@ -99,7 +99,7 @@ impl<'ast> MdEdit {
                 && self
                     .renderer
                     .code_scope_at(root, self.renderer.buffer.current.selection.start())
-                    .is_some_and(|scope| scope.lang.is_some()) =>
+                    .is_some_and(|scope| scope.highlights.is_some()) =>
             {
                 Some(Event::Select { region: Region::Syntax { larger: key == Key::ArrowRight } })
             }

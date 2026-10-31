@@ -1,11 +1,9 @@
-use std::cell::RefCell;
 use std::ops::Range;
 use std::sync::OnceLock;
 
-use tree_sitter::{Parser, Query, QueryCursor, StreamingIterator as _, Tree};
-use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
+use tree_sitter::{Node, Query, QueryCursor, QueryMatch, StreamingIterator as _, Tree};
 
-use super::{Definition, Role, Spans};
+use super::{Definition, Role};
 
 struct Entry {
     /// What injections call it; also a fence token.
@@ -17,14 +15,13 @@ struct Entry {
     /// Concatenated in order: a layered grammar lists its base's first.
     highlights: &'static [&'static str],
     injections: &'static str,
-    locals: &'static str,
     /// Definitions for the outline, concatenated like the highlights.
     tags: &'static [&'static str],
 }
 
 macro_rules! entry {
     ($name:literal, [$($alias:literal),*], [$($ext:literal),*], $grammar:expr,
-     [$($highlights:expr),+] $(, injections: $injections:expr)? $(, locals: $locals:expr)?
+     [$($highlights:expr),+] $(, injections: $injections:expr)?
      $(, tags: [$($tags:expr),+])?) => {
         Entry {
             name: $name,
@@ -33,7 +30,6 @@ macro_rules! entry {
             grammar: || $grammar.into(),
             highlights: &[$($highlights),+],
             injections: entry!(@or $($injections)?),
-            locals: entry!(@or $($locals)?),
             tags: &[$($($tags),+)?],
         }
     };
@@ -65,7 +61,7 @@ const ENTRIES: &[Entry] = &[
     entry!("java", [], ["java"], tree_sitter_java::LANGUAGE, [tree_sitter_java::HIGHLIGHTS_QUERY], tags: [tree_sitter_java::TAGS_QUERY]),
     entry!("javascript", ["js", "node", "ecmascript"], ["js", "mjs", "cjs", "jsx"], tree_sitter_javascript::LANGUAGE,
         [tree_sitter_javascript::HIGHLIGHT_QUERY, tree_sitter_javascript::JSX_HIGHLIGHT_QUERY],
-        injections: tree_sitter_javascript::INJECTIONS_QUERY, locals: tree_sitter_javascript::LOCALS_QUERY, tags: [tree_sitter_javascript::TAGS_QUERY]),
+        injections: tree_sitter_javascript::INJECTIONS_QUERY, tags: [tree_sitter_javascript::TAGS_QUERY]),
     entry!(
         "json",
         ["jsonc", "jsonl", "json5"],
@@ -216,7 +212,7 @@ const ENTRIES: &[Entry] = &[
         [tree_sitter_regex::HIGHLIGHTS_QUERY]
     ),
     #[cfg(feature = "extra-grammars")]
-    entry!("ruby", ["rb"], ["rb", "rake", "gemspec"], tree_sitter_ruby::LANGUAGE, [tree_sitter_ruby::HIGHLIGHTS_QUERY], locals: tree_sitter_ruby::LOCALS_QUERY, tags: [tree_sitter_ruby::TAGS_QUERY]),
+    entry!("ruby", ["rb"], ["rb", "rake", "gemspec"], tree_sitter_ruby::LANGUAGE, [tree_sitter_ruby::HIGHLIGHTS_QUERY], tags: [tree_sitter_ruby::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     entry!(
         "scala",
@@ -276,14 +272,10 @@ const CAPTURES: &[(&str, Role)] = &[
     ("embedded", Role::Text),
 ];
 
-static CONFIGS: [OnceLock<Option<HighlightConfiguration>>; ENTRIES.len()] =
+static QUERIES: [OnceLock<Option<Queries>>; ENTRIES.len()] =
     [const { OnceLock::new() }; ENTRIES.len()];
 
 static TAGS: [OnceLock<Option<Query>>; ENTRIES.len()] = [const { OnceLock::new() }; ENTRIES.len()];
-
-thread_local! {
-    static HIGHLIGHTER: RefCell<Highlighter> = RefCell::new(Highlighter::new());
-}
 
 pub fn find_token(token: &str) -> Option<usize> {
     let token = token.to_ascii_lowercase();
@@ -331,71 +323,117 @@ pub fn name(idx: usize) -> &'static str {
     ENTRIES[idx].name
 }
 
-fn config(idx: usize) -> Option<&'static HighlightConfiguration> {
-    CONFIGS[idx]
+pub fn grammar(idx: usize) -> tree_sitter::Language {
+    (ENTRIES[idx].grammar)()
+}
+
+/// A language's queries, compiled once.
+pub struct Queries {
+    pub highlights: Query,
+    /// The role each highlights capture colors, by capture index.
+    pub roles: Vec<Option<Role>>,
+    /// Injections that are each a layer of their own.
+    pub injections: Option<Query>,
+    /// Injections whose matches share one layer per pattern.
+    pub combined: Option<Query>,
+}
+
+/// One match of an injections query: the language it names, if any, and
+/// the node holding its code.
+pub struct Injection<'tree, 'text> {
+    pub language: Option<&'text str>,
+    pub content: Node<'tree>,
+    pub include_children: bool,
+}
+
+pub fn queries(idx: usize) -> Option<&'static Queries> {
+    QUERIES[idx]
         .get_or_init(|| {
             let entry = &ENTRIES[idx];
-            let highlights = entry.highlights.concat();
-            let config = HighlightConfiguration::new(
-                (entry.grammar)(),
-                entry.name,
-                &highlights,
-                entry.injections,
-                entry.locals,
-            );
-            match config {
-                Ok(mut config) => {
-                    let names: Vec<_> = CAPTURES.iter().map(|(name, _)| *name).collect();
-                    config.configure(&names);
-                    Some(config)
-                }
-                Err(err) => {
-                    tracing::error!("{} highlight queries don't compile: {err:?}", entry.name);
-                    None
-                }
-            }
+            let compiled = (|| {
+                let highlights = Query::new(&grammar(idx), &entry.highlights.concat())?;
+                let roles = highlights
+                    .capture_names()
+                    .iter()
+                    .map(|name| role(name))
+                    .collect();
+                let (injections, combined) = injection_queries(idx)?;
+                Ok::<_, tree_sitter::QueryError>(Queries {
+                    highlights,
+                    roles,
+                    injections,
+                    combined,
+                })
+            })();
+            compiled
+                .inspect_err(|err| tracing::error!("{} queries don't compile: {err:?}", entry.name))
+                .ok()
         })
         .as_ref()
 }
 
-pub fn highlight(idx: usize, text: &str) -> Spans {
-    let Some(unit) = config(idx) else { return Vec::new() };
-    HIGHLIGHTER.with_borrow_mut(|highlighter| {
-        let injected = |name: &str| find_token(name).and_then(config);
-        let Ok(events) = highlighter.highlight(unit, text.as_bytes(), None, None, injected) else {
-            return Vec::new();
-        };
-        let mut spans: Spans = Vec::new();
-        let mut roles = Vec::new();
-        for event in events {
-            match event {
-                Ok(HighlightEvent::HighlightStart(capture)) => roles.push(CAPTURES[capture.0].1),
-                Ok(HighlightEvent::HighlightEnd) => {
-                    roles.pop();
-                }
-                Ok(HighlightEvent::Source { start, end }) => {
-                    let role = roles.last().copied().unwrap_or(Role::Text);
-                    if role == Role::Text || start == end {
-                        continue;
-                    }
-                    match spans.last_mut() {
-                        Some((last, range)) if *last == role && range.end == start => {
-                            range.end = end
-                        }
-                        _ => spans.push((role, start..end)),
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-        spans
-    })
+/// The role of a capture: that of the first entry in [`CAPTURES`] it
+/// names a part of.
+fn role(capture: &str) -> Option<Role> {
+    let parts: Vec<_> = capture.split('.').collect();
+    CAPTURES
+        .iter()
+        .find(|(name, _)| parts.contains(name))
+        .map(|(_, role)| *role)
 }
 
-fn parse(idx: usize, text: &str) -> Option<Tree> {
-    let mut parser = Parser::new();
-    parser.set_language(&(ENTRIES[idx].grammar)()).ok()?;
-    parser.parse(text, None)
+/// The injections query split in two: patterns that are each their own
+/// layer, and patterns marked `injection.combined`.
+#[allow(clippy::type_complexity)]
+fn injection_queries(
+    idx: usize,
+) -> Result<(Option<Query>, Option<Query>), tree_sitter::QueryError> {
+    let source = ENTRIES[idx].injections;
+    if source.is_empty() {
+        return Ok((None, None));
+    }
+    let mut separate = Query::new(&grammar(idx), source)?;
+    let mut combined = Query::new(&grammar(idx), source)?;
+    let mut any_combined = false;
+    for pattern in 0..separate.pattern_count() {
+        let is_combined = separate
+            .property_settings(pattern)
+            .iter()
+            .any(|setting| &*setting.key == "injection.combined");
+        if is_combined {
+            any_combined = true;
+            separate.disable_pattern(pattern);
+        } else {
+            combined.disable_pattern(pattern);
+        }
+    }
+    Ok((Some(separate), any_combined.then_some(combined)))
+}
+
+/// What `m`, a match of an injections `query`, injects: the language a
+/// capture's text or a `#set!` names, and its content, if it has one.
+pub fn injection<'tree, 'text>(
+    query: &'text Query, m: &QueryMatch<'_, 'tree>, text: &'text str,
+) -> Option<Injection<'tree, 'text>> {
+    let names = query.capture_names();
+    let mut lang = None;
+    let mut content = None;
+    for capture in m.captures() {
+        match names[capture.index as usize] {
+            "injection.language" => lang = capture.node.utf8_text(text.as_bytes()).ok(),
+            "injection.content" => content = Some(capture.node),
+            _ => {}
+        }
+    }
+    let mut include_children = false;
+    for setting in query.property_settings(m.pattern_index) {
+        match &*setting.key {
+            "injection.language" if lang.is_none() => lang = setting.value.as_deref(),
+            "injection.include-children" => include_children = true,
+            _ => {}
+        }
+    }
+    Some(Injection { language: lang, content: content?, include_children })
 }
 
 fn tags(idx: usize) -> Option<&'static Query> {
@@ -420,8 +458,8 @@ pub fn has_definitions(idx: usize) -> bool {
     !ENTRIES[idx].tags.is_empty()
 }
 
-pub fn definitions(idx: usize, text: &str) -> Vec<Definition> {
-    let (Some(query), Some(tree)) = (tags(idx), parse(idx, text)) else { return Vec::new() };
+pub fn definitions(idx: usize, tree: &Tree, text: &str) -> Vec<Definition> {
+    let Some(query) = tags(idx) else { return Vec::new() };
     let names = query.capture_names();
     let mut found: Vec<(Range<usize>, Range<usize>)> = Vec::new();
     let mut cursor = QueryCursor::new();
@@ -455,8 +493,7 @@ pub fn definitions(idx: usize, text: &str) -> Vec<Definition> {
         .collect()
 }
 
-pub fn enclosing(idx: usize, text: &str, range: Range<usize>) -> Option<Range<usize>> {
-    let tree = parse(idx, text)?;
+pub fn enclosing(tree: &Tree, range: Range<usize>) -> Option<Range<usize>> {
     let root = tree.root_node();
     let mut node = if range.is_empty() {
         // a caret is in the token on either side of it: the shorter, a named
@@ -486,13 +523,24 @@ pub fn enclosing(idx: usize, text: &str, range: Range<usize>) -> Option<Range<us
 
 #[cfg(test)]
 mod test {
-    use super::{CONFIGS, ENTRIES, config, definitions, enclosing, find_token, highlight, tags};
-    use crate::syntax::Role;
+    use super::{ENTRIES, QUERIES, definitions, enclosing, find_token, queries, tags};
+    use crate::syntax::highlight::Highlights;
+    use crate::syntax::{Role, Spans};
+
+    fn highlight(idx: usize, text: &str) -> Spans {
+        let highlights = Highlights::new(idx, text.into()).unwrap();
+        highlights.spans(0..text.len()).as_ref().clone()
+    }
+
+    fn parsed(lang: &str, text: &str) -> (usize, Highlights) {
+        let idx = find_token(lang).unwrap();
+        (idx, Highlights::new(idx, text.into()).unwrap())
+    }
 
     #[test]
     fn every_language_compiles() {
         let broken: Vec<_> = (0..ENTRIES.len())
-            .filter(|idx| config(*idx).is_none())
+            .filter(|idx| queries(*idx).is_none())
             .map(|idx| ENTRIES[idx].name)
             .collect();
         assert!(broken.is_empty(), "queries don't compile: {broken:?}");
@@ -501,7 +549,7 @@ mod test {
             .map(|idx| ENTRIES[idx].name)
             .collect();
         assert!(broken.is_empty(), "tags queries don't compile: {broken:?}");
-        assert_eq!(CONFIGS.len(), ENTRIES.len());
+        assert_eq!(QUERIES.len(), ENTRIES.len());
     }
 
     #[test]
@@ -514,9 +562,9 @@ mod test {
 
     #[test]
     fn definitions_nest() {
-        let python = find_token("python").unwrap();
         let text = "class A:\n    def b(self):\n        pass\n\ndef c():\n    pass\n";
-        let found: Vec<_> = definitions(python, text)
+        let (python, parsed) = parsed("python", text);
+        let found: Vec<_> = definitions(python, parsed.tree(), text)
             .into_iter()
             .map(|d| (&text[d.name], d.depth))
             .collect();
@@ -526,7 +574,8 @@ mod test {
     #[test]
     fn data_files_list_sections() {
         let names = |lang: &str, text: &str| -> Vec<(String, usize)> {
-            definitions(find_token(lang).unwrap(), text)
+            let (lang, parsed) = parsed(lang, text);
+            definitions(lang, parsed.tree(), text)
                 .into_iter()
                 .map(|d| (text[d.name].to_string(), d.depth))
                 .collect()
@@ -542,12 +591,12 @@ mod test {
 
     #[test]
     fn enclosing_grows() {
-        let rust = find_token("rust").unwrap();
         let text = "fn f() { g(1, 2); }";
+        let (_, parsed) = parsed("rust", text);
         let one = text.find('1').unwrap();
-        let args = enclosing(rust, text, one..one + 1).unwrap();
+        let args = enclosing(parsed.tree(), one..one + 1).unwrap();
         assert_eq!(&text[args.clone()], "(1, 2)");
-        let call = enclosing(rust, text, args).unwrap();
+        let call = enclosing(parsed.tree(), args).unwrap();
         assert_eq!(&text[call], "g(1, 2)");
     }
 }

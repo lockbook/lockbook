@@ -97,11 +97,19 @@ impl<'ast> MdRender {
         if let Some(lang) = Lang::from_extension(&self.ext) {
             let key = ((Grapheme(0), self.last_cursor_position()), self.text_seq);
             let unit = self.syntax.unit_for(key, || CodeUnit {
-                spans: self.syntax.spans(lang, self.buffer.current.text.clone()),
+                highlights: self
+                    .syntax
+                    .highlights(lang, self.buffer.current.text.clone()),
                 lines: Vec::new(),
             });
             let bytes = self.range_to_byte(line);
-            for (role, region) in roles_in(&unit.spans, bytes.0.0..bytes.1.0) {
+            let bytes = bytes.0.0..bytes.1.0;
+            let spans = unit
+                .highlights
+                .as_ref()
+                .map(|h| h.spans(bytes.clone()))
+                .unwrap_or_default();
+            for (role, region) in roles_in(&spans, bytes) {
                 // a token can end inside a grapheme, like a digit before a keycap's marks
                 let region = self.range_to_char_ceil((region.start.into(), region.end.into()));
                 text_format.color = self.syntax_color(role);

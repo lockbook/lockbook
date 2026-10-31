@@ -803,9 +803,6 @@ impl MdRender {
         }
     }
 
-    /// Bump `text_seq`. Call after any buffer mutation that may change
-    /// text — `LayoutCache::ensure_text_consistent`, `bounds.text_seq`,
-    /// and find-match invalidation all key off this counter.
     /// Whether the text has an outline: a note's headings, or a code file's
     /// definitions.
     pub fn has_outline(&self) -> bool {
@@ -814,6 +811,9 @@ impl MdRender {
                 .is_some_and(|lang| lang.has_definitions())
     }
 
+    /// Bump `text_seq`. Call after any buffer mutation that may change
+    /// text — `LayoutCache::ensure_text_consistent`, `bounds.text_seq`,
+    /// and find-match invalidation all key off this counter.
     pub fn bump_text_seq(&mut self) {
         self.text_seq = self
             .ws_seq
@@ -2432,9 +2432,12 @@ impl Editor {
                 .plaintext
                 .then(|| crate::syntax::Lang::from_extension(&r.ext))
                 .flatten();
-            let rows = if let Some(lang) = code {
+            let parsed =
+                code.and_then(|lang| r.syntax.highlights(lang, r.buffer.current.text.clone()));
+            let rows = if let Some(parsed) = parsed {
                 let text = &r.buffer.current.text;
-                lang.definitions(text)
+                parsed
+                    .definitions()
                     .into_iter()
                     .map(|definition| {
                         let span = r.range_to_char((

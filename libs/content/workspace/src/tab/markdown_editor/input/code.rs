@@ -11,7 +11,7 @@ use lb_rs::model::text::offset_types::{
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
-use crate::syntax::{Lang, Role, Spans};
+use crate::syntax::{Highlights, Lang, Role};
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 
@@ -28,8 +28,7 @@ pub struct CodeScope {
     /// Where each code line starts: its grapheme in the buffer and its byte
     /// in `text`, in order.
     pub lines: Vec<(Grapheme, usize)>,
-    pub spans: Arc<Spans>,
-    pub lang: Option<Lang>,
+    pub highlights: Option<Arc<Highlights>>,
 }
 
 impl CodeScope {
@@ -59,10 +58,15 @@ impl CodeScope {
         " ".repeat(width)
     }
 
-    /// The role of the byte at `at`.
+    /// The role of the byte at `at`, read from the window of spans around
+    /// it so a scan queries each window once.
     pub fn role_at(&self, at: usize) -> Role {
-        let idx = self.spans.partition_point(|(_, span)| span.end <= at);
-        match self.spans.get(idx) {
+        const WINDOW: usize = 4096;
+        let Some(highlights) = &self.highlights else { return Role::Text };
+        let start = at / WINDOW * WINDOW;
+        let spans = highlights.spans(start..(start + WINDOW).min(self.text.len()));
+        let idx = spans.partition_point(|(_, span)| span.end <= at);
+        match spans.get(idx) {
             Some((role, span)) if span.contains(&at) => *role,
             _ => Role::Text,
         }
@@ -84,7 +88,7 @@ impl CodeScope {
         let open = opener_of(close)?;
         let mut depth = 0;
         for (idx, b) in self.text.as_bytes()[..at].iter().enumerate().rev() {
-            if !self.is_bracket(idx) {
+            if (*b != close && *b != open) || !self.is_bracket(idx) {
                 continue;
             }
             if *b == close {
@@ -105,7 +109,7 @@ impl CodeScope {
         let close = closer_of(open)?;
         let mut depth = 0;
         for (idx, b) in self.text.as_bytes().iter().enumerate().skip(at + 1) {
-            if !self.is_bracket(idx) {
+            if (*b != close && *b != open) || !self.is_bracket(idx) {
                 continue;
             }
             if *b == open {
@@ -144,7 +148,6 @@ impl<'ast> MdRender {
     /// `offset` is on one of its code lines. A plain text file isn't code.
     pub fn code_scope_at(&self, root: &'ast AstNode<'ast>, offset: Grapheme) -> Option<CodeScope> {
         if self.plaintext {
-            let lang = Lang::from_extension(&self.ext);
             let text = self.buffer.current.text.clone();
             let lines = self
                 .bounds
@@ -152,10 +155,9 @@ impl<'ast> MdRender {
                 .iter()
                 .map(|line| (line.start(), self.offset_to_byte(line.start()).0))
                 .collect();
-            let spans = lang
-                .map(|lang| self.syntax.spans(lang, text.clone()))
-                .unwrap_or_default();
-            return Some(CodeScope { text, lines, spans, lang });
+            let highlights = Lang::from_extension(&self.ext)
+                .and_then(|lang| self.syntax.highlights(lang, text.clone()));
+            return Some(CodeScope { text, lines, highlights });
         }
         let (line_idx, _) = self.bounds.source_lines.find_containing(offset, true, true);
         let node = root.descendants().find(|node| {
@@ -165,11 +167,9 @@ impl<'ast> MdRender {
         })?;
         let NodeValue::CodeBlock(code_block) = &node.data.borrow().value else { return None };
         let (text, lines) = self.code_block_text(node, code_block, false);
-        let spans = Lang::from_info(&code_block.info)
-            .map(|lang| self.syntax.spans(lang, text.clone()))
-            .unwrap_or_default();
-        let lang = Lang::from_info(&code_block.info);
-        let scope = CodeScope { text, lines, spans, lang };
+        let highlights = Lang::from_info(&code_block.info)
+            .and_then(|lang| self.syntax.highlights(lang, text.clone()));
+        let scope = CodeScope { text, lines, highlights };
         scope.line_start(self.line_at_offset(offset))?;
         Some(scope)
     }
@@ -383,7 +383,7 @@ impl<'ast> MdEdit {
         let scope = self.renderer.code_scope_at(root, from)?;
         scope.line_start(self.renderer.line_at_offset(to))?;
         let range = self.renderer.code_byte(&scope, from)..self.renderer.code_byte(&scope, to);
-        let node = scope.lang?.enclosing(&scope.text, range)?;
+        let node = scope.highlights.as_ref()?.enclosing(range)?;
         // the code ends before its last line break
         let end = node
             .end
