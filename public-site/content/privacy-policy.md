@@ -1,5 +1,6 @@
 +++
 title = "Privacy Policy"
+description = "Learn what Lockbook encrypts, what account and file metadata our servers can see, and how we handle payment and account data."
 template = "privacy-policy.html"
 +++
 

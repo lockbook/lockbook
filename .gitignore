@@ -113,6 +113,7 @@ clients/apple/lockbook.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # website
 public-site/public
+public-site/.docs/
 public-site/trunk-build
 book/
 
