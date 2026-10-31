@@ -10,7 +10,7 @@
   {%- set summary = load_data(path=".docs/SUMMARY.md", format="plain") %}
   {%- for line in summary | split(pat="\n") %}
     {%- if ".md)" in line %}
-      {%- set chapter = line | regex_replace(pattern=".*\\]\\(([^)]+\\.md)\\).*", rep="$1") %}
+      {%- set chapter = line | split(pat="](") | last | split(pat=")") | first %}
       {%- set content = load_data(path=".docs/" ~ chapter, format="plain") %}
       {%- if content | trim %}
         {%- if chapter == "book.md" %}
