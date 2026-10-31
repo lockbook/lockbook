@@ -483,6 +483,18 @@
                     mtkView.workspaceOutput!.outlineOpen = outlineOpen
                 }
             }
+            let source = source_available(wsHandle)
+            if source != mtkView.workspaceOutput!.sourceAvailable {
+                DispatchQueue.main.async {
+                    mtkView.workspaceOutput!.sourceAvailable = source
+                }
+            }
+            let sourceOn = source_on(wsHandle)
+            if sourceOn != mtkView.workspaceOutput!.sourceOn {
+                DispatchQueue.main.async {
+                    mtkView.workspaceOutput!.sourceOn = sourceOn
+                }
+            }
 
             if currentTab != mtkView.workspaceOutput!.currentTab {
                 if let currentWrapper = mtkView.currentWrapper as? SvgView {
