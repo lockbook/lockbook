@@ -2195,9 +2195,16 @@ pub struct WsPresistentData {
     /// A rename or move updates the links it would break, as last chosen.
     #[serde(default = "default_update_links")]
     update_links: bool,
+    /// Misspelled words are marked in notes and the chat composer.
+    #[serde(default = "default_spell_check")]
+    spell_check: bool,
 }
 
 fn default_update_links() -> bool {
+    true
+}
+
+fn default_spell_check() -> bool {
     true
 }
 
@@ -2220,6 +2227,7 @@ impl Default for WsPresistentData {
             last_search: SearchState::default(),
             sidecar_open: false,
             update_links: true,
+            spell_check: true,
         }
     }
 }
@@ -2387,6 +2395,20 @@ impl WsPersistentStore {
             return;
         }
         data_lock.sidecar_open = open;
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn get_spell_check(&self) -> bool {
+        self.data.read().unwrap().spell_check
+    }
+
+    pub fn set_spell_check(&mut self, spell_check: bool) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.spell_check == spell_check {
+            return; // no-op guard: mobile pushes this from its per-frame draw
+        }
+        data_lock.spell_check = spell_check;
         drop(data_lock);
         self.write_to_file();
     }

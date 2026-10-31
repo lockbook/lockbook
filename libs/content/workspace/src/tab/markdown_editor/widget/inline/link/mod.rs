@@ -56,7 +56,7 @@ impl<'ast> MdRender {
         }
     }
 
-    fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
+    pub(crate) fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
         self.infix_range(node)
             .is_some_and(|r| &self.buffer[r] == url)
     }

@@ -127,6 +127,9 @@ impl<'ast> MdRender {
         } else if !line.is_empty() {
             layout.push_source(line, &self.buffer[line], self.text_format_syntax());
         }
+        if highlighter_syntax.is_none_or(|s| s.name == "Plain Text") {
+            layout.push_prose(line);
+        }
         layout
     }
 
