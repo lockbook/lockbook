@@ -30,6 +30,7 @@
         var imePassKey = false
         /// The caret, in view points from the top left, for the candidate window.
         var imeCursor: NSRect = .zero
+        var chromeTextFocused = false
         var cursorHidden: Bool = false
 
         var lastAccentColors: UInt64 = 0
@@ -490,6 +491,7 @@
             }
 
             let output = macos_frame(wsHandle)
+            chromeTextFocused = output.chrome_text_focused
 
             let c = output.ime_cursor
             let imeRect = NSRect(x: CGFloat(c.min_x), y: CGFloat(c.min_y), width: CGFloat(c.max_x - c.min_x), height: CGFloat(c.max_y - c.min_y))
@@ -676,12 +678,31 @@ extension MacMTK: NSTextInputClient {
         if let imeMarked { ime_commit(wsHandle, imeMarked) }
         imeMarked = nil
     }
-    public func selectedRange() -> NSRange { NSRange(location: NSNotFound, length: 0) }
+    /// The editor's selection in UTF-16 units. Dictation won't start without one.
+    public func selectedRange() -> NSRange {
+        guard imeCursor.height > 0, !chromeTextFocused, let wsHandle else { return NSRange(location: NSNotFound, length: 0) }
+        let range = get_selected(wsHandle)
+        if range.none { return NSRange(location: NSNotFound, length: 0) }
+        return NSRange(location: Int(range.start.pos), length: Int(range.end.pos - range.start.pos))
+    }
     public func markedRange() -> NSRange {
         NSRange(location: imeMarked == nil ? NSNotFound : 0, length: imeMarked?.utf16.count ?? 0)
     }
     public func hasMarkedText() -> Bool { imeMarked != nil }
-    public func attributedSubstring(forProposedRange _: NSRange, actualRange _: NSRangePointer?) -> NSAttributedString? { nil }
+    /// Text the system reads before the caret, as dictation does for spacing and capitals.
+    public func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
+        guard imeCursor.height > 0, !chromeTextFocused, let wsHandle, range.location != NSNotFound else { return nil }
+        let (end, overflow) = range.location.addingReportingOverflow(range.length)
+        let span = CTextRange(
+            none: false,
+            start: CTextPosition(none: false, pos: UInt(range.location)),
+            end: CTextPosition(none: false, pos: UInt(overflow ? Int.max : end)))
+        guard let result = text_in_range(wsHandle, span) else { return nil }
+        let text = String(cString: result)
+        free_text(result)
+        actualRange?.pointee = NSRange(location: range.location, length: text.utf16.count)
+        return NSAttributedString(string: text)
+    }
     public func validAttributesForMarkedText() -> [NSAttributedString.Key] { [] }
     public func firstRect(forCharacterRange _: NSRange, actualRange _: NSRangePointer?) -> NSRect {
         guard let window else { return .zero }
