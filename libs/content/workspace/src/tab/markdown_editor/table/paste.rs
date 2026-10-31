@@ -12,6 +12,7 @@ use super::edit::{cell_text, one_line};
 use super::structure::{BLANK, RowText, delimiter_wants_pipe, row_text};
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Syntax, View};
 
 /// Rows of cells, as the text of each, read from a paste.
 pub type Grid = Vec<Vec<String>>;
@@ -95,7 +96,9 @@ impl MdRender {
                 .value,
             NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) | NodeValue::FrontMatter(_)
         );
-        if self.plaintext || self.readonly || literal || (at_table && !in_table) {
+        // source pastes text as it is unless asked for a table
+        let as_text = self.kind != Syntax::Markdown || self.view == View::Source && !as_table;
+        if as_text || self.readonly || literal || (at_table && !in_table) {
             return None;
         }
 

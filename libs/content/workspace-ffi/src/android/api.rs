@@ -6,6 +6,7 @@ use lb_c::Uuid;
 use lb_c::model::text::offset_types::Grapheme;
 use serde::Serialize;
 use std::panic::catch_unwind;
+use workspace_rs::tab::markdown_editor::Syntax;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::markdown_editor::table::TableAction;
 use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
@@ -51,7 +52,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTable(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let Some(editor) = obj.workspace.current_tab_markdown_mut() else { return };
-    if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
+    if editor.edit.renderer.readonly || editor.edit.renderer.kind != Syntax::Markdown {
         return;
     }
     let (columns, rows) = (columns.max(1) as usize, rows.max(1) as usize - 1);
@@ -64,10 +65,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_canEditMarkdown(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) -> jboolean {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace
-        .current_tab_markdown()
-        .is_some_and(|editor| !editor.edit.renderer.readonly && !editor.edit.renderer.plaintext)
-        as jboolean
+    obj.workspace.current_tab_markdown().is_some_and(|editor| {
+        !editor.edit.renderer.readonly && editor.edit.renderer.kind == Syntax::Markdown
+    }) as jboolean
 }
 
 #[unsafe(no_mangle)]
@@ -79,7 +79,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarActi
     let Ok(action) = serde_json::from_str::<MarkdownToolbarAction>(&action) else { return };
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     if let Some(editor) = obj.workspace.current_tab_markdown_mut() {
-        if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
+        if editor.edit.renderer.readonly || editor.edit.renderer.kind != Syntax::Markdown {
             return;
         }
         let event = editor.toolbar_action(action);
@@ -253,7 +253,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_queueFileForEditorI
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let Some(tab) = obj.workspace.current_tab() else { return 0 };
     let Some(md) = tab.markdown() else { return 0 };
-    if tab.read_only || md.edit.renderer.readonly || md.edit.renderer.plaintext {
+    if tab.read_only || md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {
         return 0;
     }
     obj.renderer

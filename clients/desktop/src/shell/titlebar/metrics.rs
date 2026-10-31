@@ -117,9 +117,9 @@ pub fn sidecar_toggle_inset() -> f32 {
     window_controls_inset() + TOOLBAR_GAP
 }
 
-/// Tabs end before the sidecar toggle and the window controls.
+/// Tabs end before the source and sidecar toggles and the window controls.
 pub fn tab_right_inset() -> f32 {
-    sidecar_toggle_inset() + icon_size() + group_gap()
+    sidecar_toggle_inset() + 2.0 * icon_size() + group_gap()
 }
 
 #[cfg(target_os = "windows")]

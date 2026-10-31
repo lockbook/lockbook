@@ -23,6 +23,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as 
 
 use crate::style::{ThemeExt as _, phosphor};
 use crate::tab::markdown_editor::ScrollTarget;
+use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
@@ -94,7 +95,7 @@ impl MdEdit {
         // pass below doesn't see those keys.
         self.emoji_completions
             .update_active_state(&self.renderer.buffer, &self.renderer.bounds.inline_paragraphs);
-        let fenced = !self.renderer.readonly && !self.renderer.plaintext;
+        let fenced = !self.renderer.readonly && self.renderer.kind == Syntax::Markdown;
         self.language_completions
             .update_active_state(&self.renderer.buffer, fenced);
         let files = self.renderer.files.clone();
@@ -105,7 +106,7 @@ impl MdEdit {
             &files,
             file_id,
         );
-        if !self.renderer.readonly && !self.renderer.plaintext {
+        if !self.renderer.readonly && self.renderer.kind == Syntax::Markdown {
             self.emoji_completions.handle_input(
                 ctx,
                 &self.renderer.buffer,
@@ -847,7 +848,8 @@ impl MdEdit {
             }
             let link_target = self.context_menu_link.clone();
             let heading = self.context_menu_heading.clone();
-            let (readonly, plaintext) = (self.renderer.readonly, self.renderer.plaintext);
+            let (readonly, markdown) =
+                (self.renderer.readonly, self.renderer.kind == Syntax::Markdown);
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
                 if let Some(link) = &link_target {
@@ -867,7 +869,7 @@ impl MdEdit {
                 if !readonly {
                     e.item(phosphor::CLIPBOARD_TEXT, "Paste", EditorMenuCmd::Paste);
                 }
-                if !readonly && !plaintext {
+                if !readonly && markdown {
                     e.item(phosphor::TABLE, "Paste as table", EditorMenuCmd::PasteTable);
                 }
             });
@@ -1285,7 +1287,7 @@ impl MdEdit {
     /// clip — so popup text lands on a later glyphon layer and can extend
     /// past the editor's viewport (e.g. over a toolbar above the cursor).
     pub fn show_completions(&mut self, ui: &mut Ui) {
-        if self.renderer.plaintext {
+        if self.renderer.kind != Syntax::Markdown {
             return;
         }
         self.show_emoji_completions(ui);

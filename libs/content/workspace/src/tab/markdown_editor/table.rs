@@ -10,6 +10,7 @@
 //! the table as source ([`MdRender::table_revealed`]) for as long as it
 //! stays.
 
+use crate::tab::markdown_editor::View;
 use comrak::nodes::{AstNode, NodeValue, Sourcepos, TableAlignment};
 use egui::Rect;
 use lb_rs::model::text::buffer;
@@ -205,7 +206,7 @@ impl<'ast> MdRender {
     /// Recompute [`Bounds::tables`]. Depends on text only.
     pub fn calc_table_bounds(&mut self, root: &'ast AstNode<'ast>) {
         let mut tables = Vec::new();
-        for node in root.descendants().filter(|_| !self.plaintext) {
+        for node in root.descendants().filter(|_| self.view == View::Rendered) {
             if let NodeValue::Table(table) = &node.data.borrow().value {
                 tables.extend(self.table_bounds(node, table.alignments.clone()));
             }

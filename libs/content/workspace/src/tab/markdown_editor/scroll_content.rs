@@ -14,7 +14,7 @@
 //! Both pads have known sizes, so `approx = precise` keeps the affine
 //! slope = 1 within them — no estimation error on rows we know exactly.
 //!
-//! In plaintext mode (`renderer.plaintext == true`) the rows are source
+//! In source view (`renderer.view == View::Source`) the rows are source
 //! lines indexed by `DocRowId::Line(idx)` instead of blocks.
 
 use comrak::nodes::AstNode;
@@ -22,11 +22,12 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::Grapheme;
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::View;
 use crate::widgets::affine_scroll::Rows;
 
 /// Stable identity of a row in the document. `Leading` and `Trailing`
 /// are the always-present virtual padding rows; `Block(i)` is a top-
-/// level block index, `Line(i)` a source-line index in plaintext mode.
+/// level block index, `Line(i)` a source-line index in source view.
 ///
 /// `Send + Sync + 'static` so [`crate::widgets::affine_scroll::ScrollArea<DocRowId>`]
 /// can be persisted in egui memory.
@@ -41,13 +42,13 @@ pub enum DocRowId {
 pub struct DocScrollContent<'a, 'ast> {
     pub renderer: &'a MdRender,
     pub root: &'ast AstNode<'ast>,
-    /// Cached top-level child blocks for this frame. Empty in plaintext
+    /// Cached top-level child blocks for this frame. Empty in source
     /// mode (the [`Rows`] impl uses `Line(idx)` instead).
     blocks: Vec<&'ast AstNode<'ast>>,
-    /// Source-line count, sampled at construction. Used in plaintext
+    /// Source-line count, sampled at construction. Used in source
     /// mode for `Line(idx)` bounds.
     line_count: usize,
-    plaintext: bool,
+    source: bool,
     /// Height of the virtual leading pad row (real top padding).
     /// `approx = precise = leading_precise`.
     pub leading_precise: f32,
@@ -58,18 +59,10 @@ pub struct DocScrollContent<'a, 'ast> {
 
 impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     pub fn new(renderer: &'a MdRender, root: &'ast AstNode<'ast>, trailing_precise: f32) -> Self {
-        let plaintext = renderer.plaintext;
-        let blocks: Vec<_> = if plaintext { Vec::new() } else { root.children().collect() };
+        let source = renderer.view == View::Source;
+        let blocks: Vec<_> = if source { Vec::new() } else { root.children().collect() };
         let line_count = renderer.bounds.source_lines.len();
-        Self {
-            renderer,
-            root,
-            blocks,
-            line_count,
-            plaintext,
-            leading_precise: 0.0,
-            trailing_precise,
-        }
+        Self { renderer, root, blocks, line_count, source, leading_precise: 0.0, trailing_precise }
     }
 
     /// Set `leading_precise` to the default top-padding for production
@@ -98,7 +91,7 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     /// targets past every row resolve to `Trailing`, before every row to
     /// `Leading`.
     pub fn find_text_row(&self, target: Grapheme) -> Option<DocRowId> {
-        if self.plaintext {
+        if self.source {
             for i in 0..self.line_count {
                 let (s, e) = self.renderer.bounds.source_lines[i];
                 if target >= s && target <= e {
@@ -151,7 +144,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
     fn next(&self, id: &DocRowId) -> Option<DocRowId> {
         match id {
             DocRowId::Leading => {
-                if self.plaintext {
+                if self.source {
                     if self.line_count > 0 {
                         Some(DocRowId::Line(0))
                     } else {
@@ -164,7 +157,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                 }
             }
             DocRowId::Block(i) => {
-                if self.plaintext || *i >= self.blocks.len() {
+                if self.source || *i >= self.blocks.len() {
                     return None;
                 }
                 if i + 1 < self.blocks.len() {
@@ -174,7 +167,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                 }
             }
             DocRowId::Line(i) => {
-                if !self.plaintext || *i >= self.line_count {
+                if !self.source || *i >= self.line_count {
                     return None;
                 }
                 if i + 1 < self.line_count {
@@ -191,19 +184,19 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
         match id {
             DocRowId::Leading => None,
             DocRowId::Block(i) => {
-                if self.plaintext || *i >= self.blocks.len() {
+                if self.source || *i >= self.blocks.len() {
                     return None;
                 }
                 if *i == 0 { Some(DocRowId::Leading) } else { Some(DocRowId::Block(i - 1)) }
             }
             DocRowId::Line(i) => {
-                if !self.plaintext || *i >= self.line_count {
+                if !self.source || *i >= self.line_count {
                     return None;
                 }
                 if *i == 0 { Some(DocRowId::Leading) } else { Some(DocRowId::Line(i - 1)) }
             }
             DocRowId::Trailing => {
-                if self.plaintext {
+                if self.source {
                     if self.line_count > 0 {
                         Some(DocRowId::Line(self.line_count - 1))
                     } else {
@@ -227,7 +220,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                     + self.renderer.height_approx(n)
                     + self.renderer.block_post_spacing_height_approx(n)
             }
-            // Per-line plaintext rows: monospace char-count estimate
+            // Per-line source rows: monospace char-count estimate
             // (no shaping); precise reflects actual cosmic-text wrap.
             DocRowId::Line(i) => {
                 let width = self.renderer.width(self.root);
@@ -292,12 +285,12 @@ pub fn paint_row<'ast>(
     match id {
         DocRowId::Leading => {} // virtual padding
         DocRowId::Trailing => {
-            // Empty non-plaintext doc — `DocScrollContent` yields no
+            // Empty rendered doc — `DocScrollContent` yields no
             // Block rows, so `show_document` is never called and the
             // cursor has no anchor fragment. Route through it here so
             // the empty-doc sentinel fires. Trailing sits at the
             // content origin for an empty doc, so `top_left` is correct.
-            if blocks.is_empty() && !renderer.plaintext {
+            if blocks.is_empty() && renderer.view == View::Rendered {
                 let tl = Pos2::new(content_x, top_left.y);
                 renderer.show_block(ui, root, tl);
             }

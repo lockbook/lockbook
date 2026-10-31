@@ -14,6 +14,7 @@ use lb_rs::model::text::offset_types::{
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
 use crate::syntax::{Highlights, Lang, Role};
+use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 
@@ -149,7 +150,7 @@ impl<'ast> MdRender {
     /// The code `offset` is in: a whole file's when it isn't a note, or a
     /// code block's when `offset` is on one of its code lines.
     pub fn code_scope_at(&self, root: &'ast AstNode<'ast>, offset: Grapheme) -> Option<CodeScope> {
-        if self.plaintext {
+        if self.kind != Syntax::Markdown {
             let text = self.buffer.current.text.clone();
             let lines = self
                 .bounds
@@ -157,7 +158,9 @@ impl<'ast> MdRender {
                 .iter()
                 .map(|line| (line.start(), self.offset_to_byte(line.start()).0))
                 .collect();
-            let highlights = Lang::from_extension(&self.ext)
+            let highlights = self
+                .kind
+                .lang()
                 .and_then(|lang| self.syntax.highlights(lang, text.clone(), &self.ctx));
             return Some(CodeScope { text, lines, highlights });
         }
@@ -267,7 +270,7 @@ impl<'ast> MdEdit {
         if scope.line_start(end_line).is_none() {
             return false;
         }
-        let (prefix, content) = if self.renderer.plaintext {
+        let (prefix, content) = if self.renderer.kind != Syntax::Markdown {
             (String::new(), line)
         } else {
             let container = self
