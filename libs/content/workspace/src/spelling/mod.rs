@@ -13,6 +13,8 @@ use egui::{Context, Id};
 
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(windows)]
+mod windows;
 
 /// A platform spell checker, in the system's language and with the
 /// system's learned words.
@@ -75,6 +77,8 @@ impl Spelling {
         let _ = ctx;
         #[cfg(target_os = "macos")]
         return Some(Self::new(Box::new(macos::AppKit)));
+        #[cfg(windows)]
+        return windows::Windows::new().map(|c| Self::new(Box::new(c)));
         #[allow(unreachable_code)]
         None
     }

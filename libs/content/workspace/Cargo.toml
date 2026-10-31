@@ -96,3 +96,9 @@ objc2-foundation = { version = "0.3", default-features = false, features = [
     "NSRange",
     "NSString",
 ] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Globalization",
+    "Win32_System_Com",
+] }
