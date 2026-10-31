@@ -1072,6 +1072,9 @@ pub struct AffineScrollArea<Id: Clone + Eq + std::fmt::Debug> {
     /// A platform touch on the track: jump the thumb to this y next frame.
     /// The bar as last shown, for a platform recognizer's hit test.
     last_scrollbar: Option<Scrollbar>,
+    /// The wheel scrolls this area; off for one an outer area hands
+    /// scrolling to.
+    pub wheel: bool,
 }
 
 impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
@@ -1086,7 +1089,13 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             gesture_fling: None,
             gesture_thumb_px: 0.0,
             last_scrollbar: None,
+            wheel: true,
         }
+    }
+
+    /// Derives the bar's ids from `salt`.
+    pub fn set_salt(&mut self, salt: egui::Id) {
+        self.id_salt = salt;
     }
 
     /// Scroll from a platform pan. Positive moves content up. Ignored while
@@ -1239,8 +1248,9 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         // Wheel: precise pixels. egui convention: positive y = scroll up
         // (content moves down). We want offset to grow when user scrolls
         // down (content moves up), so negate.
-        let smooth_scroll_delta = if ui.rect_contains_pointer(rect)
-            || crate::style::tip::scrolls_through_card(ui.ctx(), rect)
+        let smooth_scroll_delta = if self.wheel
+            && (ui.rect_contains_pointer(rect)
+                || crate::style::tip::scrolls_through_card(ui.ctx(), rect))
         {
             ui.input(|i| i.smooth_scroll_delta.y)
         } else {

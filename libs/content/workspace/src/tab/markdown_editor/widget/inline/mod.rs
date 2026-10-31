@@ -22,6 +22,7 @@ pub(crate) mod strikethrough;
 pub(crate) mod strong;
 pub(crate) mod subscript;
 pub(crate) mod superscript;
+pub(crate) mod tab_embed;
 pub(crate) mod text;
 pub(crate) mod underline;
 pub(crate) mod wiki_link;
@@ -214,7 +215,11 @@ impl<'ast> MdRender {
             NodeValue::WikiLink(_) if image_url(node).is_some() => {
                 self.layout_image(layout, node, range)
             }
-            NodeValue::WikiLink(_) => self.layout_wikilink(layout, node, range),
+            NodeValue::WikiLink(_) => {
+                if !self.layout_tab_embed(layout, node, range) {
+                    self.layout_wikilink(layout, node, range)
+                }
+            }
         }
     }
 

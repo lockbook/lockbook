@@ -30,7 +30,7 @@ use crate::widgets::affine_scroll::Rows;
 ///
 /// `Send + Sync + 'static` so [`crate::widgets::affine_scroll::ScrollArea<DocRowId>`]
 /// can be persisted in egui memory.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum DocRowId {
     Leading,
     Block(usize),

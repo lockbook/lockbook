@@ -94,6 +94,10 @@ pub struct Response {
     pub text_updated: bool,
     pub selection_updated: bool,
     pub scroll_updated: bool,
+    /// The user scrolled: wheel, drag, fling, or scrollbar.
+    pub user_scrolled: bool,
+    /// The selection moved by input this frame, not from outside.
+    pub user_selected: bool,
     pub open_camera: bool,
 
     /// Screen rect (egui points) where the native text-input overlay should
@@ -262,6 +266,10 @@ pub struct MdRender {
     // caches
     pub layout_cache: LayoutCache,
     pub previews: LinkPreviews,
+    /// A link preview looked up since the last ask was still loading.
+    pub previews_pending: std::cell::Cell<bool>,
+    /// The tabs this note's embeds and hover cards show.
+    pub tab_embeds: widget::inline::tab_embed::TabEmbeds,
     pub syntax: SyntaxHighlightCache,
 
     // viewport
@@ -374,6 +382,13 @@ pub struct MdEdit {
     /// Momentum from the last scroll-area frame; used by `will_consume_touch`
     /// to block touch cursor placement during momentum scroll.
     pub scroll_area_velocity: Vec2,
+    /// The view moved after this frame's rows were painted.
+    pub moved_after_paint: bool,
+    /// A click focuses the editor; off for one drawn inside another surface.
+    pub takes_focus: bool,
+    /// Paints within its host's clip, not its own rect: an embed's pad takes
+    /// what hangs past it, like a list's numbers.
+    pub clip_to_host: bool,
 
     /// Document identity — link completions resolve relative paths against
     /// the current file's parent.
@@ -444,6 +459,9 @@ impl MdEdit {
             standalone: true,
             overflow_follow: (0, Default::default(), Rect::ZERO),
             scroll_area_velocity: Default::default(),
+            moved_after_paint: false,
+            takes_focus: true,
+            clip_to_host: false,
             file_id,
             emoji_completions: Default::default(),
             link_completions: Default::default(),
@@ -470,6 +488,13 @@ pub struct Editor {
     pub id_salt: Id,
     /// Shown as a search preview, which has no outline.
     pub in_preview: bool,
+    /// Drawn alone inside another surface: no toolbar, find, or outline,
+    /// and it never takes focus.
+    pub embedded: bool,
+    /// What an embed shows of the note: a heading's section, or all of it.
+    pub region: Option<crate::tab::Fragment>,
+    /// The region's rows this frame, first and last; only they paint.
+    region_bounds: Option<(DocRowId, DocRowId)>,
     /// Version of the *displayed* buffer. Only written with the matching
     /// text via [`Self::apply_disk_version`] / [`Self::record_disk_save`].
     hmac: Option<DocumentHmac>,
@@ -504,6 +529,12 @@ pub struct Editor {
     outline_follows_caret: bool,
     /// The heading just landed on, washed briefly so the eye finds it.
     heading_flash: Option<((Grapheme, Grapheme), web_time::Instant)>,
+    /// The user scrolled this frame.
+    user_scrolled: bool,
+    /// The view moved after the frame was painted: the next one shows it.
+    moved_unpainted: bool,
+    /// Something drawn this frame was still loading.
+    loads_pending: bool,
 
     // change detection
     pub unprocessed_scroll: Option<Instant>,
@@ -512,7 +543,7 @@ pub struct Editor {
     /// The find bar's height while open; opening and closing scroll the
     /// page by it so the content stays put on screen.
     find_bar_height: f32,
-    embeds_seq: u64,
+    embeds_seq: (u64, u64),
     link_seq: u64,
 
     // interaction widgets (toolbar + find are Editor-owned; completion
@@ -705,6 +736,8 @@ impl MdRender {
             ws_seq,
             layout_cache: Default::default(),
             previews,
+            previews_pending: Default::default(),
+            tab_embeds: Default::default(),
             syntax: Default::default(),
             width: Default::default(),
             width_seq: 0,
@@ -803,6 +836,8 @@ impl MdRender {
             files: Arc::new(RwLock::new(FileCache::empty())),
             layout_cache: Default::default(),
             previews,
+            previews_pending: Default::default(),
+            tab_embeds: Default::default(),
             syntax: Default::default(),
             width: Default::default(),
             width_seq: 0,
@@ -987,6 +1022,8 @@ impl Editor {
 
             layout_cache: Default::default(),
             previews,
+            previews_pending: Default::default(),
+            tab_embeds: Default::default(),
             syntax: Default::default(),
 
             width: Default::default(),
@@ -1025,6 +1062,9 @@ impl Editor {
                 standalone: false,
                 overflow_follow: (0, Default::default(), Rect::ZERO),
                 scroll_area_velocity: Default::default(),
+                moved_after_paint: false,
+                takes_focus: true,
+                clip_to_host: false,
                 file_id,
                 emoji_completions: Default::default(),
                 link_completions: LinkCompletions::new(open_origin),
@@ -1043,6 +1083,9 @@ impl Editor {
 
             id_salt: Id::NULL,
             in_preview: false,
+            embedded: false,
+            region: None,
+            region_bounds: None,
             hmac,
             initialized: Default::default(),
             selection_moved: false,
@@ -1056,7 +1099,10 @@ impl Editor {
             outline_from_typing: false,
             outline_follows_caret: false,
             heading_flash: None,
-            embeds_seq: 0,
+            user_scrolled: false,
+            moved_unpainted: false,
+            loads_pending: false,
+            embeds_seq: (0, 0),
             link_seq: 0,
 
             toolbar: Default::default(),
@@ -1115,6 +1161,12 @@ impl Editor {
 
     pub fn id(&self) -> Id {
         Id::unique(self.edit.file_id).with(self.id_salt)
+    }
+
+    /// Derives the editor's widget ids from `salt`.
+    pub fn set_salt(&mut self, salt: Id) {
+        self.id_salt = salt;
+        self.edit.scroll_area.set_salt(self.id());
     }
 
     /// Last disk hmac adopted with the displayed buffer.
@@ -1187,6 +1239,15 @@ impl Editor {
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut resp: Response = mem::take(&mut self.next_resp);
+        self.moved_unpainted = false;
+        self.edit.renderer.tab_embeds.begin_frame(ui.ctx());
+        // Copy takes the selection in the embed last pressed, if there is one
+        if ui.input(|i| i.events.contains(&egui::Event::Copy)) {
+            if let Some(text) = self.edit.renderer.tab_embeds.copy() {
+                ui.ctx().copy_text(text);
+                ui.input_mut(|i| i.events.retain(|e| *e != egui::Event::Copy));
+            }
+        }
 
         let height = ui.available_size().y.round();
         let width = ui
@@ -1219,7 +1280,7 @@ impl Editor {
             self.edit.renderer.layout_cache.clear();
         }
 
-        let embeds_seq = self.edit.renderer.embeds.seq();
+        let embeds_seq = (self.edit.renderer.embeds.seq(), self.edit.renderer.tab_embeds.seq());
         let embeds_updated = embeds_seq != self.embeds_seq;
         self.embeds_seq = embeds_seq;
 
@@ -1231,8 +1292,11 @@ impl Editor {
         // Route workspace-origin events (toolbar Markdown, Undo/Redo) through
         // MdEdit's internal event queue, then let MdEdit::handle_input drain
         // everything (workspace + keyboard + completions).
-        let workspace_events = self.edit.drain_workspace_events(ui.ctx());
-        self.edit.event.internal_events.extend(workspace_events);
+        // the context's queued events are the host's, gestures included
+        if !self.embedded {
+            let workspace_events = self.edit.drain_workspace_events(ui.ctx());
+            self.edit.event.internal_events.extend(workspace_events);
+        }
 
         let prior_selection = self.edit.renderer.buffer.current.selection;
         let prior_entered_atom = self.edit.renderer.entered_atom;
@@ -1245,12 +1309,12 @@ impl Editor {
                 .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
             ui.ctx().request_repaint();
         }
-        resp.selection_updated = std::mem::take(&mut self.selection_moved)
-            || prior_selection
-                != self
-                    .edit
-                    .in_progress_selection
-                    .unwrap_or(self.edit.renderer.buffer.current.selection);
+        resp.user_selected = prior_selection
+            != self
+                .edit
+                .in_progress_selection
+                .unwrap_or(self.edit.renderer.buffer.current.selection);
+        resp.selection_updated = std::mem::take(&mut self.selection_moved) || resp.user_selected;
         // Loads completing (embeds, link meta) and atom enter/exit reflow
         // layout, moving the selection's rects without moving the selection.
         // Report as a scroll: iOS re-fetches geometry on either signal, but a
@@ -1305,7 +1369,12 @@ impl Editor {
 
         let editor_shown = ui
             .vertical(|ui| {
-                if self.edit.phone_mode {
+                if self.embedded {
+                    self.next_resp.text_interaction_rect = None;
+                    self.edit.renderer.touch_targets.clear();
+                    self.show_scrollable_editor(ui, root);
+                    true
+                } else if self.edit.phone_mode {
                     self.show_find_bar(ui);
 
                     // ...then show editor content (or toolbar settings)...
@@ -1414,8 +1483,8 @@ impl Editor {
             self.next_resp.scroll_updated = new_offset != prev_offset;
             self.edit.scroll_area_velocity = self.edit.scroll_area.velocity();
 
-            // persistence: read on first frame
-            if !self.initialized {
+            // persistence: read on first frame; an embed keeps none
+            if !self.initialized && !self.embedded {
                 let persisted = self
                     .persistence
                     .get_markdown()
@@ -1438,6 +1507,7 @@ impl Editor {
                     };
                     let off = Offset::new(anchor, intra_precise);
                     self.edit.scroll_area.set_offset(&content, off);
+                    self.moved_unpainted = true;
                 }
                 // set the selection using low-level API; using internal
                 // events causes touch devices to scroll to cursor on 2nd
@@ -1479,11 +1549,12 @@ impl Editor {
         // Selection can change both in `handle_input` and later during
         // `MdEdit::show` pointer handling (e.g. double-click word select on
         // Android). Compute this after render so the response sees both paths.
-        resp.selection_updated |= prior_selection
+        resp.user_selected |= prior_selection
             != self
                 .edit
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
+        resp.selection_updated |= resp.user_selected;
 
         // Completion popups render last, outside the scroll area's clip, so
         // they composite over the toolbar / find widget when the cursor is
@@ -1568,7 +1639,7 @@ impl Editor {
         // against stored state rather than a within-frame change.
         let mut persistence_updated = false;
         let current_selection = self.edit.renderer.buffer.current.selection;
-        {
+        if !self.embedded {
             let mut persistence = self.persistence.data.write().unwrap();
             let entry = persistence
                 .markdown
@@ -1583,7 +1654,10 @@ impl Editor {
 
         let mut scroll_end_processed = false;
         if let Some(unprocessed_scroll) = self.unprocessed_scroll {
-            if unprocessed_scroll.elapsed() > Duration::from_millis(100) && editor_shown {
+            if unprocessed_scroll.elapsed() > Duration::from_millis(100)
+                && editor_shown
+                && !self.embedded
+            {
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
                 // Project the persisted offset onto current rows so a
@@ -1631,7 +1705,8 @@ impl Editor {
         // focus editor when first shown or when nothing else has focus — not
         // while the menu covers it: egui re-drops the unshown editor's focus,
         // and the flip-flop repaint-loops and flickers the menu (#4896)
-        if editor_shown && (!self.initialized || ui.memory(|m| m.focused().is_none())) {
+        let grabs = !self.embedded && (!self.initialized || ui.memory(|m| m.focused().is_none()));
+        if editor_shown && grabs {
             self.focus(ui.ctx());
         }
         if self.focused(ui.ctx()) {
@@ -1639,6 +1714,19 @@ impl Editor {
         }
 
         self.initialized = true;
+        resp.user_scrolled = std::mem::take(&mut self.user_scrolled);
+        self.moved_unpainted |= std::mem::take(&mut self.edit.moved_after_paint);
+        // a touch on an embed is the embed's
+        for rect in self.edit.renderer.tab_embeds.rects() {
+            self.edit
+                .renderer
+                .touch_targets
+                .push((rect, TouchTarget::Popup));
+        }
+        self.edit.renderer.tab_embeds.end_frame();
+        self.loads_pending = self.edit.renderer.embeds.take_pending()
+            | self.edit.renderer.previews_pending.take()
+            | self.edit.renderer.tab_embeds.pending();
 
         resp
     }
@@ -1703,7 +1791,9 @@ impl Editor {
                 let canvas_rect = ui.max_rect();
                 captured_canvas_rect = Some(canvas_rect);
                 let canvas_width = canvas_rect.width();
-                let layout_margin = self.edit.renderer.layout.margin;
+                // an embed's host pads it
+                let layout_margin =
+                    if self.embedded { 0.0 } else { self.edit.renderer.layout.margin };
 
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
@@ -1716,6 +1806,7 @@ impl Editor {
                 let r = &self.edit.renderer;
                 let sidecar = !r.touch_mode
                     && !self.in_preview
+                    && !self.embedded
                     && !r.plaintext
                     && r.interactive
                     && self.persistence.get_sidecar_open();
@@ -1735,7 +1826,7 @@ impl Editor {
                 // `shown` fades the card; the text eases the same both
                 // ways, so a reversal starts where it is
                 let shown = ui.ctx().animate_bool_with_time(
-                    Id::unique("md_sidecar_glide").with(self.edit.file_id),
+                    Id::unique("md_sidecar_glide").with(self.id()),
                     sidecar,
                     widget::outline::MOTION_SECS,
                 );
@@ -1764,7 +1855,9 @@ impl Editor {
                 });
                 let pre = ui
                     .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
-                        ui.set_clip_rect(canvas_rect);
+                        if !self.edit.clip_to_host {
+                            ui.set_clip_rect(canvas_rect.intersect(ui.clip_rect()));
+                        }
                         // Editor background, bounded to the viewport (see the
                         // `fill(TRANSPARENT)` note on the Frame). First shape in
                         // the scope, so it sits behind all content.
@@ -1773,7 +1866,9 @@ impl Editor {
                             0.0,
                             self.edit.renderer.ctx.get_lb_theme().neutral_bg(),
                         );
-                        self.edit.scroll_area.touch_scroll = touch_scroll;
+                        // an embed scrolls only by what its host hands it
+                        self.edit.scroll_area.touch_scroll = touch_scroll && !self.embedded;
+                        self.edit.scroll_area.wheel = !self.embedded;
                         // An armed touch reorder owns the gesture — don't
                         // scroll the body under the dragged item.
                         self.edit.scroll_area.suppress_body_drag = matches!(
@@ -1814,6 +1909,7 @@ impl Editor {
                         // borrow is released here before phase 2's
                         // mutable renderer paint.
                         self.land_before_paint(root, canvas_rect);
+                        self.pin_region(root, canvas_rect);
                         self.edit.renderer.landing_heading = self.landing.and_then(Landing::start);
                         let (visible, neighbors, far, scrollbar_grab) = {
                             use crate::widgets::affine_scroll::{Offset, Rows as _, VisibleRow};
@@ -1826,6 +1922,7 @@ impl Editor {
                             let resp = self.edit.scroll_area.finish(ui, begun, &content);
                             if resp.user_scrolled {
                                 self.outline_follows_caret = false;
+                                self.user_scrolled = true;
                             }
 
                             let viewport_height = canvas_rect.height();
@@ -1943,7 +2040,14 @@ impl Editor {
                         let blocks: Vec<_> = root.children().collect();
                         self.painted_rows.clear();
                         self.painted_canvas = canvas_rect;
+                        let in_region = |id: &DocRowId| match self.region_bounds {
+                            Some((first, last)) => first <= *id && *id <= last,
+                            None => true,
+                        };
                         for vrow in visible.iter().chain(neighbors.iter()).chain(far.iter()) {
+                            if !in_region(&vrow.id) {
+                                continue;
+                            }
                             self.painted_rows.push((vrow.id, vrow.top));
                             let top_left =
                                 Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
@@ -2146,6 +2250,7 @@ impl Editor {
         ) else {
             return;
         };
+        self.moved_unpainted = true;
         self.edit
             .scroll_area
             .reveal(&content, target_rect, Align::Center);
@@ -2173,7 +2278,7 @@ impl Editor {
             self.outline_follows_caret = true;
         }
         let r = &self.edit.renderer;
-        self.outline_offered = !r.plaintext && r.interactive && !self.in_preview;
+        self.outline_offered = !r.plaintext && r.interactive && !self.in_preview && !self.embedded;
         if !self.outline_offered || self.card.is_none() && !self.outline.is_open() {
             return;
         }
@@ -2207,7 +2312,7 @@ impl Editor {
         };
         let (seq, rows) = self.outline_rows.take().unwrap_or_default();
 
-        let id = Id::unique("md_outline").with(self.edit.file_id);
+        let id = Id::unique("md_outline").with(self.id());
         let (version, linked) = self.linked_notes();
         let (chosen, popup) = if self.edit.renderer.touch_mode {
             self.outline
@@ -2350,6 +2455,156 @@ impl Editor {
         }
         self.landing = Some(Landing::Heading((start, caret)));
         self.heading_flash = Some(((start, caret), web_time::Instant::now()));
+    }
+
+    /// The frame just drawn shows the note as it stays without input: the
+    /// first frames are behind it, any landing is painted and its wash
+    /// faded, nothing scrolls, and nothing it drew is still loading.
+    pub fn settled(&self) -> bool {
+        self.initialized
+            && self.landing.is_none()
+            && !self.moved_unpainted
+            && self.edit.pending_scroll.is_none()
+            && self.heading_flash.is_none()
+            && !self.loads_pending
+            && self.edit.scroll_area.velocity() == Vec2::ZERO
+    }
+
+    /// The rows `fragment` names, first and last: a heading's section, from
+    /// its block to the next heading of its level or higher, or else every
+    /// row of the note.
+    fn region_rows<'a>(
+        &self, rows: &scroll_content::DocScrollContent<'_, 'a>, root: &'a AstNode<'a>,
+        fragment: Option<&crate::tab::Fragment>,
+    ) -> Option<(DocRowId, DocRowId)> {
+        use crate::widgets::affine_scroll::Rows as _;
+        let first = rows.next(&rows.first()?)?;
+        let last = rows.prev(&rows.last()?)?;
+        let whole = Some((first, last))
+            .filter(|(f, l)| !matches!(f, DocRowId::Trailing) && !matches!(l, DocRowId::Leading));
+        let Some(crate::tab::Fragment::Heading(slug)) = fragment else { return whole };
+        let headings = fragment::headings_in(root);
+        let infos: Vec<_> = headings.iter().map(|(_, h)| h.clone()).collect();
+        let Some(i) = fragment::find_heading(&infos, slug) else { return whole };
+        let r = &self.edit.renderer;
+        let row_of = |node| rows.find_text_row(r.node_range(node).0);
+        let start = row_of(headings[i].0)?;
+        let level = infos[i].level;
+        let end = headings[i + 1..]
+            .iter()
+            .filter(|(_, h)| h.level <= level)
+            .filter_map(|(node, _)| row_of(node))
+            .find(|row| *row != start)
+            .and_then(|row| rows.prev(&row))
+            .unwrap_or(last);
+        Some((start, end))
+    }
+
+    /// Where the embed's region starts, at its first line rather than the
+    /// spacing above it, and its height from there.
+    fn region_span<'a>(
+        &self, rows: &scroll_content::DocScrollContent<'_, 'a>, root: &'a AstNode<'a>,
+    ) -> Option<(DocOffset, f32)> {
+        use crate::widgets::affine_scroll::Rows as _;
+        let (first, last) = self.region_rows(rows, root, self.region.as_ref())?;
+        let above = match first {
+            DocRowId::Block(i) => root
+                .children()
+                .nth(i)
+                .map_or(0.0, |node| self.edit.renderer.block_pre_spacing_height(node)),
+            _ => 0.0,
+        };
+        let mut height = -above;
+        let mut row = first;
+        loop {
+            height += rows.precise(&row);
+            if row == last {
+                break;
+            }
+            row = rows.next(&row)?;
+        }
+        Some((Offset::new(first, above), height))
+    }
+
+    /// How tall `fragment`'s region is at `width`, laid out for real: a
+    /// heading's section, or the whole note.
+    pub fn region_height(&mut self, fragment: Option<&crate::tab::Fragment>, width: f32) -> f32 {
+        let margin = if self.embedded { 0.0 } else { self.edit.renderer.layout.margin };
+        let col = (width - 2.0 * margin)
+            .min(self.edit.renderer.layout.max_width)
+            .max(0.0);
+        self.edit.renderer.set_width(col);
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        let viewport = self.edit.scroll_area.state.viewport_height;
+        let rows = scroll_content::DocScrollContent::for_frame(&self.edit.renderer, root, viewport);
+        let region = std::mem::replace(&mut self.region, fragment.cloned());
+        let height = self.region_span(&rows, root).map_or(0.0, |(_, h)| h);
+        self.region = region;
+        height
+    }
+
+    /// Keeps an embed's view inside its region: at its top, or no further
+    /// than its bottom allows.
+    fn pin_region<'a>(&mut self, root: &'a AstNode<'a>, canvas: Rect) {
+        self.region_bounds = None;
+        if !self.embedded {
+            return;
+        }
+        let rows =
+            scroll_content::DocScrollContent::for_frame(&self.edit.renderer, root, canvas.height());
+        self.region_bounds = self.region_rows(&rows, root, self.region.as_ref());
+        let Some((start, height)) = self.region_span(&rows, root) else { return };
+        let state = &mut self.edit.scroll_area.state;
+        let room = (height - canvas.height()).max(0.0);
+        let into = state
+            .offset(&rows)
+            .and_then(|cur| state.precise_distance(&rows, &start, &cur, height + canvas.height()));
+        if into.is_some_and(|d| (0.0..=room).contains(&d)) {
+            return;
+        }
+        let to = into.unwrap_or(0.0).clamp(0.0, room);
+        let target = crate::widgets::affine_scroll::offset_by(&rows, start, to);
+        state.set_offset(&rows, target);
+    }
+
+    /// Lands at the note's top, as a link to a heading it lacks does.
+    pub fn open_at_top(&mut self) {
+        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        self.landing = Some(Landing::Top);
+    }
+
+    /// Ends the wash over a heading just landed on.
+    pub fn stop_flash(&mut self) {
+        self.heading_flash = None;
+    }
+
+    /// Where the view is, as a fragment: the heading scrolled past, else the
+    /// first text in view; none at the note's top.
+    pub fn here(&mut self) -> Option<crate::tab::Fragment> {
+        let at_top = self.edit.scroll_area.stored_offset().is_none_or(|off| {
+            off.anchor == scroll_content::DocRowId::Leading && off.intra_precise <= 0.0
+        });
+        if at_top {
+            return None;
+        }
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        if let Some(i) = self.scrolled_to_heading(root) {
+            let slug = self.outline_rows(root).get(i).map(|row| row.slug.clone());
+            return slug.map(crate::tab::Fragment::Heading);
+        }
+        let view = self.painted_canvas;
+        let first = self
+            .edit
+            .renderer
+            .fragments
+            .iter()
+            .filter(|f| !f.far && f.rect.top() >= view.top() && f.rect.top() < view.bottom())
+            .min_by(|a, b| a.rect.top().total_cmp(&b.rect.top()))?;
+        let segs = &self.edit.renderer.buffer.current.segs;
+        let (start, end) = segs.range_to_byte(first.source_range);
+        Some(crate::tab::Fragment::Text(start.0..end.0))
     }
 
     /// The heading `fragment` names: where its text starts (its markup may
@@ -2506,6 +2761,7 @@ impl Editor {
             }
         };
         self.landing = None;
+        self.moved_unpainted = true;
         self.edit
             .scroll_area
             .reveal(&content, Reveal::point_at(target), Align::Top);
@@ -2551,6 +2807,7 @@ impl Editor {
         ) else {
             return;
         };
+        self.moved_unpainted = true;
         self.edit
             .scroll_area
             .reveal(&content, target_rect, Align::Center);

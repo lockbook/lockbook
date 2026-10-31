@@ -25,6 +25,8 @@ pub struct InputController {
     config: InputControllerConfig,
     is_touch_frame: bool, // as we traverse the input event stream do we see touch events.
     response: InputControllerResponse,
+    /// The wheel pans the viewport; off where a host scrolls by it instead.
+    pub pan_on_wheel: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -214,6 +216,7 @@ impl InputController {
             mouse_hover_pos: None,
             response: Default::default(),
             tool_hover_pos: (egui::Pos2::ZERO, past_instant()),
+            pan_on_wheel: true,
         }
     }
 
@@ -438,6 +441,9 @@ impl InputController {
                 if modifiers.matches_any(scroll_units.zoom_modifier) {
                     let factor = (scroll_units.scroll_zoom_speed * (delta.x + delta.y)).exp();
                     return Some(ViewportChange::new(self, &egui::Event::Zoom(factor), false));
+                }
+                if !self.pan_on_wheel {
+                    return None;
                 }
                 Some(InputControllerEvent::ViewportChange(
                     Transform::identity().post_translate(delta.x, delta.y),

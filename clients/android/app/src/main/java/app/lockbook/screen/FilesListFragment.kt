@@ -290,7 +290,27 @@ class FilesListFragment :
                 }
             pinnedFilesAdapter.submitList(items)
             binding.pinnedFilesSection.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
+            refreshPreviews()
         }
+        Previews.updated.observe(viewLifecycleOwner) {
+            pinnedFilesAdapter.notifyItemRangeChanged(0, pinnedFilesAdapter.itemCount)
+        }
+    }
+
+    /** The pinned files show what the workspace last drew of them. */
+    private fun refreshPreviews() {
+        val pins = model.pinnedFiles.value ?: return
+        Previews.refresh(requireContext(), pins.map { it.id })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshPreviews()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        refreshPreviews()
     }
 
     private fun showPinnedFileActions(item: PinnedFileItem) {

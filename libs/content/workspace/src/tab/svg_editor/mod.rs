@@ -40,6 +40,9 @@ use tools::pen::PenSettings;
 use tracing::info;
 
 pub struct SVGEditor {
+    /// Drawn alone inside another surface: no toolbar, and the context's
+    /// events are left for the host.
+    pub embedded: bool,
     pub buffer: Buffer,
     pub opened_content: Buffer,
     pub open_file_hmac: Option<DocumentHmac>,
@@ -183,6 +186,7 @@ impl SVGEditor {
         }
 
         Self {
+            embedded: false,
             buffer,
             opened_content: Buffer::new(content),
             open_file_hmac: hmac,
@@ -221,7 +225,7 @@ impl SVGEditor {
         self.buffer
             .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
 
-        let request_diff_change = self.show_toolbar(ui);
+        let request_diff_change = !self.embedded && self.show_toolbar(ui);
 
         if !request_diff_change {
             for (_, el) in &mut self.buffer.elements {
@@ -233,13 +237,19 @@ impl SVGEditor {
             }
         }
         self.input_controller.sync_canvas_settings(&self.settings);
+        // an embed's host scrolls by the wheel
+        self.input_controller.pan_on_wheel = !self.embedded;
 
         self.process_events(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
 
         self.paint_background_colors(ui);
-        ui.set_clip_rect(self.viewport_settings.working_rect);
+        ui.set_clip_rect(
+            self.viewport_settings
+                .working_rect
+                .intersect(ui.clip_rect()),
+        );
 
         self.show_background_overlay();
         let global_diff = self.show_canvas(ui);
@@ -251,7 +261,7 @@ impl SVGEditor {
             self.settings,
             &self.buffer,
             &global_diff,
-            self.toolbar.hide_overlay,
+            self.toolbar.hide_overlay || self.embedded,
         );
 
         if non_empty_weak_imaegs {
@@ -270,7 +280,9 @@ impl SVGEditor {
             };
 
         self.buffer.master_transform_changed = false;
-        ui.ctx().pop_events();
+        if !self.embedded {
+            ui.ctx().pop_events();
+        }
 
         Response { request_save: !self.read_only && needs_save_and_frame_is_cheap }
     }

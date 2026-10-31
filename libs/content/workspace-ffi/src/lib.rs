@@ -5,6 +5,7 @@ use workspace_rs::workspace::Workspace;
 /// cbindgen:ignore
 pub mod android;
 pub mod apple;
+pub mod preview;
 pub mod response;
 
 pub use response::Response;

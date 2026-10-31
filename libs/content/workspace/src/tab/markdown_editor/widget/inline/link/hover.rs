@@ -18,10 +18,10 @@ use crate::widgets::GlyphonLabel;
 use crate::widgets::TextOverflow;
 
 /// Width of the hover card's content.
-pub(super) const CARD_W: f32 = 320.0;
+pub(crate) const CARD_W: f32 = 320.0;
 /// Space between a card's edge and its content.
-pub(super) const CARD_PAD: Space = Space::Md;
-pub(super) const CARD_RADIUS: Radius = Radius::Control;
+pub(crate) const CARD_PAD: Space = Space::Md;
+pub(crate) const CARD_RADIUS: Radius = Radius::Control;
 /// A picture this wide or wider runs across the card; narrower ones are left out.
 const BANNER_MIN_ASPECT: f32 = 1.4;
 const FAVICON: f32 = 16.0;
@@ -32,9 +32,15 @@ impl MdRender {
     /// card's buttons. `shows_url`: the link's text is its URL, so a card
     /// with nothing fetched would only repeat it. False when it has no card.
     pub(super) fn show_link_preview(
-        &self, ctx: &egui::Context, response: &Response, url: &str, shows_url: bool,
+        &self, ctx: &egui::Context, response: &Response, url: &str, shows_url: bool, wikilink: bool,
     ) -> bool {
         if self.touch_mode {
+            return false;
+        }
+        if let Some(place) = self.link_place(url, wikilink) {
+            return self.show_tab_card(ctx, response, url, place);
+        }
+        if wikilink {
             return false;
         }
         let Some(ResolvedLink::External(target)) = self.resolve_link(url) else {

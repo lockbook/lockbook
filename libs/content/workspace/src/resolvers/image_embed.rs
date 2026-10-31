@@ -26,11 +26,13 @@ pub fn wiki_embed_title(url: &str) -> Option<&str> {
 pub struct ImageEmbedResolver {
     images: ImageCache,
     file_id: Uuid,
+    /// An image shown since the last ask was still loading.
+    pending: std::cell::Cell<bool>,
 }
 
 impl ImageEmbedResolver {
     pub fn new(images: ImageCache, file_id: Uuid) -> Self {
-        Self { images, file_id }
+        Self { images, file_id, pending: Default::default() }
     }
 }
 
@@ -88,6 +90,10 @@ impl EmbedResolver for ImageEmbedResolver {
         self.locate(url).is_some_and(|(_, waits)| waits)
     }
 
+    fn take_pending(&self) -> bool {
+        self.pending.take()
+    }
+
     fn load_anyway(&self, url: &str) {
         if let Some((key, _)) = self.locate(url) {
             self.images.show_anyway(self.file_id, &key);
@@ -123,6 +129,7 @@ impl EmbedResolver for ImageEmbedResolver {
         let image_state = state.lock().unwrap().deref().clone();
         match image_state {
             ImageState::Loading => {
+                self.pending.set(true);
                 show_placeholder(ui, rect, phosphor::IMAGE, "Loading image…", None);
             }
             ImageState::Loaded(texture_id) => {

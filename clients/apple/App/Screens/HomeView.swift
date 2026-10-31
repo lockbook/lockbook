@@ -232,6 +232,11 @@ struct HomeView: View {
             guard let docWritten else { return }
             filesModel.documentWritten(docWritten.id)
         }
+        #if os(iOS)
+            .onReceive(NotificationCenter.default.publisher(
+                for: UIApplication.willResignActiveNotification
+            )) { _ in refreshWidgetPreviews() }
+        #endif
         .onAppear {
             workspaceInput.setSidebarOpen(nativeSidebarOpen)
             applyDesktopTabPolicy()
@@ -1088,3 +1093,14 @@ enum SidebarTab: String, Identifiable {
 #Preview {
     HomeView()
 }
+
+#if os(iOS)
+    extension HomeView {
+        /// The widget, seen only outside the app, shows the pinned documents
+        /// as the app rendered them on its way out.
+        func refreshWidgetPreviews() {
+            guard let pins = try? AppState.lb.listPinned().get() else { return }
+            WidgetPreviews.shared.refresh(workspace: workspaceInput, pins: pins)
+        }
+    }
+#endif
