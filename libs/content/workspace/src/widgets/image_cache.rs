@@ -268,14 +268,15 @@ impl ImageCache {
         self.ctx.pixels_per_point()
     }
 
-    pub fn color_image(&self, id: Uuid) -> Result<ColorImage, String> {
+    /// The file's pixels, an animation's first frame, and its bytes.
+    pub fn copied_image(&self, id: Uuid) -> Result<(ColorImage, Vec<u8>), String> {
         let bytes = self
             .core
             .read_document(id, false)
             .map_err(|e| e.to_string())?;
         let image = decode_with_orientation(&bytes)?;
         let size = [image.width() as usize, image.height() as usize];
-        Ok(ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()))
+        Ok((ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()), bytes))
     }
 
     /// Whether `key`'s texture is decoded and ready to paint this session — the

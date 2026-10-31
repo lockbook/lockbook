@@ -1,6 +1,7 @@
 #if os(macOS)
     import Bridge
     import MetalKit
+    import UniformTypeIdentifiers
 
     public class MacMTK: MTKView, MTKViewDelegate {
         var wsHandle: UnsafeMutableRawPointer?
@@ -141,7 +142,7 @@
             modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
                 self?.modifiersChanged(event: event) ?? event
             }
-            registerForDraggedTypes([.png, .tiff, .fileURL, .string])
+            registerForDraggedTypes([.gif, .png, .tiff, .fileURL, .string])
             becomeFirstResponder()
 
             accentChangeObserver = NotificationCenter.default.addObserver(
@@ -375,11 +376,14 @@
             // text is the paste. A line beside an image names the image.
             let text = pasteBoard.string(forType: .string)
             let cells = text.map { $0.contains("\t") || $0.contains("\n") } ?? false
-            if let data = pasteBoard.data(forType: .png), !cells {
+            if let data = pasteBoard.data(forType: .gif) ?? pasteBoard.data(forType: .png), !cells {
                 sendImage(img: data, isPaste: isPaste)
                 return true
             } else if let text {
                 clipboard_paste(wsHandle, text)
+            } else if let data = webArchiveImage(pasteBoard) {
+                sendImage(img: data, isPaste: isPaste)
+                return true
             } else if !isPaste {
                 if let data = pasteBoard.data(forType: .fileURL) {
                     if let url = URL(dataRepresentation: data, relativeTo: nil) {
@@ -574,9 +578,19 @@
                 }
             }
 
-            if let png = dataFromBytes(b: output.copied_image), let image = NSImage(data: png) {
+            if let data = dataFromBytes(b: output.copied_image), let image = NSImage(data: data) {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.writeObjects([image])
+                if data.starts(with: Array("GIF8".utf8)) {
+                    // a gif copies as itself, with its first frame for apps that take pictures
+                    let item = NSPasteboardItem()
+                    item.setData(data, forType: .gif)
+                    if let tiff = image.tiffRepresentation {
+                        item.setData(tiff, forType: .tiff)
+                    }
+                    NSPasteboard.general.writeObjects([item])
+                } else {
+                    NSPasteboard.general.writeObjects([image])
+                }
             }
 
             let cursor = NSCursor.fromCCursor(c: output.cursor)
@@ -690,5 +704,21 @@ extension MacMTK: NSTextInputClient {
         return window.convertToScreen(convert(rect, to: nil))
     }
     public func characterIndex(for _: NSPoint) -> Int { NSNotFound }
+}
+
+extension NSPasteboard.PasteboardType {
+    static let gif = Self(UTType.gif.identifier)
+    static let webArchive = Self(UTType.webArchive.identifier)
+}
+
+/// The original file of an image a browser copied, which its web archive carries.
+private func webArchiveImage(_ pasteBoard: NSPasteboard) -> Data? {
+    guard let data = pasteBoard.data(forType: .webArchive),
+          let archive = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+    else { return nil }
+    // the main resource names the image but holds an <img> tag; the bytes are a subresource
+    let subresources = archive["WebSubresources"] as? [[String: Any]] ?? []
+    return subresources
+        .first { ($0["WebResourceMIMEType"] as? String)?.hasPrefix("image/") ?? false }?["WebResourceData"] as? Data
 }
 #endif

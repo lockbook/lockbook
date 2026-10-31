@@ -708,6 +708,10 @@ pub trait ExtendedOutput {
     /// A rendered copy; hosts put both flavors on the clipboard at once.
     fn set_copied_rendered(&self, copied: CopiedRendered);
     fn pop_copied_rendered(&self) -> Option<CopiedRendered>;
+    /// A copied gif's own bytes, beside its first frame as a copied image;
+    /// hosts whose clipboard takes gifs copy these instead.
+    fn set_copied_gif(&self, gif: Vec<u8>);
+    fn pop_copied_gif(&self) -> Option<Vec<u8>>;
 }
 
 #[derive(Clone, Debug, Default)]
@@ -738,6 +742,14 @@ impl ExtendedOutput for egui::Context {
 
     fn pop_copied_rendered(&self) -> Option<CopiedRendered> {
         self.memory_mut(|m| m.data.remove_temp(Id::unique("copied_rendered")))
+    }
+
+    fn set_copied_gif(&self, gif: Vec<u8>) {
+        self.memory_mut(|m| m.data.insert_temp(Id::unique("copied_gif"), gif));
+    }
+
+    fn pop_copied_gif(&self) -> Option<Vec<u8>> {
+        self.memory_mut(|m| m.data.remove_temp(Id::unique("copied_gif")))
     }
 
     fn set_virtual_keyboard_shown(&self, enabled: bool) {

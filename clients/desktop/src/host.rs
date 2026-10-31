@@ -339,6 +339,19 @@ impl AppState {
         if let Some(copied) = self.lb.renderer.context.pop_copied_rendered() {
             let _ = self.clipboard.set_html(copied.html, Some(copied.plain));
         }
+        // a gif copies as a file, which keeps its frames; the pixels stay if the write fails
+        if let (Some(gif), Ok(data)) =
+            (self.lb.renderer.context.pop_copied_gif(), crate::util::data_dir())
+        {
+            let dir = std::path::Path::new(&data).join("egui/clipboard");
+            let path = dir.join("image.gif");
+            if std::fs::create_dir_all(&dir)
+                .and_then(|()| std::fs::write(&path, gif))
+                .is_ok()
+            {
+                let _ = self.clipboard.set().file_list(&[path]);
+            }
+        }
 
         let ime_rect = platform.ime.as_ref().map(|ime| ime.cursor_rect);
         self.egui_winit

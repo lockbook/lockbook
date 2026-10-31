@@ -1020,7 +1020,10 @@
             // text is the paste. A line beside an image names the image.
             let text = UIPasteboard.general.string ?? UIPasteboard.general.url?.absoluteString
             let cells = text.map { $0.contains("\t") || $0.contains("\n") } ?? false
-            if let image = UIPasteboard.general.image, !cells {
+            if let gif = UIPasteboard.general.data(forPasteboardType: UTType.gif.identifier), !cells {
+                mtkView.importContent(.imageData(gif), isPaste: true)
+                mtkView.requestFrame()
+            } else if let image = UIPasteboard.general.image, !cells {
                 mtkView.importContent(.image(image), isPaste: true)
                 mtkView.requestFrame()
             } else if let text {
@@ -1463,7 +1466,17 @@
         /// reports the change to UIKit.
         func dropInteraction(_: UIDropInteraction, performDrop session: UIDropSession) {
             let mtkView = mtkView
-            if session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier]) {
+            if session.hasItemsConforming(toTypeIdentifiers: [UTType.gif.identifier]) {
+                for item in session.items {
+                    _ = item.itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.gif.identifier) { gif, _ in
+                        guard let gif else { return }
+                        DispatchQueue.main.async {
+                            mtkView.importContent(.imageData(gif), isPaste: true)
+                            mtkView.requestFrame()
+                        }
+                    }
+                }
+            } else if session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier]) {
                 _ = session.loadObjects(ofClass: UIImage.self) { images in
                     for case let image as UIImage in images {
                         mtkView.importContent(.image(image), isPaste: true)
