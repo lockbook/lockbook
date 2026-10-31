@@ -83,7 +83,7 @@ impl Spelling {
         return windows::Windows::new().map(|c| Self::new(Box::new(c)));
         #[cfg(target_os = "linux")]
         return Some(Self::new(Box::new(hunspell::Hunspell::load(ctx.clone()))));
-        #[cfg(target_os = "ios")]
+        #[cfg(any(target_os = "ios", target_os = "android"))]
         return Some(Self::host());
         #[allow(unreachable_code)]
         None
