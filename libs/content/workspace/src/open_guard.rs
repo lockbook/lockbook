@@ -14,6 +14,7 @@ use egui::{Align, Layout, Rect, Ui, pos2, vec2};
 use lb_rs::Uuid;
 use lb_rs::model::usage::bytes_to_human;
 use tracing::warn;
+use web_time::{Duration, Instant};
 
 use crate::style::{Button, Space, Spacer, ThemeExt as _, TypeRole, control_height, phosphor};
 use crate::tab::{ContentState, Tab};
@@ -29,6 +30,10 @@ const MAX_LINE_CHARS: usize = 10_000;
 /// Typing in a fenced code block costs ~180ms a keystroke at this size and
 /// grows faster than its length.
 const MAX_CODE_BLOCK_CHARS: usize = 50_000;
+
+/// How long the guard watches content that never settles: a worker hung
+/// off the UI thread hangs nothing.
+const WATCH_BOUND: Duration = Duration::from_secs(10);
 
 #[derive(Debug)]
 pub struct Refusal {
@@ -293,16 +298,23 @@ impl OpenGuard {
         }
     }
 
-    /// Shows `tab`, holding the marker through the first frame of its content.
+    /// Shows `tab`, holding the marker through each frame of its content
+    /// until it settles. The marker exists only mid-frame, so a suspended
+    /// app the system kills leaves none.
     pub fn show<R>(&self, tab: &mut Tab, show: impl FnOnce(&mut Tab) -> R) -> R {
-        let watched = tab.first_draw && matches!(tab.content, ContentState::Open(_));
-        let Some(id) = tab.id().filter(|_| watched) else {
+        let open = matches!(tab.content, ContentState::Open(_));
+        if open && tab.first_draw {
+            tab.watch = Some(Instant::now());
+        }
+        let Some(id) = tab.id().filter(|_| open && tab.watch.is_some()) else {
             return show(tab);
         };
         self.enter(id);
         let result = show(tab);
         self.exit(id);
-        tab.first_draw = false;
+        if tab.settled() || tab.watch.is_some_and(|at| at.elapsed() > WATCH_BOUND) {
+            tab.watch = None;
+        }
         result
     }
 }

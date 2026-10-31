@@ -168,6 +168,11 @@ impl ImageCache {
         state
     }
 
+    /// The size of a texture this cache allocated.
+    pub fn texture_size(&self, texture: egui::TextureId) -> Option<[usize; 2]> {
+        self.ctx.tex_manager().read().meta(texture).map(|m| m.size)
+    }
+
     /// Real texture dimensions for `key`, if known.
     pub fn dims(&self, key: &ImageKey) -> Option<Vec2> {
         self.persistence

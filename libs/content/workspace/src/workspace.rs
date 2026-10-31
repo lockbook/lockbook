@@ -691,6 +691,7 @@ impl Workspace {
             persistence: self.cfg.clone(),
             account: self.account.clone(),
             guard: Arc::clone(&self.open_guard),
+            watched: true,
         }
     }
 
@@ -1415,7 +1416,7 @@ impl Workspace {
 
                     // a reload keeps the open editor and its unsaved edits, so it isn't refused
                     let reloaded = !tab_created
-                        && content_fits_name(&tab.content, &file.name)
+                        && content_reloads(&tab.content, &file.name)
                         && match &mut tab.content {
                             ContentState::Open(content) => content.reload(hmac, &bytes),
                             _ => false,
@@ -1967,6 +1968,22 @@ fn open_content(
     }
 }
 
+/// Whether `content` takes a newer version of a file now named `name` in
+/// place: it's still the kind that name opens, whatever its extension.
+fn content_reloads(content: &ContentState, name: &str) -> bool {
+    let doc_type = DocType::from_name(name);
+    match content {
+        ContentState::Open(TabContent::Markdown(_)) => matches!(
+            doc_type,
+            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+        ),
+        ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
+        #[cfg(not(target_family = "wasm"))]
+        ContentState::Open(TabContent::Chat(_)) => doc_type == DocType::Chat,
+        _ => false,
+    }
+}
+
 /// Whether `content` was built for a file named `name`. Loading content picks
 /// its editor from core's current name when the load lands.
 fn content_fits_name(content: &ContentState, name: &str) -> bool {
@@ -2007,6 +2024,10 @@ pub struct WsPresistentData {
     zoom_factor: f32,
     #[serde(default)]
     image_dims: HashMap<String, [f32; 2]>,
+    /// Region heights by destination, fragment, and width; see
+    /// [`crate::tab::Tab::region_height`].
+    #[serde(default)]
+    region_heights: HashMap<String, f32>,
     /// Opt-in: show link previews by contacting each linked site for its
     /// title/favicon/card. Off by default — contacting a site reveals the
     /// reader's IP address and that they opened the note (and the URL may have
@@ -2048,6 +2069,7 @@ impl Default for WsPresistentData {
             landing_page: LandingPage::default(),
             zoom_factor: 1.,
             image_dims: HashMap::default(),
+            region_heights: HashMap::default(),
             contact_linked_sites: false,
             last_search: SearchState::default(),
             sidecar_open: false,
@@ -2254,6 +2276,20 @@ impl WsPersistentStore {
     pub fn merge_image_dims(&self, new_dims: HashMap<String, [f32; 2]>) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.image_dims.extend(new_dims);
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn region_height(&self, key: &str) -> Option<f32> {
+        self.data.read().unwrap().region_heights.get(key).copied()
+    }
+
+    pub fn set_region_height(&self, key: String, height: f32) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.region_heights.get(&key) == Some(&height) {
+            return;
+        }
+        data_lock.region_heights.insert(key, height);
         drop(data_lock);
         self.write_to_file();
     }

@@ -25,6 +25,9 @@ const SCREEN_PADDING: egui::Pos2 =
 const BACK_LABEL: &str = "Back to image";
 
 pub struct ImageViewer {
+    /// Drawn alone inside another surface: no controls, and the context's
+    /// events are left for the host.
+    pub embedded: bool,
     pub id: Uuid,
     images: ImageCache,
     input_controller: InputController,
@@ -49,6 +52,7 @@ enum ImageCmd {
 impl ImageViewer {
     pub fn new(id: Uuid, images: ImageCache) -> Self {
         Self {
+            embedded: false,
             id,
             images,
             input_controller: InputController::new(InputControllerConfig::new(true, true)),
@@ -66,6 +70,8 @@ impl ImageViewer {
         painter.rect_filled(painter.clip_rect(), 0., t.neutral_bg());
 
         self.menu_open = context_menu::is_any_open(ui.ctx());
+        // an embed's host scrolls by the wheel
+        self.input_controller.pan_on_wheel = !self.embedded;
         if !self.menu_open {
             self.process_events(ui, available);
         }
@@ -87,8 +93,10 @@ impl ImageViewer {
                     Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
                 ));
 
-                self.show_image_context_menu(ui, available, rect);
-                self.show_viewport_controls(ui, available, rect);
+                if !self.embedded {
+                    self.show_image_context_menu(ui, available, rect);
+                    self.show_viewport_controls(ui, available, rect);
+                }
             }
             ImageState::Failed(ref msg) => message_indicator(
                 ui,
@@ -97,7 +105,24 @@ impl ImageViewer {
             ),
         }
 
-        ui.ctx().pop_events();
+        if !self.embedded {
+            ui.ctx().pop_events();
+        }
+    }
+
+    /// Height over width, once the image has loaded.
+    pub fn aspect(&self) -> Option<f32> {
+        let state = self.images.get_or_load(&ImageKey::File(self.id), true);
+        let ImageState::Loaded(texture) = *state.lock().unwrap() else { return None };
+        let [w, h] = self.images.texture_size(texture)?;
+        Some(h as f32 / (w as f32).max(1.0))
+    }
+
+    /// The image has loaded or failed to.
+    pub fn settled(&self) -> bool {
+        let state = self.images.get_or_load(&ImageKey::File(self.id), true);
+        let loading = matches!(*state.lock().unwrap(), ImageState::Loading);
+        !loading
     }
 
     pub fn detect_islands_interaction(&self, pos: Pos2) -> bool {

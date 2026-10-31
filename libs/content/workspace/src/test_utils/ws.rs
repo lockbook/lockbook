@@ -7,7 +7,6 @@ use lb_rs::model::core_config::Config;
 use lb_rs::model::file_metadata::FileType;
 use web_time::{Duration, Instant};
 
-use crate::tab::ContentState;
 use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 use crate::workspace::Workspace;
 
@@ -91,24 +90,16 @@ impl TestWs {
         out.unwrap()
     }
 
-    /// Frames until no open tab is loading and a few more for first draws.
+    /// Frames until the current tab is settled.
     pub fn settle(&mut self) {
         let start = Instant::now();
         loop {
             self.frame();
-            let loading = self
-                .ws
-                .tabs
-                .values()
-                .any(|t| matches!(t.content, ContentState::Loading(_)));
-            if !loading {
+            if self.ws.current_tab().is_none_or(|t| t.settled()) {
                 break;
             }
-            assert!(start.elapsed() < Duration::from_secs(10), "tabs never loaded");
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        for _ in 0..4 {
-            self.frame();
+            assert!(start.elapsed() < Duration::from_secs(10), "tab never settled");
+            std::thread::sleep(Duration::from_millis(2));
         }
     }
 }

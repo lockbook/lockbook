@@ -15,7 +15,10 @@ use wgpu::{
 pub use egui_wgpu;
 pub use wgpu;
 
+mod offscreen;
 mod shame;
+
+pub use offscreen::{OFFSCREEN_FORMAT, OffscreenFrame, render_offscreen};
 
 const NOOB_FACTOR: u64 = 8;
 const FRAME_BUDGET: Duration = Duration::from_micros((16_667 / 2) * NOOB_FACTOR);

@@ -88,11 +88,18 @@ pub struct PdfViewer {
 
     /// Phone, iPad compact, or Android: no page sidebar.
     pub compact: bool,
+    /// Drawn alone inside another surface: pages only, and the keyboard is
+    /// the host's.
+    pub embedded: bool,
 
     /// The pages' scroll offset last frame.
     last_offset: Vec2,
     /// The user scrolled the pages this frame.
     pub user_scrolled: bool,
+    /// A page in view this frame was still rendering.
+    pages_pending: bool,
+    /// The page an embed shows.
+    pub region: Option<usize>,
 }
 
 struct SideBar {
@@ -173,6 +180,7 @@ impl PdfViewer {
             salt: Id::unique(id),
             sidebar: Default::default(),
             compact: false,
+            embedded: false,
             page_dimensions: Default::default(),
             parse_failed: false,
             page_cache: Default::default(),
@@ -195,7 +203,39 @@ impl PdfViewer {
             render_area: Rect::ZERO,
             last_offset: Vec2::ZERO,
             user_scrolled: false,
+            pages_pending: false,
+            region: None,
         }
+    }
+
+    /// Room above the first page: none for an embed, whose host pads it.
+    fn top_inset(&self) -> f32 {
+        if self.embedded { 0.0 } else { pages_top_inset() }
+    }
+
+    /// How tall `page`, or all the pages, stand at `width` in an embed,
+    /// which fits the first page's width; None until parsed.
+    pub fn region_height(&self, page: Option<usize>, width: f32) -> Option<f32> {
+        let first = self.page_dimensions.first()?;
+        let scale = width / first.0.max(1.0);
+        Some(match page {
+            Some(page) => self.page_dimensions.get(page).unwrap_or(first).1 * scale,
+            None => {
+                let pages = self.page_dimensions.len() as f32;
+                let heights: f32 = self.page_dimensions.iter().map(|d| d.1 * scale).sum();
+                heights + SPACE_BETWEEN_PAGES * (pages - 1.0)
+            }
+        })
+    }
+
+    /// The frame just drawn shows the pdf as it stays: parsed, or failed,
+    /// with every page in view rendered and no scroll waiting.
+    pub fn settled(&self) -> bool {
+        self.parse_failed
+            || self.sidebar.is_some()
+                && !self.pages_pending
+                && self.scroll_to.is_none()
+                && self.viewport_adjustment.is_none()
     }
 
     /// The page with the most area in view.
@@ -210,7 +250,8 @@ impl PdfViewer {
             return true;
         }
         if self.page_bounds.is_empty() {
-            return false;
+            // parsed with no pages: nowhere to land
+            return self.sidebar.is_some();
         }
         self.scroll_to = Some(page.min(self.page_bounds.len() - 1));
         true
@@ -250,7 +291,11 @@ impl PdfViewer {
         // pages fit the width they'll have once the sidebar settles
         let mut pages = host;
         let mut fit_width = host.width();
-        if let Some(sidebar) = self.sidebar.as_ref().filter(|_| !self.compact) {
+        if let Some(sidebar) = self
+            .sidebar
+            .as_ref()
+            .filter(|_| !self.compact && !self.embedded)
+        {
             let id = Id::unique("pdf_sidebar_open").with(self.salt);
             let shown = SIDEBAR_WIDTH * surface_motion(ui.ctx(), id, sidebar.is_visible).slide;
             if sidebar.is_visible {
@@ -266,7 +311,9 @@ impl PdfViewer {
             }
         }
         self.show_pages(ui, pages, fit_width);
-        self.show_toolbar(ui, pages);
+        if !self.embedded {
+            self.show_toolbar(ui, pages);
+        }
         claim(ui, host);
     }
 
@@ -661,12 +708,13 @@ impl PdfViewer {
     }
 
     fn show_pages(&mut self, ui: &mut Ui, rect: Rect, fit_width: f32) {
-        let top = pages_top_inset();
+        let top = self.top_inset();
         let view_width = rect.width();
-        let available_width = fit_width * 0.95;
+        let available_width = fit_width * if self.embedded { 1.0 } else { 0.95 };
         let available_height = (rect.height() - top) * 0.95;
         self.render_area = rect;
         self.user_scrolled = false;
+        self.pages_pending = false;
 
         if self.page_bounds.is_empty() {
             place_at(ui, rect, Layout::top_down(Align::Center), |ui| {
@@ -688,6 +736,13 @@ impl PdfViewer {
                 // a rescale's anchor lands as an absolute offset the frame after,
                 // clamped against the new content size
                 let mut area = ScrollArea::both().animated(false);
+                if self.embedded {
+                    area = area
+                        .scroll_source(egui::scroll_area::ScrollSource::NONE)
+                        .scroll_bar_visibility(
+                            egui::scroll_area::ScrollBarVisibility::AlwaysHidden,
+                        );
+                }
                 let programmatic = self.scroll_to.is_some() || self.viewport_adjustment.is_some();
                 if let Some(adj) = self.viewport_adjustment.take() {
                     area = area.scroll_offset(self.current_viewport.min.to_vec2() - adj);
@@ -722,8 +777,7 @@ impl PdfViewer {
                         .max()
                         .unwrap_or_default() as f32;
 
-                    let (_, rect) = ui
-                        .allocate_space(egui::Vec2 { x: max_width.max(view_width), y: max_height });
+                    let (_, rect) = ui.allocate_space(vec2(max_width.max(view_width), max_height));
 
                     let mut intersect_areas = vec![];
                     let draw_adjustment = rect.min.to_vec2();
@@ -751,7 +805,9 @@ impl PdfViewer {
                                 .push((idx, page_rect.intersect(viewport).area() as u32));
                         }
                     }
-                    self.handle_keys(ui);
+                    if !self.embedded {
+                        self.handle_keys(ui);
+                    }
                     if let Some(scroll_idx) = self.scroll_to {
                         // this doesn't take into account `center_adjustment` from above
                         // but it doesn't matter, as if center_adjustment != 0, there is
@@ -790,11 +846,13 @@ impl PdfViewer {
             match self.page_cache.get(&idx).cloned() {
                 Some(cached) => {
                     if cached.generation != self.generation.load(Ordering::Relaxed) {
+                        self.pages_pending = true;
                         self.enqueue_page(idx);
                     }
                     cached.texture
                 }
                 None => {
+                    self.pages_pending = true;
                     self.enqueue_page(idx);
                     self.placeholder.clone()
                 }
@@ -822,7 +880,7 @@ impl PdfViewer {
     fn compute_bounds(&mut self) {
         let mut pages = vec![];
 
-        let mut offset = pos2(0.0, pages_top_inset());
+        let mut offset = pos2(0.0, self.top_inset());
 
         for &(w, h) in self.page_dimensions.iter() {
             let mut dims = Vec2::new(w, h);

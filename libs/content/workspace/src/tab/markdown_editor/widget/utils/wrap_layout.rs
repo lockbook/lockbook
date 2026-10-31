@@ -196,6 +196,8 @@ pub struct EmbedSpec {
 pub enum EmbedKind {
     Image,
     LinkCard,
+    /// A wiki embed's tab; its url is the title.
+    Tab,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -2001,6 +2003,12 @@ impl MdRender {
                             egui::CornerRadius::same(2),
                         ),
                         EmbedKind::LinkCard => self.paint_link_card(embed_ui, url, screen_rect),
+                        EmbedKind::Tab => self.paint_tab_embed(
+                            embed_ui,
+                            url,
+                            screen_rect,
+                            frag.source_range.start(),
+                        ),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,

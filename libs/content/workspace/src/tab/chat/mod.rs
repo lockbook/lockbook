@@ -338,6 +338,9 @@ pub struct Chat {
     pub id: Uuid,
     /// What the chat's widget ids derive from.
     pub salt: Id,
+    /// Drawn alone inside another surface: the transcript only, read-only,
+    /// and it never takes focus.
+    pub embedded: bool,
     pub hmac: Option<DocumentHmac>,
     pub entries: Vec<Entry>,
     pub composer: MdEdit,
@@ -380,6 +383,15 @@ pub struct Chat {
     pub reveal_entry: Option<Uuid>,
     /// The user scrolled the transcript this frame.
     pub user_scrolled: bool,
+    /// The transcript's view in its content, and the content's height.
+    transcript_view: Rect,
+    transcript_h: f32,
+    /// Each entry's row in the transcript's content as last laid out, and
+    /// the width it was laid out at.
+    entry_rows: Vec<(Uuid, Rect)>,
+    rows_width: f32,
+    /// The entry an embed shows.
+    pub region: Option<Uuid>,
     /// Chosen child per fork (parent id → child id), for the ‹ 2/3 › arrows.
     /// View state: per-device, unsynced, defaults to the newest sibling.
     branch_choice: HashMap<Uuid, Uuid>,
@@ -634,6 +646,30 @@ fn last_model_for(entries: &[Entry], username: &str, provider: &str) -> Option<S
 }
 
 impl Chat {
+    fn region_rect(&self) -> Option<Rect> {
+        let id = self.region?;
+        self.entry_rows
+            .iter()
+            .find(|(e, _)| *e == id)
+            .map(|(_, r)| *r)
+    }
+
+    /// How tall `entry`'s row, or the whole transcript, stood when last
+    /// laid out at `width`; None if it hasn't been.
+    pub fn region_height(&self, entry: Option<Uuid>, width: f32) -> Option<f32> {
+        if self.rows_width != width {
+            return None;
+        }
+        match entry {
+            Some(id) => self
+                .entry_rows
+                .iter()
+                .find(|(e, _)| *e == id)
+                .map(|(_, r)| r.height()),
+            None => Some(self.transcript_h),
+        }
+    }
+
     pub fn new(
         bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, account: Account, ctx: egui::Context,
         files: Arc<RwLock<FileCache>>, core: &lb_rs::blocking::Lb,
@@ -677,6 +713,7 @@ impl Chat {
         Self {
             id,
             salt: Id::unique(id),
+            embedded: false,
             hmac,
             entries,
             composer,
@@ -694,6 +731,11 @@ impl Chat {
             scroll_to_bottom: false,
             reveal_entry: None,
             user_scrolled: false,
+            transcript_view: Rect::NOTHING,
+            transcript_h: 0.0,
+            entry_rows: Vec::new(),
+            rows_width: 0.0,
+            region: None,
             branch_choice: HashMap::new(),
             branch_anchor: None,
             hide_children_of: None,

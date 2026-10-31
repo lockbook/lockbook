@@ -220,6 +220,10 @@ impl<'ast> MdRender {
                 // height separately and `max` it in at the end.
                 let mut image_height = 0.0f32;
                 for d in node.descendants() {
+                    if let Some(height) = self.tab_embed_height(d) {
+                        image_height = image_height.max(height);
+                        continue;
+                    }
                     if let Some(url) = image_url(d) {
                         let dims = self.embeds.size(&url);
                         image_height =
@@ -707,7 +711,7 @@ type LinePrefixValue = (Graphemes, bool);
 /// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq]`. Text-
 /// change invalidation is handled wholesale by [`LayoutCache::ensure_text_consistent`]
 /// before any read, so text_seq isn't part of the per-entry stamp.
-pub type HeightDeps = [u64; 4];
+pub type HeightDeps = [u64; 5];
 
 /// A table cell's stamp, a width as bits, and whether the cell is being
 /// measured for its column's width or laid out in it.
@@ -912,7 +916,13 @@ impl MdRender {
 
 impl<'ast> MdRender {
     fn height_deps(&self) -> HeightDeps {
-        [self.width_seq, self.embeds.seq(), self.previews.seq(), self.reveal_seq]
+        [
+            self.width_seq,
+            self.embeds.seq(),
+            self.previews.seq(),
+            self.reveal_seq,
+            self.tab_embeds.seq(),
+        ]
     }
 
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {

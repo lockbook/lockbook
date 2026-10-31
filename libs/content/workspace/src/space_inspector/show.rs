@@ -65,6 +65,11 @@ impl SpaceInspector {
         }
     }
 
+    /// The worker has filled in the usage, or failed to.
+    pub fn settled(&self) -> bool {
+        !matches!(*self.state.lock().unwrap(), AppState::Loading)
+    }
+
     #[tracing::instrument(name = "SpaceInspector::load", level = "trace", skip_all)]
     fn load(bg_lb: Lb, bg_state: Arc<Mutex<AppState>>, potential_root: Option<File>, ctx: Context) {
         let usage = bg_lb.get_usage();
