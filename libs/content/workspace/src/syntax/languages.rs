@@ -154,13 +154,6 @@ const ENTRIES: &[Entry] = &[
     ),
     #[cfg(feature = "extra-grammars")]
     entry!(
-        "fsharp",
-        ["f#", "fs"],
-        ["fs", "fsi", "fsx"],
-        tree_sitter_fsharp::LANGUAGE_FSHARP,
-        [tree_sitter_fsharp::HIGHLIGHTS_QUERY], tags: [tree_sitter_fsharp::TAGS_QUERY]),
-    #[cfg(feature = "extra-grammars")]
-    entry!(
         "gleam",
         [],
         ["gleam"],
@@ -202,13 +195,6 @@ const ENTRIES: &[Entry] = &[
         tree_sitter_objc::LANGUAGE,
         [tree_sitter_c::HIGHLIGHT_QUERY, tree_sitter_objc::HIGHLIGHTS_QUERY]
     ),
-    #[cfg(feature = "extra-grammars")]
-    entry!(
-        "ocaml",
-        ["ml"],
-        ["ml"],
-        tree_sitter_ocaml::LANGUAGE_OCAML,
-        [tree_sitter_ocaml::HIGHLIGHTS_QUERY], tags: [tree_sitter_ocaml::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     entry!("php", [], ["php"], tree_sitter_php::LANGUAGE_PHP, [tree_sitter_php::HIGHLIGHTS_QUERY], injections: tree_sitter_php::INJECTIONS_QUERY, tags: [tree_sitter_php::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
