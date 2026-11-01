@@ -1,4 +1,4 @@
-//! Canvas bindings and their discoverable labels share one source of truth.
+//! Canvas keyboard bindings.
 use egui::{Key, Modifiers};
 
 use super::Tool;
@@ -20,14 +20,11 @@ pub struct KeyboardShortcut {
     key: Key,
     modifiers: Modifiers,
     pub action: CanvasAction,
-    label: &'static str,
 }
 
 impl KeyboardShortcut {
-    pub const fn new(
-        key: Key, modifiers: Modifiers, action: CanvasAction, label: &'static str,
-    ) -> Self {
-        Self { key, modifiers, action, label }
+    pub const fn new(key: Key, modifiers: Modifiers, action: CanvasAction) -> Self {
+        Self { key, modifiers, action }
     }
 
     pub fn matches(&self, event: &egui::Event) -> bool {
@@ -43,65 +40,15 @@ impl KeyboardShortcut {
 }
 
 pub const BINDINGS: &[KeyboardShortcut] = &[
-    KeyboardShortcut::new(
-        Key::Backspace,
-        Modifiers::NONE,
-        CanvasAction::DeleteSelection,
-        "Delete selection",
-    ),
-    KeyboardShortcut::new(
-        Key::Delete,
-        Modifiers::NONE,
-        CanvasAction::DeleteSelection,
-        "Delete selection",
-    ),
-    KeyboardShortcut::new(Key::X, Modifiers::COMMAND, CanvasAction::CutSelection, "Cut selection"),
-    KeyboardShortcut::new(
-        Key::C,
-        Modifiers::COMMAND,
-        CanvasAction::CopySelection,
-        "Copy selection",
-    ),
-    KeyboardShortcut::new(Key::A, Modifiers::COMMAND, CanvasAction::SelectAll, "Select all"),
-    KeyboardShortcut::new(Key::Z, Modifiers::COMMAND, CanvasAction::Undo, "Undo"),
-    KeyboardShortcut::new(
-        Key::Z,
-        Modifiers::COMMAND.plus(Modifiers::SHIFT),
-        CanvasAction::Redo,
-        "Redo",
-    ),
-    KeyboardShortcut::new(Key::B, Modifiers::NONE, CanvasAction::SetTool(Tool::Pen), "Pen"),
-    KeyboardShortcut::new(Key::E, Modifiers::NONE, CanvasAction::SetTool(Tool::Eraser), "Eraser"),
-    KeyboardShortcut::new(
-        Key::S,
-        Modifiers::NONE,
-        CanvasAction::SetTool(Tool::Selection),
-        "Selection",
-    ),
-    KeyboardShortcut::new(
-        Key::Tab,
-        Modifiers::NONE,
-        CanvasAction::ToggleToolPopover,
-        "Tool popover",
-    ),
+    KeyboardShortcut::new(Key::Backspace, Modifiers::NONE, CanvasAction::DeleteSelection),
+    KeyboardShortcut::new(Key::Delete, Modifiers::NONE, CanvasAction::DeleteSelection),
+    KeyboardShortcut::new(Key::X, Modifiers::COMMAND, CanvasAction::CutSelection),
+    KeyboardShortcut::new(Key::C, Modifiers::COMMAND, CanvasAction::CopySelection),
+    KeyboardShortcut::new(Key::A, Modifiers::COMMAND, CanvasAction::SelectAll),
+    KeyboardShortcut::new(Key::Z, Modifiers::COMMAND, CanvasAction::Undo),
+    KeyboardShortcut::new(Key::Z, Modifiers::COMMAND.plus(Modifiers::SHIFT), CanvasAction::Redo),
+    KeyboardShortcut::new(Key::B, Modifiers::NONE, CanvasAction::SetTool(Tool::Pen)),
+    KeyboardShortcut::new(Key::E, Modifiers::NONE, CanvasAction::SetTool(Tool::Eraser)),
+    KeyboardShortcut::new(Key::S, Modifiers::NONE, CanvasAction::SetTool(Tool::Selection)),
+    KeyboardShortcut::new(Key::Tab, Modifiers::NONE, CanvasAction::ToggleToolPopover),
 ];
-
-pub fn show_help(ui: &mut egui::Ui) {
-    ui.label("Canvas shortcuts");
-    for binding in BINDINGS {
-        ui.horizontal(|ui| {
-            ui.label(
-                ui.ctx()
-                    .format_shortcut(&egui::KeyboardShortcut::new(binding.modifiers, binding.key)),
-            );
-            ui.label(binding.label);
-        });
-    }
-    ui.horizontal(|ui| {
-        ui.label(
-            ui.ctx()
-                .format_shortcut(&egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::V)),
-        );
-        ui.label("Paste");
-    });
-}

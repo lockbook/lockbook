@@ -400,9 +400,6 @@ impl Toolbar {
                 .show(ui, |ui| {
                     let icon =
                         if self.hide_overlay { Icon::FULLSCREEN_EXIT } else { Icon::FULLSCREEN };
-                    ui.menu_button("Shortcuts", |ui| {
-                        super::keyboard_shortcuts::show_help(ui);
-                    });
                     let toggle_btn = Button::default().icon(&icon).show(ui);
                     if toggle_btn.clicked() || toggle_btn.drag_started() {
                         self.hide_overlay = !self.hide_overlay;

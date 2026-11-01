@@ -816,9 +816,9 @@ mod tests {
     fn keyboard_bindings_are_injected_and_modifier_matching_is_order_independent() {
         use egui::{Key, Modifiers};
         const PLAIN: KeyboardShortcut =
-            KeyboardShortcut::new(Key::C, Modifiers::NONE, CanvasAction::SelectAll, "Plain C");
+            KeyboardShortcut::new(Key::C, Modifiers::NONE, CanvasAction::SelectAll);
         const COMMAND: KeyboardShortcut =
-            KeyboardShortcut::new(Key::C, Modifiers::COMMAND, CanvasAction::CopySelection, "Copy");
+            KeyboardShortcut::new(Key::C, Modifiers::COMMAND, CanvasAction::CopySelection);
         for bindings in [&[PLAIN, COMMAND][..], &[COMMAND, PLAIN][..]] {
             let mut controller = InputController::new(InputControllerConfig::default(), bindings);
             assert_eq!(
