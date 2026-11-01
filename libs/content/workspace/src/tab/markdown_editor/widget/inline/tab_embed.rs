@@ -447,14 +447,13 @@ impl<'ast> MdRender {
     pub(super) fn show_tab_card(
         &self, ctx: &egui::Context, response: &egui::Response, url: &str, place: Place,
     ) -> bool {
-        let width = FILE_CARD.x - 2.0 * CARD_PAD.pts();
         crate::style::tip_card_reachable(
             ctx,
             response,
             response.rect,
-            width,
+            FILE_CARD.x - 2.0 * CARD_PAD.pts(),
             egui::Margin::same(CARD_PAD.pts() as i8),
-            |ui| {
+            |ui, width| {
                 let folder = self.card_folder(&place);
                 let height = self
                     .tab_embeds

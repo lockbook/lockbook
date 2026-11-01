@@ -69,7 +69,7 @@ pub fn tip_card_placed(
 /// menu the card opened.
 pub fn tip_card_reachable(
     ctx: &Context, hit: &Response, place: egui::Rect, max_w: f32, margin: Margin,
-    add_contents: impl FnOnce(&mut Ui),
+    add_contents: impl FnOnce(&mut Ui, f32),
 ) {
     let id = hit.id.with("design_tip");
     let pointer = ctx.input(|i| i.pointer.latest_pos());
@@ -102,7 +102,11 @@ pub fn tip_card_reachable(
         .data(|d| d.get_temp::<Pos2>(anchor_id))
         .unwrap_or(place.center());
     note_tip_shown(ctx, hit.id);
-    show_area(ctx, hit.id, place, max_w, margin, Some(anchor), add_contents);
+    // narrower than `max_w` where neither side of the pointer holds it
+    let screen = ctx.content_rect();
+    let side = (screen.right() - anchor.x).max(anchor.x - screen.left());
+    let width = max_w.min(side - Space::Xs.pts() - margin.sum().x).max(0.0);
+    show_area(ctx, hit.id, place, width, margin, Some(anchor), |ui| add_contents(ui, width));
 }
 
 /// Puts away whatever tip is open, as a click does.
@@ -388,7 +392,7 @@ mod tests {
             let mut drawn = false;
             let mut out = ctx.run_ui(input, |ui| {
                 let resp = ui.interact(host, Id::unique("host"), Sense::hover());
-                tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, |ui| {
+                tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, |ui, _| {
                     ui.allocate_space(vec2(200.0, 330.0));
                     drawn = true;
                 });
@@ -403,5 +407,35 @@ mod tests {
             "{shown:?}"
         );
         assert!(shown[31..].iter().all(Option::is_some), "{shown:?}");
+    }
+    /// A card wider than either side of the pointer narrows to stay on the
+    /// screen beside it.
+    #[test]
+    fn card_narrows_to_fit_beside_the_pointer() {
+        let ctx = Context::default();
+        ctx.set_lb_theme(Theme::default(Mode::Light));
+        let screen = Rect::from_min_size(Pos2::ZERO, vec2(300.0, 400.0));
+        let host = Rect::from_min_size(pos2(100.0, 180.0), vec2(100.0, 20.0));
+        let card = Id::unique("host").with("design_tip");
+        let mut last = None;
+        for frame in 0..30 {
+            let events = if frame == 0 { vec![Event::PointerMoved(host.center())] } else { vec![] };
+            let input = RawInput {
+                screen_rect: Some(screen),
+                time: Some(frame as f64 * 0.1),
+                events,
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                let resp = ui.interact(host, Id::unique("host"), Sense::hover());
+                tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, |ui, width| {
+                    ui.allocate_space(vec2(width, 100.0));
+                });
+            });
+            out.textures_delta.clear();
+            last = ctx.memory(|m| m.area_rect(card));
+        }
+        let card = last.unwrap();
+        assert!(screen.contains_rect(card) && !card.contains(host.center()), "{card:?}");
     }
 }
