@@ -3,6 +3,7 @@ use lb_c::model::text::offset_types::{Grapheme, RangeExt as _};
 use std::cmp;
 use std::ffi::{CStr, CString, c_char, c_void};
 use tracing::instrument;
+use workspace_rs::history_swipe::SwipeDir;
 use workspace_rs::tab::markdown_editor::TouchTarget;
 use workspace_rs::tab::markdown_editor::bounds::BoundExt as _;
 use workspace_rs::tab::markdown_editor::input::{
@@ -79,6 +80,26 @@ pub unsafe extern "C" fn ios_stop_scroll(obj: *mut c_void) -> bool {
     obj.workspace
         .focused_mdedit_mut()
         .is_some_and(|md| md.scroll_area.gesture_stop())
+}
+
+#[no_mangle]
+pub extern "C" fn history_swipe(obj: *mut c_void, forward: bool, travel: f32, y: f32) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let dir = if forward { SwipeDir::Forward } else { SwipeDir::Back };
+    let travel = obj.renderer.pos_from_points(travel, y);
+    obj.workspace.history_swipe(dir, travel.x, Some(travel.y))
+}
+
+#[no_mangle]
+pub extern "C" fn history_swipe_end(obj: *mut c_void) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.history_swipe_end()
+}
+
+#[no_mangle]
+pub extern "C" fn history_swipe_cancel(obj: *mut c_void) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.history_swipe_cancel();
 }
 
 /// # Safety

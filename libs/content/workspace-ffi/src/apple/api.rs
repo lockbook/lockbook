@@ -233,8 +233,8 @@ pub unsafe extern "C" fn set_accent_color(obj: *mut c_void, light: u32, dark: u3
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn scroll_wheel(
-    obj: *mut c_void, scroll_x: f32, scroll_y: f32, shift: bool, ctrl: bool, option: bool,
-    command: bool,
+    obj: *mut c_void, scroll_x: f32, scroll_y: f32, phase: u64, momentum_phase: u64, precise: bool,
+    shift: bool, ctrl: bool, option: bool, command: bool,
 ) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
@@ -246,14 +246,37 @@ pub unsafe extern "C" fn scroll_wheel(
 
         obj.renderer.raw_input.events.push(Event::Zoom(factor))
     } else {
+        const BEGAN: u64 = 1;
+        const ENDED: u64 = 8;
+        const CANCELLED: u64 = 16;
+        const MAY_BEGIN: u64 = 32;
+
+        let (source, phase) = match (momentum_phase, precise) {
+            (0, true) => (egui::MouseWheelSource::Trackpad, phase),
+            (0, false) => (egui::MouseWheelSource::Wheel, phase),
+            _ => (egui::MouseWheelSource::Momentum, momentum_phase),
+        };
+        let phase = match phase {
+            MAY_BEGIN => return,
+            BEGAN => egui::TouchPhase::Start,
+            ENDED => egui::TouchPhase::End,
+            CANCELLED => egui::TouchPhase::Cancel,
+            _ => egui::TouchPhase::Move,
+        };
         obj.renderer.raw_input.events.push(Event::MouseWheel {
             unit: MouseWheelUnit::Point,
             delta: vec2(scroll_x, scroll_y),
             modifiers: obj.renderer.modifiers,
-            phase: egui::TouchPhase::Move,
-            source: egui::MouseWheelSource::Unknown,
+            phase,
+            source,
         });
     }
+}
+
+#[no_mangle]
+pub extern "C" fn set_trackpad_history_swipe(obj: *mut c_void, enabled: bool) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.trackpad_history_swipe = enabled;
 }
 
 /// # Safety

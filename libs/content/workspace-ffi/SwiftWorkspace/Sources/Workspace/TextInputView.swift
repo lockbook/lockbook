@@ -1281,7 +1281,7 @@
         // MARK: - Gesture relationships
 
         override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            if isInteractiveContentPop(gestureRecognizer) {
+            if blocksNavigationPop(gestureRecognizer) {
                 return false
             }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)

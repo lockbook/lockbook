@@ -22,6 +22,7 @@ use tracing::{debug, error, info, instrument, trace_span, warn};
 use web_time::{Duration, Instant};
 
 use crate::file_cache::{Change, FileCache, FilesExt};
+use crate::history_swipe::HistorySwipe;
 use crate::landing::LandingPage;
 use crate::link_plan::Plan;
 use crate::link_preview::LinkPreviews;
@@ -133,6 +134,8 @@ pub struct Workspace {
     pub desktop_tab_policy: bool,
     pub sidebar_open: bool,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
+    pub trackpad_history_swipe: bool,
+    pub(crate) swipe: HistorySwipe,
 
     // Transient state (consider removing)
     pub landing_page_first_frame: bool,
@@ -236,6 +239,8 @@ impl Workspace {
             desktop_tab_policy: false,
             sidebar_open: false,
             focused_parent: Default::default(),
+            trackpad_history_swipe: false,
+            swipe: Default::default(),
 
             landing_page_first_frame: true,
             current_tab_changed: Default::default(),

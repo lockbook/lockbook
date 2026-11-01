@@ -252,10 +252,15 @@
         }
 
         override public func scrollWheel(with event: NSEvent) {
+            if event.phase == .began {
+                set_trackpad_history_swipe(wsHandle, NSEvent.isSwipeTrackingFromScrollEventsEnabled)
+            }
+            let phase = UInt64(event.phase.rawValue)
+            let momentumPhase = UInt64(event.momentumPhase.rawValue)
             if event.hasPreciseScrollingDeltas {
-                scroll_wheel(wsHandle, Float(event.scrollingDeltaX), Float(event.scrollingDeltaY), event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
+                scroll_wheel(wsHandle, Float(event.scrollingDeltaX), Float(event.scrollingDeltaY), phase, momentumPhase, true, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
             } else {
-                scroll_wheel(wsHandle, Float(event.scrollingDeltaX * 10), Float(event.scrollingDeltaY * 10), event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
+                scroll_wheel(wsHandle, Float(event.scrollingDeltaX * 10), Float(event.scrollingDeltaY * 10), phase, momentumPhase, false, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
             }
             setNeedsDisplay(frame)
         }
