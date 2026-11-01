@@ -30,6 +30,7 @@ use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
+use widget::language_completions::LanguageCompletions;
 use widget::link_completions::LinkCompletions;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 
@@ -362,6 +363,7 @@ pub struct MdEdit {
 
     /// Emoji shortcode completion popup (e.g. `:smile:`).
     pub emoji_completions: EmojiCompletions,
+    pub language_completions: LanguageCompletions,
 
     /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
     pub link_completions: LinkCompletions,
@@ -429,6 +431,7 @@ impl MdEdit {
             scroll_area_velocity: Default::default(),
             file_id,
             emoji_completions: Default::default(),
+            language_completions: Default::default(),
             link_completions: Default::default(),
             context_menu_link: None,
             context_menu_heading: None,
@@ -1020,6 +1023,7 @@ impl Editor {
                 scroll_area_velocity: Default::default(),
                 file_id,
                 emoji_completions: Default::default(),
+                language_completions: Default::default(),
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
                 context_menu_heading: None,

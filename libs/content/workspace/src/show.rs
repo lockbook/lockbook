@@ -399,9 +399,12 @@ impl Workspace {
         }
 
         // tab navigation
-        let completions_active = self
-            .current_tab_markdown()
-            .is_some_and(|md| md.edit.emoji_completions.active || md.edit.link_completions.active);
+        let completions_active = self.current_tab_markdown().is_some_and(|md| {
+            let edit = &md.edit;
+            edit.emoji_completions.active
+                || edit.link_completions.active
+                || edit.language_completions.active
+        });
         // The search tab claims Cmd+1–9 to quick-open results, so don't let the
         // workspace consume them for tab switching while search is showing.
         let search_active = matches!(self.current_dest(), Some(crate::tab::Destination::Search(_)));

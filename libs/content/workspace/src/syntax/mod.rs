@@ -149,6 +149,18 @@ pub fn agreeing(_a: &str, _b: &str) -> usize {
     0
 }
 
+/// Language names a fence's info could be completing `query` toward, best
+/// first.
+#[cfg(not(target_family = "wasm"))]
+pub fn complete(query: &str) -> Vec<&'static str> {
+    languages::complete(query)
+}
+
+#[cfg(target_family = "wasm")]
+pub fn complete(_query: &str) -> Vec<&'static str> {
+    Vec::new()
+}
+
 /// The roles over `range`, a slice of the unit `spans` cover, in order and
 /// covering all of `range`. Ranges are relative to the unit.
 pub fn roles_in(spans: &[(Role, Range<usize>)], range: Range<usize>) -> Vec<(Role, Range<usize>)> {

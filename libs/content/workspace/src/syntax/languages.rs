@@ -430,6 +430,32 @@ pub fn find_extension(ext: &str) -> Option<usize> {
         .position(|entry| entry.extensions.contains(&ext.as_str()))
 }
 
+/// Language names a fence's info could be completing `query` toward: those
+/// whose name, then an alias, starts with it, shortest first.
+pub fn complete(query: &str) -> Vec<&'static str> {
+    let query = query.to_ascii_lowercase();
+    let mut found: Vec<_> = ENTRIES
+        .iter()
+        .filter_map(|entry| {
+            let tier = if entry.name.starts_with(&query) {
+                0
+            } else if entry
+                .aliases
+                .iter()
+                .chain(entry.extensions)
+                .any(|a| a.starts_with(&query))
+            {
+                1
+            } else {
+                return None;
+            };
+            Some((tier, entry.name.len(), entry.name))
+        })
+        .collect();
+    found.sort();
+    found.into_iter().map(|(_, _, name)| name).collect()
+}
+
 pub fn grammar(idx: usize) -> tree_sitter::Language {
     tree_sitter::Language::new(ENTRIES[idx].grammar)
 }
