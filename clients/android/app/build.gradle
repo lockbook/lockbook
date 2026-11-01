@@ -3,10 +3,25 @@ apply plugin: 'org.jmailen.kotlinter'
 apply plugin: 'kotlinx-serialization'
 apply plugin: 'kotlin-parcelize'
 
+def standaloneApks = providers.gradleProperty('standaloneApks').map { it.toBoolean() }.getOrElse(false)
+if (standaloneApks) {
+    // Keep ABI-split resources and outputs separate from Play bundle builds.
+    layout.buildDirectory.set(layout.projectDirectory.dir('build/standalone'))
+}
+
 android {
     compileSdk=36
     namespace "app.lockbook"
     ndkVersion rootProject.ext.ndk_version
+
+    splits {
+        abi {
+            enable standaloneApks
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            universalApk false
+        }
+    }
 
     flavorDimensions "store"
 
