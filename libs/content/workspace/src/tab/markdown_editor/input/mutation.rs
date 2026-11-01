@@ -94,6 +94,9 @@ impl<'ast> MdEdit {
                 if self.replace_in_table(range, &text, advance_cursor, operations) {
                     return response;
                 }
+                if self.replace_in_code(root, range, &text, advance_cursor, operations) {
+                    return response;
+                }
                 operations.push(Operation::Replace(Replace { range, text }));
                 if advance_cursor {
                     operations.push(Operation::Select(range.start().to_range()));
@@ -119,6 +122,9 @@ impl<'ast> MdEdit {
                 // item after the hidden contents
                 let handled = !shift && self.newline_at_fold(root, operations);
                 if handled {
+                    return response;
+                }
+                if self.newline_in_code(root, operations) {
                     return response;
                 }
 

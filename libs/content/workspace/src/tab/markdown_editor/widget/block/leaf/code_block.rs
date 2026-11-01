@@ -562,7 +562,7 @@ impl<'ast> MdRender {
 
     /// A code block's code as one text, a line per code line, with where in
     /// it each code line starts.
-    fn code_block_text(
+    pub(crate) fn code_block_text(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, synthetic: bool,
     ) -> (String, Vec<(Grapheme, usize)>) {
         let mut text = String::new();

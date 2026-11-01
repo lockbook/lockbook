@@ -1,5 +1,6 @@
 pub mod advance;
 pub mod canonical;
+pub mod code;
 pub mod cursor;
 pub mod events;
 pub mod mutation;
