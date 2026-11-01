@@ -54,6 +54,8 @@ pub struct DocScrollContent<'a, 'ast> {
     /// Height of the virtual trailing pad row (e.g. vh/2 of overscroll).
     /// `approx = precise = trailing_precise`.
     pub trailing_precise: f32,
+    /// The first and last rows when the view is held to a region.
+    bounds: Option<(DocRowId, DocRowId)>,
 }
 
 impl<'a, 'ast> DocScrollContent<'a, 'ast> {
@@ -61,6 +63,7 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
         let plaintext = renderer.plaintext;
         let blocks: Vec<_> = if plaintext { Vec::new() } else { root.children().collect() };
         let line_count = renderer.bounds.source_lines.len();
+        let bounds = renderer.scroll_bounds;
         Self {
             renderer,
             root,
@@ -69,6 +72,7 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
             plaintext,
             leading_precise: 0.0,
             trailing_precise,
+            bounds,
         }
     }
 
@@ -140,15 +144,22 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
 impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
     type RowId = DocRowId;
 
+    fn padding(&self, id: &DocRowId) -> bool {
+        matches!(id, DocRowId::Leading | DocRowId::Trailing)
+    }
+
     fn first(&self) -> Option<DocRowId> {
-        Some(DocRowId::Leading)
+        Some(self.bounds.map_or(DocRowId::Leading, |(first, _)| first))
     }
 
     fn last(&self) -> Option<DocRowId> {
-        Some(DocRowId::Trailing)
+        Some(self.bounds.map_or(DocRowId::Trailing, |(_, last)| last))
     }
 
     fn next(&self, id: &DocRowId) -> Option<DocRowId> {
+        if self.bounds.is_some_and(|(_, last)| *id == last) {
+            return None;
+        }
         match id {
             DocRowId::Leading => {
                 if self.plaintext {
@@ -188,6 +199,9 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
     }
 
     fn prev(&self, id: &DocRowId) -> Option<DocRowId> {
+        if self.bounds.is_some_and(|(first, _)| *id == first) {
+            return None;
+        }
         match id {
             DocRowId::Leading => None,
             DocRowId::Block(i) => {

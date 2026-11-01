@@ -198,6 +198,12 @@ pub trait Rows {
     /// Hint that the row is about to enter the viewport. Default no-op.
     fn warm(&self, _id: &Self::RowId) {}
 
+    /// Space around the content rather than content: none is beyond the
+    /// view when only this is.
+    fn padding(&self, _id: &Self::RowId) -> bool {
+        false
+    }
+
     /// Called by the scroll area when a stored anchor is no longer in
     /// the row sequence — i.e. the anchor's row has been removed and
     /// neither `next` nor `prev` can locate it. The returned `RowId`
@@ -1075,6 +1081,8 @@ pub struct AffineScrollArea<Id: Clone + Eq + std::fmt::Debug> {
     /// The wheel scrolls this area; off for one an outer area hands
     /// scrolling to.
     pub wheel: bool,
+    /// Whether there was more above and below the view as last shown.
+    overflow: (bool, bool),
 }
 
 impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
@@ -1090,6 +1098,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             gesture_thumb_px: 0.0,
             last_scrollbar: None,
             wheel: true,
+            overflow: (false, false),
         }
     }
 
@@ -1130,6 +1139,11 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
     pub fn gesture_scrollbar_begin(&mut self) {
         self.state.kill_momentum();
         self.gesture_fling = None;
+    }
+
+    /// Whether there was more above and below the view as last shown.
+    pub fn overflow(&self) -> (bool, bool) {
+        self.overflow
     }
 
     /// Whether `y` is on the scrollbar's thumb as last shown: the only place
@@ -1248,10 +1262,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         // Wheel: precise pixels. egui convention: positive y = scroll up
         // (content moves down). We want offset to grow when user scrolls
         // down (content moves up), so negate.
-        let smooth_scroll_delta = if self.wheel
-            && (ui.rect_contains_pointer(rect)
-                || crate::style::tip::scrolls_through_card(ui.ctx(), rect))
-        {
+        let smooth_scroll_delta = if self.wheel && ui.rect_contains_pointer(rect) {
             ui.input(|i| i.smooth_scroll_delta.y)
         } else {
             0.0
@@ -1366,6 +1377,20 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
 
         let user_scrolled = self.state.stored_offset() != before_input;
         let visible = self.state.visible(rows);
+        let content = |id: Option<Id>| id.is_some_and(|id| !rows.padding(&id));
+        self.overflow = (
+            visible
+                .iter()
+                .find(|r| !rows.padding(&r.id))
+                .is_some_and(|r| r.top < -0.5 || content(rows.prev(&r.id))),
+            visible
+                .iter()
+                .rev()
+                .find(|r| !rows.padding(&r.id))
+                .is_some_and(|r| {
+                    r.top + r.height > rect.height() + 0.5 || content(rows.next(&r.id))
+                }),
+        );
         warm_around_visible(rows, &visible, rect.height());
 
         if scrollable {

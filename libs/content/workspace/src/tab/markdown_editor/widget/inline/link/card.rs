@@ -145,15 +145,16 @@ impl<'ast> MdEdit {
         let open = self.embed_tap_opens(ui);
         let mut action = self.renderer.card_action.take();
         for node in root.descendants() {
-            let url = match &node.data.borrow().value {
-                NodeValue::Link(link) => link.url.clone(),
+            let (url, wikilink) = match &node.data.borrow().value {
+                NodeValue::Link(link) => (link.url.clone(), false),
+                NodeValue::WikiLink(link) => (link.url.clone(), true),
                 _ => continue,
             };
             // a block card's or a hover card's buttons
             if let Some((_, chosen)) = action.take_if(|(for_url, _)| *for_url == url) {
                 self.act_on_card(root, node, ui, ops, &url, chosen);
             }
-            if !self.renderer.link_renders_as_card(node) {
+            if wikilink || !self.renderer.link_renders_as_card(node) {
                 continue;
             }
             let salt = MdRender::card_interaction_id_salt(self.renderer.node_range(node));
@@ -166,9 +167,13 @@ impl<'ast> MdEdit {
         &mut self, root: &'ast AstNode<'ast>, node: &'ast AstNode<'ast>, ui: &egui::Ui,
         ops: &mut Vec<Operation>, url: &str, action: LinkMenuAction,
     ) {
+        let wikilink = matches!(node.data.borrow().value, NodeValue::WikiLink(_));
         match action {
+            LinkMenuAction::Open if wikilink => self.renderer.open_wikilink(url, ui.ctx(), false),
             LinkMenuAction::Open => self.renderer.open_resolved_link(url, ui.ctx(), false),
-            LinkMenuAction::Copy => ui.ctx().copy_text(self.renderer.link_to_copy(url, false)),
+            LinkMenuAction::Copy => ui
+                .ctx()
+                .copy_text(self.renderer.link_to_copy(url, wikilink)),
             LinkMenuAction::Refresh => self.renderer.refresh_link_meta(url),
             LinkMenuAction::Edit => {
                 let (select, force_reveal) = self.atom_edit_selection(node);

@@ -166,6 +166,8 @@ pub struct MdRender {
     pub text_areas: Vec<TextBufferArea>,
     /// Strikethroughs and underlines painted on top of text
     pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
+    /// The rows the view scrolls between, when a card holds it to a region.
+    pub scroll_bounds: Option<(scroll_content::DocRowId, scroll_content::DocRowId)>,
     /// Edge fades of scrolled tables and code blocks `(rect, left color,
     /// right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
@@ -491,6 +493,12 @@ pub struct Editor {
     /// Drawn alone inside another surface: no toolbar, find, or outline,
     /// and it never takes focus.
     pub embedded: bool,
+    /// Embedded in a hover card, where the wheel scrolls it.
+    pub in_card: bool,
+    /// A card's view has moved down from its region's start.
+    region_scrolled: bool,
+    /// A card's view has been put at its region's start.
+    region_placed: bool,
     /// What an embed shows of the note: a heading's section, or all of it.
     pub region: Option<crate::tab::Fragment>,
     /// The region's rows this frame, first and last; only they paint.
@@ -702,6 +710,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            scroll_bounds: None,
             over_text: Default::default(),
             copy_buttons: Default::default(),
             render_events: Vec::new(),
@@ -805,6 +814,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            scroll_bounds: None,
             over_text: Default::default(),
             copy_buttons: Default::default(),
             render_events: Vec::new(),
@@ -988,6 +998,7 @@ impl Editor {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            scroll_bounds: None,
             over_text: Default::default(),
             copy_buttons: Default::default(),
             render_events: Vec::new(),
@@ -1084,6 +1095,9 @@ impl Editor {
             id_salt: Id::NULL,
             in_preview: false,
             embedded: false,
+            in_card: false,
+            region_scrolled: false,
+            region_placed: false,
             region: None,
             region_bounds: None,
             hmac,
@@ -1866,9 +1880,9 @@ impl Editor {
                             0.0,
                             self.edit.renderer.ctx.get_lb_theme().neutral_bg(),
                         );
-                        // an embed scrolls only by what its host hands it
+                        // an embed scrolls only by what its host hands it; a card takes the wheel
                         self.edit.scroll_area.touch_scroll = touch_scroll && !self.embedded;
-                        self.edit.scroll_area.wheel = !self.embedded;
+                        self.edit.scroll_area.wheel = !self.embedded || self.in_card;
                         // An armed touch reorder owns the gesture — don't
                         // scroll the body under the dragged item.
                         self.edit.scroll_area.suppress_body_drag = matches!(
@@ -2537,17 +2551,22 @@ impl Editor {
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
         let viewport = self.edit.scroll_area.state.viewport_height;
+        // measured over the whole note, whatever region the view is held to
+        let bounds = self.edit.renderer.scroll_bounds.take();
         let rows = scroll_content::DocScrollContent::for_frame(&self.edit.renderer, root, viewport);
         let region = std::mem::replace(&mut self.region, fragment.cloned());
         let height = self.region_span(&rows, root).map_or(0.0, |(_, h)| h);
         self.region = region;
+        self.edit.renderer.scroll_bounds = bounds;
         height
     }
 
     /// Keeps an embed's view inside its region: at its top, or no further
-    /// than its bottom allows.
+    /// than its bottom allows. A card scrolls within its region's rows from
+    /// its region's start, where it's put once its landing is done.
     fn pin_region<'a>(&mut self, root: &'a AstNode<'a>, canvas: Rect) {
         self.region_bounds = None;
+        self.edit.renderer.scroll_bounds = None;
         if !self.embedded {
             return;
         }
@@ -2555,6 +2574,24 @@ impl Editor {
             scroll_content::DocScrollContent::for_frame(&self.edit.renderer, root, canvas.height());
         self.region_bounds = self.region_rows(&rows, root, self.region.as_ref());
         let Some((start, height)) = self.region_span(&rows, root) else { return };
+        if self.in_card {
+            self.edit.renderer.scroll_bounds = self.region_bounds;
+            let rows = scroll_content::DocScrollContent::for_frame(
+                &self.edit.renderer,
+                root,
+                canvas.height(),
+            );
+            let state = &mut self.edit.scroll_area.state;
+            if !self.region_placed {
+                state.set_offset(&rows, start.clone());
+                self.region_placed = self.landing.is_none();
+            }
+            self.region_scrolled = state
+                .offset(&rows)
+                .and_then(|cur| state.precise_distance(&rows, &start, &cur, height))
+                .is_some_and(|d| d > 0.5);
+            return;
+        }
         let state = &mut self.edit.scroll_area.state;
         let room = (height - canvas.height()).max(0.0);
         let into = state
@@ -2566,6 +2603,12 @@ impl Editor {
         let to = into.unwrap_or(0.0).clamp(0.0, room);
         let target = crate::widgets::affine_scroll::offset_by(&rows, start, to);
         state.set_offset(&rows, target);
+    }
+
+    /// Whether a card has more of its region above and below the view: above
+    /// once it's scrolled from where it opened.
+    pub fn overflow(&self) -> (bool, bool) {
+        (self.region_scrolled, self.edit.scroll_area.overflow().1)
     }
 
     /// Lands at the note's top, as a link to a heading it lacks does.

@@ -412,6 +412,9 @@ pub enum Presentation {
     /// sidebars, composer, or caret. It never takes focus, reports no text
     /// interaction rect, and doesn't scroll: a slot shows its region whole.
     Embedded,
+    /// Embedded in a hover card: it takes the wheel, so what doesn't fit
+    /// scrolls.
+    Card,
 }
 
 /// A place for a tab's content to show once it has loaded.
@@ -588,9 +591,9 @@ impl Tab {
 
     #[tracing::instrument(name = "Tab::show", level = "trace", skip_all, fields(kind = self.kind_name()))]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
-        let embedded = self.presentation == Presentation::Embedded;
+        let embedded = self.presentation != Presentation::Full;
         if let ContentState::Open(content) = &mut self.content {
-            content.set_embedded(embedded);
+            content.set_presentation(self.presentation);
         }
         let resp = ui.push_id(self.salt, |ui| self.show_inner(ui)).inner;
         self.first_draw = false;
@@ -598,6 +601,14 @@ impl Tab {
             // a host takes nothing from an embed but a file to open
             true => Response { open_file: resp.open_file, ..Default::default() },
             false => resp,
+        }
+    }
+
+    /// Whether there's more of the content above and below its view.
+    pub fn overflow(&self) -> (bool, bool) {
+        match &self.content {
+            ContentState::Open(TabContent::Markdown(md)) => md.overflow(),
+            _ => (false, false),
         }
     }
 
@@ -823,10 +834,12 @@ impl TabContent {
         }
     }
 
-    fn set_embedded(&mut self, embedded: bool) {
+    fn set_presentation(&mut self, presentation: Presentation) {
+        let embedded = presentation != Presentation::Full;
         match self {
             TabContent::Markdown(md) => {
                 md.embedded = embedded;
+                md.in_card = presentation == Presentation::Card;
                 md.edit.takes_focus = !embedded;
                 md.edit.clip_to_host = embedded;
                 md.edit.renderer.interactive = !embedded;
