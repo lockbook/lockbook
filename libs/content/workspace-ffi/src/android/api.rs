@@ -420,6 +420,33 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleOutline(
     }
 }
 
+/// Whether the current file has a rendered form to trade for its source.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_sourceAvailable(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.source_offered() as jboolean
+}
+
+/// Whether files with a rendered form show as source.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_sourceOn(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.source_on() as jboolean
+}
+
+/// Shows files with a rendered form as source, or rendered again.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleSource(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.toggle_source();
+}
+
 /// A link to the heading on the caret's line, or null, for the edit menu's
 /// "Copy Heading Link".
 #[no_mangle]

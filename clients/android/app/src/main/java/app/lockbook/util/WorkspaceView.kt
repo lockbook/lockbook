@@ -624,6 +624,15 @@ class WorkspaceView(
         invalidate()
     }
 
+    fun toggleSource() {
+        if (wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        Workspace.toggleSource(wgpuObj)
+        invalidate()
+    }
+
     fun toggleOutline() {
         if (wgpuObj == Long.MAX_VALUE) {
             return

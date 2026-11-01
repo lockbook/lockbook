@@ -56,6 +56,7 @@ class MarkdownToolbarView(
     private enum class NativeAction {
         InsertPhoto,
         Outline,
+        Source,
     }
 
     private data class ToolbarAction(
@@ -87,6 +88,14 @@ class MarkdownToolbarView(
                 ToolbarCategory.History,
                 false,
                 NativeAction.Outline,
+            ),
+            ToolbarAction(
+                null,
+                context.getString(R.string.source),
+                R.drawable.ic_md_code_24,
+                ToolbarCategory.History,
+                false,
+                NativeAction.Source,
             ),
             ToolbarAction(MarkdownToolbarAction.Heading, "Heading", R.drawable.ic_md_title_24, ToolbarCategory.TextStyle),
             ToolbarAction(MarkdownToolbarAction.Bold, "Bold", R.drawable.ic_md_format_bold_24, ToolbarCategory.TextStyle),
@@ -251,9 +260,14 @@ class MarkdownToolbarView(
             return
         }
         for ((action, control) in buttons) {
-            val active = action.command in state.active
+            val active =
+                if (action.nativeAction == NativeAction.Source) Workspace.sourceOn(ptr) else action.command in state.active
             control.isEnabled =
-                if (action.nativeAction == NativeAction.Outline) Workspace.outlineAvailable(ptr) else action.command !in state.disabled
+                when (action.nativeAction) {
+                    NativeAction.Outline -> Workspace.outlineAvailable(ptr)
+                    NativeAction.Source -> Workspace.sourceAvailable(ptr)
+                    else -> action.command !in state.disabled
+                }
             control.alpha = if (control.isEnabled) 1f else 0.38f
             control.isChecked = active
             val color =
@@ -301,6 +315,12 @@ class MarkdownToolbarView(
 
                 NativeAction.Outline -> {
                     editor.toggleOutline()
+                    return@setOnClickListener
+                }
+
+                NativeAction.Source -> {
+                    editor.toggleSource()
+                    refreshEditorState()
                     return@setOnClickListener
                 }
 
