@@ -310,6 +310,10 @@ pub struct MdEdit {
     /// geometry. Set on drag release (which runs post-render).
     pub pending_block_move: Option<(widget::block::drag::BlockDrag, Grapheme)>,
 
+    /// Selections expand selection grew, each `(from, to)`: shrink selection
+    /// goes back while the selection is the last `to`.
+    pub syntax_grown: Vec<((Grapheme, Grapheme), (Grapheme, Grapheme))>,
+
     /// Keyboard input after a frame's first IME edit, replayed next frame so
     /// it acts on the edit's result (completions take keys ahead of the IME).
     pub deferred_input: Vec<egui::Event>,
@@ -409,6 +413,7 @@ impl MdEdit {
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
             pending_block_move: None,
+            syntax_grown: Vec::new(),
             deferred_input: Vec::new(),
             ime_reset: false,
             ime_abandoned: None,
@@ -990,6 +995,7 @@ impl Editor {
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
                 pending_block_move: None,
+                syntax_grown: Vec::new(),
                 deferred_input: Vec::new(),
                 ime_reset: false,
                 ime_abandoned: None,

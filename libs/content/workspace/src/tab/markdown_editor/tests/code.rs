@@ -128,10 +128,51 @@ fn close_bracket_outdents_to_its_match() {
     assert_eq!(run(doc, None, vec![typed("}")]), want);
 }
 
+fn syntax(larger: bool) -> Event {
+    Event::Select { region: Region::Syntax { larger } }
+}
+
+#[test]
+fn expand_and_shrink_selection() {
+    let doc = "```rust\nfn f() { g(1|, 2); }\n```";
+    let args = "```rust\nfn f() { g|(1, 2)|; }\n```";
+    let call = "```rust\nfn f() { |g(1, 2)|; }\n```";
+    assert_eq!(run(doc, None, vec![syntax(true)]), "```rust\nfn f() { g(|1|, 2); }\n```");
+    assert_eq!(run(doc, None, vec![syntax(true), syntax(true)]), args);
+    assert_eq!(run(doc, None, vec![syntax(true), syntax(true), syntax(true)]), call);
+    let back = vec![syntax(true), syntax(true), syntax(true), syntax(false)];
+    assert_eq!(run(doc, None, back), args);
+}
+
+#[test]
+fn shrink_forgets_a_moved_selection() {
+    let doc = "```rust\nfn f() { g(1|, 2); }\n```";
+    let moved = Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(8)),
+            end: Location::Grapheme(Grapheme(8)),
+        },
+    };
+    let events = vec![syntax(true), moved, syntax(false)];
+    assert_eq!(run(doc, None, events), "```rust\n|fn f() { g(1, 2); }\n```");
+}
+
 #[test]
 fn enter_with_a_selection_leaving_the_block() {
     let doc = "```rust\nfn a() {|\n}\n```\n\npara|";
     run(doc, None, vec![enter()]);
+}
+
+#[test]
+fn expand_to_a_whole_crlf_file() {
+    let doc = "fn a() {\r\n    |b();\r\n}\r\n";
+    run(doc, Some("rs"), (0..8).map(|_| syntax(true)).collect());
+}
+
+#[test]
+fn expand_from_a_crlf_comment() {
+    let doc = "x = 1  # no|te\r\ny = 2\r\n";
+    run(doc, Some("py"), (0..4).map(|_| syntax(true)).collect());
 }
 
 #[test]

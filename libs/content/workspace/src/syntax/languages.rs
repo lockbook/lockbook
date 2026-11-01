@@ -1,6 +1,7 @@
+use std::ops::Range;
 use std::sync::OnceLock;
 
-use tree_sitter::{Node, Query, QueryMatch};
+use tree_sitter::{Node, Query, QueryMatch, Tree};
 use tree_sitter_language::LanguageFn;
 
 use super::Role;
@@ -503,15 +504,48 @@ pub fn injection<'tree, 'text>(
     Some(Injection { language: lang, content: content?, include_children })
 }
 
+pub fn enclosing(tree: &Tree, range: Range<usize>) -> Option<Range<usize>> {
+    let root = tree.root_node();
+    let mut node = if range.is_empty() {
+        // a caret is in the token on either side of it: the shorter, a named
+        // one on a tie, else the one before
+        let at = range.start;
+        let before = at
+            .checked_sub(1)
+            .and_then(|b| root.descendant_for_byte_range(b, at));
+        let after = root.descendant_for_byte_range(at, at + 1);
+        let key = |node: &tree_sitter::Node| (node.byte_range().len(), !node.is_named());
+        match (before, after) {
+            (Some(before), Some(after)) if key(&after) < key(&before) => after,
+            (Some(before), _) => before,
+            (None, after) => after?,
+        }
+    } else {
+        root.descendant_for_byte_range(range.start, range.end)?
+    };
+    loop {
+        let found = node.byte_range();
+        if found.start <= range.start && range.end <= found.end && found != range {
+            return Some(found);
+        }
+        node = node.parent()?;
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::{ENTRIES, QUERIES, find_token, queries};
+    use super::{ENTRIES, QUERIES, enclosing, find_token, queries};
     use crate::syntax::highlight::Highlights;
     use crate::syntax::{Role, Spans};
 
     fn highlight(idx: usize, text: &str) -> Spans {
         let highlights = Highlights::new(idx, text.into()).unwrap();
         highlights.spans(0..text.len()).as_ref().clone()
+    }
+
+    fn parsed(lang: &str, text: &str) -> (usize, Highlights) {
+        let idx = find_token(lang).unwrap();
+        (idx, Highlights::new(idx, text.into()).unwrap())
     }
 
     #[test]
@@ -530,5 +564,16 @@ mod test {
         let text = "/* one\ntwo */ fn";
         let spans = highlight(rust, text);
         assert_eq!(spans[0], (Role::Comment, 0..13));
+    }
+
+    #[test]
+    fn enclosing_grows() {
+        let text = "fn f() { g(1, 2); }";
+        let (_, parsed) = parsed("rust", text);
+        let one = text.find('1').unwrap();
+        let args = enclosing(parsed.tree(), one..one + 1).unwrap();
+        assert_eq!(&text[args.clone()], "(1, 2)");
+        let call = enclosing(parsed.tree(), args).unwrap();
+        assert_eq!(&text[call], "g(1, 2)");
     }
 }

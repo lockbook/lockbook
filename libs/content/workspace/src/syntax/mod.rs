@@ -69,6 +69,11 @@ impl Highlights {
     pub fn spans(&self, range: Range<usize>) -> Arc<Spans> {
         self.0.spans(range)
     }
+
+    /// The smallest syntax node larger than `range` and covering it.
+    pub fn enclosing(&self, range: Range<usize>) -> Option<Range<usize>> {
+        languages::enclosing(self.0.tree(), range)
+    }
 }
 
 /// How many bytes two texts agree on at their start, plus at their end.
@@ -104,6 +109,10 @@ impl Highlights {
     }
 
     pub fn spans(&self, _range: Range<usize>) -> Arc<Spans> {
+        match *self {}
+    }
+
+    pub fn enclosing(&self, _range: Range<usize>) -> Option<Range<usize>> {
         match *self {}
     }
 }

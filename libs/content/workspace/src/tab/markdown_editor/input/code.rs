@@ -1,7 +1,9 @@
 //! Typing in code, inside a fence or in a code file: Tab indents, Enter
 //! keeps the indent and adds a level after an open bracket, and a closing
-//! bracket typed at a line's start outdents to its match.
+//! bracket typed at a line's start outdents to its match. Expand selection
+//! grows to the syntax node around the selection.
 
+use std::ops::Range;
 use std::sync::Arc;
 
 use comrak::nodes::{AstNode, NodeValue};
@@ -172,6 +174,22 @@ impl<'ast> MdRender {
         let (start, at) = scope.lines[idx];
         at + (self.offset_to_byte(offset.max(start)) - self.offset_to_byte(start)).0
     }
+
+    /// The buffer offsets around bytes `range` of `scope`'s text, out to
+    /// whole graphemes: a node can end inside one, like a comment before
+    /// the `\n` of a `\r\n`.
+    pub fn code_range(&self, scope: &CodeScope, range: Range<usize>) -> (Grapheme, Grapheme) {
+        let buffer_byte = |at: usize| {
+            let idx = scope.lines.partition_point(|(_, byte)| *byte <= at) - 1;
+            let (start, byte) = scope.lines[idx];
+            self.offset_to_byte(start) + (at - byte)
+        };
+        let segs = &self.buffer.current.segs;
+        (
+            segs.byte_to_char_floor(buffer_byte(range.start)),
+            segs.byte_to_char_ceil(buffer_byte(range.end)),
+        )
+    }
 }
 
 impl<'ast> MdEdit {
@@ -333,5 +351,38 @@ impl<'ast> MdEdit {
             operations.push(Operation::Select(range.end().to_range()));
         }
         true
+    }
+
+    /// Expand selection grows the selection to the smallest syntax node
+    /// around it; shrink selection goes back to what that grew from.
+    pub fn syntax_select(
+        &mut self, root: &'ast AstNode<'ast>, larger: bool,
+    ) -> Option<(Grapheme, Grapheme)> {
+        let selection = self.renderer.buffer.current.selection;
+        if self
+            .syntax_grown
+            .last()
+            .is_none_or(|(_, to)| *to != selection)
+        {
+            self.syntax_grown.clear();
+        }
+        if !larger {
+            return self.syntax_grown.pop().map(|(from, _)| from);
+        }
+        let (from, to) = (selection.start(), selection.end());
+        let scope = self.renderer.code_scope_at(root, from)?;
+        scope.line_start(self.renderer.line_at_offset(to))?;
+        let range = self.renderer.code_byte(&scope, from)..self.renderer.code_byte(&scope, to);
+        let node = scope.highlights.as_ref()?.enclosing(range)?;
+        // the code ends before its last line break
+        let end = node
+            .end
+            .min(scope.text.trim_end_matches(['\r', '\n']).len());
+        let grown = self.renderer.code_range(&scope, node.start..end);
+        if grown == selection {
+            return None;
+        }
+        self.syntax_grown.push((selection, grown));
+        Some(grown)
     }
 }

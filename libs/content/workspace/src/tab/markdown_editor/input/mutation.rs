@@ -73,6 +73,11 @@ impl<'ast> MdEdit {
         let current_selection = self.renderer.buffer.current.selection;
         let mut response = buffer::Response::default();
         match event {
+            Event::Select { region: Region::Syntax { larger } } => {
+                if let Some(range) = self.syntax_select(root, larger) {
+                    operations.push(Operation::Select(range));
+                }
+            }
             Event::Select { region } => {
                 if self.table_select_edits(region, operations) {
                     return response;
@@ -1146,7 +1151,7 @@ impl<'ast> MdEdit {
             Region::BetweenLocations { start, end } => {
                 (self.location_to_char_offset(start), self.location_to_char_offset(end))
             }
-            Region::Selection => current_selection,
+            Region::Selection | Region::Syntax { .. } => current_selection,
             Region::SelectionOrAdvance { advance: offset, backwards } => {
                 if current_selection.is_empty() {
                     current_selection.0 = self.advance(current_selection.0, offset, backwards);

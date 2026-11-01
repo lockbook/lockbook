@@ -78,6 +78,10 @@ impl Highlights {
         Self { text, lines, root, layers: Default::default(), spans: Default::default() }
     }
 
+    pub fn tree(&self) -> &Tree {
+        &self.root.tree
+    }
+
     /// The spans within `range`, clipped to it.
     pub fn spans(&self, range: Range<usize>) -> Arc<Spans> {
         if let Some(spans) = self.spans.lock().unwrap().get(&range) {
