@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Align2, Color32, Pos2, Rangef, Rect, Sense, Ui, UiBuilder, Vec2};
+use egui::{Align2, Color32, Context, Pos2, Rangef, Rect, Sense, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt};
 
 use comrak::nodes::NodeValue;
@@ -539,7 +539,7 @@ impl<'ast> MdRender {
         let key = (self.node_range(node), self.text_seq);
         let unit = self.syntax.unit_for(key, || {
             let (text, lines) = self.code_block_text(node, node_code_block, synthetic);
-            CodeUnit { highlights: self.syntax.highlights(lang, text), lines }
+            CodeUnit { highlights: self.syntax.highlights(lang, text, &self.ctx), lines }
         });
         let idx = unit
             .lines
@@ -707,7 +707,7 @@ type KeptWhileUsed<K, V> = RefCell<HashMap<K, (V, bool)>>;
 impl SyntaxHighlightCache {
     /// `text` parsed as `lang`; a new text reparses from the kept version
     /// it agrees with most, as an edited unit's last version does.
-    pub fn highlights(&self, lang: Lang, text: String) -> Option<Arc<Highlights>> {
+    pub fn highlights(&self, lang: Lang, text: String, ctx: &Context) -> Option<Arc<Highlights>> {
         let key = (lang, text);
         if let Some((highlights, used)) = self.highlights.borrow_mut().get_mut(&key) {
             *used = true;
@@ -725,7 +725,7 @@ impl SyntaxHighlightCache {
             .map(|(_, highlights)| highlights);
         let highlights = match closest {
             Some(closest) => closest.edited(key.1.clone()),
-            None => lang.highlights(key.1.clone()),
+            None => lang.highlights(key.1.clone(), ctx),
         }
         .map(Arc::new);
         self.highlights

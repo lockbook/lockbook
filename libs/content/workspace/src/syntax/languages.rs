@@ -1,5 +1,9 @@
 use std::ops::Range;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::task::Poll;
+
+use egui::Context;
 
 use tree_sitter::{Node, Query, QueryCursor, QueryMatch, StreamingIterator as _, Tree};
 use tree_sitter_language::LanguageFn;
@@ -489,8 +493,42 @@ const CAPTURES: &[(&str, Role)] = &[
 
 static QUERIES: [OnceLock<Option<Queries>>; ENTRIES.len()] =
     [const { OnceLock::new() }; ENTRIES.len()];
+static QUERIES_STARTED: [AtomicBool; ENTRIES.len()] =
+    [const { AtomicBool::new(false) }; ENTRIES.len()];
 
 static TAGS: [OnceLock<Option<Query>>; ENTRIES.len()] = [const { OnceLock::new() }; ENTRIES.len()];
+static TAGS_STARTED: [AtomicBool; ENTRIES.len()] =
+    [const { AtomicBool::new(false) }; ENTRIES.len()];
+
+/// `cell`'s value, compiled on a worker the first time it's asked for and
+/// pending until then; the worker repaints `ctx` when it's done. Tests
+/// compile where they ask, so their first frame is colored.
+fn compiled<T: Send + Sync>(
+    cell: &'static OnceLock<T>, started: &'static AtomicBool, ctx: &Context,
+    compile: impl FnOnce() -> T + Send + 'static,
+) -> Poll<&'static T> {
+    if cfg!(test) {
+        return Poll::Ready(cell.get_or_init(compile));
+    }
+    on_worker(cell, started, ctx, compile)
+}
+
+fn on_worker<T: Send + Sync>(
+    cell: &'static OnceLock<T>, started: &'static AtomicBool, ctx: &Context,
+    compile: impl FnOnce() -> T + Send + 'static,
+) -> Poll<&'static T> {
+    if let Some(value) = cell.get() {
+        return Poll::Ready(value);
+    }
+    if !started.swap(true, Ordering::Relaxed) {
+        let ctx = ctx.clone();
+        std::thread::spawn(move || {
+            cell.get_or_init(compile);
+            ctx.request_repaint();
+        });
+    }
+    Poll::Pending
+}
 
 pub fn find_token(token: &str) -> Option<usize> {
     let token = token.to_ascii_lowercase();
@@ -544,10 +582,10 @@ pub struct Queries {
     pub highlights: Query,
     /// The role each highlights capture colors, by capture index.
     pub roles: Vec<Option<Role>>,
-    /// Injections that are each a layer of their own.
     pub injections: Option<Query>,
-    /// Injections whose matches share one layer per pattern.
-    pub combined: Option<Query>,
+    /// Per injections pattern, whether its matches share one layer, as
+    /// `injection.combined` marks, rather than each being a layer of its own.
+    pub combined: Vec<bool>,
 }
 
 /// One match of an injections query: the language it names, if any, and
@@ -558,30 +596,41 @@ pub struct Injection<'tree, 'text> {
     pub include_children: bool,
 }
 
-pub fn queries(idx: usize) -> Option<&'static Queries> {
-    QUERIES[idx]
-        .get_or_init(|| {
-            let entry = &ENTRIES[idx];
-            let compiled = (|| {
-                let highlights = Query::new(&grammar(idx), &entry.highlights.concat())?;
-                let roles = highlights
-                    .capture_names()
-                    .iter()
-                    .map(|name| role(name))
-                    .collect();
-                let (injections, combined) = injection_queries(idx)?;
-                Ok::<_, tree_sitter::QueryError>(Queries {
-                    highlights,
-                    roles,
-                    injections,
-                    combined,
+/// A language's queries, none if they don't compile, pending while they
+/// compile on a worker that then repaints `ctx`.
+pub fn queries(idx: usize, ctx: &Context) -> Poll<Option<&'static Queries>> {
+    compiled(&QUERIES[idx], &QUERIES_STARTED[idx], ctx, move || compile_queries(idx))
+        .map(Option::as_ref)
+}
+
+fn compile_queries(idx: usize) -> Option<Queries> {
+    let entry = &ENTRIES[idx];
+    let compiled = (|| {
+        let highlights = Query::new(&grammar(idx), &entry.highlights.concat())?;
+        let roles = highlights
+            .capture_names()
+            .iter()
+            .map(|name| role(name))
+            .collect();
+        let injections = match entry.injections {
+            "" => None,
+            source => Some(Query::new(&grammar(idx), source)?),
+        };
+        let combined = injections.as_ref().map_or(Vec::new(), |query| {
+            (0..query.pattern_count())
+                .map(|pattern| {
+                    query
+                        .property_settings(pattern)
+                        .iter()
+                        .any(|setting| &*setting.key == "injection.combined")
                 })
-            })();
-            compiled
-                .inspect_err(|err| tracing::error!("{} queries don't compile: {err:?}", entry.name))
-                .ok()
-        })
-        .as_ref()
+                .collect()
+        });
+        Ok::<_, tree_sitter::QueryError>(Queries { highlights, roles, injections, combined })
+    })();
+    compiled
+        .inspect_err(|err| tracing::error!("{} queries don't compile: {err:?}", entry.name))
+        .ok()
 }
 
 /// The role of a capture: that of the first entry in [`CAPTURES`] it
@@ -592,34 +641,6 @@ fn role(capture: &str) -> Option<Role> {
         .iter()
         .find(|(name, _)| parts.contains(name))
         .map(|(_, role)| *role)
-}
-
-/// The injections query split in two: patterns that are each their own
-/// layer, and patterns marked `injection.combined`.
-#[allow(clippy::type_complexity)]
-fn injection_queries(
-    idx: usize,
-) -> Result<(Option<Query>, Option<Query>), tree_sitter::QueryError> {
-    let source = ENTRIES[idx].injections;
-    if source.is_empty() {
-        return Ok((None, None));
-    }
-    let mut separate = Query::new(&grammar(idx), source)?;
-    let mut combined = Query::new(&grammar(idx), source)?;
-    let mut any_combined = false;
-    for pattern in 0..separate.pattern_count() {
-        let is_combined = separate
-            .property_settings(pattern)
-            .iter()
-            .any(|setting| &*setting.key == "injection.combined");
-        if is_combined {
-            any_combined = true;
-            separate.disable_pattern(pattern);
-        } else {
-            combined.disable_pattern(pattern);
-        }
-    }
-    Ok((Some(separate), any_combined.then_some(combined)))
 }
 
 /// What `m`, a match of an injections `query`, injects: the language a
@@ -648,30 +669,28 @@ pub fn injection<'tree, 'text>(
     Some(Injection { language: lang, content: content?, include_children })
 }
 
-fn tags(idx: usize) -> Option<&'static Query> {
-    TAGS[idx]
-        .get_or_init(|| {
-            let entry = &ENTRIES[idx];
-            if entry.tags.is_empty() {
-                return None;
-            }
-            match Query::new(&grammar(idx), &entry.tags.concat()) {
-                Ok(query) => Some(query),
-                Err(err) => {
-                    tracing::error!("{} tags query doesn't compile: {err:?}", entry.name);
-                    None
-                }
-            }
-        })
-        .as_ref()
+fn tags(idx: usize, ctx: &Context) -> Poll<Option<&'static Query>> {
+    compiled(&TAGS[idx], &TAGS_STARTED[idx], ctx, move || compile_tags(idx)).map(Option::as_ref)
+}
+
+fn compile_tags(idx: usize) -> Option<Query> {
+    let entry = &ENTRIES[idx];
+    if entry.tags.is_empty() {
+        return None;
+    }
+    Query::new(&grammar(idx), &entry.tags.concat())
+        .inspect_err(|err| tracing::error!("{} tags query doesn't compile: {err:?}", entry.name))
+        .ok()
 }
 
 pub fn has_definitions(idx: usize) -> bool {
     !ENTRIES[idx].tags.is_empty()
 }
 
-pub fn definitions(idx: usize, tree: &Tree, text: &str) -> Vec<Definition> {
-    let Some(query) = tags(idx) else { return Vec::new() };
+/// None while the language's tags query compiles.
+pub fn definitions(idx: usize, tree: &Tree, text: &str, ctx: &Context) -> Option<Vec<Definition>> {
+    let Poll::Ready(query) = tags(idx, ctx) else { return None };
+    let Some(query) = query else { return Some(Vec::new()) };
     let names = query.capture_names();
     let mut found: Vec<(Range<usize>, Range<usize>)> = Vec::new();
     let mut cursor = QueryCursor::new();
@@ -692,7 +711,7 @@ pub fn definitions(idx: usize, tree: &Tree, text: &str) -> Vec<Definition> {
     found.sort_by_key(|(name, item)| (item.start, std::cmp::Reverse(item.end), name.start));
     found.dedup_by_key(|(name, _)| name.clone());
     let mut within: Vec<Range<usize>> = Vec::new();
-    found
+    let definitions = found
         .into_iter()
         .map(|(name, item)| {
             while within.last().is_some_and(|outer| outer.end <= item.start) {
@@ -702,7 +721,8 @@ pub fn definitions(idx: usize, tree: &Tree, text: &str) -> Vec<Definition> {
             within.push(item.clone());
             Definition { start: item.start, name, depth }
         })
-        .collect()
+        .collect();
+    Some(definitions)
 }
 
 pub fn enclosing(tree: &Tree, range: Range<usize>) -> Option<Range<usize>> {
@@ -735,33 +755,63 @@ pub fn enclosing(tree: &Tree, range: Range<usize>) -> Option<Range<usize>> {
 
 #[cfg(test)]
 mod test {
-    use super::{ENTRIES, QUERIES, complete, definitions, enclosing, find_token, queries, tags};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::{OnceLock, mpsc};
+    use std::task::Poll;
+    use std::time::Duration;
+
+    use egui::Context;
+
+    use super::{
+        ENTRIES, QUERIES, compile_queries, compile_tags, complete, enclosing, find_token, on_worker,
+    };
     use crate::syntax::highlight::Highlights;
-    use crate::syntax::{Role, Spans};
+    use crate::syntax::{Definition, Role, Spans};
 
     fn highlight(idx: usize, text: &str) -> Spans {
-        let highlights = Highlights::new(idx, text.into()).unwrap();
+        let highlights = Highlights::new(idx, text.into(), &Context::default()).unwrap();
         highlights.spans(0..text.len()).as_ref().clone()
     }
 
     fn parsed(lang: &str, text: &str) -> (usize, Highlights) {
         let idx = find_token(lang).unwrap();
-        (idx, Highlights::new(idx, text.into()).unwrap())
+        (idx, Highlights::new(idx, text.into(), &Context::default()).unwrap())
+    }
+
+    fn definitions(idx: usize, parsed: &Highlights, text: &str) -> Vec<Definition> {
+        super::definitions(idx, parsed.tree(), text, parsed.ctx()).unwrap()
     }
 
     #[test]
     fn every_language_compiles() {
         let broken: Vec<_> = (0..ENTRIES.len())
-            .filter(|idx| queries(*idx).is_none())
+            .filter(|idx| compile_queries(*idx).is_none())
             .map(|idx| ENTRIES[idx].name)
             .collect();
         assert!(broken.is_empty(), "queries don't compile: {broken:?}");
         let broken: Vec<_> = (0..ENTRIES.len())
-            .filter(|idx| !ENTRIES[*idx].tags.is_empty() && tags(*idx).is_none())
+            .filter(|idx| !ENTRIES[*idx].tags.is_empty() && compile_tags(*idx).is_none())
             .map(|idx| ENTRIES[idx].name)
             .collect();
         assert!(broken.is_empty(), "tags queries don't compile: {broken:?}");
         assert_eq!(QUERIES.len(), ENTRIES.len());
+    }
+
+    #[test]
+    fn compiling_waits_for_no_one() {
+        static CELL: OnceLock<bool> = OnceLock::new();
+        static STARTED: AtomicBool = AtomicBool::new(false);
+        let ctx = Context::default();
+        let (release, held) = mpsc::channel::<()>();
+        // compiling where it's asked would wait out the timeout and be false
+        let compile = move || held.recv_timeout(Duration::from_secs(5)).is_ok();
+        assert_eq!(on_worker(&CELL, &STARTED, &ctx, compile), Poll::Pending);
+        assert_eq!(on_worker(&CELL, &STARTED, &ctx, || unreachable!()), Poll::Pending);
+        let (repaint, repainted) = mpsc::channel();
+        ctx.set_request_repaint_callback(move |_| _ = repaint.send(()));
+        release.send(()).unwrap();
+        repainted.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(on_worker(&CELL, &STARTED, &ctx, || unreachable!()), Poll::Ready(&true));
     }
 
     #[test]
@@ -816,7 +866,7 @@ mod test {
     fn definitions_nest() {
         let text = "class A:\n    def b(self):\n        pass\n\ndef c():\n    pass\n";
         let (python, parsed) = parsed("python", text);
-        let found: Vec<_> = definitions(python, parsed.tree(), text)
+        let found: Vec<_> = definitions(python, &parsed, text)
             .into_iter()
             .map(|d| (&text[d.name], d.depth))
             .collect();
@@ -827,7 +877,7 @@ mod test {
     fn data_files_list_sections() {
         let names = |lang: &str, text: &str| -> Vec<(String, usize)> {
             let (lang, parsed) = parsed(lang, text);
-            definitions(lang, parsed.tree(), text)
+            definitions(lang, &parsed, text)
                 .into_iter()
                 .map(|d| (text[d.name].to_string(), d.depth))
                 .collect()

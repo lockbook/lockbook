@@ -97,9 +97,11 @@ impl<'ast> MdRender {
         if let Some(lang) = Lang::from_extension(&self.ext) {
             let key = ((Grapheme(0), self.last_cursor_position()), self.text_seq);
             let unit = self.syntax.unit_for(key, || CodeUnit {
-                highlights: self
-                    .syntax
-                    .highlights(lang, self.buffer.current.text.clone()),
+                highlights: self.syntax.highlights(
+                    lang,
+                    self.buffer.current.text.clone(),
+                    &self.ctx,
+                ),
                 lines: Vec::new(),
             });
             let bytes = self.range_to_byte(line);

@@ -901,7 +901,7 @@ fn code_colors(ws: &TestEditor, ext: &str) -> Result<(), String> {
     let Some(lang) = crate::syntax::Lang::from_extension(ext) else { return Ok(()) };
     let r = &ws.editor.edit.renderer;
     let text = r.buffer.current.text.clone();
-    let Some(kept) = r.syntax.highlights(lang, text.clone()) else { return Ok(()) };
+    let Some(kept) = r.syntax.highlights(lang, text.clone(), &r.ctx) else { return Ok(()) };
     let whole = kept.spans(0..text.len());
     let mut joined: crate::syntax::Spans = Vec::new();
     let mut at = 0;
@@ -919,7 +919,7 @@ fn code_colors(ws: &TestEditor, ext: &str) -> Result<(), String> {
     if joined != *whole {
         return Err(format!("{text:?}: lines join into\n{joined:?}\nnot\n{whole:?}"));
     }
-    let fresh = lang.highlights(text.clone()).unwrap();
+    let fresh = lang.highlights(text.clone(), &r.ctx).unwrap();
     // error recovery may read broken code differently from scratch
     if !fresh.has_error() && *fresh.spans(0..text.len()) != *whole {
         return Err(format!(

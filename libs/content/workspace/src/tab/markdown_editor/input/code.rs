@@ -158,7 +158,7 @@ impl<'ast> MdRender {
                 .map(|line| (line.start(), self.offset_to_byte(line.start()).0))
                 .collect();
             let highlights = Lang::from_extension(&self.ext)
-                .and_then(|lang| self.syntax.highlights(lang, text.clone()));
+                .and_then(|lang| self.syntax.highlights(lang, text.clone(), &self.ctx));
             return Some(CodeScope { text, lines, highlights });
         }
         let (line_idx, _) = self.bounds.source_lines.find_containing(offset, true, true);
@@ -170,7 +170,7 @@ impl<'ast> MdRender {
         let NodeValue::CodeBlock(code_block) = &node.data.borrow().value else { return None };
         let (text, lines) = self.code_block_text(node, code_block, false);
         let highlights = Lang::from_info(&code_block.info)
-            .and_then(|lang| self.syntax.highlights(lang, text.clone()));
+            .and_then(|lang| self.syntax.highlights(lang, text.clone(), &self.ctx));
         let scope = CodeScope { text, lines, highlights };
         scope.line_start(self.line_at_offset(offset))?;
         Some(scope)

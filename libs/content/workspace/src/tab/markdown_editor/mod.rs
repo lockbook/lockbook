@@ -2432,12 +2432,15 @@ impl Editor {
                 .plaintext
                 .then(|| crate::syntax::Lang::from_extension(&r.ext))
                 .flatten();
-            let parsed =
-                code.and_then(|lang| r.syntax.highlights(lang, r.buffer.current.text.clone()));
+            let parsed = code.and_then(|lang| {
+                r.syntax
+                    .highlights(lang, r.buffer.current.text.clone(), &r.ctx)
+            });
             let rows = if let Some(parsed) = parsed {
+                // the tags query is compiling; it repaints when it's done
+                let Some(definitions) = parsed.definitions() else { return &[] };
                 let text = &r.buffer.current.text;
-                parsed
-                    .definitions()
+                definitions
                     .into_iter()
                     .map(|definition| {
                         let span = r.range_to_char((

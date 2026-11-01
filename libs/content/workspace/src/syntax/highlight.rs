@@ -6,6 +6,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, Mutex, OnceLock};
+use std::task::Poll;
+
+use egui::Context;
 
 use tree_sitter::{InputEdit, Node, Parser, Point, QueryCursor, StreamingIterator as _, Tree};
 
@@ -17,8 +20,11 @@ thread_local! {
 }
 
 /// A version of a unit of code, parsed, with the spans and injected layers
-/// asked of it so far.
+/// asked of it so far. Spans asked for while a language's queries compile
+/// are plain there and kept only once every language is compiled; `ctx`
+/// repaints when one is.
 pub struct Highlights {
+    ctx: Context,
     text: String,
     lines: Lines,
     root: Layer,
@@ -55,10 +61,10 @@ impl Lines {
 }
 
 impl Highlights {
-    pub fn new(lang: usize, text: String) -> Option<Self> {
+    pub fn new(lang: usize, text: String, ctx: &Context) -> Option<Self> {
         let lines = Lines::of(&text);
         let tree = parse(lang, &text, &lines, &[], None)?;
-        Some(Self::of(lang, text, lines, tree))
+        Some(Self::of(ctx.clone(), lang, text, lines, tree))
     }
 
     /// `text` parsed from this version's tree, as the edit between them
@@ -69,13 +75,17 @@ impl Highlights {
         let mut old = self.root.tree.clone();
         old.edit(&edit);
         let tree = parse(self.root.lang, &text, &lines, &[], Some(&old))?;
-        Some(Self::of(self.root.lang, text, lines, tree))
+        Some(Self::of(self.ctx.clone(), self.root.lang, text, lines, tree))
     }
 
-    fn of(lang: usize, text: String, lines: Lines, tree: Tree) -> Self {
+    fn of(ctx: Context, lang: usize, text: String, lines: Lines, tree: Tree) -> Self {
         let ranges = std::iter::once(0..text.len()).collect();
         let root = Layer { lang, ranges, tree, combined: OnceLock::new() };
-        Self { text, lines, root, layers: Default::default(), spans: Default::default() }
+        Self { ctx, text, lines, root, layers: Default::default(), spans: Default::default() }
+    }
+
+    pub fn ctx(&self) -> &Context {
+        &self.ctx
     }
 
     pub fn lang(&self) -> usize {
@@ -96,17 +106,24 @@ impl Highlights {
             return spans.clone();
         }
         let mut roles = vec![Role::Text; range.len()];
-        self.paint(&self.root, range.clone(), &mut roles);
+        let compiled = self.paint(&self.root, range.clone(), &mut roles);
         let spans = Arc::new(runs(&roles, range.start));
-        self.spans.lock().unwrap().insert(range, spans.clone());
+        if compiled {
+            self.spans.lock().unwrap().insert(range, spans.clone());
+        }
         spans
     }
 
     /// Paints `layer`'s captures over `region` into `roles`, within its
     /// ranges, then the layers it injects. A node takes its last pattern's
     /// role, and each capture covers those before it, which start no later.
-    fn paint(&self, layer: &Layer, region: Range<usize>, roles: &mut [Role]) {
-        let Some(queries) = languages::queries(layer.lang) else { return };
+    /// False if a language's queries were still compiling.
+    fn paint(&self, layer: &Layer, region: Range<usize>, roles: &mut [Role]) -> bool {
+        let queries = match languages::queries(layer.lang, &self.ctx) {
+            Poll::Ready(Some(queries)) => queries,
+            Poll::Ready(None) => return true,
+            Poll::Pending => return false,
+        };
         let mut cursor = QueryCursor::new();
         cursor.set_byte_range(region.clone());
         let text = self.text.as_bytes();
@@ -136,15 +153,17 @@ impl Highlights {
             }
         }
 
-        let separate = self.injections(layer, region.clone());
-        for (lang, ranges) in separate.iter().chain(self.combined(layer)) {
+        let mut compiled = true;
+        let separate = self.injections(layer, queries, region.clone());
+        for (lang, ranges) in separate.iter().chain(self.combined(layer, queries)) {
             if !touch(&extent(ranges), &region) {
                 continue;
             }
             if let Some(injected) = self.layer(*lang, ranges) {
-                self.paint(&injected, region.clone(), roles);
+                compiled &= self.paint(&injected, region.clone(), roles);
             }
         }
+        compiled
     }
 
     /// `lang`'s layer over `ranges` of this text, parsed once.
@@ -163,15 +182,18 @@ impl Highlights {
     /// The separate layers `layer` injects whose content meets `region`,
     /// each with the ranges it covers: its content node within the layer's
     /// ranges, less its children unless the pattern includes them.
-    fn injections(&self, layer: &Layer, region: Range<usize>) -> Vec<(usize, Vec<Range<usize>>)> {
-        let Some(query) = languages::queries(layer.lang).and_then(|q| q.injections.as_ref()) else {
-            return Vec::new();
-        };
+    fn injections(
+        &self, layer: &Layer, queries: &languages::Queries, region: Range<usize>,
+    ) -> Vec<(usize, Vec<Range<usize>>)> {
+        let Some(query) = &queries.injections else { return Vec::new() };
         let mut found = Vec::new();
         let mut cursor = QueryCursor::new();
         cursor.set_byte_range(region.clone());
         let mut matches = cursor.matches(query, layer.tree.root_node(), self.text.as_bytes());
         while let Some(m) = matches.next() {
+            if queries.combined[m.pattern_index] {
+                continue;
+            }
             let Some(injection) = languages::injection(query, m, &self.text) else { continue };
             let Some(lang) = injection.language.and_then(languages::find_token) else { continue };
             if !touch(&injection.content.byte_range(), &region) {
@@ -187,12 +209,14 @@ impl Highlights {
 
     /// The layers `layer` combines its injections into: per pattern, every
     /// match's content, in the language the last match to name one names.
-    fn combined<'a>(&self, layer: &'a Layer) -> &'a [(usize, Vec<Range<usize>>)] {
+    fn combined<'a>(
+        &self, layer: &'a Layer, queries: &languages::Queries,
+    ) -> &'a [(usize, Vec<Range<usize>>)] {
         layer.combined.get_or_init(|| {
-            let Some(query) = languages::queries(layer.lang).and_then(|q| q.combined.as_ref())
-            else {
+            let Some(query) = &queries.injections else { return Vec::new() };
+            if !queries.combined.contains(&true) {
                 return Vec::new();
-            };
+            }
             let mut patterns: Vec<(Option<&str>, Vec<Range<usize>>)> = (0..query.pattern_count())
                 .map(|_| (None, Vec::new()))
                 .collect();
@@ -200,6 +224,9 @@ impl Highlights {
             let text = self.text.as_bytes();
             let mut matches = cursor.matches(query, layer.tree.root_node(), text);
             while let Some(m) = matches.next() {
+                if !queries.combined[m.pattern_index] {
+                    continue;
+                }
                 let Some(injection) = languages::injection(query, m, &self.text) else { continue };
                 let (language, ranges) = &mut patterns[m.pattern_index];
                 if injection.language.is_some() {

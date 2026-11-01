@@ -5,6 +5,8 @@
 use std::ops::Range;
 use std::sync::Arc;
 
+use egui::Context;
+
 #[cfg(not(target_family = "wasm"))]
 mod highlight;
 #[cfg(not(target_family = "wasm"))]
@@ -57,8 +59,9 @@ impl Lang {
     }
 
     /// `text` parsed as this language; none if its grammar won't load.
-    pub fn highlights(self, text: String) -> Option<Highlights> {
-        highlight::Highlights::new(self.0, text).map(Highlights)
+    /// Its spans are plain until its queries compile, which repaints `ctx`.
+    pub fn highlights(self, text: String, ctx: &Context) -> Option<Highlights> {
+        highlight::Highlights::new(self.0, text, ctx).map(Highlights)
     }
 
     /// Whether [`Highlights::definitions`] finds anything in this language.
@@ -84,9 +87,10 @@ impl Highlights {
         self.0.spans(range)
     }
 
-    /// The functions, types, and the like, in order.
-    pub fn definitions(&self) -> Vec<Definition> {
-        languages::definitions(self.0.lang(), self.0.tree(), self.0.text())
+    /// The functions, types, and the like, in order; none until the
+    /// language's tags query compiles.
+    pub fn definitions(&self) -> Option<Vec<Definition>> {
+        languages::definitions(self.0.lang(), self.0.tree(), self.0.text(), self.0.ctx())
     }
 
     /// Whether the parse recovered from a syntax error.
@@ -118,7 +122,7 @@ impl Lang {
         None
     }
 
-    pub fn highlights(self, _text: String) -> Option<Highlights> {
+    pub fn highlights(self, _text: String, _ctx: &Context) -> Option<Highlights> {
         unreachable!("no language exists on the web")
     }
 
@@ -141,7 +145,7 @@ impl Highlights {
         match *self {}
     }
 
-    pub fn definitions(&self) -> Vec<Definition> {
+    pub fn definitions(&self) -> Option<Vec<Definition>> {
         match *self {}
     }
 
