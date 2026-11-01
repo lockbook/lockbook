@@ -223,6 +223,7 @@ impl Lb {
         for id in remote.tree.staged.ids() {
             let meta = remote.find(&id)?;
             if remote.maybe_find_parent(meta).is_some()
+                || remote.maybe_find_attached(meta).is_some()
                 || meta
                     .user_access_keys()
                     .iter()
@@ -797,12 +798,13 @@ impl Lb {
                                             .await?;
                                     }
                                 }
-                            } else {
+                            } else if remote_hmac != local_hmac {
                                 let local_file = local.find(&id)?;
                                 merge.overwrite_document_hmac_unvalidated(
                                     &id,
                                     local_file.document_hmac().copied(),
                                     local_file.doc_size(),
+                                    local_file.timestamped_value.value.content_size().cloned(),
                                     &self.keychain,
                                 )?;
                             }
@@ -977,7 +979,9 @@ impl Lb {
                             | ValidationFailure::FileWithDifferentOwnerParent(_)
                             | ValidationFailure::FileNameTooLong(_)
                             | ValidationFailure::DeletedFileUpdated(_)
-                            | ValidationFailure::NonDecryptableFileName(_) => {
+                            | ValidationFailure::NonDecryptableFileName(_)
+                            | ValidationFailure::InvalidAttachmentsFolder(_)
+                            | ValidationFailure::DuplicateAttachments { .. } => {
                                 validate_result?;
                             }
                         },
@@ -1118,6 +1122,7 @@ impl Lb {
             local_change.set_hmac_and_size(
                 maybe_base_file.and_then(|f| f.document_hmac().copied()),
                 maybe_base_file.and_then(|f| *f.timestamped_value.value.doc_size()),
+                maybe_base_file.and_then(|f| f.timestamped_value.value.content_size().cloned()),
             );
             let local_change = local_change.sign(&self.keychain)?;
 
@@ -1171,6 +1176,12 @@ impl Lb {
             local_change.set_hmac_and_size(
                 local.find(&id)?.document_hmac().copied(),
                 *local.find(&id)?.timestamped_value.value.doc_size(),
+                local
+                    .find(&id)?
+                    .timestamped_value
+                    .value
+                    .content_size()
+                    .cloned(),
             );
 
             if base_file.document_hmac() == local_change.document_hmac()

@@ -29,7 +29,7 @@ async fn change_document_content() {
     let mut doc2 = doc1.clone();
     doc2.timestamped_value
         .value
-        .set_hmac_and_size(Some([0; 32]), Some(0));
+        .set_hmac_and_size(Some([0; 32]), Some(0), None);
 
     let diff = FileDiff::edit(doc1, doc2);
     // change document content
@@ -70,7 +70,7 @@ async fn change_document_content_not_found() {
     let mut doc2 = doc1.clone();
     doc2.timestamped_value
         .value
-        .set_hmac_and_size(Some([0; 32]), Some(0));
+        .set_hmac_and_size(Some([0; 32]), Some(0), None);
 
     let diff = FileDiff::edit(doc1, doc2);
     // change document content
