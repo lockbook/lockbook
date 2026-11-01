@@ -12,6 +12,7 @@ import android.graphics.PointF
 import android.graphics.Rect
 import android.os.Build
 import android.os.LocaleList
+import android.os.SystemClock
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
@@ -63,8 +64,11 @@ class WorkspaceView(
     var contextMenu: ActionMode? = null
     private var magnifier: Magnifier? = null
 
+    // uptime of the one pending delayed redraw; the earliest request wins
+    private var redrawAt = Long.MAX_VALUE
     private var redrawTask: Runnable =
         Runnable {
+            redrawAt = Long.MAX_VALUE
             invalidate()
         }
     private val choreographer: Choreographer by lazy { Choreographer.getInstance() }
@@ -268,7 +272,7 @@ class WorkspaceView(
                 surface!!,
                 Lb.lb,
                 workspaceTheme,
-            )
+            ) { delayMs -> post { requestRedraw(delayMs) } }
         setWillNotDraw(false)
 
         isFocusable = true
@@ -315,13 +319,13 @@ class WorkspaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        handler?.removeCallbacks(redrawTask)
+        cancelRedraw()
         dismissMagnifier()
         surface = null
     }
 
     override fun onDetachedFromWindow() {
-        handler?.removeCallbacks(redrawTask)
+        cancelRedraw()
         ioScope.cancel()
         super.onDetachedFromWindow()
     }
@@ -508,11 +512,34 @@ class WorkspaceView(
             onMarkdownToolbarStateChanged?.invoke()
         }
 
-        if (response.redrawIn < 100) {
-            invalidate()
-        } else {
-            handler.postDelayed(redrawTask, response.redrawIn)
+        requestRedraw(response.redrawIn)
+    }
+
+    private fun requestRedraw(delayMs: Long) {
+        when (delayMs) {
+            0L -> {
+                invalidate()
+            }
+
+            Long.MAX_VALUE -> {}
+
+            else -> {
+                scheduleRedraw(delayMs)
+            }
         }
+    }
+
+    private fun scheduleRedraw(delayMs: Long) {
+        val at = SystemClock.uptimeMillis() + delayMs
+        if (at >= redrawAt) return
+        handler.removeCallbacks(redrawTask)
+        redrawAt = at
+        handler.postAtTime(redrawTask, at)
+    }
+
+    private fun cancelRedraw() {
+        handler?.removeCallbacks(redrawTask)
+        redrawAt = Long.MAX_VALUE
     }
 
     fun drawImmediately() {

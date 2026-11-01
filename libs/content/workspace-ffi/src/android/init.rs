@@ -88,13 +88,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setPreferredLanguag
 
 #[no_mangle]
 pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWSOffloaded(
-    env: JNIEnv, _: JClass, surface: jobject, core: jlong, theme: JObject,
+    env: JNIEnv, _: JClass, surface: jobject, core: jlong, theme: JObject, repaint: JObject,
 ) -> jlong {
-    init_ws(env, surface, core, theme, true)
+    init_ws(env, surface, core, theme, repaint, true)
 }
 
 unsafe fn init_ws(
-    mut env: JNIEnv, surface: jobject, core: jlong, theme: JObject, offloaded: bool,
+    mut env: JNIEnv, surface: jobject, core: jlong, theme: JObject, repaint: JObject,
+    offloaded: bool,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
     let mut native_window = NativeWindow::new(&env, surface);
@@ -114,6 +115,20 @@ unsafe fn init_ws(
         font_system,
         sample_count,
     );
+
+    // background threads wake the view through this; it may run on any thread
+    if let (Ok(vm), Ok(repaint)) = (env.get_java_vm(), env.new_global_ref(repaint)) {
+        renderer.context.set_request_repaint_callback(move |info| {
+            let Ok(mut env) = vm.attach_current_thread_as_daemon() else { return };
+            let delay_ms = info.delay.as_millis().min(i64::MAX as u128) as i64;
+            if env
+                .call_method(&repaint, "repaint", "(J)V", &[JValue::Long(delay_ms)])
+                .is_err()
+            {
+                let _ = env.exception_clear();
+            }
+        });
+    }
 
     visuals::init(&renderer.context);
     renderer
