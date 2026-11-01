@@ -1,7 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufReader, Cursor};
 use std::mem;
-use std::sync::OnceLock;
 use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
@@ -28,36 +26,13 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Byte, Grapheme};
 use serde::{Deserialize, Serialize};
-use syntect::highlighting::{Theme, ThemeSet};
-use syntect::parsing::SyntaxSet;
-use syntect_assets::assets::HighlightingAssets;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
+use widget::language_completions::LanguageCompletions;
 use widget::link_completions::LinkCompletions;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
-
-static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
-static SYNTAX_THEME: OnceLock<Theme> = OnceLock::new();
-
-pub fn syntax_set() -> &'static SyntaxSet {
-    SYNTAX_SET.get_or_init(|| {
-        HighlightingAssets::from_binary()
-            .get_syntax_set()
-            .unwrap()
-            .clone()
-    })
-}
-
-pub fn syntax_theme() -> &'static Theme {
-    SYNTAX_THEME.get_or_init(|| {
-        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
-        let cursor = Cursor::new(theme_bytes);
-        let mut buffer = BufReader::new(cursor);
-        ThemeSet::load_from_reader(&mut buffer).unwrap()
-    })
-}
 
 pub mod bounds;
 mod clipboard;
@@ -336,6 +311,13 @@ pub struct MdEdit {
     /// geometry. Set on drag release (which runs post-render).
     pub pending_block_move: Option<(widget::block::drag::BlockDrag, Grapheme)>,
 
+    /// Selections expand selection grew, each `(from, to)`: shrink selection
+    /// goes back while the selection is the last `to`.
+    pub syntax_grown: Vec<((Grapheme, Grapheme), (Grapheme, Grapheme))>,
+
+    /// The last [`Self::bracket_pair`], by text seq and selection.
+    pub bracket_pair_at: Option<input::code::BracketPairAt>,
+
     /// Keyboard input after a frame's first IME edit, replayed next frame so
     /// it acts on the edit's result (completions take keys ahead of the IME).
     pub deferred_input: Vec<egui::Event>,
@@ -381,6 +363,7 @@ pub struct MdEdit {
 
     /// Emoji shortcode completion popup (e.g. `:smile:`).
     pub emoji_completions: EmojiCompletions,
+    pub language_completions: LanguageCompletions,
 
     /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
     pub link_completions: LinkCompletions,
@@ -435,6 +418,8 @@ impl MdEdit {
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
             pending_block_move: None,
+            syntax_grown: Vec::new(),
+            bracket_pair_at: None,
             deferred_input: Vec::new(),
             ime_reset: false,
             ime_abandoned: None,
@@ -446,6 +431,7 @@ impl MdEdit {
             scroll_area_velocity: Default::default(),
             file_id,
             emoji_completions: Default::default(),
+            language_completions: Default::default(),
             link_completions: Default::default(),
             context_menu_link: None,
             context_menu_heading: None,
@@ -817,6 +803,14 @@ impl MdRender {
         }
     }
 
+    /// Whether the text has an outline: a note's headings, or a code file's
+    /// definitions.
+    pub fn has_outline(&self) -> bool {
+        !self.plaintext
+            || crate::syntax::Lang::from_extension(&self.ext)
+                .is_some_and(|lang| lang.has_definitions())
+    }
+
     /// Bump `text_seq`. Call after any buffer mutation that may change
     /// text — `LayoutCache::ensure_text_consistent`, `bounds.text_seq`,
     /// and find-match invalidation all key off this counter.
@@ -1016,6 +1010,8 @@ impl Editor {
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
                 pending_block_move: None,
+                syntax_grown: Vec::new(),
+                bracket_pair_at: None,
                 deferred_input: Vec::new(),
                 ime_reset: false,
                 ime_abandoned: None,
@@ -1027,6 +1023,7 @@ impl Editor {
                 scroll_area_velocity: Default::default(),
                 file_id,
                 emoji_completions: Default::default(),
+                language_completions: Default::default(),
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
                 context_menu_heading: None,
@@ -1205,10 +1202,7 @@ impl Editor {
         self.prev_dimensions = Some(dimensions);
 
         let dark_mode = ui.style().visuals.dark_mode;
-        if dark_mode != self.edit.renderer.dark_mode {
-            self.edit.renderer.syntax.clear();
-            self.edit.renderer.dark_mode = dark_mode;
-        }
+        self.edit.renderer.dark_mode = dark_mode;
 
         // Mirror the opt-in fetch preference onto the renderer each frame.
         self.edit.renderer.contact_linked_sites = self.persistence.get_contact_linked_sites();
@@ -1716,7 +1710,7 @@ impl Editor {
                 let r = &self.edit.renderer;
                 let sidecar = !r.touch_mode
                     && !self.in_preview
-                    && !r.plaintext
+                    && r.has_outline()
                     && r.interactive
                     && self.persistence.get_sidecar_open();
                 // The text keeps its width for the card and only slides: left,
@@ -1988,6 +1982,13 @@ impl Editor {
                             self.edit.show_range(ui, range, color);
                         }
 
+                        if let Some(pair) = self.edit.bracket_pair(root) {
+                            let color = self.edit.renderer.ctx.get_lb_theme().neutral_bg_tertiary();
+                            for bracket in pair {
+                                self.edit.show_range(ui, bracket, color);
+                            }
+                        }
+
                         if let Some((range, at)) = self.heading_flash {
                             let t = at.elapsed().as_secs_f32() / HEADING_FLASH_SECS;
                             if t < 1.0 {
@@ -2173,7 +2174,7 @@ impl Editor {
             self.outline_follows_caret = true;
         }
         let r = &self.edit.renderer;
-        self.outline_offered = !r.plaintext && r.interactive && !self.in_preview;
+        self.outline_offered = r.has_outline() && r.interactive && !self.in_preview;
         if !self.outline_offered || self.card.is_none() && !self.outline.is_open() {
             return;
         }
@@ -2209,19 +2210,36 @@ impl Editor {
 
         let id = Id::unique("md_outline").with(self.edit.file_id);
         let (version, linked) = self.linked_notes();
+        let empty = if self.edit.renderer.plaintext {
+            "No functions, types or sections yet."
+        } else {
+            "No headings yet. Start a line with # to add one."
+        };
+        let rows_shown = widget::outline::Headings { rows: &rows, empty };
         let (chosen, popup) = if self.edit.renderer.touch_mode {
             self.outline
-                .show(ui.ctx(), id.with("sheet"), &rows, current, &linked)
+                .show(ui.ctx(), id.with("sheet"), rows_shown, current, &linked)
         } else {
-            let (chosen, rect, dismissed) =
-                self.outline
-                    .card(ui.ctx(), id.with("card"), self.card, &rows, current, &linked);
+            let (chosen, rect, dismissed) = self.outline.card(
+                ui.ctx(),
+                id.with("card"),
+                self.card,
+                rows_shown,
+                current,
+                &linked,
+            );
             if dismissed {
                 self.persistence.set_sidecar_open(false);
             }
             (chosen, rect.filter(|_| self.card.is_some_and(|c| c.floating && c.open)))
         };
         self.linked = Some((version, linked));
+        let chosen_row = match &chosen {
+            Some(widget::outline::Choice::Heading(i)) => {
+                rows.get(*i).map(|row| (row.slug.clone(), row.span))
+            }
+            _ => None,
+        };
         self.outline_rows = Some((seq, rows));
         if let Some(rect) = popup {
             self.edit
@@ -2230,8 +2248,13 @@ impl Editor {
                 .push((rect, TouchTarget::Popup));
         }
         match chosen {
-            Some(widget::outline::Choice::Heading(slug)) => {
-                self.open_at_heading(&slug);
+            Some(widget::outline::Choice::Heading(_)) => {
+                let Some((slug, span)) = chosen_row else { return };
+                if self.edit.renderer.plaintext {
+                    self.open_at_definition(span);
+                } else {
+                    self.open_at_heading(&slug);
+                }
                 // a reader who jumped didn't ask for the keyboard
                 if !self.edit.renderer.touch_mode || self.keyboard_visible {
                     self.focus(ui.ctx());
@@ -2324,6 +2347,16 @@ impl Editor {
         self.heading_flash = Some((range, web_time::Instant::now()));
     }
 
+    /// Lands on a definition a code file's outline lists, `span` its name.
+    fn open_at_definition(&mut self, span: (Grapheme, Grapheme)) {
+        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        if !(self.edit.renderer.touch_mode && !self.keyboard_visible) {
+            self.select_from_outside((span.0, span.0));
+        }
+        self.landing = Some(Landing::Heading(span));
+        self.heading_flash = Some((span, web_time::Instant::now()));
+    }
+
     /// Lands on the heading `fragment` names: its line near the top of the
     /// view, washed for a moment, any fold hiding it opened. The caret goes
     /// after its text, except while reading on touch, where that would
@@ -2395,16 +2428,50 @@ impl Editor {
         let seq = self.edit.renderer.text_seq;
         if self.outline_rows.as_ref().is_none_or(|(at, _)| *at != seq) {
             let r = &self.edit.renderer;
-            let rows = fragment::headings_in(root)
-                .into_iter()
-                .map(|(node, h)| widget::outline::OutlineRow {
-                    level: h.level,
-                    text: h.text,
-                    slug: h.slug,
-                    start: r.node_range(node).0,
-                    span: r.heading_span(node),
-                })
-                .collect();
+            let code = r
+                .plaintext
+                .then(|| crate::syntax::Lang::from_extension(&r.ext))
+                .flatten();
+            let parsed = code.and_then(|lang| {
+                r.syntax
+                    .highlights(lang, r.buffer.current.text.clone(), &r.ctx)
+            });
+            let rows = if let Some(parsed) = parsed {
+                // the tags query is compiling; it repaints when it's done
+                let Some(definitions) = parsed.definitions() else { return &[] };
+                let text = &r.buffer.current.text;
+                definitions
+                    .into_iter()
+                    .map(|definition| {
+                        let span = r.range_to_char((
+                            definition.name.start.into(),
+                            definition.name.end.into(),
+                        ));
+                        widget::outline::OutlineRow {
+                            level: (definition.depth + 1).min(6) as u8,
+                            text: text[definition.name].to_string(),
+                            slug: String::new(),
+                            start: r
+                                .range_to_char((definition.start.into(), definition.start.into()))
+                                .0,
+                            span,
+                        }
+                    })
+                    .collect()
+            } else if r.plaintext {
+                Vec::new()
+            } else {
+                fragment::headings_in(root)
+                    .into_iter()
+                    .map(|(node, h)| widget::outline::OutlineRow {
+                        level: h.level,
+                        text: h.text,
+                        slug: h.slug,
+                        start: r.node_range(node).0,
+                        span: r.heading_span(node),
+                    })
+                    .collect()
+            };
             self.outline_rows = Some((seq, rows));
         }
         self.outline_rows.as_ref().map_or(&[], |(_, rows)| rows)

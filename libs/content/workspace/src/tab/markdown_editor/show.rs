@@ -94,6 +94,9 @@ impl MdEdit {
         // pass below doesn't see those keys.
         self.emoji_completions
             .update_active_state(&self.renderer.buffer, &self.renderer.bounds.inline_paragraphs);
+        let fenced = !self.renderer.readonly && !self.renderer.plaintext;
+        self.language_completions
+            .update_active_state(&self.renderer.buffer, fenced);
         let files = self.renderer.files.clone();
         let file_id = self.file_id;
         self.link_completions.update_active_state(
@@ -114,6 +117,12 @@ impl MdEdit {
                 &self.renderer.buffer,
                 &files,
                 file_id,
+                focused,
+                &mut self.event.internal_events,
+            );
+            self.language_completions.handle_input(
+                ctx,
+                &self.renderer.buffer,
                 focused,
                 &mut self.event.internal_events,
             );
@@ -1281,6 +1290,7 @@ impl MdEdit {
         }
         self.show_emoji_completions(ui);
         self.show_link_completions(ui);
+        self.show_language_completions(ui);
     }
 
     /// Reset the buffer to empty state. Chat composers call this after

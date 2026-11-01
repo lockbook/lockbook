@@ -70,6 +70,28 @@ impl TestEditor {
         harness
     }
 
+    /// A file with extension `ext` rather than a note.
+    pub fn file(md: &str, ext: &str) -> Self {
+        let ctx = super::super::test_egui_ctx();
+        let (persistence, previews) = store_and_previews(&ctx);
+        let editor = Editor::new(
+            md,
+            Uuid::new_v4(),
+            None,
+            MdResources {
+                ctx,
+                previews,
+                core: build_lb(),
+                persistence,
+                link_resolver: Box::new(TestLinks),
+                embeds: Box::new(()),
+                files: Arc::new(RwLock::new(FileCache::empty())),
+            },
+            MdConfig { readonly: false, ext: ext.into() },
+        );
+        Self::from_editor(editor)
+    }
+
     /// Build with a [`TestEmbeds`] embed resolver and return a handle so
     /// the caller can complete fake loads via [`TestEmbeds::complete`].
     pub fn with_test_embeds(lb: Lb, md: &str) -> (Self, Arc<TestEmbeds>) {

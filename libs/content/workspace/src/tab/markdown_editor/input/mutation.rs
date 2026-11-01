@@ -73,6 +73,11 @@ impl<'ast> MdEdit {
         let current_selection = self.renderer.buffer.current.selection;
         let mut response = buffer::Response::default();
         match event {
+            Event::Select { region: Region::Syntax { larger } } => {
+                if let Some(range) = self.syntax_select(root, larger) {
+                    operations.push(Operation::Select(range));
+                }
+            }
             Event::Select { region } => {
                 if self.table_select_edits(region, operations) {
                     return response;
@@ -92,6 +97,9 @@ impl<'ast> MdEdit {
                     range = self.renderer.grow_range_over_fold_contents(range);
                 }
                 if self.replace_in_table(range, &text, advance_cursor, operations) {
+                    return response;
+                }
+                if self.replace_in_code(root, range, &text, advance_cursor, operations) {
                     return response;
                 }
                 operations.push(Operation::Replace(Replace { range, text }));
@@ -119,6 +127,9 @@ impl<'ast> MdEdit {
                 // item after the hidden contents
                 let handled = !shift && self.newline_at_fold(root, operations);
                 if handled {
+                    return response;
+                }
+                if self.newline_in_code(root, operations) {
                     return response;
                 }
 
@@ -294,6 +305,9 @@ impl<'ast> MdEdit {
             }
             Event::Indent { deindent } => {
                 if self.indent_in_table(deindent, operations) {
+                    return response;
+                }
+                if self.indent_in_code(root, deindent, operations) {
                     return response;
                 }
 
@@ -1137,7 +1151,7 @@ impl<'ast> MdEdit {
             Region::BetweenLocations { start, end } => {
                 (self.location_to_char_offset(start), self.location_to_char_offset(end))
             }
-            Region::Selection => current_selection,
+            Region::Selection | Region::Syntax { .. } => current_selection,
             Region::SelectionOrAdvance { advance: offset, backwards } => {
                 if current_selection.is_empty() {
                     current_selection.0 = self.advance(current_selection.0, offset, backwards);
