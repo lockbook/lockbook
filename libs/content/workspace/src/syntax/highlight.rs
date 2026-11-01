@@ -78,6 +78,14 @@ impl Highlights {
         Self { text, lines, root, layers: Default::default(), spans: Default::default() }
     }
 
+    pub fn lang(&self) -> usize {
+        self.root.lang
+    }
+
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
     pub fn tree(&self) -> &Tree {
         &self.root.tree
     }

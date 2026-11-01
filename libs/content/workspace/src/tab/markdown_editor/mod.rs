@@ -800,6 +800,14 @@ impl MdRender {
         }
     }
 
+    /// Whether the text has an outline: a note's headings, or a code file's
+    /// definitions.
+    pub fn has_outline(&self) -> bool {
+        !self.plaintext
+            || crate::syntax::Lang::from_extension(&self.ext)
+                .is_some_and(|lang| lang.has_definitions())
+    }
+
     /// Bump `text_seq`. Call after any buffer mutation that may change
     /// text — `LayoutCache::ensure_text_consistent`, `bounds.text_seq`,
     /// and find-match invalidation all key off this counter.
@@ -1698,7 +1706,7 @@ impl Editor {
                 let r = &self.edit.renderer;
                 let sidecar = !r.touch_mode
                     && !self.in_preview
-                    && !r.plaintext
+                    && r.has_outline()
                     && r.interactive
                     && self.persistence.get_sidecar_open();
                 // The text keeps its width for the card and only slides: left,
@@ -2162,7 +2170,7 @@ impl Editor {
             self.outline_follows_caret = true;
         }
         let r = &self.edit.renderer;
-        self.outline_offered = !r.plaintext && r.interactive && !self.in_preview;
+        self.outline_offered = r.has_outline() && r.interactive && !self.in_preview;
         if !self.outline_offered || self.card.is_none() && !self.outline.is_open() {
             return;
         }
@@ -2198,19 +2206,36 @@ impl Editor {
 
         let id = Id::unique("md_outline").with(self.edit.file_id);
         let (version, linked) = self.linked_notes();
+        let empty = if self.edit.renderer.plaintext {
+            "No functions, types or sections yet."
+        } else {
+            "No headings yet. Start a line with # to add one."
+        };
+        let rows_shown = widget::outline::Headings { rows: &rows, empty };
         let (chosen, popup) = if self.edit.renderer.touch_mode {
             self.outline
-                .show(ui.ctx(), id.with("sheet"), &rows, current, &linked)
+                .show(ui.ctx(), id.with("sheet"), rows_shown, current, &linked)
         } else {
-            let (chosen, rect, dismissed) =
-                self.outline
-                    .card(ui.ctx(), id.with("card"), self.card, &rows, current, &linked);
+            let (chosen, rect, dismissed) = self.outline.card(
+                ui.ctx(),
+                id.with("card"),
+                self.card,
+                rows_shown,
+                current,
+                &linked,
+            );
             if dismissed {
                 self.persistence.set_sidecar_open(false);
             }
             (chosen, rect.filter(|_| self.card.is_some_and(|c| c.floating && c.open)))
         };
         self.linked = Some((version, linked));
+        let chosen_row = match &chosen {
+            Some(widget::outline::Choice::Heading(i)) => {
+                rows.get(*i).map(|row| (row.slug.clone(), row.span))
+            }
+            _ => None,
+        };
         self.outline_rows = Some((seq, rows));
         if let Some(rect) = popup {
             self.edit
@@ -2219,8 +2244,13 @@ impl Editor {
                 .push((rect, TouchTarget::Popup));
         }
         match chosen {
-            Some(widget::outline::Choice::Heading(slug)) => {
-                self.open_at_heading(&slug);
+            Some(widget::outline::Choice::Heading(_)) => {
+                let Some((slug, span)) = chosen_row else { return };
+                if self.edit.renderer.plaintext {
+                    self.open_at_definition(span);
+                } else {
+                    self.open_at_heading(&slug);
+                }
                 // a reader who jumped didn't ask for the keyboard
                 if !self.edit.renderer.touch_mode || self.keyboard_visible {
                     self.focus(ui.ctx());
@@ -2313,6 +2343,16 @@ impl Editor {
         self.heading_flash = Some((range, web_time::Instant::now()));
     }
 
+    /// Lands on a definition a code file's outline lists, `span` its name.
+    fn open_at_definition(&mut self, span: (Grapheme, Grapheme)) {
+        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        if !(self.edit.renderer.touch_mode && !self.keyboard_visible) {
+            self.select_from_outside((span.0, span.0));
+        }
+        self.landing = Some(Landing::Heading(span));
+        self.heading_flash = Some((span, web_time::Instant::now()));
+    }
+
     /// Lands on the heading `fragment` names: its line near the top of the
     /// view, washed for a moment, any fold hiding it opened. The caret goes
     /// after its text, except while reading on touch, where that would
@@ -2384,16 +2424,47 @@ impl Editor {
         let seq = self.edit.renderer.text_seq;
         if self.outline_rows.as_ref().is_none_or(|(at, _)| *at != seq) {
             let r = &self.edit.renderer;
-            let rows = fragment::headings_in(root)
-                .into_iter()
-                .map(|(node, h)| widget::outline::OutlineRow {
-                    level: h.level,
-                    text: h.text,
-                    slug: h.slug,
-                    start: r.node_range(node).0,
-                    span: r.heading_span(node),
-                })
-                .collect();
+            let code = r
+                .plaintext
+                .then(|| crate::syntax::Lang::from_extension(&r.ext))
+                .flatten();
+            let parsed =
+                code.and_then(|lang| r.syntax.highlights(lang, r.buffer.current.text.clone()));
+            let rows = if let Some(parsed) = parsed {
+                let text = &r.buffer.current.text;
+                parsed
+                    .definitions()
+                    .into_iter()
+                    .map(|definition| {
+                        let span = r.range_to_char((
+                            definition.name.start.into(),
+                            definition.name.end.into(),
+                        ));
+                        widget::outline::OutlineRow {
+                            level: (definition.depth + 1).min(6) as u8,
+                            text: text[definition.name].to_string(),
+                            slug: String::new(),
+                            start: r
+                                .range_to_char((definition.start.into(), definition.start.into()))
+                                .0,
+                            span,
+                        }
+                    })
+                    .collect()
+            } else if r.plaintext {
+                Vec::new()
+            } else {
+                fragment::headings_in(root)
+                    .into_iter()
+                    .map(|(node, h)| widget::outline::OutlineRow {
+                        level: h.level,
+                        text: h.text,
+                        slug: h.slug,
+                        start: r.node_range(node).0,
+                        span: r.heading_span(node),
+                    })
+                    .collect()
+            };
             self.outline_rows = Some((seq, rows));
         }
         self.outline_rows.as_ref().map_or(&[], |(_, rows)| rows)

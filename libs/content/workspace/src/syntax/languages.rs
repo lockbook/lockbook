@@ -1,10 +1,10 @@
 use std::ops::Range;
 use std::sync::OnceLock;
 
-use tree_sitter::{Node, Query, QueryMatch, Tree};
+use tree_sitter::{Node, Query, QueryCursor, QueryMatch, StreamingIterator as _, Tree};
 use tree_sitter_language::LanguageFn;
 
-use super::Role;
+use super::{Definition, Role};
 
 struct Entry {
     /// What injections call it; also a fence token.
@@ -16,6 +16,8 @@ struct Entry {
     /// Concatenated in order: a layered grammar lists its base's first.
     highlights: &'static [&'static str],
     injections: &'static str,
+    /// Definitions for the outline, concatenated like the highlights.
+    tags: &'static [&'static str],
 }
 
 impl Entry {
@@ -23,13 +25,26 @@ impl Entry {
         name: &'static str, aliases: &'static [&'static str], extensions: &'static [&'static str],
         grammar: LanguageFn, highlights: &'static [&'static str],
     ) -> Self {
-        Self { name, aliases, extensions, grammar, highlights, injections: "" }
+        Self { name, aliases, extensions, grammar, highlights, injections: "", tags: &[] }
     }
 
     const fn injections(self, injections: &'static str) -> Self {
         Self { injections, ..self }
     }
+
+    const fn tags(self, tags: &'static [&'static str]) -> Self {
+        Self { tags, ..self }
+    }
 }
+
+// Data files list their sections: TOML tables, and JSON and YAML keys
+// holding nested values.
+const JSON_TAGS: &str =
+    "(pair key: (string (string_content) @name) value: [(object) (array)]) @definition.key";
+const TOML_TAGS: &str = "
+(table [(bare_key) (dotted_key) (quoted_key)] @name) @definition.table
+(table_array_element [(bare_key) (dotted_key) (quoted_key)] @name) @definition.table";
+const YAML_TAGS: &str = "(block_mapping_pair key: (_) @name value: (block_node [(block_mapping) (block_sequence)])) @definition.key";
 
 const ENTRIES: &[Entry] = &[
     Entry::new(
@@ -39,7 +54,8 @@ const ENTRIES: &[Entry] = &[
         tree_sitter_bash::LANGUAGE,
         &[tree_sitter_bash::HIGHLIGHT_QUERY],
     ),
-    Entry::new("c", &[], &["c", "h"], tree_sitter_c::LANGUAGE, &[tree_sitter_c::HIGHLIGHT_QUERY]),
+    Entry::new("c", &[], &["c", "h"], tree_sitter_c::LANGUAGE, &[tree_sitter_c::HIGHLIGHT_QUERY])
+        .tags(&[tree_sitter_c::TAGS_QUERY]),
     Entry::new(
         "css",
         &[],
@@ -53,7 +69,8 @@ const ENTRIES: &[Entry] = &[
         &["go"],
         tree_sitter_go::LANGUAGE,
         &[tree_sitter_go::HIGHLIGHTS_QUERY],
-    ),
+    )
+    .tags(&[tree_sitter_go::TAGS_QUERY]),
     Entry::new(
         "html",
         &["htm", "xhtml"],
@@ -68,7 +85,8 @@ const ENTRIES: &[Entry] = &[
         &["java"],
         tree_sitter_java::LANGUAGE,
         &[tree_sitter_java::HIGHLIGHTS_QUERY],
-    ),
+    )
+    .tags(&[tree_sitter_java::TAGS_QUERY]),
     Entry::new(
         "javascript",
         &["js", "node", "ecmascript"],
@@ -76,21 +94,24 @@ const ENTRIES: &[Entry] = &[
         tree_sitter_javascript::LANGUAGE,
         &[tree_sitter_javascript::HIGHLIGHT_QUERY, tree_sitter_javascript::JSX_HIGHLIGHT_QUERY],
     )
-    .injections(tree_sitter_javascript::INJECTIONS_QUERY),
+    .injections(tree_sitter_javascript::INJECTIONS_QUERY)
+    .tags(&[tree_sitter_javascript::TAGS_QUERY]),
     Entry::new(
         "json",
         &["jsonc", "jsonl", "json5"],
         &["json", "jsonc", "jsonl"],
         tree_sitter_json::LANGUAGE,
         &[tree_sitter_json::HIGHLIGHTS_QUERY],
-    ),
+    )
+    .tags(&[JSON_TAGS]),
     Entry::new(
         "python",
         &["py", "py3", "python3"],
         &["py", "pyi", "pyw"],
         tree_sitter_python::LANGUAGE,
         &[tree_sitter_python::HIGHLIGHTS_QUERY],
-    ),
+    )
+    .tags(&[tree_sitter_python::TAGS_QUERY]),
     Entry::new(
         "rust",
         &["rs"],
@@ -98,14 +119,16 @@ const ENTRIES: &[Entry] = &[
         tree_sitter_rust::LANGUAGE,
         &[tree_sitter_rust::HIGHLIGHTS_QUERY],
     )
-    .injections(tree_sitter_rust::INJECTIONS_QUERY),
+    .injections(tree_sitter_rust::INJECTIONS_QUERY)
+    .tags(&[tree_sitter_rust::TAGS_QUERY]),
     Entry::new(
         "toml",
         &[],
         &["toml"],
         tree_sitter_toml_ng::LANGUAGE,
         &[tree_sitter_toml_ng::HIGHLIGHTS_QUERY],
-    ),
+    )
+    .tags(&[TOML_TAGS]),
     Entry::new(
         "typescript",
         &["ts"],
@@ -113,7 +136,8 @@ const ENTRIES: &[Entry] = &[
         tree_sitter_typescript::LANGUAGE_TYPESCRIPT,
         &[tree_sitter_typescript::HIGHLIGHTS_QUERY, tree_sitter_javascript::HIGHLIGHT_QUERY],
     )
-    .injections(tree_sitter_javascript::INJECTIONS_QUERY),
+    .injections(tree_sitter_javascript::INJECTIONS_QUERY)
+    .tags(&[tree_sitter_javascript::TAGS_QUERY, tree_sitter_typescript::TAGS_QUERY]),
     Entry::new(
         "tsx",
         &[],
@@ -125,14 +149,16 @@ const ENTRIES: &[Entry] = &[
             tree_sitter_javascript::JSX_HIGHLIGHT_QUERY,
         ],
     )
-    .injections(tree_sitter_javascript::INJECTIONS_QUERY),
+    .injections(tree_sitter_javascript::INJECTIONS_QUERY)
+    .tags(&[tree_sitter_javascript::TAGS_QUERY, tree_sitter_typescript::TAGS_QUERY]),
     Entry::new(
         "yaml",
         &["yml"],
         &["yaml", "yml"],
         tree_sitter_yaml::LANGUAGE,
         &[tree_sitter_yaml::HIGHLIGHTS_QUERY],
-    ),
+    )
+    .tags(&[YAML_TAGS]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "asm",
@@ -148,7 +174,8 @@ const ENTRIES: &[Entry] = &[
         &["cs"],
         tree_sitter_c_sharp::LANGUAGE,
         &[tree_sitter_c_sharp::HIGHLIGHTS_QUERY],
-    ),
+    )
+    .tags(&[tree_sitter_c_sharp::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "cmake",
@@ -164,7 +191,8 @@ const ENTRIES: &[Entry] = &[
         &["cpp", "cc", "cxx", "hpp", "hh", "hxx"],
         tree_sitter_cpp::LANGUAGE,
         &[tree_sitter_c::HIGHLIGHT_QUERY, tree_sitter_cpp::HIGHLIGHT_QUERY],
-    ),
+    )
+    .tags(&[tree_sitter_c::TAGS_QUERY, tree_sitter_cpp::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "dart",
@@ -172,7 +200,8 @@ const ENTRIES: &[Entry] = &[
         &["dart"],
         tree_sitter_dart::LANGUAGE,
         &[tree_sitter_dart::HIGHLIGHTS_QUERY],
-    ),
+    )
+    .tags(&[tree_sitter_dart::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "diff",
@@ -189,7 +218,8 @@ const ENTRIES: &[Entry] = &[
         tree_sitter_elixir::LANGUAGE,
         &[tree_sitter_elixir::HIGHLIGHTS_QUERY],
     )
-    .injections(tree_sitter_elixir::INJECTIONS_QUERY),
+    .injections(tree_sitter_elixir::INJECTIONS_QUERY)
+    .tags(&[tree_sitter_elixir::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "elm",
@@ -197,7 +227,8 @@ const ENTRIES: &[Entry] = &[
         &["elm"],
         tree_sitter_elm::LANGUAGE,
         &[tree_sitter_elm::HIGHLIGHTS_QUERY],
-    ),
+    )
+    .tags(&[tree_sitter_elm::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "erlang",
@@ -213,7 +244,8 @@ const ENTRIES: &[Entry] = &[
         &["gleam"],
         tree_sitter_gleam::LANGUAGE,
         &[tree_sitter_gleam::HIGHLIGHT_QUERY],
-    ),
+    )
+    .tags(&[tree_sitter_gleam::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "haskell",
@@ -238,7 +270,8 @@ const ENTRIES: &[Entry] = &[
         tree_sitter_lua::LANGUAGE,
         &[tree_sitter_lua::HIGHLIGHTS_QUERY],
     )
-    .injections(tree_sitter_lua::INJECTIONS_QUERY),
+    .injections(tree_sitter_lua::INJECTIONS_QUERY)
+    .tags(&[tree_sitter_lua::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "make",
@@ -271,7 +304,8 @@ const ENTRIES: &[Entry] = &[
         tree_sitter_php::LANGUAGE_PHP,
         &[tree_sitter_php::HIGHLIGHTS_QUERY],
     )
-    .injections(tree_sitter_php::INJECTIONS_QUERY),
+    .injections(tree_sitter_php::INJECTIONS_QUERY)
+    .tags(&[tree_sitter_php::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "powershell",
@@ -281,7 +315,8 @@ const ENTRIES: &[Entry] = &[
         &[tree_sitter_powershell::HIGHLIGHTS_QUERY],
     ),
     #[cfg(feature = "extra-grammars")]
-    Entry::new("r", &[], &["r"], tree_sitter_r::LANGUAGE, &[tree_sitter_r::HIGHLIGHTS_QUERY]),
+    Entry::new("r", &[], &["r"], tree_sitter_r::LANGUAGE, &[tree_sitter_r::HIGHLIGHTS_QUERY])
+        .tags(&[tree_sitter_r::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "regex",
@@ -297,7 +332,8 @@ const ENTRIES: &[Entry] = &[
         &["rb", "rake", "gemspec"],
         tree_sitter_ruby::LANGUAGE,
         &[tree_sitter_ruby::HIGHLIGHTS_QUERY],
-    ),
+    )
+    .tags(&[tree_sitter_ruby::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "scala",
@@ -314,7 +350,8 @@ const ENTRIES: &[Entry] = &[
         tree_sitter_swift::LANGUAGE,
         &[tree_sitter_swift::HIGHLIGHTS_QUERY],
     )
-    .injections(tree_sitter_swift::INJECTIONS_QUERY),
+    .injections(tree_sitter_swift::INJECTIONS_QUERY)
+    .tags(&[tree_sitter_swift::TAGS_QUERY]),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
         "xml",
@@ -374,6 +411,8 @@ const CAPTURES: &[(&str, Role)] = &[
 
 static QUERIES: [OnceLock<Option<Queries>>; ENTRIES.len()] =
     [const { OnceLock::new() }; ENTRIES.len()];
+
+static TAGS: [OnceLock<Option<Query>>; ENTRIES.len()] = [const { OnceLock::new() }; ENTRIES.len()];
 
 pub fn find_token(token: &str) -> Option<usize> {
     let token = token.to_ascii_lowercase();
@@ -504,6 +543,63 @@ pub fn injection<'tree, 'text>(
     Some(Injection { language: lang, content: content?, include_children })
 }
 
+fn tags(idx: usize) -> Option<&'static Query> {
+    TAGS[idx]
+        .get_or_init(|| {
+            let entry = &ENTRIES[idx];
+            if entry.tags.is_empty() {
+                return None;
+            }
+            match Query::new(&grammar(idx), &entry.tags.concat()) {
+                Ok(query) => Some(query),
+                Err(err) => {
+                    tracing::error!("{} tags query doesn't compile: {err:?}", entry.name);
+                    None
+                }
+            }
+        })
+        .as_ref()
+}
+
+pub fn has_definitions(idx: usize) -> bool {
+    !ENTRIES[idx].tags.is_empty()
+}
+
+pub fn definitions(idx: usize, tree: &Tree, text: &str) -> Vec<Definition> {
+    let Some(query) = tags(idx) else { return Vec::new() };
+    let names = query.capture_names();
+    let mut found: Vec<(Range<usize>, Range<usize>)> = Vec::new();
+    let mut cursor = QueryCursor::new();
+    let mut matches = cursor.matches(query, tree.root_node(), text.as_bytes());
+    while let Some(m) = matches.next() {
+        let capture = |pick: &dyn Fn(&str) -> bool| {
+            m.captures()
+                .iter()
+                .find(|c| pick(names[c.index as usize]))
+                .map(|c| c.node.byte_range())
+        };
+        let name = capture(&|name| name == "name");
+        let item = capture(&|name| name.starts_with("definition."));
+        if let (Some(name), Some(item)) = (name, item) {
+            found.push((name, item));
+        }
+    }
+    found.sort_by_key(|(name, item)| (item.start, std::cmp::Reverse(item.end), name.start));
+    found.dedup_by_key(|(name, _)| name.clone());
+    let mut within: Vec<Range<usize>> = Vec::new();
+    found
+        .into_iter()
+        .map(|(name, item)| {
+            while within.last().is_some_and(|outer| outer.end <= item.start) {
+                within.pop();
+            }
+            let depth = within.len();
+            within.push(item.clone());
+            Definition { start: item.start, name, depth }
+        })
+        .collect()
+}
+
 pub fn enclosing(tree: &Tree, range: Range<usize>) -> Option<Range<usize>> {
     let root = tree.root_node();
     let mut node = if range.is_empty() {
@@ -534,7 +630,7 @@ pub fn enclosing(tree: &Tree, range: Range<usize>) -> Option<Range<usize>> {
 
 #[cfg(test)]
 mod test {
-    use super::{ENTRIES, QUERIES, enclosing, find_token, queries};
+    use super::{ENTRIES, QUERIES, definitions, enclosing, find_token, queries, tags};
     use crate::syntax::highlight::Highlights;
     use crate::syntax::{Role, Spans};
 
@@ -555,6 +651,11 @@ mod test {
             .map(|idx| ENTRIES[idx].name)
             .collect();
         assert!(broken.is_empty(), "queries don't compile: {broken:?}");
+        let broken: Vec<_> = (0..ENTRIES.len())
+            .filter(|idx| !ENTRIES[*idx].tags.is_empty() && tags(*idx).is_none())
+            .map(|idx| ENTRIES[idx].name)
+            .collect();
+        assert!(broken.is_empty(), "tags queries don't compile: {broken:?}");
         assert_eq!(QUERIES.len(), ENTRIES.len());
     }
 
@@ -564,6 +665,35 @@ mod test {
         let text = "/* one\ntwo */ fn";
         let spans = highlight(rust, text);
         assert_eq!(spans[0], (Role::Comment, 0..13));
+    }
+
+    #[test]
+    fn definitions_nest() {
+        let text = "class A:\n    def b(self):\n        pass\n\ndef c():\n    pass\n";
+        let (python, parsed) = parsed("python", text);
+        let found: Vec<_> = definitions(python, parsed.tree(), text)
+            .into_iter()
+            .map(|d| (&text[d.name], d.depth))
+            .collect();
+        assert_eq!(found, vec![("A", 0), ("b", 1), ("c", 0)]);
+    }
+
+    #[test]
+    fn data_files_list_sections() {
+        let names = |lang: &str, text: &str| -> Vec<(String, usize)> {
+            let (lang, parsed) = parsed(lang, text);
+            definitions(lang, parsed.tree(), text)
+                .into_iter()
+                .map(|d| (text[d.name].to_string(), d.depth))
+                .collect()
+        };
+        let toml = "[package]\nname = \"x\"\n\n[[bin]]\npath = \"a\"\n[a.b]\n";
+        let want = [("package", 0), ("bin", 0), ("a.b", 0)];
+        assert_eq!(names("toml", toml), want.map(|(n, d)| (n.into(), d)));
+        let json = r#"{"a": {"b": [1], "c": 2}, "d": 3}"#;
+        assert_eq!(names("json", json), vec![("a".into(), 0), ("b".into(), 1)]);
+        let yaml = "a:\n  b:\n    - 1\n  c: 2\nd: |\n  text\n";
+        assert_eq!(names("yaml", yaml), vec![("a".into(), 0), ("b".into(), 1)]);
     }
 
     #[test]

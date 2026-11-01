@@ -29,6 +29,15 @@ pub enum Role {
 /// every span are [`Role::Text`].
 pub type Spans = Vec<(Role, Range<usize>)>;
 
+/// A named item of code, like a function or a type, `depth` items deep:
+/// where it starts and where its name is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Definition {
+    pub start: usize,
+    pub name: Range<usize>,
+    pub depth: usize,
+}
+
 /// A language we have a grammar for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Lang(usize);
@@ -51,6 +60,11 @@ impl Lang {
     pub fn highlights(self, text: String) -> Option<Highlights> {
         highlight::Highlights::new(self.0, text).map(Highlights)
     }
+
+    /// Whether [`Highlights::definitions`] finds anything in this language.
+    pub fn has_definitions(self) -> bool {
+        languages::has_definitions(self.0)
+    }
 }
 
 /// A version of a unit of code, parsed, with the spans asked of it.
@@ -68,6 +82,11 @@ impl Highlights {
     /// The spans within `range` of the text, clipped to it.
     pub fn spans(&self, range: Range<usize>) -> Arc<Spans> {
         self.0.spans(range)
+    }
+
+    /// The functions, types, and the like, in order.
+    pub fn definitions(&self) -> Vec<Definition> {
+        languages::definitions(self.0.lang(), self.0.tree(), self.0.text())
     }
 
     /// The smallest syntax node larger than `range` and covering it.
@@ -96,6 +115,10 @@ impl Lang {
     pub fn highlights(self, _text: String) -> Option<Highlights> {
         unreachable!("no language exists on the web")
     }
+
+    pub fn has_definitions(self) -> bool {
+        unreachable!("no language exists on the web")
+    }
 }
 
 /// No code is parsed on the web.
@@ -109,6 +132,10 @@ impl Highlights {
     }
 
     pub fn spans(&self, _range: Range<usize>) -> Arc<Spans> {
+        match *self {}
+    }
+
+    pub fn definitions(&self) -> Vec<Definition> {
         match *self {}
     }
 
