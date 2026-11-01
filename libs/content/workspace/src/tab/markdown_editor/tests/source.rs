@@ -224,3 +224,14 @@ fn source_note_inserts_tables_from_the_keyboard() {
         assert_eq!(ws.get_text(), after);
     }
 }
+
+/// Source shows a diagram as its fence, with no picture to select or delete.
+#[test]
+fn source_note_has_no_diagrams() {
+    let mut ws = TestEditor::new("a\n\n```mermaid\nflowchart TD\n    A --> B\n```\n");
+    ws.enter_frame();
+    assert!(!ws.editor.edit.renderer.bounds.diagrams.is_empty());
+    ws.editor.persistence.set_source(true);
+    ws.enter_frame();
+    assert!(ws.editor.edit.renderer.bounds.diagrams.is_empty());
+}
