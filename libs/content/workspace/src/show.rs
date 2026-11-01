@@ -71,6 +71,7 @@ impl Workspace {
             )
         });
         self.update_window_title();
+        self.keep_note_index();
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg
                 .set_tabs(&self.tab_strip, &self.current_tab, &self.last_search);
@@ -661,7 +662,7 @@ pub(crate) fn link_sheet_modal(
     ctx: &egui::Context, sheet: &crate::tab::LinkSheet, (open_key, cancel_key): (bool, bool),
 ) -> (bool, bool) {
     use crate::style::chrome::{
-        Radius, control_height, file_row_icon, plate_content, shortcut_esc, shortcut_return,
+        Radius, control_height, file_row_icon, shortcut_esc, shortcut_return,
     };
     use crate::style::tree_metrics::INDENT_BASE;
     use crate::style::{Button, FileRow, Space, Spacer, TypeRole, parent_crumbs, with_pad_fit};
@@ -700,71 +701,77 @@ pub(crate) fn link_sheet_modal(
         .order(egui::Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
         .show(ctx, |ui| {
-            plate_content(ui, t.neutral_bg(), t.neutral(), Radius::Surface.corner(), |ui| {
-                ui.set_width(width + pad * 2.0);
-                ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-                with_pad_fit(ui, Space::Md, |ui| {
-                    ui.label(
-                        TypeRole::Heading
-                            .rich(title)
-                            .color(t.neutral_fg_secondary()),
-                    );
-                    ui.add(Spacer::new(Space::Md));
-                    let line = |ui: &mut egui::Ui, text: &str, ink| {
-                        ui.add(
-                            GlyphonLabel::new_rich(crate::resolvers::rich_spans(text), ink)
-                                .font_size(TypeRole::Body.size())
-                                .line_height(TypeRole::Body.line_height())
-                                .max_width(width),
+            crate::style::plate_content_shadow(
+                ui,
+                t.neutral_bg(),
+                crate::style::overlay_shadow(&t),
+                Radius::Surface.corner(),
+                |ui| {
+                    ui.set_width(width + pad * 2.0);
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                    with_pad_fit(ui, Space::Md, |ui| {
+                        ui.label(
+                            TypeRole::Heading
+                                .rich(title)
+                                .color(t.neutral_fg_secondary()),
                         );
-                    };
-                    if sheet.open.is_some() {
-                        // the file it would open, as the file tree shows one
-                        let path = &sheet.shown;
-                        let name = path.rsplit('/').find(|s| !s.is_empty()).unwrap_or(path);
-                        let size = egui::vec2(width, FileRow::height_for(true));
-                        let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
-                        // the row's indent makes room for a hover fill this row never shows
-                        let rect = rect.with_min_x(rect.min.x - INDENT_BASE);
-                        FileRow::new(&t, name)
-                            .icon(file_row_icon(name, false))
-                            .subtitle(parent_crumbs(path))
-                            .interactive(false)
-                            .paint_at_hit(ui, rect, rect, layer.id.with("file"));
-                    } else {
-                        // nothing resolved: the link as written
-                        line(ui, &format!("**{}**", sheet.shown), t.neutral_fg());
-                    }
-                    ui.add(Spacer::new(Space::Sm));
-                    line(ui, why, t.neutral_fg());
-                    for fix in lines {
-                        ui.add(Spacer::new(Space::Xs));
-                        line(ui, fix, t.neutral_fg_secondary());
-                    }
-                    ui.add(Spacer::new(Space::Md));
-                    ui.horizontal(|ui| {
-                        let dismiss = if sheet.open.is_some() { "Cancel" } else { "Close" };
-                        let dismiss = if touch {
-                            Button::secondary(&t, dismiss)
+                        ui.add(Spacer::new(Space::Md));
+                        let line = |ui: &mut egui::Ui, text: &str, ink| {
+                            ui.add(
+                                GlyphonLabel::new_rich(crate::resolvers::rich_spans(text), ink)
+                                    .font_size(TypeRole::Body.size())
+                                    .line_height(TypeRole::Body.line_height())
+                                    .max_width(width),
+                            );
+                        };
+                        if sheet.open.is_some() {
+                            // the file it would open, as the file tree shows one
+                            let path = &sheet.shown;
+                            let name = path.rsplit('/').find(|s| !s.is_empty()).unwrap_or(path);
+                            let size = egui::vec2(width, FileRow::height_for(true));
+                            let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                            // the row's indent makes room for a hover fill this row never shows
+                            let rect = rect.with_min_x(rect.min.x - INDENT_BASE);
+                            FileRow::new(&t, name)
+                                .icon(file_row_icon(name, false))
+                                .subtitle(parent_crumbs(path))
+                                .interactive(false)
+                                .paint_at_hit(ui, rect, rect, layer.id.with("file"));
                         } else {
-                            Button::quiet(&t, dismiss).shortcut(shortcut_esc())
+                            // nothing resolved: the link as written
+                            line(ui, &format!("**{}**", sheet.shown), t.neutral_fg());
                         }
-                        .height(button_h);
-                        cancel |= dismiss.show(ui).clicked();
-                        if sheet.open.is_none() {
-                            return;
+                        ui.add(Spacer::new(Space::Sm));
+                        line(ui, why, t.neutral_fg());
+                        for fix in lines {
+                            ui.add(Spacer::new(Space::Xs));
+                            line(ui, fix, t.neutral_fg_secondary());
                         }
-                        let layout = egui::Layout::right_to_left(egui::Align::Center);
-                        ui.with_layout(layout, |ui| {
-                            let mut primary = Button::primary(&t, "Open").height(button_h);
-                            if !touch {
-                                primary = primary.shortcut(shortcut_return());
+                        ui.add(Spacer::new(Space::Md));
+                        ui.horizontal(|ui| {
+                            let dismiss = if sheet.open.is_some() { "Cancel" } else { "Close" };
+                            let dismiss = if touch {
+                                Button::secondary(&t, dismiss)
+                            } else {
+                                Button::quiet(&t, dismiss).shortcut(shortcut_esc())
                             }
-                            open |= primary.show(ui).clicked();
+                            .height(button_h);
+                            cancel |= dismiss.show(ui).clicked();
+                            if sheet.open.is_none() {
+                                return;
+                            }
+                            let layout = egui::Layout::right_to_left(egui::Align::Center);
+                            ui.with_layout(layout, |ui| {
+                                let mut primary = Button::primary(&t, "Open").height(button_h);
+                                if !touch {
+                                    primary = primary.shortcut(shortcut_return());
+                                }
+                                open |= primary.show(ui).clicked();
+                            });
                         });
                     });
-                });
-            });
+                },
+            );
         });
     (open, open || cancel || dismissed)
 }

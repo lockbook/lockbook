@@ -36,6 +36,8 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
         logs: true,
         stdout_logs: true,
         colored_logs: false,
+        client_name: "android".into(),
+        build_info: None,
         client_type: ClientType::Ui,
     };
 

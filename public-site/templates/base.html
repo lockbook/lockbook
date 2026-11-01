@@ -1,11 +1,36 @@
 <!DOCTYPE html>
+{% set seo_title = config.extra.seo_title %}
+{% set seo_description = config.description %}
+{% set seo_url = get_url(path="/") %}
+{% if page is defined %}
+  {% set seo_title = page.title ~ " — Lockbook" %}
+  {% set seo_url = page.permalink %}
+  {% if page.description %}{% set seo_description = page.description %}{% endif %}
+{% elif section is defined %}
+  {% if section.title %}{% set seo_title = section.title ~ " — Lockbook" %}{% endif %}
+  {% set seo_url = section.permalink %}
+  {% if section.description %}{% set seo_description = section.description %}{% endif %}
+{% endif %}
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<title>{% block title %}Lockbook — Open-source notebook, encrypted on your device{% endblock %}</title>
-<meta name="description" content="{% block description %}{{ config.description }}{% endblock %}" />
+<title>{{ seo_title }}</title>
+<meta name="description" content="{{ seo_description }}" />
+<link rel="canonical" href="{{ seo_url }}" />
+<meta property="og:site_name" content="Lockbook" />
+<meta property="og:type" content="{% if page is defined and page.date %}article{% else %}website{% endif %}" />
+<meta property="og:title" content="{{ seo_title }}" />
+<meta property="og:description" content="{{ seo_description }}" />
+<meta property="og:url" content="{{ seo_url }}" />
+<meta property="og:image" content="{{ get_url(path=config.extra.social_image) }}" />
+<meta property="og:image:alt" content="{{ config.extra.social_image_alt }}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="{{ seo_title }}" />
+<meta name="twitter:description" content="{{ seo_description }}" />
+<meta name="twitter:image" content="{{ get_url(path=config.extra.social_image) }}" />
+<meta name="twitter:image:alt" content="{{ config.extra.social_image_alt }}" />
 
 <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
 <link rel="icon" type="image/png" sizes="96x96" href="/favicon/favicon-96x96.png" />
@@ -335,7 +360,7 @@ code,kbd,samp{font-family:var(--mono);font-size:.85em}
         <ul>
           <li><a href="/download">Download</a></li>
           <li><a href="/#pricing">Pricing</a></li>
-          <li><a href="/security">Security</a></li>
+          <li><a href="/docs/values.html#security">Security</a></li>
           <li><a href="https://github.com/lockbook/lockbook/milestones">Roadmap</a></li>
         </ul>
       </div>
@@ -344,8 +369,8 @@ code,kbd,samp{font-family:var(--mono);font-size:.85em}
         <ul>
           <li><a href="/blog">Blog</a></li>
           <li><a href="/docs">Docs</a></li>
-          <li><a href="https://github.com/lockbook/lockbook/tree/master/clients/cli">CLI</a></li>
-          <li><a href="https://crates.io/crates/lb-rs">lb-rs</a></li>
+          <li><a href="/docs/cli.html">CLI</a></li>
+          <li><a href="/docs/extending.html#lb-rs">lb-rs</a></li>
         </ul>
       </div>
       <div>

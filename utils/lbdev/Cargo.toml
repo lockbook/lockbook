@@ -1,6 +1,6 @@
 [package]
 name = "lbdev"
-version = "26.10.23"
+version = "26.10.31"
 edition = "2021"
 
 [dependencies]
@@ -19,3 +19,4 @@ google-androidpublisher3 = "5.0.2"
 tokio = { version = "1.20.1", features = ["rt-multi-thread"] }
 regex = "1.7.1"
 chrono-tz = "0.9"
+jsonwebtoken = "9.3.1"

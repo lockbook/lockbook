@@ -53,7 +53,6 @@ fn linux_window_button(
 ) -> egui::Response {
     use crate::components::foundation::chrome::HOVER_ANIM_SECS;
     let (rect, resp) = ui.allocate_exact_size(vec2(LINUX_HIT_W, HEADER_H), Sense::click());
-    let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
     if resp.clicked() {
         use egui::ViewportCommand;
         if close {

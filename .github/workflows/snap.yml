@@ -12,6 +12,10 @@ jobs:
       SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
     steps:
       - uses: actions/checkout@v4
+      - name: Use baseline amd64 apt indexes
+        run: |
+          sudo rm -f /etc/apt/apt.conf.d/90arch-variant
+          sudo apt-get update
       - name: Setup Snapcraft
         run: sudo snap install snapcraft --classic
       - name: Deploy CLI to Snap Store

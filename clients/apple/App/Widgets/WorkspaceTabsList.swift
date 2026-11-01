@@ -292,6 +292,10 @@ struct WorkspaceTabsList: View {
                 Divider()
             }
 
+            if let fileId = tab.destFile, tab.destKind == .file {
+                finderMenuSection(fileId)
+            }
+
             contextMenuItem("Close", systemImage: "xmark") {
                 close([id])
             }

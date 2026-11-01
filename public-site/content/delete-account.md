@@ -1,5 +1,6 @@
 +++
 title = "Delete Account"
+description = "How to delete files or your Lockbook account, what is removed from the server, and what happens to your username and server logs."
 template = "delete-account.html"
 +++
 

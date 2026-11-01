@@ -136,7 +136,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "admin"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -1871,9 +1871,9 @@ dependencies = [
 
 [[package]]
 name = "db-rs"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61d60e615100489d1ad5440f83e3a70a54cd7ddb702297f8dd9d7b29c9be99b1"
+checksum = "d5e9c30f717b1f6923dacdab6cf511a36c96d5e08a0b687444f581c51f6f4331"
 dependencies = [
  "bincode 2.0.1",
  "serde",
@@ -4102,8 +4102,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6971da4d9c3aa03c3d8f3ff0f4155b534aad021292003895a469716b2a230378"
 dependencies = [
  "base64 0.21.7",
- "pem",
+ "pem 1.1.1",
  "ring 0.16.20",
+ "serde",
+ "serde_json",
+ "simple_asn1",
+]
+
+[[package]]
+name = "jsonwebtoken"
+version = "9.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a87cc7a48537badeae96744432de36f4be2b4a34a05a5ef32e9dd8a1c169dde"
+dependencies = [
+ "base64 0.22.1",
+ "js-sys",
+ "pem 3.0.6",
+ "ring 0.17.14",
  "serde",
  "serde_json",
  "simple_asn1",
@@ -4212,9 +4227,10 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "lb-c"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "lb-rs",
+ "test_utils",
 ]
 
 [[package]]
@@ -4224,7 +4240,7 @@ source = "git+https://github.com/lockbook/lb-fonts#65830f0f1597ce3ffd8968f9c7b48
 
 [[package]]
 name = "lb-fs"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "cli-rs",
  "lb-rs",
@@ -4236,7 +4252,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "jni 0.21.1",
  "lb-rs",
@@ -4250,7 +4266,7 @@ dependencies = [
  "base64 0.21.7",
  "chrono",
  "flate2",
- "jsonwebtoken",
+ "jsonwebtoken 8.3.0",
  "lazy_static",
  "macaroon",
  "prometheus",
@@ -4267,7 +4283,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "aes-gcm",
  "base64 0.13.1",
@@ -4280,7 +4296,7 @@ dependencies = [
  "criterion",
  "crossbeam",
  "db-rs 0.3.7",
- "db-rs 0.4.1",
+ "db-rs 0.4.2",
  "db-rs-derive",
  "flate2",
  "futures",
@@ -4323,7 +4339,7 @@ dependencies = [
 
 [[package]]
 name = "lbdev"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "chrono-tz",
  "cli-rs",
@@ -4331,6 +4347,7 @@ dependencies = [
  "gh_release",
  "google-androidpublisher3",
  "hex",
+ "jsonwebtoken 9.3.1",
  "regex",
  "reqwest",
  "serde",
@@ -4531,7 +4548,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "arboard",
  "chrono",
@@ -4548,7 +4565,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "arboard",
  "chrono",
@@ -4578,14 +4595,14 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "lockbook-desktop",
 ]
 
 [[package]]
 name = "lockbook-server"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4593,12 +4610,12 @@ dependencies = [
  "bincode 1.3.3",
  "constant_time_eq 0.2.6",
  "db-rs 0.3.7",
- "db-rs 0.4.1",
+ "db-rs 0.4.2",
  "db-rs-derive",
  "futures",
  "google-androidpublisher3",
  "itertools 0.10.5",
- "jsonwebtoken",
+ "jsonwebtoken 8.3.0",
  "lazy_static",
  "lb-rs",
  "libsecp256k1",
@@ -4624,7 +4641,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "lockbook-desktop",
 ]
@@ -5724,6 +5741,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8835c273a76a90455d7344889b0964598e3316e2a79ede8e36f16bdcf2228b8"
 dependencies = [
  "base64 0.13.1",
+]
+
+[[package]]
+name = "pem"
+version = "3.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d30c53c26bc5b31a98cd02d20f25a7c8567146caf63ed593a9d87b2775291be"
+dependencies = [
+ "base64 0.22.1",
+ "serde_core",
 ]
 
 [[package]]
@@ -8002,7 +8029,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "bincode 1.3.3",
  "lb-rs",
@@ -9899,7 +9926,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -9933,7 +9960,7 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -9994,7 +10021,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "26.10.23"
+version = "26.10.31"
 dependencies = [
  "egui",
  "egui_extras",

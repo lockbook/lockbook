@@ -989,9 +989,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextLength(
 ) -> jint {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
+    // no note: no text, which the IME may still ask about as the tab changes
     let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
-        None => return -1,
+        None => return 0,
     };
 
     markdown

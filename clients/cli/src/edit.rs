@@ -81,7 +81,7 @@ impl Default for Editor {
 
         env::var("LOCKBOOK_EDITOR")
             .map(Editor::Custom)
-            .or(Self::from_sys_env_var())
+            .or_else(|_| Self::from_sys_env_var())
             .unwrap_or_else(|_| {
                 eprintln!("LOCKBOOK_EDITOR, VISUAL or EDITOR not set, assuming {default:?}");
                 default
@@ -95,9 +95,13 @@ impl Editor {
             .or(env::var("VISUAL"))
             .map_err(|_| "no EDITOR or VISUAL")?;
 
-        let editor = editor.split('/').next_back().unwrap();
+        let name = editor.split('/').next_back().unwrap();
 
-        Ok(editor.parse().map_err(|_| "no EDITOR or VISUAL")?)
+        Ok(match name.parse().map_err(|_| "no EDITOR or VISUAL")? {
+            // run an editor we don't know about exactly as the user configured it
+            Editor::Custom(_) => Editor::Custom(editor),
+            known => known,
+        })
     }
 }
 
@@ -125,13 +129,7 @@ impl FromStr for Editor {
             "nano" => Editor::Nano,
             "subl" | "sublime" => Editor::Sublime,
             "code" => Editor::Code,
-            unsupported => {
-                let default = Editor::default();
-                eprintln!(
-                    "{unsupported} is not yet supported, make a github issue! Falling back to {default:?}."
-                );
-                default
-            }
+            _ => Editor::Custom(s.to_string()),
         };
 
         Ok(editor)
@@ -236,4 +234,24 @@ async fn save_temp_file_contents<P: AsRef<Path>>(
 
     lb.write_document(id, &secret).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Editor;
+
+    #[test]
+    fn known_editor_names_parse() {
+        assert!(matches!("vim".parse::<Editor>().unwrap(), Editor::Vim));
+        assert!(matches!("hx".parse::<Editor>().unwrap(), Editor::Helix));
+        assert!(matches!("Code".parse::<Editor>().unwrap(), Editor::Code));
+    }
+
+    #[test]
+    fn unsupported_editor_name_is_custom() {
+        match "vi".parse::<Editor>().unwrap() {
+            Editor::Custom(s) => assert_eq!(s, "vi"),
+            other => panic!("expected Editor::Custom, got {other:?}"),
+        }
+    }
 }

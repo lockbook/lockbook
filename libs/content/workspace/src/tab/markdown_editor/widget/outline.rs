@@ -218,14 +218,15 @@ impl Outline {
     /// whether it was dismissed.
     #[allow(clippy::too_many_arguments)]
     pub fn card(
-        &mut self, ctx: &egui::Context, id: Id, place: Option<CardPlace>, canvas: Rect,
-        rows: &[OutlineRow], current: Option<usize>, linked: &[LinkedNote],
+        &mut self, ctx: &egui::Context, id: Id, place: Option<CardPlace>, rows: &[OutlineRow],
+        current: Option<usize>, linked: &[LinkedNote],
     ) -> (Option<Choice>, Option<Rect>, bool) {
         let Some(CardPlace { area, floating, shown, open }) = place else {
             return (None, None, false);
         };
         let t = ctx.get_lb_theme();
-        let ground = t.neutral_bg_secondary();
+        // the page's own color: docked it reads as part of the note
+        let ground = t.neutral_bg();
         let pad = Space::Sm.pts();
         let header = control_height();
         let gap = Space::Md.pts();
@@ -253,8 +254,12 @@ impl Outline {
                 );
                 ui.allocate_rect(card, Sense::hover());
 
-                let shadow = floating.then(|| pin_shadow(&t));
-                paint_surface(ui, card, shadow);
+                // over the text it lifts off it
+                let radius = Radius::Surface.corner();
+                if floating {
+                    ui.painter().add(pin_shadow(&t).as_shape(card, radius));
+                }
+                ui.painter().rect_filled(card, radius, ground);
                 let (left, mut top) = (card.left() + pad, card.top() + pad);
                 paint_title(ui, "Outline", left, top);
                 top += header;
@@ -280,14 +285,9 @@ impl Outline {
         if !open {
             return (None, Some(card), false);
         }
-        let click_elsewhere = ctx.input(|i| {
-            i.pointer.any_click()
-                && i.pointer
-                    .interact_pos()
-                    .is_some_and(|p| canvas.contains(p) && !card.contains(p))
-        });
+        // a floating card stays while the reader works under it; Esc puts it away
         let escape = ctx.input(|i| i.key_pressed(egui::Key::Escape));
-        let dismissed = floating && (chosen.is_some() || click_elsewhere || escape);
+        let dismissed = floating && escape;
         (chosen, Some(card), dismissed)
     }
 }
@@ -390,9 +390,6 @@ impl Scroll {
                 let amount = if on { FG_HOVER } else { FG_HOVER * hover };
                 let wash = t.wash_toward_neutral_fg(ground, amount);
                 painter.rect_filled(rect, Radius::Sm.corner(), wash);
-            }
-            if live && resp.hovered() {
-                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
             }
             let text_rect = Rect::from_min_max(
                 pos2(rect.left() + Space::Sm.pts() + m.indent, rect.top()),
@@ -601,12 +598,14 @@ fn paint_surface(ui: &Ui, rect: Rect, shadow: Option<egui::Shadow>) {
 }
 
 /// A section's title in a header row whose top left is (`left`, `top`).
+/// A section's title, in small caps as list sections are titled.
 fn paint_title(ui: &Ui, title: &str, left: f32, top: f32) {
     let t = ui.ctx().get_lb_theme();
-    let font = egui::FontId::new(TypeRole::Body.size(), egui::FontFamily::Name(Arc::from("Bold")));
-    let title = ui
-        .painter()
-        .layout_no_wrap(title.into(), font, t.neutral_fg_secondary());
+    let title = ui.painter().layout_no_wrap(
+        TypeRole::caps(title),
+        TypeRole::Caption.font_id(),
+        t.neutral_fg_secondary(),
+    );
     let at = pos2(left + Space::Xs.pts(), top + (control_height() - title.size().y) / 2.0);
     ui.painter().galley(at, title, t.neutral_fg_secondary());
 }

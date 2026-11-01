@@ -142,7 +142,7 @@ impl<T> Default for Entries<T> {
 /// - Secondary-click opens near the pointer, **nudged** so the press is not on
 ///   the first row.
 /// - Returns `Some(value)` when an item is chosen (not on the open frame).
-/// - Closes on Escape, click outside, or choose.
+/// - Closes on Escape, click outside, scroll, or choose.
 ///
 /// Only one menu is open app-wide; right-clicking another host replaces it.
 pub fn show<T: Clone>(
@@ -273,8 +273,14 @@ fn show_open<T: Clone>(
     let click_outside = !just_opened
         && ctx.input(|i| i.pointer.any_click())
         && pointer.is_some_and(|p| !root_panel_rect.contains(p));
+    let scrolled = !just_opened
+        && ctx.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::MouseWheel { .. }))
+        });
 
-    if chosen.is_some() || escape || click_outside {
+    if chosen.is_some() || escape || click_outside || scrolled {
         ctx.memory_mut(|m| {
             m.data.remove::<OpenState>(open_id());
         });

@@ -14,7 +14,7 @@ func withWidgetCore<T>(_ operation: (OpaquePointer?) throws -> T) throws -> T {
         throw WidgetOperationError(message: "Open Lockbook to set up your account.")
     }
 
-    let core = lb_init(directory.path, false, false)
+    let core = lb_init(directory.path, "widgets", BuildInfo.identity, true, false)
     defer { lb_free_init(core) }
     if let error = core.err {
         throw WidgetOperationError(message: String(cString: error.pointee.msg))

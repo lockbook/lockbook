@@ -93,6 +93,8 @@ fn verbose_config() -> Config {
         logs: true,
         stdout_logs: true,
         colored_logs: false,
+        client_name: "tests".into(),
+        build_info: None,
         client_type: ClientType::Unknown,
     }
 }

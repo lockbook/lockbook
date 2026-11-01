@@ -4,7 +4,7 @@ use egui::{Id, Ui};
 
 use crate::components::{
     Button, Field, Radius, SheetFooterOpts, Space, Spacer, Theme, TypeRole, control_height,
-    footnote, form_group, form_row, form_row_detail, form_value, plate_content, section_label,
+    footnote, form_group, form_row, form_row_detail, form_value, section_label,
     sheet_band_centered, sheet_footer, shortcut_enter, shortcut_return, ui_width,
 };
 use crate::shell::ShellApp;
@@ -116,13 +116,19 @@ fn page_account_phrase(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
 
     let phrase = app.phrase_cache.as_deref().unwrap_or("Preparing phrase…");
     // Elevated plate + pad — natural height, no tight form_group squeeze.
-    plate_content(ui, t.neutral_bg_secondary(), t.neutral(), Radius::Control.corner(), |ui| {
-        ui.set_width(ui_width(ui));
-        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-        crate::components::with_pad_fit(ui, Space::Md, |ui| {
-            ui.label(TypeRole::Mono.rich(phrase).color(t.neutral_fg()));
-        });
-    });
+    crate::components::plate_content_shadow(
+        ui,
+        t.neutral_bg_secondary(),
+        crate::components::pin_shadow(t),
+        Radius::Control.corner(),
+        |ui| {
+            ui.set_width(ui_width(ui));
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            crate::components::with_pad_fit(ui, Space::Md, |ui| {
+                ui.label(TypeRole::Mono.rich(phrase).color(t.neutral_fg()));
+            });
+        },
+    );
 
     ui.add(Spacer::new(Space::Md));
     let foot = sheet_footer(

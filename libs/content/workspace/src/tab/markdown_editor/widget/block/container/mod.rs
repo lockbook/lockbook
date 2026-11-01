@@ -12,7 +12,7 @@ use lb_rs::model::text::offset_types::{
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::block::drag::DragUnit;
-use crate::tab::markdown_editor::widget::inline::image::image::image_url;
+use crate::tab::markdown_editor::widget::inline::image::image::{image_url, small_image_metrics};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     Fragment, FragmentContent, FragmentInset,
@@ -941,19 +941,22 @@ impl<'ast> MdRender {
         if leaf_node_line.is_empty() || self.disable_images {
             return None;
         }
-        let max_image_height = leaf
+        let leaf_row_height = self.row_height(leaf);
+        // the row's metric in `wrap_layout`, with each image placed by `small_image_metrics`
+        let (ascent, descent) = leaf
             .descendants()
             .filter(|d| image_url(d).is_some())
             .filter(|d| leaf_node_line.contains_range(&self.node_range(d), true, true))
             // Same collapse predicate as `layout_image`, else a selected image
             // stays tall but the row doesn't inflate, shifting the marker.
             .filter(|d| !self.range_revealed_interior(self.node_range(d)))
-            .filter_map(|d| self.image_logical_size(d).map(|s| s.y))
-            .fold(0.0_f32, f32::max);
-        let leaf_row_height = self.row_height(leaf);
-        let leaf_ascent = leaf_row_height * 0.8;
-        let leaf_descent = leaf_row_height * 0.2;
-        (max_image_height > leaf_ascent).then_some(max_image_height + leaf_descent)
+            .filter_map(|d| self.image_logical_size(d))
+            .map(|size| small_image_metrics(size.y, leaf_row_height))
+            .fold((leaf_row_height * 0.8, leaf_row_height * 0.2), |(a, d), (ia, id)| {
+                (a.max(ia), d.max(id))
+            });
+        let height = ascent + descent;
+        (height > leaf_row_height).then_some(height)
     }
 
     // compute bounds for blocks stacked vertically

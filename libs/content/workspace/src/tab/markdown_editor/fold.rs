@@ -130,6 +130,7 @@ impl<'ast> MdRender {
             format: format.clone(),
             source_range: node_range,
             chip: true,
+            wrap: false,
         });
         layout.push_override(node_range, FOLD_CHIP_TEXT, format);
         layout.style_close();
@@ -154,10 +155,6 @@ impl<'ast> MdRender {
                 Event::Replace { region: fold.tag.into(), text: "".into(), advance_cursor: false };
             self.touch_consume_interaction(id, TouchTarget::Tap(unfold.clone()));
 
-            if response.hovered() {
-                ui.ctx()
-                    .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            }
             if response.clicked() {
                 self.render_events.push(unfold);
             }

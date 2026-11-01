@@ -10,7 +10,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.*
-import android.widget.EditText
 import androidx.annotation.IdRes
 import androidx.annotation.StringRes
 import androidx.appcompat.widget.PopupMenu
@@ -32,6 +31,7 @@ import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
 import app.lockbook.ui.BreadCrumbItem
+import app.lockbook.ui.PinEmojiBottomSheetFragment
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
@@ -195,7 +195,7 @@ class FilesListFragment :
                 fileTreeModel = model,
                 snackbarAnchor = (requireActivity() as MainScreenActivity).fileActionSnackbarAnchorView,
                 onClearSelection = ::unselectFiles,
-                onAddPinnedEmoji = { file -> showEmojiDialog(file.id, file.name, null) },
+                onAddPinnedEmoji = { file -> showEmojiPicker(file.id, file.name) },
             )
     }
 
@@ -315,7 +315,7 @@ class FilesListFragment :
             .setItems(actions.map { getString(it.titleRes) }.toTypedArray()) { _, which ->
                 when (actions[which]) {
                     PinnedFileAction.ChangeEmoji -> {
-                        showEmojiDialog(item.pin.id, item.file.name, item.pin.emoji)
+                        showEmojiPicker(item.pin.id, item.file.name)
                     }
 
                     PinnedFileAction.RemoveEmoji -> {
@@ -337,26 +337,11 @@ class FilesListFragment :
             }.show()
     }
 
-    private fun showEmojiDialog(
+    private fun showEmojiPicker(
         fileId: String,
         fileName: String,
-        currentEmoji: String?,
     ) {
-        val content = layoutInflater.inflate(R.layout.dialog_pick_pin_emoji, null)
-        val emojiInput = content.findViewById<EditText>(R.id.pin_emoji_input)
-        emojiInput.setText(currentEmoji)
-        emojiInput.setSelection(emojiInput.text.length)
-
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(R.string.choose_pin_emoji)
-            .setMessage(fileName)
-            .setView(content)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                model.setPinnedEmoji(fileId, emojiInput.text?.toString())
-            }.show()
-            .window
-            ?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        PinEmojiBottomSheetFragment.newInstance(fileId, fileName).show(parentFragmentManager, "pin_emoji")
     }
 
     private fun showPinnedFileInFolder(file: File) {

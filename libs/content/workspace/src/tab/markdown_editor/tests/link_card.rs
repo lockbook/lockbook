@@ -4,15 +4,13 @@
 //! stays clean, portable markdown — the trigger is positional, not a syntax
 //! suffix — so these pin exactly which links qualify.
 
-use std::sync::{Arc, Mutex};
-
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
 use super::super::input::Event;
 use super::harness::TestEditor;
-use crate::tab::markdown_editor::widget::inline::link::meta::{LinkMeta, LinkMetaState};
+use crate::link_preview::LinkMeta;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, FragmentContent};
 
 /// True if a `LinkCard` embed fragment was painted this frame.
@@ -32,16 +30,9 @@ fn renders_card_with_cached_meta(md: &str, cache_url: &str) -> bool {
     ws.editor
         .edit
         .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(
-            cache_url.to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "Example Title".into(),
-                ..Default::default()
-            }))),
-        );
+        .previews
+        .insert(cache_url, LinkMeta { title: "Example Title".into(), ..Default::default() });
+    ws.editor.persistence.set_contact_linked_sites(true);
     ws.enter_frame();
     has_card_fragment(&ws)
 }
@@ -108,15 +99,27 @@ fn previews_off_does_not_fetch_autolink_titles() {
     let mut ws = TestEditor::new("https://example.com\n");
     ws.enter_frame();
     assert!(
-        ws.editor
-            .edit
-            .renderer
-            .layout_cache
-            .link_meta
-            .borrow()
-            .is_empty(),
+        ws.editor.edit.renderer.previews.is_empty(),
         "no title fetch should be initiated when previews are off"
     );
+}
+
+/// Previews belong to the app, not the tab: a note opened again, or in a
+/// second tab, shows what the first already fetched without asking the site.
+#[test]
+fn previews_are_shared_across_tabs() {
+    let url = "https://example.com";
+    let first = TestEditor::new("https://example.com\n");
+    first
+        .editor
+        .edit
+        .renderer
+        .previews
+        .insert(url, LinkMeta { title: "Example Title".into(), ..Default::default() });
+    let mut second = TestEditor::beside(&first, "https://example.com\n");
+    second.editor.persistence.set_contact_linked_sites(true);
+    second.enter_frame();
+    assert!(has_card_fragment(&second), "the second tab shows the first tab's preview");
 }
 
 // ── card rendering (does a card fragment actually get emitted) ──
@@ -124,6 +127,32 @@ fn previews_off_does_not_fetch_autolink_titles() {
 #[test]
 fn cached_metadata_renders_a_card() {
     assert!(renders_card_with_cached_meta("https://example.com\n", "https://example.com"));
+}
+
+/// Turning sites off hides what they already sent, not just what's to come.
+#[test]
+fn previews_off_hides_fetched_ones() {
+    let mut ws = TestEditor::new("https://example.com\n");
+    ws.editor.edit.renderer.previews.insert(
+        "https://example.com",
+        LinkMeta { title: "Example Title".into(), ..Default::default() },
+    );
+    ws.enter_frame();
+    assert!(!has_card_fragment(&ws));
+}
+
+/// With sites off, a link a known site's URL names stays its URL, so
+/// nothing reads as a preview.
+#[test]
+fn previews_off_leaves_known_sites_as_urls() {
+    let mut ws = TestEditor::new("see https://github.com/lockbook/lockbook/issues/1 here\n");
+    ws.enter_frame();
+    let chips = ws.editor.edit.renderer.fragments.iter();
+    assert!(
+        !chips
+            .into_iter()
+            .any(|f| f.style_stack.iter().any(|s| s.chip))
+    );
 }
 
 #[test]
@@ -141,33 +170,22 @@ fn setting_mirrors_onto_renderer_each_frame() {
     assert!(ws.editor.edit.renderer.contact_linked_sites, "mirrored from persistence");
 }
 
-/// A wrapped capsule re-opens its style scope on each row, so chip boundary
-/// anchors exist per row at the same source positions. The edge carets must
-/// resolve to the capsule's *true* edges: start on the first row's pill-left,
-/// end on the last row's pill-right (regression: the end caret rendered at
-/// the end of the first row's segment).
+/// A chip too long for its row is cut to fit, never wrapped: one row, its
+/// edge carets at the pill's edges.
 #[test]
-fn wrapped_capsule_edge_carets() {
+fn long_chip_stays_on_one_row() {
     use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
-    use lb_rs::model::text::offset_types::IntoRangeExt as _;
     let url = "https://example.com";
     let mut ws = TestEditor::new("see https://example.com\nnext para\n");
-    ws.editor
-        .edit
-        .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(
-            url.to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "Example Title That Wraps Across Rows".into(),
-                favicon_url: Some("https://example.com/favicon.ico".into()),
-                ..Default::default()
-            }))),
-        );
-    // Production fonts are narrower than egui defaults; a short title
-    // can fit on one line at 160px.
+    ws.editor.edit.renderer.previews.insert(
+        url,
+        LinkMeta {
+            title: "Example Title Much Too Long-Winded For Its Narrow Row".into(),
+            favicon_url: Some("https://example.com/favicon.ico".into()),
+            ..Default::default()
+        },
+    );
+    ws.editor.persistence.set_contact_linked_sites(true);
     let size = egui::Vec2::new(160.0, 600.0);
     for _ in 0..3 {
         ws.enter_frame_at(size);
@@ -182,39 +200,38 @@ fn wrapped_capsule_edge_carets() {
             .expect("a link node");
         ws.editor.edit.renderer.node_range(node)
     };
-    ws.push(Event::Select { region: range.end().into_range().into() });
-    ws.enter_frame_at(size);
+    let chip: Vec<_> = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .filter(|f| f.style_stack.last().is_some_and(|s| s.chip))
+        .collect();
+    assert!(!chip.is_empty(), "chip renders");
+    assert!(
+        chip.iter()
+            .all(|f| (f.rect.top() - chip[0].rect.top()).abs() < 0.5),
+        "one row"
+    );
 
-    let anchors = |offset| {
-        ws.editor
-            .edit
-            .renderer
-            .fragments
-            .iter()
-            .filter(|f| {
-                f.source_range == (offset, offset)
-                    && matches!(f.content, FragmentContent::Spacer)
-                    && f.style_stack.last().is_some_and(|s| s.chip)
+    let edge = |offset| {
+        chip.iter()
+            .find(|f| {
+                f.source_range == (offset, offset) && matches!(f.content, FragmentContent::Spacer)
             })
-            .collect::<Vec<_>>()
+            .expect("edge anchor")
+            .rect
     };
-    let trailing = anchors(range.end());
-    assert!(trailing.len() > 1, "capsule wrapped: an anchor per row, got {}", trailing.len());
-
+    let (start, end) = (edge(range.start()), edge(range.end()));
     let start_line = ws
         .editor
         .edit
         .cursor_line(range.start())
         .expect("start caret");
     let end_line = ws.editor.edit.cursor_line(range.end()).expect("end caret");
-    assert!(
-        end_line[0].y > start_line[0].y,
-        "end caret on a later row: start {start_line:?} end {end_line:?}"
-    );
-    let true_end = trailing.last().unwrap().rect.max.x;
-    assert_eq!(end_line[0].x, true_end, "end caret at the last row's pill edge");
-    let true_start = anchors(range.start()).first().unwrap().rect.min.x;
-    assert_eq!(start_line[0].x, true_start, "start caret at the first row's pill edge");
+    assert_eq!(start_line[0].x, start.min.x, "start caret at the pill's left edge");
+    assert_eq!(end_line[0].x, end.max.x, "end caret at the pill's right edge");
 }
 
 /// A tap-selected capsule's selection rects hug the pill: one merged rect per
@@ -228,20 +245,15 @@ fn capsule_selection_rects_hug_pill() {
     use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
     let url = "https://example.com";
     let mut ws = TestEditor::new("see https://example.com after\n");
-    ws.editor
-        .edit
-        .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(
-            url.to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "Example Title".into(),
-                favicon_url: Some("https://example.com/favicon.ico".into()),
-                ..Default::default()
-            }))),
-        );
+    ws.editor.edit.renderer.previews.insert(
+        url,
+        LinkMeta {
+            title: "Example Title".into(),
+            favicon_url: Some("https://example.com/favicon.ico".into()),
+            ..Default::default()
+        },
+    );
+    ws.editor.persistence.set_contact_linked_sites(true);
     ws.enter_frame();
 
     let range = {
@@ -297,16 +309,9 @@ fn enter_atom_reveals_link_card_source() {
     ws.editor
         .edit
         .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(
-            url.to_string(),
-            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
-                title: "Example Title".into(),
-                ..Default::default()
-            }))),
-        );
+        .previews
+        .insert(url, LinkMeta { title: "Example Title".into(), ..Default::default() });
+    ws.editor.persistence.set_contact_linked_sites(true);
     ws.enter_frame();
     assert!(has_card_fragment(&ws), "card renders with cached meta");
 
@@ -344,26 +349,15 @@ fn enter_atom_reveals_link_card_source() {
 fn rate_limited_meta_degrades_and_gates_refetch() {
     let url = "https://example.com";
     let mut ws = TestEditor::new("https://example.com\n");
-    let arc = Arc::new(Mutex::new(LinkMetaState::Failed {
-        retry_at: Some(web_time::Instant::now() + std::time::Duration::from_secs(60)),
-        attempts: 1,
-    }));
-    ws.editor
-        .edit
-        .renderer
-        .layout_cache
-        .link_meta
-        .borrow_mut()
-        .insert(url.to_string(), arc.clone());
+    let previews = ws.editor.edit.renderer.previews.clone();
+    previews.fail(url, web_time::Instant::now() + std::time::Duration::from_secs(60));
     ws.enter_frame();
     assert!(!has_card_fragment(&ws), "cooling down: plain link, no skeleton");
 
     // Timestamp lapses, but fetching is off (the default): the entry must be
     // left untouched — no Loading swap-in, no spawned request.
-    *arc.lock().unwrap() =
-        LinkMetaState::Failed { retry_at: Some(web_time::Instant::now()), attempts: 1 };
+    previews.fail(url, web_time::Instant::now());
     ws.enter_frame();
-    let entry = ws.editor.edit.renderer.layout_cache.link_meta.borrow()[url].clone();
-    assert!(Arc::ptr_eq(&arc, &entry), "fetching off: expired retry_at doesn't refetch");
+    assert!(!previews.is_loading(url), "fetching off: expired retry_at doesn't refetch");
     assert!(!has_card_fragment(&ws));
 }

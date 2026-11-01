@@ -4,9 +4,18 @@ let mainWindowId = "main"
 
 @main
 struct LockbookApp: App {
+    private let crashReporter = MetricKitCrashReporter {
+        URL(fileURLWithPath: ProcessInfo.processInfo.environment["LOCKBOOK_PATH"] ?? AppState.LB_LOC)
+    }
     @State private var billingState = BillingState()
 
     @Environment(\.openWindow) private var openWindow
+
+    init() {
+        if !isPreviewEnvironmentKey.defaultValue {
+            crashReporter.start()
+        }
+    }
 
     var body: some Scene {
         WindowGroup(id: mainWindowId) {
@@ -102,6 +111,9 @@ struct ContentView: View {
         Group {
             if appState.isLoggedIn {
                 HomeView()
+                    #if os(macOS)
+                    .onAppear { FinderIntegration.shared.refresh() }
+                    #endif
             } else {
                 OnboardingView()
             }

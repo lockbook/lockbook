@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use comrak::nodes::AstNode;
-use egui::{Pos2, Rangef, Rect, Stroke, Ui, UiBuilder, Vec2};
+use egui::{Pos2, Rangef, Rect, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::input::{Event, Location, Region};
@@ -112,12 +112,7 @@ impl<'ast> MdRender {
             }
 
             // draw exterior decoration
-            ui.painter().rect_stroke(
-                table,
-                2.,
-                Stroke { width: 1., color: theme.neutral_bg_tertiary() },
-                egui::epaint::StrokeKind::Inside,
-            );
+            crate::style::paint_doc_border(ui.painter(), table, 2, &theme);
             self.show_table_handles(ui, first_cell_box);
 
             // below a table that ends the note a tap edits (`MdEdit::tap`):

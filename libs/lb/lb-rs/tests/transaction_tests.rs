@@ -1,9 +1,38 @@
 #![cfg(not(target_family = "wasm"))]
 
+use db_rs::View;
 use lb_rs::Lb;
 use std::{sync::mpsc, thread, time::Duration};
 use test_utils::test_config;
 use tokio::runtime::Builder;
+
+#[test]
+fn reused_blocking_core_refreshes_between_concurrent_requests() {
+    let config = test_config();
+    let reader = lb_rs::blocking::Lb::init(config.clone()).unwrap();
+    let runtime = Builder::new_current_thread().enable_all().build().unwrap();
+    let writer = runtime.block_on(Lb::init(config)).unwrap();
+
+    for (previous, current) in [(0, 123), (123, 456)] {
+        runtime.block_on(async {
+            let mut tx = writer.begin_tx().await;
+            tx.db().last_synced.replace(current).unwrap();
+            tx.end();
+        });
+        assert_eq!(reader.get_last_synced().unwrap(), previous);
+
+        thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| {
+                    reader.refresh();
+                    assert_eq!(reader.get_last_synced().unwrap(), current);
+                });
+            }
+        });
+        // The same reader must also catch up after the writer rotates its log.
+        runtime.block_on(async { writer.db.write().await.snapshot().unwrap() });
+    }
+}
 
 #[test]
 #[ignore = "independent instances can deadlock a shared Tokio runtime"]

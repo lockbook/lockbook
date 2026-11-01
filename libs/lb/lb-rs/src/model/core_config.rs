@@ -22,6 +22,14 @@ impl ClientType {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
+    /// Identifies the client in startup logs and `lockbook-<client_name>.log`.
+    #[serde(default)]
+    pub client_name: String,
+
+    /// Optional build identity of a client compiled separately from Rust.
+    #[serde(default)]
+    pub build_info: Option<String>,
+
     /// Where should lockbook store data, including logs?
     pub writeable_path: String,
 
@@ -46,6 +54,8 @@ impl Config {
     /// a hardcoded client name like `"cli"`.
     pub fn cli_config(writeable_path_subfolder: &str) -> Config {
         Config {
+            client_name: writeable_path_subfolder.to_owned(),
+            build_info: None,
             writeable_path: Self::writeable_path(writeable_path_subfolder),
             background_work: false,
             logs: true,
@@ -59,6 +69,8 @@ impl Config {
     /// a hardcoded client name like `"macos"`.
     pub fn ui_config(writeable_path_subfolder: &str) -> Config {
         Config {
+            client_name: writeable_path_subfolder.to_owned(),
+            build_info: None,
             writeable_path: Self::writeable_path(writeable_path_subfolder),
             background_work: true,
             logs: true,

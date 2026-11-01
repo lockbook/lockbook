@@ -4,6 +4,7 @@ use egui::{Response, Sense, Ui};
 use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Weight};
 use unicode_segmentation::UnicodeSegmentation as _;
 
+use crate::style::TypeRole;
 use crate::widgets::glyphon_cache::{
     GlyphonCache, GlyphonCacheKey, GlyphonCacheSpan, GlyphonFontFamily,
 };
@@ -21,6 +22,7 @@ pub enum TextOverflow {
 pub struct SpanStyle {
     pub bold: bool,
     pub color: Option<egui::Color32>,
+    pub mono: bool,
 }
 
 /// A text label rendered through glyphon so that emoji, non-Latin scripts, and
@@ -48,6 +50,9 @@ pub struct GlyphonLabel<'a> {
     /// single unbounded line.
     max_width: f32,
     text_overflow: TextOverflow,
+    /// With [`TextOverflow::EndEllipsis`], wrap to this many lines before the
+    /// ellipsis instead of one.
+    max_lines: usize,
     sense: Sense,
 }
 
@@ -115,13 +120,14 @@ impl<'a> GlyphonLabel<'a> {
     /// Plain text label.
     pub fn new(text: &'a str, color: egui::Color32) -> Self {
         Self {
-            spans: vec![(text, SpanStyle { bold: false, color: None })],
+            spans: vec![(text, SpanStyle { bold: false, color: None, mono: false })],
             color,
             hint: None,
             font_size: 14.0,
             line_height: None,
             max_width: f32::MAX,
             text_overflow: TextOverflow::Clip,
+            max_lines: 1,
             sense: Sense::hover(),
         }
     }
@@ -132,7 +138,7 @@ impl<'a> GlyphonLabel<'a> {
         Self {
             spans: spans
                 .into_iter()
-                .map(|(t, bold)| (t, SpanStyle { bold, color: None }))
+                .map(|(t, bold)| (t, SpanStyle { bold, color: None, mono: false }))
                 .collect(),
             color,
             hint: None,
@@ -140,6 +146,7 @@ impl<'a> GlyphonLabel<'a> {
             line_height: None,
             max_width: f32::MAX,
             text_overflow: TextOverflow::Clip,
+            max_lines: 1,
             sense: Sense::hover(),
         }
     }
@@ -150,7 +157,7 @@ impl<'a> GlyphonLabel<'a> {
         Self {
             spans: spans
                 .into_iter()
-                .map(|(t, c)| (t, SpanStyle { bold: false, color: c }))
+                .map(|(t, c)| (t, SpanStyle { bold: false, color: c, mono: false }))
                 .collect(),
             color,
             hint: None,
@@ -158,6 +165,7 @@ impl<'a> GlyphonLabel<'a> {
             line_height: None,
             max_width: f32::MAX,
             text_overflow: TextOverflow::Clip,
+            max_lines: 1,
             sense: Sense::hover(),
         }
     }
@@ -170,6 +178,21 @@ impl<'a> GlyphonLabel<'a> {
 
     pub fn font_size(self, font_size: f32) -> Self {
         Self { font_size, ..self }
+    }
+
+    /// Size, line height and face from the design system's `role`;
+    /// [`TypeRole::Mono`] is set in the monospace face.
+    pub fn role(self, role: TypeRole) -> Self {
+        let label = self.font_size(role.size()).line_height(role.line_height());
+        if role == TypeRole::Mono { label.mono() } else { label }
+    }
+
+    /// Sets every span in the monospace face.
+    pub fn mono(mut self) -> Self {
+        self.spans
+            .iter_mut()
+            .for_each(|(_, style)| style.mono = true);
+        self
     }
 
     /// Set the row height used for glyph metrics and allocation.
@@ -186,6 +209,10 @@ impl<'a> GlyphonLabel<'a> {
 
     pub fn text_overflow(self, text_overflow: TextOverflow) -> Self {
         Self { text_overflow, ..self }
+    }
+
+    pub fn max_lines(self, max_lines: usize) -> Self {
+        Self { max_lines: max_lines.max(1), ..self }
     }
 
     pub fn sense(self, sense: Sense) -> Self {
@@ -222,7 +249,7 @@ impl<'a> GlyphonLabel<'a> {
             Self::shape_buffer(
                 ctx,
                 ppi,
-                &[(text, SpanStyle { bold: false, color: None })],
+                &[(text, SpanStyle { bold: false, color: None, mono: false })],
                 color,
                 hint_font_size,
                 line_height,
@@ -256,6 +283,11 @@ impl<'a> GlyphonLabel<'a> {
                 let [(text, style)] = self.spans.as_slice() else {
                     return self.owned_spans();
                 };
+
+                if self.max_lines > 1 {
+                    let text = self.end_ellipsis_lines(ctx, ppi, text, *style, line_height);
+                    return vec![OwnedSpan { text, style: *style }];
+                }
 
                 if Self::measure_text_width(ctx, ppi, text, *style, self.font_size, line_height)
                     <= self.max_width
@@ -324,6 +356,39 @@ impl<'a> GlyphonLabel<'a> {
         ELLIPSIS.to_owned()
     }
 
+    /// The longest start of `text`, ellipsis added when cut, that wraps to
+    /// at most `max_lines` lines at `max_width`.
+    fn end_ellipsis_lines(
+        &self, ctx: &egui::Context, ppi: f32, text: &str, style: SpanStyle, line_height: f32,
+    ) -> String {
+        let fits = |candidate: &str| {
+            let shaped = Self::shape_buffer(
+                ctx,
+                ppi,
+                &[(candidate, style)],
+                egui::Color32::default(),
+                self.font_size,
+                line_height,
+                self.max_width,
+            );
+            shaped.size.y <= line_height * self.max_lines as f32 + 0.5
+        };
+        if fits(text) {
+            return text.to_owned();
+        }
+        let chars: Vec<char> = text.chars().collect();
+        let (mut low, mut high) = (0, chars.len());
+        while low < high {
+            let keep = (low + high).div_ceil(2);
+            if fits(&end_ellipsis_candidate(&chars, keep)) {
+                low = keep;
+            } else {
+                high = keep - 1;
+            }
+        }
+        end_ellipsis_candidate(&chars, low)
+    }
+
     fn measure_text_width(
         ctx: &egui::Context, ppi: f32, text: &str, style: SpanStyle, font_size: f32,
         line_height: f32,
@@ -350,7 +415,11 @@ impl<'a> GlyphonLabel<'a> {
                 .iter()
                 .map(|&(text, style)| GlyphonCacheSpan {
                     text: text.to_string(),
-                    family: GlyphonFontFamily::SansSerif,
+                    family: if style.mono {
+                        GlyphonFontFamily::Monospace
+                    } else {
+                        GlyphonFontFamily::SansSerif
+                    },
                     bold: style.bold,
                     italic: false,
                     color: style.color.map(|c| c.to_array()),
@@ -382,11 +451,14 @@ impl<'a> GlyphonLabel<'a> {
                 // span's own attrs. Mirrors the editor's `shape_chunk`.
                 buf.set_rich_text(
                     spans.iter().flat_map(|&(text, style)| {
-                        let mut attrs = if style.bold {
-                            base.clone().weight(Weight::BOLD)
+                        let mut attrs = if style.mono {
+                            base.clone().family(Family::Monospace)
                         } else {
                             base.clone()
                         };
+                        if style.bold {
+                            attrs = attrs.weight(Weight::BOLD);
+                        }
                         if let Some(c) = style.color {
                             attrs = attrs.color(glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()));
                         }

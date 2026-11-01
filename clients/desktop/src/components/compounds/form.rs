@@ -132,10 +132,10 @@ pub fn toggle(ui: &mut Ui, t: &Theme, on: &mut bool) -> Response {
 /// PAD_GROUP_Y (Sm)
 /// ```
 pub fn form_group(ui: &mut Ui, t: &Theme, add: impl FnOnce(&mut Ui)) -> Response {
-    crate::components::foundation::chrome::plate_content(
+    crate::components::foundation::chrome::plate_content_shadow(
         ui,
         t.neutral_bg(),
-        t.neutral(),
+        egui::Shadow::NONE,
         Radius::Control.corner(),
         |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);

@@ -24,7 +24,7 @@ pub fn update_snap() -> CliResult<()> {
     let new_content = format!(
         r#"
 name: lockbook-desktop
-base: core24
+base: core26
 version: '{version}'
 summary: The linux gui version of Lockbook
 description: |

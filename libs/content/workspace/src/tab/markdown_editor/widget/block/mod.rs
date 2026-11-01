@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, RwLock};
 use unicode_segmentation::UnicodeSegmentation as _;
 
@@ -13,7 +12,6 @@ use std::collections::HashMap;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::fold::FOLD_TAG;
 use crate::tab::markdown_editor::widget::inline::image::image::image_url;
-use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::{Event, MdRender};
 
@@ -375,7 +373,9 @@ impl<'ast> MdRender {
     /// inside `* a`'s paragraph picks the paragraph, not the item).
     /// Containers that *fully contain* the selection are picked only when
     /// no proper descendant block intersects — the empty-container case
-    /// (`* ` with no body), where there's nothing deeper to target.
+    /// (`* ` with no body), or the caret on the container's marker. A
+    /// selection in a gap between two of its blocks (a blank line between
+    /// list items) picks nothing.
     pub fn selected_block(&self, node: &'ast AstNode<'ast>) -> bool {
         // the document is never selected
         let Some(parent) = node.parent() else {
@@ -390,12 +390,25 @@ impl<'ast> MdRender {
         if !node.is_container_block() {
             return false;
         }
-        // multi-block selection that extends past this container, OR
-        // empty container (deepest, no descendant blocks to target)
-        !self.node_contains_selection(node)
-            || !node.descendants().skip(1).any(|d| {
-                (d.is_leaf_block() || d.is_container_block()) && self.node_intersects_selection(d)
-            })
+        // multi-block selection that extends past this container
+        if !self.node_contains_selection(node) {
+            return true;
+        }
+        let blocks = || {
+            node.children()
+                .filter(|c| c.is_leaf_block() || c.is_container_block())
+        };
+        let deeper = node.descendants().skip(1).any(|d| {
+            (d.is_leaf_block() || d.is_container_block()) && self.node_intersects_selection(d)
+        });
+        let selection = self.buffer.current.selection;
+        // a block ends before the selection and another starts on a later line
+        let gap = blocks().any(|c| self.node_range(c).end() <= selection.start())
+            && blocks().any(|c| {
+                let start = self.node_range(c).start();
+                start >= selection.end() && self.buffer[(selection.end(), start)].contains('\n')
+            });
+        !deeper && !gap
     }
 
     /// Returns the portion of the line that's within the node, excluding line
@@ -721,10 +734,6 @@ pub struct LayoutCache {
     pub hidden_by_fold: RefCell<HashMap<u64, bool>>,
     pub hidden_by_fold_deps: std::cell::Cell<Option<u64>>,
 
-    // deps: link-preview metadata load state
-    pub link_meta: RefCell<HashMap<String, Arc<Mutex<LinkMetaState>>>>,
-    pub link_seq: Arc<AtomicU64>,
-
     /// `buffer.seq` this cache was last consistent with. Drives wholesale
     /// invalidation in [`Self::ensure_text_consistent`] — text changes
     /// can affect any entry (fold tag insertions move distant sibling
@@ -743,7 +752,6 @@ impl LayoutCache {
         self.table_columns.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
         self.hidden_by_fold_deps.set(None);
-        // link_meta intentionally not cleared: fetched metadata persists across layout invalidations
     }
 
     /// Wipe and re-stamp if `current` differs from the cache's recorded
@@ -904,14 +912,7 @@ impl MdRender {
 
 impl<'ast> MdRender {
     fn height_deps(&self) -> HeightDeps {
-        [
-            self.width_seq,
-            self.embeds.seq(),
-            self.layout_cache
-                .link_seq
-                .load(std::sync::atomic::Ordering::Relaxed),
-            self.reveal_seq,
-        ]
+        [self.width_seq, self.embeds.seq(), self.previews.seq(), self.reveal_seq]
     }
 
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {

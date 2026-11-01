@@ -70,8 +70,7 @@ impl<'ast> MdRender {
             };
 
             if response.hovered() {
-                ui.ctx()
-                    .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+                crate::style::link_cursor(ui.ctx());
             }
             if response.clicked() {
                 self.render_events.push(toggle);

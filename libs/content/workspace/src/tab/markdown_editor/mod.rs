@@ -6,6 +6,7 @@ use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
 use crate::file_cache::FileCache;
+use crate::link_preview::LinkPreviews;
 use crate::resolvers::{EmbedResolver, LinkResolver};
 use bounds::Bounds;
 use colored::Colorize as _;
@@ -164,11 +165,15 @@ pub struct MdRender {
     /// Edge fades of scrolled tables and code blocks `(rect, left color,
     /// right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
+    /// Painted over the text this frame, as a cut chip's fade.
+    pub over_text: Vec<egui::Shape>,
     /// Code blocks' copy buttons, painted over the text.
     pub copy_buttons: Vec<widget::block::leaf::code_block::CopyButton>,
     pub render_events: Vec<input::Event>,
     /// Touch targets painted this frame.
     pub touch_targets: Vec<(Rect, TouchTarget)>,
+    /// A block card's Open or `⋯` menu choice this frame, for the editor to act on.
+    pub card_action: std::cell::RefCell<Option<(String, widget::inline::link::LinkMenuAction)>>,
     /// Per-frame geometry index of every list item, populated during the
     /// render DFS. Cleared each frame (mirrors `fragments`); read for
     /// pointer hit-testing and drop-gap math by drag-to-reorder.
@@ -256,6 +261,7 @@ pub struct MdRender {
 
     // caches
     pub layout_cache: LayoutCache,
+    pub previews: LinkPreviews,
     pub syntax: SyntaxHighlightCache,
 
     // viewport
@@ -552,6 +558,8 @@ pub struct MdFilePersistence {
 
 pub struct MdResources {
     pub ctx: Context,
+    /// The workspace's link previews, shared by every tab.
+    pub previews: LinkPreviews,
     pub core: Lb,
     pub persistence: WsPersistentStore,
     pub files: Arc<RwLock<FileCache>>,
@@ -636,6 +644,7 @@ impl MdRender {
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
         let dark_mode = ctx.global_style().visuals.dark_mode;
         let ws_seq = crate::seq::ws_seq(&ctx);
+        let previews = LinkPreviews::offline(ctx.clone());
         Self {
             ctx,
             layout,
@@ -662,9 +671,11 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            over_text: Default::default(),
             copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
+            card_action: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
@@ -693,6 +704,7 @@ impl MdRender {
             files: Arc::new(RwLock::new(FileCache::empty())),
             ws_seq,
             layout_cache: Default::default(),
+            previews,
             syntax: Default::default(),
             width: Default::default(),
             width_seq: 0,
@@ -734,6 +746,7 @@ impl MdRender {
     pub(crate) fn test(md: &str) -> Self {
         let ctx = test_egui_ctx();
         let ws_seq = crate::seq::ws_seq(&ctx);
+        let previews = LinkPreviews::offline(ctx.clone());
         Self {
             ctx,
             layout: MdLayout::desktop(),
@@ -759,9 +772,11 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            over_text: Default::default(),
             copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
+            card_action: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
@@ -787,6 +802,7 @@ impl MdRender {
             client: Default::default(),
             files: Arc::new(RwLock::new(FileCache::empty())),
             layout_cache: Default::default(),
+            previews,
             syntax: Default::default(),
             width: Default::default(),
             width_seq: 0,
@@ -894,7 +910,7 @@ impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, files, link_resolver, embeds } = res;
+        let MdResources { ctx, previews, core, persistence, files, link_resolver, embeds } = res;
         let MdConfig { readonly, ext } = cfg;
         let plaintext = ext.to_lowercase() != "md";
 
@@ -937,9 +953,11 @@ impl Editor {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             edge_fades: Default::default(),
+            over_text: Default::default(),
             copy_buttons: Default::default(),
             render_events: Vec::new(),
             touch_targets: Default::default(),
+            card_action: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
@@ -968,6 +986,7 @@ impl Editor {
             files,
 
             layout_cache: Default::default(),
+            previews,
             syntax: Default::default(),
 
             width: Default::default(),
@@ -1068,6 +1087,8 @@ impl Editor {
             stdout_logs: false,
             colored_logs: false,
             background_work: false,
+            client_name: "tests".into(),
+            build_info: None,
             client_type: ClientType::Unknown,
         })
         .unwrap();
@@ -1076,6 +1097,7 @@ impl Editor {
             Uuid::new_v4(),
             None,
             MdResources {
+                previews: LinkPreviews::offline(ctx.clone()),
                 ctx,
                 core,
                 persistence: WsPersistentStore::new(
@@ -1201,12 +1223,7 @@ impl Editor {
         let embeds_updated = embeds_seq != self.embeds_seq;
         self.embeds_seq = embeds_seq;
 
-        let link_seq = self
-            .edit
-            .renderer
-            .layout_cache
-            .link_seq
-            .load(std::sync::atomic::Ordering::Relaxed);
+        let link_seq = self.edit.renderer.previews.seq();
         let link_meta_updated = link_seq != self.link_seq;
         self.link_seq = link_seq;
 
@@ -1702,27 +1719,19 @@ impl Editor {
                     && !r.plaintext
                     && r.interactive
                     && self.persistence.get_sidecar_open();
-                // The card docks while the text beside it is wide enough: the
-                // text keeps the canvas's center while the card fits in the
-                // margin, then slides left, then narrows. Narrower, the card
-                // floats where it would have docked, over the full text.
+                // The text keeps its width for the card and only slides: left,
+                // as far as the margin allows, to dock the card beside it;
+                // without room the card floats over the text's right side.
+                // Where the text stands follows the canvas without a step, so
+                // crossing from docked to floating moves nothing.
                 let edge = crate::style::Space::Md.pts();
                 let side = SIDECAR_GAP + SIDECAR_W + edge;
-                let full_col = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
-                let docked_col = (canvas_width - layout_margin - side).min(max_width);
-                let docks = docked_col >= SIDECAR_MIN_TEXT;
-                // the column's left and width closed and open, and the
-                // motion between them; both ends follow the canvas
-                let closed = (((canvas_width - full_col) / 2.0).max(0.0), full_col);
-                let open = match docks {
-                    true => (
-                        ((canvas_width - docked_col) / 2.0)
-                            .min(canvas_width - side - docked_col)
-                            .max(layout_margin),
-                        docked_col,
-                    ),
-                    false => closed,
-                };
+                let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
+                let centered = ((canvas_width - col_width) / 2.0).max(0.0);
+                let beside = canvas_width - side - col_width;
+                let docks = beside >= layout_margin;
+                let open_left = beside.max(layout_margin).min(centered);
+                self.edit.renderer.set_width(col_width);
                 // `shown` fades the card; the text eases the same both
                 // ways, so a reversal starts where it is
                 let shown = ui.ctx().animate_bool_with_time(
@@ -1731,14 +1740,12 @@ impl Editor {
                     widget::outline::MOTION_SECS,
                 );
                 let t = egui::emath::easing::quadratic_in_out(shown);
-                let col_width = egui::lerp(closed.1..=open.1, t);
-                self.edit.renderer.set_width(col_width);
 
                 // affine render: widget body spans the full canvas
                 // (scrollbar at canvas right); content centers within
                 // that body via `content_x`.
                 let touch_scroll = self.edit.renderer.touch_mode;
-                let content_x = canvas_rect.min.x + egui::lerp(closed.0..=open.0, t);
+                let content_x = canvas_rect.min.x + egui::lerp(centered..=open_left, t);
                 self.card = (shown > 0.0).then(|| {
                     let width = SIDECAR_W.min(canvas_width - 2.0 * edge).max(0.0);
                     let x = match docks {
@@ -1806,6 +1813,7 @@ impl Editor {
                         // entries. The immutable `DocScrollContent`
                         // borrow is released here before phase 2's
                         // mutable renderer paint.
+                        self.land_before_paint(root, canvas_rect);
                         self.edit.renderer.landing_heading = self.landing.and_then(Landing::start);
                         let (visible, neighbors, far, scrollbar_grab) = {
                             use crate::widgets::affine_scroll::{Offset, Rows as _, VisibleRow};
@@ -2205,15 +2213,9 @@ impl Editor {
             self.outline
                 .show(ui.ctx(), id.with("sheet"), &rows, current, &linked)
         } else {
-            let (chosen, rect, dismissed) = self.outline.card(
-                ui.ctx(),
-                id.with("card"),
-                self.card,
-                canvas,
-                &rows,
-                current,
-                &linked,
-            );
+            let (chosen, rect, dismissed) =
+                self.outline
+                    .card(ui.ctx(), id.with("card"), self.card, &rows, current, &linked);
             if dismissed {
                 self.persistence.set_sidecar_open(false);
             }
@@ -2252,6 +2254,7 @@ impl Editor {
     fn linked_notes(&mut self) -> (u64, Vec<widget::outline::LinkedNote>) {
         use crate::file_cache::FilesExt as _;
         let files = self.edit.renderer.files.read().unwrap();
+        files.notes.want();
         let version = files.notes.version();
         if let Some((at, linked)) = self.linked.take() {
             if at == version {
@@ -2440,6 +2443,39 @@ impl Editor {
         Some(Offset::new(row, intra))
     }
 
+    /// Lands where it can without painting: the note's top, or a heading that
+    /// is a block of its own, whose line starts below its row's spacing. The
+    /// frame then paints there once; any other landing waits for its row.
+    fn land_before_paint<'ast>(&mut self, root: &'ast AstNode<'ast>, canvas_rect: Rect) {
+        use scroll_content::DocRowId;
+        if !matches!(self.edit.pending_scroll, Some(ScrollTarget::Heading)) {
+            return;
+        }
+        let Some(landing) = self.landing else { return };
+        let content = scroll_content::DocScrollContent::for_frame(
+            &self.edit.renderer,
+            root,
+            canvas_rect.height(),
+        );
+        let target = match landing {
+            Landing::Top => Offset::at_top_of(DocRowId::Leading),
+            Landing::Heading((start, _)) => {
+                let Some(row @ DocRowId::Block(i)) = content.find_text_row(start) else { return };
+                let Some(node) = root.children().nth(i) else { return };
+                if !matches!(node.data.borrow().value, comrak::nodes::NodeValue::Heading(_)) {
+                    return;
+                }
+                let intra = self.edit.renderer.block_pre_spacing_height(node);
+                heading_scroll(&self.edit.scroll_area.state, &content, Offset::new(row, intra))
+            }
+        };
+        self.landing = None;
+        self.edit.pending_scroll = None;
+        self.edit
+            .scroll_area
+            .reveal(&content, Reveal::point_at(target), Align::Top);
+    }
+
     /// The landing's line on the reading line, with room above it so it
     /// clears the chrome. Its row is laid out this frame wherever it is; a
     /// landing set after that waits a frame rather than scroll by estimate.
@@ -2528,7 +2564,6 @@ const HEADING_FLASH_SECS: f32 = 0.9;
 /// it docks beside; in narrower windows it floats over the text.
 const SIDECAR_W: f32 = 260.0;
 const SIDECAR_GAP: f32 = 24.0;
-const SIDECAR_MIN_TEXT: f32 = 560.0;
 
 /// Where a heading link lands.
 #[derive(Clone, Copy)]
@@ -2721,7 +2756,13 @@ fn endpoint_offset(
     canvas_rect: Rect, side: EndpointSide, pad: f32,
 ) -> Option<Offset<DocRowId>> {
     use crate::widgets::affine_scroll::Rows as _;
-    if let Some(frag) = renderer.fragment_at_offset(target).filter(|f| !f.far) {
+    let frag = renderer.fragment_at_offset(target).or_else(|| {
+        // a table row's pipes aren't drawn; its last cell stands in for them
+        let table = renderer.bounds.table_at(target)?;
+        let row = &table.rows[table.row_at(target)?];
+        renderer.fragment_at_offset(row.cells.last()?.content.1)
+    });
+    if let Some(frag) = frag.filter(|f| !f.far) {
         let y_range = frag.rect.y_range().expand(pad);
         let y = match side {
             EndpointSide::Top => y_range.min - android_top_overlay(content),

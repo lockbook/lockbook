@@ -11,7 +11,6 @@ use crate::style::ThemeExt;
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
-use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
@@ -53,10 +52,7 @@ impl MdRender {
                 Some(ResolvedLink::External(url)) => url,
                 _ => continue,
             };
-            let Some(arc) = self.layout_cache.link_meta.borrow().get(&resolved).cloned() else {
-                continue;
-            };
-            let LinkMetaState::Loaded(meta) = &*arc.lock().unwrap() else {
+            let Some(meta) = self.previews.loaded(&resolved) else {
                 continue;
             };
             if let Some(url) = meta.thumbnail_url.as_deref() {
@@ -177,10 +173,11 @@ impl<'ast> MdRender {
         let Some(url) = image_url(node) else { return };
         // Always interactive: a plain tap selects, a cmd/keyboard-hidden tap opens.
         layout.interaction_open(Self::image_interaction_id_salt(node_range), egui::Sense::click());
+        let (ascent, descent) = small_image_metrics(size.y, self.row_height(node));
         layout.push_embed(EmbedSpec {
             advance: size.x,
-            ascent: size.y,
-            descent: 0.0,
+            ascent,
+            descent,
             source_range: node_range,
             url,
             kind: EmbedKind::Image,
@@ -262,15 +259,18 @@ impl<'ast> MdEdit {
             .touch_consume_interaction(ui.scope_id().with(salt), TouchTarget::Tap(tap));
 
         if (open || withheld) && response.hovered() {
-            ui.ctx()
-                .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+            crate::style::link_cursor(ui.ctx());
         }
         if !is_image || !self.renderer.embeds.is_loaded(url) {
             let state = || match wikilink {
                 true => self.renderer.link_state_for_wikilink(dest),
                 false => self.renderer.link_state_for_url(dest),
             };
-            self.renderer.show_link_tip(ui.ctx(), &response, state);
+            // a block card already shows everything its preview would
+            let card = !is_image && self.renderer.link_renders_as_card(node);
+            let preview = (!is_image && !wikilink && !card).then_some((url, false));
+            self.renderer
+                .show_link_tip(ui.ctx(), &response, state, preview);
         }
         if withheld && response.clicked() {
             self.renderer.embeds.load_anyway(url);
@@ -397,6 +397,17 @@ impl<'ast> MdEdit {
 pub struct ImageDims {
     pub width: Option<f32>,
     pub height: Option<f32>,
+}
+
+/// An image's `(ascent, descent)` about the text baseline: one up to two
+/// text rows tall centers on the text, growing its row evenly; a taller one
+/// stands on the baseline.
+pub fn small_image_metrics(height: f32, row_height: f32) -> (f32, f32) {
+    if height > 2.0 * row_height {
+        return (height, 0.0);
+    }
+    let ascent = 0.3 * row_height + height / 2.0;
+    (ascent, height - ascent)
 }
 
 /// Parse Obsidian's `|W` / `|WxH` size suffix off an image's alt text. Only a

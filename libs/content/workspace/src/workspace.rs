@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock, mpsc};
 use tracing::{debug, error, info, instrument, trace_span, warn};
@@ -25,6 +24,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{Change, FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::link_plan::Plan;
+use crate::link_preview::LinkPreviews;
 use crate::open_guard::{self, OpenGuard};
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
@@ -104,6 +104,7 @@ pub struct Workspace {
     pub tasks: TaskManager,
     pub files: Arc<RwLock<FileCache>>,
     pub images: ImageCache,
+    pub previews: LinkPreviews,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
 
@@ -121,6 +122,9 @@ pub struct Workspace {
 
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
+    /// Starts the note index's reader, the first time something wants it.
+    #[cfg(not(target_family = "wasm"))]
+    note_index: std::sync::Once,
 
     /// Touch hosts type through the software keyboard. iOS clears this while
     /// a hardware keyboard keeps the software one away.
@@ -194,6 +198,7 @@ impl Workspace {
         let cfg = WsPersistentStore::new(recent_crash, writeable_path, persist);
         let (open_guard, interrupted) = OpenGuard::new(writeable_dir, persist, last_panic);
         let http = HttpClient::default();
+        let previews = LinkPreviews::new(ctx.clone(), http.clone(), cfg.clone());
         let images =
             ImageCache::new(ctx.clone(), http, core.clone(), Arc::clone(&files), cfg.clone());
         ctx.set_zoom_factor(cfg.get_zoom_factor());
@@ -212,6 +217,7 @@ impl Workspace {
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,
             images,
+            previews,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
 
@@ -223,6 +229,8 @@ impl Workspace {
             interrupted,
             opened_anyway: Vec::new(),
             core: core.clone(),
+            #[cfg(not(target_family = "wasm"))]
+            note_index: std::sync::Once::new(),
 
             software_keyboard_in_use: true,
             desktop_tab_policy: false,
@@ -280,7 +288,6 @@ impl Workspace {
 
         #[cfg(not(target_family = "wasm"))]
         {
-            crate::note_index::NoteIndex::keep(ws.files.clone(), core.clone(), ctx.clone());
             spawn!(lb_bg_worker(ctx, core, ws_tx));
         }
 
@@ -326,9 +333,10 @@ impl Workspace {
                 }
             }
             #[cfg(not(target_family = "wasm"))]
-            Destination::MindMap(_) => {
-                ContentState::Open(TabContent::MindMap(MindMap::new(&self.core)))
-            }
+            Destination::MindMap(_) => ContentState::Open(TabContent::MindMap(MindMap::new(
+                &self.core,
+                self.cfg.get_contact_linked_sites(),
+            ))),
             #[cfg(target_family = "wasm")]
             Destination::MindMap(_) => return,
             Destination::SpaceInspector(root_id) => {
@@ -1218,15 +1226,7 @@ impl Workspace {
                     self.replace_files(file_cache);
                     self.out.file_cache_updated = true;
 
-                    for tab in self.tabs.values_mut() {
-                        if let Some(md) = tab.markdown_mut() {
-                            let renderer = &md.edit.renderer;
-                            renderer.layout_cache.link_seq.store(
-                                renderer.ws_seq.fetch_add(1, Ordering::Relaxed),
-                                Ordering::Relaxed,
-                            );
-                        }
-                    }
+                    self.previews.bump();
                     let files = self.files.read().unwrap();
                     let mut ids_to_delete = vec![];
                     for slot in &self.tab_strip {
@@ -1565,6 +1565,7 @@ impl Workspace {
                                         maybe_hmac,
                                         MdResources {
                                             ctx: self.ctx.clone(),
+                                            previews: self.previews.clone(),
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
                                             link_resolver: Box::new(
@@ -2005,7 +2006,23 @@ impl Workspace {
 
     /// What `change` would do to links, worked out once per change and tree.
     pub fn link_plan(&self, change: &Change) -> Arc<Plan> {
-        crate::link_plan::planned(&self.files.read().unwrap(), change)
+        let plan = crate::link_plan::planned(&self.files.read().unwrap(), change);
+        self.keep_note_index();
+        plan
+    }
+
+    /// Fills the note index from here on if anything has asked for it.
+    pub(crate) fn keep_note_index(&self) {
+        #[cfg(not(target_family = "wasm"))]
+        if self.files.read().unwrap().notes.is_wanted() {
+            self.note_index.call_once(|| {
+                crate::note_index::NoteIndex::keep(
+                    self.files.clone(),
+                    self.core.clone(),
+                    self.ctx.clone(),
+                );
+            });
+        }
     }
 
     /// Makes `change`, and if `update_links`, the edits that keep links

@@ -322,6 +322,7 @@ pub enum Action {
     ShareInvite,
     /// Drop someone from the multi-add stage (chip dismiss).
     ShareUnstage(String),
+    ShareRemove(String),
     /// Open create sheet. Folder-context fills `folder` and selects Choose;
     /// file-context fills `alongside` and selects that plate (Choose stays empty).
     /// Chrome / ⌘N leaves both None and follows the open document tab.
@@ -476,6 +477,7 @@ impl Action {
             Self::ShareStageField => "ShareStageField",
             Self::ShareInvite => "ShareInvite",
             Self::ShareUnstage(_) => "ShareUnstage",
+            Self::ShareRemove(_) => "ShareRemove",
             Self::OpenCreate { .. } => "OpenCreate",
             Self::CreateSetKind(_) => "CreateSetKind",
             Self::CreateSetLoc(_) => "CreateSetLoc",

@@ -1,6 +1,6 @@
 [package]
 name = "lb-rs"
-version = "26.10.23"
+version = "26.10.31"
 edition = "2021"
 description = "The rust library for interacting with your lockbook."
 repository = "https://github.com/lockbook/lockbook"
@@ -24,7 +24,7 @@ bytes = "1"
 chrono = "0.4"
 crossbeam = "0.8.1"
 db-rs-derive = "0.3.7"
-db-rs = "0.4.1"
+db-rs = "0.4.2"
 db-rs-old = { package = "db-rs", version = "=0.3.7" }
 flate2 = "1.0"
 futures = "0.3.30"

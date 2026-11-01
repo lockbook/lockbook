@@ -83,7 +83,7 @@ class MarkdownToolbarView(
             ToolbarAction(
                 null,
                 context.getString(R.string.outline),
-                R.drawable.ic_md_toc_24,
+                R.drawable.ic_outline_info_24,
                 ToolbarCategory.History,
                 false,
                 NativeAction.Outline,

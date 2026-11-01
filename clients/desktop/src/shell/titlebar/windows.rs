@@ -68,7 +68,6 @@ fn window_button(
     use crate::components::foundation::chrome::HOVER_ANIM_SECS;
     use crate::components::phosphor_ui_font_id;
     let (rect, resp) = ui.allocate_exact_size(vec2(CAPTION_W, HEADER_H), Sense::click());
-    let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
     let over = resp.hovered() || ui.ctx().rect_contains_pointer(ui.layer_id(), rect);
     let hover = ui
         .ctx()

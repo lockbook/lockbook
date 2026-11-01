@@ -5,7 +5,7 @@ use lb_c::model::errors::Unexpected;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::path::PathBuf;
 use workspace_rs::tab::{ClipContent, ExtendedInput as _};
-use workspace_rs::theme::palette_v2::{Mode, ThemeExt, ensure_normal_text_contrast};
+use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
 
 use super::response::*;
 
@@ -219,15 +219,14 @@ pub unsafe extern "C" fn set_accent_color(obj: *mut c_void, light: u32, dark: u3
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let unpack = |c: u32| Color32::from_rgb((c >> 24) as u8, (c >> 16) as u8, (c >> 8) as u8);
 
-    let mut theme = obj.renderer.context.get_lb_theme();
-    let light = ensure_normal_text_contrast(unpack(light), theme.bright.grey);
-    let dark = ensure_normal_text_contrast(unpack(dark), theme.dim.grey);
-    if theme.dim.blue == light && theme.bright.blue == dark {
+    let current = obj.renderer.context.get_lb_theme();
+    let mut theme = current;
+    theme.dim.blue = unpack(light);
+    theme.bright.blue = unpack(dark);
+    let theme = theme.readable();
+    if theme.dim.blue == current.dim.blue && theme.bright.blue == current.bright.blue {
         return;
     }
-
-    theme.dim.blue = light;
-    theme.bright.blue = dark;
     obj.renderer.context.set_lb_theme(theme);
 }
 

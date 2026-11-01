@@ -233,8 +233,8 @@ fn paint_drag_ghost(ui: &Ui, t: &Theme, files: &FileCache, ids: &[Uuid], pointer
     let fill = t.neutral_bg_secondary();
     let fill = Color32::from_rgba_unmultiplied(fill.r(), fill.g(), fill.b(), 230);
     let r = Radius::Control.pts() as f32;
+    painter.add(crate::components::overlay_shadow(t).as_shape(rect, r));
     painter.rect_filled(rect, r, fill);
-    painter.rect_stroke(rect, r, Stroke::new(STROKE_HAIRLINE, t.neutral()), StrokeKind::Outside);
     painter.galley(rect.min + vec2(pad_x, pad_y), galley, color);
 }
 

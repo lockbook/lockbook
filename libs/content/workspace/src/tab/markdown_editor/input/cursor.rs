@@ -4,8 +4,8 @@ use std::mem;
 use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
-use crate::tab::ExtendedInput as _;
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::palette_v2::ThemeExt as _;
 
 use super::{Event, Region};
@@ -169,7 +169,17 @@ impl MdEdit {
     fn interact_insertion_handle(&mut self, ui: &mut Ui, line: [Pos2; 2]) {
         let hit_rect = self.insertion_handle_hit_rect(line);
         let id = ui.scope_id().with("insertion_handle");
-        let response = ui.interact(hit_rect, id, Sense::drag());
+        let response = ui.interact(hit_rect, id, Sense::click_and_drag());
+
+        // the handle sits over the caret, so it takes the taps and long
+        // presses that would open the menu there
+        if response.clicked() || response.long_touched() {
+            let caret = self.renderer.buffer.current.selection;
+            let pos = self
+                .context_menu_pos(caret, ui.clip_rect())
+                .unwrap_or(line[0]);
+            ui.ctx().set_context_menu(pos, ContextMenuTarget::Text);
+        }
 
         if response.drag_stopped() {
             self.handle_drag_touch_offset = None;

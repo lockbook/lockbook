@@ -71,6 +71,11 @@ impl Lb {
         &self.lb
     }
 
+    /// Apply other processes' commits before reading from a core without background work.
+    pub fn refresh(&self) {
+        self.block_on(async { self.lb.begin_tx().await.end() });
+    }
+
     pub fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {
@@ -109,6 +114,16 @@ impl Lb {
         &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>, origin: Option<Uuid>,
     ) -> LbResult<DocumentHmac> {
         self.block_on(self.lb.safe_write(id, old_hmac, content, origin))
+    }
+
+    pub fn document_hmac(&self, id: Uuid) -> LbResult<Option<DocumentHmac>> {
+        use crate::model::{file_like::FileLike, tree_like::TreeLike};
+        self.block_on(async {
+            let tx = self.lb.ro_tx().await;
+            let db = tx.db();
+            let tree = db.base_metadata.stage(&db.local_metadata);
+            Ok(tree.find(&id)?.document_hmac().copied())
+        })
     }
 
     pub fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
@@ -163,6 +178,10 @@ impl Lb {
 
     pub fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {
         self.block_on(self.lb.share_file(id, username, mode))
+    }
+
+    pub fn unshare_file(&self, id: Uuid, username: &str) -> LbResult<()> {
+        self.block_on(self.lb.unshare_file(id, username))
     }
 
     pub fn get_pending_shares(&self) -> LbResult<Vec<File>> {
