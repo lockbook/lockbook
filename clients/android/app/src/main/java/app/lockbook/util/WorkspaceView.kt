@@ -781,8 +781,8 @@ class WorkspaceView(
         const val ADD_TO_DICTIONARY_MENU_ID = 0x00E01710
         const val IGNORE_SPELLING_MENU_ID = 0x00E01711
         const val SPELLING_GUESS_GROUP_ID = 0x00E01712
-        const val COPY_IMAGE_MENU_ID = 0x00E01713
-        const val OPEN_DIAGRAM_MENU_ID = 0x00E01714
+        const val COPY_IMAGE_MENU_ID = 0x00E01718
+        const val OPEN_DIAGRAM_MENU_ID = 0x00E01719
     }
 
     inner class FloatingTextEditorContextMenu(
