@@ -7,6 +7,7 @@ mod utils;
 use cli_rs::arg::Arg;
 use cli_rs::cli_error::Exit;
 use cli_rs::command::Command;
+use cli_rs::flag::Flag;
 use cli_rs::parser::Cmd;
 use releaser::version::BumpType;
 
@@ -83,7 +84,8 @@ fn main() {
                         .subcommand(Command::name("desktop-build-arm").handler(releaser::windows::desktop::build_arm))
                         .subcommand(Command::name("store-pack").handler(releaser::windows::store::pack))
                         .subcommand(Command::name("store-pack-arm").handler(releaser::windows::store::pack_arm))
-                        .subcommand(Command::name("store-bundle").handler(releaser::windows::store::bundle)),
+                        .subcommand(Command::name("store-bundle").handler(releaser::windows::store::bundle))
+                        .subcommand(Command::name("store-screenshots").description("fills a Microsoft Store submission with the screenshots in fastlane/metadata/windows; --submit commits it").input(Flag::bool("submit")).handler(|submit| releaser::windows::store::screenshots(submit.get()))),
                 )
                 .subcommand(
                     Command::name("linux")

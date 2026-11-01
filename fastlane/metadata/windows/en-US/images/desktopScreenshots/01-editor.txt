@@ -1,0 +1,1 @@
+Type [[ to link notes as you write in Markdown.

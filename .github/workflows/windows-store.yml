@@ -8,6 +8,10 @@ on:
         description: submit the bundle to the Microsoft Store
         type: boolean
         default: false
+      screenshots:
+        description: instead of building, fill a submission with the screenshots in fastlane/metadata/windows (with submit, commit it)
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       submit:
@@ -15,8 +19,21 @@ on:
         default: true
 
 jobs:
+  screenshots:
+    if: github.repository == 'lockbook/lockbook' && inputs.screenshots
+    runs-on: ubuntu-latest
+    env:
+      AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+      AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+      AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+      STORE_PRODUCT_ID: ${{ secrets.STORE_PRODUCT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fill a submission with the screenshots
+        run: cargo run -p lbdev -- releaser windows store-screenshots ${{ inputs.submit && '--submit' || '' }}
+
   pack-x64:
-    if: github.repository == 'lockbook/lockbook'
+    if: github.repository == 'lockbook/lockbook' && !inputs.screenshots
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +46,7 @@ jobs:
           path: windows-build/msix/lockbook-x64.msix
 
   pack-arm64:
-    if: github.repository == 'lockbook/lockbook'
+    if: github.repository == 'lockbook/lockbook' && !inputs.screenshots
     runs-on: windows-11-arm
     steps:
       - uses: actions/checkout@v4
