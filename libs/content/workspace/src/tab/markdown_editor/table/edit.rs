@@ -10,6 +10,7 @@ use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::structure::{BLANK, row_text};
 use super::{CellBounds, RowBounds, TableBounds, TableSelection, is_pipe_space};
+use crate::tab::markdown_editor::View;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::input::{Advance, Region};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
@@ -477,6 +478,10 @@ impl MdEdit {
         &self, range: (Grapheme, Grapheme), text: &str, select: bool,
         operations: &mut Vec<Operation>,
     ) -> bool {
+        // source edits a table as text
+        if self.renderer.view == View::Source {
+            return false;
+        }
         let r = &self.renderer;
         let range = r.table_edit_range(range);
         let Some(cuts) = r.table_cuts(range, Rows::Emptied) else { return false };
@@ -491,6 +496,10 @@ impl MdEdit {
     pub fn delete_range_in_table(
         &self, range: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
     ) -> bool {
+        // source edits a table as text
+        if self.renderer.view == View::Source {
+            return false;
+        }
         let r = &self.renderer;
         let range = r.table_edit_range(range);
         let Some(cuts) = r.table_cuts(range, Rows::EmptiedFirst) else { return false };
@@ -503,6 +512,10 @@ impl MdEdit {
     pub fn cut_range_in_table(
         &self, range: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
     ) -> bool {
+        // source edits a table as text
+        if self.renderer.view == View::Source {
+            return false;
+        }
         let r = &self.renderer;
         let Some(cuts) = r.table_cuts(range, Rows::Removed) else { return false };
         r.apply_table_cuts(cuts, "", true, operations);
@@ -516,6 +529,10 @@ impl MdEdit {
     pub fn delete_from_caret_at_table(
         &mut self, region: Region, operations: &mut Vec<Operation>,
     ) -> bool {
+        // source edits a table as text
+        if self.renderer.view == View::Source {
+            return false;
+        }
         let Region::SelectionOrAdvance { advance, backwards } = region else { return false };
         let selection = self.renderer.buffer.current.selection;
         if !selection.is_empty() {
@@ -662,6 +679,10 @@ impl MdRender {
     /// header among them they paste as a table. With no selection, the
     /// caret's row. `None` if the selection isn't whole rows of one table.
     pub fn table_rows_clipboard(&self) -> Option<((Grapheme, Grapheme), String)> {
+        // source edits a table as text
+        if self.view == View::Source {
+            return None;
+        }
         let selection = self.buffer.current.selection;
         let (table, rows) = match self.table_selection(selection) {
             Some(TableSelection::Rows { table, rows }) => (table, rows),
@@ -689,6 +710,10 @@ impl MdRender {
     /// one, and as each row's cells' content ranges — empty for a cell the
     /// row lacks. `None` unless the selection takes whole cells or rows.
     pub fn table_selection_grid(&self) -> Option<(String, TableGrid)> {
+        // source edits a table as text
+        if self.view == View::Source {
+            return None;
+        }
         let (table, rows, columns) = match self.table_selection(self.buffer.current.selection)? {
             TableSelection::Cells { table, row, columns } => (table, (row, row), columns),
             TableSelection::Rows { table, rows } => (table, rows, (0, table.columns() - 1)),

@@ -125,3 +125,33 @@ fn source_note_continues_list() {
     ws.enter_frame();
     assert_eq!(ws.get_text(), "- one\n- \n");
 }
+
+/// Tab and Return in a table move between cells, add a row, and leave the
+/// table from a blank one in source as in the rendered note.
+#[test]
+fn source_note_tables_take_tab_and_return() {
+    let doc = "| a | b |\n| - | - |\n| c | d |\n";
+    let mut ws = TestEditor::new(doc);
+    ws.editor.persistence.set_source(true);
+    ws.enter_frame();
+    let c = doc.find('c').unwrap();
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(c)),
+            end: Location::Grapheme(Grapheme(c)),
+        },
+    });
+    ws.enter_frame();
+    ws.push(Event::Indent { deindent: false });
+    ws.enter_frame();
+    let d = doc.find('d').unwrap();
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection, (Grapheme(d), Grapheme(d + 1)));
+
+    ws.push(Event::Newline { shift: false });
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), "| a | b |\n| - | - |\n| c | d |\n|  |  |\n");
+
+    ws.push(Event::Newline { shift: false });
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), "| a | b |\n| - | - |\n| c | d |\n\n");
+}

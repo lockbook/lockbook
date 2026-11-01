@@ -203,10 +203,11 @@ fn cell_content(cell: &str, opened: bool) -> (usize, usize) {
 // ─── bounds ──────────────────────────────────────────────────────────
 
 impl<'ast> MdRender {
-    /// Recompute [`Bounds::tables`]. Depends on text only.
+    /// Recompute [`Bounds::tables`]. Depends on text only, so source view
+    /// has them for its table edits too.
     pub fn calc_table_bounds(&mut self, root: &'ast AstNode<'ast>) {
         let mut tables = Vec::new();
-        for node in root.descendants().filter(|_| self.view == View::Rendered) {
+        for node in root.descendants() {
             if let NodeValue::Table(table) = &node.data.borrow().value {
                 tables.extend(self.table_bounds(node, table.alignments.clone()));
             }
@@ -405,6 +406,10 @@ impl MdRender {
     pub fn snap_offset_into_table_cell(
         &self, origin: Grapheme, offset: Grapheme, backwards: bool,
     ) -> Grapheme {
+        // source has no grid: the caret goes where the text is
+        if self.view == View::Source {
+            return offset;
+        }
         let Some(table) = self.bounds.table_at(offset) else { return offset };
         if table
             .contents()
@@ -446,6 +451,9 @@ impl MdRender {
     pub fn snap_selection_into_table_cells(
         &self, range: (Grapheme, Grapheme),
     ) -> (Grapheme, Grapheme) {
+        if self.view == View::Source {
+            return range;
+        }
         let (start, end) = (range.start(), range.end());
         let (start_table, end_table) = (self.bounds.table_at(start), self.bounds.table_at(end));
         let line_of = |offset| {
@@ -707,6 +715,9 @@ impl MdEdit {
     /// has nowhere to go but a cell: it gets a line after the table.
     pub fn table_select_edits(&self, region: Region, operations: &mut Vec<Operation>) -> bool {
         let r = &self.renderer;
+        if r.view == View::Source {
+            return false;
+        }
         if r.readonly {
             return false;
         }
@@ -781,6 +792,9 @@ impl MdEdit {
     /// from that end would leave as it is: toward the anchor it gives up a
     /// cell, and up or down it takes or gives up a row. `None` otherwise.
     pub fn extend_table_selection(&self, region: Region) -> Option<(Grapheme, Grapheme)> {
+        if self.renderer.view == View::Source {
+            return None;
+        }
         let Region::ToAdvance { advance, backwards, extend_selection: true } = region else {
             return None;
         };
@@ -820,7 +834,7 @@ impl MdEdit {
     /// it into the row. Undo and redo restore a selection that had a place.
     pub fn rehome_table_caret(&mut self, undo_redo: bool) -> buffer::Response {
         let selection = self.renderer.buffer.current.selection;
-        if undo_redo || !selection.is_empty() {
+        if undo_redo || !selection.is_empty() || self.renderer.view == View::Source {
             return buffer::Response::default();
         }
         let Some(home) = self.renderer.table_caret_stranded(selection.1) else {
