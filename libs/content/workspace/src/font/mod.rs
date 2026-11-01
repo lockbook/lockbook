@@ -90,9 +90,9 @@ fn system_font(family: &str, weight: u16, style: glyphon::fontdb::Style) -> Opti
     Some(FontData::from_blob(data, face.index).tweak(FontTweak { coords, ..Default::default() }))
 }
 
-/// Spaces what the system sans draws at `points` as SF's text optical sizes
-/// would: the editor can't select optical size, so it gets SF's display cut,
-/// which is tighter below 28pt.
+/// Spaces what the system sans draws at `points` as CoreText's system font
+/// would: the editor can't select optical size or apply SF's size-specific
+/// tracking, so it gets SF's display cut, which is tighter.
 pub fn track<'a>(attrs: glyphon::Attrs<'a>, grapheme: &str, points: f32) -> glyphon::Attrs<'a> {
     use unicode_script::UnicodeScript as _;
     if !cfg!(target_vendor = "apple") || attrs.family != glyphon::Family::SansSerif {
@@ -112,16 +112,25 @@ pub fn track<'a>(attrs: glyphon::Attrs<'a>, grapheme: &str, points: f32) -> glyp
     if drawn_by_sans { attrs.letter_spacing(sf_text_spacing(points)) } else { attrs }
 }
 
-/// How much wider SF's text cut sets than its display cut, in em, by size.
+/// How much wider CoreText sets SF than its display cut does, in em, by size.
 fn sf_text_spacing(points: f32) -> f32 {
-    const MEASURED: [(f32, f32); 7] = [
-        (17., 0.0606),
-        (19., 0.0551),
-        (20., 0.0463),
-        (22., 0.0287),
-        (24., 0.011),
-        (26., 0.0055),
-        (28., 0.),
+    const MEASURED: [(f32, f32); 16] = [
+        (11., 0.0654),
+        (12., 0.0595),
+        (13., 0.0537),
+        (14., 0.0488),
+        (15., 0.0439),
+        (16., 0.0400),
+        (17., 0.0341),
+        (18., 0.0323),
+        (19., 0.0306),
+        (20., 0.0227),
+        (21., 0.0193),
+        (22., 0.0158),
+        (23., 0.0143),
+        (24., 0.0128),
+        (28., 0.0125),
+        (34., 0.0101),
     ];
     let (first, last) = (MEASURED[0], MEASURED[MEASURED.len() - 1]);
     if points <= first.0 {
