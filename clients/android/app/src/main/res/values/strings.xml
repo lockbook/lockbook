@@ -296,6 +296,7 @@
     <string name="grant_access">Grant access</string>
     <string name="share_with_user">Share with a user</string>
     <string name="share_with_named_user">Share with %1$s</string>
+    <string name="unshare_with_named_user">Stop sharing with %1$s</string>
     <string name="export">Export</string>
     <string name="exporting">Exporting…</string>
     <string name="export_no_documents">There are no documents to export.</string>
@@ -317,6 +318,7 @@
     <string name="share_mode_write">Write</string>
     <string name="access_mode">Access mode</string>
     <string name="shared_with">Shared with %1$s</string>
+    <string name="unshared_with">Stopped sharing with %1$s</string>
     <string name="link_destination">Link destination</string>
     <string name="created_link">Created link!</string>
 

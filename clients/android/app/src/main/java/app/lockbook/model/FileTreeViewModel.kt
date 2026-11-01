@@ -111,6 +111,12 @@ class FileTreeViewModel(
 
     init {
         startUpInRoot()
+        loadSharingContacts()
+        loadPinnedFiles()
+        getStatus()
+    }
+
+    fun loadSharingContacts() {
         viewModelScope.launch {
             try {
                 val contacts: List<SharingContact> = withContext(Dispatchers.IO) { Lb.getSharingContacts().toList() }
@@ -119,8 +125,6 @@ class FileTreeViewModel(
                 Timber.e(error, "Unable to load sharing contacts")
             }
         }
-        loadPinnedFiles()
-        getStatus()
     }
 
     private fun getStatus() {

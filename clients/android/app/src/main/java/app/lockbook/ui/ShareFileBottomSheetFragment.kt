@@ -8,6 +8,7 @@ package app.lockbook.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -18,6 +19,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -180,6 +183,8 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         val availableWidth =
             (binding.shareFileAccessPeople.width - addButtonWidth - avatarSpacing).coerceAtLeast(minLabelWidth)
         val labelWidth = (availableWidth / sharedUsernames.size).coerceIn(minLabelWidth, maxLabelWidth)
+        val unshareSize = (24 * resources.displayMetrics.density).toInt()
+        val accessUsernames = Lb.getFileById(file.id).shares.mapTo(mutableSetOf()) { it.sharedWith.lowercase(Locale.ROOT) }
         val primaryColor = MaterialColors.getColor(binding.root, androidx.appcompat.R.attr.colorPrimary)
         val backgroundColors =
             intArrayOf(
@@ -223,7 +228,18 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
                     isClickable = true
                     isFocusable = true
                     setOnClickListener { showInviteForm(username) }
-                    addView(avatar, LinearLayout.LayoutParams(avatarSize, avatarSize))
+                    addView(
+                        FrameLayout(requireContext()).apply {
+                            addView(avatar, FrameLayout.LayoutParams(avatarSize, avatarSize))
+                            if (username.lowercase(Locale.ROOT) in accessUsernames) {
+                                addView(
+                                    unshareButton(username),
+                                    FrameLayout.LayoutParams(unshareSize, unshareSize, Gravity.TOP or Gravity.END),
+                                )
+                            }
+                        },
+                        LinearLayout.LayoutParams(avatarSize, avatarSize),
+                    )
                     addView(
                         label,
                         LinearLayout.LayoutParams(labelWidth, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
@@ -237,6 +253,27 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
                     if (index > 0) marginStart = avatarSpacing
                 },
             )
+        }
+    }
+
+    private fun unshareButton(username: String): ImageView {
+        val padding = (4 * resources.displayMetrics.density).toInt()
+        return ImageView(requireContext()).apply {
+            setImageResource(R.drawable.ic_outline_delete_24)
+            imageTintList =
+                ColorStateList.valueOf(
+                    MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorOnErrorContainer),
+                )
+            background =
+                GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorErrorContainer))
+                }
+            setPadding(padding, padding, padding, padding)
+            contentDescription = getString(R.string.unshare_with_named_user, username)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { unshareFile(username) }
         }
     }
 
@@ -292,6 +329,7 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             try {
                 Lb.shareFile(file.id, username, mode == ShareMode.Write)
                 fileTreeViewModel._notifyUpdateFilesUI.postValue(UpdateFilesUI.RequestSync)
+                fileTreeViewModel.loadSharingContacts()
                 withContext(Dispatchers.Main) {
                     binding.shareFileAddUser.isEnabled = true
                     binding.shareFileBack.isEnabled = true
@@ -304,6 +342,23 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
                     binding.shareFileAddUser.isEnabled = true
                     binding.shareFileBack.isEnabled = true
                     showError(err)
+                }
+            }
+        }
+    }
+
+    private fun unshareFile(username: String) {
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                Lb.unshareFile(file.id, username)
+                fileTreeViewModel._notifyUpdateFilesUI.postValue(UpdateFilesUI.RequestSync)
+                fileTreeViewModel.loadSharingContacts()
+                withContext(Dispatchers.Main) {
+                    showSuccessSnackbar(getString(R.string.unshared_with, username))
+                }
+            } catch (err: LbError) {
+                withContext(Dispatchers.Main) {
+                    showSuccessSnackbar(if (err.kind == LbEC.Unexpected) getString(R.string.unexpected_error) else err.msg)
                 }
             }
         }

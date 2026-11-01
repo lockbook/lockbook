@@ -39,6 +39,7 @@ public class Lb {
     public static native void writeDocumentBytes(String id, byte[] content) throws LbError;
     public static native void exportFile(String id, String dest, boolean edit) throws LbError;
     public static native void shareFile(String id, String username, boolean isWriteMode) throws LbError;
+    public static native void unshareFile(String id, String username) throws LbError;
 
     public static native String getTimestampHumanString(long timestamp) throws LbError;
 

@@ -1195,6 +1195,21 @@ pub extern "system" fn Java_net_lockbook_Lb_shareFile<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_unshareFile<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
+    jusername: JString<'local>,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+    let username = rstring(&mut env, jusername);
+
+    if let Err(err) = lb.unshare_file(id, &username) {
+        throw_err(&mut env, err);
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getPendingShares<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobjectArray {
