@@ -21,6 +21,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     BG_ROW_GAP, CHIP_SIDE_PAD, Format, FragmentContent, Layout, StyleInfo,
 };
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Syntax, View};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
 use crate::theme::palette_v2::ThemeExt as _;
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -498,6 +499,22 @@ impl<'ast> MdRender {
         ui.set_clip_rect(entry_clip);
     }
 
+    pub fn calc_source_links<'a>(&mut self, root: &'a AstNode<'a>) {
+        self.bounds.source_links.clear();
+        if self.view == View::Rendered {
+            return;
+        }
+        for node in root.descendants() {
+            if matches!(
+                node.data.borrow().value,
+                NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_)
+            ) {
+                self.bounds.source_links.push(self.node_range(node));
+            }
+        }
+        self.bounds.source_links.sort_unstable();
+    }
+
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
         self.link_resolver.resolve_link(url)
     }
@@ -904,7 +921,7 @@ impl MdEdit {
     /// [`Self::heading_link`] for the heading on the caret's line, for the
     /// platform edit menu's "Copy Heading Link".
     pub fn selection_heading_link(&mut self) -> Option<String> {
-        if self.renderer.plaintext {
+        if self.renderer.kind != Syntax::Markdown {
             return None;
         }
         let arena = Arena::new();

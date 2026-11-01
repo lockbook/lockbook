@@ -35,4 +35,5 @@ mod link_card;
 mod links;
 mod regressions;
 mod render_props;
+mod source;
 mod tables;

@@ -269,6 +269,11 @@ fn opened_heading_is_scrolled_to_and_lands_in_order() {
     run_long(opened_heading_is_scrolled_to_check, 1000);
 }
 
+#[test]
+fn source_round_trip_keeps_heading() {
+    run_long(source_round_trip_keeps_heading_check, 1000);
+}
+
 // tables
 #[test]
 fn table_ranges_survive_edits() {
@@ -1306,7 +1311,7 @@ fn fold_toggle_does_not_jump_scroll_check(buf: &[u8]) -> Result<(), &'static str
 /// order down the view, a later one never higher than an earlier. Landing on
 /// a heading and reading which heading the view is on are inverses, at the
 /// top of the view and on the reading line's slide over the last screen.
-/// Small views, so more notes scroll.
+/// Small views, so more notes scroll; rendered or as source.
 fn opened_heading_is_scrolled_to_check(buf: &[u8]) -> Result<(), String> {
     use super::super::fragment::headings_in;
     use super::super::scroll_content::DocScrollContent;
@@ -1321,6 +1326,7 @@ fn opened_heading_is_scrolled_to_check(buf: &[u8]) -> Result<(), String> {
         ws.editor.edit.renderer.touch_mode = true;
         ws.editor.keyboard_visible = false;
     }
+    ws.editor.persistence.set_source(src.draw(2) == 1);
     ws.enter_frame_at(size);
     let slugs: Vec<String> = {
         let arena = comrak::Arena::new();
@@ -1349,6 +1355,62 @@ fn opened_heading_is_scrolled_to_check(buf: &[u8]) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Property: switching to source and back leaves the view, and the outline's
+/// mark, on the heading it was on. The reading line carries its text across
+/// each switch.
+fn source_round_trip_keeps_heading_check(buf: &[u8]) -> Result<(), String> {
+    use super::super::fragment::headings_in;
+    let mut src = ByteSource::new(buf);
+    let md = gen_doc(&mut src, &Features::all());
+    let (height, _) = long_view(&mut src);
+    let size = egui::Vec2::new(800.0, height);
+    let mut ws = TestEditor::new(&md);
+    ws.enter_frame_at(size);
+    let slugs: Vec<String> = {
+        let arena = comrak::Arena::new();
+        let root = ws.editor.edit.renderer.reparse(&arena);
+        headings_in(root).into_iter().map(|(_, h)| h.slug).collect()
+    };
+    let Some(slug) = slugs.get(src.draw(slugs.len().max(1))) else { return Ok(()) };
+    ws.editor.open_at_heading(slug);
+    for _ in 0..3 {
+        ws.enter_frame_at(size);
+    }
+    let scrolled = |ws: &mut TestEditor| {
+        let arena = comrak::Arena::new();
+        let root = ws.editor.edit.renderer.reparse(&arena);
+        ws.editor.scrolled_to_heading(root)
+    };
+    let before = scrolled(&mut ws);
+    for source in [true, false] {
+        ws.editor.persistence.set_source(source);
+        for _ in 0..3 {
+            ws.enter_frame_at(size);
+        }
+        if !scrolls(&mut ws) {
+            return Ok(()); // a view that can't hold the text on its reading line
+        }
+        let after = scrolled(&mut ws);
+        if before != after {
+            return Err(format!("on heading {before:?} ({slug:?}), source {source}: {after:?}"));
+        }
+    }
+    Ok(())
+}
+
+/// Whether the note scrolls in its current view.
+fn scrolls(ws: &mut TestEditor) -> bool {
+    use super::super::scroll_content::DocScrollContent;
+    use crate::widgets::affine_scroll::{Offset, Rows as _};
+    let arena = comrak::Arena::new();
+    let root = ws.editor.edit.renderer.reparse(&arena);
+    let state = &ws.editor.edit.scroll_area.state;
+    let view = state.viewport_height;
+    let rows = DocScrollContent::for_frame(&ws.editor.edit.renderer, root, view);
+    let (Some(first), Some(max)) = (rows.first(), state.max_offset(&rows)) else { return false };
+    state.precise_distance(&rows, &Offset::at_top_of(first), &max, view) != Some(0.0)
 }
 
 /// Where a heading at each point down the note would land in the view, a few

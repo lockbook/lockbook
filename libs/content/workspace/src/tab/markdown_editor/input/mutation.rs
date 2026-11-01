@@ -1,4 +1,5 @@
 use crate::style::button::COPY_FEEDBACK_SECS;
+use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
@@ -108,9 +109,8 @@ impl<'ast> MdEdit {
                 }
             }
             Event::ToggleStyle { region, style } => {
-                // ToggleStyle inserts markdown syntax (e.g. `**…**`); the
-                // syntax would render as literal text in plaintext mode.
-                if !self.renderer.plaintext {
+                // ToggleStyle inserts markdown syntax (e.g. `**…**`)
+                if self.renderer.kind == Syntax::Markdown {
                     self.toggle_style(root, region, style, current_selection, operations);
                 }
             }
@@ -623,12 +623,12 @@ impl<'ast> MdEdit {
                 }
             }
             Event::Table(action) => {
-                if !self.renderer.readonly && !self.renderer.plaintext {
+                if !self.renderer.readonly && self.renderer.kind == Syntax::Markdown {
                     self.table_action(root, action, operations);
                 }
             }
             Event::PasteGrid(grid) => {
-                if !self.renderer.readonly && !self.renderer.plaintext {
+                if !self.renderer.readonly && self.renderer.kind == Syntax::Markdown {
                     self.paste_grid(root, &grid, operations);
                 }
             }

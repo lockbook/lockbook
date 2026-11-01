@@ -103,6 +103,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 md.toggle_outline();
             }
         }
+        A::ToggleSource => {
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.toggle_source();
+            }
+        }
         A::NavForward => nav_history(app, false),
         A::OpenDocuments { ids, new_tab } => open_documents(app, &ids, new_tab),
         A::SelectTab(i) => {

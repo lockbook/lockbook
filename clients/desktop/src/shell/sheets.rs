@@ -559,6 +559,7 @@ fn show_help(ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
         ("⌘,", "Settings"),
         ("⌘/", "Shortcuts"),
         ("⌘\\", "Toggle sidebar"),
+        ("⌥⌘U", "Toggle source"),
     ];
 
     Area::new(Id::unique("shell_help"))

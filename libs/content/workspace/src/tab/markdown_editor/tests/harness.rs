@@ -45,6 +45,8 @@ pub struct TestEditor {
     pending: Vec<Event>,
     /// Text the last frame put on the clipboard.
     pub copied: Option<String>,
+    /// Every URL a frame asked the platform to open.
+    pub opened: Vec<String>,
 }
 
 impl TestEditor {
@@ -65,6 +67,7 @@ impl TestEditor {
             editor: build_editor(lb, md, embeds, super::super::test_egui_ctx(), None),
             pending: vec![],
             copied: None,
+            opened: vec![],
         };
         harness.enter_frame();
         harness
@@ -106,6 +109,7 @@ impl TestEditor {
             ),
             pending: vec![],
             copied: None,
+            opened: vec![],
         };
         harness.enter_frame();
         (harness, embeds)
@@ -148,7 +152,7 @@ impl TestEditor {
     /// or other non-default construction can still drive it through the
     /// harness's `enter_frame` API.
     pub fn from_editor(editor: super::super::Editor) -> Self {
-        let mut harness = Self { editor, pending: vec![], copied: None };
+        let mut harness = Self { editor, pending: vec![], copied: None, opened: vec![] };
         harness.enter_frame();
         harness
     }
@@ -204,14 +208,18 @@ impl TestEditor {
             },
         );
         out.textures_delta.clear();
-        self.copied = out
-            .platform_output
-            .commands
-            .into_iter()
-            .find_map(|command| match command {
-                egui::OutputCommand::CopyText(text) => Some(text),
-                _ => None,
-            });
+        self.record(out.platform_output);
+    }
+
+    fn record(&mut self, output: egui::PlatformOutput) {
+        self.copied = None;
+        for command in output.commands {
+            match command {
+                egui::OutputCommand::CopyText(text) => self.copied = Some(text),
+                egui::OutputCommand::OpenUrl(url) => self.opened.push(url.url),
+                _ => {}
+            }
+        }
     }
 
     pub fn get_text(&self) -> &str {
@@ -236,7 +244,7 @@ impl TestEditor {
         let events = std::iter::once(egui::Event::ModifiersChanged(modifiers))
             .chain(events)
             .collect();
-        ctx.run_pass(
+        let mut out = ctx.run_pass(
             RawInput { screen_rect: Some(screen_rect), events, ..Default::default() },
             |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
@@ -250,9 +258,9 @@ impl TestEditor {
                     })
                 });
             },
-        )
-        .textures_delta
-        .clear();
+        );
+        out.textures_delta.clear();
+        self.record(out.platform_output);
     }
 
     pub fn has_focus(&self, id: egui::Id) -> bool {

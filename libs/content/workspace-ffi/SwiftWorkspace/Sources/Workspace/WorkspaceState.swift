@@ -19,6 +19,10 @@ import Observation
     public var outlineAvailable: Bool = false
     /// The outline sheet is up: floating buttons would cover it.
     public var outlineOpen: Bool = false
+    /// The open file has a rendered form: native chrome offers its source.
+    public var sourceAvailable: Bool = false
+    /// Files with a rendered form show as source.
+    public var sourceOn: Bool = false
 
     public var mobileToolbarShown: Bool = false
 
@@ -185,6 +189,13 @@ import Observation
         guard let wsHandle else { return }
 
         toggle_outline(wsHandle)
+        redraw.send(())
+    }
+
+    public func toggleSource() {
+        guard let wsHandle else { return }
+
+        toggle_source(wsHandle)
         redraw.send(())
     }
 

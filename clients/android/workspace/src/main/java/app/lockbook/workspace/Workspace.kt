@@ -201,6 +201,9 @@ object Workspace {
     external fun outlineAvailable(rustObj: Long): Boolean
     external fun toggleOutline(rustObj: Long)
     external fun outlineOpen(rustObj: Long): Boolean
+    external fun sourceAvailable(rustObj: Long): Boolean
+    external fun sourceOn(rustObj: Long): Boolean
+    external fun toggleSource(rustObj: Long)
     external fun openSelectionLinks(rustObj: Long)
     external fun refreshSelectionPreviews(rustObj: Long)
     external fun setContactLinkedSites(rustObj: Long, value: Boolean)
