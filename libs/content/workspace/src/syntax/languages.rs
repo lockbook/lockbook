@@ -1,6 +1,6 @@
 use std::ops::Range;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::task::Poll;
 
 use egui::Context;
@@ -500,9 +500,12 @@ static TAGS: [OnceLock<Option<Query>>; ENTRIES.len()] = [const { OnceLock::new()
 static TAGS_STARTED: [AtomicBool; ENTRIES.len()] =
     [const { AtomicBool::new(false) }; ENTRIES.len()];
 
+/// The contexts that found a compile pending, repainted when one finishes.
+static WAITING: Mutex<Vec<Context>> = Mutex::new(Vec::new());
+
 /// `cell`'s value, compiled on a worker the first time it's asked for and
-/// pending until then; the worker repaints `ctx` when it's done. Tests
-/// compile where they ask, so their first frame is colored.
+/// pending until then; the worker repaints every waiting `ctx` when it's
+/// done. Tests compile where they ask, so their first frame is colored.
 fn compiled<T: Send + Sync>(
     cell: &'static OnceLock<T>, started: &'static AtomicBool, ctx: &Context,
     compile: impl FnOnce() -> T + Send + 'static,
@@ -520,11 +523,23 @@ fn on_worker<T: Send + Sync>(
     if let Some(value) = cell.get() {
         return Poll::Ready(value);
     }
+    {
+        let mut waiting = WAITING.lock().unwrap();
+        if !waiting.contains(ctx) {
+            waiting.push(ctx.clone());
+        }
+    }
+    // the worker sets the cell before it drains the waiting, so one that
+    // finished since the first look is seen here
+    if let Some(value) = cell.get() {
+        return Poll::Ready(value);
+    }
     if !started.swap(true, Ordering::Relaxed) {
-        let ctx = ctx.clone();
         std::thread::spawn(move || {
             cell.get_or_init(compile);
-            ctx.request_repaint();
+            for ctx in WAITING.lock().unwrap().drain(..) {
+                ctx.request_repaint();
+            }
         });
     }
     Poll::Pending
