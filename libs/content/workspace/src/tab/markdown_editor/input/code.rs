@@ -1,12 +1,12 @@
-//! Typing in code, inside a fence or in a code file: Enter keeps the
-//! indent and adds a level after an open bracket, and a closing bracket
-//! typed at a line's start outdents to its match.
+//! Typing in code, inside a fence or in a code file: Tab indents, Enter
+//! keeps the indent and adds a level after an open bracket, and a closing
+//! bracket typed at a line's start outdents to its match.
 
 use std::sync::Arc;
 
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{
-    Grapheme, IntoRangeExt as _, RangeExt as _, ToRangeExt as _,
+    Grapheme, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, ToRangeExt as _,
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
@@ -175,6 +175,52 @@ impl<'ast> MdRender {
 }
 
 impl<'ast> MdEdit {
+    /// Tab and Shift-Tab when every selected line is code. A caret gets an
+    /// indent level; a selection's lines each gain or lose one.
+    pub fn indent_in_code(
+        &self, root: &'ast AstNode<'ast>, deindent: bool, operations: &mut Vec<Operation>,
+    ) -> bool {
+        let selection = self.renderer.buffer.current.selection;
+        let Some(scope) = self.renderer.code_scope_at(root, selection.start()) else {
+            return false;
+        };
+        let source_lines = &self.renderer.bounds.source_lines;
+        let mut starts = Vec::new();
+        for line_idx in source_lines.find_intersecting(selection, true).iter() {
+            let line = source_lines[line_idx];
+            let Some(start) = scope.line_start(line) else { return false };
+            starts.push((start, line));
+        }
+        let unit = scope.indent_unit();
+        if !deindent && selection.is_empty() {
+            operations.push(Operation::Replace(Replace { range: selection, text: unit }));
+            operations.push(Operation::Select(selection));
+            return true;
+        }
+        for (start, line) in starts {
+            let code = &self.renderer.buffer[(start, line.end())];
+            if deindent {
+                let width = if code.starts_with('\t') {
+                    1
+                } else {
+                    let spaces = code.len() - code.trim_start_matches(' ').len();
+                    spaces.min(unit.len().max(1))
+                };
+                if width > 0 {
+                    let range = (start, start + width);
+                    operations.push(Operation::Replace(Replace { range, text: "".into() }));
+                }
+            } else if !code.trim().is_empty() {
+                operations.push(Operation::Replace(Replace {
+                    range: start.into_range(),
+                    text: unit.clone(),
+                }));
+            }
+        }
+        operations.push(Operation::Select(selection));
+        true
+    }
+
     /// Enter in code: the new line keeps the indent, gains a level after an
     /// open bracket, and between a pair of brackets puts the close on a line
     /// of its own.

@@ -302,6 +302,9 @@ impl<'ast> MdEdit {
                 if self.indent_in_table(deindent, operations) {
                     return response;
                 }
+                if self.indent_in_code(root, deindent, operations) {
+                    return response;
+                }
 
                 let selected_lines = self
                     .renderer

@@ -50,6 +50,10 @@ fn enter() -> Event {
     Event::Newline { shift: false }
 }
 
+fn tab(deindent: bool) -> Event {
+    Event::Indent { deindent }
+}
+
 fn typed(text: &str) -> Event {
     Event::Replace { region: Region::Selection, text: text.into(), advance_cursor: true }
 }
@@ -94,6 +98,27 @@ fn enter_in_code_file() {
     let doc = "fn f() {|}";
     let want = "fn f() {\n    |\n}";
     assert_eq!(run(doc, Some("rs"), vec![enter()]), want);
+}
+
+#[test]
+fn tab_indents_by_the_code_unit() {
+    let doc = "```yaml\na:\n  b: 1\n|\n```";
+    let want = "```yaml\na:\n  b: 1\n  |\n```";
+    assert_eq!(run(doc, None, vec![tab(false)]), want);
+}
+
+#[test]
+fn tab_and_shift_tab_move_selected_lines() {
+    let doc = "```py\n|a = 1\n\nb = 2|\n```";
+    let indented = "```py\n    |a = 1\n\n    b = 2|\n```";
+    assert_eq!(run(doc, None, vec![tab(false)]), indented);
+    assert_eq!(run(doc, None, vec![tab(false), tab(true)]), doc);
+}
+
+#[test]
+fn shift_tab_undoes_tab_on_the_only_indented_lines() {
+    let doc = "```rust\nfn f() {\n    |a();\n    b();|\n}\n```";
+    assert_eq!(run(doc, None, vec![tab(false), tab(true)]), doc);
 }
 
 #[test]
