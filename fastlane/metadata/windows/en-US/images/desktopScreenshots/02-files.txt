@@ -1,0 +1,1 @@
+Keep PDFs in the same tree as your notes.

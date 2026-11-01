@@ -1,15 +1,216 @@
 use std::fs;
+use std::io::{Cursor, Write};
 use std::path::PathBuf;
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
 
 use cli_rs::cli_error::{CliError, CliResult};
+use reqwest::Method;
+use reqwest::blocking::Client;
+use reqwest::header::CONTENT_TYPE;
+use serde_json::{Value, json};
+use zip::write::FileOptions;
+use zip::{CompressionMethod, ZipWriter};
 
+use crate::releaser::secrets::PartnerCenter;
 use crate::releaser::utils::lb_version;
 use crate::utils::CommandRunner;
 
 const ASSETS: &str = "utils/lbdev/src/releaser/windows/msix-assets";
 const BUNDLE: &str = "windows-build/Lockbook.msixbundle";
 const PACKAGES: &str = "windows-build/msix";
+const SCREENSHOTS: &str = "fastlane/metadata/windows/en-US/images/desktopScreenshots";
+
+const SUBMISSION_API: &str = "https://manage.devcenter.microsoft.com/v1.0/my/applications";
+const TOKEN_RESOURCE: &str = "https://manage.devcenter.microsoft.com";
+const LISTING_LANGUAGE: &str = "en-us";
+const DESKTOP_SCREENSHOT: &str = "Screenshot";
+const COMMIT_POLL_INTERVAL: Duration = Duration::from_secs(15);
+
+/// Fills a Partner Center submission's listing with the screenshots in `SCREENSHOTS`, each
+/// `.png` captioned by the `.txt` beside it, with packages and copy as last published. Images
+/// are ingested on commit, so `submit` is the only way to see them; without it the draft holds
+/// the upload for a later run.
+pub fn screenshots(submit: bool) -> CliResult<()> {
+    let store = PartnerCenterClient::new()?;
+
+    let app = store.get("")?;
+    let mut submission = match app["pendingApplicationSubmission"]["id"].as_str() {
+        Some(pending) => {
+            let status = store.get(&format!("/submissions/{pending}/status"))?;
+            if status["status"] != "PendingCommit" {
+                return Err(error(format!(
+                    "submission {pending} is {}; wait for it or delete it in Partner Center",
+                    status["status"]
+                )));
+            }
+            store.get(&format!("/submissions/{pending}"))?
+        }
+        None => store.post("/submissions")?,
+    };
+    let id = submission["id"].as_str().unwrap().to_string();
+    let upload_url = submission["fileUploadUrl"].as_str().unwrap().to_string();
+
+    let mut paths: Vec<PathBuf> = fs::read_dir(SCREENSHOTS)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "png"))
+        .collect();
+    paths.sort();
+
+    let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+    let mut images = Vec::new();
+    for path in &paths {
+        let name = path.file_name().unwrap().to_str().unwrap();
+        let caption = fs::read_to_string(path.with_extension("txt")).unwrap();
+        zip.start_file(name, FileOptions::default().compression_method(CompressionMethod::Stored))
+            .unwrap();
+        zip.write_all(&fs::read(path).unwrap()).unwrap();
+        images.push(json!({
+            "fileName": name,
+            "fileStatus": "PendingUpload",
+            "imageType": DESKTOP_SCREENSHOT,
+            "description": caption.trim(),
+        }));
+    }
+    let zip = zip.finish().unwrap().into_inner();
+
+    let listing = &mut submission["listings"][LISTING_LANGUAGE]["baseListing"]["images"];
+    let Some(existing) = listing.as_array().cloned() else {
+        return Err(error(format!("submission {id} has no {LISTING_LANGUAGE} listing")));
+    };
+    // published screenshots go, an earlier run's unprocessed uploads are superseded outright
+    let mut all: Vec<Value> = existing
+        .into_iter()
+        .filter(|image| {
+            image["imageType"] != DESKTOP_SCREENSHOT || image["fileStatus"] != "PendingUpload"
+        })
+        .map(|mut image| {
+            if image["imageType"] == DESKTOP_SCREENSHOT {
+                image["fileStatus"] = json!("PendingDelete");
+            }
+            image
+        })
+        .collect();
+    all.extend(images);
+    *listing = Value::Array(all);
+
+    store.upload(&upload_url, zip)?;
+    let updated = store.put(&format!("/submissions/{id}"), submission)?;
+    for image in updated["listings"][LISTING_LANGUAGE]["baseListing"]["images"]
+        .as_array()
+        .unwrap()
+    {
+        println!("{}: {} {}", image["fileName"], image["imageType"], image["fileStatus"]);
+    }
+    println!(
+        "submission {id}: https://partner.microsoft.com/dashboard/products/{}/submissions/{id}",
+        store.key.product_id
+    );
+
+    if !submit {
+        return Ok(());
+    }
+
+    store.post(&format!("/submissions/{id}/commit"))?;
+    loop {
+        let status = store.get(&format!("/submissions/{id}/status"))?;
+        println!("submission {id} is {}", status["status"]);
+        match status["status"].as_str() {
+            Some("CommitStarted") => thread::sleep(COMMIT_POLL_INTERVAL),
+            Some(failed) if failed.ends_with("Failed") => {
+                return Err(error(format!("submission {id}: {}", status["statusDetails"])));
+            }
+            _ => return Ok(()),
+        }
+    }
+}
+
+struct PartnerCenterClient {
+    http: Client,
+    key: PartnerCenter,
+    token: String,
+}
+
+impl PartnerCenterClient {
+    fn new() -> CliResult<Self> {
+        let http = Client::new();
+        let key = PartnerCenter::env();
+        let response = http
+            .post(format!("https://login.microsoftonline.com/{}/oauth2/token", key.tenant_id))
+            .form(&[
+                ("grant_type", "client_credentials"),
+                ("client_id", &key.client_id),
+                ("client_secret", &key.client_secret),
+                ("resource", TOKEN_RESOURCE),
+            ])
+            .send()
+            .unwrap();
+        let status = response.status();
+        let body: Value = response.json().unwrap();
+        let Some(token) = body["access_token"].as_str() else {
+            return Err(error(format!("partner center sign-in: {status}\n{body}")));
+        };
+        Ok(Self { http, key, token: token.to_string() })
+    }
+
+    fn get(&self, path: &str) -> CliResult<Value> {
+        self.send(Method::GET, path, None)
+    }
+
+    fn post(&self, path: &str) -> CliResult<Value> {
+        self.send(Method::POST, path, None)
+    }
+
+    fn put(&self, path: &str, body: Value) -> CliResult<Value> {
+        self.send(Method::PUT, path, Some(body))
+    }
+
+    fn send(&self, method: Method, path: &str, body: Option<Value>) -> CliResult<Value> {
+        let mut request = self
+            .http
+            .request(method.clone(), format!("{SUBMISSION_API}/{}{path}", self.key.product_id))
+            .bearer_auth(&self.token)
+            .body(String::new()); // a bodiless POST still needs Content-Length: 0
+        if let Some(body) = body {
+            request = request
+                .header(CONTENT_TYPE, "application/json")
+                .body(body.to_string());
+        }
+
+        let response = request.send().unwrap();
+        let status = response.status();
+        let text = response.text().unwrap();
+        if !status.is_success() {
+            return Err(error(format!("partner center {method} {path}: {status}\n{text}")));
+        }
+
+        Ok(if text.is_empty() { Value::Null } else { serde_json::from_str(&text).unwrap() })
+    }
+
+    fn upload(&self, sas_url: &str, zip: Vec<u8>) -> CliResult<()> {
+        let response = self
+            .http
+            .put(sas_url)
+            .header("x-ms-blob-type", "BlockBlob")
+            .body(zip)
+            .send()
+            .unwrap();
+        let status = response.status();
+        if !status.is_success() {
+            return Err(error(format!(
+                "partner center upload: {status}\n{}",
+                response.text().unwrap()
+            )));
+        }
+        Ok(())
+    }
+}
+
+fn error(msg: String) -> CliError {
+    CliError { msg, status: 1 }
+}
 
 pub fn pack() -> CliResult<()> {
     pack_for_target("x86_64-pc-windows-msvc", "x64")

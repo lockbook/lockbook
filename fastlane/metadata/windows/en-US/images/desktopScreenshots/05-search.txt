@@ -1,0 +1,1 @@
+Search file names and note text, offline too.

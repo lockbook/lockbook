@@ -11,6 +11,12 @@ pub struct AppStoreConnect {
 pub struct PlayStore {
     pub service_account_key: String,
 }
+pub struct PartnerCenter {
+    pub tenant_id: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub product_id: String,
+}
 
 impl CratesIO {
     pub fn env() -> Self {
@@ -43,6 +49,17 @@ impl AppStoreConnect {
 impl PlayStore {
     pub fn env() -> Self {
         Self { service_account_key: env_or_panic("GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY") }
+    }
+}
+
+impl PartnerCenter {
+    pub fn env() -> Self {
+        Self {
+            tenant_id: env_or_panic("AZURE_AD_TENANT_ID"),
+            client_id: env_or_panic("AZURE_AD_APPLICATION_CLIENT_ID"),
+            client_secret: env_or_panic("AZURE_AD_APPLICATION_SECRET"),
+            product_id: env_or_panic("STORE_PRODUCT_ID"),
+        }
     }
 }
 
