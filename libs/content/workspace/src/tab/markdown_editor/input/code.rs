@@ -1,7 +1,8 @@
 //! Typing in code, inside a fence or in a code file: Tab indents, Enter
 //! keeps the indent and adds a level after an open bracket, and a closing
 //! bracket typed at a line's start outdents to its match. Expand selection
-//! grows to the syntax node around the selection.
+//! grows to the syntax node around the selection, and the bracket beside
+//! the caret shows the one it pairs with.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -15,6 +16,12 @@ use lb_rs::model::text::operation_types::{Operation, Replace};
 use crate::syntax::{Highlights, Lang, Role};
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+
+/// A bracket and the one it pairs with.
+pub type BracketPair = [(Grapheme, Grapheme); 2];
+
+/// The text seq and selection a bracket pair was found at, and the pair.
+pub type BracketPairAt = ((u64, (Grapheme, Grapheme)), Option<BracketPair>);
 
 /// The code around an offset: one code block's code or a whole code file,
 /// as one text.
@@ -71,6 +78,11 @@ impl CodeScope {
     /// string or comment.
     pub fn is_bracket(&self, at: usize) -> bool {
         !matches!(self.role_at(at), Role::String | Role::Comment)
+    }
+
+    /// The open bracket the close bracket at `at` pairs with.
+    pub fn matching_open(&self, at: usize) -> Option<usize> {
+        self.matching_open_before(*self.text.as_bytes().get(at)?, at)
     }
 
     /// The open bracket a `close` bracket at `at` would pair with.
@@ -384,5 +396,45 @@ impl<'ast> MdEdit {
         }
         self.syntax_grown.push((selection, grown));
         Some(grown)
+    }
+
+    /// The bracket beside the caret and the one it pairs with, in code,
+    /// kept until the text or the selection changes.
+    pub fn bracket_pair(&mut self, root: &'ast AstNode<'ast>) -> Option<BracketPair> {
+        let at = (self.renderer.text_seq, self.renderer.buffer.current.selection);
+        match self.bracket_pair_at {
+            Some((cached_at, pair)) if cached_at == at => pair,
+            _ => {
+                let pair = self.find_bracket_pair(root);
+                self.bracket_pair_at = Some((at, pair));
+                pair
+            }
+        }
+    }
+
+    fn find_bracket_pair(&self, root: &'ast AstNode<'ast>) -> Option<BracketPair> {
+        let caret = self.renderer.selection_offset()?;
+        let beside = [caret.0.checked_sub(1).map(Grapheme), Some(caret)];
+        let at = beside.into_iter().flatten().find(|at| {
+            *at < self.renderer.last_cursor_position()
+                && matches!(
+                    &self.renderer.buffer[(*at, *at + 1)],
+                    "(" | ")" | "[" | "]" | "{" | "}"
+                )
+        })?;
+        let scope = self.renderer.code_scope_at(root, caret)?;
+        let line = self.renderer.line_at_offset(at);
+        if scope.line_start(line)? > at {
+            return None;
+        }
+        let byte = self.renderer.code_byte(&scope, at);
+        if !scope.is_bracket(byte) {
+            return None;
+        }
+        let other = scope
+            .matching_close(byte)
+            .or_else(|| scope.matching_open(byte))?;
+        let other = self.renderer.code_range(&scope, other..other + 1);
+        Some([(at, at + 1), other])
     }
 }

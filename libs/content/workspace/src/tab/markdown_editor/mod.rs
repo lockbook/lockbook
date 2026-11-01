@@ -314,6 +314,9 @@ pub struct MdEdit {
     /// goes back while the selection is the last `to`.
     pub syntax_grown: Vec<((Grapheme, Grapheme), (Grapheme, Grapheme))>,
 
+    /// The last [`Self::bracket_pair`], by text seq and selection.
+    pub bracket_pair_at: Option<input::code::BracketPairAt>,
+
     /// Keyboard input after a frame's first IME edit, replayed next frame so
     /// it acts on the edit's result (completions take keys ahead of the IME).
     pub deferred_input: Vec<egui::Event>,
@@ -414,6 +417,7 @@ impl MdEdit {
             touch_reorder_driven: false,
             pending_block_move: None,
             syntax_grown: Vec::new(),
+            bracket_pair_at: None,
             deferred_input: Vec::new(),
             ime_reset: false,
             ime_abandoned: None,
@@ -996,6 +1000,7 @@ impl Editor {
                 touch_reorder_driven: false,
                 pending_block_move: None,
                 syntax_grown: Vec::new(),
+                bracket_pair_at: None,
                 deferred_input: Vec::new(),
                 ime_reset: false,
                 ime_abandoned: None,
@@ -1963,6 +1968,13 @@ impl Editor {
                             let theme = self.edit.renderer.ctx.get_lb_theme();
                             let color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
                             self.edit.show_range(ui, range, color);
+                        }
+
+                        if let Some(pair) = self.edit.bracket_pair(root) {
+                            let color = self.edit.renderer.ctx.get_lb_theme().neutral_bg_tertiary();
+                            for bracket in pair {
+                                self.edit.show_range(ui, bracket, color);
+                            }
                         }
 
                         if let Some((range, at)) = self.heading_flash {

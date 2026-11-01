@@ -158,6 +158,21 @@ fn shrink_forgets_a_moved_selection() {
 }
 
 #[test]
+fn brackets_pair_past_strings() {
+    let doc = "```js\nf(\")\", [1])|\n```";
+    let mut ws = editor(doc, None);
+    let arena = comrak::Arena::new();
+    let root = ws.editor.edit.renderer.reparse(&arena);
+    let pair = ws.editor.edit.bracket_pair(root).unwrap();
+    let open = doc.find("f(").unwrap() + 1;
+    let close = doc.find("])").unwrap() + 1;
+    assert_eq!(
+        pair,
+        [(Grapheme(close), Grapheme(close + 1)), (Grapheme(open), Grapheme(open + 1))]
+    );
+}
+
+#[test]
 fn enter_with_a_selection_leaving_the_block() {
     let doc = "```rust\nfn a() {|\n}\n```\n\npara|";
     run(doc, None, vec![enter()]);
