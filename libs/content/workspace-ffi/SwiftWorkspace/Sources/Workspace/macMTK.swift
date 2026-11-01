@@ -1,6 +1,7 @@
 #if os(macOS)
     import Bridge
     import MetalKit
+    import UniformTypeIdentifiers
 
     public class MacMTK: MTKView, MTKViewDelegate {
         var wsHandle: UnsafeMutableRawPointer?
@@ -595,6 +596,26 @@
                     NSCursor.unhide()
                     cursorHidden = false
                 }
+            }
+
+            switch canvas_take_command(wsHandle) {
+            case 8:
+                importFromPasteboard(NSPasteboard.general, isPaste: true)
+                setNeedsDisplay(frame)
+            case 16:
+                let panel = NSOpenPanel()
+                panel.allowedContentTypes = [.image]
+                panel.allowsMultipleSelection = false
+                panel.begin { [weak self] response in
+                    guard response == .OK, let self, let url = panel.url,
+                          let data = try? Data(contentsOf: url) else { return }
+                    data.withUnsafeBytes { bytes in
+                        canvas_send_content(self.wsHandle, bytes.bindMemory(to: UInt8.self).baseAddress,
+                                            UInt(data.count), url.pathExtension.lowercased() == "svg")
+                    }
+                    self.setNeedsDisplay(self.frame)
+                }
+            default: break
             }
 
             if output.request_paste {

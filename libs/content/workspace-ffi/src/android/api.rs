@@ -185,7 +185,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFF)V",
+        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFFI)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -214,6 +214,7 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.has_magnifier { 1 } else { 0 }),
             JValue::Float(response.magnifier_x),
             JValue::Float(response.magnifier_y),
+            JValue::Int(response.canvas_actions as i32),
         ],
     )
     .expect("create AndroidResponse")
@@ -1164,6 +1165,41 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
         .raw_input
         .events
         .push(egui::Event::Paste(content));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_canvasContextAction(
+    _env: JNIEnv, _: JClass, obj: jlong, action: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer
+        .context
+        .push_event(workspace_rs::Event::CanvasAction(action as u32));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_canvasTakeCommand(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jint {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    workspace_rs::tab::svg_editor::context_menu::take_host_command(&obj.renderer.context) as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_canvasSendContent(
+    env: JNIEnv, _: JClass, obj: jlong, content: JByteArray, is_svg: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let Ok(bytes) = env.convert_byte_array(&content) else { return };
+    let content = if is_svg == 1 {
+        let Ok(text) = String::from_utf8(bytes) else { return };
+        workspace_rs::tab::CanvasPasteContent::Svg(text)
+    } else {
+        workspace_rs::tab::CanvasPasteContent::Image(bytes)
+    };
+    obj.renderer
+        .context
+        .push_event(workspace_rs::Event::CanvasContent(content));
 }
 
 #[no_mangle]

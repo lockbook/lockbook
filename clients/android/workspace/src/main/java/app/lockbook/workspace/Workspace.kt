@@ -45,6 +45,7 @@ data class AndroidResponse(
     val hasMagnifier: Boolean,
     val magnifierX: Float,
     val magnifierY: Float,
+    val canvasActions: Int,
 )
 
 @Serializable
@@ -185,6 +186,9 @@ object Workspace {
     external fun copyImage(rustObj: Long)
     external fun copyRendered(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
+    external fun canvasContextAction(rustObj: Long, action: Int)
+    external fun canvasTakeCommand(rustObj: Long): Int
+    external fun canvasSendContent(rustObj: Long, content: ByteArray, isSvg: Boolean)
     external fun clipboardSendImage(rustObj: Long, content: ByteArray, isPaste: Boolean)
     external fun isPenOnlyDraw(rustObj: Long) : Boolean
     external fun insertTextAtCursor(rustObj: Long, text: String)

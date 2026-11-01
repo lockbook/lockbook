@@ -308,6 +308,39 @@ impl AppState {
 
         let Output { mut platform, viewport } = self.lb.frame();
 
+        match workspace_rs::tab::svg_editor::context_menu::take_host_command(
+            &self.lb.renderer.context,
+        ) {
+            8 => {
+                self.handle_paste();
+                self.lb.renderer.context.request_repaint();
+            }
+            16 => {
+                let ctx = self.lb.renderer.context.clone();
+                std::thread::spawn(move || {
+                    let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Images", &["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"])
+                        .pick_file()
+                    else {
+                        return;
+                    };
+                    let Ok(bytes) = std::fs::read(&path) else { return };
+                    let content = if path
+                        .extension()
+                        .is_some_and(|e| e.eq_ignore_ascii_case("svg"))
+                    {
+                        let Ok(text) = String::from_utf8(bytes) else { return };
+                        workspace_rs::tab::CanvasPasteContent::Svg(text)
+                    } else {
+                        workspace_rs::tab::CanvasPasteContent::Image(bytes)
+                    };
+                    ctx.push_event(workspace_rs::Event::CanvasContent(content));
+                    ctx.request_repaint();
+                });
+            }
+            _ => {}
+        }
+
         // Shell already saved tabs if close_requested was set this frame.
         if self.close_requested {
             std::process::exit(0);

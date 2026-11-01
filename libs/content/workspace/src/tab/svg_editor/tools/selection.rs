@@ -34,6 +34,7 @@ pub struct Selection {
     laso_rect: Option<egui::Rect>,
     pub layout: Layout,
     show_selection_popover: bool,
+    pub contextual_menu: bool,
     pub selection_stroke_snashot: HashMap<Uuid, Stroke>,
     selection_opacity_snapshot: HashMap<Uuid, f32>,
     pub properties: Option<ElementEditableProperties>,
@@ -188,6 +189,7 @@ pub struct Layout {
 
 #[derive(Debug)]
 pub enum SelectionEvent {
+    Cancel,
     StartLaso(BuildPayload),
     LasoBuild(BuildPayload),
     EndLaso,
@@ -235,6 +237,8 @@ impl InputControllerTool for Selection {
                 SelectionOperation::LasoBuild(_) => Some(SelectionEvent::EndLaso),
                 _ => Some(SelectionEvent::EndTransform),
             },
+            InputControllerEvent::ToolCancel
+            | InputControllerEvent::ViewportChangeWithToolCancel => Some(SelectionEvent::Cancel),
             _ => None,
         }
     }
@@ -243,7 +247,22 @@ impl InputControllerTool for Selection {
         &mut self, ui: &mut egui::Ui, event: Self::ToolEvent, selection_ctx: &mut ToolContext,
     ) {
         match event {
+            SelectionEvent::Cancel => {
+                self.current_op = SelectionOperation::Idle;
+                self.laso_rect = None;
+                // A native menu or a viewport gesture took over this drag.
+                // Revert its preview without recording an edit in history.
+                for selected in &mut self.selected_elements {
+                    if let Some(inverse) = selected.transform.invert() {
+                        if let Some(element) = selection_ctx.buffer.elements.get_mut(&selected.id) {
+                            element.transform(inverse);
+                        }
+                    }
+                    selected.transform = Transform::identity();
+                }
+            }
             SelectionEvent::StartTransform(op) => {
+                self.contextual_menu = false;
                 self.current_op = op;
             }
             SelectionEvent::Transform(pos) => {
@@ -427,6 +446,7 @@ impl InputControllerTool for Selection {
                 }
             }
             SelectionEvent::StartLaso(build_payload) => {
+                self.contextual_menu = false;
                 if build_payload.modifiers.alt {
                     let iter = self.selected_elements.iter().filter_map(|s_el| {
                         selection_ctx
@@ -498,7 +518,7 @@ impl InputControllerTool for Selection {
                     .elements
                     .iter()
                     .filter_map(|(&id, el)| {
-                        if el.deleted() {
+                        if !is_selectable(el) {
                             return None;
                         }
                         Some(SelectedElement { id, transform: Transform::identity() })
@@ -537,7 +557,66 @@ impl InputControllerTool for Selection {
         );
     }
 }
+/// Provisional cancelled paths and hidden elements are not context targets.
+pub(crate) fn is_selectable(element: &Element) -> bool {
+    if element.deleted() {
+        return false;
+    }
+    let visible = match element {
+        Element::Path(path) => {
+            path.visibility == resvg::usvg::Visibility::Visible && path.opacity > 0.
+        }
+        Element::Image(image) => {
+            image.visibility == resvg::usvg::Visibility::Visible && image.opacity > 0.
+        }
+        Element::Text(_) => false,
+    };
+    visible && element.bounding_box().min.is_finite() && element.bounding_box().max.is_finite()
+}
+
 impl Selection {
+    pub fn select_at(&mut self, pos: egui::Pos2, buffer: &mut Buffer) -> bool {
+        let hit = buffer.elements.iter().find_map(|(&id, el)| {
+            if !is_selectable(el) {
+                return None;
+            }
+            let intersects = match el {
+                Element::Path(p)
+                    if p.visibility == resvg::usvg::Visibility::Visible && p.opacity > 0. =>
+                {
+                    pointer_intersects_element(el, pos, None, 10.)
+                        || (p.fill.is_some()
+                            && p.data
+                                .contains_point(DVec2::new(pos.x as f64, pos.y as f64)))
+                }
+                Element::Image(image)
+                    if image.visibility == resvg::usvg::Visibility::Visible
+                        && image.opacity > 0. =>
+                {
+                    pointer_intersects_element(el, pos, None, 10.)
+                }
+                _ => false,
+            };
+            intersects.then_some(SelectedElement { id, transform: Transform::identity() })
+        });
+        if let Some(hit) = hit {
+            if !self.selected_elements.iter().any(|s| s.id == hit.id) {
+                self.new_selection_els(vec![hit]);
+            }
+            true
+        } else {
+            self.clear_selection_els();
+            false
+        }
+    }
+
+    pub fn show_advanced(&mut self, ui: &mut egui::Ui, ctx: &mut ToolContext) {
+        if self.selected_elements.is_empty() {
+            return;
+        }
+        ui.add_enabled_ui(!ctx.read_only, |ui| self.show_selection_popover(ui, ctx));
+    }
+
     fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
         let elements = self
             .selected_elements
@@ -654,6 +733,16 @@ impl Selection {
             self.show_selection_container(ui, container);
         }
 
+        if self.contextual_menu
+            || matches!(
+                ui.ctx().os(),
+                egui::os::OperatingSystem::Android | egui::os::OperatingSystem::IOS
+            )
+        {
+            self.layout.container_tooltip = None;
+            return;
+        }
+
         ui.visuals_mut().window_corner_radius = egui::CornerRadius::same(7);
         ui.style_mut()
             .text_styles
@@ -722,7 +811,7 @@ impl Selection {
                     if self.show_selection_popover && !show_popover_toggled {
                         egui::Frame::window(ui.style()).show(ui, |ui| {
                             ui.vertical(|ui| {
-                                self.show_selection_popover(ui, selection_ctx);
+                                self.show_advanced(ui, selection_ctx);
                             });
                         });
                     }
@@ -777,11 +866,15 @@ impl Selection {
 
         ui.separator();
 
-        if Button::default()
-            .text("Delete")
-            .margin(btn_margin)
-            .show(ui)
-            .clicked()
+        if ui
+            .add_enabled_ui(!selection_ctx.read_only, |ui| {
+                Button::default()
+                    .text("Delete")
+                    .margin(btn_margin)
+                    .show(ui)
+                    .clicked()
+            })
+            .inner
         {
             self.delete_selection(selection_ctx);
         }

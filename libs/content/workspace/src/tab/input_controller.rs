@@ -16,6 +16,8 @@ use crate::{
 #[derive(Debug)]
 pub struct InputController {
     touches: Vec<TouchInfo>,
+    context_press: Option<(TouchId, Pos2, Instant)>,
+    context_touch: Option<TouchId>,
     buttons: HashMap<MouseProps, (Instant, egui::Pos2)>, // track the start pos
     tool_running: Option<Instant>,
     mouse_hover_pos: Option<egui::Pos2>,
@@ -109,6 +111,7 @@ enum ButtonType {
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum InputControllerEvent {
+    ContextMenuRequested(Pos2),
     ToolStart(ToolPayload),
     ToolRun(ToolPayload),
     ToolPredictedRun(egui::Pos2, Option<f32>),
@@ -205,6 +208,8 @@ impl InputController {
     pub fn new(config: InputControllerConfig) -> Self {
         Self {
             touches: Vec::new(),
+            context_press: None,
+            context_touch: None,
             buttons: HashMap::new(),
             tool_running: None,
             viewport_changing: None,
@@ -233,6 +238,17 @@ impl InputController {
             self.process_extended_events(ui.ctx().read_events(), layout);
 
         controller_events.extend(extended_controller_events);
+
+        if let Some((id, pos, start)) = self.context_press {
+            let remaining = Duration::from_millis(500).saturating_sub(start.elapsed());
+            if remaining.is_zero() {
+                self.reset_state();
+                self.context_touch = Some(id);
+                controller_events.push(InputControllerEvent::ContextMenuRequested(pos));
+            } else {
+                ui.ctx().request_repaint_after(remaining);
+            }
+        }
 
         // coalesce all transform events into one.
         let mut transform_sum = Transform::identity();
@@ -285,6 +301,9 @@ impl InputController {
                 start_positions,
                 center_pos,
             } => {
+                if !translation_delta.eq(&egui::Vec2::ZERO) || *zoom_factor != 1.0 {
+                    self.context_press = None;
+                }
                 let invalid_touch_positions = start_positions.iter().any(|pos| {
                     pos_collides_with_layout(*pos, ctx) || !ctx.draw_area.contains(*pos)
                 });
@@ -319,7 +338,13 @@ impl InputController {
                 let controller_event = self.ui_to_controller_event(event, layout, scroll_units);
 
                 if self.config.is_read_only
-                    && !matches!(controller_event, Some(InputControllerEvent::ViewportChange(_)))
+                    && !matches!(
+                        controller_event,
+                        Some(
+                            InputControllerEvent::ViewportChange(_)
+                                | InputControllerEvent::ContextMenuRequested(_)
+                        )
+                    )
                 {
                     return None;
                 }
@@ -373,6 +398,14 @@ impl InputController {
                     return None;
                 }
 
+                if button == egui::PointerButton::Secondary
+                    && pressed
+                    && ctx.draw_area.contains(pos)
+                    && !pos_collides_with_layout(pos, ctx)
+                {
+                    self.reset_state();
+                    return Some(InputControllerEvent::ContextMenuRequested(pos));
+                }
                 let payload = ToolPayload { pos, force: None, id: None };
                 let button = MouseProps { button: button.into(), modifiers };
                 if pressed && !pos_collides_with_layout(pos, ctx) && ctx.draw_area.contains(pos) {
@@ -421,6 +454,7 @@ impl InputController {
             }
             egui::Event::PointerGone => None,
             egui::Event::MouseWheel { unit, delta, modifiers, .. } => {
+                self.context_press = None;
                 if !self.can_viewport_change(self.mouse_hover_pos, ctx) {
                     return None;
                 }
@@ -445,9 +479,37 @@ impl InputController {
             }
             egui::Event::Touch { device_id, id, phase, pos, force } => {
                 self.is_touch_frame = true;
+                if let Some(context_id) = self.context_touch {
+                    if id == context_id && matches!(phase, TouchPhase::End | TouchPhase::Cancel) {
+                        self.context_touch = None;
+                    }
+                    return None;
+                }
+                match phase {
+                    TouchPhase::Start => {
+                        self.context_press = if self.touches.is_empty()
+                            && force.is_none()
+                            && ctx.draw_area.contains(pos)
+                            && !pos_collides_with_layout(pos, ctx)
+                        {
+                            Some((id, pos, Instant::now()))
+                        } else {
+                            None
+                        };
+                    }
+                    TouchPhase::Move => {
+                        if self.context_press.is_some_and(|(start_id, start, _)| {
+                            id != start_id || start.distance(pos) > 8.0 || force.is_some()
+                        }) {
+                            self.context_press = None;
+                        }
+                    }
+                    TouchPhase::End | TouchPhase::Cancel => self.context_press = None,
+                }
                 self.touch_to_controller_event(device_id, id, pos, phase, force, ctx)
             }
             egui::Event::Zoom(..) => {
+                self.context_press = None;
                 if !self.can_viewport_change(self.mouse_hover_pos, ctx) {
                     return None;
                 }
@@ -455,6 +517,9 @@ impl InputController {
                 Some(ViewportChange::new(self, event, false))
             }
             egui::Event::WindowFocused(gained_focus) => {
+                if !gained_focus {
+                    self.context_press = None;
+                }
                 if !self.touches.is_empty() || self.is_touch_frame || gained_focus {
                     return None;
                 }
@@ -481,6 +546,8 @@ impl InputController {
     }
 
     fn reset_state(&mut self) {
+        self.context_press = None;
+        self.context_touch = None;
         self.touches.clear();
         self.buttons.clear();
         self.tool_running = None;
@@ -592,20 +659,21 @@ impl InputController {
                 }
             }
             egui::TouchPhase::End => {
-                if let Some(i) = self.touches.iter().position(|&t| t.id.eq(&curr_touch_id)) {
-                    if let Some(start_touch) = self.tool_start_touch {
-                        if start_touch == curr_touch_id {
-                            self.tool_running = None;
-                            self.tool_start_touch = None;
-                            // the touch that started the tool ended, a gesture won't fire, so let's end all other touches.
-                            self.touches.clear();
-                            return Some(InputControllerEvent::ToolEnd(payload));
-                        } else {
-                            self.touches[i].is_active = false;
-                        }
+                // A native menu may release the synthesized pointer after the
+                // corresponding touch was already cancelled.
+                let i = self.touches.iter().position(|&t| t.id.eq(&curr_touch_id))?;
+                if let Some(start_touch) = self.tool_start_touch {
+                    if start_touch == curr_touch_id {
+                        self.tool_running = None;
+                        self.tool_start_touch = None;
+                        // the touch that started the tool ended, a gesture won't fire, so let's end all other touches.
+                        self.touches.clear();
+                        return Some(InputControllerEvent::ToolEnd(payload));
                     } else {
                         self.touches[i].is_active = false;
                     }
+                } else {
+                    self.touches[i].is_active = false;
                 }
 
                 if self.touches.iter().all(|t| !t.is_active) {
@@ -1247,6 +1315,17 @@ mod tests {
         ]);
 
         test.eval(&mut controller, &LayoutContext::default());
+        // Balance the pointer release after cancellation without firing a
+        // gesture or ending another tool, then allow the next stroke.
+        assert!(
+            end_touch(1, pos, force)
+                .process(&mut controller, &LayoutContext::default())
+                .is_empty()
+        );
+        assert_eq!(
+            start_touch(2, pos, force).process(&mut controller, &LayoutContext::default()),
+            vec![InputControllerEvent::ToolStart(ToolPayload { id: Some(TouchId(2)), ..payload })],
+        );
     }
 
     #[test]

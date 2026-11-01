@@ -9,7 +9,7 @@
 
     // MARK: - SvgView
 
-    public class SvgView: UIView {
+    public class SvgView: UIView, UIDocumentPickerDelegate {
         let mtkView: iOSMTK
         var wsHandle: UnsafeMutableRawPointer? {
             mtkView.wsHandle
@@ -24,7 +24,6 @@
 
         // gestures
         var gestureDelegate: SvgGestureDelegate?
-        var tapRecognizer: UITapGestureRecognizer?
         var panRecognizer: UIPanGestureRecognizer?
         var pinchRecognizer: UIPinchGestureRecognizer?
         var pinchStartTouches = [(Float, Float)]()
@@ -34,6 +33,7 @@
         var menuDelegate: SvgMenuDelegate?
         var menuInteraction: UIEditMenuInteraction?
         var editMenuForImage = false
+        var canvasActions: UInt32 = 0
 
         init(mtkView: iOSMTK) {
             self.mtkView = mtkView
@@ -61,21 +61,6 @@
 
             // gestures
             gestureDelegate = SvgGestureDelegate()
-
-            // gestures: tap
-            let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
-            tap.allowedTouchTypes = [
-                NSNumber(value: UITouch.TouchType.direct.rawValue),
-                NSNumber(value: UITouch.TouchType.indirect.rawValue),
-                // NSNumber(value: UITouch.TouchType.pencil.rawValue),
-                NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
-            ]
-            tap.numberOfTouchesRequired = 1
-            tap.cancelsTouchesInView = false
-
-            addGestureRecognizer(tap)
-
-            tapRecognizer = tap
 
             // gestures: pan
             let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
@@ -134,34 +119,6 @@
             set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
         }
 
-        @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-            guard let menuInteraction else { return }
-
-            if gesture.state != .ended { return }
-
-            if mtkView.kineticTimer != nil {
-                mtkView.kineticTimer?.invalidate()
-                mtkView.kineticTimer = nil
-                return
-            }
-
-            if isImageTab {
-                return
-            }
-
-            // Check if we have any valid actions before presenting
-            let location = gesture.location(in: mtkView)
-            if will_consume_touch(wsHandle, Float(location.x), Float(location.y))
-                || (!UIPasteboard.general.hasStrings && !UIPasteboard.general.hasImages)
-            {
-                return
-            }
-
-            editMenuForImage = false
-            let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: location)
-            menuInteraction.presentEditMenu(with: config)
-        }
-
         var isImageTab: Bool {
             WorkspaceTab(rawValue: Int(current_tab(wsHandle))) == .Image
         }
@@ -169,9 +126,60 @@
         func presentImageEditMenu(at point: CGPoint) {
             guard let menuInteraction else { return }
 
+            canvasActions = 0
             editMenuForImage = true
             let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: point)
             menuInteraction.presentEditMenu(with: config)
+        }
+
+        func presentCanvasMenu(at point: CGPoint, actions: UInt32) {
+            canvasActions = actions
+            editMenuForImage = false
+            menuInteraction?.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
+        }
+
+        func canvasAction(_ action: UInt32) {
+            menuInteraction?.dismissMenu()
+            canvas_context_action(wsHandle, action)
+            mtkView.setNeedsDisplay(mtkView.frame)
+        }
+
+        private func sendCanvasContent(_ data: Data, isSVG: Bool) {
+            data.withUnsafeBytes { bytes in
+                canvas_send_content(wsHandle, bytes.bindMemory(to: UInt8.self).baseAddress, UInt(data.count), isSVG)
+            }
+            mtkView.setNeedsDisplay(mtkView.frame)
+        }
+
+        func pasteCanvas() {
+            let pasteboard = UIPasteboard.general
+            if let svg = pasteboard.data(forPasteboardType: UTType.svg.identifier) {
+                sendCanvasContent(svg, isSVG: true)
+            } else if let image = pasteboard.image, let data = image.normalizedImage().pngData() {
+                sendCanvasContent(data, isSVG: false)
+            } else if let text = pasteboard.string, let data = text.data(using: .utf8) {
+                sendCanvasContent(data, isSVG: true)
+            }
+        }
+
+        func importCanvasImage() {
+            let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.image], asCopy: true)
+            picker.delegate = self
+            var presenter = window?.rootViewController
+            while let presented = presenter?.presentedViewController { presenter = presented }
+            presenter?.present(picker, animated: true)
+        }
+
+        public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { return }
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                guard let data = try? Data(contentsOf: url, options: .mappedIfSafe), data.count <= 25 * 1024 * 1024 else { return }
+                DispatchQueue.main.async { [weak self] in
+                    self?.sendCanvasContent(data, isSVG: url.pathExtension.lowercased() == "svg")
+                }
+            }
         }
 
         override public func canPerformAction(_ action: Selector, withSender _: Any?) -> Bool {
@@ -230,11 +238,8 @@
         }
 
         override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-            // let's cancel the kinetic pan. don't nullify it so that the tap handler
-            // will know not to show the edit menu
-            if mtkView.kineticTimer != nil {
-                mtkView.kineticTimer?.invalidate()
-            }
+            mtkView.kineticTimer?.invalidate()
+            mtkView.kineticTimer = nil
 
             mtkView.touchesBegan(touches, with: event)
         }
@@ -346,6 +351,22 @@
             _: UIEditMenuInteraction, menuFor _: UIEditMenuConfiguration,
             suggestedActions: [UIMenuElement]
         ) -> UIMenu? {
+            if let view, view.canvasActions != 0 {
+                let items: [(UInt32, String, String)] = [
+                    (1, "Copy", "doc.on.doc"), (2, "Delete", "trash"),
+                    (4, "More…", "chevron.right"), (8, "Paste", "doc.on.clipboard"),
+                    (16, "Import image", "photo"), (32, "Select all", "selection.pin.in.out"),
+                    (64, "Zoom to fit elements", "arrow.up.left.and.arrow.down.right"),
+                ]
+                let actions: [UIMenuElement] = items.compactMap { bit, title, image in
+                    guard view.canvasActions & bit != 0 else { return nil }
+                    let enabled = (view.canvasActions >> 16) & bit != 0
+                    return UIAction(title: title, image: UIImage(systemName: image), attributes: enabled ? [] : [.disabled]) { [weak view] _ in
+                        view?.canvasAction(bit)
+                    }
+                }
+                return UIMenu(children: actions)
+            }
             guard let view, view.editMenuForImage else {
                 return UIMenu(children: suggestedActions)
             }
@@ -490,6 +511,20 @@
                 DispatchQueue.main.async {
                     mtkView.workspaceOutput!.currentTab = currentTab
                     mtkView.currentTabChanged?(currentTab)
+                }
+            }
+
+            if let svg = mtkView.currentWrapper as? SvgView {
+                if output.canvas_actions != 0 {
+                    svg.presentCanvasMenu(
+                        at: CGPoint(x: output.context_menu_x, y: output.context_menu_y),
+                        actions: output.canvas_actions
+                    )
+                }
+                switch canvas_take_command(wsHandle) {
+                case 8: DispatchQueue.main.async { [weak svg] in svg?.pasteCanvas() }
+                case 16: DispatchQueue.main.async { [weak svg] in svg?.importCanvasImage() }
+                default: break
                 }
             }
 
@@ -987,7 +1022,7 @@
 
                 for touch in event!.coalescedTouches(for: touch)! {
                     let location = touch.preciseLocation(in: self)
-                    let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+                    let force: CGFloat = touch.type == .pencil ? max(touch.force / max(touch.maximumPossibleForce, 1), 0.001) : 0
                     touches_began(
                         wsHandle, value, Float(location.x), Float(location.y), Float(force)
                     )
@@ -1016,11 +1051,11 @@
                 let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+                let force: CGFloat = touch.type == .pencil ? max(touch.force / max(touch.maximumPossibleForce, 1), 0.001) : 0
 
                 for touch in event!.predictedTouches(for: touch)! {
                     let location = touch.preciseLocation(in: self)
-                    let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+                    let force: CGFloat = touch.type == .pencil ? max(touch.force / max(touch.maximumPossibleForce, 1), 0.001) : 0
                     touches_predicted(
                         wsHandle, value, Float(location.x), Float(location.y), Float(force)
                     )
@@ -1037,7 +1072,7 @@
                 let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+                let force: CGFloat = touch.type == .pencil ? max(touch.force / max(touch.maximumPossibleForce, 1), 0.001) : 0
                 touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
 
                 touchMap.removeValue(forKey: ObjectIdentifier(touch))
@@ -1051,7 +1086,7 @@
                 let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+                let force: CGFloat = touch.type == .pencil ? max(touch.force / max(touch.maximumPossibleForce, 1), 0.001) : 0
 
                 touches_cancelled(
                     wsHandle, value, Float(location.x), Float(location.y), Float(force)

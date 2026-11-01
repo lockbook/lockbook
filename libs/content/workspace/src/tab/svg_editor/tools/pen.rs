@@ -97,7 +97,9 @@ impl InputControllerTool for Pen {
             InputControllerEvent::ToolEnd(tool_payload) => Some(PathEvent::End(tool_payload)),
             InputControllerEvent::ToolCancel
             | InputControllerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),
-            InputControllerEvent::ToolHover(_) => None,
+            InputControllerEvent::ToolHover(_) | InputControllerEvent::ContextMenuRequested(_) => {
+                None
+            }
             InputControllerEvent::ViewportChange(_) => None,
             InputControllerEvent::Gesture(_) => None,
             InputControllerEvent::ToolPredictedRun(pos2, force) => {

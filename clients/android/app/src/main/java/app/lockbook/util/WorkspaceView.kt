@@ -79,6 +79,7 @@ class WorkspaceView(
     private var pendingDx = 0f
     private var pendingDy = 0f
     private var propagateFlick = false
+    var onCanvasImportImage: (() -> Unit)? = null
 
     private val scrollListener =
         object : GestureDetector.SimpleOnGestureListener() {
@@ -315,12 +316,14 @@ class WorkspaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        contextMenu?.finish()
         handler?.removeCallbacks(redrawTask)
         dismissMagnifier()
         surface = null
     }
 
     override fun onDetachedFromWindow() {
+        contextMenu?.finish()
         handler?.removeCallbacks(redrawTask)
         ioScope.cancel()
         super.onDetachedFromWindow()
@@ -442,7 +445,19 @@ class WorkspaceView(
             model._currentTab.value = currentTab
         }
 
-        if (
+        when (Workspace.canvasTakeCommand(wgpuObj)) {
+            8 -> post { WorkspaceClipboard.paste(this, canvas = true) }
+            16 -> post { onCanvasImportImage?.invoke() }
+        }
+
+        if (response.canvasActions != 0) {
+            contextMenu?.finish()
+            contextMenu =
+                startActionMode(
+                    CanvasContextMenu(response.canvasActions, response.editMenuX, response.editMenuY),
+                    ActionMode.TYPE_FLOATING,
+                )
+        } else if (
             response.hasEditMenu &&
             response.editMenuForImage &&
             contextMenu == null
@@ -596,6 +611,7 @@ class WorkspaceView(
         newFile: Boolean,
         heading: String? = null,
     ) {
+        contextMenu?.finish()
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
             deferredOpenDoc = Triple(id, newFile, heading)
             return
@@ -830,6 +846,65 @@ class WorkspaceView(
             val x = (menuX * density).toInt()
             val y = (menuY * density).toInt()
             outRect?.set(x, y, x, y)
+        }
+    }
+
+    inner class CanvasContextMenu(
+        private val actions: Int,
+        private val x: Float,
+        private val y: Float,
+    ) : ActionMode.Callback2() {
+        override fun onCreateActionMode(
+            mode: ActionMode,
+            menu: Menu,
+        ): Boolean {
+            for ((action, label) in listOf(
+                1 to "Copy",
+                2 to "Delete",
+                4 to "More…",
+                8 to "Paste",
+                16 to "Import image",
+                32 to "Select all",
+                64 to "Zoom to fit elements",
+            )) {
+                if (actions and action != 0) {
+                    menu.add(Menu.NONE, action, Menu.NONE, label).apply {
+                        isEnabled = actions.ushr(16) and action != 0
+                        setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+                    }
+                }
+            }
+            return true
+        }
+
+        override fun onPrepareActionMode(
+            mode: ActionMode,
+            menu: Menu,
+        ): Boolean = false
+
+        override fun onActionItemClicked(
+            mode: ActionMode,
+            item: MenuItem,
+        ): Boolean {
+            mode.finish()
+            Workspace.canvasContextAction(wgpuObj, item.itemId)
+            invalidate()
+            return true
+        }
+
+        override fun onGetContentRect(
+            mode: ActionMode,
+            view: View,
+            outRect: Rect,
+        ) {
+            val density = context.resources.displayMetrics.scaledDensity
+            val px = (x * density).toInt()
+            val py = (y * density).toInt()
+            outRect.set(px, py, px, py)
+        }
+
+        override fun onDestroyActionMode(mode: ActionMode) {
+            contextMenu = null
         }
     }
 

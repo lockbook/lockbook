@@ -44,6 +44,7 @@ pub struct AndroidResponse {
     pub has_magnifier: bool,
     pub magnifier_x: f32,
     pub magnifier_y: f32,
+    pub canvas_actions: u32,
 }
 
 impl From<crate::Response> for AndroidResponse {
@@ -123,6 +124,10 @@ impl From<crate::Response> for AndroidResponse {
                 Some((_, workspace_rs::tab::ContextMenuTarget::Image))
             ),
             virtual_keyboard_shown,
+            canvas_actions: match context_menu {
+                Some((_, workspace_rs::tab::ContextMenuTarget::Canvas(actions))) => actions,
+                _ => 0,
+            },
         }
     }
 }

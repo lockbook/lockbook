@@ -516,3 +516,38 @@ pub unsafe extern "C" fn close_session(obj: *mut c_void, id: CUuid) {
     obj.workspace
         .close_session(workspace_rs::tab::SessionId::from_uuid(id.into()));
 }
+
+/// Stateless quick-menu action; the SVG editor owns selection and context.
+#[no_mangle]
+pub unsafe extern "C" fn canvas_context_action(obj: *mut c_void, action: u32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer
+        .context
+        .push_event(workspace_rs::Event::CanvasAction(action));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn canvas_take_command(obj: *mut c_void) -> u32 {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    workspace_rs::tab::svg_editor::context_menu::take_host_command(&obj.renderer.context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn canvas_send_content(
+    obj: *mut c_void, data: *const u8, len: usize, is_svg: bool,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if data.is_null() {
+        return;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(data, len) }.to_vec();
+    let content = if is_svg {
+        let Ok(text) = String::from_utf8(bytes) else { return };
+        workspace_rs::tab::CanvasPasteContent::Svg(text)
+    } else {
+        workspace_rs::tab::CanvasPasteContent::Image(bytes)
+    };
+    obj.renderer
+        .context
+        .push_event(workspace_rs::Event::CanvasContent(content));
+}

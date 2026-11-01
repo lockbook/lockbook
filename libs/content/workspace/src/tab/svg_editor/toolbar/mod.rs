@@ -77,6 +77,7 @@ pub enum Tool {
 }
 
 pub struct ToolContext<'a> {
+    pub read_only: bool,
     pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
@@ -488,6 +489,13 @@ fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
 
 impl SVGEditor {
     pub fn detect_islands_interaction(&self, pointer: egui::Pos2) -> bool {
+        if self
+            .context_menu
+            .rect
+            .is_some_and(|rect| rect.contains(pointer))
+        {
+            return true;
+        }
         let islands = [
             self.toolbar.layout.history_island,
             self.toolbar.layout.overlay_toggle,

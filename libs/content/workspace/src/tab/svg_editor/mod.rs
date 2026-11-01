@@ -1,5 +1,6 @@
 mod background;
 mod clip;
+pub mod context_menu;
 mod element;
 mod history;
 mod viewport;
@@ -15,7 +16,7 @@ use web_time::Instant;
 use self::history::History;
 use crate::tab::ExtendedInput;
 use crate::tab::input_controller::{
-    self, InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
+    InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::tab::svg_editor::viewport::transform_canvas;
@@ -61,6 +62,7 @@ pub struct SVGEditor {
     input_ctx: InputContext,
 
     read_only: bool,
+    context_menu: context_menu::CanvasContextMenu,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct ViewportSettings {
@@ -197,6 +199,7 @@ impl SVGEditor {
                 egui::Rect::NOTHING,
             ),
             input_ctx: InputContext::default(),
+            context_menu: Default::default(),
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
             settings,
@@ -235,6 +238,7 @@ impl SVGEditor {
         self.input_controller.sync_canvas_settings(&self.settings);
 
         self.process_events(ui);
+        self.show_context_menu(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
 
@@ -309,6 +313,7 @@ impl SVGEditor {
             return;
         }
 
+        self.process_context_actions(ui);
         if !self.read_only {
             if ui.input_mut(|r| {
                 r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
@@ -337,6 +342,7 @@ impl SVGEditor {
 
         let mut tool_context = ToolContext {
             painter: &mut self.painter,
+            read_only: self.read_only,
             buffer: &mut self.buffer,
             history: &mut self.history,
             settings: &mut self.settings,
@@ -349,42 +355,75 @@ impl SVGEditor {
             return;
         }
 
-        let layout_ctx = LayoutContext::new(
-            tool_context.viewport_settings.working_rect,
-            self.toolbar.get_rects(),
-        );
+        let mut overlay_rects = self.toolbar.get_rects();
+        overlay_rects.extend(self.context_menu.rect);
+        let layout_ctx =
+            LayoutContext::new(tool_context.viewport_settings.working_rect, overlay_rects);
 
-        let active_tool = self.toolbar.active_tool;
-        let tool = self.toolbar.active_tool_mut(); // returns &mut dyn Tool
-
-        tool.show_tool_ui(ui, &mut tool_context);
-
+        self.toolbar
+            .active_tool_mut()
+            .show_tool_ui(ui, &mut tool_context);
+        // Release the field borrows before dispatch: a context request can
+        // switch tools and resolve selection independently of the active tool.
+        let events = self.input_controller.process(ui, &layout_ctx);
         let mut selection_seen_tool_run = false;
-        for event in self.input_controller.process(ui, &layout_ctx) {
+        for event in events {
+            if let InputControllerEvent::ContextMenuRequested(pos) = event {
+                self.request_context_menu(ui, pos);
+                continue;
+            }
             if selection_seen_tool_run && matches!(event, InputControllerEvent::ToolRun(..)) {
                 continue;
             }
-
-            if let input_controller::InputControllerEvent::ViewportChange(transform) = event {
-                transform_canvas(tool_context.buffer, tool_context.viewport_settings, transform);
-            } else if let input_controller::InputControllerEvent::Gesture(num_touches) = event {
-                if num_touches == 2 {
-                    tool_context.history.undo(tool_context.buffer)
-                } else if num_touches == 3 {
-                    tool_context.history.redo(tool_context.buffer)
+            let mut tool_context = ToolContext {
+                painter: &mut self.painter,
+                buffer: &mut self.buffer,
+                history: &mut self.history,
+                settings: &mut self.settings,
+                viewport_settings: &mut self.viewport_settings,
+                read_only: self.read_only,
+            };
+            match event {
+                InputControllerEvent::ViewportChange(transform) => {
+                    transform_canvas(
+                        tool_context.buffer,
+                        tool_context.viewport_settings,
+                        transform,
+                    );
                 }
-            } else {
-                tool.process_controller_event(ui, event, &mut tool_context);
+                InputControllerEvent::Gesture(count) if !self.read_only => {
+                    if count == 2 {
+                        tool_context.history.undo(tool_context.buffer);
+                    }
+                    if count == 3 {
+                        tool_context.history.redo(tool_context.buffer);
+                    }
+                }
+                _ => self.toolbar.active_tool_mut().process_controller_event(
+                    ui,
+                    event,
+                    &mut tool_context,
+                ),
             }
-
-            if active_tool == Tool::Selection && matches!(event, InputControllerEvent::ToolRun(..))
+            if self.toolbar.active_tool == Tool::Selection
+                && matches!(event, InputControllerEvent::ToolRun(..))
             {
                 selection_seen_tool_run = true;
             }
         }
-
-        self.input_controller
-            .show_hover_indicator(ui, &mut tool_context, tool);
+        let mut tool_context = ToolContext {
+            painter: &mut self.painter,
+            buffer: &mut self.buffer,
+            history: &mut self.history,
+            settings: &mut self.settings,
+            viewport_settings: &mut self.viewport_settings,
+            read_only: self.read_only,
+        };
+        self.input_controller.show_hover_indicator(
+            ui,
+            &mut tool_context,
+            self.toolbar.active_tool_mut(),
+        );
 
         self.toolbar.input_controller_interrupt = self.input_controller.should_hide_overlay();
     }

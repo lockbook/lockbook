@@ -611,6 +611,13 @@ impl TabFailure {
 #[derive(Debug, Clone)]
 pub enum Event {
     Markdown(markdown_editor::Event),
+    CanvasAction(u32),
+    CanvasContent(CanvasPasteContent),
+    /// A native canvas menu paste, anchored independently of pointer movement.
+    CanvasPaste {
+        content: CanvasPasteContent,
+        position: egui::Pos2,
+    },
     Drop {
         content: Vec<ClipContent>,
         position: egui::Pos2,
@@ -633,6 +640,12 @@ pub enum Event {
     },
     Undo,
     Redo,
+}
+
+#[derive(Debug, Clone)]
+pub enum CanvasPasteContent {
+    Svg(String),
+    Image(Vec<u8>),
 }
 
 #[derive(Debug, Clone)]
@@ -677,6 +690,7 @@ pub enum ContextMenuTarget {
     Text,
     Atom,
     Image,
+    Canvas(u32),
 }
 
 // todo: find a better place for the code that attaches additional things to egui::Context

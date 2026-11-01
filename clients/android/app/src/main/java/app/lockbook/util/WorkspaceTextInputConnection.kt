@@ -1,7 +1,6 @@
 package app.lockbook.util
 
 import android.annotation.SuppressLint
-import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Matrix
 import android.graphics.RectF
@@ -17,12 +16,9 @@ import android.view.inputmethod.ExtractedText
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
-import android.widget.Toast
 import app.lockbook.App
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.Workspace
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 data class CursorMonitorStatus(
     var monitor: Boolean = false,
@@ -63,9 +59,6 @@ class WorkspaceTextInputConnection(
 
     private fun getInputMethodManager(): InputMethodManager =
         App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-
-    private fun getClipboardManager(): ClipboardManager =
-        App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     fun forwardWorkspaceKeyEvent(event: KeyEvent) {
         val content = event.unicodeChar.toChar().toString()
@@ -133,53 +126,7 @@ class WorkspaceTextInputConnection(
             }
 
             android.R.id.paste -> {
-                val clip = getClipboardManager().primaryClip ?: return false
-                if (clip.itemCount < 1) return false
-
-                val item = clip.getItemAt(0)
-
-                // Some sources put clipboard data in an Intent; we don't support that paste path yet.
-                if (item.intent != null && item.uri == null && item.text == null) {
-                    Toast
-                        .makeText(App.applicationContext(), "Clipboard content not supported", Toast.LENGTH_SHORT)
-                        .show()
-                    return false
-                }
-
-                val uri = item.uri
-
-                if (isImageUri(uri, clip.description)) {
-                    workspaceView.launchIo {
-                        val bytes =
-                            try {
-                                readAllBytesCapped(uri)
-                            } catch (err: Exception) {
-                                withContext(Dispatchers.Main) {
-                                    Toast
-                                        .makeText(App.applicationContext(), err.message, Toast.LENGTH_SHORT)
-                                        .show()
-                                }
-                                null
-                            }
-
-                        if (bytes != null) {
-                            withContext(Dispatchers.Main) {
-                                Workspace.clipboardSendImage(WorkspaceView.wgpuObj, bytes, true)
-                                workspaceView.drawImmediately()
-                            }
-                        }
-                    }
-
-                    return true
-                }
-
-                val clipboardText = item.text
-                if (clipboardText != null) {
-                    Workspace.clipboardPaste(
-                        WorkspaceView.wgpuObj,
-                        clipboardText.toString(),
-                    )
-                }
+                return WorkspaceClipboard.paste(workspaceView)
             }
 
             android.R.id.copyUrl,
@@ -198,33 +145,10 @@ class WorkspaceTextInputConnection(
         return true
     }
 
-    private fun isImageUri(
-        uri: Uri?,
-        description: android.content.ClipDescription?,
-    ): Boolean {
-        if (uri == null) return false
-        val resolver = App.applicationContext().contentResolver
-        val mime = resolver.getType(uri)
-        if (mime != null) {
-            if (mime.startsWith("image")) return true
-        }
-        if (description == null) return false
-        return description.hasMimeType("image/*") ||
-            description.hasMimeType("image/png") ||
-            description.hasMimeType("image/jpeg") ||
-            description.hasMimeType("image/webp") ||
-            description.hasMimeType("image/gif")
-    }
-
     fun readAllBytesCapped(
         uri: Uri,
         maxBytes: Int = MAX_ATTACHMENT_SIZE_BYTES,
     ): ByteArray? = readAttachmentBytes(App.applicationContext(), uri, maxBytes)
-
-    private fun readAllBytesCapped(uri: Uri?): ByteArray? {
-        if (uri == null) return null
-        return readAllBytesCapped(uri, MAX_ATTACHMENT_SIZE_BYTES)
-    }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
         val isImmediate = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0

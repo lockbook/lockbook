@@ -62,6 +62,7 @@ import app.lockbook.util.VerticalTabItemHolder
 import app.lockbook.util.WorkspaceTextInputConnection
 import app.lockbook.util.WorkspaceView
 import app.lockbook.util.getIconResource
+import app.lockbook.util.readAttachmentBytes
 import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
@@ -114,6 +115,31 @@ class WorkspaceFragment : Fragment() {
             importAttachments(uris.take(MAX_PICKED_PHOTOS))
         }
 
+    private val canvasImagePicker =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            val editor = workspaceView
+            if (uri != null && editor != null) {
+                editor.launchIo {
+                    try {
+                        val bytes = readAttachmentBytes(editor.context, uri) ?: return@launchIo
+                        val svg = editor.context.contentResolver.getType(uri) == "image/svg+xml"
+                        withContext(Dispatchers.Main) {
+                            if (editor.canForwardTouches()) {
+                                Workspace.canvasSendContent(WorkspaceView.wgpuObj, bytes, svg)
+                                editor.invalidate()
+                            }
+                        }
+                    } catch (error: kotlinx.coroutines.CancellationException) {
+                        throw error
+                    } catch (error: Exception) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(editor.context, "Could not import image", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cameraFile = savedInstanceState?.getString("cameraPath")?.let(::JavaFile)
@@ -140,6 +166,7 @@ class WorkspaceFragment : Fragment() {
 
         val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
         workspaceView = workspaceWrapper.workspaceView
+        workspaceWrapper.workspaceView.onCanvasImportImage = { canvasImagePicker.launch("image/*") }
         val layoutParams =
             ConstraintLayout
                 .LayoutParams(

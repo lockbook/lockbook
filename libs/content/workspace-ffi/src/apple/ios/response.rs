@@ -49,6 +49,7 @@ pub struct IOSResponse {
     pub context_menu_x: f64,
     pub context_menu_y: f64,
     pub context_menu_for_image: bool,
+    pub canvas_actions: u32,
 }
 
 impl From<crate::Response> for IOSResponse {
@@ -138,6 +139,10 @@ impl From<crate::Response> for IOSResponse {
             has_context_menu: context_menu.is_some(),
             context_menu_x: context_menu.map(|(p, _)| p.x as f64).unwrap_or_default(),
             context_menu_y: context_menu.map(|(p, _)| p.y as f64).unwrap_or_default(),
+            canvas_actions: match context_menu {
+                Some((_, workspace_rs::tab::ContextMenuTarget::Canvas(actions))) => actions,
+                _ => 0,
+            },
             context_menu_for_image: matches!(
                 context_menu,
                 Some((_, workspace_rs::tab::ContextMenuTarget::Image))
