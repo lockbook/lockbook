@@ -162,3 +162,65 @@ fn source_note_tables_take_tab_and_return() {
     ws.enter_frame();
     assert_eq!(ws.get_text(), "\n| a | b |\n| - | - |\n| c | d |\n\n");
 }
+
+/// A table comes from the keyboard alone, in source as rendered: ⌥⌘T
+/// inserts one with the caret in its first cell, Return after a header row
+/// makes that row a table's header, and Tab past a blank last row leaves.
+#[test]
+fn source_note_inserts_tables_from_the_keyboard() {
+    let mut ws = TestEditor::new("Notes\n");
+    ws.editor.persistence.set_source(true);
+    ws.enter_frame();
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(5)),
+            end: Location::Grapheme(Grapheme(5)),
+        },
+    });
+    ws.enter_frame();
+    let alt_cmd = egui::Modifiers { alt: true, command: true, mac_cmd: true, ..Default::default() };
+    ws.enter_frame_with_input(super::harness::key_press(egui::Key::T, alt_cmd));
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), "Notes\n\n|  |  |\n| --- | --- |\n|  |  |\n");
+    let first_cell = Grapheme("Notes\n\n| ".len());
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection, (first_cell, first_cell));
+
+    let mut ws = TestEditor::new("| Name | Count |\n");
+    ws.editor.persistence.set_source(true);
+    ws.enter_frame();
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(16)),
+            end: Location::Grapheme(Grapheme(16)),
+        },
+    });
+    ws.enter_frame();
+    ws.push(Event::Newline { shift: false });
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), "| Name | Count |\n| --- | --- |\n|  |  |\n");
+    let first_cell = Grapheme("| Name | Count |\n| --- | --- |\n| ".len());
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection, (first_cell, first_cell));
+
+    // Tab across the blank row and past its end leaves the table, as Return does
+    for _ in 0..2 {
+        ws.push(Event::Indent { deindent: false });
+        ws.enter_frame();
+    }
+    assert_eq!(ws.get_text(), "| Name | Count |\n| --- | --- |\n\n");
+
+    // a blank line ends the table only where the paragraph would run on into it
+    for (md, after) in [
+        ("| a |\nmore\n", "| a |\n| --- |\n|  |\n\nmore\n"),
+        ("- | a |\n- next\n", "- | a |\n  | --- |\n  |  |\n- next\n"),
+    ] {
+        let mut ws = TestEditor::new(md);
+        ws.editor.persistence.set_source(true);
+        ws.enter_frame();
+        let end = Grapheme(md.find('\n').unwrap());
+        ws.push(Event::Select { region: (end, end).into() });
+        ws.enter_frame();
+        ws.push(Event::Newline { shift: false });
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), after);
+    }
+}

@@ -758,7 +758,8 @@ pub type TableGrid = Vec<Vec<(Grapheme, Grapheme)>>;
 impl MdEdit {
     /// Tab in a table moves to the next cell, or with shift the previous,
     /// wrapping across rows, and selects its content. From the last cell it
-    /// adds a row. False off a table.
+    /// adds a row, or past a blank last row leaves the table. False off a
+    /// table.
     pub fn indent_in_table(&self, deindent: bool, operations: &mut Vec<Operation>) -> bool {
         if self.source_off_cell() {
             return false;
@@ -776,6 +777,14 @@ impl MdEdit {
             r.enter_table_cell(table, row, column + 1, operations);
         } else if row + 1 < table.rows.len() {
             r.enter_table_cell(table, row + 1, 0, operations);
+        } else if row > 0
+            && table.rows[row]
+                .cells
+                .iter()
+                .all(|cell| cell.content.is_empty())
+        {
+            // past a blank last row, as Return there
+            r.leave_table(table, &table.rows[row], operations);
         } else {
             r.append_table_row(table, 0, operations);
         }

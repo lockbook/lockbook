@@ -464,6 +464,19 @@ impl<'ast> MdEdit {
                     }
                 })
             }
+            // a table as Obsidian's Insert table writes one, on Apple Notes' keys
+            egui::Event::Key { key: Key::T, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.alt && !modifiers.shift =>
+            {
+                if self.renderer.readonly || self.renderer.kind != markdown_editor::Syntax::Markdown
+                {
+                    return None;
+                }
+                Some(Event::Table(markdown_editor::table::TableAction::Insert {
+                    columns: 2,
+                    rows: 1,
+                }))
+            }
             egui::Event::Key { key: Key::Num1, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
