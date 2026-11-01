@@ -2,6 +2,7 @@ mod background;
 mod clip;
 mod element;
 mod history;
+pub(super) mod keyboard_shortcuts;
 mod viewport;
 
 mod renderer;
@@ -203,10 +204,10 @@ impl SVGEditor {
             viewport_settings,
             cfg,
             read_only,
-            input_controller: InputController::new(InputControllerConfig::new(
-                settings.pencil_only_drawing,
-                read_only,
-            )),
+            input_controller: InputController::new(
+                InputControllerConfig::new(settings.pencil_only_drawing, read_only),
+                keyboard_shortcuts::BINDINGS,
+            ),
         }
     }
 
@@ -312,17 +313,7 @@ impl SVGEditor {
             return;
         }
 
-        if !self.read_only {
-            if ui.input_mut(|r| {
-                r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
-            }) {
-                self.history.redo(&mut self.buffer);
-            }
-
-            if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-                self.history.undo(&mut self.buffer);
-            }
-
+        if self.input_controller.keyboard_enabled(ui) {
             self.handle_clip_input(ui);
         }
 
@@ -357,13 +348,22 @@ impl SVGEditor {
             self.toolbar.get_rects(),
         );
 
-        let active_tool = self.toolbar.active_tool;
-        let tool = self.toolbar.active_tool_mut(); // returns &mut dyn Tool
-
-        tool.show_tool_ui(ui, &mut tool_context);
-
+        self.toolbar
+            .active_tool_mut()
+            .show_tool_ui(ui, &mut tool_context);
         let mut selection_seen_tool_run = false;
         for event in self.input_controller.process(ui, &layout_ctx) {
+            if let InputControllerEvent::KeyboardAction(action) = event {
+                execute_keyboard_action(
+                    ui,
+                    action,
+                    &mut self.toolbar,
+                    &mut tool_context,
+                    &mut self.cfg,
+                );
+                continue;
+            }
+            let active_tool = self.toolbar.active_tool;
             if selection_seen_tool_run && matches!(event, InputControllerEvent::ToolRun(..)) {
                 continue;
             }
@@ -377,7 +377,11 @@ impl SVGEditor {
                     tool_context.history.redo(tool_context.buffer)
                 }
             } else {
-                tool.process_controller_event(ui, event, &mut tool_context);
+                self.toolbar.active_tool_mut().process_controller_event(
+                    ui,
+                    event,
+                    &mut tool_context,
+                );
             }
 
             if active_tool == Tool::Selection && matches!(event, InputControllerEvent::ToolRun(..))
@@ -386,8 +390,11 @@ impl SVGEditor {
             }
         }
 
-        self.input_controller
-            .show_hover_indicator(ui, &mut tool_context, tool);
+        self.input_controller.show_hover_indicator(
+            ui,
+            &mut tool_context,
+            self.toolbar.active_tool_mut(),
+        );
 
         self.toolbar.input_controller_interrupt = self.input_controller.should_hide_overlay();
     }
@@ -431,6 +438,37 @@ impl SVGEditor {
                 egui::Color32::RED,
                 format!("{} anchor | {} fps", anchor_count, 1000 / frame_cost.as_millis()),
             );
+        }
+    }
+}
+
+fn execute_keyboard_action(
+    ui: &mut egui::Ui, action: keyboard_shortcuts::CanvasAction, toolbar: &mut Toolbar,
+    ctx: &mut ToolContext, cfg: &mut WsPersistentStore,
+) {
+    use keyboard_shortcuts::CanvasAction as A;
+    use tools::{InputControllerTool, selection::SelectionEvent};
+    match action {
+        A::Undo => ctx.history.undo(ctx.buffer),
+        A::Redo => ctx.history.redo(ctx.buffer),
+        A::SetTool(tool) => toolbar.set_tool(tool, ctx.settings, cfg),
+        A::ToggleToolPopover => toolbar.toggle_at_cursor_tool_popover(),
+        A::DeleteSelection => toolbar
+            .selection
+            .handle_tool_event(ui, SelectionEvent::Delete, ctx),
+        A::CopySelection => toolbar
+            .selection
+            .handle_tool_event(ui, SelectionEvent::Copy, ctx),
+        A::CutSelection => toolbar
+            .selection
+            .handle_tool_event(ui, SelectionEvent::Cut, ctx),
+        A::SelectAll => {
+            if toolbar.active_tool != Tool::Selection {
+                toolbar.set_tool(Tool::Selection, ctx.settings, cfg);
+            }
+            toolbar
+                .selection
+                .handle_tool_event(ui, SelectionEvent::SelectAll, ctx);
         }
     }
 }
