@@ -55,6 +55,8 @@ impl Workspace {
 
         self.set_user_present();
 
+        let rect = ui.max_rect();
+        let wheel_x = self.history_swipe_wheel(rect);
         if self.is_empty() {
             self.show_landing_page(ui);
 
@@ -63,6 +65,8 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_open_tab(ui));
             self.landing_page_first_frame = true;
         }
+        self.history_swipe_content_scrolled(wheel_x);
+        self.paint_history_swipe(rect);
         // A gesture no editor took this frame is not owed to the next one.
         self.ctx.pop_events_where(&mut |e| {
             matches!(

@@ -254,7 +254,7 @@
         override public func gestureRecognizerShouldBegin(
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            if isInteractiveContentPop(gestureRecognizer) {
+            if blocksNavigationPop(gestureRecognizer) {
                 return false
             }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
@@ -784,8 +784,8 @@
                         mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                     }
                     scroll_wheel(
-                        wsHandle, Float(velocity.x), Float(velocity.y), false, false, false,
-                        false
+                        wsHandle, Float(velocity.x), Float(velocity.y), 0, 0, true, false, false,
+                        false, false
                     )
                     if !cursorTracked {
                         mouse_gone(wsHandle)
@@ -798,7 +798,8 @@
                     mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                 }
                 scroll_wheel(
-                    wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false
+                    wsHandle, Float(velocity.x), Float(velocity.y), 0, 0, true, false, false, false,
+                    false
                 )
                 if !cursorTracked {
                     mouse_gone(wsHandle)
@@ -975,7 +976,7 @@
         override public func gestureRecognizerShouldBegin(
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            if isInteractiveContentPop(gestureRecognizer) {
+            if blocksNavigationPop(gestureRecognizer) {
                 return false
             }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
@@ -1231,13 +1232,20 @@
     }
 
     extension UIView {
-        func isInteractiveContentPop(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        func blocksNavigationPop(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             var responder = next
+            var manager: iOSMTKInputManager?
             while let current = responder {
+                if let found = current as? iOSMTKInputManager {
+                    manager = found
+                }
                 if let controller = current as? UIViewController {
-                    return gestureRecognizer
-                        === controller.navigationController?
-                        .interactiveContentPopGestureRecognizer
+                    guard let navigation = controller.navigationController else { return false }
+                    if gestureRecognizer === navigation.interactiveContentPopGestureRecognizer {
+                        return true
+                    }
+                    return gestureRecognizer === navigation.interactivePopGestureRecognizer
+                        && manager?.mtkView.workspaceInput?.canNavBack() == true
                 }
                 responder = current.next
             }
