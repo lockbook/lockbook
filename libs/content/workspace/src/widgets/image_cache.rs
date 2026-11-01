@@ -33,13 +33,13 @@ use crate::workspace::WsPersistentStore;
 #[cfg(target_arch = "wasm32")]
 macro_rules! async_on_wasm {
     ($block:block) => {
-        (async || -> Result<TextureId, String> { $block })
+        (async || -> Result<(TextureId, bool), String> { $block })
     };
 }
 #[cfg(not(target_arch = "wasm32"))]
 macro_rules! async_on_wasm {
     ($block:block) => {
-        (|| -> Result<TextureId, String> { $block })
+        (|| -> Result<(TextureId, bool), String> { $block })
     };
 }
 
@@ -76,6 +76,10 @@ struct Inner {
     began_this_frame: bool,
     /// Images that wait the reader asked to see, by the note showing them.
     shown_anyway: HashSet<(Uuid, ImageKey)>,
+    /// The theme the loaded textures were rasterized for.
+    dark_mode: bool,
+    /// Loaded SVGs whose palette follows the theme; reloaded when it changes.
+    themed: HashSet<ImageKey>,
 }
 
 #[derive(Clone)]
@@ -121,6 +125,23 @@ impl ImageCache {
         if !inner.began_this_frame {
             inner.began_this_frame = true;
             inner.previous = std::mem::take(&mut inner.current);
+        }
+
+        let dark_mode = self.ctx.global_style().visuals.dark_mode;
+        if dark_mode != inner.dark_mode {
+            inner.dark_mode = dark_mode;
+            let texture_manager = self.ctx.tex_manager();
+            for key in std::mem::take(&mut inner.themed) {
+                let state = inner
+                    .current
+                    .remove(&key)
+                    .or_else(|| inner.previous.remove(&key));
+                if let Some(state) = state {
+                    if let ImageState::Loaded(id) = *state.lock().unwrap() {
+                        texture_manager.write().free(id);
+                    }
+                }
+            }
         }
     }
 
@@ -245,8 +266,9 @@ impl ImageCache {
     /// populate dims from texture metadata (when `Ok`), and bump `seq` —
     /// mimicking a worker thread completing a load. The dims insert
     /// happens before the state flip to match the spawn_load ordering.
+    /// `themed` marks the image as following the theme.
     #[cfg(test)]
-    pub fn complete_load(&self, key: &ImageKey, result: Result<TextureId, String>) {
+    pub fn complete_load(&self, key: &ImageKey, result: Result<TextureId, String>, themed: bool) {
         let state = match result {
             Ok(tid) => {
                 if let Some(meta) = self.ctx.tex_manager().read().meta(tid) {
@@ -262,12 +284,16 @@ impl ImageCache {
         inner
             .current
             .insert(key.clone(), Arc::new(Mutex::new(state)));
+        if themed {
+            inner.themed.insert(key.clone());
+        }
         self.seq
             .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
     }
 
     fn spawn_load(&self, key: &ImageKey, user_activity: bool, state: Arc<Mutex<ImageState>>) {
         let key = key.clone();
+        let inner = self.inner.clone();
         let ctx = self.ctx.clone();
         let client = self.client.clone();
         let core = self.core.clone();
@@ -280,6 +306,7 @@ impl ImageCache {
         // before we know the precise render width
         let viewport_width = ctx.content_rect().width();
         let pixels_per_point = ctx.pixels_per_point();
+        let dark_mode = ctx.global_style().visuals.dark_mode;
 
         spawn!({
             let _span = tracing::trace_span!("ImageCache::load").entered();
@@ -311,9 +338,13 @@ impl ImageCache {
                     }
                 };
 
+                let mut themed = false;
                 let image_bytes = if is_svg {
                     let is_lockbook_svg = matches!(key, ImageKey::File(_));
-                    rasterize_svg(&image_bytes, is_lockbook_svg, viewport_width, pixels_per_point)?
+                    let svg = select_color_scheme(&image_bytes, dark_mode);
+                    themed = svg.is_some();
+                    let svg = svg.as_deref().unwrap_or(&image_bytes);
+                    rasterize_svg(svg, is_lockbook_svg, viewport_width, pixels_per_point)?
                 } else {
                     image_bytes
                 };
@@ -323,9 +354,11 @@ impl ImageCache {
                 let color_image =
                     ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8());
                 let image_data = egui::ImageData::Color(color_image.into());
-                Ok(texture_manager
-                    .write()
-                    .alloc(key.persisted(), image_data, Default::default()))
+                let texture_id =
+                    texture_manager
+                        .write()
+                        .alloc(key.persisted(), image_data, Default::default());
+                Ok((texture_id, themed))
             });
 
             #[cfg(target_arch = "wasm32")]
@@ -334,7 +367,7 @@ impl ImageCache {
             let result = texture_closure();
 
             match result {
-                Ok(texture_id) => {
+                Ok((texture_id, themed)) => {
                     if let Some(meta) = texture_manager.read().meta(texture_id) {
                         let [w, h] = meta.size;
                         persistence.merge_image_dims(HashMap::from([(
@@ -342,7 +375,26 @@ impl ImageCache {
                             [w as f32, h as f32],
                         )]));
                     }
-                    *state.lock().unwrap() = ImageState::Loaded(texture_id);
+                    // Settled under the cache lock so a theme switch in
+                    // `begin_frame` sees either a Loading entry it leaves
+                    // alone or a themed Loaded one it reloads.
+                    let mut inner = inner.lock().unwrap();
+                    if themed && inner.dark_mode != dark_mode {
+                        // the theme changed while this loaded: forget the
+                        // entry so the next lookup loads it again
+                        texture_manager.write().free(texture_id);
+                        let Inner { current, previous, .. } = &mut *inner;
+                        for entries in [current, previous] {
+                            if entries.get(&key).is_some_and(|s| Arc::ptr_eq(s, &state)) {
+                                entries.remove(&key);
+                            }
+                        }
+                    } else {
+                        if themed {
+                            inner.themed.insert(key.clone());
+                        }
+                        *state.lock().unwrap() = ImageState::Loaded(texture_id);
+                    }
                 }
                 Err(err) => {
                     *state.lock().unwrap() = ImageState::Failed(err);
@@ -370,6 +422,83 @@ fn bytes_look_like_svg(bytes: &[u8]) -> bool {
         }
     }
     s.starts_with(b"<?xml") || s.starts_with(b"<svg")
+}
+
+/// Resolves `@media (prefers-color-scheme: …)` blocks in `<style>` elements
+/// for the given theme, which usvg ignores: the matching block's rules move
+/// after the base rules so they win, and every such block is removed.
+/// `None` when the SVG has no such block.
+fn select_color_scheme(svg: &[u8], dark_mode: bool) -> Option<Vec<u8>> {
+    let svg = std::str::from_utf8(svg).ok()?;
+    let scheme = if dark_mode { "dark" } else { "light" };
+    let mut out = String::with_capacity(svg.len());
+    let mut rest = svg;
+    let mut found = false;
+    while let Some(start) = rest.find("<style") {
+        let open_end = start + rest[start..].find('>')? + 1;
+        let close = open_end + rest[open_end..].find("</style>")?;
+        out.push_str(&rest[..open_end]);
+        let (base, chosen, any) = split_color_scheme_rules(&rest[open_end..close], scheme);
+        found |= any;
+        out.push_str(&base);
+        out.push_str(&chosen);
+        rest = &rest[close..];
+    }
+    out.push_str(rest);
+    found.then(|| out.into_bytes())
+}
+
+/// Splits a stylesheet into its rules outside `prefers-color-scheme` media
+/// blocks and the rules inside the blocks matching `scheme`, and whether any
+/// such block was present.
+fn split_color_scheme_rules(css: &str, scheme: &str) -> (String, String, bool) {
+    let mut base = String::with_capacity(css.len());
+    let mut chosen = String::new();
+    let mut any = false;
+    let mut rest = css;
+    while let Some(at) = rest.find("@media") {
+        let Some(brace) = rest[at..].find('{') else { break };
+        let brace = at + brace;
+        let query: String = rest[at + "@media".len()..brace]
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+        let Some(end) = matching_brace(rest, brace) else { break };
+        let Some(block_scheme) = query
+            .strip_prefix("(prefers-color-scheme:")
+            .and_then(|q| q.strip_suffix(')'))
+        else {
+            base.push_str(&rest[..end + 1]);
+            rest = &rest[end + 1..];
+            continue;
+        };
+        any = true;
+        base.push_str(&rest[..at]);
+        if block_scheme == scheme {
+            chosen.push_str(&rest[brace + 1..end]);
+        }
+        rest = &rest[end + 1..];
+    }
+    base.push_str(rest);
+    (base, chosen, any)
+}
+
+/// Index of the `}` closing the `{` at `open`.
+fn matching_brace(s: &str, open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (i, c) in s[open..].char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(open + i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn rasterize_svg(
@@ -449,7 +578,34 @@ async fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, Strin
 
 #[cfg(test)]
 mod tests {
-    use super::{bytes_look_like_svg, rasterize_svg};
+    use super::{bytes_look_like_svg, rasterize_svg, select_color_scheme};
+
+    fn center_pixel(png: &[u8]) -> [u8; 4] {
+        let img = image::ImageReader::new(std::io::Cursor::new(png))
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap()
+            .to_rgba8();
+        let (w, h) = img.dimensions();
+        img.get_pixel(w / 2, h / 2).0
+    }
+
+    /// The `prefers-color-scheme` block matching the app theme wins over the
+    /// base rules; the other block is dropped.
+    #[test]
+    fn svg_prefers_color_scheme_follows_theme() {
+        let svg_str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"><style>.ink{fill:#808080}@media (prefers-color-scheme: light){.ink{fill:#101010}}@media (prefers-color-scheme: dark){.ink{fill:#FFFFFF}}</style><rect class=\"ink\" width=\"100%\" height=\"100%\"/></svg>";
+        let dark = select_color_scheme(svg_str.as_bytes(), true).unwrap();
+        let light = select_color_scheme(svg_str.as_bytes(), false).unwrap();
+        let dark_png = rasterize_svg(&dark, false, 1920.0, 1.0).unwrap();
+        let light_png = rasterize_svg(&light, false, 1920.0, 1.0).unwrap();
+        assert_eq!(center_pixel(&dark_png), [0xFF, 0xFF, 0xFF, 0xFF]);
+        assert_eq!(center_pixel(&light_png), [0x10, 0x10, 0x10, 0xFF]);
+
+        let plain = "<svg xmlns=\"http://www.w3.org/2000/svg\"><style>.a{fill:red}</style></svg>";
+        assert_eq!(select_color_scheme(plain.as_bytes(), true), None);
+    }
 
     /// At ppi>1 the SVG fills the whole upscaled pixmap, not just a
     /// top-left `1/ppi × 1/ppi` quadrant.
