@@ -760,6 +760,9 @@ impl MdEdit {
     /// wrapping across rows, and selects its content. From the last cell it
     /// adds a row. False off a table.
     pub fn indent_in_table(&self, deindent: bool, operations: &mut Vec<Operation>) -> bool {
+        if self.source_off_cell() {
+            return false;
+        }
         let r = &self.renderer;
         let Some((table, row, column)) = r.table_position() else { return false };
         let last_column = table.columns() - 1;
@@ -779,6 +782,20 @@ impl MdEdit {
         true
     }
 
+    /// Whether source edits the selection as text: a table row takes Tab
+    /// and Return as cells only from its first cell on, with the selection
+    /// inside the row.
+    fn source_off_cell(&self) -> bool {
+        let r = &self.renderer;
+        let (start, end) = r.buffer.current.selection;
+        let Some((table, row, _)) = r.table_position_at(end) else { return false };
+        let in_row = |at| {
+            r.table_position_at(at)
+                .is_some_and(|(t, i, _)| t == table && i == row)
+        };
+        r.view == View::Source && (end < table.rows[row].cells[0].span.0 || !in_row(start))
+    }
+
     /// Return in a table moves to the cell below, or with shift the cell
     /// above, and selects its content. From the last row it adds a row —
     /// unless that row is blank, when it takes the row away and leaves the
@@ -787,6 +804,9 @@ impl MdEdit {
     /// False off a table.
     pub fn newline_in_table(&self, shift: bool, operations: &mut Vec<Operation>) -> bool {
         let r = &self.renderer;
+        if self.source_off_cell() {
+            return false;
+        }
         let Some((table, row, column)) = r.table_position() else {
             let offset = r.buffer.current.selection.1;
             let Some(table) = r.bounds.table_at(offset).filter(|_| !shift) else { return false };

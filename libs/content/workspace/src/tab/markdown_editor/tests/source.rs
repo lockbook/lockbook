@@ -154,4 +154,11 @@ fn source_note_tables_take_tab_and_return() {
     ws.push(Event::Newline { shift: false });
     ws.enter_frame();
     assert_eq!(ws.get_text(), "| a | b |\n| - | - |\n| c | d |\n\n");
+
+    // before a row's first cell, Return pushes the table down as text
+    ws.push(Event::Select { region: (Grapheme(0), Grapheme(0)).into() });
+    ws.enter_frame();
+    ws.push(Event::Newline { shift: false });
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), "\n| a | b |\n| - | - |\n| c | d |\n\n");
 }
