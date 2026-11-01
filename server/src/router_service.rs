@@ -108,6 +108,7 @@ macro_rules! core_req {
                         tracing::error!("ip not present in request");
                     }
                     let wire_format = WireFormat::from_header(wire_format_header.as_deref());
+                    let user_os = $crate::user_os::OS::from_header(os.as_deref());
                     router_service::CLIENT_OS_COUNTER
                         .with_label_values(&[router_service::normalize_os(os.as_deref())])
                         .inc();
@@ -173,6 +174,9 @@ macro_rules! core_req {
                         };
 
                         let req_pk = request.signed_request.public_key;
+                        // Only associate headers after signature verification. New
+                        // accounts record membership in their creation transaction.
+                        state.record_user_os(Owner(req_pk), user_os).await;
                         let username = {
                             let db = state.index_db.lock().await;
                             match db
@@ -200,6 +204,7 @@ macro_rules! core_req {
                             request: request.signed_request.timestamped_value.value,
                             public_key: request.signed_request.public_key,
                             ip,
+                            os: user_os,
                         };
 
                         async move {

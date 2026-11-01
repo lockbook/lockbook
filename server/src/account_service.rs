@@ -102,6 +102,7 @@ where
         db.shared_files.create_key(owner)?;
         db.file_children.create_key(*root.id())?;
         db.metas.insert(*root.id(), root.clone())?;
+        db.record_user_os(owner, context.os)?;
 
         tx.end()?;
 
@@ -429,6 +430,9 @@ where
             }
 
             if free_username {
+                // Normal deletions retain OS membership for deleted-user metrics;
+                // admin disappearance removes it along with the username.
+                db.user_os.clear_key(&Owner(*public_key))?;
                 let username = db
                     .accounts
                     .remove(&Owner(*public_key))?

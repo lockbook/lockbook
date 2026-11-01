@@ -5,6 +5,7 @@ use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
 use crate::guard::ServerTx;
 use crate::schema::ServerV6;
+use crate::user_os::OS;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 use lb_rs::model::clock::get_time;
@@ -44,6 +45,16 @@ make_static_metric! {
 }
 
 lazy_static! {
+    pub static ref METRICS_BY_OS: IntGaugeVec = register_int_gauge_vec!(
+        "lockbook_metrics_by_os",
+        "Account metrics by OS ever used; OS cohorts overlap and must not be summed for unique totals",
+        &["type", "os"]
+    ).unwrap();
+    pub static ref PREMIUM_USERS_BY_OS_AND_PAYMENT_PLATFORM: IntGaugeVec = register_int_gauge_vec!(
+        "lockbook_premium_users_by_os_and_payment_platform",
+        "Premium accounts by OS ever used and payment platform; OS cohorts overlap",
+        &["platform", "os"]
+    ).unwrap();
     pub static ref METRICS_COUNTERS_VEC: IntGaugeVec = register_int_gauge_vec!(
         "lockbook_metrics_counters",
         "Lockbook's basic metrics of users and files derived from redis",
@@ -86,11 +97,79 @@ const STRIPE_LABEL_NAME: &str = "stripe";
 const GOOGLE_PLAY_LABEL_NAME: &str = "google-play";
 const APP_STORE_LABEL_NAME: &str = "app-store";
 
+const OS_METRIC_TYPES: [&str; 9] = [
+    "total_users",
+    "share_feature_users",
+    "premium_users",
+    "active_users",
+    "deleted_users",
+    "total_documents",
+    "total_document_bytes",
+    "total_egress_bytes",
+    "active_users_1h",
+];
+const PAYMENT_PLATFORMS: [&str; 3] =
+    [STRIPE_LABEL_NAME, GOOGLE_PLAY_LABEL_NAME, APP_STORE_LABEL_NAME];
+
+#[derive(Default)]
+struct OsMetrics {
+    counts: HashMap<(OS, &'static str), i64>,
+    premium: HashMap<(OS, &'static str), i64>,
+}
+
+impl OsMetrics {
+    fn observe(&mut self, oses: &[OS], info: Option<&UserInfo>, payment: Option<&'static str>) {
+        for &os in oses {
+            let Some(info) = info else {
+                *self.counts.entry((os, "deleted_users")).or_default() += 1;
+                continue;
+            };
+            for (kind, value) in [
+                ("total_users", 1),
+                ("active_users", i64::from(info.is_user_active)),
+                ("active_users_1h", i64::from(info.is_user_active_v2)),
+                ("share_feature_users", i64::from(info.is_user_sharer_or_sharee)),
+                ("total_documents", info.total_documents),
+                ("total_document_bytes", info.total_bytes),
+                ("total_egress_bytes", info.total_egress),
+                ("premium_users", i64::from(payment.is_some())),
+            ] {
+                *self.counts.entry((os, kind)).or_default() += value;
+            }
+            if let Some(platform) = payment {
+                *self.premium.entry((os, platform)).or_default() += 1;
+            }
+        }
+    }
+
+    fn publish(&self) {
+        // Set every bounded label combination, including zero, so expired activity
+        // and empty cohorts cannot leave stale values in Prometheus.
+        for os in OS::ALL {
+            for kind in OS_METRIC_TYPES {
+                METRICS_BY_OS
+                    .with_label_values(&[kind, os.as_str()])
+                    .set(self.counts.get(&(os, kind)).copied().unwrap_or_default());
+            }
+            for platform in PAYMENT_PLATFORMS {
+                PREMIUM_USERS_BY_OS_AND_PAYMENT_PLATFORM
+                    .with_label_values(&[platform, os.as_str()])
+                    .set(
+                        self.premium
+                            .get(&(os, platform))
+                            .copied()
+                            .unwrap_or_default(),
+                    );
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum MetricsError {}
 
 const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
-const TWO_HOURS_IN_MILLIS: u128 = 1000 * 60 * 60;
+const ONE_HOUR_IN_MILLIS: u128 = 1000 * 60 * 60;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
 where
@@ -147,6 +226,7 @@ where
             let mut premium_stripe_users = 0;
             let mut premium_google_play_users = 0;
             let mut premium_app_store_users = 0;
+            let mut os_metrics = OsMetrics::default();
 
             for (username, owner) in public_keys_and_usernames {
                 {
@@ -158,6 +238,7 @@ where
                     let user_info = match maybe_user_info {
                         None => {
                             deleted_users += 1;
+                            os_metrics.observe(&db.user_operating_systems(&owner), None, None);
                             let _ = METRICS_USAGE_BY_USER_VEC.remove_label_values(&[&username]);
                             let _ = EGRESS_BY_USER.remove_label_values(&[&username]);
                             let _ = ACTIVITY_BY_USER.remove_label_values(&[&username]);
@@ -202,6 +283,23 @@ where
                         .set(user_info.account_age);
 
                     let billing_info = Self::get_user_billing_info(db, &owner)?;
+                    let payment = if billing_info.is_premium() {
+                        billing_info
+                            .billing_platform
+                            .as_ref()
+                            .map(|platform| match platform {
+                                BillingPlatform::Stripe { .. } => STRIPE_LABEL_NAME,
+                                BillingPlatform::GooglePlay { .. } => GOOGLE_PLAY_LABEL_NAME,
+                                BillingPlatform::AppStore { .. } => APP_STORE_LABEL_NAME,
+                            })
+                    } else {
+                        None
+                    };
+                    os_metrics.observe(
+                        &db.user_operating_systems(&owner),
+                        Some(&user_info),
+                        payment,
+                    );
 
                     if billing_info.is_premium() {
                         premium_users += 1;
@@ -259,6 +357,7 @@ where
                 .with_label_values(&[APP_STORE_LABEL_NAME])
                 .set(premium_app_store_users);
 
+            os_metrics.publish();
             info!("metrics refresh finished");
             tokio::time::sleep(self.config.metrics.time_between_metrics_refresh).await;
         }
@@ -329,7 +428,7 @@ where
         let delay_buffer_time = 5000;
         let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
         let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
-        let time_one_hour_ago = get_time().0 as u64 - TWO_HOURS_IN_MILLIS as u64;
+        let time_one_hour_ago = get_time().0 as u64 - ONE_HOUR_IN_MILLIS as u64;
         let is_user_active_v2 = not_the_welcome_doc && last_seen > time_one_hour_ago;
 
         let total_bytes = tree.calculate_usage(owner).unwrap_or_default();
