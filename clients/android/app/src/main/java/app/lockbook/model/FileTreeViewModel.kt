@@ -33,7 +33,6 @@ import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbError
-import net.lockbook.LbEvent
 import net.lockbook.LbStatus
 import net.lockbook.SharingContact
 import net.lockbook.Usage
@@ -53,6 +52,33 @@ private const val PINNED_FILES_KEY = "pinned_files"
 private val pinnedFilesPreferenceKey = stringPreferencesKey(PINNED_FILES_KEY)
 private val Context.pinnedFilesDataStore by preferencesDataStore(name = PINNED_FILES_DATASTORE_NAME)
 
+internal fun observePinnedFiles(context: Context) =
+    context.pinnedFilesDataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                Timber.e(exception, "Unable to read pinned files.")
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }.map { preferences ->
+            deserializePinnedFiles(preferences[pinnedFilesPreferenceKey] ?: "[]")
+        }.flowOn(Dispatchers.IO)
+
+private fun deserializePinnedFiles(serializedPins: String): MutableList<PinnedFile> =
+    runCatching {
+        JSONArray(serializedPins)
+            .let { pins ->
+                MutableList(pins.length()) { index ->
+                    val pin = pins.getJSONObject(index)
+                    PinnedFile(pin.getString("id"), pin.optString("emoji").takeIf { it.isNotBlank() })
+                }
+            }.distinctBy { it.id }
+            .toMutableList()
+    }.onFailure { exception ->
+        Timber.e(exception, "Unable to parse pinned files.")
+    }.getOrDefault(mutableListOf())
+
 class FileTreeViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
@@ -60,7 +86,8 @@ class FileTreeViewModel(
     val notifyUpdateFilesUI: LiveData<UpdateFilesUI>
         get() = _notifyUpdateFilesUI
 
-    lateinit var fileModel: FileModel
+    var fileModel: FileModel? = null
+        private set
 
     private val _sharingContacts = MutableLiveData<List<SharingContact>>(emptyList())
     val sharingContacts: LiveData<List<SharingContact>> = _sharingContacts
@@ -110,7 +137,29 @@ class FileTreeViewModel(
         get() = _isSyncing
 
     init {
-        startUpInRoot()
+        if (FileMetadataStore.snapshots.value == null) FileMetadataStore.requestRefresh()
+        viewModelScope.launch {
+            FileMetadataStore.snapshots.collect { snapshot ->
+                val previous = fileModel
+                if (snapshot == null) {
+                    fileModel = null
+                    _files.value = emptyList()
+                    _recentFiles.value = emptyList()
+                } else if (previous?.idsAndFiles !== snapshot.idsAndFiles) {
+                    val previousPath = previous?.getFileDir()?.map { it.id to it.name }
+                    fileModel =
+                        if (previous == null || previous.root.id != snapshot.root.id) {
+                            FileModel.createAtRoot(snapshot)
+                        } else {
+                            previous.apply { refreshFiles(snapshot) }
+                        }
+                    refreshFilesDataSource()
+                    if (previousPath != fileModel?.getFileDir()?.map { it.id to it.name }) {
+                        _notifyUpdateFilesUI.value = UpdateFilesUI.UpdateBreadcrumbBar
+                    }
+                }
+            }
+        }
         viewModelScope.launch {
             try {
                 val contacts: List<SharingContact> = withContext(Dispatchers.IO) { Lb.getSharingContacts().toList() }
@@ -120,12 +169,14 @@ class FileTreeViewModel(
             }
         }
         loadPinnedFiles()
-        getStatus()
-    }
-
-    private fun getStatus() {
-        val status: LbStatus = Lb.getStatus()
-        hydrateStatusUpdate(status, null)
+        viewModelScope.launch {
+            try {
+                val status = withContext(Dispatchers.IO) { Lb.getStatus() }
+                hydrateStatusUpdate(status)
+            } catch (error: LbError) {
+                Timber.e(error, "Unable to load account status.")
+            }
+        }
     }
 
     private fun checkUsage() {
@@ -186,18 +237,11 @@ class FileTreeViewModel(
         _notifyUpdateFilesUI.postValue(UpdateFilesUI.OutOfSpace((usageRatio * 100).toInt(), 100))
     }
 
-    private fun startUpInRoot() {
-        fileModel = FileModel.createAtRoot()
-
-        refreshFilesDataSource()
-
-        _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
-    }
-
     // / when you pass in null, it will return the parent of the current folder
     fun enterFolder(newParent: File?) {
-        val parent = newParent ?: fileModel.idsAndFiles[fileModel.parent.parent] ?: fileModel.root
-        fileModel.enterFolder(parent)
+        val navigation = fileModel ?: return
+        val parent = newParent ?: navigation.idsAndFiles[navigation.parent.parent] ?: navigation.root
+        navigation.enterFolder(parent)
 
         refreshFilesDataSource()
 
@@ -205,12 +249,14 @@ class FileTreeViewModel(
     }
 
     fun reloadFiles() {
-        fileModel.refreshFiles()
+        val snapshot = FileMetadataStore.snapshots.value ?: return
+        fileModel?.refreshFiles(snapshot)
 
         refreshFilesDataSource()
     }
 
     private fun refreshFilesDataSource() {
+        val fileModel = fileModel ?: return
         _files.value = fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
         _recentFiles.value = recentDocuments(fileModel.idsAndFiles.values)
         refreshPinnedFiles()
@@ -261,7 +307,11 @@ class FileTreeViewModel(
     }
 
     private fun refreshPinnedFiles() {
-        val knownFileIds = fileModel.idsAndFiles.keys
+        val knownFileIds = fileModel?.idsAndFiles?.keys
+        if (knownFileIds == null) {
+            _pinnedFiles.value = pinnedFileEntries.toList()
+            return
+        }
         if (pinnedFileEntries.removeAll { it.id !in knownFileIds }) {
             persistPinnedFiles()
         }
@@ -271,40 +321,12 @@ class FileTreeViewModel(
 
     private fun loadPinnedFiles() {
         viewModelScope.launch {
-            val pins =
-                getApplication<Application>()
-                    .pinnedFilesDataStore
-                    .data
-                    .catch { exception ->
-                        if (exception is IOException) {
-                            Timber.e(exception, "Unable to read pinned files.")
-                            emit(emptyPreferences())
-                        } else {
-                            throw exception
-                        }
-                    }.map { preferences ->
-                        deserializePinnedFiles(preferences[pinnedFilesPreferenceKey] ?: "[]")
-                    }.flowOn(Dispatchers.IO)
-                    .first()
+            val pins = observePinnedFiles(getApplication()).first()
 
             pinnedFileEntries = pins.toMutableList()
             refreshPinnedFiles()
         }
     }
-
-    private fun deserializePinnedFiles(serializedPins: String): MutableList<PinnedFile> =
-        runCatching {
-            JSONArray(serializedPins)
-                .let { pins ->
-                    MutableList(pins.length()) { index ->
-                        val pin = pins.getJSONObject(index)
-                        PinnedFile(pin.getString("id"), pin.optString("emoji").takeIf { it.isNotBlank() })
-                    }
-                }.distinctBy { it.id }
-                .toMutableList()
-        }.onFailure { exception ->
-            Timber.e(exception, "Unable to parse pinned files.")
-        }.getOrDefault(mutableListOf())
 
     private fun serializePinnedFiles(pins: List<PinnedFile>): String =
         JSONArray()
@@ -337,10 +359,7 @@ class FileTreeViewModel(
             }
     }
 
-    fun hydrateStatusUpdate(
-        status: LbStatus,
-        lbEvent: LbEvent?,
-    ) {
+    fun hydrateStatusUpdate(status: LbStatus) {
         if (status.syncStatus != null) {
             _syncStatus.value = status.syncStatus
         }
@@ -362,22 +381,7 @@ class FileTreeViewModel(
                 .mapNotNull { UUID.fromString(it) }
                 .toHashSet()
 
-        val metaOrContentDirty =
-            if (lbEvent ==
-                null
-            ) {
-                true
-            } else {
-                lbEvent.metadataChanged ||
-                    lbEvent.pendingSharesChanged ||
-                    lbEvent.documentWritten ||
-                    lbEvent.ipcChangesApplied
-            }
-
-        if (metaOrContentDirty) {
-            fileModel.refreshFiles()
-        }
-        refreshFilesDataSource()
+        _files.value = fileModel?.children.orEmpty().intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
 
         _usage.value = status.spaceUsed
         checkUsage()

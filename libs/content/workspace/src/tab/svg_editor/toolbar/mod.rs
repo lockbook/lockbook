@@ -31,7 +31,7 @@ pub const MINI_MAP_WIDTH: f32 = 100.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
 const SCREEN_PADDING: egui::Pos2 =
-    if cfg!(target_os = "android") { egui::pos2(10.0, 50.0) } else { egui::pos2(20.0, 20.0) };
+    if cfg!(target_os = "android") { egui::pos2(10.0, 10.0) } else { egui::pos2(20.0, 20.0) };
 
 #[derive(Default)]
 pub struct Toolbar {
@@ -85,6 +85,7 @@ pub struct ToolContext<'a> {
 }
 
 pub struct ToolbarContext<'a> {
+    pub controls_rect: egui::Rect,
     pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
@@ -316,7 +317,7 @@ impl Toolbar {
             return res;
         }
 
-        self.show_tools_island(ui);
+        self.show_tools_island(ui, tlbr_ctx.controls_rect);
         self.show_tool_popovers(ui, tlbr_ctx);
 
         res
@@ -416,17 +417,12 @@ impl Toolbar {
         };
         let island_rect = egui::Rect {
             min: egui::pos2(
-                tlbr_ctx.viewport_settings.container_rect.right()
-                    - SCREEN_PADDING.x
-                    - island_size.x
-                    - mini_map_width,
-                tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING.y,
+                tlbr_ctx.controls_rect.right() - SCREEN_PADDING.x - island_size.x - mini_map_width,
+                tlbr_ctx.controls_rect.top() + SCREEN_PADDING.y,
             ),
             max: egui::pos2(
-                tlbr_ctx.viewport_settings.container_rect.right()
-                    - SCREEN_PADDING.x
-                    - mini_map_width,
-                tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING.y + island_size.y,
+                tlbr_ctx.controls_rect.right() - SCREEN_PADDING.x - mini_map_width,
+                tlbr_ctx.controls_rect.top() + SCREEN_PADDING.y + island_size.y,
             ),
         };
         let overlay_toggle = ui.scope_builder(UiBuilder::new().max_rect(island_rect), |ui| {

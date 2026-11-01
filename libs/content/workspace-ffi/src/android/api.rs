@@ -16,6 +16,20 @@ use crate::WgpuWorkspace;
 use workspace_rs::tab::markdown_editor::MarkdownToolbarAction;
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownExcerptNative(
+    mut env: JNIEnv, _: JClass, text: JString, cursor: jint,
+) -> jstring {
+    let Ok(text) = env.get_string(&text) else { return std::ptr::null_mut() };
+    let excerpt = workspace_rs::document_preview::markdown_excerpt(
+        &String::from(text),
+        cursor.max(0) as usize,
+    );
+    env.new_string(serde_json::to_string(&excerpt).expect("serialize Markdown excerpt"))
+        .expect("create Markdown excerpt")
+        .into_raw()
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarStateNative(
     env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
@@ -767,6 +781,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.workspace.close_all_tabs();
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeCurrentTabToWelcome(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.close_current_tab_to_welcome().into()
 }
 
 #[no_mangle]

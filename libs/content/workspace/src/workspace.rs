@@ -998,6 +998,16 @@ impl Workspace {
         self.set_current_tab(Some(tab_id));
     }
 
+    /// Android Back closes the active session and lands on Welcome, preserving other tabs.
+    pub fn close_current_tab_to_welcome(&mut self) -> bool {
+        let Some(i) = self.current_slot_index() else { return false };
+        self.close_tab(i);
+        self.set_current_tab(None);
+        self.out.tabs_changed = true;
+        self.ctx.request_repaint();
+        true
+    }
+
     pub fn can_back(&self) -> bool {
         self.current_slot_index()
             .and_then(|i| self.tab_strip.get(i))

@@ -53,15 +53,21 @@ class MarkdownToolbarView(
         Table("Table"),
     }
 
+    private enum class NativeAction {
+        InsertPhoto,
+        Outline,
+    }
+
     private data class ToolbarAction(
         val command: MarkdownToolbarAction?,
         val label: String,
         val icon: Int,
         val category: ToolbarCategory,
         val checkable: Boolean = true,
+        val nativeAction: NativeAction? = null,
     ) {
         val preferenceKey: String
-            get() = command?.name ?: "InsertPhoto"
+            get() = command?.name ?: requireNotNull(nativeAction).name
     }
 
     private data class SettingsRow(
@@ -74,6 +80,14 @@ class MarkdownToolbarView(
         listOf(
             ToolbarAction(MarkdownToolbarAction.Undo, "Undo", R.drawable.ic_md_undo_24, ToolbarCategory.History, false),
             ToolbarAction(MarkdownToolbarAction.Redo, "Redo", R.drawable.ic_md_redo_24, ToolbarCategory.History, false),
+            ToolbarAction(
+                null,
+                context.getString(R.string.outline),
+                R.drawable.ic_outline_info_24,
+                ToolbarCategory.History,
+                false,
+                NativeAction.Outline,
+            ),
             ToolbarAction(MarkdownToolbarAction.Heading, "Heading", R.drawable.ic_md_title_24, ToolbarCategory.TextStyle),
             ToolbarAction(MarkdownToolbarAction.Bold, "Bold", R.drawable.ic_md_format_bold_24, ToolbarCategory.TextStyle),
             ToolbarAction(MarkdownToolbarAction.Italic, "Italic", R.drawable.ic_md_format_italic_24, ToolbarCategory.TextStyle),
@@ -106,7 +120,14 @@ class MarkdownToolbarView(
             ToolbarAction(MarkdownToolbarAction.Table, "Table", R.drawable.ic_md_table_24, ToolbarCategory.Lists, false),
             ToolbarAction(MarkdownToolbarAction.Link, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments),
             ToolbarAction(MarkdownToolbarAction.Image, "Image", R.drawable.ic_outline_image_24, ToolbarCategory.Attachments),
-            ToolbarAction(null, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments, false),
+            ToolbarAction(
+                null,
+                "Insert photo",
+                R.drawable.ic_outline_camera_24,
+                ToolbarCategory.Attachments,
+                false,
+                NativeAction.InsertPhoto,
+            ),
             ToolbarAction(
                 MarkdownToolbarAction.Indent,
                 "Indent",
@@ -231,7 +252,8 @@ class MarkdownToolbarView(
         }
         for ((action, control) in buttons) {
             val active = action.command in state.active
-            control.isEnabled = action.command !in state.disabled
+            control.isEnabled =
+                if (action.nativeAction == NativeAction.Outline) Workspace.outlineAvailable(ptr) else action.command !in state.disabled
             control.alpha = if (control.isEnabled) 1f else 0.38f
             control.isChecked = active
             val color =
@@ -271,17 +293,29 @@ class MarkdownToolbarView(
         setIconResource(action.icon)
         isCheckable = action.checkable
         setOnClickListener { anchor ->
-            if (action.command == null) {
-                showPhotoMenu(anchor)
-                return@setOnClickListener
+            when (action.nativeAction) {
+                NativeAction.InsertPhoto -> {
+                    showPhotoMenu(anchor)
+                    return@setOnClickListener
+                }
+
+                NativeAction.Outline -> {
+                    editor.toggleOutline()
+                    return@setOnClickListener
+                }
+
+                null -> {
+                    Unit
+                }
             }
+            val command = requireNotNull(action.command)
             if (action.command == MarkdownToolbarAction.Table) {
                 showTablePicker(anchor)
                 return@setOnClickListener
             }
             val ptr = WorkspaceView.wgpuObj
             if (editor.canForwardTouches()) {
-                Workspace.markdownToolbarAction(ptr, action.command)
+                Workspace.markdownToolbarAction(ptr, command)
                 editor.invalidate()
                 editor.wrapperView?.requestFocus()
             }

@@ -135,7 +135,7 @@ enum WorkerResponse {
 const ZOOM_STOP: f32 = 0.1;
 const SIDEBAR_WIDTH: f32 = 200.0;
 const SCREEN_PADDING: Pos2 =
-    if cfg!(target_os = "android") { egui::pos2(10.0, 50.0) } else { egui::pos2(20.0, 20.0) };
+    if cfg!(target_os = "android") { egui::pos2(10.0, 10.0) } else { egui::pos2(20.0, 20.0) };
 const SPACE_BETWEEN_PAGES: f32 = 10.0;
 const THUMBNAIL_SCALE: f32 = 0.5;
 
@@ -237,8 +237,9 @@ impl PdfViewer {
                 self.show_sidebar(ui, full, full.intersect(host));
             }
         }
+        let controls = crate::safe_area::inset_rect(ui.ctx(), host).intersect(pages);
         self.show_pages(ui, pages, fit_width);
-        self.show_toolbar(ui, pages);
+        self.show_toolbar(ui, controls);
         claim(ui, host);
     }
 
@@ -360,7 +361,7 @@ impl PdfViewer {
     }
 
     /// Zoom, fit and sidebar controls floating at the top right of the pages.
-    fn show_toolbar(&mut self, ui: &mut Ui, pages: Rect) {
+    fn show_toolbar(&mut self, ui: &mut Ui, controls: Rect) {
         let t = ui.ctx().get_lb_theme();
         let hit = control_height();
         let font = TypeRole::Body.font_id();
@@ -374,8 +375,13 @@ impl PdfViewer {
         let icons = if has_sidebar { 5.0 } else { 4.0 };
         let seps = if has_sidebar { 2.0 } else { 1.0 };
         let width = island::width(icons * hit + pct_w + seps * sep_w);
+        if controls.width() < width + 2.0 * SCREEN_PADDING.x
+            || controls.height() < island::height() + 2.0 * SCREEN_PADDING.y
+        {
+            return;
+        }
         let rect = Rect::from_min_size(
-            pos2(pages.right() - SCREEN_PADDING.x - width, pages.top() + SCREEN_PADDING.y),
+            pos2(controls.right() - SCREEN_PADDING.x - width, controls.top() + SCREEN_PADDING.y),
             vec2(width, island::height()),
         );
 
