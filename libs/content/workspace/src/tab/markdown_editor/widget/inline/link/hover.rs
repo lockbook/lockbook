@@ -19,6 +19,8 @@ use crate::widgets::TextOverflow;
 
 /// Width of the hover card's content.
 pub(crate) const CARD_W: f32 = 320.0;
+/// A hover card showing a file: Obsidian's hover preview, 450 by 400.
+pub(crate) const FILE_CARD: egui::Vec2 = egui::Vec2::new(450.0, 400.0);
 /// Space between a card's edge and its content.
 pub(crate) const CARD_PAD: Space = Space::Md;
 pub(crate) const CARD_RADIUS: Radius = Radius::Control;
@@ -148,6 +150,15 @@ impl MdRender {
             .trim_start_matches("http://")
             .trim_start_matches("www.")
             .trim_end_matches('/');
+        self.card_footer(ui, shown, actions, true)
+    }
+
+    /// A card's last row: `shown`, where the link goes, and with `actions`
+    /// beside it an Open button and a `⋯` menu, whose choice this returns.
+    pub(crate) fn card_footer(
+        &self, ui: &mut Ui, shown: &str, actions: bool, refreshable: bool,
+    ) -> Option<LinkMenuAction> {
+        let t = ui.ctx().get_lb_theme();
         let url = |ui: &mut Ui| {
             ui.add(
                 GlyphonLabel::new(shown, ink_secondary(&t))
@@ -167,7 +178,7 @@ impl MdRender {
                 let more = icon_button(ui, &t, DOTS_THREE, false, t.neutral_bg());
                 let editable = !self.readonly;
                 chosen = context_menu::show_click(&more, &t, |e| {
-                    fill_link_menu(e, false, editable, true, |a| a)
+                    fill_link_menu(e, false, editable, refreshable, |a| a)
                 });
                 let open = Button::secondary(&t, "Open").show(ui);
                 if open.clicked() {

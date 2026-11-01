@@ -15,8 +15,9 @@ use egui::{CornerRadius, Rect, Sense, UiBuilder, Vec2, pos2, vec2};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
-use super::link::hover::{CARD_PAD, CARD_RADIUS, CARD_W};
+use super::link::hover::{CARD_PAD, CARD_RADIUS, FILE_CARD};
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
+use crate::style::Space;
 use crate::style::button::icon_button;
 use crate::style::phosphor::ARROW_SQUARE_OUT;
 use crate::tab::markdown_editor::MdRender;
@@ -34,8 +35,6 @@ use crate::theme::palette_v2::ThemeExt as _;
 pub const EMBED_DEPTH: usize = 3;
 /// A slot's height before its tab has ever been measured at its width.
 const SKELETON_HEIGHT: f32 = 120.0;
-/// The tallest a hover card stands; a slot takes its region's full height.
-const MAX_CARD_HEIGHT: f32 = 360.0;
 
 /// The title a wiki embed names when it isn't an image's.
 pub fn tab_embed_title(node: &AstNode<'_>) -> Option<String> {
@@ -207,7 +206,7 @@ impl TabEmbeds {
             res.remembered_height(&place.dest, place.fragment.as_ref(), width)
         };
         let height = measured.or_else(remembered).unwrap_or(SKELETON_HEIGHT);
-        if card { height.min(MAX_CARD_HEIGHT) } else { height }
+        if card { height.min(card_view_height()) } else { height }
     }
 
     /// Draws the slot `key` names into `rect`, opening its tab first.
@@ -225,7 +224,8 @@ impl TabEmbeds {
         slot.poll(&res, &self.path, key.card);
 
         let t = ui.ctx().get_lb_theme();
-        let inner = rect.shrink(CARD_PAD.pts());
+        // a card's frame pads it; a slot pads itself
+        let inner = if key.card { rect } else { rect.shrink(CARD_PAD.pts()) };
         match &mut slot.state {
             SlotState::Open(tab) => {
                 // the pad takes what hangs past the content: a list's numbers, a last line's descent
@@ -261,6 +261,19 @@ impl TabEmbeds {
                 if !slot.shown {
                     paint_skeleton(ui, inner);
                     ui.ctx().request_repaint();
+                } else if key.card {
+                    let (above, below) = tab.overflow();
+                    let (ground, clear) = (t.neutral_bg(), egui::Color32::TRANSPARENT);
+                    let fade = crate::style::EDGE_FADE.pts();
+                    let painter = ui.painter_at(clip);
+                    if above {
+                        let band = inner.with_max_y(inner.top() + fade);
+                        crate::style::paint_fade(&painter, band, ground, clear, true);
+                    }
+                    if below {
+                        let band = inner.with_min_y(inner.bottom() - fade);
+                        crate::style::paint_fade(&painter, band, clear, ground, true);
+                    }
                 }
             }
             SlotState::Loading(_) => {
@@ -279,8 +292,8 @@ impl TabEmbeds {
                 );
             }
         }
-        crate::style::paint_doc_border(ui.painter(), rect, CARD_RADIUS.corner(), &t);
         if !key.card {
+            crate::style::paint_doc_border(ui.painter(), rect, CARD_RADIUS.corner(), &t);
             open_button(ui, rect, &place);
         }
     }
@@ -339,7 +352,7 @@ impl Slot {
                     md.edit.renderer.tab_embeds.res = (!card).then(|| res.clone());
                 }
                 let mut tab = Tab::new(dest.clone(), ContentState::Open(content), salt, true);
-                tab.presentation = Presentation::Embedded;
+                tab.presentation = if card { Presentation::Card } else { Presentation::Embedded };
                 tab.reveal = Some(Reveal { fragment: self.place.fragment.clone(), flash: false });
                 SlotState::Open(Box::new(tab))
             }
@@ -430,22 +443,51 @@ impl<'ast> MdRender {
     pub(super) fn show_tab_card(
         &self, ctx: &egui::Context, response: &egui::Response, url: &str, place: Place,
     ) -> bool {
-        let height = self.tab_embeds.content_height(url, &place, CARD_W, true);
+        let width = FILE_CARD.x - 2.0 * CARD_PAD.pts();
+        let height = self.tab_embeds.content_height(url, &place, width, true);
+        let shown = self.place_shown(url, &place);
         crate::style::tip_card_reachable(
             ctx,
             response,
             response.rect,
-            CARD_W + 2.0 * CARD_PAD.pts(),
-            egui::Margin::ZERO,
+            width,
+            egui::Margin::same(CARD_PAD.pts() as i8),
             |ui| {
-                let size = vec2(CARD_W + 2.0 * CARD_PAD.pts(), height + 2.0 * CARD_PAD.pts());
-                let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+                ui.set_width(width);
+                ui.spacing_mut().item_spacing.y = Space::Sm.pts();
+                let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
                 let key = SlotKey { url: url.into(), nth: 0, card: true };
                 self.tab_embeds.paint(ui, key, place.clone(), rect);
+                if let Some(action) = self.card_footer(ui, &shown, true, false) {
+                    *self.card_action.borrow_mut() = Some((url.to_string(), action));
+                    crate::style::dismiss_tip(ui.ctx());
+                    ui.ctx().request_repaint();
+                }
             },
         );
         true
     }
+
+    /// Where `url` goes, as a card's footer shows it: the path of `place`'s
+    /// file and the link's fragment.
+    fn place_shown(&self, url: &str, place: &Place) -> String {
+        let path = place
+            .dest
+            .backing_file()
+            .map(|id| self.files.read().unwrap().path(id))
+            .unwrap_or_default();
+        let path = path.trim_start_matches('/');
+        match split_fragment(url).1 {
+            Some(fragment) => format!("{path}#{fragment}"),
+            None => path.to_string(),
+        }
+    }
+}
+
+/// How tall a file card's view of its tab stands at most: the card's
+/// height less its pad, the gap, and the footer's controls.
+fn card_view_height() -> f32 {
+    FILE_CARD.y - 2.0 * CARD_PAD.pts() - Space::Sm.pts() - crate::style::control_height()
 }
 
 /// Opens the embedded file from the slot's corner, shown while hovered.

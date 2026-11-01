@@ -9,11 +9,10 @@
 //! - **Click:** dismisses; clears open-host + last-shown so a wiggle on the
 //!   same control does **not** reopen until a full still dwell again.
 //!
-//! Anchored to the host control (not the cursor). Canvas plate + hairline.
+//! Anchored to the host control; a card the pointer can reach opens beside
+//! where the pointer rested instead. Canvas plate + hairline.
 
-use egui::{
-    Align2, Area, Context, Frame, Id, LayerId, Margin, Order, Pos2, Rect, Response, Ui, Vec2, vec2,
-};
+use egui::{Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Rect, Response, Ui, Vec2, vec2};
 
 use super::chrome::{Radius, TIP_CHAIN_DWELL_SECS, TIP_CHAIN_GRACE_SECS};
 use super::color::ThemeExt;
@@ -31,8 +30,6 @@ const OPEN_TIP_HOST: &str = "design_tip_open_host";
 const REACH_EXIT: &str = "design_tip_reach_exit";
 /// The host whose reachable card holds the pointer, and the frame it did.
 const REACH_HELD: &str = "design_tip_reach_held";
-/// The layer of the last reachable card shown.
-const REACH_LAYER: &str = "design_tip_reach_layer";
 
 /// One-line chrome tip (toolbar, footer).
 pub fn tip_text(ctx: &Context, resp: &Response, text: impl Into<String>) {
@@ -65,9 +62,11 @@ pub fn tip_card_placed(
     show_anchored_at(ctx, hit.id, place, max_w.max(1.0), margin, add_contents);
 }
 
-/// A card tip the pointer can move onto to use what's on it. It stays while
-/// the pointer is on the card, inside the triangle from where it left the
-/// host to the card's near edge, or in a menu the card opened.
+/// A card tip the pointer can move onto to use what's on it, opened beside
+/// where the pointer rested so it takes the wheel without standing where
+/// the page scrolls. It stays while the pointer is on the card, inside the
+/// triangle from where it left the host to the card's near edge, or in a
+/// menu the card opened.
 pub fn tip_card_reachable(
     ctx: &Context, hit: &Response, place: egui::Rect, max_w: f32, margin: Margin,
     add_contents: impl FnOnce(&mut Ui),
@@ -81,32 +80,29 @@ pub fn tip_card_reachable(
     let open = ctx.data(|d| d.get_temp::<Id>(Id::unique(OPEN_TIP_HOST))) == Some(hit.id);
     let card = ctx.memory(|m| m.area_rect(id));
     let exit = ctx.data(|d| d.get_temp::<Option<Pos2>>(exit_id)).flatten();
-    // a scroll that takes the host from under the pointer puts the card away
+    // a scroll on the way to the card puts it away; one on the card scrolls it
     let scrolling = ctx.input(|i| i.smooth_scroll_delta != Vec2::ZERO);
     let held = open
         && !hit.contains_pointer()
         && (crate::style::context_menu::is_any_open(ctx)
-            || !scrolling
-                && matches!((pointer, card), (Some(p), Some(c)) if c.contains(p)
-                    || exit.is_some_and(|e| in_reach(p, e, c))));
+            || matches!((pointer, card), (Some(p), Some(c)) if c.contains(p)
+                || !scrolling && exit.is_some_and(|e| in_reach(p, e, c))));
     if held {
         let frame = ctx.cumulative_frame_nr();
         ctx.data_mut(|d| d.insert_temp(Id::unique(REACH_HELD), (hit.id, frame)));
     } else if !should_show_tip(ctx, hit) {
         return;
     }
+    // where the pointer rested when the card opened, kept while it's open
+    let anchor_id = id.with("anchor");
+    if !open {
+        ctx.data_mut(|d| d.insert_temp(anchor_id, pointer.unwrap_or(place.center())));
+    }
+    let anchor = ctx
+        .data(|d| d.get_temp::<Pos2>(anchor_id))
+        .unwrap_or(place.center());
     note_tip_shown(ctx, hit.id);
-    let layer = LayerId::new(Order::Foreground, id);
-    ctx.data_mut(|d| d.insert_temp(Id::unique(REACH_LAYER), layer));
-    show_area(ctx, hit.id, place, max_w, margin, true, add_contents);
-}
-
-/// The pointer is in `rect` with a reachable card on top: the wheel scrolls
-/// what's under the card.
-pub fn scrolls_through_card(ctx: &Context, rect: egui::Rect) -> bool {
-    let card = ctx.data(|d| d.get_temp::<LayerId>(Id::unique(REACH_LAYER)));
-    ctx.input(|i| i.pointer.latest_pos())
-        .is_some_and(|p| rect.contains(p) && card.is_some() && ctx.layer_id_at(p) == card)
+    show_area(ctx, hit.id, place, max_w, margin, Some(anchor), add_contents);
 }
 
 /// Puts away whatever tip is open, as a click does.
@@ -114,10 +110,17 @@ pub fn dismiss_tip(ctx: &Context) {
     chill_tip_session(ctx);
 }
 
-/// Within the triangle from `exit` to `card`'s nearer horizontal edge.
+/// Within the triangle from `exit` to the edge of `card` that faces it.
 fn in_reach(p: Pos2, exit: Pos2, card: egui::Rect) -> bool {
-    let y = if exit.y <= card.top() { card.top() } else { card.bottom() };
-    let (a, b) = (Pos2::new(card.left(), y), Pos2::new(card.right(), y));
+    let (a, b) = if exit.x <= card.left() {
+        (card.left_top(), card.left_bottom())
+    } else if exit.x >= card.right() {
+        (card.right_top(), card.right_bottom())
+    } else if exit.y <= card.top() {
+        (card.left_top(), card.right_top())
+    } else {
+        (card.left_bottom(), card.right_bottom())
+    };
     let side = |u: Pos2, v: Pos2| (v - u).x * (p - u).y - (v - u).y * (p - u).x;
     let (d1, d2, d3) = (side(exit, a), side(a, b), side(b, exit));
     !((d1 < 0.0 || d2 < 0.0 || d3 < 0.0) && (d1 > 0.0 || d2 > 0.0 || d3 > 0.0))
@@ -270,12 +273,13 @@ fn show_anchored_at(
     ctx: &Context, host_id: Id, host: egui::Rect, max_w: f32, margin: Margin,
     add_contents: impl FnOnce(&mut Ui),
 ) {
-    show_area(ctx, host_id, host, max_w, margin, false, add_contents);
+    show_area(ctx, host_id, host, max_w, margin, None, add_contents);
 }
 
-/// `reachable`: the card takes the pointer, above the page but under menus.
+/// `beside`: the card takes the pointer, above the page but under menus,
+/// and opens to a side of that point.
 fn show_area(
-    ctx: &Context, host_id: Id, host: egui::Rect, max_w: f32, margin: Margin, reachable: bool,
+    ctx: &Context, host_id: Id, host: egui::Rect, max_w: f32, margin: Margin, beside: Option<Pos2>,
     add_contents: impl FnOnce(&mut Ui),
 ) {
     let t = ctx.get_lb_theme();
@@ -283,27 +287,46 @@ fn show_area(
     let gap = Space::Xs.pts();
     let id = host_id.with("design_tip");
     // measured by the area's sizing pass before it's first seen
-    let height = ctx.memory(|m| m.area_rect(id)).map_or(0.0, |r| r.height());
-    let (below, above) = (screen.bottom() - host.bottom() - gap, host.top() - screen.top() - gap);
-    // below if it fits, else above if it fits, else the roomier side
-    let side = if height <= below || height > above && below >= above {
-        Rect::from_min_max(Pos2::new(screen.left(), host.bottom() + gap), screen.max)
-    } else {
-        Rect::from_min_max(screen.min, Pos2::new(screen.right(), host.top() - gap))
-    };
-    let (pos, pivot) = if side.top() > host.top() {
-        (Pos2::new(host.center().x, side.top()), Align2::CENTER_TOP)
-    } else {
-        (Pos2::new(host.center().x, side.bottom()), Align2::CENTER_BOTTOM)
+    let size = ctx
+        .memory(|m| m.area_rect(id))
+        .map_or(vec2(max_w + margin.sum().x, 0.0), |r| r.size());
+    let (side, pos, pivot) = match beside {
+        Some(at) => {
+            let (right, left) = (screen.right() - at.x - gap, at.x - screen.left() - gap);
+            // right if it fits, else left if it fits, else the roomier side
+            let y = (at.y - size.y / 2.0)
+                .clamp(screen.top(), (screen.bottom() - size.y).max(screen.top()));
+            if size.x <= right || size.x > left && right >= left {
+                let side = Rect::from_min_max(Pos2::new(at.x + gap, screen.top()), screen.max);
+                (side, Pos2::new(side.left(), y), Align2::LEFT_TOP)
+            } else {
+                let side = Rect::from_min_max(screen.min, Pos2::new(at.x - gap, screen.bottom()));
+                (side, Pos2::new(side.right(), y), Align2::RIGHT_TOP)
+            }
+        }
+        None => {
+            let (below, above) =
+                (screen.bottom() - host.bottom() - gap, host.top() - screen.top() - gap);
+            // below if it fits, else above if it fits, else the roomier side
+            if size.y <= below || size.y > above && below >= above {
+                let side =
+                    Rect::from_min_max(Pos2::new(screen.left(), host.bottom() + gap), screen.max);
+                (side, Pos2::new(host.center().x, side.top()), Align2::CENTER_TOP)
+            } else {
+                let side =
+                    Rect::from_min_max(screen.min, Pos2::new(screen.right(), host.top() - gap));
+                (side, Pos2::new(host.center().x, side.bottom()), Align2::CENTER_BOTTOM)
+            }
+        }
     };
 
     Area::new(id)
-        .order(if reachable { Order::Foreground } else { Order::Tooltip })
+        .order(if beside.is_some() { Order::Foreground } else { Order::Tooltip })
         .fixed_pos(pos)
         .pivot(pivot)
-        // a card too tall for its side runs off the screen's edge, never over its host
+        // a card too big for its side runs off the screen's edge, never over its host or pointer
         .constrain_to(side)
-        .interactable(reachable)
+        .interactable(beside.is_some())
         .default_size(vec2(0.0, 0.0))
         .fade_in(false)
         .show(ctx, |ui| {
@@ -326,22 +349,40 @@ mod tests {
     use super::*;
     use crate::theme::palette_v2::{Mode, Theme};
 
-    /// A card taller than the room on either side of its host stays open on
-    /// the roomier side, never over the host, while the pointer rests there.
+    /// A card opens beside the pointer, never under it, and stays open
+    /// while the wheel scrolls it with the pointer on it.
     #[test]
-    fn tall_card_stays_off_its_host() {
+    fn card_opens_beside_the_pointer_and_takes_the_wheel() {
         let ctx = Context::default();
         ctx.set_lb_theme(Theme::default(Mode::Light));
         let screen = Rect::from_min_size(Pos2::ZERO, vec2(400.0, 400.0));
         let host = Rect::from_min_size(pos2(150.0, 280.0), vec2(100.0, 20.0));
         let card = Id::unique("host").with("design_tip");
         let mut shown = vec![];
-        for frame in 0..40 {
-            let events = vec![Event::PointerMoved(host.center())];
+        for frame in 0..60 {
+            let mut events = vec![];
+            if frame == 0 {
+                events.push(Event::PointerMoved(host.center()));
+            }
+            // onto the card once it's open, then scroll there
+            let open = shown.last().copied().flatten();
+            if frame == 30 {
+                let card: Rect = open.unwrap();
+                events.push(Event::PointerMoved(card.center()));
+            }
+            if frame > 30 {
+                events.push(Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, -20.0),
+                    modifiers: Default::default(),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
+                });
+            }
             let input = RawInput {
                 screen_rect: Some(screen),
                 time: Some(frame as f64 * 0.1),
-                events: if frame == 0 { events } else { vec![] },
+                events,
                 ..Default::default()
             };
             let mut drawn = false;
@@ -355,12 +396,12 @@ mod tests {
             out.textures_delta.clear();
             shown.push(drawn.then(|| ctx.memory(|m| m.area_rect(card)).unwrap()));
         }
-        let settled = &shown[20..];
         assert!(
-            settled
+            shown[20..30]
                 .iter()
-                .all(|c| c.is_some_and(|c| !c.intersects(host))),
+                .all(|c| c.is_some_and(|c| !c.contains(host.center()))),
             "{shown:?}"
         );
+        assert!(shown[31..].iter().all(Option::is_some), "{shown:?}");
     }
 }
