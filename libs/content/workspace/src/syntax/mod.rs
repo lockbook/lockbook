@@ -89,6 +89,12 @@ impl Highlights {
         languages::definitions(self.0.lang(), self.0.tree(), self.0.text())
     }
 
+    /// Whether the parse recovered from a syntax error.
+    #[cfg(test)]
+    pub fn has_error(&self) -> bool {
+        self.0.tree().root_node().has_error()
+    }
+
     /// The smallest syntax node larger than `range` and covering it.
     pub fn enclosing(&self, range: Range<usize>) -> Option<Range<usize>> {
         languages::enclosing(self.0.tree(), range)

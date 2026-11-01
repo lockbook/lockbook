@@ -161,6 +161,21 @@ fn long_view(src: &mut ByteSource) -> (f32, bool) {
     (200.0 + 100.0 * src.draw(5) as f32, src.draw(2) == 1)
 }
 
+/// Code files, one of [`doc_gen::CODE_SAMPLES`] by its extension.
+fn run_code_files<C>(check: C, seeds: u64)
+where
+    C: Fn(&[u8]) -> Result<(), String>,
+{
+    crate::test_utils::prop::run(seeds, 64, check, |b| {
+        let (_, ext, code) = gen_code_file(&mut ByteSource::new(b));
+        format!("{ext} file:\n{code:?}\nthen events drawn from the rest of the byte stream")
+    });
+}
+
+fn gen_code_file(src: &mut ByteSource) -> (&'static str, &'static str, &'static str) {
+    doc_gen::CODE_SAMPLES[src.draw(doc_gen::CODE_SAMPLES.len())]
+}
+
 /// Corpus is chosen inside the check (varies per seed), so the repro is the
 /// shrunken bytes — decode them with the check's own generator.
 fn run_raw<C, E>(check: C, seeds: u64)
@@ -188,6 +203,10 @@ fn no_panic_under_edits() {
 #[test]
 fn no_panic_structured_init() {
     run_all(no_panic_structured_init_check, 1000);
+}
+#[test]
+fn code_files_color_as_parsed_afresh() {
+    run_code_files(code_file_check, 300);
 }
 // lb-rs delta-math panic at seed 302 caps this; raise when that's fixed.
 #[test]
@@ -820,6 +839,95 @@ fn no_panic_under_edits_check(buf: &[u8]) -> Result<(), &'static str> {
         ws.enter_frame();
     })
     .map_err(|_| "editor panicked under random edit sequence")
+}
+
+/// Typed into code: what opens and closes strings, comments, brackets and
+/// injections.
+const CODE_PIECES: &[&str] = &[
+    "\"",
+    "'",
+    "`",
+    "/*",
+    "*/",
+    "//",
+    "#",
+    "\n",
+    "{",
+    "}",
+    "(",
+    ")",
+    "<script>",
+    "</script>",
+    "${",
+    "x",
+    "  ",
+    "fn",
+    "let",
+    "é",
+    "~r/",
+    "\"\"\"",
+    "1",
+    "$",
+    "\\frac",
+];
+
+/// A code file under edits: no panic, and its colors, kept from version to
+/// version, are those of the text parsed afresh when that has no errors,
+/// and line by line join into the whole.
+fn code_file_check(buf: &[u8]) -> Result<(), String> {
+    let mut src = ByteSource::new(buf);
+    let (_, ext, code) = gen_code_file(&mut src);
+    let n = event_count(&mut src);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut ws = TestEditor::file(code, ext);
+        ws.enter_frame();
+        for _ in 0..n {
+            let (cursor, len) = cursor_and_len(&ws);
+            let edit = if src.bias(&[1, 1]) == 0 {
+                event(&mut src, cursor, len)
+            } else {
+                let text = CODE_PIECES[src.draw(CODE_PIECES.len())].to_string();
+                Event::Replace { region: Region::Selection, text, advance_cursor: true }
+            };
+            ws.push(edit);
+            ws.enter_frame();
+        }
+        code_colors(&ws, ext)
+    }));
+    result.unwrap_or_else(|_| Err("editor panicked editing a code file".into()))
+}
+
+fn code_colors(ws: &TestEditor, ext: &str) -> Result<(), String> {
+    let Some(lang) = crate::syntax::Lang::from_extension(ext) else { return Ok(()) };
+    let r = &ws.editor.edit.renderer;
+    let text = r.buffer.current.text.clone();
+    let Some(kept) = r.syntax.highlights(lang, text.clone()) else { return Ok(()) };
+    let whole = kept.spans(0..text.len());
+    let mut joined: crate::syntax::Spans = Vec::new();
+    let mut at = 0;
+    for line in text.split_inclusive('\n') {
+        for (role, span) in kept.spans(at..at + line.len()).iter() {
+            match joined.last_mut() {
+                Some((last, range)) if last == role && range.end == span.start => {
+                    range.end = span.end
+                }
+                _ => joined.push((*role, span.clone())),
+            }
+        }
+        at += line.len();
+    }
+    if joined != *whole {
+        return Err(format!("{text:?}: lines join into\n{joined:?}\nnot\n{whole:?}"));
+    }
+    let fresh = lang.highlights(text.clone()).unwrap();
+    // error recovery may read broken code differently from scratch
+    if !fresh.has_error() && *fresh.spans(0..text.len()) != *whole {
+        return Err(format!(
+            "{text:?}: kept colors\n{whole:?}\nnot\n{:?}",
+            fresh.spans(0..text.len())
+        ));
+    }
+    Ok(())
 }
 
 fn cursor_in_bounds_check(buf: &[u8]) -> Result<(), &'static str> {
