@@ -25,6 +25,7 @@ import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.*
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
@@ -43,7 +44,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.Lb
 import net.lockbook.LbError
-import net.lockbook.LbStatus
+import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -149,9 +150,9 @@ class MainScreenActivity : AppCompatActivity() {
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
         binding.bottomNavigation.doOnLayout { navigation ->
-            val layoutParams = binding.createFileFab.layoutParams as ViewGroup.MarginLayoutParams
+            val layoutParams = binding.homeFabStack.layoutParams as ViewGroup.MarginLayoutParams
             layoutParams.bottomMargin += navigation.height
-            binding.createFileFab.layoutParams = layoutParams
+            binding.homeFabStack.layoutParams = layoutParams
         }
         ViewCompat.setOnApplyWindowInsetsListener(fileSelectionBottomBarView) { view, windowInsets ->
             view.updatePadding(
@@ -167,11 +168,24 @@ class MainScreenActivity : AppCompatActivity() {
                 onVisibilityChanged = ::setFileSelectionActive,
             )
         binding.createFileFab.setOnClickListener {
+            val parentId = fileTreeViewModel.fileModel?.parent?.id ?: return@setOnClickListener
             mainScreenModel.launchTransientScreen(
-                TransientScreen.Create(fileTreeViewModel.fileModel.parent.id),
+                TransientScreen.Create(parentId),
             )
         }
+        binding.toggleDetailsFab.setOnClickListener {
+            if (!isFileSelectionActive) mainScreenModel.navigate(MainNavigationAction.FocusDetail)
+        }
         workspaceShell = binding.workspaceShell
+        binding.metadataRetry.setOnClickListener { FileMetadataStore.requestRefresh() }
+        FileMetadataStore.loadState.asLiveData().observe(this) { state ->
+            val initialLoad = FileMetadataStore.snapshots.value == null
+            binding.metadataLoadingOverlay.isVisible = initialLoad
+            binding.metadataLoadingProgress.isVisible = state == MetadataLoadState.Loading
+            binding.metadataRetry.isVisible = state is MetadataLoadState.Failed
+            binding.metadataLoadingMessage.text =
+                if (state is MetadataLoadState.Failed) state.error.msg else getString(R.string.metadata_loading)
+        }
         setUpSearch()
         setUpNavigationDrawer()
         workspaceShell.setOnModeChangedListener { mode ->
@@ -182,9 +196,10 @@ class MainScreenActivity : AppCompatActivity() {
                     WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
                 },
             )
-            updateSearchBarDetailAction()
+            updateDetailFabVisibility()
             (supportFragmentManager.findFragmentByTag(WORKSPACE_FRAGMENT_TAG) as? WorkspaceFragment)
                 ?.let { workspaceFragment ->
+                    if (mode != WorkspaceShellMode.SidebarOnly) workspaceFragment.finishPendingTabClose()
                     workspaceFragment.updateRestoreSplitButtonVisibility(mode == WorkspaceShellMode.DetailOnly)
                     workspaceFragment.updateWorkspaceSearchButtonVisibility(mode != WorkspaceShellMode.Split)
                 }
@@ -253,7 +268,7 @@ class MainScreenActivity : AppCompatActivity() {
                     CreateFileBottomSheetFragment
                         .newInstance(
                             initialParentId = screen.parentId,
-                            focusedFolderId = fileTreeViewModel.fileModel.parent.id,
+                            focusedFolderId = fileTreeViewModel.fileModel?.parent?.id,
                         ).show(
                             supportFragmentManager,
                             CreateFileBottomSheetFragment.TAG,
@@ -312,7 +327,7 @@ class MainScreenActivity : AppCompatActivity() {
                     mainScreenModel.navigationState.collect(::renderNavigation)
                 }
                 launch {
-                    mainScreenModel.navigationEffects.collect(::handleNavigationEffect)
+                    mainScreenModel.documentOpenRequests.collect(::openDocument)
                 }
                 launch {
                     fileSelectionModel.uiState.collect(fileSelectionBottomBarController::render)
@@ -339,7 +354,7 @@ class MainScreenActivity : AppCompatActivity() {
                         return
                     }
 
-                    if (workspaceShell.isDetailOnly) {
+                    if (workspaceShell.isDetailVisible) {
                         workspaceModel.requestWorkspaceBack()
                     } else if (shouldExitFromCurrentSidebar()) {
                         isEnabled = false // Disable this callback to allow normal back behavior
@@ -348,7 +363,7 @@ class MainScreenActivity : AppCompatActivity() {
                 }
 
                 override fun handleOnBackStarted(backEvent: BackEventCompat) {
-                    if (workspaceShell.isDetailOnly) {
+                    if (workspaceShell.isDetailVisible) {
                         workspaceModel.notifyBackGestureStarted()
                     }
                     super.handleOnBackStarted(backEvent)
@@ -420,18 +435,25 @@ class MainScreenActivity : AppCompatActivity() {
         fileId: String,
         heading: String?,
     ) {
-        if (fileTreeViewModel.fileModel.idsAndFiles.containsKey(fileId)) {
-            workspaceModel.openFile(
-                OpenFileRequest(
-                    id = fileId,
-                    newFile = false,
-                    presentation = OpenFilePresentation.ShowDetail,
-                    heading = heading,
-                ),
-            )
-            mainScreenModel.navigate(MainNavigationAction.FocusDetail)
-        } else {
-            alertModel.notify(getString(R.string.open_link_not_found))
+        lifecycleScope.launch {
+            try {
+                val snapshot = FileMetadataStore.awaitLoaded()
+                if (snapshot.idsAndFiles.containsKey(fileId)) {
+                    workspaceModel.openFile(
+                        OpenFileRequest(
+                            id = fileId,
+                            newFile = false,
+                            presentation = OpenFilePresentation.ShowDetail,
+                            heading = heading,
+                        ),
+                    )
+                    mainScreenModel.navigate(MainNavigationAction.FocusDetail)
+                } else {
+                    alertModel.notify(getString(R.string.open_link_not_found))
+                }
+            } catch (error: LbError) {
+                alertModel.notifyError(error)
+            }
         }
     }
 
@@ -490,10 +512,7 @@ class MainScreenActivity : AppCompatActivity() {
         binding.bottomNavigation.menu.forEach { item ->
             item.isEnabled = !isActive
         }
-        binding.sidebarSearchBar
-            .menu
-            .findItem(R.id.menu_files_list_open_ws)
-            ?.isEnabled = !isActive
+        binding.toggleDetailsFab.isEnabled = !isActive
     }
 
     internal fun showBottomNavigation() {
@@ -528,17 +547,17 @@ class MainScreenActivity : AppCompatActivity() {
         val targetTranslation = if (hidden) navigation.height.toFloat() else 0f
         val fabTargetTranslation = targetTranslation * CREATE_FAB_NAVIGATION_TRANSLATION_RATIO
         navigation.animate().cancel()
-        binding.createFileFab.animate().cancel()
+        binding.homeFabStack.animate().cancel()
         if (!navigation.isLaidOut) {
             navigation.translationY = targetTranslation
-            binding.createFileFab.translationY = fabTargetTranslation
+            binding.homeFabStack.translationY = fabTargetTranslation
         } else {
             navigation
                 .animate()
                 .translationY(targetTranslation)
                 .setDuration(BOTTOM_NAVIGATION_ANIMATION_DURATION)
                 .start()
-            binding.createFileFab
+            binding.homeFabStack
                 .animate()
                 .translationY(fabTargetTranslation)
                 .setDuration(BOTTOM_NAVIGATION_ANIMATION_DURATION)
@@ -566,18 +585,7 @@ class MainScreenActivity : AppCompatActivity() {
             if (!isFileSelectionActive) openNavigationDrawer()
         }
         configureSidebarSearchLauncher()
-        binding.sidebarSearchBar.setOnMenuItemClickListener { item ->
-            if (item.itemId == R.id.menu_files_list_open_ws && !isFileSelectionActive) {
-                mainScreenModel.navigate(MainNavigationAction.FocusDetail)
-                true
-            } else {
-                false
-            }
-        }
-        binding.sidebarSearchBar.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateSearchBarDetailAction()
-        }
-        updateSearchBarDetailAction()
+        updateDetailFabVisibility()
     }
 
     internal fun configureSidebarSearchLauncher() {
@@ -588,11 +596,8 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateSearchBarDetailAction() {
-        binding.sidebarSearchBar
-            .menu
-            .findItem(R.id.menu_files_list_open_ws)
-            ?.isVisible = !isFocusingDetail()
+    private fun updateDetailFabVisibility() {
+        binding.toggleDetailsFab.isVisible = !isFocusingDetail()
     }
 
     private fun setUpNavigationDrawer() {
@@ -675,18 +680,15 @@ class MainScreenActivity : AppCompatActivity() {
         renderSearchOverlay(state.searchOverlay)
     }
 
-    private fun handleNavigationEffect(effect: MainNavigationEffect) {
-        when (effect) {
-            is MainNavigationEffect.OpenDocument -> {
-                workspaceModel.openFile(
-                    OpenFileRequest(
-                        id = effect.id,
-                        newFile = effect.newFile,
-                        presentation = OpenFilePresentation.Preserve,
-                    ),
-                )
-            }
-        }
+    private fun openDocument(request: MainNavigationAction.OpenDocument) {
+        workspaceModel.openFile(
+            OpenFileRequest(
+                id = request.id,
+                newFile = request.newFile,
+                closeDetailOnBack = request.closeDetailOnBack,
+                presentation = OpenFilePresentation.Preserve,
+            ),
+        )
     }
 
     private fun renderPaneIntent(intent: PaneIntent) {
@@ -788,7 +790,7 @@ class MainScreenActivity : AppCompatActivity() {
         val showsRootChrome = destination !is SidebarDestination.CreateLink
         binding.sidebarSearchAppBar.isVisible = showsRootChrome
         binding.bottomNavigation.isVisible = showsRootChrome
-        binding.createFileFab.isVisible = showsRootChrome
+        binding.homeFabStack.isVisible = showsRootChrome
         rootDestinationId?.let { itemId ->
             if (binding.bottomNavigation.selectedItemId != itemId) {
                 binding.bottomNavigation.selectedItemId = itemId
@@ -922,7 +924,7 @@ class MainScreenActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         _binding?.bottomNavigation?.animate()?.cancel()
-        _binding?.createFileFab?.animate()?.cancel()
+        _binding?.homeFabStack?.animate()?.cancel()
         super.onDestroy()
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }
@@ -934,15 +936,12 @@ class MainScreenActivity : AppCompatActivity() {
 
     private fun subscribeToLbEvents() {
         lifecycleScope.launch {
-            while (true) {
-                val lbEvent =
-                    withContext(Dispatchers.IO) {
-                        Lb.subscribe(Lb.eventsReceiver)
-                    }
-
-                lbEvent?.let { event ->
-                    val status: LbStatus = Lb.getStatus()
-                    fileTreeViewModel.hydrateStatusUpdate(status, event)
+            LbEvents.events.collect {
+                try {
+                    val status = withContext(Dispatchers.IO) { Lb.getStatus() }
+                    fileTreeViewModel.hydrateStatusUpdate(status)
+                } catch (error: LbError) {
+                    Timber.e(error, "Unable to refresh account status.")
                 }
             }
         }

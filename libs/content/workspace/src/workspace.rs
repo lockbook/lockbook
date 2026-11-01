@@ -19,6 +19,7 @@ use tracing::{debug, error, info, instrument, trace_span, warn};
 use web_time::{Duration, Instant};
 
 use crate::file_cache::{Change, FileCache, FilesExt};
+use crate::history_swipe::HistorySwipe;
 use crate::landing::LandingPage;
 use crate::link_plan::Plan;
 use crate::link_preview::LinkPreviews;
@@ -27,6 +28,7 @@ use crate::output::Response;
 use crate::search::{SearchState, SearchType};
 use crate::show::DocType;
 use crate::tab::image_viewer::ImageViewer;
+use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::{Editor as Markdown, HttpClient, MdEdit, MdPersistence};
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{
@@ -115,6 +117,8 @@ pub struct Workspace {
     pub desktop_tab_policy: bool,
     pub sidebar_open: bool,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
+    pub trackpad_history_swipe: bool,
+    pub(crate) swipe: HistorySwipe,
 
     // Transient state (consider removing)
     pub landing_page_first_frame: bool,
@@ -199,6 +203,8 @@ impl Workspace {
             desktop_tab_policy: false,
             sidebar_open: false,
             focused_parent: Default::default(),
+            trackpad_history_swipe: false,
+            swipe: Default::default(),
 
             landing_page_first_frame: true,
             current_tab_changed: Default::default(),
@@ -983,6 +989,16 @@ impl Workspace {
         self.open_history_place(slot_idx);
     }
 
+    /// Android Back closes the active session and lands on Welcome, preserving other tabs.
+    pub fn close_current_tab_to_welcome(&mut self) -> bool {
+        let Some(i) = self.current_slot_index() else { return false };
+        self.close_tab(i);
+        self.set_current_tab(None);
+        self.out.tabs_changed = true;
+        self.ctx.request_repaint();
+        true
+    }
+
     pub fn can_back(&self) -> bool {
         self.current_slot_index()
             .and_then(|i| self.tab_strip.get(i))
@@ -1292,9 +1308,8 @@ impl Workspace {
     pub fn process_clip_events(&mut self) {
         let Some(file_id) = self.current_tab().and_then(|tab| {
             let md = tab.markdown()?;
-            // image paste inserts `![](…)` markdown — skip when the
-            // renderer can't display it as a real image.
-            if md.edit.renderer.readonly || md.edit.renderer.plaintext {
+            // image paste inserts `![](…)` markdown
+            if md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {
                 None
             } else {
                 Some(md.edit.file_id)
@@ -1787,19 +1802,113 @@ impl Workspace {
             .filter(|s| s.dest.id() == id)
             .map(|s| s.id)
             .collect();
+        let source = self.cfg.get_source();
+        let ext = new_name.split('.').next_back().unwrap_or_default();
         for tab_id in tab_ids {
-            let fits = self
-                .tabs
-                .get(&tab_id)
-                .is_none_or(|t| content_fits_name(&t.content, &new_name));
-            if !fits {
-                // `ext`/`plaintext` are baked at editor construction; drop and re-open.
+            let Some(tab) = self.tabs.get_mut(&tab_id) else { continue };
+            if !content_fits_name(&tab.content, &new_name, source) {
                 self.tabs.remove(&tab_id);
                 self.open_dest(tab_id, &dest);
+            } else if let Some(md) = tab.markdown_mut() {
+                md.set_ext(ext);
             }
         }
 
         self.ctx.request_repaint();
+    }
+
+    /// Whether the current tab's file has a rendered form to trade for its
+    /// source.
+    pub fn source_offered(&self) -> bool {
+        let Some(id) = self.current_tab().and_then(|t| file_dest(&t.destination)) else {
+            return false;
+        };
+        let files = self.files.read().unwrap();
+        files
+            .get_by_id(id)
+            .is_some_and(|f| DocType::from_name(&f.name).has_source_view())
+    }
+
+    pub fn source_on(&self) -> bool {
+        self.cfg.get_source()
+    }
+
+    /// Shows files with a rendered form as source, or rendered again, in
+    /// every tab.
+    pub fn toggle_source(&mut self) {
+        let source = !self.cfg.get_source();
+        self.cfg.set_source(source);
+
+        // a drawing refused as text opens again under the new choice
+        let refused: Vec<(SessionId, Uuid)> = {
+            let files = self.files.read().unwrap();
+            self.tabs
+                .iter()
+                .filter(|(_, t)| matches!(t.content, ContentState::Failed(TabFailure::Refused(_))))
+                .filter_map(|(sid, t)| Some((*sid, file_dest(&t.destination)?)))
+                .filter(|(_, id)| {
+                    files
+                        .get_by_id(*id)
+                        .is_some_and(|f| DocType::from_name(&f.name) == DocType::SVG)
+                })
+                .collect()
+        };
+        for (sid, id) in refused {
+            self.tasks.queue_load(LoadRequest {
+                id,
+                tab_created: true,
+                make_current: false,
+                is_preview: false,
+                target: Some(sid),
+            });
+        }
+        self.ctx.request_repaint();
+    }
+
+    /// Reopens each open drawing in the drawing editor or the text editor to
+    /// match the source choice. A drawing reopens from its saved bytes, so
+    /// unsaved edits save first and nothing in flight is overtaken. Notes
+    /// switch on their own.
+    pub(crate) fn refit_source_views(&mut self) {
+        let source = self.cfg.get_source();
+        let refits: Vec<(SessionId, Uuid)> = {
+            let files = self.files.read().unwrap();
+            self.tabs
+                .iter()
+                .filter_map(|(sid, tab)| {
+                    let id = file_dest(&tab.destination)?;
+                    let drawing = DocType::from_name(&files.get_by_id(id)?.name) == DocType::SVG;
+                    let wrong = match &tab.content {
+                        ContentState::Open(TabContent::Svg(_)) => source,
+                        ContentState::Open(TabContent::Markdown(_)) => !source,
+                        _ => false,
+                    };
+                    (drawing && wrong).then_some((*sid, id))
+                })
+                .collect()
+        };
+        for (sid, id) in refits {
+            if self.tasks.busy(id) {
+                continue;
+            }
+            let dirty = self.tabs.get(&sid).is_some_and(|t| t.is_dirty(&self.tasks));
+            if dirty {
+                self.queue_save_for_session(sid);
+            } else {
+                // nothing to edit until the other editor has the file
+                if let Some(tab) = self.tabs.get_mut(&sid) {
+                    tab.content = ContentState::Loading(id);
+                }
+                self.tasks.queue_load(LoadRequest {
+                    id,
+                    tab_created: true,
+                    make_current: false,
+                    is_preview: false,
+                    target: Some(sid),
+                });
+            }
+            self.ctx.request_repaint();
+        }
     }
 
     pub fn move_file(&mut self, req: (Uuid, Uuid)) -> bool {
@@ -1973,9 +2082,14 @@ fn open_content(
 fn content_reloads(content: &ContentState, name: &str) -> bool {
     let doc_type = DocType::from_name(name);
     match content {
+        // a drawing shown as source stays text until the choice flips
         ContentState::Open(TabContent::Markdown(_)) => matches!(
             doc_type,
-            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+            DocType::PlainText
+                | DocType::Markdown
+                | DocType::Code
+                | DocType::Unknown
+                | DocType::SVG
         ),
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         #[cfg(not(target_family = "wasm"))]
@@ -1986,18 +2100,28 @@ fn content_reloads(content: &ContentState, name: &str) -> bool {
 
 /// Whether `content` was built for a file named `name`. Loading content picks
 /// its editor from core's current name when the load lands.
-fn content_fits_name(content: &ContentState, name: &str) -> bool {
-    let ext = name.split('.').next_back().unwrap_or_default();
+fn content_fits_name(content: &ContentState, name: &str, source: bool) -> bool {
     let doc_type = DocType::from_name(name);
     match content {
-        ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.ext == ext,
-        ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
+        ContentState::Open(TabContent::Markdown(_)) => match doc_type {
+            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown => true,
+            DocType::SVG => source,
+            _ => false,
+        },
+        ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG && !source,
         ContentState::Open(TabContent::Image(_)) => doc_type == DocType::Image,
         ContentState::Open(TabContent::Pdf(_)) => doc_type == DocType::PDF,
         #[cfg(not(target_family = "wasm"))]
         ContentState::Open(TabContent::Chat(_)) => doc_type == DocType::Chat,
         ContentState::Failed(_) => false,
         _ => true,
+    }
+}
+
+fn file_dest(dest: &Destination) -> Option<Uuid> {
+    match dest {
+        Destination::File(id) => Some(*id),
+        _ => None,
     }
 }
 
@@ -2045,6 +2169,9 @@ pub struct WsPresistentData {
     /// The sidecar, the panel beside a note that holds its outline, is open.
     #[serde(default)]
     sidecar_open: bool,
+    /// Files with a rendered form show their source text instead.
+    #[serde(default)]
+    source: bool,
     /// A rename or move updates the links it would break, as last chosen.
     #[serde(default = "default_update_links")]
     update_links: bool,
@@ -2073,6 +2200,7 @@ impl Default for WsPresistentData {
             contact_linked_sites: false,
             last_search: SearchState::default(),
             sidecar_open: false,
+            source: false,
             update_links: true,
         }
     }
@@ -2241,6 +2369,20 @@ impl WsPersistentStore {
             return;
         }
         data_lock.sidecar_open = open;
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn get_source(&self) -> bool {
+        self.data.read().unwrap().source
+    }
+
+    pub fn set_source(&mut self, source: bool) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.source == source {
+            return;
+        }
+        data_lock.source = source;
         drop(data_lock);
         self.write_to_file();
     }

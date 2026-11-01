@@ -10,8 +10,10 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.model.AlertModel
+import app.lockbook.model.FileMetadataStore
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.WorkspaceViewModel
+import app.lockbook.util.withFileMetadata
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
 import net.lockbook.Lb
@@ -26,7 +28,7 @@ class DeleteFilesDialogFragment : AppCompatDialogFragment() {
     }
 
     val files by lazy {
-        requireArguments().getStringArrayList(FILE_IDS_KEY).orEmpty().map(Lb::getFileById)
+        requireArguments().getStringArrayList(FILE_IDS_KEY).orEmpty().map(FileMetadataStore::requireFile)
     }
 
     companion object {
@@ -41,21 +43,26 @@ class DeleteFilesDialogFragment : AppCompatDialogFragment() {
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
         MaterialAlertDialogBuilder(requireContext())
-            .apply {
-                val msg =
-                    if (files.size == 1) {
-                        getString(R.string.delete_1_file_message, files[0].name)
-                    } else {
-                        getString(R.string.delete_file_message, files.size)
-                    }
-
-                setMessage(msg)
-            }.setNegativeButton(R.string.cancel, null)
+            .setMessage(R.string.metadata_loading)
+            .setNegativeButton(R.string.cancel, null)
             .setPositiveButton(R.string.delete_file_delete, null)
             .create()
             .apply {
                 setOnShowListener {
+                    getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
                     getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
+                }
+                withFileMetadata {
+                    setMessage(
+                        if (files.size ==
+                            1
+                        ) {
+                            getString(R.string.delete_1_file_message, files[0].name)
+                        } else {
+                            getString(R.string.delete_file_message, files.size)
+                        },
+                    )
+                    getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
                 }
             }
 

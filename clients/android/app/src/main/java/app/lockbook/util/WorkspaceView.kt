@@ -28,11 +28,13 @@ import android.widget.OverScroller
 import android.widget.Toast
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.content.FileProvider
+import androidx.core.graphics.Insets
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.model.OpenFileRequest
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -57,7 +59,8 @@ class WorkspaceView(
     private var surface: Surface? = null
 
     // The fragment may request a file before SurfaceView creates its native workspace.
-    private var deferredOpenDoc: Triple<String, Boolean, String?>? = null
+    private var deferredOpenDoc: OpenFileRequest? = null
+    private var safeInsets = Insets.NONE
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
@@ -269,6 +272,7 @@ class WorkspaceView(
                 Lb.lb,
                 workspaceTheme,
             )
+        publishSafeInsets()
         setWillNotDraw(false)
 
         isFocusable = true
@@ -276,10 +280,8 @@ class WorkspaceView(
 
         requestFocus()
 
-        deferredOpenDoc?.let { (id, newFile, heading) ->
-            deferredOpenDoc = null
-            openDoc(id, newFile, heading)
-        }
+        deferredOpenDoc?.let(::openDoc)
+        publishOpenTabCount()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -312,6 +314,7 @@ class WorkspaceView(
             holder.surface,
             context.resources.displayMetrics.scaledDensity,
         )
+        publishSafeInsets()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -324,6 +327,19 @@ class WorkspaceView(
         handler?.removeCallbacks(redrawTask)
         ioScope.cancel()
         super.onDetachedFromWindow()
+    }
+
+    fun setSafeInsets(insets: Insets) {
+        if (safeInsets == insets) return
+        safeInsets = insets
+        publishSafeInsets()
+        invalidate()
+    }
+
+    private fun publishSafeInsets() {
+        if (wgpuObj != Long.MAX_VALUE && surface != null) {
+            Workspace.setSafeInsets(wgpuObj, safeInsets.top, safeInsets.right, safeInsets.bottom, safeInsets.left)
+        }
     }
 
     fun setBottomInset(inset: Int) {
@@ -395,10 +411,6 @@ class WorkspaceView(
             Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
         }
 
-        val outline = Workspace.outlineAvailable(wgpuObj)
-        if (outline != model.outlineAvailable.value) {
-            model._outlineAvailable.value = outline
-        }
         val outlineOpen = Workspace.outlineOpen(wgpuObj)
         if (outlineOpen != model.outlineOpen.value) {
             model._outlineOpen.value = outlineOpen
@@ -433,6 +445,7 @@ class WorkspaceView(
 
         val currentTab =
             if (response.tabsChanged || !response.selectedFile.isNullUUID()) {
+                publishOpenTabCount()
                 Workspace.currentTab(wgpuObj).toModelTab()
             } else {
                 null
@@ -519,10 +532,12 @@ class WorkspaceView(
         drawWorkspace()
     }
 
-    private fun copyImageToClipboard(png: ByteArray) {
+    private fun copyImageToClipboard(image: ByteArray) {
         val shareDirectory = File(context.cacheDir, "share/clipboard").apply { mkdirs() }
-        val imageFile = File(shareDirectory, "image.png")
-        imageFile.writeBytes(png)
+        // a gif copies as itself, else the bytes are a png
+        val gif = image.size >= 4 && String(image, 0, 4, Charsets.US_ASCII) == "GIF8"
+        val imageFile = File(shareDirectory, if (gif) "image.gif" else "image.png")
+        imageFile.writeBytes(image)
 
         val uri = FileProvider.getUriForFile(context, "app.lockbook.fileprovider", imageFile)
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -591,25 +606,31 @@ class WorkspaceView(
         drawImmediately()
     }
 
-    fun openDoc(
-        id: String,
-        newFile: Boolean,
-        heading: String? = null,
-    ) {
+    fun openDoc(request: OpenFileRequest) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
-            deferredOpenDoc = Triple(id, newFile, heading)
+            deferredOpenDoc = request
             return
         }
 
         deferredOpenDoc = null
+        val heading = request.heading
         if (heading.isNullOrEmpty()) {
-            Workspace.openDoc(wgpuObj, id, newFile)
+            Workspace.openDoc(wgpuObj, request.id, request.newFile)
         } else {
-            Workspace.openDocAtHeading(wgpuObj, id, heading)
+            Workspace.openDocAtHeading(wgpuObj, request.id, heading)
         }
+        model.recordTabCloseBehavior(Workspace.currentTab(wgpuObj).toModelTab().sessionId, request.closeDetailOnBack)
+        publishOpenTabCount()
         invalidate()
+    }
 
-        return
+    fun toggleSource() {
+        if (wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        Workspace.toggleSource(wgpuObj)
+        invalidate()
     }
 
     fun toggleOutline() {
@@ -627,7 +648,17 @@ class WorkspaceView(
         }
 
         Workspace.activateDoc(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
+    }
+
+    fun closeCurrentTabToWelcome(): Boolean {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) return false
+        if (!Workspace.closeCurrentTabToWelcome(wgpuObj)) return false
+        publishOpenTabCount()
+        model._currentTab.value = Workspace.currentTab(wgpuObj).toModelTab()
+        invalidate()
+        return true
     }
 
     fun back(): Boolean {
@@ -684,12 +715,17 @@ class WorkspaceView(
         return Workspace.getTabs(wgpuObj)
     }
 
+    private fun publishOpenTabCount() {
+        model.updateOpenTabCount(getTabs().size)
+    }
+
     fun closeDoc(id: String) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return
         }
 
         Workspace.closeDoc(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
     }
 
@@ -699,6 +735,7 @@ class WorkspaceView(
         }
 
         Workspace.closeSession(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
     }
 
@@ -708,6 +745,7 @@ class WorkspaceView(
         }
 
         Workspace.closeAllTabs(wgpuObj)
+        publishOpenTabCount()
     }
 
     fun fileRenamed(

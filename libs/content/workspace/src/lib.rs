@@ -1,6 +1,8 @@
+pub mod document_preview;
 pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;
+pub mod history_swipe;
 pub mod landing;
 pub mod link_plan;
 pub mod link_preview;
@@ -13,11 +15,13 @@ pub mod output;
 #[cfg(not(target_family = "wasm"))]
 pub mod preview;
 pub mod resolvers;
+pub mod safe_area;
 pub mod search;
 pub mod seq;
 pub mod show;
 pub mod space_inspector;
 pub mod style;
+pub mod syntax;
 pub mod tab;
 pub mod task_manager;
 pub mod theme;

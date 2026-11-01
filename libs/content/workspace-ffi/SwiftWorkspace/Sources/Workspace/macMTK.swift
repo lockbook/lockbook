@@ -1,6 +1,7 @@
 #if os(macOS)
     import Bridge
     import MetalKit
+    import UniformTypeIdentifiers
 
     public class MacMTK: MTKView, MTKViewDelegate {
         var wsHandle: UnsafeMutableRawPointer?
@@ -30,6 +31,7 @@
         var imePassKey = false
         /// The caret, in view points from the top left, for the candidate window.
         var imeCursor: NSRect = .zero
+        var chromeTextFocused = false
         var cursorHidden: Bool = false
 
         var lastAccentColors: UInt64 = 0
@@ -141,7 +143,7 @@
             modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
                 self?.modifiersChanged(event: event) ?? event
             }
-            registerForDraggedTypes([.png, .tiff, .fileURL, .string])
+            registerForDraggedTypes([.gif, .png, .tiff, .fileURL, .string])
             becomeFirstResponder()
 
             accentChangeObserver = NotificationCenter.default.addObserver(
@@ -252,10 +254,15 @@
         }
 
         override public func scrollWheel(with event: NSEvent) {
+            if event.phase == .began {
+                set_trackpad_history_swipe(wsHandle, NSEvent.isSwipeTrackingFromScrollEventsEnabled)
+            }
+            let phase = UInt64(event.phase.rawValue)
+            let momentumPhase = UInt64(event.momentumPhase.rawValue)
             if event.hasPreciseScrollingDeltas {
-                scroll_wheel(wsHandle, Float(event.scrollingDeltaX), Float(event.scrollingDeltaY), event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
+                scroll_wheel(wsHandle, Float(event.scrollingDeltaX), Float(event.scrollingDeltaY), phase, momentumPhase, true, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
             } else {
-                scroll_wheel(wsHandle, Float(event.scrollingDeltaX * 10), Float(event.scrollingDeltaY * 10), event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
+                scroll_wheel(wsHandle, Float(event.scrollingDeltaX * 10), Float(event.scrollingDeltaY * 10), phase, momentumPhase, false, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command))
             }
             setNeedsDisplay(frame)
         }
@@ -375,11 +382,14 @@
             // text is the paste. A line beside an image names the image.
             let text = pasteBoard.string(forType: .string)
             let cells = text.map { $0.contains("\t") || $0.contains("\n") } ?? false
-            if let data = pasteBoard.data(forType: .png), !cells {
+            if let data = pasteBoard.data(forType: .gif) ?? pasteBoard.data(forType: .png), !cells {
                 sendImage(img: data, isPaste: isPaste)
                 return true
             } else if let text {
                 clipboard_paste(wsHandle, text)
+            } else if let data = webArchiveImage(pasteBoard) {
+                sendImage(img: data, isPaste: isPaste)
+                return true
             } else if !isPaste {
                 if let data = pasteBoard.data(forType: .fileURL) {
                     if let url = URL(dataRepresentation: data, relativeTo: nil) {
@@ -490,6 +500,7 @@
             }
 
             let output = macos_frame(wsHandle)
+            chromeTextFocused = output.chrome_text_focused
 
             let c = output.ime_cursor
             let imeRect = NSRect(x: CGFloat(c.min_x), y: CGFloat(c.min_y), width: CGFloat(c.max_x - c.min_x), height: CGFloat(c.max_y - c.min_y))
@@ -544,6 +555,14 @@
             if outlineOpen != workspaceOutput?.outlineOpen {
                 workspaceOutput?.outlineOpen = outlineOpen
             }
+            let source = source_available(wsHandle)
+            if source != workspaceOutput?.sourceAvailable {
+                workspaceOutput?.sourceAvailable = source
+            }
+            let sourceOn = source_on(wsHandle)
+            if sourceOn != workspaceOutput?.sourceOn {
+                workspaceOutput?.sourceOn = sourceOn
+            }
             if currentTab == .Welcome || currentTab == .Search, currentOpenDoc != nil {
                 currentOpenDoc = nil
                 workspaceOutput?.openDoc = nil
@@ -574,9 +593,19 @@
                 }
             }
 
-            if let png = dataFromBytes(b: output.copied_image), let image = NSImage(data: png) {
+            if let data = dataFromBytes(b: output.copied_image), let image = NSImage(data: data) {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.writeObjects([image])
+                if data.starts(with: Array("GIF8".utf8)) {
+                    // a gif copies as itself, with its first frame for apps that take pictures
+                    let item = NSPasteboardItem()
+                    item.setData(data, forType: .gif)
+                    if let tiff = image.tiffRepresentation {
+                        item.setData(tiff, forType: .tiff)
+                    }
+                    NSPasteboard.general.writeObjects([item])
+                } else {
+                    NSPasteboard.general.writeObjects([image])
+                }
             }
 
             let cursor = NSCursor.fromCCursor(c: output.cursor)
@@ -676,12 +705,31 @@ extension MacMTK: NSTextInputClient {
         if let imeMarked { ime_commit(wsHandle, imeMarked) }
         imeMarked = nil
     }
-    public func selectedRange() -> NSRange { NSRange(location: NSNotFound, length: 0) }
+    /// The editor's selection in UTF-16 units. Dictation won't start without one.
+    public func selectedRange() -> NSRange {
+        guard imeCursor.height > 0, !chromeTextFocused, let wsHandle else { return NSRange(location: NSNotFound, length: 0) }
+        let range = get_selected(wsHandle)
+        if range.none { return NSRange(location: NSNotFound, length: 0) }
+        return NSRange(location: Int(range.start.pos), length: Int(range.end.pos - range.start.pos))
+    }
     public func markedRange() -> NSRange {
         NSRange(location: imeMarked == nil ? NSNotFound : 0, length: imeMarked?.utf16.count ?? 0)
     }
     public func hasMarkedText() -> Bool { imeMarked != nil }
-    public func attributedSubstring(forProposedRange _: NSRange, actualRange _: NSRangePointer?) -> NSAttributedString? { nil }
+    /// Text the system reads before the caret, as dictation does for spacing and capitals.
+    public func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
+        guard imeCursor.height > 0, !chromeTextFocused, let wsHandle, range.location != NSNotFound else { return nil }
+        let (end, overflow) = range.location.addingReportingOverflow(range.length)
+        let span = CTextRange(
+            none: false,
+            start: CTextPosition(none: false, pos: UInt(range.location)),
+            end: CTextPosition(none: false, pos: UInt(overflow ? Int.max : end)))
+        guard let result = text_in_range(wsHandle, span) else { return nil }
+        let text = String(cString: result)
+        free_text(result)
+        actualRange?.pointee = NSRange(location: range.location, length: text.utf16.count)
+        return NSAttributedString(string: text)
+    }
     public func validAttributesForMarkedText() -> [NSAttributedString.Key] { [] }
     public func firstRect(forCharacterRange _: NSRange, actualRange _: NSRangePointer?) -> NSRect {
         guard let window else { return .zero }
@@ -690,5 +738,21 @@ extension MacMTK: NSTextInputClient {
         return window.convertToScreen(convert(rect, to: nil))
     }
     public func characterIndex(for _: NSPoint) -> Int { NSNotFound }
+}
+
+extension NSPasteboard.PasteboardType {
+    static let gif = Self(UTType.gif.identifier)
+    static let webArchive = Self(UTType.webArchive.identifier)
+}
+
+/// The original file of an image a browser copied, which its web archive carries.
+private func webArchiveImage(_ pasteBoard: NSPasteboard) -> Data? {
+    guard let data = pasteBoard.data(forType: .webArchive),
+          let archive = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+    else { return nil }
+    // the main resource names the image but holds an <img> tag; the bytes are a subresource
+    let subresources = archive["WebSubresources"] as? [[String: Any]] ?? []
+    return subresources
+        .first { ($0["WebResourceMIMEType"] as? String)?.hasPrefix("image/") ?? false }?["WebResourceData"] as? Data
 }
 #endif

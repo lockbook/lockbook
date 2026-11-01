@@ -4,6 +4,7 @@
 //! specific outcome (often a shipped bug fix). Render-side tests reuse the
 //! property `_check` helpers exposed by [`super::render_props`].
 
+use crate::tab::markdown_editor::{Syntax, View};
 use comrak::Arena;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt};
 
@@ -1957,7 +1958,7 @@ fn find_esc_closes_widget() {
 }
 
 /// The chat connect step's masked key field: a standalone `MdEdit` with
-/// `plaintext + mask + single_line` must produce glyph fragments (the `*`s)
+/// Masked plain source on a single line must produce glyph fragments (the `*`s)
 /// on one unwrapped row, scrolled so a cursor at the end of an overlong key
 /// stays inside the rect.
 #[test]
@@ -1967,9 +1968,11 @@ fn masked_plaintext_mdedit_renders_glyphs() {
 
     let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let mut edit = MdEdit::empty(ctx.clone());
-    edit.renderer.plaintext = true;
+    edit.renderer.kind = Syntax::Plain;
+    edit.renderer.view = View::Source;
     edit.renderer.mask = true;
     edit.renderer.single_line = true;
+    assert_ne!(edit.renderer.kind, Syntax::Markdown, "a key never takes markdown edits");
     // Long enough that a 300px field must overflow (~8px/char mono).
     let key = "sk-test-".repeat(16);
     edit.set_text(&key);

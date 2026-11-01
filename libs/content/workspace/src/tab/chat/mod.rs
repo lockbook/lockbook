@@ -31,6 +31,7 @@ use crate::GlyphonRendererCallback;
 use crate::file_cache::{FileCache, FilesExt};
 use crate::resolvers::FileCacheLinkResolver;
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
+use crate::tab::markdown_editor::{Syntax, View};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
 
@@ -347,7 +348,7 @@ pub struct Chat {
     /// The connect step's masked API-key input. A real `MdEdit` (not an egui
     /// `TextEdit`) so the native iOS keyboard/caret reach it through the same
     /// bridge the composer uses — `focused_mdedit_mut` points here while the
-    /// connect step is open. Plaintext + `mask` so it renders as `*`.
+    /// connect step is open. Plain source + `mask` so it renders as `*`.
     pub key_field: MdEdit,
     /// The masked field's tight layout rect (one centered row), where the
     /// `MdEdit` renders and clips.
@@ -687,14 +688,15 @@ impl Chat {
 
         // The connect step's key input, set up like the composer (files, link
         // resolver, file id) so the native iOS text bridge reaches it the same
-        // way. `plaintext + mask` renders every byte as `*` — byte-length
+        // way. Masked plain source renders every byte as `*` — byte-length
         // preserving, so cursor/selection and the iOS text rects stay aligned
         // with the real (unmasked) buffer.
         let mut key_field = MdEdit::empty(ctx.clone());
         key_field.renderer.files = Arc::clone(&files);
         key_field.renderer.link_resolver =
             Box::new(FileCacheLinkResolver::new(Arc::clone(&files), id));
-        key_field.renderer.plaintext = true;
+        key_field.renderer.kind = Syntax::Plain;
+        key_field.renderer.view = View::Source;
         key_field.renderer.mask = true;
         // API keys are long; a wrapped key doesn't fit the fixed-height field.
         key_field.renderer.single_line = true;

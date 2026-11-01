@@ -290,7 +290,7 @@
                 let p = convert(rowPan.location(in: self), to: mtkView)
                 return ios_row_pan_begin(wsHandle, Float(p.x), Float(p.y))
             }
-            if isInteractiveContentPop(gestureRecognizer) {
+            if blocksNavigationPop(gestureRecognizer) {
                 return false
             }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)

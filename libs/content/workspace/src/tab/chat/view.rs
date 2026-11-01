@@ -327,8 +327,9 @@ impl Chat {
         // types a newline, which at least shows the key landed. Exact match:
         // `consume_key` ignores extra Shift, so it'd treat Shift+Enter as a send.
         let composer_focused = ui.memory(|m| m.has_focus(composer_id));
-        let completions_open =
-            self.composer.emoji_completions.active || self.composer.link_completions.active;
+        let completions_open = self.composer.emoji_completions.active
+            || self.composer.link_completions.active
+            || self.composer.language_completions.active;
         let send_requested = composer_focused
             && !agent_busy
             && ui.ctx().input_mut(|i| {

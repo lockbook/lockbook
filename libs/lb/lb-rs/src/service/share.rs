@@ -133,6 +133,22 @@ impl Lb {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip(self))]
+    pub async fn unshare_file(&self, id: Uuid, username: &str) -> LbResult<()> {
+        let sharee = {
+            let tx = self.ro_tx().await;
+            tx.db()
+                .pub_key_lookup
+                .iter()
+                .find_map(|(owner, name)| {
+                    (name != "<unknown>" && name.eq_ignore_ascii_case(username)).then_some(owner.0)
+                })
+                .ok_or(LbErrKind::ShareNonexistent)?
+        };
+
+        self.delete_share(&id, Some(sharee)).await
+    }
+
     /// returns pending shares -- files shared with us that we haven't accepted or rejected
     /// this function just returns the actual files that were shared -- or the roots of shared
     /// trees. For the full set of shares see [Self::get_pending_share_files]

@@ -101,14 +101,52 @@ pub fn gen_identifier_token(src: &mut ByteSource) -> String {
     out
 }
 
-/// Code language hints for fenced code blocks. Empty string included so
-/// we also exercise the "no language" path. `js` / `javascript` are
-/// excluded because the bundled "JavaScript (Babel)" grammar uses a `\g`
-/// regex backref that panics fancy-regex inside `highlight_line` — the
-/// renderer wraps the call in `catch_unwind`, but the panic hook still
-/// prints to stderr, and 2048 iterations × N JS blocks would dump MBs of
-/// noise. JS coverage lives in its own focused test.
-const LANGS: &[&str] = &["", "rust", "python", "text"];
+/// Code in languages that color across lines, inject other languages, or
+/// combine injections: each a fence's language, a file's extension, and
+/// the code.
+pub const CODE_SAMPLES: &[(&str, &str, &str)] = &[
+    (
+        "rust",
+        "rs",
+        "fn main() {\n    let s = \"a{}\"; // c\n    println!(\"{}\", s);\n    /* b */ let r = r\"x\";\n}\n",
+    ),
+    (
+        "js",
+        "js",
+        "const c = css`\n  color: ${x};\n`;\nfunction f(a) { return `t ${a}` + /re+/g; }\n",
+    ),
+    (
+        "html",
+        "html",
+        "<p class=\"a\">hi</p>\n<script>\nlet x = '1';\n</script>\n<style>p { color: red; }</style>\n",
+    ),
+    ("python", "py", "def f(x):\n    \"\"\"doc\n    more\"\"\"\n    return x + 1  # one\n"),
+    ("toml", "toml", "[package]\nname = \"x\"\n\n[deps]\na = { v = \"1\" }\n"),
+    ("yaml", "yml", "a:\n  b: [1, 2]\n  c: \"d\" # e\n"),
+    ("json", "json", "{\"a\": {\"b\": [1, true, null]}, \"c\": \"d\"}\n"),
+    ("c", "c", "/* a\n   b */\nint main(void) { return '\\n'; }\n"),
+    ("sh", "sh", "for f in *.md; do echo \"$f ${f%.md}\"; done # c\n"),
+    (
+        "md",
+        "markdown",
+        "# T *e*\n\n- [ ] a `c` <b>x</b> $x^2$\n\n~~~rust\nfn f() {}\n~~~\n| a |\n|---|\n",
+    ),
+    ("elixir", "ex", "defmodule M do\n  @re ~r/a+/\n  def g, do: ~JS\"let a = 1;\"\nend\n"),
+    ("latex", "tex", "% c\n\\begin{equation}\n  \\frac{a}{2} + x^2\n\\end{equation}\n"),
+];
+
+/// A fenced code block's language and its sample code: one of the
+/// samples', no language, or one without a grammar.
+fn gen_fence_lang(src: &mut ByteSource) -> (&'static str, &'static str) {
+    match src.bias(&[1, 1, 4]) {
+        0 => ("", ""),
+        1 => ("text", ""),
+        _ => {
+            let (lang, _, code) = CODE_SAMPLES[src.draw(CODE_SAMPLES.len())];
+            (lang, code)
+        }
+    }
+}
 
 /// HTML block tags from CommonMark's "type 6" start condition (block-level
 /// tags that begin a line). Kept short — the parser cares about the tag
@@ -124,12 +162,16 @@ const HTML_BLOCK_TAGS: &[&str] = &["div", "section", "article", "aside"];
 /// scroll-to-cursor logic that uses "any overlap with viewport" would
 /// fail to scroll.
 fn gen_fenced_code(src: &mut ByteSource) -> String {
-    let lang = LANGS[src.draw(LANGS.len())];
+    let (lang, sample) = gen_fence_lang(src);
     let n_lines = gen_code_block_line_count(src);
-    let body = (0..n_lines)
-        .map(|_| gen_code_text(src))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let body = if !sample.is_empty() && n_lines == 1 {
+        sample.trim_end().to_string()
+    } else {
+        (0..n_lines)
+            .map(|_| gen_code_text(src))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
     format!("```{lang}\n{body}\n```\n")
 }
 

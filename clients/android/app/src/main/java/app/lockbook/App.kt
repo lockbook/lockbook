@@ -17,6 +17,7 @@ import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.billing.BillingManager
 import app.lockbook.billing.StoreBillingManager
+import app.lockbook.model.LbEvents
 import app.lockbook.util.*
 import app.lockbook.workspace.Workspace
 import com.google.android.material.color.DynamicColors
@@ -44,6 +45,7 @@ class App : Application() {
         Timber.plant(Timber.DebugTree())
         Workspace.init()
         Lb.init(filesDir.absolutePath)
+        LbEvents.start()
 
         // background sync every 30 minutes when the app is not foregrounded
         ProcessLifecycleOwner

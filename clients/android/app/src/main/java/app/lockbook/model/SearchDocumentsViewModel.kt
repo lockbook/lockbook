@@ -37,7 +37,6 @@ import java.util.concurrent.Executors
 
 class SearchDocumentsViewModel(
     application: Application,
-    private val filesListModel: FileTreeViewModel, // todo: decouple this by using a repo pattern
 ) : AndroidViewModel(application) {
     private val _updateSearchUI = SingleMutableLiveData<UpdateSearchUI>()
 
@@ -212,7 +211,8 @@ class SearchDocumentsViewModel(
         }
     }
 
-    private fun querySearch(input: String): Pair<Array<PathSearcherResult>, Array<ContentSearcherResult>> {
+    private suspend fun querySearch(input: String): Pair<Array<PathSearcherResult>, Array<ContentSearcherResult>> {
+        FileMetadataStore.awaitLoaded()
         val pathSearcher = pathSearcher ?: Lb.pathSearcher().also { pathSearcher = it }
         val contentSearcher = contentSearcher ?: Lb.contentSearcher().also { contentSearcher = it }
 
@@ -289,20 +289,25 @@ class SearchDocumentsViewModel(
         fileResults.set(rows) { left, right -> left == right }
     }
 
-    private fun loadSuggestedResults(): List<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo> =
-        Lb.suggestedDocs().mapNotNull { id ->
-            val file = filesListModel.fileModel.idsAndFiles[id] ?: return@mapNotNull null
-            val parent = filesListModel.fileModel.idsAndFiles[file.parent] ?: return@mapNotNull null
+    private suspend fun loadSuggestedResults(): List<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo> {
+        val snapshot = FileMetadataStore.awaitLoaded()
+        return Lb.suggestedDocs().mapNotNull { id ->
+            val file = snapshot.idsAndFiles[id] ?: return@mapNotNull null
+            val parent = snapshot.idsAndFiles[file.parent] ?: return@mapNotNull null
             SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(
                 file,
                 parent.name.makeSpannableString(),
                 file.name.makeSpannableString(),
             )
         }
+    }
 
     private fun pathResultRow(result: PathSearcherResult): SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo? {
         val (parentPathSpan, fileNameSpan) = result.toHighlightedPathParts()
-        val file = filesListModel.fileModel.idsAndFiles[result.id] ?: return null
+        val file =
+            FileMetadataStore.snapshots.value
+                ?.idsAndFiles
+                ?.get(result.id) ?: return null
         return SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(file, parentPathSpan, fileNameSpan)
     }
 
@@ -313,7 +318,10 @@ class SearchDocumentsViewModel(
                 .mapNotNull { it.toHighlightedSnippet(result) }
                 .takeIf { it.isNotEmpty() }
                 ?: return null
-        val file = filesListModel.fileModel.idsAndFiles[result.id] ?: return null
+        val file =
+            FileMetadataStore.snapshots.value
+                ?.idsAndFiles
+                ?.get(result.id) ?: return null
 
         return SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
             file,
@@ -328,7 +336,10 @@ class SearchDocumentsViewModel(
     private fun focusedContentSearchResultRows(
         result: ContentSearcherResult,
     ): List<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo> {
-        val file = filesListModel.fileModel.idsAndFiles[result.id] ?: return emptyList()
+        val file =
+            FileMetadataStore.snapshots.value
+                ?.idsAndFiles
+                ?.get(result.id) ?: return emptyList()
 
         return result.matches.mapNotNull { match ->
             match.toHighlightedSnippet(result)?.let { snippet ->

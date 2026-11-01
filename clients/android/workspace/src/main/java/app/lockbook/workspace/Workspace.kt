@@ -129,6 +129,7 @@ object Workspace {
     external fun queueFileForEditorImport(rustObj: Long, path: String, name: String): Boolean
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
     external fun setBottomInset(rustObj: Long, inset: Int)
+    external fun setSafeInsets(rustObj: Long, top: Int, right: Int, bottom: Int, left: Int)
 
     external fun unfocusTitle(rustObj: Long)
     external fun willConsumeTouches(rustObj: Long, x: Float, y: Float): Boolean
@@ -153,6 +154,7 @@ object Workspace {
     external fun closeDoc(rustObj: Long, id: String)
     external fun closeSession(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
+    external fun closeCurrentTabToWelcome(rustObj: Long): Boolean
     external fun back(rustObj: Long): Boolean
     external fun forward(rustObj: Long): Boolean
     external fun canForward(rustObj: Long): Boolean
@@ -166,6 +168,9 @@ object Workspace {
     // text input
     external fun setSelection(rustObj: Long, start: Int, end: Int)
     external fun getSelection(rustObj: Long): JTextRange
+    private external fun markdownExcerptNative(text: String, cursor: Int): String
+    fun markdownExcerpt(text: String, cursor: Int): MarkdownExcerpt =
+        Json.decodeFromString(markdownExcerptNative(text, cursor))
     external fun getTextLength(rustObj: Long): Int
     external fun clear(rustObj: Long)
     external fun replace(rustObj: Long, start: Int, end: Int, text: String)
@@ -196,10 +201,19 @@ object Workspace {
     external fun outlineAvailable(rustObj: Long): Boolean
     external fun toggleOutline(rustObj: Long)
     external fun outlineOpen(rustObj: Long): Boolean
+    external fun sourceAvailable(rustObj: Long): Boolean
+    external fun sourceOn(rustObj: Long): Boolean
+    external fun toggleSource(rustObj: Long)
     external fun openSelectionLinks(rustObj: Long)
     external fun refreshSelectionPreviews(rustObj: Long)
     external fun setContactLinkedSites(rustObj: Long, value: Boolean)
 }
+
+@Serializable
+data class MarkdownExcerpt(
+    val markdown: String,
+    val focusLine: String,
+)
 
 data class NativeWorkspaceTab(
     val id: String,

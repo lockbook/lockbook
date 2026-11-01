@@ -10,6 +10,7 @@ use crate::style::{
 };
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::View;
 use crate::tab::markdown_editor::fragment;
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Layout, WrapUnitLayout};
@@ -227,7 +228,11 @@ impl<'ast> MdRender {
             );
         }
 
-        if self.interactive && !self.touch_mode && !self.plaintext && !self.painting_drag_float {
+        if self.interactive
+            && !self.touch_mode
+            && self.view == View::Rendered
+            && !self.painting_drag_float
+        {
             if let Some(trailing) = trailing {
                 self.show_heading_link(ui, node, top_left, trailing);
             }

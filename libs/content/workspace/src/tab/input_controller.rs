@@ -9,7 +9,12 @@ use crate::{
     Event,
     tab::{
         ExtendedInput,
-        svg_editor::{CanvasSettings, toolbar::ToolContext, tools::DynInputControllerTool},
+        svg_editor::{
+            CanvasSettings,
+            keyboard_shortcuts::{CanvasAction, KeyboardShortcut},
+            toolbar::ToolContext,
+            tools::DynInputControllerTool,
+        },
     },
 };
 
@@ -23,6 +28,7 @@ pub struct InputController {
     tool_start_touch: Option<TouchId>, // keep track of the touch id that started a touch, to inform tool end
     viewport_changing: Option<Instant>,
     config: InputControllerConfig,
+    keyboard_shortcuts: &'static [KeyboardShortcut],
     is_touch_frame: bool, // as we traverse the input event stream do we see touch events.
     response: InputControllerResponse,
     /// The wheel pans the viewport; off where a host scrolls by it instead.
@@ -50,6 +56,13 @@ impl InputControllerConfig {
 // `MouseWheelUnit::Line`/`::Page` deltas to points (Windows precision trackpads
 // scroll in line units, unlike macOS/iPad) and to translate ctrl+wheel pinch on
 // Windows into the same zoom factor egui would compute internally.
+#[derive(Clone, Copy)]
+struct KeyboardFrame {
+    enabled: bool,
+    native_copy: bool,
+    native_cut: bool,
+}
+
 #[derive(Clone, Copy, Debug)]
 struct ScrollUnits {
     points_per_line: f32,
@@ -111,6 +124,7 @@ enum ButtonType {
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum InputControllerEvent {
+    KeyboardAction(CanvasAction),
     ToolStart(ToolPayload),
     ToolRun(ToolPayload),
     ToolPredictedRun(egui::Pos2, Option<f32>),
@@ -204,7 +218,9 @@ impl Default for LayoutContext {
 }
 
 impl InputController {
-    pub fn new(config: InputControllerConfig) -> Self {
+    pub fn new(
+        config: InputControllerConfig, keyboard_shortcuts: &'static [KeyboardShortcut],
+    ) -> Self {
         Self {
             touches: Vec::new(),
             buttons: HashMap::new(),
@@ -212,12 +228,25 @@ impl InputController {
             viewport_changing: None,
             tool_start_touch: None,
             config,
+            keyboard_shortcuts,
             is_touch_frame: false,
             mouse_hover_pos: None,
             response: Default::default(),
             tool_hover_pos: (egui::Pos2::ZERO, past_instant()),
             pan_on_wheel: true,
         }
+    }
+
+    /// Canvas keyboard input yields to focused widgets and is disabled in view-only mode.
+    pub fn keyboard_enabled(&self, ui: &egui::Ui) -> bool {
+        ui.is_enabled() && !self.config.is_read_only && ui.memory(|m| m.focused().is_none())
+    }
+
+    fn resolve_keyboard_action(&self, event: &egui::Event) -> Option<CanvasAction> {
+        self.keyboard_shortcuts
+            .iter()
+            .find(|binding| binding.matches(event))
+            .map(|binding| binding.action)
     }
 
     pub fn process(
@@ -230,8 +259,19 @@ impl InputController {
             zoom_modifier: o.input_options.zoom_modifier,
             scroll_zoom_speed: o.input_options.scroll_zoom_speed,
         });
-        let mut controller_events =
-            ui.input(|r| self.process_events(r.events.iter(), layout, scroll_units));
+        let keyboard_enabled = self.keyboard_enabled(ui);
+        let mut controller_events = ui.input(|r| {
+            self.process_events(r.events.iter(), layout, scroll_units, keyboard_enabled)
+        });
+        // Consume both the native clipboard command and its chord, if both arrived.
+        ui.input_mut(|i| {
+            i.events.retain(|event| {
+                let Some(action) = self.resolve_keyboard_action(event) else {
+                    return true;
+                };
+                !controller_events.contains(&InputControllerEvent::KeyboardAction(action))
+            })
+        });
         let extended_controller_events =
             self.process_extended_events(ui.ctx().read_events(), layout);
 
@@ -315,11 +355,22 @@ impl InputController {
 
     fn process_events(
         &mut self, events: Iter<egui::Event>, layout: &LayoutContext, scroll_units: ScrollUnits,
+        keyboard_enabled: bool,
     ) -> Vec<InputControllerEvent> {
+        let native_copy = events
+            .as_slice()
+            .iter()
+            .any(|event| matches!(event, egui::Event::Copy));
+        let native_cut = events
+            .as_slice()
+            .iter()
+            .any(|event| matches!(event, egui::Event::Cut));
+        let keyboard = KeyboardFrame { enabled: keyboard_enabled, native_copy, native_cut };
         self.is_touch_frame = false;
         let result: Vec<InputControllerEvent> = events
             .filter_map(|event| {
-                let controller_event = self.ui_to_controller_event(event, layout, scroll_units);
+                let controller_event =
+                    self.ui_to_controller_event(event, layout, scroll_units, keyboard);
 
                 if self.config.is_read_only
                     && !matches!(controller_event, Some(InputControllerEvent::ViewportChange(_)))
@@ -366,10 +417,27 @@ impl InputController {
 
     fn ui_to_controller_event(
         &mut self, event: &egui::Event, ctx: &LayoutContext, scroll_units: ScrollUnits,
+        keyboard: KeyboardFrame,
     ) -> Option<InputControllerEvent> {
         let run_button =
             &MouseProps { button: ButtonType::Primary, modifiers: egui::Modifiers::NONE };
 
+        if matches!(event, egui::Event::Key { .. } | egui::Event::Copy | egui::Event::Cut) {
+            if !keyboard.enabled || self.config.is_read_only || self.tool_running.is_some() {
+                return None;
+            }
+            let binding = self
+                .keyboard_shortcuts
+                .iter()
+                .find(|binding| binding.matches(event))?;
+            if matches!(event, egui::Event::Key { .. })
+                && ((keyboard.native_copy && binding.matches(&egui::Event::Copy))
+                    || (keyboard.native_cut && binding.matches(&egui::Event::Cut)))
+            {
+                return None;
+            }
+            return Some(InputControllerEvent::KeyboardAction(binding.action));
+        }
         match *event {
             egui::Event::PointerButton { pos, button, pressed, modifiers } => {
                 if !self.touches.is_empty() || self.is_touch_frame {
@@ -738,7 +806,7 @@ mod tests {
         fn process(
             &self, controller: &mut InputController, layout: &LayoutContext,
         ) -> Vec<InputControllerEvent> {
-            controller.process_events(self.iter(), layout, ScrollUnits::default())
+            controller.process_events(self.iter(), layout, ScrollUnits::default(), true)
         }
     }
 
@@ -881,7 +949,7 @@ mod tests {
 
     #[test]
     fn button_then_mousewheel() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
 
         let payload = ToolPayload { pos: egui::Pos2::ZERO, force: None, id: None };
 
@@ -910,7 +978,7 @@ mod tests {
 
     #[test]
     fn mousewheel_then_button() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let payload = ToolPayload { pos: egui::Pos2::ZERO, force: None, id: None };
 
         controller.mouse_hover_pos = Some(egui::Pos2::ZERO);
@@ -946,7 +1014,7 @@ mod tests {
     }
     #[test]
     fn single_pen_touch() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let pos = egui::Pos2::new(10.0, 10.0);
         let force = Some(0.5);
         let payload = ToolPayload { pos, force, id: Some(TouchId(1)) };
@@ -971,7 +1039,7 @@ mod tests {
 
     #[test]
     fn single_finger_touch_default_mode() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let pos = egui::Pos2::new(10.0, 10.0);
         let payload = ToolPayload { pos, force: None, id: Some(TouchId(1)) };
 
@@ -995,7 +1063,7 @@ mod tests {
 
     #[test]
     fn single_finger_touch_pencil_only_mode_big_movement() {
-        let mut controller = InputController::new(InputControllerConfig::new(true, false));
+        let mut controller = InputController::new(InputControllerConfig::new(true, false), &[]);
         let pos = egui::Pos2::new(10.0, 10.0);
 
         let test = InputControllerTestRunner::new(vec![
@@ -1015,7 +1083,7 @@ mod tests {
 
     #[test]
     fn single_finger_touch_pencil_only_mode_small_movement() {
-        let mut controller = InputController::new(InputControllerConfig::new(true, false));
+        let mut controller = InputController::new(InputControllerConfig::new(true, false), &[]);
         let pos = egui::Pos2::new(10.0, 10.0);
 
         let test = InputControllerTestRunner::new(vec![
@@ -1037,7 +1105,7 @@ mod tests {
     }
     #[test]
     fn two_finger_gesture() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let pos1 = egui::Pos2::new(10.0, 10.0);
         let pos2 = egui::Pos2::new(20.0, 20.0);
 
@@ -1074,7 +1142,7 @@ mod tests {
 
     #[test]
     fn two_finger_viewport_change_then_pen() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let pos1 = egui::Pos2::new(10.0, 10.0);
         let pos2 = egui::Pos2::new(20.0, 20.0);
         let pos3 = egui::Pos2::new(30.0, 30.0);
@@ -1119,7 +1187,7 @@ mod tests {
 
     #[test]
     fn pen_then_finger_ignores_finger() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let pos1 = egui::Pos2::new(10.0, 10.0);
         let pos2 = egui::Pos2::new(20.0, 20.0);
         let force = Some(0.5);
@@ -1149,7 +1217,7 @@ mod tests {
 
     #[test]
     fn pen_then_two_fingers_ignores_fingers() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let pos1 = egui::Pos2::new(10.0, 10.0);
         let pos2 = egui::Pos2::new(20.0, 20.0);
         let pos3 = egui::Pos2::new(30.0, 30.0);
@@ -1193,7 +1261,7 @@ mod tests {
 
     #[test]
     fn finger_then_pen_ignore_pen() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let pos1 = egui::Pos2::new(10.0, 10.0);
         let pos2 = egui::Pos2::new(20.0, 20.0);
         let force = Some(0.5);
@@ -1232,7 +1300,7 @@ mod tests {
 
     #[test]
     fn touch_cancel_during_tool_run() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let pos = egui::Pos2::new(10.0, 10.0);
         let force = Some(0.5);
         let payload = ToolPayload { pos, force, id: Some(TouchId(1)) };
@@ -1257,7 +1325,7 @@ mod tests {
 
     #[test]
     fn kinetic_scroll() {
-        let mut controller = InputController::new(InputControllerConfig::new(true, false));
+        let mut controller = InputController::new(InputControllerConfig::new(true, false), &[]);
         let pos = egui::Pos2::new(10.0, 10.0);
         let force = Some(0.5);
         let payload = ToolPayload { pos, force, id: Some(TouchId(1)) };
@@ -1296,7 +1364,7 @@ mod tests {
 
     #[test]
     fn touch_cancel_during_viewport_change() {
-        let mut controller = InputController::new(InputControllerConfig::new(true, false));
+        let mut controller = InputController::new(InputControllerConfig::new(true, false), &[]);
         let pos = egui::Pos2::new(10.0, 10.0);
         let force = Some(0.5);
         let pen_payload = ToolPayload { pos, force, id: Some(TouchId(2)) };
@@ -1322,7 +1390,7 @@ mod tests {
 
     #[test]
     fn read_only_mode_blocks_tool_events() {
-        let mut controller = InputController::new(InputControllerConfig::new(false, true));
+        let mut controller = InputController::new(InputControllerConfig::new(false, true), &[]);
         let pos = egui::Pos2::new(10.0, 10.0);
 
         controller.mouse_hover_pos = Some(pos);
@@ -1347,7 +1415,7 @@ mod tests {
 
     #[test]
     fn mouse_events_ignored_during_touch() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let pos = egui::Pos2::new(10.0, 10.0);
         let touch_payload = ToolPayload { pos, force: None, id: Some(TouchId(1)) };
 
@@ -1372,7 +1440,7 @@ mod tests {
 
     #[test]
     fn three_finger_tap_gesture() {
-        let mut controller = InputController::new(InputControllerConfig::new(true, false));
+        let mut controller = InputController::new(InputControllerConfig::new(true, false), &[]);
         let pos1 = egui::Pos2::new(10.0, 10.0);
         let pos2 = egui::Pos2::new(20.0, 20.0);
         let pos3 = egui::Pos2::new(30.0, 30.0);
@@ -1403,7 +1471,7 @@ mod tests {
 
     #[test]
     fn pen_movement_updates_position() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let pos1 = egui::Pos2::new(10.0, 10.0);
         let pos2 = egui::Pos2::new(15.0, 15.0);
         let pos3 = egui::Pos2::new(20.0, 20.0);
@@ -1441,7 +1509,7 @@ mod tests {
 
     #[test]
     fn tool_run_collides_with_layout() {
-        let mut controller = InputController::new(InputControllerConfig::default());
+        let mut controller = InputController::new(InputControllerConfig::default(), &[]);
         let layout = LayoutContext {
             draw_area: egui::Rect::EVERYTHING,
             overlay_areas: vec![egui::Rect::from_min_size(

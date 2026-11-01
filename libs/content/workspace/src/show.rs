@@ -49,11 +49,14 @@ impl Workspace {
         self.process_bg_tasks();
         self.process_lb_updates();
         self.process_task_updates();
+        self.refit_source_views();
         self.process_keys();
         self.process_clip_events();
 
         self.set_user_present();
 
+        let rect = ui.max_rect();
+        let wheel_x = self.history_swipe_wheel(rect);
         if self.is_empty() {
             self.show_landing_page(ui);
 
@@ -62,6 +65,8 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_open_tab(ui));
             self.landing_page_first_frame = true;
         }
+        self.history_swipe_content_scrolled(wheel_x);
+        self.paint_history_swipe(rect);
         // A gesture no editor took this frame is not owed to the next one.
         self.ctx.pop_events_where(&mut |e| {
             matches!(
@@ -306,6 +311,15 @@ impl Workspace {
             }
         }
 
+        // ⌥⌘U shows source, as browsers view it; before the editor's ⌘U
+        if self.source_offered()
+            && self
+                .ctx
+                .input_mut(|i| i.consume_key_exact(COMMAND | ALT, egui::Key::U))
+        {
+            self.toggle_source();
+        }
+
         // Ctrl-M to open mind map
         if self
             .ctx
@@ -398,9 +412,12 @@ impl Workspace {
         }
 
         // tab navigation
-        let completions_active = self
-            .current_tab_markdown()
-            .is_some_and(|md| md.edit.emoji_completions.active || md.edit.link_completions.active);
+        let completions_active = self.current_tab_markdown().is_some_and(|md| {
+            let edit = &md.edit;
+            edit.emoji_completions.active
+                || edit.link_completions.active
+                || edit.language_completions.active
+        });
         // The search tab claims Cmd+1–9 to quick-open results, so don't let the
         // workspace consume them for tab switching while search is showing.
         let search_active = matches!(self.current_dest(), Some(crate::tab::Destination::Search(_)));
@@ -593,13 +610,6 @@ impl Display for DocType {
     }
 }
 
-pub fn syntax_ext_for(ext: &str) -> &str {
-    match ext {
-        "jsonl" | "jsonc" => "json",
-        other => other,
-    }
-}
-
 impl DocType {
     pub fn from_name(name: &str) -> Self {
         let ext = name
@@ -615,14 +625,14 @@ impl DocType {
             "pdf" => Self::PDF,
             "chat" => Self::Chat,
             _ if image_viewer::is_supported_image_fmt(&ext) => Self::Image,
-            _ if crate::tab::markdown_editor::syntax_set()
-                .find_syntax_by_extension(syntax_ext_for(&ext))
-                .is_some() =>
-            {
-                Self::Code
-            }
+            _ if crate::syntax::Lang::from_extension(&ext).is_some() => Self::Code,
             _ => Self::Unknown,
         }
+    }
+
+    /// Whether the file has a rendered form it can trade for its source.
+    pub fn has_source_view(&self) -> bool {
+        matches!(self, DocType::Markdown | DocType::SVG)
     }
 
     pub fn hide_ext(&self) -> bool {

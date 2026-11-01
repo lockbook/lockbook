@@ -1,6 +1,4 @@
 {% extends "base.html" %}
-{% block title %}Download — Lockbook{% endblock %}
-{% block description %}Get Lockbook for macOS, iOS, Android, Linux and Windows, plus the command line client.{% endblock %}
 {% block content %}
 
 <section class="section dl">
@@ -76,6 +74,7 @@
       <div class="dl-panel" id="dl-windows" role="tabpanel" aria-labelledby="dl-tab-windows">
         <div class="dl-table">
           <h3>Desktop</h3>
+          <div class="cmd"><span><a href="https://apps.microsoft.com/detail/9P5BJXV6044Z">Microsoft Store</a></span><a href="https://apps.microsoft.com/detail/9P5BJXV6044Z">apps.microsoft.com/detail/9P5BJXV6044Z</a></div>
           <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-setup-x86_64.exe">lockbook-windows-setup-x86_64.exe</a></div>
           <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-setup-arm64.exe">lockbook-windows-setup-arm64.exe</a></div>
         </div>
@@ -104,7 +103,7 @@
   .dl-table{margin-top:var(--s-xl);max-width:680px;border-bottom:1px solid var(--divider)}
   .dl-table h3{font-size:var(--t-heading);margin-bottom:var(--s-sm)}
   .cmd{
-    display:grid;grid-template-columns:110px minmax(0,1fr);gap:var(--s-md);align-items:center;
+    display:grid;grid-template-columns:120px minmax(0,1fr);gap:var(--s-md);align-items:center;
     padding:var(--s-sm) 0;border-top:1px solid var(--divider);
   }
   .cmd > span{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3)}

@@ -1,5 +1,6 @@
 +++
-title = "TOS"
+title = "Terms of Service"
+description = "Read the terms for using Lockbook's servers, including account keys, storage plans, service availability, and the software license."
 template = "tos.html"
 +++
 Terms of Service

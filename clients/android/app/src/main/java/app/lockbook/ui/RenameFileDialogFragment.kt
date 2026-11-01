@@ -11,15 +11,18 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.DialogRenameFileBinding
+import app.lockbook.model.FileMetadataStore
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.requestKeyboardFocus
+import app.lockbook.util.withFileMetadata
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
 import net.lockbook.Lb
 import net.lockbook.LbError
 
 class RenameFileDialogFragment : DialogFragment() {
+    private var nameLoaded = false
     private lateinit var binding: DialogRenameFileBinding
     private val workspaceModel: WorkspaceViewModel by activityViewModels()
 
@@ -34,7 +37,7 @@ class RenameFileDialogFragment : DialogFragment() {
     }
 
     val file by lazy {
-        Lb.getFileById(requireArguments().getString(FILE_ID_KEY)!!)
+        FileMetadataStore.requireFile(requireArguments().getString(FILE_ID_KEY)!!)
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
@@ -43,7 +46,7 @@ class RenameFileDialogFragment : DialogFragment() {
             .apply {
                 binding = DialogRenameFileBinding.inflate(layoutInflater)
 
-                binding.renameFile.setText(file.name)
+                binding.renameFile.isEnabled = false
                 binding.renameFile.setOnEditorActionListener { _, actionId, _ ->
                     if (actionId == EditorInfo.IME_ACTION_DONE) {
                         onButtonPositive()
@@ -57,17 +60,29 @@ class RenameFileDialogFragment : DialogFragment() {
             .setPositiveButton(R.string.rename_file_rename, null)
             .create()
             .apply {
-                window.requestKeyboardFocus(binding.renameFile)
-
-                binding.renameFile.text
-                    ?.lastIndexOf(".")
-                    ?.takeIf { it > 0 }
-                    ?.let { binding.renameFile.setSelection(0, it) }
-
                 setOnShowListener {
+                    getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = nameLoaded
                     getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
                 }
+                withFileMetadata {
+                    if (savedInstanceState?.getBoolean("nameLoaded") != true) {
+                        binding.renameFile.setText(file.name)
+                        binding.renameFile.text
+                            ?.lastIndexOf('.')
+                            ?.takeIf { it > 0 }
+                            ?.let { binding.renameFile.setSelection(0, it) }
+                    }
+                    nameLoaded = true
+                    binding.renameFile.isEnabled = true
+                    getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+                    window.requestKeyboardFocus(binding.renameFile)
+                }
             }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("nameLoaded", nameLoaded)
+    }
 
     private fun onButtonPositive() {
         lifecycleScope.launch(Dispatchers.IO) {

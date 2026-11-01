@@ -1,6 +1,7 @@
 use std::mem;
 
 use crate::tab::markdown_editor::MdEdit;
+use crate::tab::markdown_editor::View;
 use crate::tab::markdown_editor::bounds::BoundExt as _;
 use crate::tab::markdown_editor::input::{Advance, Bound, Increment};
 use crate::tab::markdown_editor::table::{CellBounds, TableCellBox};
@@ -101,6 +102,9 @@ impl MdEdit {
     fn table_advance_by_line(
         &self, offset: Grapheme, x_target: f32, backwards: bool,
     ) -> Option<Grapheme> {
+        if self.renderer.view == View::Source {
+            return None;
+        }
         let table = self.renderer.bounds.table_at(offset)?;
         let (row, column) = table.cell_at(offset)?;
         let cell = table.rows[row].cells[column];
@@ -136,6 +140,9 @@ impl MdEdit {
     fn table_advance_from_hidden_cell(
         &self, offset: Grapheme, backwards: bool,
     ) -> Option<Grapheme> {
+        if self.renderer.view == View::Source {
+            return None;
+        }
         let r = &self.renderer;
         let table = r.bounds.table_at(offset)?;
         let (_, column) = table.cell_at(offset)?;
@@ -185,6 +192,9 @@ impl MdEdit {
     fn table_enter_by_line(
         &self, origin: Grapheme, result: Grapheme, x_target: f32, backwards: bool,
     ) -> Grapheme {
+        if self.renderer.view == View::Source {
+            return result;
+        }
         let r = &self.renderer;
         let Some(table) = r.bounds.table_at(result) else { return result };
         if r.bounds.table_at(origin) == Some(table) {

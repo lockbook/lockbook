@@ -21,11 +21,12 @@
 //! the same private access a `benches/` criterion crate can't have.
 
 pub(crate) mod doc_gen;
-mod harness;
+pub(crate) mod harness;
 
 mod benches;
 mod block_drag;
 mod clipboard;
+mod code;
 mod edit_props;
 mod folding;
 mod heading_links;
@@ -34,4 +35,5 @@ mod link_card;
 mod links;
 mod regressions;
 mod render_props;
+mod source;
 mod tables;

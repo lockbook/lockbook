@@ -1,4 +1,5 @@
 use crate::style::button::COPY_FEEDBACK_SECS;
+use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
@@ -73,6 +74,11 @@ impl<'ast> MdEdit {
         let current_selection = self.renderer.buffer.current.selection;
         let mut response = buffer::Response::default();
         match event {
+            Event::Select { region: Region::Syntax { larger } } => {
+                if let Some(range) = self.syntax_select(root, larger) {
+                    operations.push(Operation::Select(range));
+                }
+            }
             Event::Select { region } => {
                 if self.table_select_edits(region, operations) {
                     return response;
@@ -94,15 +100,17 @@ impl<'ast> MdEdit {
                 if self.replace_in_table(range, &text, advance_cursor, operations) {
                     return response;
                 }
+                if self.replace_in_code(root, range, &text, advance_cursor, operations) {
+                    return response;
+                }
                 operations.push(Operation::Replace(Replace { range, text }));
                 if advance_cursor {
                     operations.push(Operation::Select(range.start().to_range()));
                 }
             }
             Event::ToggleStyle { region, style } => {
-                // ToggleStyle inserts markdown syntax (e.g. `**…**`); the
-                // syntax would render as literal text in plaintext mode.
-                if !self.renderer.plaintext {
+                // ToggleStyle inserts markdown syntax (e.g. `**…**`)
+                if self.renderer.kind == Syntax::Markdown {
                     self.toggle_style(root, region, style, current_selection, operations);
                 }
             }
@@ -119,6 +127,9 @@ impl<'ast> MdEdit {
                 // item after the hidden contents
                 let handled = !shift && self.newline_at_fold(root, operations);
                 if handled {
+                    return response;
+                }
+                if self.newline_in_code(root, operations) {
                     return response;
                 }
 
@@ -294,6 +305,9 @@ impl<'ast> MdEdit {
             }
             Event::Indent { deindent } => {
                 if self.indent_in_table(deindent, operations) {
+                    return response;
+                }
+                if self.indent_in_code(root, deindent, operations) {
                     return response;
                 }
 
@@ -609,12 +623,12 @@ impl<'ast> MdEdit {
                 }
             }
             Event::Table(action) => {
-                if !self.renderer.readonly && !self.renderer.plaintext {
+                if !self.renderer.readonly && self.renderer.kind == Syntax::Markdown {
                     self.table_action(root, action, operations);
                 }
             }
             Event::PasteGrid(grid) => {
-                if !self.renderer.readonly && !self.renderer.plaintext {
+                if !self.renderer.readonly && self.renderer.kind == Syntax::Markdown {
                     self.paste_grid(root, &grid, operations);
                 }
             }
@@ -1137,7 +1151,7 @@ impl<'ast> MdEdit {
             Region::BetweenLocations { start, end } => {
                 (self.location_to_char_offset(start), self.location_to_char_offset(end))
             }
-            Region::Selection => current_selection,
+            Region::Selection | Region::Syntax { .. } => current_selection,
             Region::SelectionOrAdvance { advance: offset, backwards } => {
                 if current_selection.is_empty() {
                     current_selection.0 = self.advance(current_selection.0, offset, backwards);

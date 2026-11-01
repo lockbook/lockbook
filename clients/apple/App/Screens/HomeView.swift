@@ -106,6 +106,17 @@ struct HomeView: View {
                         if openDocFile != nil {
                             ToolbarItem(placement: sharePlacement) {
                                 Button {
+                                    workspaceInput.toggleSource()
+                                } label: {
+                                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                        .foregroundStyle(workspaceOutput.sourceOn ? Color.accentColor : Color.primary)
+                                }
+                                .disabled(!workspaceOutput.sourceAvailable)
+                                .help("Source")
+                                .accessibilityLabel("Source")
+                            }
+                            ToolbarItem(placement: sharePlacement) {
+                                Button {
                                     workspaceInput.toggleOutline()
                                 } label: {
                                     Image(systemName: "info.circle")
@@ -153,10 +164,12 @@ struct HomeView: View {
                         }
                     #endif
                 }
-                .inspector(isPresented: inspectorPresented) {
-                    WorkspaceTabsList(fileTreeModel: fileTreeModel)
-                        .inspectorColumnWidth(min: 220, ideal: 260, max: 320)
-                }
+                #if os(macOS)
+                    .inspector(isPresented: $showTabsSidebar) {
+                        WorkspaceTabsList(fileTreeModel: fileTreeModel)
+                            .inspectorColumnWidth(min: 220, ideal: 260, max: 320)
+                    }
+                #endif
                 .sheet(item: $shareTarget) { file in
                     ShareFileSheet(id: file.id)
                 }
@@ -175,6 +188,10 @@ struct HomeView: View {
                             HStack {
                                 detailSearchButton
 
+                                if workspaceOutput.sourceAvailable {
+                                    detailSourceButton
+                                }
+
                                 if workspaceOutput.outlineAvailable {
                                     detailOutlineButton
                                 }
@@ -190,6 +207,16 @@ struct HomeView: View {
                     .animation(.easeInOut(duration: 0.2), value: hideFloatingButtons)
                 #endif
         }
+        #if os(iOS)
+            .padding(.trailing, showTabsSidebar && horizontalSizeClass == .regular ? 260 : 0)
+            .overlay(alignment: .trailing) {
+                if showTabsSidebar, horizontalSizeClass == .regular {
+                    WorkspaceTabsList(fileTreeModel: fileTreeModel)
+                        .frame(width: 260)
+                        .background(.regularMaterial)
+                }
+            }
+        #endif
         .overlay {
             if let hudState {
                 hud(for: hudState)
@@ -395,19 +422,6 @@ struct HomeView: View {
         #endif
     }
 
-    private var inspectorPresented: Binding<Bool> {
-        Binding(
-            get: {
-                #if os(iOS)
-                    showTabsSidebar && horizontalSizeClass == .regular
-                #else
-                    showTabsSidebar
-                #endif
-            },
-            set: { showTabsSidebar = $0 }
-        )
-    }
-
     #if os(iOS)
         private var hideFloatingButtons: Bool {
             keyboardVisible || workspaceOutput.mobileToolbarShown || chatOpen
@@ -463,6 +477,21 @@ struct HomeView: View {
             .buttonBorderShape(.circle)
             .tint(.primary)
             .accessibilityLabel("Outline")
+        }
+
+        /// The file as its text, for files with a rendered form.
+        private var detailSourceButton: some View {
+            Button {
+                workspaceInput.toggleSource()
+            } label: {
+                Image(systemName: "chevron.left.forwardslash.chevron.right")
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .tint(workspaceOutput.sourceOn ? .accentColor : .primary)
+            .accessibilityLabel("Source")
+            .accessibilityAddTraits(workspaceOutput.sourceOn ? .isSelected : [])
         }
 
         private var detailCreateButton: some View {

@@ -31,7 +31,7 @@ pub const MINI_MAP_WIDTH: f32 = 100.0;
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
 const SCREEN_PADDING: egui::Pos2 =
-    if cfg!(target_os = "android") { egui::pos2(10.0, 50.0) } else { egui::pos2(20.0, 20.0) };
+    if cfg!(target_os = "android") { egui::pos2(10.0, 10.0) } else { egui::pos2(20.0, 20.0) };
 
 #[derive(Default)]
 pub struct Toolbar {
@@ -85,6 +85,7 @@ pub struct ToolContext<'a> {
 }
 
 pub struct ToolbarContext<'a> {
+    pub controls_rect: egui::Rect,
     pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
@@ -269,7 +270,7 @@ impl Toolbar {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) -> bool {
-        let mut res = self.handle_keyboard_shortcuts(ui, tlbr_ctx);
+        let mut res = false;
 
         self.show_tool_popovers_at_cursor(ui, tlbr_ctx);
 
@@ -316,7 +317,7 @@ impl Toolbar {
             return res;
         }
 
-        self.show_tools_island(ui);
+        self.show_tools_island(ui, tlbr_ctx.controls_rect);
         self.show_tool_popovers(ui, tlbr_ctx);
 
         res
@@ -355,41 +356,6 @@ impl Toolbar {
             .collect::<Vec<egui::Rect>>()
     }
 
-    fn handle_keyboard_shortcuts(
-        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
-    ) -> bool {
-        let mut res = false;
-
-        if ui.input_mut(|r| {
-            r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
-        }) {
-            tlbr_ctx.history.redo(tlbr_ctx.buffer);
-            res = true;
-        }
-
-        if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-            tlbr_ctx.history.undo(tlbr_ctx.buffer);
-            res = true;
-        }
-
-        if ui.input(|r| r.key_pressed(egui::Key::E)) {
-            set_tool!(self, Tool::Eraser);
-        }
-
-        if ui.input(|r| r.key_pressed(egui::Key::S)) {
-            set_tool!(self, Tool::Selection);
-        }
-
-        if ui.input(|r| r.key_pressed(egui::Key::B)) {
-            set_tool!(self, Tool::Pen);
-        }
-
-        if ui.input(|r| r.key_pressed(egui::Key::Tab)) {
-            self.toggle_at_cursor_tool_popover();
-        }
-        res
-    }
-
     pub fn toggle_at_cursor_tool_popover(&mut self) {
         // If there's a popover then hide it. If there's no popover then show it.
         self.show_at_cursor_tool_popover =
@@ -416,17 +382,12 @@ impl Toolbar {
         };
         let island_rect = egui::Rect {
             min: egui::pos2(
-                tlbr_ctx.viewport_settings.container_rect.right()
-                    - SCREEN_PADDING.x
-                    - island_size.x
-                    - mini_map_width,
-                tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING.y,
+                tlbr_ctx.controls_rect.right() - SCREEN_PADDING.x - island_size.x - mini_map_width,
+                tlbr_ctx.controls_rect.top() + SCREEN_PADDING.y,
             ),
             max: egui::pos2(
-                tlbr_ctx.viewport_settings.container_rect.right()
-                    - SCREEN_PADDING.x
-                    - mini_map_width,
-                tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING.y + island_size.y,
+                tlbr_ctx.controls_rect.right() - SCREEN_PADDING.x - mini_map_width,
+                tlbr_ctx.controls_rect.top() + SCREEN_PADDING.y + island_size.y,
             ),
         };
         let overlay_toggle = ui.scope_builder(UiBuilder::new().max_rect(island_rect), |ui| {
