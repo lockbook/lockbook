@@ -73,7 +73,22 @@ const MARKDOWN_INJECTIONS: &str = r#"
 ((minus_metadata) @injection.content (#set! injection.language "yaml") (#set! injection.include-children))
 ((plus_metadata) @injection.content (#set! injection.language "toml") (#set! injection.include-children))
 ((inline) @injection.content (#set! injection.language "markdown_inline") (#set! injection.include-children))"#;
-const MARKDOWN_INLINE_INJECTIONS: &str = r#"((html_tag) @injection.content (#set! injection.language "html") (#set! injection.include-children) (#set! injection.combined))"#;
+const MARKDOWN_INLINE_INJECTIONS: &str = r#"
+((html_tag) @injection.content (#set! injection.language "html") (#set! injection.include-children) (#set! injection.combined))
+((latex_block) @injection.content (#set! injection.language "latex") (#set! injection.include-children))"#;
+
+// The grammar ships no queries. Math reads as code, as comrak's is shown.
+#[cfg(feature = "extra-grammars")]
+const LATEX_HIGHLIGHTS: &str = r#"
+[(inline_formula) (displayed_equation) (math_environment)] @string
+[(line_comment) (block_comment) (comment_environment)] @comment
+(command_name) @function
+(begin command: _ @function)
+(end command: _ @function)
+(class_include command: _ @keyword)
+(package_include command: _ @keyword)
+(begin (curly_group_text (text) @type))
+(end (curly_group_text (text) @type))"#;
 
 /// Languages only ever injected, never offered for a fence.
 const INJECTED_ONLY: &[&str] = &["markdown_inline"];
@@ -309,6 +324,14 @@ const ENTRIES: &[Entry] = &[
         &["ini", "cfg"],
         tree_sitter_ini::LANGUAGE,
         &[tree_sitter_ini::HIGHLIGHTS_QUERY],
+    ),
+    #[cfg(feature = "extra-grammars")]
+    Entry::new(
+        "latex",
+        &["tex", "math"],
+        &["tex"],
+        codebook_tree_sitter_latex::LANGUAGE,
+        &[LATEX_HIGHLIGHTS],
     ),
     #[cfg(feature = "extra-grammars")]
     Entry::new(
@@ -766,6 +789,19 @@ mod test {
 
         let setext = highlight(find_token("md").unwrap(), "Title\n---\n");
         assert_eq!(setext.first().map(|(role, _)| *role), Some(Role::Comment));
+    }
+
+    #[cfg(feature = "extra-grammars")]
+    #[test]
+    fn markdown_math_is_latex() {
+        let text = "the $\\frac{a}{2}$ sum\n";
+        let spans = highlight(find_token("md").unwrap(), text);
+        let at = text.find("frac").unwrap();
+        let role = spans
+            .iter()
+            .find(|(_, span)| span.contains(&at))
+            .map(|(role, _)| *role);
+        assert_eq!(role, Some(Role::Function));
     }
 
     #[test]
