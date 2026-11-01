@@ -1,7 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufReader, Cursor};
 use std::mem;
-use std::sync::OnceLock;
 use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
@@ -28,36 +26,12 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Byte, Grapheme};
 use serde::{Deserialize, Serialize};
-use syntect::highlighting::{Theme, ThemeSet};
-use syntect::parsing::SyntaxSet;
-use syntect_assets::assets::HighlightingAssets;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
 use widget::link_completions::LinkCompletions;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
-
-static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
-static SYNTAX_THEME: OnceLock<Theme> = OnceLock::new();
-
-pub fn syntax_set() -> &'static SyntaxSet {
-    SYNTAX_SET.get_or_init(|| {
-        HighlightingAssets::from_binary()
-            .get_syntax_set()
-            .unwrap()
-            .clone()
-    })
-}
-
-pub fn syntax_theme() -> &'static Theme {
-    SYNTAX_THEME.get_or_init(|| {
-        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
-        let cursor = Cursor::new(theme_bytes);
-        let mut buffer = BufReader::new(cursor);
-        ThemeSet::load_from_reader(&mut buffer).unwrap()
-    })
-}
 
 pub mod bounds;
 mod clipboard;
@@ -1205,10 +1179,7 @@ impl Editor {
         self.prev_dimensions = Some(dimensions);
 
         let dark_mode = ui.style().visuals.dark_mode;
-        if dark_mode != self.edit.renderer.dark_mode {
-            self.edit.renderer.syntax.clear();
-            self.edit.renderer.dark_mode = dark_mode;
-        }
+        self.edit.renderer.dark_mode = dark_mode;
 
         // Mirror the opt-in fetch preference onto the renderer each frame.
         self.edit.renderer.contact_linked_sites = self.persistence.get_contact_linked_sites();

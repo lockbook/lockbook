@@ -3,7 +3,9 @@ use egui::{Pos2, Rect, Sense, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::style::{Space, ThemeExt as _};
+use crate::syntax::Role;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+use crate::theme::palette_v2::Palette;
 
 use super::MdRender;
 use super::bounds::RangesExt as _;
@@ -250,29 +252,22 @@ impl<'ast> MdRender {
         }
     }
 
-    pub fn syntax_color_for_hex(&self, hex: &str) -> egui::Color32 {
+    /// How a span of `role` is drawn, over `format`: three accents, darkest
+    /// on structure (keywords, then names, then values), and headings and
+    /// styles weighted as they render.
+    pub fn syntax_format(&self, role: Role, mut format: Format) -> Format {
         let theme = self.ctx.get_lb_theme();
-        if let Some(code) = theme.code_variant() {
-            return match hex {
-                "#000000" => code.text,
-                "#111111" => code.comment,
-                "#222222" => code.class,
-                "#333333" => code.function,
-                "#444444" => code.keyword,
-                "#555555" => code.string,
-                "#666666" => code.number,
-                _ => code.text,
-            };
-        }
-        match hex {
-            "#000000" => theme.neutral_fg(),
-            "#111111" => theme.neutral_fg_secondary(),
-            "#222222" => theme.fg().get_color(theme.prefs().primary),
-            "#333333" => theme.fg().get_color(theme.prefs().secondary),
-            "#444444" => theme.fg().get_color(theme.prefs().tertiary),
-            "#555555" | "#666666" => theme.fg().get_color(theme.prefs().quaternary),
-            _ => theme.neutral_fg(),
-        }
+        let accent = |p| theme.fg().get_color(p);
+        format.color = match role {
+            Role::Text => theme.neutral_fg(),
+            Role::Comment => theme.neutral_fg_secondary(),
+            Role::Keyword | Role::Heading => accent(Palette::Magenta),
+            Role::Class | Role::Function | Role::Emphasis | Role::Strong => accent(Palette::Blue),
+            Role::String | Role::Number => accent(Palette::Green),
+        };
+        format.bold = matches!(role, Role::Heading | Role::Strong);
+        format.italic = role == Role::Emphasis;
+        format
     }
 
     pub fn text_format_syntax(&self) -> Format {

@@ -594,13 +594,6 @@ impl Display for DocType {
     }
 }
 
-pub fn syntax_ext_for(ext: &str) -> &str {
-    match ext {
-        "jsonl" | "jsonc" => "json",
-        other => other,
-    }
-}
-
 impl DocType {
     pub fn from_name(name: &str) -> Self {
         let ext = name
@@ -616,12 +609,7 @@ impl DocType {
             "pdf" => Self::PDF,
             "chat" => Self::Chat,
             _ if image_viewer::is_supported_image_fmt(&ext) => Self::Image,
-            _ if crate::tab::markdown_editor::syntax_set()
-                .find_syntax_by_extension(syntax_ext_for(&ext))
-                .is_some() =>
-            {
-                Self::Code
-            }
+            _ if crate::syntax::Lang::from_extension(&ext).is_some() => Self::Code,
             _ => Self::Unknown,
         }
     }
