@@ -46,6 +46,38 @@ const TOML_TAGS: &str = "
 (table_array_element [(bare_key) (dotted_key) (quoted_key)] @name) @definition.table";
 const YAML_TAGS: &str = "(block_mapping_pair key: (_) @name value: (block_node [(block_mapping) (block_sequence)])) @definition.key";
 
+// Markdown's markers are quiet, as comments are, and a setext heading is
+// plain text, as comrak reads it with `ignore_setext`.
+const MARKDOWN_HIGHLIGHTS: &str = r#"
+[(atx_h1_marker) (atx_h2_marker) (atx_h3_marker) (atx_h4_marker) (atx_h5_marker) (atx_h6_marker)
+ (setext_h1_underline) (setext_h2_underline) (list_marker_plus) (list_marker_minus) (list_marker_star)
+ (list_marker_dot) (list_marker_parenthesis) (thematic_break) (block_quote_marker)
+ (fenced_code_block_delimiter) (task_list_marker_checked) (task_list_marker_unchecked)
+ (pipe_table_delimiter_row)] @comment
+(pipe_table_header "|" @comment)
+(pipe_table_row "|" @comment)
+(setext_heading (paragraph) @none)"#;
+const MARKDOWN_INLINE_HIGHLIGHTS: &str = r#"
+[(emphasis_delimiter) (code_span_delimiter) (backslash_escape) (hard_line_break)] @comment
+(link_title) @text.reference
+(image ["!" "[" "]" "(" ")"] @comment)
+(inline_link ["[" "]" "(" ")"] @comment)
+(shortcut_link ["[" "]"] @comment)"#;
+
+// The grammars' own, but each injection keeps its node's children: the
+// grammars give delimiters and continuations nodes of their own.
+const MARKDOWN_INJECTIONS: &str = r#"
+(fenced_code_block (info_string (language) @injection.language) (code_fence_content) @injection.content (#set! injection.include-children))
+((html_block) @injection.content (#set! injection.language "html") (#set! injection.include-children))
+(document . (section . (thematic_break) (_) @injection.content (thematic_break)) (#set! injection.language "yaml") (#set! injection.include-children))
+((minus_metadata) @injection.content (#set! injection.language "yaml") (#set! injection.include-children))
+((plus_metadata) @injection.content (#set! injection.language "toml") (#set! injection.include-children))
+((inline) @injection.content (#set! injection.language "markdown_inline") (#set! injection.include-children))"#;
+const MARKDOWN_INLINE_INJECTIONS: &str = r#"((html_tag) @injection.content (#set! injection.language "html") (#set! injection.include-children) (#set! injection.combined))"#;
+
+/// Languages only ever injected, never offered for a fence.
+const INJECTED_ONLY: &[&str] = &["markdown_inline"];
+
 const ENTRIES: &[Entry] = &[
     Entry::new(
         "bash",
@@ -104,6 +136,22 @@ const ENTRIES: &[Entry] = &[
         &[tree_sitter_json::HIGHLIGHTS_QUERY],
     )
     .tags(&[JSON_TAGS]),
+    Entry::new(
+        "markdown",
+        &["md"],
+        &["md", "markdown"],
+        tree_sitter_md::LANGUAGE,
+        &[tree_sitter_md::HIGHLIGHT_QUERY_BLOCK, MARKDOWN_HIGHLIGHTS],
+    )
+    .injections(MARKDOWN_INJECTIONS),
+    Entry::new(
+        "markdown_inline",
+        &[],
+        &[],
+        tree_sitter_md::INLINE_LANGUAGE,
+        &[tree_sitter_md::HIGHLIGHT_QUERY_INLINE, MARKDOWN_INLINE_HIGHLIGHTS],
+    )
+    .injections(MARKDOWN_INLINE_INJECTIONS),
     Entry::new(
         "python",
         &["py", "py3", "python3"],
@@ -407,6 +455,13 @@ const CAPTURES: &[(&str, Role)] = &[
     ("operator", Role::Text),
     ("punctuation", Role::Text),
     ("embedded", Role::Text),
+    ("none", Role::Text),
+    ("title", Role::Heading),
+    ("emphasis", Role::Emphasis),
+    ("strong", Role::Strong),
+    ("literal", Role::String),
+    ("uri", Role::String),
+    ("reference", Role::Class),
 ];
 
 static QUERIES: [OnceLock<Option<Queries>>; ENTRIES.len()] =
@@ -436,6 +491,7 @@ pub fn complete(query: &str) -> Vec<&'static str> {
     let query = query.to_ascii_lowercase();
     let mut found: Vec<_> = ENTRIES
         .iter()
+        .filter(|entry| !INJECTED_ONLY.contains(&entry.name))
         .filter_map(|entry| {
             let tier = if entry.name.starts_with(&query) {
                 0
@@ -656,7 +712,7 @@ pub fn enclosing(tree: &Tree, range: Range<usize>) -> Option<Range<usize>> {
 
 #[cfg(test)]
 mod test {
-    use super::{ENTRIES, QUERIES, definitions, enclosing, find_token, queries, tags};
+    use super::{ENTRIES, QUERIES, complete, definitions, enclosing, find_token, queries, tags};
     use crate::syntax::highlight::Highlights;
     use crate::syntax::{Role, Spans};
 
@@ -683,6 +739,33 @@ mod test {
             .collect();
         assert!(broken.is_empty(), "tags queries don't compile: {broken:?}");
         assert_eq!(QUERIES.len(), ENTRIES.len());
+    }
+
+    #[test]
+    fn markdown_colors_through_its_injections() {
+        let text = "# Head\n\n`code` [link](u) _e_ <i>x</em>\n\n```rust\nfn f() {}\n```\n";
+        let spans = highlight(find_token("md").unwrap(), text);
+        let role = |part: &str| {
+            let at = text.find(part).unwrap();
+            spans
+                .iter()
+                .find(|(_, span)| span.contains(&at))
+                .map(|(role, _)| *role)
+        };
+        assert_eq!(role("Head"), Some(Role::Heading));
+        assert_eq!(role("#"), Some(Role::Comment));
+        assert_eq!(role("code"), Some(Role::String));
+        assert_eq!(role("link"), Some(Role::Class));
+        assert_eq!(role("(u"), Some(Role::Comment));
+        assert_eq!(role("_e_"), Some(Role::Comment));
+        assert_eq!(role("e_"), Some(Role::Emphasis));
+        assert_eq!(role("em"), Some(Role::Keyword));
+        assert_eq!(role("fn"), Some(Role::Keyword));
+        assert_eq!(role("f()"), Some(Role::Function));
+        assert!(!complete("markdown").contains(&"markdown_inline"));
+
+        let setext = highlight(find_token("md").unwrap(), "Title\n---\n");
+        assert_eq!(setext.first().map(|(role, _)| *role), Some(Role::Comment));
     }
 
     #[test]
