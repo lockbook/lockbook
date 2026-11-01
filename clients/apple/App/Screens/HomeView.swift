@@ -153,10 +153,12 @@ struct HomeView: View {
                         }
                     #endif
                 }
-                .inspector(isPresented: inspectorPresented) {
-                    WorkspaceTabsList(fileTreeModel: fileTreeModel)
-                        .inspectorColumnWidth(min: 220, ideal: 260, max: 320)
-                }
+                #if os(macOS)
+                    .inspector(isPresented: $showTabsSidebar) {
+                        WorkspaceTabsList(fileTreeModel: fileTreeModel)
+                            .inspectorColumnWidth(min: 220, ideal: 260, max: 320)
+                    }
+                #endif
                 .sheet(item: $shareTarget) { file in
                     ShareFileSheet(id: file.id)
                 }
@@ -190,6 +192,16 @@ struct HomeView: View {
                     .animation(.easeInOut(duration: 0.2), value: hideFloatingButtons)
                 #endif
         }
+        #if os(iOS)
+            .padding(.trailing, showTabsSidebar && horizontalSizeClass == .regular ? 260 : 0)
+            .overlay(alignment: .trailing) {
+                if showTabsSidebar, horizontalSizeClass == .regular {
+                    WorkspaceTabsList(fileTreeModel: fileTreeModel)
+                        .frame(width: 260)
+                        .background(.regularMaterial)
+                }
+            }
+        #endif
         .overlay {
             if let hudState {
                 hud(for: hudState)
@@ -393,19 +405,6 @@ struct HomeView: View {
         #else
             false
         #endif
-    }
-
-    private var inspectorPresented: Binding<Bool> {
-        Binding(
-            get: {
-                #if os(iOS)
-                    showTabsSidebar && horizontalSizeClass == .regular
-                #else
-                    showTabsSidebar
-                #endif
-            },
-            set: { showTabsSidebar = $0 }
-        )
     }
 
     #if os(iOS)
