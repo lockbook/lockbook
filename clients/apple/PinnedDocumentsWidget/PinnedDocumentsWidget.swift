@@ -1,12 +1,21 @@
 import Bridge
 import SwiftUI
+import UIKit
 import WidgetKit
 
 struct PinnedDocument: Identifiable {
     let id: UUID
     let name: String
+    /// The document as the app last drew it, in each appearance, when that
+    /// drawing shows its current content.
+    var light: UIImage? = nil
+    var dark: UIImage? = nil
 
     var url: URL { URL(string: "lb://\(id.uuidString)")! }
+
+    func preview(_ scheme: ColorScheme) -> UIImage? {
+        scheme == .dark ? dark ?? light : light ?? dark
+    }
 }
 
 struct PinnedDocumentsEntry: TimelineEntry {
@@ -79,9 +88,13 @@ struct PinnedDocumentsProvider: TimelineProvider {
                     let result = lb_get_file(core.lb, id)
                     defer { lb_free_file_res(result) }
                     guard result.err == nil else { return nil }
-                    return PinnedDocument(
-                        id: UUID(uuid: result.file.id.bytes), name: String(cString: result.file.name)
-                    )
+                    let id = UUID(uuid: result.file.id.bytes)
+                    var document = PinnedDocument(id: id, name: String(cString: result.file.name))
+                    if WidgetPreviewFiles.version(of: id) == version(core.lb, id) {
+                        document.light = UIImage(contentsOfFile: WidgetPreviewFiles.image(of: id, dark: false).path)
+                        document.dark = UIImage(contentsOfFile: WidgetPreviewFiles.image(of: id, dark: true).path)
+                    }
+                    return document
                 }
                 .sorted {
                     let comparison = $0.name.localizedStandardCompare($1.name)
@@ -92,8 +105,21 @@ struct PinnedDocumentsProvider: TimelineProvider {
     }
 }
 
+/// A document's content version as hex, as the app files its previews.
+private func version(_ lb: OpaquePointer?, _ id: UUID) -> String? {
+    let result = lb_document_version(lb, LbUuid(bytes: id.uuid))
+    if let err = result.err {
+        lb_free_err(err)
+        return nil
+    }
+    guard result.version.present else { return "new" }
+    var hmac = result.version.hmac
+    return withUnsafeBytes(of: &hmac) { $0.map { String(format: "%02x", $0) }.joined() }
+}
+
 struct PinnedDocumentsWidgetView: View {
     @Environment(\.widgetFamily) private var family
+    @Environment(\.colorScheme) private var colorScheme
     let entry: PinnedDocumentsEntry
 
     private var limit: Int {
@@ -125,7 +151,7 @@ struct PinnedDocumentsWidgetView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             } else if family == .systemSmall, let document = documents.first {
-                documentLabel(document)
+                documentTile(document)
                     .widgetURL(document.url)
             } else {
                 documentGrid
@@ -152,10 +178,10 @@ struct PinnedDocumentsWidgetView: View {
                         if index < documents.count {
                             let document = documents[index]
                             Link(destination: document.url) {
-                                documentLabel(document)
-                                    .padding(10)
-                                    .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 9))
-                                    .contentShape(RoundedRectangle(cornerRadius: 9))
+                                documentTile(document)
+                                    .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: WidgetPreviewFiles.cornerRadius))
+                                    .clipShape(RoundedRectangle(cornerRadius: WidgetPreviewFiles.cornerRadius))
+                                    .contentShape(RoundedRectangle(cornerRadius: WidgetPreviewFiles.cornerRadius))
                             }
                             .buttonStyle(.plain)
                         } else {
@@ -164,6 +190,33 @@ struct PinnedDocumentsWidgetView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// The document's preview, top-aligned and clipped, over its name; its
+    /// icon and name until the app has drawn it.
+    @ViewBuilder private func documentTile(_ document: PinnedDocument) -> some View {
+        if let preview = document.preview(colorScheme) {
+            VStack(alignment: .leading, spacing: 0) {
+                Color.clear
+                    .overlay(alignment: .top) {
+                        Image(uiImage: preview)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                    .clipped()
+                Text(document.name)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, family == .systemSmall ? 0 : 8)
+                    .padding(.vertical, 4)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(document.name)
+        } else {
+            documentLabel(document)
+                .padding(family == .systemSmall ? 0 : 10)
         }
     }
 
