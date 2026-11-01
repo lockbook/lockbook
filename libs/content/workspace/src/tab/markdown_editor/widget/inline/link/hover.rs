@@ -64,8 +64,8 @@ impl MdRender {
             response.rect,
             CARD_W,
             egui::Margin::same(CARD_PAD.pts() as i8),
-            |ui| {
-                ui.set_width(CARD_W);
+            |ui, width| {
+                ui.set_width(width);
                 ui.spacing_mut().item_spacing.y = Space::Sm.pts();
                 match &meta {
                     Some(meta) => {
@@ -80,7 +80,7 @@ impl MdRender {
                         ui.add(
                             GlyphonLabel::new(&target, ink_secondary(&ui.ctx().get_lb_theme()))
                                 .role(TypeRole::Mono)
-                                .max_width(CARD_W)
+                                .max_width(width)
                                 .text_overflow(TextOverflow::EndEllipsis),
                         );
                     }

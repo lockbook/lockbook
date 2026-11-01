@@ -443,16 +443,15 @@ impl<'ast> MdRender {
     pub(super) fn show_tab_card(
         &self, ctx: &egui::Context, response: &egui::Response, url: &str, place: Place,
     ) -> bool {
-        let width = FILE_CARD.x - 2.0 * CARD_PAD.pts();
-        let height = self.tab_embeds.content_height(url, &place, width, true);
         let shown = self.place_shown(url, &place);
         crate::style::tip_card_reachable(
             ctx,
             response,
             response.rect,
-            width,
+            FILE_CARD.x - 2.0 * CARD_PAD.pts(),
             egui::Margin::same(CARD_PAD.pts() as i8),
-            |ui| {
+            |ui, width| {
+                let height = self.tab_embeds.content_height(url, &place, width, true);
                 ui.set_width(width);
                 ui.spacing_mut().item_spacing.y = Space::Sm.pts();
                 let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
