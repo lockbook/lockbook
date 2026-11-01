@@ -265,7 +265,9 @@
                 return
             }
 
-            if let image = UIPasteboard.general.image {
+            if let gif = UIPasteboard.general.data(forPasteboardType: UTType.gif.identifier) {
+                mtkView.importContent(.imageData(gif), isPaste: true)
+            } else if let image = UIPasteboard.general.image {
                 mtkView.importContent(.image(image), isPaste: true)
             } else if let string = UIPasteboard.general.string {
                 mtkView.importContent(.text(string), isPaste: true)
@@ -549,8 +551,9 @@
                 }
             }
 
-            if let png = dataFromBytes(b: output.copied_image) {
-                UIPasteboard.general.setData(png, forPasteboardType: UTType.png.identifier)
+            if let image = dataFromBytes(b: output.copied_image) {
+                let type = image.starts(with: Array("GIF8".utf8)) ? UTType.gif : UTType.png
+                UIPasteboard.general.setData(image, forPasteboardType: type.identifier)
             }
 
             mtkView.redrawTask?.cancel()
@@ -1183,6 +1186,8 @@
                 if let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
                     workspaceInput?.pasteImage(data: data, isPaste: isPaste)
                 }
+            case let .imageData(data):
+                workspaceInput?.pasteImage(data: data, isPaste: isPaste)
             case let .text(text):
                 clipboard_paste(wsHandle, text)
             }
@@ -1228,6 +1233,8 @@
     public enum SupportedImportFormat {
         case url(URL)
         case image(UIImage)
+        /// An image's file bytes, kept as they are: a gif keeps its frames.
+        case imageData(Data)
         case text(String)
     }
 

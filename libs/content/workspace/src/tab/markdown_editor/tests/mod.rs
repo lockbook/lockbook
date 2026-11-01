@@ -21,7 +21,7 @@
 //! the same private access a `benches/` criterion crate can't have.
 
 pub(crate) mod doc_gen;
-mod harness;
+pub(crate) mod harness;
 
 mod benches;
 mod block_drag;

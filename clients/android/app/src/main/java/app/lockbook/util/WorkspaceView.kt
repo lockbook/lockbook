@@ -532,10 +532,12 @@ class WorkspaceView(
         drawWorkspace()
     }
 
-    private fun copyImageToClipboard(png: ByteArray) {
+    private fun copyImageToClipboard(image: ByteArray) {
         val shareDirectory = File(context.cacheDir, "share/clipboard").apply { mkdirs() }
-        val imageFile = File(shareDirectory, "image.png")
-        imageFile.writeBytes(png)
+        // a gif copies as itself, else the bytes are a png
+        val gif = image.size >= 4 && String(image, 0, 4, Charsets.US_ASCII) == "GIF8"
+        val imageFile = File(shareDirectory, if (gif) "image.gif" else "image.png")
+        imageFile.writeBytes(image)
 
         val uri = FileProvider.getUriForFile(context, "app.lockbook.fileprovider", imageFile)
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

@@ -55,6 +55,7 @@ egui_animation = "0.14.0"
 egui_wgpu_renderer = { path = "../egui_wgpu_renderer" }
 epaint = { version = "0.37", features = ["color-hex"] }
 futures = "0.3.30"
+gif = "0.14"
 glam = "0.22.0"
 glyphon = "0.12.0"
 hayro = "0.4.0"
