@@ -69,6 +69,59 @@ fn withheld_embeds_leave_image_cache_alone() {
     assert!(!embed.withheld(web));
 }
 
+/// An SVG whose palette follows the theme is freed and loaded again when the
+/// theme changes; other images keep their textures.
+#[test]
+fn themed_svg_reloads_on_theme_change() {
+    use crate::file_cache::tests::alice;
+    use crate::widgets::image_cache::{ImageCache, ImageKey};
+    use crate::workspace::WsPersistentStore;
+    use egui::{Color32, ColorImage, ImageData, TextureOptions};
+    use lb_rs::Uuid;
+    use std::sync::{Arc, RwLock};
+
+    let (cache, [note, other, ..]) = alice();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
+    ctx.set_visuals(egui::Visuals::light());
+    let persistence =
+        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let images = ImageCache::new(
+        ctx.clone(),
+        super::super::HttpClient::default(),
+        super::harness::build_lb(),
+        Arc::new(RwLock::new(cache)),
+        persistence,
+    );
+    let alloc = |name: &str| {
+        let image = ImageData::Color(Arc::new(ColorImage::new([2, 2], vec![Color32::WHITE; 4])));
+        ctx.tex_manager()
+            .write()
+            .alloc(name.into(), image, TextureOptions::default())
+    };
+    let themed = (ImageKey::File(note), alloc("themed"));
+    let plain = (ImageKey::File(other), alloc("plain"));
+
+    images.begin_frame();
+    images.complete_load(&themed.0, Ok(themed.1), true);
+    images.complete_load(&plain.0, Ok(plain.1), false);
+    images.end_frame();
+
+    // same theme: both stay
+    images.begin_frame();
+    images.get_or_load(&themed.0, false);
+    images.get_or_load(&plain.0, false);
+    assert!(images.is_loaded(&themed.0) && images.is_loaded(&plain.0));
+    images.end_frame();
+
+    ctx.set_visuals(egui::Visuals::dark());
+    images.begin_frame();
+    assert!(!images.has_state(&themed.0), "themed image kept across the theme change");
+    assert!(ctx.tex_manager().read().meta(themed.1).is_none(), "themed texture not freed");
+    images.get_or_load(&plain.0, false);
+    assert!(images.is_loaded(&plain.0), "plain image dropped by the theme change");
+    images.end_frame();
+}
+
 /// Two notes in different folders that write the same relative image show
 /// each their own file, though the cache is shared.
 #[test]
@@ -175,7 +228,7 @@ fn inline_image_advance_matches_rendered_width() {
             .write()
             .alloc("placehold_test".into(), image, TextureOptions::default())
     };
-    image_cache_handle.complete_load(&ImageKey::Web(url.into()), Ok(texture_id));
+    image_cache_handle.complete_load(&ImageKey::Web(url.into()), Ok(texture_id), false);
 
     // Cursor off both images so they collapse rather than revealing.
     ws.push(Event::Select {
@@ -1352,7 +1405,7 @@ fn image_load_layout_consistent() {
             .alloc("test_image".into(), image, TextureOptions::default());
         id
     };
-    image_cache_handle.complete_load(&ImageKey::Web(url.into()), Ok(texture_id));
+    image_cache_handle.complete_load(&ImageKey::Web(url.into()), Ok(texture_id), false);
 
     // Two frames: first triggers `embeds_updated` and clears the cache;
     // the second renders against the (potentially stale) populated cache.
