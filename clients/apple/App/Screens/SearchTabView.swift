@@ -34,6 +34,7 @@
             .onReceive(NotificationCenter.default.publisher(for: .focusSearchField)) { _ in
                 fieldFocused = true
             }
+            .onChange(of: AppState.lb.events.metadataVersion) { model.refresh() }
             .onChange(of: model.input) { model.search() }
             .onChange(of: model.mode) { model.search() }
         }
