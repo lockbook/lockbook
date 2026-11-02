@@ -217,21 +217,22 @@ pub fn log_startup(config: &Config) {
     tracing::info!(
         client = config.client_name,
         pid,
-        core_version = crate::get_code_version(),
-        core_commit = env!("LB_GIT_COMMIT"),
+        core_version = config.lb_version,
+        core_commit = config.lb_commit,
+        os = config.os_version,
         "startup {}",
         config.build_info.as_deref().unwrap_or_default()
     );
 }
 
 fn panic_capture(config: &Config) {
-    let path = config.writeable_path.clone();
+    let config = config.clone();
     panic::set_hook(Box::new(move |error_header| {
         let bt = Backtrace::force_capture();
         tracing::error!("panic detected: {error_header} {}", bt);
         eprintln!("panic detected and logged: {error_header} {bt}");
-        let file_name = generate_panic_filename(&path);
-        let content = generate_panic_content(&error_header.to_string(), &bt.to_string());
+        let file_name = generate_panic_filename(&config.writeable_path);
+        let content = generate_panic_content(&config, &error_header.to_string(), &bt.to_string());
 
         let mut file = OpenOptions::new()
             .create(true)
@@ -265,6 +266,7 @@ mod tests {
             client_name: "tests".into(),
             build_info: None,
             client_type: ClientType::Unknown,
+            ..Default::default()
         };
         let subscriber = tracing_subscriber::Registry::default().with(trace_layer(&config));
         env::remove_var(TRACE_ENV_VAR);

@@ -29,6 +29,7 @@ pub use lb_rs::*;
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, path: JString<'local>,
+    os_version: JString<'local>,
 ) {
     let config = Config {
         writeable_path: rstring(&mut env, path),
@@ -38,7 +39,9 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
         colored_logs: false,
         client_name: "android".into(),
         build_info: None,
+        os_version: Some(rstring(&mut env, os_version)),
         client_type: ClientType::Ui,
+        ..Default::default()
     };
 
     match Lb::init(config) {
@@ -67,12 +70,11 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getDebugInfo<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, os_info: JString<'local>,
+    mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jstring {
     let lb = rlb(&mut env, &class);
 
-    let os_info = rstring(&mut env, os_info);
-    jni_string(&mut env, lb.debug_info(os_info).to_string()).into_raw()
+    jni_string(&mut env, lb.debug_info().to_string()).into_raw()
 }
 
 #[unsafe(no_mangle)]

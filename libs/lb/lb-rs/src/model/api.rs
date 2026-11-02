@@ -3,7 +3,7 @@ use crate::model::account::{Account, Username};
 use crate::model::crypto::*;
 use crate::model::file_metadata::{DocumentHmac, FileDiff, Owner};
 use crate::model::signed_file::SignedFile;
-use crate::service::debug::DebugInfo;
+use crate::service::debug::DebugInfoV1;
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::de::DeserializeOwned;
@@ -547,7 +547,12 @@ impl From<SubscriptionInfoV2> for SubscriptionInfo {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct UpsertDebugInfoRequest {
-    pub debug_info: DebugInfo,
+    pub debug_info: DebugInfoV1,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct UpsertDebugInfoRequestV2 {
+    pub debug_info: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -560,6 +565,13 @@ impl Request for UpsertDebugInfoRequest {
     type Error = UpsertDebugInfoError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/upsert-debug-info";
+}
+
+impl Request for UpsertDebugInfoRequestV2 {
+    type Response = ();
+    type Error = UpsertDebugInfoError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/upsert-debug-info-v2";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

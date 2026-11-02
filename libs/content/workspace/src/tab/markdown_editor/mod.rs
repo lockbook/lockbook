@@ -1214,6 +1214,7 @@ impl Editor {
             client_name: "tests".into(),
             build_info: None,
             client_type: ClientType::Unknown,
+            ..Default::default()
         })
         .unwrap();
         Self::new(

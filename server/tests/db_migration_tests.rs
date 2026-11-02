@@ -6,7 +6,7 @@ use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::meta::Meta;
 use lb_rs::model::server_meta::IntoServerMeta;
-use lb_rs::service::debug::DebugInfo;
+use lb_rs::service::debug::DebugInfoV1;
 use lb_rs::service::lb_id::LbID;
 use lockbook_server_lib::defense::BandwidthReport;
 use lockbook_server_lib::guard::ServerTx;
@@ -33,7 +33,7 @@ fn copies_every_server_table_including_empty_groups() {
     let root = *meta.id();
     let empty_root = Uuid::new_v4();
     let id = LbID::generate();
-    let info = DebugInfo {
+    let info = DebugInfoV1 {
         lb_id: id,
         time: "today".into(),
         name: "migration".into(),

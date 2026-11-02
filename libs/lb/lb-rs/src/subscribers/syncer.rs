@@ -27,7 +27,7 @@ use crate::{
         account::Account,
         api::{
             ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
-            GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
+            GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequestV2, UpsertRequestV2,
         },
         chat,
         crypto::{AESKey, DecryptedDocument, EncryptedDocument},
@@ -1273,17 +1273,20 @@ impl Lb {
             return;
         }
 
-        let debug_info = self
-            .debug_info("none provided - sync".to_string(), false)
-            .await
-            .unwrap();
+        let debug_info = match self.debug_info(false).await {
+            Ok(debug_info) => serde_json::to_string(&debug_info).unwrap_or_default(),
+            Err(e) => {
+                warn!("could not collect debug_info: {e:?}");
+                return;
+            }
+        };
 
         let new_marker = max_panic_time.unwrap_or(0);
         let bg_self = self.clone();
         let task = async move {
             match bg_self
                 .client
-                .request(&account, UpsertDebugInfoRequest { debug_info })
+                .request(&account, UpsertDebugInfoRequestV2 { debug_info })
                 .await
             {
                 Ok(_) => {

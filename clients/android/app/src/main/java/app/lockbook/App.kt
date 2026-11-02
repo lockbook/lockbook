@@ -5,6 +5,7 @@ package app.lockbook
 import android.app.Application
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.os.Build
 import android.os.StrictMode
 import android.os.StrictMode.ThreadPolicy
 import android.os.StrictMode.VmPolicy
@@ -44,7 +45,7 @@ class App : Application() {
         DynamicColors.applyToActivitiesIfAvailable(this)
         Timber.plant(Timber.DebugTree())
         Workspace.init()
-        Lb.init(filesDir.absolutePath)
+        Lb.init(filesDir.absolutePath, "Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
         LbEvents.start()
 
         // background sync every 30 minutes when the app is not foregrounded

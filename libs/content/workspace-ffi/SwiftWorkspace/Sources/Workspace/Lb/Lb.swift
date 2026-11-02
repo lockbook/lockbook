@@ -70,7 +70,14 @@ public class Lb: LbAPI {
     }
 
     public func start(writablePath: String, clientName: String, buildInfo: String, logs: Bool) -> Result<Void, LbError> {
-        let res = lb_init(writablePath, clientName, buildInfo, logs, true)
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        #if os(iOS)
+            let osName = "iOS"
+        #else
+            let osName = "macOS"
+        #endif
+        let osVersion = "\(osName) \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+        let res = lb_init(writablePath, clientName, buildInfo, osVersion, logs, true)
         defer {
             lb_free_err(res.err)
         }
@@ -321,8 +328,7 @@ public class Lb: LbAPI {
     }
 
     public func debugInfo() -> String {
-        let osInfo = ProcessInfo.processInfo.operatingSystemVersion
-        let debugInfo = lb_debug_info(lb, "\(osInfo.majorVersion).\(osInfo.minorVersion).\(osInfo.patchVersion)")
+        let debugInfo = lb_debug_info(lb)
         defer { lb_free_str(debugInfo) }
 
         return String(cString: debugInfo!)

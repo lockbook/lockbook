@@ -348,6 +348,7 @@ where
         ))
         .or(core_req!(DeleteAccountRequest, ServerState::delete_account, server_state))
         .or(core_req!(UpsertDebugInfoRequest, ServerState::upsert_debug_info, server_state))
+        .or(core_req!(UpsertDebugInfoRequestV2, ServerState::upsert_debug_info_v2, server_state))
         .or(core_req!(
             AdminDisappearAccountRequest,
             ServerState::admin_disappear_account,

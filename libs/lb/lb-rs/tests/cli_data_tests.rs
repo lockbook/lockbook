@@ -16,7 +16,7 @@ async fn pending_shares_perf() {
 async fn debug_info_test() {
     let lb = Lb::init(Config::cli_config("cli")).await.unwrap();
     for _ in 0..2 {
-        lb.debug_info("none".to_string(), true).await.to_string();
+        lb.debug_info(true).await.to_string();
     }
 }
 

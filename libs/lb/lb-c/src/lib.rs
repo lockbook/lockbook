@@ -10,6 +10,7 @@ use ffi_utils::{
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
 pub use lb_rs::blocking::Lb;
+use lb_rs::model::core_config::host_os_version;
 pub use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::filename::NameComponents;
@@ -40,17 +41,21 @@ pub struct LbInitRes {
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_init(
     writeable_path: *const c_char, client_name: *const c_char, build_info: *const c_char,
-    logs: bool, background_work: bool,
+    os_version: *const c_char, logs: bool, background_work: bool,
 ) -> LbInitRes {
     let config = Config {
         client_name: r_opt_str(client_name).unwrap_or_default().to_owned(),
         build_info: r_opt_str(build_info).map(str::to_owned),
+        os_version: r_opt_str(os_version)
+            .map(str::to_owned)
+            .or_else(host_os_version),
         writeable_path: rstring(writeable_path),
         background_work,
         logs,
         stdout_logs: true,
         colored_logs: false,
         client_type: ClientType::Ui,
+        ..Default::default()
     };
 
     match Lb::init(config) {
@@ -586,11 +591,10 @@ pub extern "C" fn lb_get_local_changes(lb: *mut Lb) -> LbIdListRes {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn lb_debug_info(lb: *mut Lb, os_info: *const c_char) -> *mut c_char {
+pub extern "C" fn lb_debug_info(lb: *mut Lb) -> *mut c_char {
     let lb = rlb(lb);
-    let os_info = rstring(os_info);
 
-    cstring(lb.debug_info(os_info).to_string())
+    cstring(lb.debug_info().to_string())
 }
 
 pub type UpdateSyncStatus = extern "C" fn(*const c_void, usize, usize, LbUuid, *const c_char);

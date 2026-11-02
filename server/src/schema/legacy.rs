@@ -5,7 +5,7 @@ use db_rs_derive::Schema;
 use db_rs_old as db_rs;
 use lb_rs::model::file_metadata::{DocumentHmac, Owner};
 use lb_rs::model::server_meta::ServerMeta;
-use lb_rs::service::debug::DebugInfo;
+use lb_rs::service::debug::DebugInfoV1;
 use lb_rs::service::lb_id::LbID;
 use uuid::Uuid;
 
@@ -24,5 +24,5 @@ pub struct ServerV5 {
     pub server_egress: Single<BandwidthReport>,
     pub egress_by_owner: LookupTable<Owner, BandwidthReport>,
     pub scheduled_file_cleanups: LookupTable<(Uuid, DocumentHmac), i64>,
-    pub debug_info: LookupMap<Owner, LbID, DebugInfo>,
+    pub debug_info: LookupMap<Owner, LbID, DebugInfoV1>,
 }

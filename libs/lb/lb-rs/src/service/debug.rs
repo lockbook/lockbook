@@ -1,24 +1,23 @@
 use crate::Lb;
 use crate::model::clock;
+use crate::model::core_config::Config;
 use crate::model::errors::LbResult;
 use crate::service::lb_id::LbID;
 use basic_human_duration::ChronoHumanDuration;
-use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use time::Duration;
 
 #[cfg(not(target_family = "wasm"))]
-use std::path::Path;
+use chrono::NaiveDateTime;
+
+#[cfg(not(target_family = "wasm"))]
+use std::path::{Path, PathBuf};
 
 #[cfg(not(target_family = "wasm"))]
 use std::env;
 
 #[cfg(not(target_family = "wasm"))]
 use chrono::{DateTime, Local, TimeZone};
-
-#[cfg(not(target_family = "wasm"))]
-use crate::get_code_version;
 
 #[cfg(not(target_family = "wasm"))]
 use tokio::fs::{self, OpenOptions};
@@ -28,6 +27,29 @@ use tokio::io::AsyncWriteExt;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DebugInfo {
+    pub lb_id: LbID,
+    pub time: String,
+    pub name: String,
+    pub server_url: String,
+    pub last_synced: String,
+    pub is_syncing: bool,
+    pub status: String,
+    pub integrity: String,
+    pub rust_triple: String,
+    pub config: Config,
+    pub panics: Vec<PanicReport>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct PanicReport {
+    pub time: String,
+    pub info: String,
+    pub config: Option<Config>,
+    pub backtrace: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct DebugInfoV1 {
     pub lb_id: LbID,
     pub time: String,
     pub name: String,
@@ -95,32 +117,37 @@ impl Lb {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    async fn collect_panics(&self, populate_content: bool) -> LbResult<Vec<PanicInfo>> {
-        let mut panics = vec![];
+    async fn collect_panics(&self) -> LbResult<Vec<PanicReport>> {
+        let mut files = vec![];
         let mut iter = iter_panic_files(&self.config.writeable_path).await?;
         while let Some(entry) = iter.next().await? {
-            let content = if populate_content { entry.content().await? } else { String::new() };
-            panics.push(PanicInfo { time: entry.time, file_path: entry.file_path, content });
+            files.push(entry);
         }
-        panics.sort_by_key(|panic| std::cmp::Reverse(panic.time));
+        files.sort_by_key(|file| std::cmp::Reverse(file.time));
 
+        let mut panics = vec![];
+        for file in files {
+            panics.extend(file.reports().await?);
+        }
         Ok(panics)
     }
 
     /// When we last crashed, to the second, if a panic log survives.
     #[cfg(not(target_family = "wasm"))]
     pub async fn recent_panic(&self) -> LbResult<Option<DateTime<Local>>> {
-        let panics = self.collect_panics(false).await?;
-        Ok(panics
-            .first()
-            .and_then(|panic| Local.from_local_datetime(&panic.time).single()))
+        let mut latest = None;
+        let mut iter = iter_panic_files(&self.config.writeable_path).await?;
+        while let Some(entry) = iter.next().await? {
+            latest = latest.max(Some(entry.time));
+        }
+        Ok(latest.and_then(|time| Local.from_local_datetime(&time).single()))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     #[cfg(not(target_family = "wasm"))]
     pub async fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {
         let file_name = generate_panic_filename(&self.config.writeable_path);
-        let content = generate_panic_content(&error_header, &bt);
+        let content = generate_panic_content(&self.config, &error_header, &bt);
 
         let mut file = OpenOptions::new()
             .create(true)
@@ -135,7 +162,7 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     #[cfg(not(target_family = "wasm"))]
-    pub async fn debug_info(&self, os_info: String, check_docs: bool) -> LbResult<DebugInfo> {
+    pub async fn debug_info(&self, check_docs: bool) -> LbResult<DebugInfo> {
         let account = self.get_account()?;
 
         let arch = env::consts::ARCH;
@@ -145,43 +172,32 @@ impl Lb {
         let (integrity, last_synced, panics, lb_id) = tokio::join!(
             self.test_repo_integrity(check_docs),
             self.human_last_synced(),
-            self.collect_panics(true),
+            self.collect_panics(),
             self.lb_id()
         );
-
-        let panics = panics?.into_iter().map(|panic| panic.content).collect();
 
         let mut status = self.status().await;
         status.space_used = None;
         let status = format!("{status:?}");
-        let is_syncing = self.syncer.try_lock().is_ok();
+        let is_syncing = self.syncer.try_lock().is_err();
 
         Ok(DebugInfo {
+            lb_id: lb_id?,
             time: self.now(),
             name: account.username.clone(),
-            lb_version: get_code_version().into(),
-            lb_id: lb_id?,
-            rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
+            last_synced,
+            is_syncing,
+            status,
             integrity: format!(
                 "{} {integrity:?}",
                 if check_docs { "" } else { "doc checks skipped" }
             ),
-            lb_dir: self.config.writeable_path.clone(),
-            last_synced,
-            os_info,
-            status,
-            is_syncing,
-            panics,
+            rust_triple: format!("{arch}.{family}.{os}"),
+            config: self.config.clone(),
+            panics: panics?,
         })
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PanicInfo {
-    pub time: NaiveDateTime,
-    pub file_path: PathBuf,
-    pub content: String,
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -221,9 +237,26 @@ impl PanicFiles {
 
 #[cfg(not(target_family = "wasm"))]
 impl PanicFile {
-    pub async fn content(&self) -> LbResult<String> {
+    pub async fn reports(&self) -> LbResult<Vec<PanicReport>> {
         let contents = fs::read_to_string(&self.file_path).await?;
-        Ok(format!("time: {}: contents: {}", self.time, contents))
+        if contents.trim_start().starts_with('{') {
+            let reports = serde_json::Deserializer::from_str(&contents)
+                .into_iter::<PanicReport>()
+                .collect::<Result<Vec<_>, _>>();
+            if let Ok(mut reports) = reports {
+                reports.reverse();
+                return Ok(reports);
+            }
+        }
+
+        let contents = contents.strip_prefix("INFO: ").unwrap_or(&contents);
+        let (info, backtrace) = contents.split_once("\nBT: ").unwrap_or((contents, ""));
+        Ok(vec![PanicReport {
+            time: self.time.format("%Y-%m-%d %H:%M:%S").to_string(),
+            info: info.to_owned(),
+            backtrace: backtrace.to_owned(),
+            config: None,
+        }])
     }
 }
 
@@ -258,6 +291,64 @@ pub fn generate_panic_filename(path: &str) -> String {
     format!("{path}/panic---{timestamp}.log")
 }
 
-pub fn generate_panic_content(panic_info: &str, bt: &str) -> String {
-    format!("INFO: {panic_info}\nBT: {bt}")
+pub fn generate_panic_content(config: &Config, panic_info: &str, bt: &str) -> String {
+    let report = PanicReport {
+        time: chrono::Local::now()
+            .format("%Y-%m-%d %H:%M:%S %Z")
+            .to_string(),
+        info: panic_info.to_owned(),
+        backtrace: bt.to_owned(),
+        config: Some(config.clone()),
+    };
+    let mut content = serde_json::to_string(&report).unwrap_or_default();
+    content.push('\n');
+    content
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn reads_legacy_and_json_panic_files() {
+        let directory = tempdir().unwrap();
+        let config = Config { client_name: "tests".into(), ..Default::default() };
+
+        std::fs::write(
+            directory.path().join("panic---2026-01-01---10-00-00.log"),
+            "INFO: MetricKit crash in app.lockbook (version 1)\nBT: {\n  \"frames\": []\n}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            directory.path().join("panic---2026-01-02---10-00-00.log"),
+            generate_panic_content(&config, "first", "bt 1")
+                + &generate_panic_content(&config, "second", "bt 2"),
+        )
+        .unwrap();
+
+        let mut files = vec![];
+        let mut iter = iter_panic_files(directory.path().to_str().unwrap())
+            .await
+            .unwrap();
+        while let Some(file) = iter.next().await.unwrap() {
+            files.push(file);
+        }
+        files.sort_by_key(|file| file.time);
+
+        let legacy = files[0].reports().await.unwrap();
+        assert_eq!(legacy.len(), 1);
+        assert_eq!(legacy[0].time, "2026-01-01 10:00:00");
+        assert_eq!(legacy[0].info, "MetricKit crash in app.lockbook (version 1)");
+        assert_eq!(legacy[0].backtrace, "{\n  \"frames\": []\n}\n");
+        assert_eq!(legacy[0].config, None);
+
+        let current = files[1].reports().await.unwrap();
+        assert_eq!(
+            current.iter().map(|r| r.info.as_str()).collect::<Vec<_>>(),
+            ["second", "first"]
+        );
+        assert_eq!(current[0].backtrace, "bt 2");
+        assert_eq!(current[0].config.as_ref(), Some(&config));
+    }
 }

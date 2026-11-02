@@ -97,6 +97,10 @@ pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+pub fn get_code_commit() -> Option<&'static str> {
+    Some(env!("LB_GIT_COMMIT")).filter(|commit| *commit != "unknown")
+}
+
 pub static DEFAULT_API_LOCATION: &str = "https://app.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
