@@ -94,7 +94,7 @@ impl Toolbar {
             ui,
             tlbr_ctx.buffer,
             &mut painter,
-            RenderOptions { viewport_transform: Some(viewport_transform) },
+            RenderOptions { viewport_transform: Some(viewport_transform), ..Default::default() },
             tlbr_ctx.viewport_settings.master_transform,
         );
 

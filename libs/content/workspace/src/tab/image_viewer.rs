@@ -128,6 +128,14 @@ impl ImageViewer {
                     self.show_viewport_controls(ui, available, rect);
                 }
             }
+            ImageState::Drawing(drawing) => {
+                let rect = self.image_rect(available, drawing.bounds.size());
+                drawing.show(ui, rect);
+                if !self.embedded {
+                    self.show_image_context_menu(ui, available, rect);
+                    self.show_viewport_controls(ui, available, rect);
+                }
+            }
             ImageState::Failed(ref msg) => {
                 let what = match self.picture {
                     Picture::File(_) => "image",
@@ -150,9 +158,15 @@ impl ImageViewer {
     pub fn aspect(&self) -> Option<f32> {
         let Picture::File(id) = &self.picture else { return None };
         let state = self.images.get_or_load(&ImageKey::File(*id), true);
-        let ImageState::Loaded(texture) = *state.lock().unwrap() else { return None };
-        let [w, h] = self.images.texture_size(texture)?;
-        Some(h as f32 / (w as f32).max(1.0))
+        let state = state.lock().unwrap();
+        match &*state {
+            ImageState::Loaded(texture) => {
+                let [w, h] = self.images.texture_size(*texture)?;
+                Some(h as f32 / (w as f32).max(1.0))
+            }
+            ImageState::Drawing(drawing) => Some(drawing.bounds.height() / drawing.bounds.width()),
+            _ => None,
+        }
     }
 
     /// The image has loaded or failed to.
@@ -391,6 +405,11 @@ impl ImageViewer {
                 return;
             }
         };
+        let state = self.images.get_or_load(&ImageKey::File(id), false);
+        if matches!(&*state.lock().unwrap(), ImageState::Drawing(_)) {
+            self.images.copy_image(&ImageKey::File(id));
+            return;
+        }
         match self.images.copied_image(id) {
             Ok((image, bytes)) => {
                 if image::guess_format(&bytes).is_ok_and(|f| f == image::ImageFormat::Gif) {

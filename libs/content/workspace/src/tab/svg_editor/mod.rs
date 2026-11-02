@@ -1,5 +1,6 @@
 mod background;
 mod clip;
+pub(crate) mod drawing;
 mod element;
 mod history;
 pub(super) mod keyboard_shortcuts;

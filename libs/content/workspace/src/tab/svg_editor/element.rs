@@ -52,14 +52,21 @@ impl BoundedElement for Path {
 
 pub trait PromoteWeakImage {
     fn from_weak(value: WeakImage, lb: &Lb) -> Image;
+    fn try_from_weak(value: WeakImage, lb: &Lb) -> Result<Image, String>;
 }
 impl PromoteWeakImage for Image {
     fn from_weak(value: WeakImage, lb: &Lb) -> Self {
+        Self::try_from_weak(value, lb).expect("could not read image")
+    }
+
+    fn try_from_weak(value: WeakImage, lb: &Lb) -> Result<Self, String> {
         let data = lb
             .read_document(value.href, false)
-            .expect("could not read image");
+            .map_err(|e| e.to_string())?;
+        // Validate on the loading thread rather than panic during painting.
+        image::load_from_memory(&data).map_err(|e| e.to_string())?;
 
-        Image {
+        Ok(Image {
             data: resvg::usvg::ImageKind::PNG(data.into()),
             visible: true,
             transform: Transform::from_row(
@@ -70,12 +77,13 @@ impl PromoteWeakImage for Image {
                 value.transform.tx,
                 value.transform.ty,
             ),
-            view_box: NonZeroRect::from_xywh(value.x, value.y, value.width, value.height).unwrap(),
+            view_box: NonZeroRect::from_xywh(value.x, value.y, value.width, value.height)
+                .ok_or("invalid drawing image bounds")?,
             href: value.href,
             opacity: value.opacity,
             diff_state: DiffState::new(),
             deleted: false,
-        }
+        })
     }
 }
 

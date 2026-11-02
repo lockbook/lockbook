@@ -66,6 +66,9 @@ struct MeshShape {
 #[derive(Clone, Copy, Default)]
 pub struct RenderOptions {
     pub viewport_transform: Option<Transform>,
+    /// Transform cached meshes only when painting, so previews in different
+    /// places can share tessellation in drawing coordinates.
+    pub paint_transform: Option<egui::emath::TSTransform>,
 }
 
 impl Renderer {
@@ -157,6 +160,11 @@ impl Renderer {
                             };
 
                             if !re_tess
+                                && !dark_mode_changed
+                                && !self.request_rerender
+                                && !fit_content_transform_changed
+                                && !path.diff_state.data_changed
+                                && !path.diff_state.opacity_changed
                                 && transform.sx == transform.sy
                                 && self.mesh_cache.contains_key(id)
                             {
@@ -194,7 +202,13 @@ impl Renderer {
                                 }
                             };
 
-                            if !re_tess && self.mesh_cache.contains_key(id) {
+                            if !re_tess
+                                && !self.request_rerender
+                                && !fit_content_transform_changed
+                                && !image.diff_state.data_changed
+                                && !image.diff_state.opacity_changed
+                                && self.mesh_cache.contains_key(id)
+                            {
                                 return Some((*id, RenderOp::Transform(transform)));
                             }
                         }
@@ -209,6 +223,7 @@ impl Renderer {
         for (id, paint_op) in paint_ops {
             match paint_op {
                 RenderOp::Delete => {
+                    self.tex_cache.remove(&id);
                     if self.mesh_cache.remove(&id).is_some() {
                         diff_state.delete_changed = true;
                     }
@@ -234,7 +249,10 @@ impl Renderer {
         if !self.mesh_cache.is_empty() {
             painter.extend(buffer.elements.iter_mut().rev().filter_map(|(id, _)| {
                 if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(id) {
-                    let shape_rect = shape.calc_bounds();
+                    let shape_rect = render_options.paint_transform.map_or_else(
+                        || shape.calc_bounds(),
+                        |transform| transform * shape.calc_bounds(),
+                    );
                     if !painter.clip_rect().contains_rect(shape_rect)
                         && !painter.clip_rect().intersects(shape_rect)
                     {
@@ -242,7 +260,11 @@ impl Renderer {
                     }
 
                     if !shape.vertices.is_empty() && !shape.indices.is_empty() {
-                        Some(egui::Shape::mesh(shape.to_owned()))
+                        let mut shape = shape.clone();
+                        if let Some(transform) = render_options.paint_transform {
+                            shape.transform(transform);
+                        }
+                        Some(egui::Shape::mesh(shape))
                     } else {
                         None
                     }
@@ -343,8 +365,10 @@ fn tesselate_path<'a>(
                 stroke.width * (p.transform.sx + p.transform.sy) / 2.0 * viewport_transform.sx;
 
             if let Some(forces) = weak_path_pressures.get(id) {
-                let pressure_at_segment =
-                    if let Some(p) = forces.get(i) { p } else { forces.get(i - 1).unwrap_or(&0.0) };
+                let pressure_at_segment = forces
+                    .get(i)
+                    .or_else(|| i.checked_sub(1).and_then(|previous| forces.get(previous)))
+                    .unwrap_or(&0.0);
 
                 thickness += thickness * pressure_at_segment;
             }

@@ -5,8 +5,9 @@
 //! freed) after one grace frame. Matches the lifecycle pattern used by
 //! [`GlyphonCache`](super::glyphon_cache::GlyphonCache).
 //!
-//! The cache loads lockbook files and http(s) URLs, rasterizes SVG via
-//! resvg, and corrects EXIF orientation. Decoded images are uploaded as
+//! The cache loads lockbook files and http(s) URLs, keeps Lockbook drawings
+//! on the canvas mesh pipeline, rasterizes generic SVG via resvg, and
+//! corrects EXIF orientation. Decoded images are uploaded as
 //! egui textures. Animated gifs, WebPs and PNGs play: a [`Player`] swaps
 //! each frame into the image's one texture as the frame clock reaches it.
 
@@ -36,6 +37,7 @@ use resvg::usvg::{self, Transform};
 use crate::file_cache::FileCache;
 use crate::seq::ws_seq;
 use crate::tab::markdown_editor::HttpClient;
+use crate::tab::svg_editor::drawing::Drawing;
 use crate::workspace::WsPersistentStore;
 
 /// Wraps a block in an `async` closure on wasm, a plain closure on native.
@@ -54,13 +56,27 @@ macro_rules! async_on_wasm {
     };
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default)]
 pub enum ImageState {
     #[default]
     Loading,
     Loaded(TextureId),
+    Drawing(Arc<Drawing>),
     Failed(String),
 }
+
+impl PartialEq for ImageState {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Loading, Self::Loading) => true,
+            (Self::Loaded(a), Self::Loaded(b)) => a == b,
+            (Self::Drawing(a), Self::Drawing(b)) => Arc::ptr_eq(a, b),
+            (Self::Failed(a), Self::Failed(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+impl Eq for ImageState {}
 
 /// The image an embed shows: the file it names, however the note names it,
 /// or the URL it fetches.
@@ -102,6 +118,8 @@ pub struct ImageCache {
     core: Lb,
     files: Arc<RwLock<FileCache>>,
     persistence: WsPersistentStore, // persist image dims
+    #[cfg(not(target_family = "wasm"))]
+    writes: Arc<Mutex<lb_rs::service::events::Receiver<lb_rs::service::events::Event>>>,
 }
 
 impl ImageCache {
@@ -116,6 +134,8 @@ impl ImageCache {
             ws_seq,
             ctx,
             client,
+            #[cfg(not(target_family = "wasm"))]
+            writes: Arc::new(Mutex::new(core.subscribe())),
             core,
             files,
             persistence,
@@ -130,6 +150,8 @@ impl ImageCache {
     }
 
     pub fn begin_frame(&self) {
+        #[cfg(not(target_family = "wasm"))]
+        self.reload_written();
         let now = self.ctx.input(|i| i.time);
         let mut inner = self.inner.lock().unwrap();
         if !inner.began_this_frame {
@@ -190,7 +212,7 @@ impl ImageCache {
             let (keep_loading, free_id) = match state.lock().unwrap().deref() {
                 ImageState::Loading => (true, None),
                 ImageState::Loaded(id) => (false, Some(*id)),
-                ImageState::Failed(_) => (false, None),
+                ImageState::Drawing(_) | ImageState::Failed(_) => (false, None),
             };
             if keep_loading {
                 keep.push((key, state));
@@ -231,6 +253,12 @@ impl ImageCache {
 
     /// Real texture dimensions for `key`, if known.
     pub fn dims(&self, key: &ImageKey) -> Option<Vec2> {
+        let inner = self.inner.lock().unwrap();
+        if let Some(state) = inner.current.get(key).or_else(|| inner.previous.get(key)) {
+            if let ImageState::Drawing(drawing) = &*state.lock().unwrap() {
+                return Some(drawing.bounds.size() * self.ctx.pixels_per_point());
+            }
+        }
         self.persistence
             .image_dims(&key.persisted())
             .map(|[w, h]| Vec2::new(w, h))
@@ -290,6 +318,7 @@ impl ImageCache {
     pub fn copy_image(&self, key: &ImageKey) {
         let key = key.clone();
         let (ctx, client, core) = (self.ctx.clone(), self.client.clone(), self.core.clone());
+        let dark_mode = ctx.style_of(ctx.theme()).visuals.dark_mode;
         spawn!({
             let read = || -> Result<ColorImage, String> {
                 let (bytes, is_svg) = match &key {
@@ -304,6 +333,9 @@ impl ImageCache {
                         (bytes, is_svg)
                     }
                 };
+                if is_svg && matches!(key, ImageKey::File(_)) && Drawing::is_drawing(&bytes) {
+                    return Drawing::load(&bytes, &core)?.image(dark_mode);
+                }
                 let bytes = if is_svg {
                     rasterize_svg(&bytes, matches!(key, ImageKey::File(_)), 2048.0, 1.0)?
                 } else {
@@ -334,7 +366,7 @@ impl ImageCache {
             .current
             .get(key)
             .or_else(|| inner.previous.get(key))
-            .map(|s| matches!(&*s.lock().unwrap(), ImageState::Loaded(_)))
+            .map(|s| matches!(&*s.lock().unwrap(), ImageState::Loaded(_) | ImageState::Drawing(_)))
             .unwrap_or(false)
     }
 
@@ -411,14 +443,14 @@ impl ImageCache {
                     }
                 };
 
-                let image_bytes = if is_svg {
-                    let is_lockbook_svg = matches!(key, ImageKey::File(_));
-                    rasterize_svg(&image_bytes, is_lockbook_svg, viewport_width, pixels_per_point)?
-                } else {
-                    image_bytes
-                };
-
-                decode(image_bytes)
+                decode_source(
+                    image_bytes,
+                    is_svg,
+                    matches!(key, ImageKey::File(_)),
+                    &core,
+                    viewport_width,
+                    pixels_per_point,
+                )
             });
 
             #[cfg(target_arch = "wasm32")]
@@ -448,6 +480,75 @@ impl ImageCache {
         }
     }
 
+    /// Drop the cached revision, including previews that depend on a changed
+    /// referenced image. A late worker cannot install into a replacement entry.
+    pub fn invalidate(&self, id: Uuid) {
+        let mut inner = self.inner.lock().unwrap();
+        let mut removed = Vec::new();
+        let Inner { current, previous, .. } = &mut *inner;
+        for map in [current, previous] {
+            map.retain(|key, state| {
+                let state = state.lock().unwrap();
+                let affected = *key == ImageKey::File(id)
+                    || matches!(&*state, ImageState::Drawing(drawing) if drawing.references(id))
+                    // Dependencies are not known until a load completes.
+                    || matches!((key, &*state), (ImageKey::File(_), ImageState::Loading));
+                if affected {
+                    removed.push((
+                        key.clone(),
+                        match &*state {
+                            ImageState::Loaded(texture) => Some(*texture),
+                            _ => None,
+                        },
+                    ));
+                }
+                !affected
+            });
+        }
+        if removed.is_empty() {
+            return;
+        }
+        for (key, texture) in removed {
+            inner.players.remove(&key);
+            if let Some(texture) = texture {
+                self.ctx.tex_manager().write().free(texture);
+            }
+        }
+        self.seq
+            .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+        self.ctx.request_repaint();
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn reload_written(&self) {
+        use lb_rs::service::events::{Event, broadcast::error::TryRecvError};
+        let mut writes = self.writes.lock().unwrap();
+        loop {
+            match writes.try_recv() {
+                Ok(Event::DocumentWritten(id, _)) => self.invalidate(id),
+                Ok(Event::IpcChangesApplied) | Err(TryRecvError::Lagged(_)) => {
+                    let keys: Vec<_> =
+                        {
+                            let inner = self.inner.lock().unwrap();
+                            inner
+                                .current
+                                .keys()
+                                .chain(inner.previous.keys())
+                                .filter_map(|k| {
+                                    if let ImageKey::File(id) = k { Some(*id) } else { None }
+                                })
+                                .collect()
+                        };
+                    for id in keys {
+                        self.invalidate(id);
+                    }
+                }
+                Ok(_) => {}
+                Err(_) => break,
+            }
+        }
+    }
+
     /// Test helper: load `bytes` as `key` on a worker, as a fetch would.
     #[cfg(test)]
     pub fn load_bytes(&self, key: &ImageKey, bytes: Vec<u8>) {
@@ -457,9 +558,18 @@ impl ImageCache {
             .unwrap()
             .current
             .insert(key.clone(), state.clone());
-        let (key, loader) = (key.clone(), self.loader());
+        let (key, loader, core) = (key.clone(), self.loader(), self.core.clone());
         std::thread::spawn(move || {
-            let playback = loader.install(&key, &state, decode(bytes));
+            let is_svg = bytes_look_like_svg(&bytes);
+            let result = decode_source(
+                bytes,
+                is_svg,
+                matches!(key, ImageKey::File(_)),
+                &core,
+                1920.0,
+                loader.ctx.pixels_per_point(),
+            );
+            let playback = loader.install(&key, &state, result);
             drop(loader);
             if let Some(playback) = playback {
                 futures::executor::block_on(play(playback));
@@ -483,9 +593,24 @@ impl Loader {
     fn install(
         &self, key: &ImageKey, state: &Mutex<ImageState>, result: Result<Decoded, String>,
     ) -> Option<Playback> {
+        let mut inner = self.inner.lock().unwrap();
+        if !inner
+            .current
+            .get(key)
+            .or_else(|| inner.previous.get(key))
+            .is_some_and(|entry| std::ptr::eq(entry.as_ref(), state))
+        {
+            return None;
+        }
         let mut playback = None;
         let shown = result.map(|decoded| {
             let (image, rest) = match decoded {
+                Decoded::Drawing(drawing) => {
+                    let size = drawing.bounds.size() * self.ctx.pixels_per_point();
+                    self.persistence
+                        .merge_image_dims(HashMap::from([(key.persisted(), [size.x, size.y])]));
+                    return ImageState::Drawing(drawing);
+                }
                 Decoded::Still(image) => (image, None),
                 Decoded::Animated(first, rest) => (first.image, Some((first.delay, rest))),
             };
@@ -501,17 +626,13 @@ impl Loader {
                 let (tx, frames) = mpsc::channel(1);
                 let starved = Arc::new(AtomicBool::new(false));
                 let player = Player { texture, frames, due: None, delay, starved: starved.clone() };
-                self.inner
-                    .lock()
-                    .unwrap()
-                    .players
-                    .insert(key.clone(), player);
+                inner.players.insert(key.clone(), player);
                 playback = Some(Playback { rest, tx, starved, ctx: self.ctx.clone() });
             }
-            texture
+            ImageState::Loaded(texture)
         });
         *state.lock().unwrap() = match shown {
-            Ok(texture) => ImageState::Loaded(texture),
+            Ok(state) => state,
             Err(err) => ImageState::Failed(err),
         };
         self.seq
@@ -523,8 +644,24 @@ impl Loader {
 
 /// A decoded image: a still, or an animation's first frame and the rest.
 enum Decoded {
+    Drawing(Arc<Drawing>),
     Still(Arc<ColorImage>),
     Animated(Frame, Rest),
+}
+
+fn decode_source(
+    bytes: Vec<u8>, is_svg: bool, is_file: bool, core: &Lb, viewport_width: f32,
+    pixels_per_point: f32,
+) -> Result<Decoded, String> {
+    if is_svg && is_file && Drawing::is_drawing(&bytes) {
+        return Ok(Decoded::Drawing(Arc::new(Drawing::load(&bytes, core)?)));
+    }
+    let bytes = if is_svg {
+        rasterize_svg(&bytes, is_file, viewport_width, pixels_per_point)?
+    } else {
+        bytes
+    };
+    decode(bytes)
 }
 
 /// One frame of an animation, ready to upload.
@@ -780,6 +917,184 @@ mod tests {
     use super::{ImageCache, ImageKey, bytes_look_like_svg, rasterize_svg};
     use crate::file_cache::FileCache;
     use crate::workspace::WsPersistentStore;
+
+    fn drawing_cache() -> ImageCache {
+        ImageCache::new(
+            crate::tab::markdown_editor::test_egui_ctx(),
+            Default::default(),
+            crate::tab::markdown_editor::tests::harness::build_lb(),
+            Arc::new(RwLock::new(FileCache::empty())),
+            WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true),
+        )
+    }
+
+    fn drawing_bytes() -> Vec<u8> {
+        lb_rs::model::svg::buffer::Buffer::new(
+            r##"<svg xmlns="http://www.w3.org/2000/svg">
+            <path d="M-100 -20 L0 -20" stroke="#000000" stroke-width="8" fill="none"/>
+        </svg>"##,
+        )
+        .serialize()
+        .into_bytes()
+    }
+
+    #[test]
+    fn drawing_cache_routes_local_drawings_and_keeps_web_svg_rasterized() {
+        let images = drawing_cache();
+        let local =
+            super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 2.0).unwrap();
+        assert!(matches!(local, super::Decoded::Drawing(_)));
+        let remote =
+            super::decode_source(drawing_bytes(), true, false, &images.core, 1920.0, 2.0).unwrap();
+        assert!(matches!(remote, super::Decoded::Still(_)));
+        let generic = br##"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#000000"/></svg>"##;
+        assert!(matches!(
+            super::decode_source(generic.to_vec(), true, true, &images.core, 1920.0, 2.0).unwrap(),
+            super::Decoded::Still(_)
+        ));
+    }
+
+    #[test]
+    fn drawing_cache_invalidates_revisions_and_rejects_late_workers() {
+        use super::{Decoded, ImageState};
+        let images = drawing_cache();
+        let key = ImageKey::File(Uuid::new_v4());
+        let state = Arc::new(std::sync::Mutex::new(ImageState::Loading));
+        images
+            .inner
+            .lock()
+            .unwrap()
+            .current
+            .insert(key.clone(), state.clone());
+        let result =
+            super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 1.0).unwrap();
+        images.loader().install(&key, &state, Ok(result));
+        assert!(images.is_loaded(&key));
+        assert_eq!(images.dims(&key).unwrap(), egui::vec2(108.0, 8.0));
+        images.ctx.set_pixels_per_point(2.0);
+        let mut frame = images.ctx.run_pass(Default::default(), |_| {});
+        frame.textures_delta.clear();
+        assert_eq!(images.dims(&key).unwrap(), egui::vec2(216.0, 16.0));
+        let ImageKey::File(id) = key else { unreachable!() };
+        let seq = images.seq();
+        images.invalidate(id);
+        assert!(!images.is_loaded(&key));
+        assert!(images.seq() > seq);
+
+        let replacement = Arc::new(std::sync::Mutex::new(ImageState::Loading));
+        images
+            .inner
+            .lock()
+            .unwrap()
+            .current
+            .insert(key.clone(), replacement.clone());
+        let stale = Decoded::Still(Arc::new(egui::ColorImage::filled([2, 2], Color32::RED)));
+        images.loader().install(&key, &state, Ok(stale));
+        assert_eq!(*replacement.lock().unwrap(), ImageState::Loading);
+        assert!(!images.is_loaded(&key));
+        images
+            .loader()
+            .install(&key, &replacement, Err("unreadable image".into()));
+        assert_eq!(*replacement.lock().unwrap(), ImageState::Failed("unreadable image".into()));
+    }
+
+    #[test]
+    fn drawing_cache_renders_both_markdown_embed_syntaxes_in_the_current_theme() {
+        use crate::tab::markdown_editor::{Editor, MdConfig, MdResources};
+        use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
+        use lb_rs::model::{file::File, file_metadata::FileType};
+        let images = drawing_cache();
+        let [root, note, drawing] = [1, 2, 3].map(Uuid::from_u128);
+        let file = |id, name: &str, file_type| File {
+            id,
+            parent: root,
+            name: name.into(),
+            file_type,
+            last_modified: 0,
+            last_modified_by: Default::default(),
+            owner: Default::default(),
+            shares: vec![],
+            size_bytes: 0,
+        };
+        let root_file = file(root, "root", FileType::Folder);
+        *images.files.write().unwrap() = FileCache::from_owned_and_shared(
+            root_file.clone(),
+            [
+                root_file,
+                file(note, "note.md", FileType::Document),
+                file(drawing, "drawing.svg", FileType::Document),
+            ],
+            [],
+        );
+        let key = ImageKey::File(drawing);
+        let state = Arc::new(std::sync::Mutex::new(super::ImageState::Loading));
+        images
+            .inner
+            .lock()
+            .unwrap()
+            .current
+            .insert(key.clone(), state.clone());
+        let result =
+            super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 1.0).unwrap();
+        images.loader().install(&key, &state, Ok(result));
+        let mut editor = Editor::new(
+            "![drawing](drawing.svg)\n\n![[drawing.svg]]\n\nend\n",
+            note,
+            None,
+            MdResources {
+                ctx: images.ctx.clone(),
+                core: images.core.clone(),
+                persistence: images.persistence.clone(),
+                previews: crate::link_preview::LinkPreviews::new(
+                    images.ctx.clone(),
+                    Default::default(),
+                    images.persistence.clone(),
+                ),
+                link_resolver: Box::new(()),
+                embeds: Box::new(crate::resolvers::image_embed::ImageEmbedResolver::new(
+                    images.clone(),
+                    note,
+                )),
+                files: images.files.clone(),
+            },
+            MdConfig { readonly: true, ext: "md".into() },
+        );
+        for dark in [false, true, false] {
+            images
+                .ctx
+                .set_lb_theme(Theme::default(if dark { Mode::Dark } else { Mode::Light }));
+            for _ in 0..2 {
+                let mut output = images.ctx.run_pass(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(800.0, 600.0),
+                        )),
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        images.begin_frame();
+                        editor.surrender_focus(ctx);
+                        ctx.root_ui(|ui| {
+                            editor.show(ui);
+                        });
+                        images.end_frame();
+                    },
+                );
+                let ink = if dark { Color32::WHITE } else { Color32::BLACK };
+                let meshes = output
+                    .shapes
+                    .iter()
+                    .filter(|s| {
+                        matches!(&s.shape, egui::Shape::Mesh(mesh)
+                    if mesh.vertices.first().is_some_and(|v| v.color == ink))
+                    })
+                    .count();
+                output.textures_delta.clear();
+                assert_eq!(meshes, 2, "both syntaxes must render current theme, dark={dark}");
+            }
+        }
+    }
 
     /// A 4×4 gif of solid frames, each with its delay in centiseconds.
     fn solid_gif(frames: &[(Color32, u16)], repeat: Option<gif::Repeat>) -> Vec<u8> {
