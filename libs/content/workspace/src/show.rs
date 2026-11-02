@@ -50,6 +50,11 @@ impl Workspace {
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();
+        let canvas_ctx = self.ctx.clone();
+        crate::tab::svg_editor::context_menu::process_host_results(
+            &canvas_ctx,
+            self.current_tab_svg_mut(),
+        );
         self.process_clip_events();
         self.apply_pending_reveal();
 

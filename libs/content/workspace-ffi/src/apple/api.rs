@@ -537,13 +537,17 @@ pub unsafe extern "C" fn canvas_send_content(
     obj: *mut c_void, data: *const u8, len: usize, is_svg: bool,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    if data.is_null() {
-        return;
-    }
-    let bytes = unsafe { std::slice::from_raw_parts(data, len) }.to_vec();
+    let bytes = if len == 0 {
+        Vec::new()
+    } else {
+        if data.is_null() {
+            return;
+        }
+        unsafe { std::slice::from_raw_parts(data, len) }.to_vec()
+    };
     let content = if is_svg {
-        let Ok(text) = String::from_utf8(bytes) else { return };
-        workspace_rs::tab::CanvasPasteContent::Svg(text)
+        // Invalid SVG text still completes the host operation as a cancellation.
+        workspace_rs::tab::CanvasPasteContent::Svg(String::from_utf8(bytes).unwrap_or_default())
     } else {
         workspace_rs::tab::CanvasPasteContent::Image(bytes)
     };

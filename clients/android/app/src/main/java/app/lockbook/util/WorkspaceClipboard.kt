@@ -16,9 +16,23 @@ object WorkspaceClipboard {
     ): Boolean {
         if (!view.canForwardTouches()) return false
         val handle = WorkspaceView.wgpuObj
+
+        fun cancelCanvas() {
+            if (canvas && view.canForwardTouches()) {
+                Workspace.canvasSendContent(handle, byteArrayOf(), false)
+                view.invalidate()
+            }
+        }
         val clipboard = view.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = clipboard.primaryClip ?: return false
-        if (clip.itemCount == 0) return false
+        val clip =
+            clipboard.primaryClip ?: run {
+                cancelCanvas()
+                return false
+            }
+        if (clip.itemCount == 0) {
+            cancelCanvas()
+            return false
+        }
         val item = clip.getItemAt(0)
 
         fun targetIsCurrent(): Boolean = view.isAttachedToWindow && view.canForwardTouches() && WorkspaceView.wgpuObj == handle
@@ -56,6 +70,7 @@ object WorkspaceClipboard {
                 } catch (error: Exception) {
                     withContext(Dispatchers.Main) {
                         if (targetIsCurrent()) {
+                            cancelCanvas()
                             val message =
                                 if (error is AttachmentTooLargeException) {
                                     "Files larger than 25 MiB cannot be imported"
@@ -80,6 +95,7 @@ object WorkspaceClipboard {
             }
             return true
         }
+        cancelCanvas()
         Toast.makeText(view.context, "Clipboard content not supported", Toast.LENGTH_SHORT).show()
         return false
     }

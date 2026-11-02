@@ -16,6 +16,7 @@ use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::clip::duplicate_elements;
 use crate::tab::svg_editor::element::BoundedElement;
 use crate::tab::svg_editor::history::{self, TransformElement};
+use crate::tab::svg_editor::popover::{self, ActionLabel};
 use crate::tab::svg_editor::toolbar::{
     ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
@@ -248,6 +249,16 @@ impl InputControllerTool for Selection {
     ) {
         match event {
             SelectionEvent::Cancel => {
+                for (id, opacity) in self.selection_opacity_snapshot.drain() {
+                    if let Some(element) = selection_ctx.buffer.elements.get_mut(&id) {
+                        element.set_opacity(opacity);
+                    }
+                }
+                for (id, stroke) in self.selection_stroke_snashot.drain() {
+                    if let Some(element) = selection_ctx.buffer.elements.get_mut(&id) {
+                        element.set_stroke(stroke);
+                    }
+                }
                 self.current_op = SelectionOperation::Idle;
                 self.laso_rect = None;
                 // A native menu or a viewport gesture took over this drag.
@@ -575,6 +586,11 @@ pub(crate) fn is_selectable(element: &Element) -> bool {
 }
 
 impl Selection {
+    pub fn dismiss_popover(&mut self) {
+        self.show_selection_popover = false;
+        self.layout.popover = None;
+    }
+
     pub fn select_at(&mut self, pos: egui::Pos2, buffer: &mut Buffer) -> bool {
         let hit = buffer.elements.iter().find_map(|(&id, el)| {
             if !is_selectable(el) {
@@ -585,9 +601,13 @@ impl Selection {
                     if p.visibility == resvg::usvg::Visibility::Visible && p.opacity > 0. =>
                 {
                     pointer_intersects_element(el, pos, None, 10.)
-                        || (p.fill.is_some()
-                            && p.data
-                                .contains_point(DVec2::new(pos.x as f64, pos.y as f64)))
+                        || (p.fill.is_some() && {
+                            // SVG fills implicitly close open subpaths. The imported
+                            // editable path may omit that closing segment.
+                            let mut fill = p.data.clone();
+                            fill.set_closed(true);
+                            fill.contains_point(DVec2::new(pos.x as f64, pos.y as f64))
+                        })
                 }
                 Element::Image(image)
                     if image.visibility == resvg::usvg::Visibility::Visible
@@ -743,20 +763,7 @@ impl Selection {
             return;
         }
 
-        ui.visuals_mut().window_corner_radius = egui::CornerRadius::same(7);
-        ui.style_mut()
-            .text_styles
-            .insert(egui::TextStyle::Body, egui::FontId::new(15.0, egui::FontFamily::Proportional));
-        ui.style_mut().text_styles.insert(
-            egui::TextStyle::Button,
-            egui::FontId::new(15.0, egui::FontFamily::Proportional),
-        );
-        ui.visuals_mut().window_shadow = egui::Shadow::NONE;
-
-        if ui.visuals().dark_mode {
-            ui.visuals_mut().window_stroke = egui::Stroke::NONE;
-            ui.visuals_mut().window_fill = egui::Color32::from_rgb(42, 42, 42);
-        }
+        popover::apply_style(ui);
 
         if let SelectionOperation::LasoBuild(_) = self.current_op {
             return;
@@ -796,10 +803,7 @@ impl Selection {
             }),
             |ui| {
                 let res = ui.scope_builder(UiBuilder::new().max_rect(tooltip_rect), |ui| {
-                    ui.style_mut().spacing.window_margin = egui::Margin::symmetric(5, 0);
-
-                    egui::Frame::window(ui.style())
-                        .show(ui, |ui| ui.horizontal(|ui| self.show_tooltip(ui, selection_ctx)))
+                    popover::action_row(ui, |ui| self.show_tooltip(ui, selection_ctx))
                 });
                 let show_popover_toggled = res.inner.inner.inner;
 
@@ -827,67 +831,35 @@ impl Selection {
     }
 
     fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) -> bool {
-        let btn_margin = egui::vec2(5.0, 2.0);
-        if ui.visuals().dark_mode {
-            ui.visuals_mut().window_stroke =
-                egui::Stroke { width: 1.5, color: egui::Color32::from_rgb(240, 240, 240) };
+        #[derive(Clone, Copy)]
+        enum Action {
+            Copy,
+            Delete,
+            More,
+            Back,
+        }
+
+        let actions = if self.show_selection_popover {
+            vec![(Action::Back, ActionLabel::ChevronLeft, true)]
         } else {
-            ui.visuals_mut().widgets.noninteractive.bg_stroke = ui.visuals().window_stroke;
-            ui.visuals_mut().widgets.noninteractive.bg_stroke.width = 1.0;
-        }
-
-        // without this the buttons will be wrapped to a single letter
-        ui.set_max_width(f32::INFINITY);
-
-        let chevron_size = 13.0;
-
-        if self.show_selection_popover {
-            if Button::default()
-                .icon(&Icon::CHEVRON_LEFT.size(chevron_size))
-                .margin(egui::vec2(0.0, btn_margin.y))
-                .show(ui)
-                .clicked()
-            {
-                self.show_selection_popover = !self.show_selection_popover;
+            vec![
+                (Action::Copy, ActionLabel::Text("Copy"), true),
+                (Action::Delete, ActionLabel::Text("Delete"), !selection_ctx.read_only),
+                (Action::More, ActionLabel::ChevronRight, true),
+            ]
+        };
+        match popover::action_buttons(ui, actions) {
+            Some(Action::Copy) => {
+                self.copy_selection(ui, selection_ctx);
+                self.clear_selection_els();
             }
-
-            return false;
-        }
-
-        if Button::default()
-            .text("Copy")
-            .margin(btn_margin)
-            .show(ui)
-            .clicked()
-        {
-            self.copy_selection(ui, selection_ctx);
-            self.clear_selection_els();
-        }
-
-        ui.separator();
-
-        if ui
-            .add_enabled_ui(!selection_ctx.read_only, |ui| {
-                Button::default()
-                    .text("Delete")
-                    .margin(btn_margin)
-                    .show(ui)
-                    .clicked()
-            })
-            .inner
-        {
-            self.delete_selection(selection_ctx);
-        }
-
-        ui.separator();
-
-        if Button::default()
-            .icon(&Icon::CHEVRON_RIGHT.size(chevron_size))
-            .show(ui)
-            .clicked()
-        {
-            self.show_selection_popover = !self.show_selection_popover;
-            return true;
+            Some(Action::Delete) => self.delete_selection(selection_ctx),
+            Some(Action::More) => {
+                self.show_selection_popover = true;
+                return true;
+            }
+            Some(Action::Back) => self.show_selection_popover = false,
+            None => {}
         }
         false
     }

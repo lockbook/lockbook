@@ -312,28 +312,37 @@ impl AppState {
             &self.lb.renderer.context,
         ) {
             8 => {
-                self.handle_paste();
+                self.handle_canvas_paste();
                 self.lb.renderer.context.request_repaint();
             }
             16 => {
                 let ctx = self.lb.renderer.context.clone();
                 std::thread::spawn(move || {
-                    let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Images", &["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"])
-                        .pick_file()
-                    else {
-                        return;
-                    };
-                    let Ok(bytes) = std::fs::read(&path) else { return };
-                    let content = if path
-                        .extension()
-                        .is_some_and(|e| e.eq_ignore_ascii_case("svg"))
-                    {
-                        let Ok(text) = String::from_utf8(bytes) else { return };
-                        workspace_rs::tab::CanvasPasteContent::Svg(text)
-                    } else {
-                        workspace_rs::tab::CanvasPasteContent::Image(bytes)
-                    };
+                    let content = (|| {
+                        let path = rfd::FileDialog::new()
+                            .add_filter(
+                                "Images",
+                                &["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"],
+                            )
+                            .pick_file()?;
+                        if std::fs::metadata(&path).ok()?.len() > 25 * 1024 * 1024 {
+                            return None;
+                        }
+                        let bytes = std::fs::read(&path).ok()?;
+                        Some(
+                            if path
+                                .extension()
+                                .is_some_and(|e| e.eq_ignore_ascii_case("svg"))
+                            {
+                                workspace_rs::tab::CanvasPasteContent::Svg(
+                                    String::from_utf8(bytes).ok()?,
+                                )
+                            } else {
+                                workspace_rs::tab::CanvasPasteContent::Image(bytes)
+                            },
+                        )
+                    })()
+                    .unwrap_or_else(|| workspace_rs::tab::CanvasPasteContent::Image(vec![]));
                     ctx.push_event(workspace_rs::Event::CanvasContent(content));
                     ctx.request_repaint();
                 });
@@ -429,7 +438,7 @@ impl AppState {
         }
     }
 
-    fn handle_image_paste(&mut self) -> bool {
+    fn clipboard_images(&mut self) -> Option<Vec<ClipContent>> {
         if let Ok(paths) = self.clipboard.get().file_list() {
             let images: Vec<ClipContent> = paths
                 .into_iter()
@@ -440,38 +449,55 @@ impl AppState {
                 })
                 .collect();
             if !images.is_empty() {
-                self.lb
-                    .renderer
-                    .context
-                    .push_event(workspace_rs::Event::Paste {
-                        content: images,
-                        position: self.last_pointer_pos,
-                    });
-                return true;
+                return Some(images);
             }
         }
 
         let Ok(img) = self.clipboard.get_image() else {
-            return false;
+            return None;
         };
         let Some(rgba) =
             image::RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.into_owned())
         else {
-            return false;
+            return None;
         };
         let mut png_bytes = Vec::new();
         if rgba
             .write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
             .is_err()
         {
-            return false;
+            return None;
         }
-        let content = vec![ClipContent::Image(png_bytes)];
+        Some(vec![ClipContent::Image(png_bytes)])
+    }
+
+    fn handle_image_paste(&mut self) -> bool {
+        let Some(content) = self.clipboard_images() else { return false };
         self.lb
             .renderer
             .context
             .push_event(workspace_rs::Event::Paste { content, position: self.last_pointer_pos });
         true
+    }
+
+    fn handle_canvas_paste(&mut self) {
+        use workspace_rs::tab::CanvasPasteContent;
+        let image = self
+            .clipboard_images()
+            .and_then(|images| images.into_iter().next())
+            .and_then(|image| match image {
+                ClipContent::Image(data) | ClipContent::NamedImage { data, .. } => {
+                    Some(CanvasPasteContent::Image(data))
+                }
+                _ => None,
+            });
+        let content = image
+            .or_else(|| self.clipboard.get_text().ok().map(CanvasPasteContent::Svg))
+            .unwrap_or_else(|| CanvasPasteContent::Image(vec![]));
+        self.lb
+            .renderer
+            .context
+            .push_event(workspace_rs::Event::CanvasContent(content));
     }
 
     fn handle_paste(&mut self) {

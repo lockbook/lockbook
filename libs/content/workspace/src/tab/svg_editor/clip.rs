@@ -20,17 +20,6 @@ impl SVGEditor {
         if self.read_only {
             return;
         }
-        let pending_position = if ui
-            .ctx()
-            .read_events()
-            .iter()
-            .any(|e| matches!(e, crate::Event::Paste { .. }))
-            || ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Paste(_))))
-        {
-            self.pending_paste_position()
-        } else {
-            None
-        };
         let mut svg_pastes = Vec::new();
         for custom_event in ui.ctx().read_events() {
             let (content, position) = match custom_event {
@@ -43,7 +32,7 @@ impl SVGEditor {
                     position,
                 } => (vec![ClipContent::Image(data)], Some(position)),
                 crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
-                    (content, pending_position)
+                    (content, None)
                 }
                 _ => continue,
             };
@@ -87,7 +76,7 @@ impl SVGEditor {
                     // The SVG parser also accepts XML declarations, comments and
                     // leading whitespace, as commonly provided by other apps.
                     if payload.contains("<svg") {
-                        svg_pastes.push((payload.clone(), pending_position));
+                        svg_pastes.push((payload.clone(), None));
                     }
                 }
             }

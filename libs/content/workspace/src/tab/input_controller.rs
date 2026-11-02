@@ -18,6 +18,7 @@ pub struct InputController {
     touches: Vec<TouchInfo>,
     context_press: Option<(TouchId, Pos2, Instant)>,
     context_touch: Option<TouchId>,
+    suppress_mouse: bool,
     buttons: HashMap<MouseProps, (Instant, egui::Pos2)>, // track the start pos
     tool_running: Option<Instant>,
     mouse_hover_pos: Option<egui::Pos2>,
@@ -210,6 +211,7 @@ impl InputController {
             touches: Vec::new(),
             context_press: None,
             context_touch: None,
+            suppress_mouse: false,
             buttons: HashMap::new(),
             tool_running: None,
             viewport_changing: None,
@@ -394,6 +396,12 @@ impl InputController {
 
         match *event {
             egui::Event::PointerButton { pos, button, pressed, modifiers } => {
+                if self.suppress_mouse && button == egui::PointerButton::Primary {
+                    if !pressed {
+                        self.suppress_mouse = false;
+                    }
+                    return None;
+                }
                 if !self.touches.is_empty() || self.is_touch_frame {
                     return None;
                 }
@@ -417,13 +425,16 @@ impl InputController {
 
                         return Some(InputControllerEvent::ToolStart(payload));
                     }
-                } else if button == *run_button {
-                    self.tool_running = None;
+                } else if button == *run_button && !pressed && self.tool_running.take().is_some() {
+                    self.buttons.remove(&button);
                     return Some(InputControllerEvent::ToolEnd(payload));
                 }
                 None
             }
             egui::Event::PointerMoved(pos) => {
+                if self.suppress_mouse {
+                    return None;
+                }
                 if !self.touches.is_empty() || self.is_touch_frame {
                     return None;
                 }
@@ -517,21 +528,12 @@ impl InputController {
                 Some(ViewportChange::new(self, event, false))
             }
             egui::Event::WindowFocused(gained_focus) => {
-                if !gained_focus {
-                    self.context_press = None;
-                }
-                if !self.touches.is_empty() || self.is_touch_frame || gained_focus {
+                if gained_focus {
                     return None;
                 }
-
-                // we've lost window focus
-                if self.tool_running.is_some() {
-                    self.reset_state();
-                    return Some(InputControllerEvent::ToolCancel);
-                }
-
-                self.reset_state();
-                None
+                let tool_was_running = self.tool_running.is_some();
+                self.reset();
+                tool_was_running.then_some(InputControllerEvent::ToolCancel)
             }
             _ => None,
         }
@@ -542,6 +544,24 @@ impl InputController {
             self.tool_hover_pos = (pos, instant);
         } else {
             self.tool_hover_pos.0 = egui::pos2(f32::NEG_INFINITY, f32::NEG_INFINITY);
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.reset_state();
+        self.suppress_mouse = false;
+    }
+
+    /// Consume the entire dismissal gesture, including its later release.
+    pub fn suppress_context_press(&mut self, events: &[egui::Event]) {
+        self.reset();
+        if let Some(id) = events.iter().find_map(|e| match e {
+            egui::Event::Touch { id, phase: TouchPhase::Start, .. } => Some(*id),
+            _ => None,
+        }) {
+            self.context_touch = Some(id);
+        } else {
+            self.suppress_mouse = true;
         }
     }
 
@@ -1326,6 +1346,123 @@ mod tests {
             start_touch(2, pos, force).process(&mut controller, &LayoutContext::default()),
             vec![InputControllerEvent::ToolStart(ToolPayload { id: Some(TouchId(2)), ..payload })],
         );
+    }
+
+    #[test]
+    fn dismissed_mouse_and_touch_streams_do_not_start_or_end_tools() {
+        let mut controller = InputController::new(InputControllerConfig::default());
+        let pos = egui::pos2(30., 30.);
+        let events = vec![primary_button(pos, true)];
+        controller.suppress_context_press(&events);
+        assert!(
+            events
+                .process(&mut controller, &LayoutContext::default())
+                .is_empty()
+        );
+        assert!(
+            vec![egui::Event::PointerMoved(pos), primary_button(pos, false)]
+                .process(&mut controller, &LayoutContext::default())
+                .is_empty()
+        );
+        assert_eq!(
+            vec![primary_button(pos, true)]
+                .process(&mut controller, &LayoutContext::default())
+                .len(),
+            1
+        );
+        let events = start_touch(4, pos, None);
+        controller.suppress_context_press(&events);
+        assert!(
+            events
+                .process(&mut controller, &LayoutContext::default())
+                .is_empty()
+        );
+        assert!(
+            end_touch(4, pos, None)
+                .process(&mut controller, &LayoutContext::default())
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn losing_focus_clears_dismissal_and_touch_gestures() {
+        let mut controller = InputController::new(InputControllerConfig::default());
+        let layout = LayoutContext::default();
+        let pos = egui::pos2(30., 30.);
+        controller.suppress_context_press(&[primary_button(pos, true)]);
+        vec![egui::Event::WindowFocused(false)].process(&mut controller, &layout);
+        assert_eq!(
+            vec![primary_button(pos, true)]
+                .process(&mut controller, &layout)
+                .len(),
+            1
+        );
+        controller.reset();
+        start_touch(1, pos, None).process(&mut controller, &layout);
+        assert_eq!(
+            vec![egui::Event::WindowFocused(false)].process(&mut controller, &layout),
+            vec![InputControllerEvent::ToolCancel]
+        );
+        assert!(controller.touches.is_empty() && controller.context_press.is_none());
+        assert_eq!(
+            start_touch(2, pos, None)
+                .process(&mut controller, &layout)
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn long_press_requests_context_once_then_consumes_touch_release() {
+        let mut controller = InputController::new(InputControllerConfig::default());
+        let layout = LayoutContext::default();
+        let pos = egui::pos2(30., 30.);
+        start_touch(1, pos, None).process(&mut controller, &layout);
+        controller.context_press = Some((TouchId(1), pos, Instant::now() - Duration::from_secs(1)));
+        let ctx = egui::Context::default();
+        ctx.begin_pass(egui::RawInput::default());
+        let mut result = Vec::new();
+        ctx.root_ui(|root| {
+            egui::CentralPanel::default().show(root, |ui| result = controller.process(ui, &layout));
+        });
+        ctx.end_pass().textures_delta.clear();
+        assert_eq!(result, vec![InputControllerEvent::ContextMenuRequested(pos)]);
+        assert!(
+            end_touch(1, pos, None)
+                .process(&mut controller, &layout)
+                .is_empty()
+        );
+        assert!(controller.context_press.is_none());
+        assert_eq!(
+            start_touch(2, pos, None)
+                .process(&mut controller, &layout)
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn stylus_movement_multitouch_and_overlays_cannot_trigger_long_press() {
+        let mut controller = InputController::new(InputControllerConfig::default());
+        let pos = egui::pos2(30., 30.);
+        let layout = LayoutContext::default();
+        start_touch(1, pos, Some(0.5)).process(&mut controller, &layout);
+        assert!(controller.context_press.is_none());
+        controller.reset();
+        start_touch(2, pos, None).process(&mut controller, &layout);
+        move_touch(2, pos + egui::vec2(20., 0.), None).process(&mut controller, &layout);
+        assert!(controller.context_press.is_none());
+        controller.reset();
+        start_touch(3, pos, None).process(&mut controller, &layout);
+        start_touch(4, pos, None).process(&mut controller, &layout);
+        assert!(controller.context_press.is_none());
+        controller.reset();
+        let overlay = LayoutContext::new(
+            egui::Rect::EVERYTHING,
+            vec![egui::Rect::from_center_size(pos, egui::vec2(50., 50.))],
+        );
+        start_touch(5, pos, None).process(&mut controller, &overlay);
+        assert!(controller.context_press.is_none());
     }
 
     #[test]

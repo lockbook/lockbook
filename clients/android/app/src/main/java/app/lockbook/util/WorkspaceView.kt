@@ -61,6 +61,7 @@ class WorkspaceView(
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
+    private var canvasMenuCallback: CanvasContextMenu? = null
     private var magnifier: Magnifier? = null
 
     private var redrawTask: Runnable =
@@ -450,13 +451,19 @@ class WorkspaceView(
             16 -> post { onCanvasImportImage?.invoke() }
         }
 
-        if (response.canvasActions != 0) {
+        if (response.canvasActions == Int.MIN_VALUE) {
+            canvasMenuCallback?.dismissFromRust()
+        } else if (response.canvasActions != 0) {
+            canvasMenuCallback?.dismissFromRust()
             contextMenu?.finish()
-            contextMenu =
-                startActionMode(
-                    CanvasContextMenu(response.canvasActions, response.editMenuX, response.editMenuY),
-                    ActionMode.TYPE_FLOATING,
-                )
+            val callback = CanvasContextMenu(response.canvasActions, response.editMenuX, response.editMenuY)
+            canvasMenuCallback = callback
+            contextMenu = startActionMode(callback, ActionMode.TYPE_FLOATING)
+            if (contextMenu == null) {
+                canvasMenuCallback = null
+                Workspace.canvasContextAction(wgpuObj, 0)
+                invalidate()
+            }
         } else if (
             response.hasEditMenu &&
             response.editMenuForImage &&
@@ -854,6 +861,13 @@ class WorkspaceView(
         private val x: Float,
         private val y: Float,
     ) : ActionMode.Callback2() {
+        private var notifyDismissal = true
+
+        fun dismissFromRust() {
+            notifyDismissal = false
+            contextMenu?.finish()
+        }
+
         override fun onCreateActionMode(
             mode: ActionMode,
             menu: Menu,
@@ -886,6 +900,7 @@ class WorkspaceView(
             mode: ActionMode,
             item: MenuItem,
         ): Boolean {
+            notifyDismissal = false
             mode.finish()
             Workspace.canvasContextAction(wgpuObj, item.itemId)
             invalidate()
@@ -904,7 +919,14 @@ class WorkspaceView(
         }
 
         override fun onDestroyActionMode(mode: ActionMode) {
-            contextMenu = null
+            if (canvasMenuCallback === this) {
+                contextMenu = null
+                canvasMenuCallback = null
+            }
+            if (notifyDismissal && canForwardTouches()) {
+                Workspace.canvasContextAction(wgpuObj, 0)
+                invalidate()
+            }
         }
     }
 

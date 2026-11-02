@@ -406,6 +406,27 @@
             return true
         }
 
+        private func sendCanvasContent(_ data: Data, isSVG: Bool) {
+            data.withUnsafeBytes { bytes in
+                canvas_send_content(wsHandle, bytes.bindMemory(to: UInt8.self).baseAddress,
+                                    UInt(data.count), isSVG)
+            }
+            setNeedsDisplay(frame)
+        }
+
+        private func pasteCanvas() {
+            let pasteboard = NSPasteboard.general
+            if let svg = pasteboard.data(forType: NSPasteboard.PasteboardType(UTType.svg.identifier)) {
+                sendCanvasContent(svg, isSVG: true)
+            } else if let png = pasteboard.data(forType: .png) {
+                sendCanvasContent(png, isSVG: false)
+            } else if let text = pasteboard.string(forType: .string), let data = text.data(using: .utf8) {
+                sendCanvasContent(data, isSVG: true)
+            } else {
+                sendCanvasContent(Data(), isSVG: false)
+            }
+        }
+
         func sendImage(img: Data, isPaste: Bool) {
             let imgPtr = img.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
                 return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
@@ -600,20 +621,19 @@
 
             switch canvas_take_command(wsHandle) {
             case 8:
-                importFromPasteboard(NSPasteboard.general, isPaste: true)
-                setNeedsDisplay(frame)
+                pasteCanvas()
             case 16:
                 let panel = NSOpenPanel()
                 panel.allowedContentTypes = [.image]
                 panel.allowsMultipleSelection = false
                 panel.begin { [weak self] response in
-                    guard response == .OK, let self, let url = panel.url,
-                          let data = try? Data(contentsOf: url) else { return }
-                    data.withUnsafeBytes { bytes in
-                        canvas_send_content(self.wsHandle, bytes.bindMemory(to: UInt8.self).baseAddress,
-                                            UInt(data.count), url.pathExtension.lowercased() == "svg")
+                    guard let self else { return }
+                    guard response == .OK, let url = panel.url,
+                          let data = try? Data(contentsOf: url) else {
+                        self.sendCanvasContent(Data(), isSVG: false)
+                        return
                     }
-                    self.setNeedsDisplay(self.frame)
+                    self.sendCanvasContent(data, isSVG: url.pathExtension.lowercased() == "svg")
                 }
             default: break
             }

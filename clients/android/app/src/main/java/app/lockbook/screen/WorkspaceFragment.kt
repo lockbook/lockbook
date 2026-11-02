@@ -118,10 +118,14 @@ class WorkspaceFragment : Fragment() {
     private val canvasImagePicker =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             val editor = workspaceView
+            if (uri == null && editor?.canForwardTouches() == true) {
+                Workspace.canvasSendContent(WorkspaceView.wgpuObj, byteArrayOf(), false)
+                editor.invalidate()
+            }
             if (uri != null && editor != null) {
                 editor.launchIo {
                     try {
-                        val bytes = readAttachmentBytes(editor.context, uri) ?: return@launchIo
+                        val bytes = readAttachmentBytes(editor.context, uri) ?: error("Could not read image")
                         val svg = editor.context.contentResolver.getType(uri) == "image/svg+xml"
                         withContext(Dispatchers.Main) {
                             if (editor.canForwardTouches()) {
@@ -133,6 +137,10 @@ class WorkspaceFragment : Fragment() {
                         throw error
                     } catch (error: Exception) {
                         withContext(Dispatchers.Main) {
+                            if (editor.canForwardTouches()) {
+                                Workspace.canvasSendContent(WorkspaceView.wgpuObj, byteArrayOf(), false)
+                                editor.invalidate()
+                            }
                             Toast.makeText(editor.context, "Could not import image", Toast.LENGTH_SHORT).show()
                         }
                     }

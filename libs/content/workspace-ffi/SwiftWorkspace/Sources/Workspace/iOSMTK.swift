@@ -34,6 +34,8 @@
         var menuInteraction: UIEditMenuInteraction?
         var editMenuForImage = false
         var canvasActions: UInt32 = 0
+        var canvasConfiguration: UIEditMenuConfiguration?
+        private var canvasImagePicker: UIDocumentPickerViewController?
 
         init(mtkView: iOSMTK) {
             self.mtkView = mtkView
@@ -126,20 +128,46 @@
         func presentImageEditMenu(at point: CGPoint) {
             guard let menuInteraction else { return }
 
-            canvasActions = 0
+            dismissCanvasMenu()
             editMenuForImage = true
             let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: point)
             menuInteraction.presentEditMenu(with: config)
         }
 
         func presentCanvasMenu(at point: CGPoint, actions: UInt32) {
+            dismissCanvasMenu()
             canvasActions = actions
             editMenuForImage = false
-            menuInteraction?.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
+            let configuration = UIEditMenuConfiguration(identifier: nil, sourcePoint: point)
+            canvasConfiguration = configuration
+            menuInteraction?.presentEditMenu(with: configuration)
+        }
+
+        func dismissCanvasMenu(notifyRust: Bool = false) {
+            let wasCanvas = canvasActions != 0
+            canvasActions = 0
+            canvasConfiguration = nil
+            if wasCanvas { menuInteraction?.dismissMenu() }
+            if wasCanvas && notifyRust {
+                canvas_context_action(wsHandle, 0)
+                mtkView.setNeedsDisplay(mtkView.frame)
+            }
+        }
+
+        override public func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window == nil {
+                dismissCanvasMenu(notifyRust: true)
+                if let picker = canvasImagePicker {
+                    canvasImagePicker = nil
+                    picker.dismiss(animated: false)
+                    sendCanvasContent(Data(), isSVG: false)
+                }
+            }
         }
 
         func canvasAction(_ action: UInt32) {
-            menuInteraction?.dismissMenu()
+            dismissCanvasMenu()
             canvas_context_action(wsHandle, action)
             mtkView.setNeedsDisplay(mtkView.frame)
         }
@@ -159,27 +187,41 @@
                 sendCanvasContent(data, isSVG: false)
             } else if let text = pasteboard.string, let data = text.data(using: .utf8) {
                 sendCanvasContent(data, isSVG: true)
+            } else {
+                sendCanvasContent(Data(), isSVG: false)
             }
         }
 
         func importCanvasImage() {
             let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.image], asCopy: true)
             picker.delegate = self
+            canvasImagePicker = picker
             var presenter = window?.rootViewController
             while let presented = presenter?.presentedViewController { presenter = presented }
-            presenter?.present(picker, animated: true)
+            if let presenter { presenter.present(picker, animated: true) }
+            else { canvasImagePicker = nil; sendCanvasContent(Data(), isSVG: false) }
         }
 
         public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            guard let url = urls.first else { return }
+            guard canvasImagePicker === controller else { return }
+            guard let url = urls.first else { documentPickerWasCancelled(controller); return }
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                guard let data = try? Data(contentsOf: url, options: .mappedIfSafe), data.count <= 25 * 1024 * 1024 else { return }
+                let imported = try? Data(contentsOf: url, options: .mappedIfSafe)
+                let data = imported.flatMap { $0.count <= 25 * 1024 * 1024 ? $0 : nil } ?? Data()
                 DispatchQueue.main.async { [weak self] in
-                    self?.sendCanvasContent(data, isSVG: url.pathExtension.lowercased() == "svg")
+                    guard let self, self.canvasImagePicker === controller else { return }
+                    self.canvasImagePicker = nil
+                    self.sendCanvasContent(data, isSVG: url.pathExtension.lowercased() == "svg")
                 }
             }
+        }
+
+        public func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            guard canvasImagePicker === controller else { return }
+            canvasImagePicker = nil
+            sendCanvasContent(Data(), isSVG: false)
         }
 
         override public func canPerformAction(_ action: Selector, withSender _: Any?) -> Bool {
@@ -348,6 +390,16 @@
         weak var view: SvgView?
 
         public func editMenuInteraction(
+            _ interaction: UIEditMenuInteraction, willDismissMenuFor configuration: UIEditMenuConfiguration,
+            animator: any UIEditMenuInteractionAnimating
+        ) {
+            animator.addCompletion { [weak view] in
+                guard let view, view.canvasConfiguration === configuration else { return }
+                view.dismissCanvasMenu(notifyRust: true)
+            }
+        }
+
+        public func editMenuInteraction(
             _: UIEditMenuInteraction, menuFor _: UIEditMenuConfiguration,
             suggestedActions: [UIMenuElement]
         ) -> UIMenu? {
@@ -505,6 +557,7 @@
 
             if currentTab != mtkView.workspaceOutput!.currentTab {
                 if let currentWrapper = mtkView.currentWrapper as? SvgView {
+                    currentWrapper.dismissCanvasMenu()
                     currentWrapper.applyPanTouchRequirements(for: currentTab)
                 }
 
@@ -515,7 +568,9 @@
             }
 
             if let svg = mtkView.currentWrapper as? SvgView {
-                if output.canvas_actions != 0 {
+                if output.canvas_actions == (1 << 31) {
+                    svg.dismissCanvasMenu()
+                } else if output.canvas_actions != 0 {
                     svg.presentCanvasMenu(
                         at: CGPoint(x: output.context_menu_x, y: output.context_menu_y),
                         actions: output.canvas_actions

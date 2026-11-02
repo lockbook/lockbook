@@ -501,6 +501,14 @@ impl Workspace {
     }
 
     fn set_current_tab(&mut self, tab_id: Option<SessionId>) {
+        if self.current_tab != tab_id {
+            let ctx = self.ctx.clone();
+            if let Some(svg) = self.current_tab_svg_mut() {
+                svg.deactivate_context_menu(&ctx);
+            }
+            self.ctx
+                .pop_events_where(&mut |e| matches!(e, crate::Event::CanvasAction(_)));
+        }
         if let Some(old_id) = self.current_tab.take() {
             if Some(old_id) != tab_id {
                 self.activation_history.retain(|id| *id != old_id);
@@ -1078,7 +1086,6 @@ impl Workspace {
                     Some(self.tab_strip[new_idx].id)
                 }
             });
-            self.current_tab = None;
             self.set_current_tab(next);
         }
     }

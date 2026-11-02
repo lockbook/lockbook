@@ -3,6 +3,7 @@ mod clip;
 pub mod context_menu;
 mod element;
 mod history;
+mod popover;
 mod viewport;
 
 mod renderer;
@@ -310,9 +311,11 @@ impl SVGEditor {
 
     fn process_events(&mut self, ui: &mut egui::Ui) {
         if !ui.is_enabled() {
+            self.suspend_context_menu(ui);
             return;
         }
 
+        self.handle_context_menu_input(ui);
         self.process_context_actions(ui);
         if !self.read_only {
             if ui.input_mut(|r| {
@@ -385,6 +388,8 @@ impl SVGEditor {
             };
             match event {
                 InputControllerEvent::ViewportChange(transform) => {
+                    // A gesture may be represented only by an extended event.
+                    self.context_menu.rect = None;
                     transform_canvas(
                         tool_context.buffer,
                         tool_context.viewport_settings,

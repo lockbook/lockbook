@@ -1192,8 +1192,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_canvasSendContent(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let Ok(bytes) = env.convert_byte_array(&content) else { return };
     let content = if is_svg == 1 {
-        let Ok(text) = String::from_utf8(bytes) else { return };
-        workspace_rs::tab::CanvasPasteContent::Svg(text)
+        // Invalid SVG text still completes the host operation as a cancellation.
+        workspace_rs::tab::CanvasPasteContent::Svg(String::from_utf8(bytes).unwrap_or_default())
     } else {
         workspace_rs::tab::CanvasPasteContent::Image(bytes)
     };
