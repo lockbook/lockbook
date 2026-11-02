@@ -238,6 +238,19 @@ impl TestEditor {
     pub fn enter_frame_with_input_held(
         &mut self, events: Vec<egui::Event>, modifiers: egui::Modifiers,
     ) {
+        self.enter_frame_with_input_inner(events, modifiers, None);
+    }
+
+    /// Like [`enter_frame_with_input`], `idle` seconds after the last frame
+    /// with none between, as an app that stopped drawing.
+    pub fn enter_frame_with_input_after(&mut self, idle: f64, events: Vec<egui::Event>) {
+        let time = self.editor.edit.renderer.ctx.input(|i| i.time) + idle;
+        self.enter_frame_with_input_inner(events, egui::Modifiers::NONE, Some(time));
+    }
+
+    fn enter_frame_with_input_inner(
+        &mut self, events: Vec<egui::Event>, modifiers: egui::Modifiers, time: Option<f64>,
+    ) {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, SCREEN_SIZE);
@@ -245,7 +258,7 @@ impl TestEditor {
             .chain(events)
             .collect();
         let mut out = ctx.run_pass(
-            RawInput { screen_rect: Some(screen_rect), events, ..Default::default() },
+            RawInput { screen_rect: Some(screen_rect), events, time, ..Default::default() },
             |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
