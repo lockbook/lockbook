@@ -616,6 +616,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 r.workspace.cfg.set_spell_check(v);
             }
         }
+        A::SetPrefColumnWidth(v) => {
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.cfg.set_column_width(v);
+            }
+        }
         A::SetPrefOpenInNewTab(v) => {
             if let Some(r) = app.session.ready_mut() {
                 r.workspace.cfg.set_open_in_new_tab(v);
