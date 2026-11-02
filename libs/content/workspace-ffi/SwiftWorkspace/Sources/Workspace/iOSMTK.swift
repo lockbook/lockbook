@@ -720,11 +720,19 @@
             let pan = UIPanGestureRecognizer(
                 target: self, action: #selector(handleTrackpadScroll(_:))
             )
-            pan.allowedScrollTypesMask = .all
+            pan.allowedScrollTypesMask = .continuous
             pan.maximumNumberOfTouches = 0
 
             addGestureRecognizer(pan)
             panRecognizer = pan
+
+            let wheel = UIPanGestureRecognizer(
+                target: self, action: #selector(handleTrackpadScroll(_:))
+            )
+            wheel.allowedScrollTypesMask = .discrete
+            wheel.maximumNumberOfTouches = 0
+
+            addGestureRecognizer(wheel)
 
             // mtk
             mtkDelegate = iOSMTKViewDelegate(mtkView: self)
@@ -774,7 +782,14 @@
         }
 
         @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
-            guard let event = sender, event.state != .cancelled, event.state != .failed else {
+            guard let event = sender, event.state != .failed else {
+                return
+            }
+            let precise = event === panRecognizer
+
+            if event.state == .cancelled {
+                scroll_wheel(wsHandle, 0, 0, 16, 0, precise, false, false, false, false)
+                setNeedsDisplay()
                 return
             }
 
@@ -783,9 +798,11 @@
             velocity.x /= 50
             velocity.y /= 50
 
+            scrollId += 1
+
             if event.state == .ended {
-                let currentScrollId = Int(Date().timeIntervalSince1970)
-                scrollId = currentScrollId
+                scroll_wheel(wsHandle, 0, 0, 8, 0, precise, false, false, false, false)
+                let currentScrollId = scrollId
 
                 Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
                     if currentScrollId != scrollId {
@@ -805,7 +822,7 @@
                         mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                     }
                     scroll_wheel(
-                        wsHandle, Float(velocity.x), Float(velocity.y), 0, 0, true, false, false,
+                        wsHandle, Float(velocity.x), Float(velocity.y), 0, 4, precise, false, false,
                         false, false
                     )
                     if !cursorTracked {
@@ -818,9 +835,10 @@
                 if !cursorTracked {
                     mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                 }
+                let phase: UInt64 = event.state == .began ? 1 : 4
                 scroll_wheel(
-                    wsHandle, Float(velocity.x), Float(velocity.y), 0, 0, true, false, false, false,
-                    false
+                    wsHandle, Float(velocity.x), Float(velocity.y), phase, 0, precise, false, false,
+                    false, false
                 )
                 if !cursorTracked {
                     mouse_gone(wsHandle)
@@ -929,6 +947,7 @@
             workspaceInput?.wsHandle = wsHandle
 
             if let wsHandle {
+                set_trackpad_history_swipe(wsHandle, true)
                 RepaintRelay.register(wsHandle) { [weak self] delayMs in
                     DispatchQueue.main.async {
                         self?.repaintRequested(inMs: delayMs)
