@@ -152,6 +152,8 @@ import SwiftUI
 
         private let backSwipe = UIScreenEdgePanGestureRecognizer()
         private let forwardSwipe = UIScreenEdgePanGestureRecognizer()
+        private let trackpadSwipe = UIPanGestureRecognizer()
+        private var trackpadForward = false
         private var swipeArmed = false
         private let swipeHaptic = UIImpactFeedbackGenerator(style: .light)
 
@@ -185,6 +187,12 @@ import SwiftUI
                 swipe.addTarget(self, action: #selector(handleHistorySwipe(_:)))
                 addGestureRecognizer(swipe)
             }
+
+            trackpadSwipe.allowedScrollTypesMask = .continuous
+            trackpadSwipe.maximumNumberOfTouches = 0
+            trackpadSwipe.delegate = self
+            trackpadSwipe.addTarget(self, action: #selector(handleHistorySwipe(_:)))
+            addGestureRecognizer(trackpadSwipe)
         }
 
         @available(*, unavailable)
@@ -201,6 +209,15 @@ import SwiftUI
             if gestureRecognizer === forwardSwipe {
                 return mtkView.workspaceInput?.canNavForward() == true
             }
+            if gestureRecognizer === trackpadSwipe {
+                guard currentWrapper is TextPage else { return false }
+                let velocity = trackpadSwipe.velocity(in: self)
+                guard abs(velocity.x) > abs(velocity.y) else { return false }
+                trackpadForward = velocity.x < 0
+                return trackpadForward
+                    ? mtkView.workspaceInput?.canNavForward() == true
+                    : mtkView.workspaceInput?.canNavBack() == true
+            }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
         }
 
@@ -208,26 +225,29 @@ import SwiftUI
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            isHistorySwipe(gestureRecognizer) && otherGestureRecognizer.isRangeAdjustment
+            if gestureRecognizer === trackpadSwipe {
+                return otherGestureRecognizer === (currentWrapper as? TextPage)?.rowPan
+            }
+            return isHistorySwipe(gestureRecognizer) && otherGestureRecognizer.isRangeAdjustment
         }
 
         public func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            isHistorySwipe(gestureRecognizer)
-                && otherGestureRecognizer is UIPanGestureRecognizer
-                && !isHistorySwipe(otherGestureRecognizer)
-                && otherGestureRecognizer !== mtkView.panRecognizer
+            guard isHistorySwipe(gestureRecognizer),
+                  let pan = otherGestureRecognizer as? UIPanGestureRecognizer
+            else { return false }
+            return pan.maximumNumberOfTouches > 0 && !isHistorySwipe(pan)
         }
 
         private func isHistorySwipe(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             gestureRecognizer === backSwipe || gestureRecognizer === forwardSwipe
         }
 
-        @objc private func handleHistorySwipe(_ swipe: UIScreenEdgePanGestureRecognizer) {
+        @objc private func handleHistorySwipe(_ swipe: UIPanGestureRecognizer) {
             guard let wsHandle = mtkView.wsHandle else { return }
-            let forward = swipe === forwardSwipe
+            let forward = swipe === trackpadSwipe ? trackpadForward : swipe === forwardSwipe
 
             switch swipe.state {
             case .began, .changed:
