@@ -66,6 +66,10 @@ pub struct Bounds {
     /// form has.
     pub source_links: Vec<(Grapheme, Grapheme)>,
 
+    /// Source range of each prose text node while source shows, sorted;
+    /// empty when rendered.
+    pub source_prose: Vec<(Grapheme, Grapheme)>,
+
     /// One entry per table, in document order.
     pub tables: Vec<TableBounds>,
 
@@ -111,6 +115,7 @@ impl Default for Bounds {
             folds: Vec::default(),
             images: Vec::default(),
             source_links: Vec::default(),
+            source_prose: Vec::default(),
             tables: Vec::default(),
             code_blocks: Vec::default(),
         }

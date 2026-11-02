@@ -1,8 +1,8 @@
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt};
 
-use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
+use crate::tab::markdown_editor::{MdRender, View};
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> MdRender {
@@ -14,9 +14,27 @@ impl<'ast> MdRender {
             return;
         }
         self.layout_source(layout, node, node_range, self.text_format(node), true);
-        if !self.in_autolink(node) {
+        if self.is_prose(node) {
             layout.push_prose(node_range);
         }
+    }
+
+    /// Whether `node` is text whose words are spell checked.
+    pub fn is_prose(&self, node: &'ast AstNode<'ast>) -> bool {
+        matches!(node.data.borrow().value, NodeValue::Text(_)) && !self.in_autolink(node)
+    }
+
+    pub fn calc_source_prose(&mut self, root: &'ast AstNode<'ast>) {
+        self.bounds.source_prose.clear();
+        if self.view == View::Rendered {
+            return;
+        }
+        let prose = root
+            .descendants()
+            .filter(|&node| self.is_prose(node))
+            .map(|node| self.node_range(node))
+            .collect();
+        self.bounds.source_prose = prose;
     }
 
     /// An autolink's text is its URL.
