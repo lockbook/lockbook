@@ -3,7 +3,7 @@
 //! `LOCKBOOK_PATH=… cargo run -p lockbook-desktop --features win-chrome --example shots -- scene.txt out/`
 //!
 //! One command per line: `size W H SCALE` · `ready` · `open PATH` ·
-//! `pane files|recents|shared` · `sidebar on|off` · `expand PATH` · `settings` · `reveal` · `share PATH` ·
+//! `pane files|recents|shared` · `search [path|content]` · `sidebar on|off` · `expand PATH` · `settings` · `reveal` · `share PATH` ·
 //! `key [cmd+][shift+]NAME [COUNT]` · `type TEXT` · `move X Y` · `click X Y` ·
 //! `frames N` · `shot NAME` · `#` comments.
 
@@ -15,6 +15,7 @@ use egui_wgpu_renderer::{egui_wgpu, wgpu};
 use lockbook_desktop::ShellApp;
 use lockbook_desktop::shell::action::{Action, SidebarPane};
 use lockbook_desktop::shell::session::Session;
+use workspace_rs::search::SearchType;
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const SAMPLES: u32 = 4;
@@ -53,7 +54,11 @@ impl Shots {
             ctx.set_os(egui::os::OperatingSystem::Windows);
         }
         let font_system = workspace_rs::register_font_system(&ctx);
-        let mut renderer = egui_wgpu::Renderer::new(&device, FORMAT, None, SAMPLES, false);
+        let mut renderer = egui_wgpu::Renderer::new(
+            &device,
+            FORMAT,
+            egui_wgpu::RendererOptions { msaa_samples: SAMPLES, ..Default::default() },
+        );
         workspace_rs::register_render_callback_resources(
             &device,
             &queue,
@@ -92,11 +97,14 @@ impl Shots {
             .entry(ViewportId::ROOT)
             .or_default()
             .native_pixels_per_point = Some(self.scale);
-        let out = self.ctx.run(raw, |ctx| self.app.ui(ctx));
-        for (id, delta) in &out.textures_delta.set {
-            self.renderer
-                .update_texture(&self.device, &self.queue, *id, delta);
+        let mut out = self.ctx.run_pass(raw, |ctx| self.app.ui(ctx));
+        for (id, deltas) in &out.textures_delta.set {
+            for delta in deltas {
+                self.renderer
+                    .update_texture(&self.device, &self.queue, *id, delta);
+            }
         }
+        out.textures_delta.clear();
         let shapes = self.ctx.tessellate(out.shapes, out.pixels_per_point);
         self.last = Some((shapes, out.pixels_per_point));
         // Freed textures are leaked: paint callbacks keep their own handles
@@ -222,6 +230,7 @@ impl Shots {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &msaa_view,
                     resolve_target: Some(&target_view),
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
@@ -230,6 +239,7 @@ impl Shots {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             self.renderer
                 .render(&mut pass.forget_lifetime(), shapes, &screen);
@@ -257,8 +267,10 @@ impl Shots {
         self.queue
             .submit(bufs.into_iter().chain(std::iter::once(encoder.finish())));
         buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-        self.device.poll(wgpu::PollType::Wait).unwrap();
-        let data = buffer.slice(..).get_mapped_range();
+        self.device
+            .poll(wgpu::PollType::Wait { submission_index: None, timeout: None })
+            .unwrap();
+        let data = buffer.slice(..).get_mapped_range().unwrap();
         let mut rgba = Vec::with_capacity((w * h * 4) as usize);
         for row in data.chunks(padded as usize) {
             for px in row[..(w * 4) as usize].chunks(4) {
@@ -313,6 +325,13 @@ impl Shots {
                 }
             }
             "settings" => self.act(Action::OpenSettings),
+            "search" => {
+                let kind = match rest {
+                    "content" => SearchType::Content,
+                    _ => SearchType::Path,
+                };
+                self.act(Action::OpenSearch(Some(kind)));
+            }
             "reveal" => self.act(Action::RevealPhrase),
             "expand" => {
                 let id = self.id_for(rest);
@@ -339,6 +358,14 @@ impl Shots {
                 self.click(pos2(v[0], v[1]));
             }
             "frames" => self.frames(num(rest) as usize),
+            "dump" => println!(
+                "session={} sidebar_open={} zen={} size={:?} scale={}",
+                self.session_state(),
+                self.app.sidebar_open,
+                self.app.settings.zen_mode,
+                self.size,
+                self.scale
+            ),
             "shot" => self.shot(rest),
             _ => panic!("unknown command: {line}"),
         }
