@@ -142,6 +142,12 @@ impl TabContent {
             Destination::Search(state) => {
                 return Ok(TabContent::Search(Search::new(&res.core, &res.ctx, state)));
             }
+            Destination::Diagram(source) => {
+                return Ok(TabContent::Image(ImageViewer::diagram(
+                    source.clone(),
+                    res.images.clone(),
+                )));
+            }
         };
         if doc.is_none() && res.is_image(id) {
             return Ok(TabContent::Image(ImageViewer::new(id, res.images.clone())));

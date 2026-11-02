@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::{Arc, RwLock};
@@ -26,7 +27,6 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Byte, Grapheme};
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::emoji_completions::EmojiCompletions;
@@ -150,8 +150,8 @@ pub struct MdRender {
     pub scroll_bounds: Option<(scroll_content::DocRowId, scroll_content::DocRowId)>,
     /// Words marked misspelled this frame, in source order of their units.
     pub misspelled: Vec<(Grapheme, Grapheme)>,
-    /// Edge fades of scrolled tables and code blocks `(rect, left color,
-    /// right color)`, painted over the text.
+    /// Edge fades of scrolled tables, code blocks, and diagrams `(rect,
+    /// left color, right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
     /// Painted over the text this frame, as a cut chip's fade.
     pub over_text: Vec<egui::Shape>,
@@ -172,7 +172,8 @@ pub struct MdRender {
     /// A painter slot above each header row's background, with the row's
     /// rect: the selection's highlight there would paint under it.
     pub table_header_slots: Vec<(egui::layers::ShapeIdx, Rect)>,
-    /// How far each table or code block too wide for the note is scrolled.
+    /// How far each table, code block, or diagram too wide for the note is
+    /// scrolled.
     pub row_scrolls: HashMap<row_scroll::RowScroller, row_scroll::RowScroll>,
     /// Per-frame: where each block wider than the note shows.
     pub row_scrollers: Vec<(Rect, row_scroll::RowScroller)>,
@@ -182,6 +183,10 @@ pub struct MdRender {
     /// A code block whose code was copied, by its range, and until when its
     /// button says so.
     pub code_copied: Option<((Grapheme, Grapheme), f64)>,
+    pub diagrams: crate::widgets::diagram_cache::DiagramCache,
+    /// The source each revealed diagram last rendered, by fence start, so
+    /// its preview holds while edits render.
+    pub diagram_previews: RefCell<HashMap<Grapheme, String>>,
     /// Drag action emitted by a list marker this frame, drained by
     /// `MdEdit::show` to update / commit the in-progress block drag
     /// (mirrors how `render_events` carries buffer edits out of render).
@@ -690,6 +695,7 @@ impl MdRender {
         let dark_mode = ctx.global_style().visuals.dark_mode;
         let ws_seq = crate::seq::ws_seq(&ctx);
         let previews = LinkPreviews::offline(ctx.clone());
+        let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
         Self {
             ctx,
             layout,
@@ -713,6 +719,8 @@ impl MdRender {
             row_scrollers: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
+            diagrams,
+            diagram_previews: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -798,6 +806,7 @@ impl MdRender {
         let ctx = test_egui_ctx();
         let ws_seq = crate::seq::ws_seq(&ctx);
         let previews = LinkPreviews::offline(ctx.clone());
+        let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
         Self {
             ctx,
             layout: MdLayout::desktop(),
@@ -820,6 +829,8 @@ impl MdRender {
             row_scrollers: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
+            diagrams,
+            diagram_previews: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -1011,6 +1022,7 @@ impl Editor {
                 .map(str::to_string)
         });
 
+        let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
         let renderer = MdRender {
             ctx,
             layout,
@@ -1035,6 +1047,8 @@ impl Editor {
             row_scrollers: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
+            diagrams,
+            diagram_previews: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
@@ -1430,7 +1444,15 @@ impl Editor {
             self.edit.renderer.layout_cache.clear();
         }
 
-        let embeds_seq = (self.edit.renderer.embeds.seq(), self.edit.renderer.tab_embeds.seq());
+        // both stamp the workspace counter, so the larger moves when either does
+        let embeds_seq = (
+            self.edit
+                .renderer
+                .embeds
+                .seq()
+                .max(self.edit.renderer.diagrams.seq()),
+            self.edit.renderer.tab_embeds.seq(),
+        );
         let embeds_updated = embeds_seq != self.embeds_seq;
         self.embeds_seq = embeds_seq;
 

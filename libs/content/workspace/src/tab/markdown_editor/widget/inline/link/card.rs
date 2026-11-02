@@ -175,6 +175,8 @@ impl<'ast> MdEdit {
                 .ctx()
                 .copy_text(self.renderer.link_to_copy(url, wikilink)),
             LinkMenuAction::Refresh => self.renderer.refresh_link_meta(url),
+            // a card isn't an image, so its menu never offers this
+            LinkMenuAction::CopyImage => {}
             LinkMenuAction::Edit => {
                 let (select, force_reveal) = self.atom_edit_selection(node);
                 if force_reveal {

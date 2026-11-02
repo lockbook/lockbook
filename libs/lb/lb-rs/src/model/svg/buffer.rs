@@ -5,7 +5,6 @@ use bezier_rs::{Bezier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use usvg::fontdb::Database;
 use usvg::tiny_skia_path::{PathSegment, Point};
 use usvg::{Options, Paint, Transform};
 use uuid::Uuid;
@@ -58,7 +57,7 @@ impl Buffer {
         let mut weak_path_pressures = WeakPathPressures::default();
         let mut weak_viewport_settings = WeakViewportSettings::default();
 
-        let maybe_tree = usvg::Tree::from_str(content, &Options::default(), &Database::default());
+        let maybe_tree = usvg::Tree::from_str(content, &Options::default());
 
         if let Err(err) = maybe_tree {
             println!("{err:#?}");
@@ -392,7 +391,7 @@ pub fn parse_child(
                 id,
                 Element::Path(Path {
                     data,
-                    visibility: path.visibility(),
+                    visible: path.is_visible(),
                     fill: path.fill().cloned(),
                     stroke,
                     transform: path.abs_transform(),

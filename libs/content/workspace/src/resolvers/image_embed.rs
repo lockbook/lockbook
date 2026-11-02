@@ -159,6 +159,12 @@ impl EmbedResolver for ImageEmbedResolver {
     fn seq(&self) -> u64 {
         self.images.seq()
     }
+
+    fn copy_image(&self, url: &str, _ctx: &egui::Context) {
+        if let Some(key) = self.shown(url) {
+            self.images.copy_image(&key);
+        }
+    }
 }
 
 /// A quiet box: icon over caption in secondary ink, laid out as a hidden

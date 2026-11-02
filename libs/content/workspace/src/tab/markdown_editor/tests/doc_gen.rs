@@ -138,9 +138,10 @@ pub const CODE_SAMPLES: &[(&str, &str, &str)] = &[
 /// A fenced code block's language and its sample code: one of the
 /// samples', no language, or one without a grammar.
 fn gen_fence_lang(src: &mut ByteSource) -> (&'static str, &'static str) {
-    match src.bias(&[1, 1, 4]) {
+    match src.bias(&[1, 1, 4, 1]) {
         0 => ("", ""),
         1 => ("text", ""),
+        3 => ("mermaid", ""),
         _ => {
             let (lang, _, code) = CODE_SAMPLES[src.draw(CODE_SAMPLES.len())];
             (lang, code)
@@ -164,7 +165,13 @@ const HTML_BLOCK_TAGS: &[&str] = &["div", "section", "article", "aside"];
 fn gen_fenced_code(src: &mut ByteSource) -> String {
     let (lang, sample) = gen_fence_lang(src);
     let n_lines = gen_code_block_line_count(src);
-    let body = if !sample.is_empty() && n_lines == 1 {
+    // half the diagrams draw; the rest are errors
+    let body = if lang == "mermaid" && src.bias(&[1, 1]) == 0 {
+        std::iter::once("flowchart TD".to_string())
+            .chain((0..n_lines).map(|i| format!("    N{i} --> N{}", i + 1)))
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else if !sample.is_empty() && n_lines == 1 {
         sample.trim_end().to_string()
     } else {
         (0..n_lines)

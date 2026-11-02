@@ -196,6 +196,8 @@ pub struct EmbedSpec {
 pub enum EmbedKind {
     Image,
     LinkCard,
+    /// `url` is the diagram's Mermaid source.
+    Diagram,
     /// A wiki embed's tab; its url is the title.
     Tab,
 }
@@ -2030,6 +2032,9 @@ impl MdRender {
                             egui::CornerRadius::same(2),
                         ),
                         EmbedKind::LinkCard => self.paint_link_card(embed_ui, url, screen_rect),
+                        EmbedKind::Diagram => {
+                            self.paint_diagram_embed(embed_ui, url, frag.source_range, screen_rect)
+                        }
                         EmbedKind::Tab => self.paint_tab_embed(
                             embed_ui,
                             url,
