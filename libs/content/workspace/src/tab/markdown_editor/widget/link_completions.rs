@@ -756,10 +756,9 @@ impl LinkCompletions {
             .filter(|f| f.is_document() && f.id != file_id)
             .filter(|f| {
                 !image
-                    || f.name
-                        .rsplit('.')
-                        .next()
-                        .is_some_and(is_supported_image_fmt)
+                    || f.name.rsplit('.').next().is_some_and(|ext| {
+                        is_supported_image_fmt(ext) || ext.eq_ignore_ascii_case("svg")
+                    })
             })
             .map(|f| {
                 let outside = f.id == scope || !cache.in_scope(scope, f.id);
@@ -1378,7 +1377,7 @@ mod tests {
         );
     }
 
-    /// `![[` offers images, not drawings or notes, and writes a wiki embed.
+    /// Image searches offer raster images and drawings, and `![[` writes a wiki embed.
     #[test]
     fn a_wiki_embed_offers_images() {
         use lb_rs::model::text::buffer::Buffer;
@@ -1395,21 +1394,34 @@ mod tests {
 
         let files = tree(
             "alice",
-            &["/notes/editing.md", "/notes/chart.png", "/notes/chart sketch.svg", "/chart.md"],
+            &[
+                "/notes/editing.md",
+                "/notes/chart.png",
+                "/notes/chart sketch.svg",
+                "/notes/chart upper.SVG",
+                "/chart.md",
+            ],
         );
         let editing = at(&files, "/notes/editing.md");
         let cache = cache(files);
-        assert_eq!(rows(&cache, editing, "ch", mode), ["/notes/chart.png"]);
+        for mode in
+            [CompletionMode::ImageLink, CompletionMode::ImageLinkDest, CompletionMode::WikiEmbed]
+        {
+            assert_eq!(
+                rows(&cache, editing, "ch", mode),
+                ["/notes/chart.png", "/notes/chart sketch.svg", "/notes/chart upper.SVG",]
+            );
+        }
         let mut events = vec![];
         LinkCompletions::default().apply_completion(
             &mut events,
             range.0,
             range.1,
             "",
-            "chart.png",
+            "chart sketch.svg",
             mode,
         );
-        let replaced = matches!(&events[..], [crate::tab::markdown_editor::input::Event::Replace { text, .. }] if text == "![[chart.png]]");
+        let replaced = matches!(&events[..], [crate::tab::markdown_editor::input::Event::Replace { text, .. }] if text == "![[chart sketch.svg]]");
         assert!(replaced, "{events:?}");
     }
 
