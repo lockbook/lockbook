@@ -544,3 +544,86 @@ fn selecting_a_row_in_view_leaves_the_page_where_it_is() {
     editor.enter_frame();
     assert_eq!(editor.editor.edit.scroll_area.stored_offset(), before);
 }
+
+#[test]
+fn a_wheel_gesture_scrolls_the_table_or_the_page_never_both() {
+    use super::super::row_scroll::RowScroller;
+
+    let md = format!("{}\n\n{}", wide(), "paragraph\n\n".repeat(200));
+    let mut editor = TestEditor::new(&md);
+    editor.enter_frame();
+    editor.enter_frame_with_input(vec![]);
+    let table = RowScroller::Table(0);
+    let scrollers = &editor.editor.edit.renderer.row_scrollers;
+    let (rect, _) = scrollers.iter().find(|(_, key)| *key == table).unwrap();
+    let pointer = rect.center();
+
+    let wheel = |phase, source, delta| egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta,
+        phase,
+        source,
+        modifiers: Default::default(),
+    };
+    let gesture = |editor: &mut TestEditor, source, deltas: &[egui::Vec2]| {
+        let page = editor.editor.edit.scroll_area.stored_offset();
+        let row = editor.editor.edit.renderer.row_scrolled(table);
+        let start = wheel(egui::TouchPhase::Start, source, egui::Vec2::ZERO);
+        editor.enter_frame_with_input(vec![egui::Event::PointerMoved(pointer), start]);
+        for delta in deltas {
+            let event = wheel(egui::TouchPhase::Move, source, *delta);
+            editor.enter_frame_with_input(vec![egui::Event::PointerMoved(pointer), event]);
+        }
+        let end = wheel(egui::TouchPhase::End, source, egui::Vec2::ZERO);
+        editor.enter_frame_with_input(vec![end]);
+        let page_moved = editor.editor.edit.scroll_area.stored_offset() != page;
+        let row_moved = editor.editor.edit.renderer.row_scrolled(table) != row;
+        (page_moved, row_moved)
+    };
+
+    // mostly along the rows, drifting down, then coasting down
+    let finger = egui::MouseWheelSource::Trackpad;
+    let along = [egui::vec2(-12.0, -4.0), egui::vec2(-10.0, -8.0), egui::vec2(-6.0, -10.0)];
+    assert_eq!(gesture(&mut editor, finger, &along), (false, true));
+    let coast = [egui::vec2(-2.0, -10.0), egui::vec2(-1.0, -6.0)];
+    let momentum = egui::MouseWheelSource::Momentum;
+    assert_eq!(gesture(&mut editor, momentum, &coast), (false, true));
+
+    // mostly down the page, drifting along the rows
+    let down = [egui::vec2(-4.0, -12.0), egui::vec2(-10.0, -8.0)];
+    assert_eq!(gesture(&mut editor, finger, &down), (true, false));
+}
+
+#[test]
+fn a_press_on_the_note_stops_a_coasting_table() {
+    use super::super::row_scroll::RowScroller;
+
+    let md = format!("{}\n\n{}", wide(), "paragraph\n\n".repeat(200));
+    let mut editor = TestEditor::new(&md);
+    editor.enter_frame();
+    editor.enter_frame_with_input(vec![]);
+    let table = RowScroller::Table(0);
+    let scrollers = &editor.editor.edit.renderer.row_scrollers;
+    let (rect, _) = scrollers.iter().find(|(_, key)| *key == table).unwrap();
+    let below = egui::pos2(rect.center().x, rect.bottom() + 100.0);
+    editor
+        .editor
+        .edit
+        .renderer
+        .row_scrolls
+        .get_mut(&table)
+        .unwrap()
+        .velocity = 2000.0;
+    editor.enter_frame_with_input(vec![]);
+
+    let press = egui::Event::PointerButton {
+        pos: below,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    };
+    editor.enter_frame_with_input(vec![egui::Event::PointerMoved(below), press]);
+    let stopped = editor.editor.edit.renderer.row_scrolled(table);
+    editor.enter_frame_with_input(vec![]);
+    assert_eq!(editor.editor.edit.renderer.row_scrolled(table), stopped);
+}
