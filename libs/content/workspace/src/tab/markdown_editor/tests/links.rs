@@ -112,3 +112,55 @@ fn link_completions_open_mid_line() {
     }
     assert!(closed.is_empty(), "closed: {closed:#?}");
 }
+
+/// A link to a file is a pill unless it was given a title of its own.
+#[test]
+fn file_links_are_pills_unless_titled() {
+    let is_pill = |md: &str| {
+        let files = shared_project();
+        let note = at(&files, "/project/notes.md");
+        let plan = at(&files, "/project/plan.md");
+        let ws = TestEditor::in_files(files, note, &md.replace("{plan}", &plan.to_string()));
+        let fragments = &ws.editor.edit.renderer.fragments;
+        fragments
+            .iter()
+            .any(|f| f.style_stack.last().is_some_and(|s| s.chip))
+    };
+    assert!(is_pill("See [[plan]] here."));
+    assert!(is_pill("See <lb://{plan}> here."));
+    assert!(!is_pill("See [[plan|the plan]] here."));
+    assert!(!is_pill("See [the plan](lb://{plan}) here."));
+}
+
+/// A read-only view has no cursor to place, so a click on a pill opens it.
+#[test]
+fn read_only_pill_opens_on_click() {
+    use crate::tab::ExtendedOutput as _;
+    let files = shared_project();
+    let note = at(&files, "/project/notes.md");
+    let plan = at(&files, "/project/plan.md");
+    let mut ws = TestEditor::in_files(files, note, "See [[plan]] here.");
+    ws.editor.edit.renderer.readonly = true;
+    ws.enter_frame();
+    let renderer = &ws.editor.edit.renderer;
+    let pill = renderer
+        .fragments
+        .iter()
+        .filter(|f| f.style_stack.last().is_some_and(|s| s.chip));
+    let at = pill
+        .map(|f| f.rect)
+        .reduce(egui::Rect::union)
+        .unwrap()
+        .center();
+    let button = |pressed| egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    ws.enter_frame_with_input(vec![egui::Event::PointerMoved(at)]);
+    ws.enter_frame_with_input(vec![button(true)]);
+    ws.enter_frame_with_input(vec![button(false)]);
+    let opened = ws.editor.edit.renderer.ctx.pop_open_files();
+    assert_eq!(opened.first().map(|o| o.0), Some(plan));
+}
