@@ -716,6 +716,14 @@ pub(crate) const BG_ROW_GAP: f32 = 2.0;
 /// caret beside the atom renders beside the capsule).
 pub(crate) const CHIP_SIDE_PAD: f32 = 0.3;
 
+/// The source span of the chip `f` is part of; touching chips stay apart.
+pub(crate) fn chip_of(f: &Fragment) -> Option<(Grapheme, Grapheme)> {
+    f.style_stack
+        .last()
+        .filter(|s| s.chip)
+        .map(|s| s.source_range)
+}
+
 fn chip_is_icon(s: &StyleInfo) -> bool {
     s.chip && s.format.family == FontFamily::Phosphor
 }
@@ -1930,7 +1938,6 @@ impl MdRender {
                     .map(|s| s.format.background)
                     .filter(|c| *c != egui::Color32::TRANSPARENT)
             };
-            let chip_of = |f: &Fragment| -> bool { f.style_stack.last().is_some_and(|s| s.chip) };
 
             // Pass 1: coalesce same-bg chains into one pill (single
             // fill, single stroke — no seams at fragment boundaries).
@@ -1963,7 +1970,7 @@ impl MdRender {
                     egui::Pos2::new(chain_right, row_bottom + pad),
                 );
                 // a chip is one row, so a whole capsule
-                let radius = if chip { bg_rect.height() / 2.0 } else { 2.0 };
+                let radius = if chip.is_some() { bg_rect.height() / 2.0 } else { 2.0 };
                 if ui.clip_rect().intersects(bg_rect) {
                     let rounding = egui::CornerRadius::same(radius as u8);
                     ui.painter().rect_filled(bg_rect, rounding, bg);
