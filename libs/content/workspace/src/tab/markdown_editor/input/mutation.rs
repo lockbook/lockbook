@@ -122,6 +122,9 @@ impl<'ast> MdEdit {
                 if self.newline_in_table(shift, operations) {
                     return response;
                 }
+                if !shift && self.newline_after_header_row(root, operations) {
+                    return response;
+                }
 
                 // Enter after a `···` fold chip creates the new heading / list
                 // item after the hidden contents

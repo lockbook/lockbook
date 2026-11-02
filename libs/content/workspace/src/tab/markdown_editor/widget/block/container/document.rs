@@ -4,9 +4,9 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::syntax::{Role, roles_in};
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::View;
 use crate::tab::markdown_editor::widget::block::leaf::code_block::CodeUnit;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Layout};
+use crate::tab::markdown_editor::{Syntax, View};
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> MdRender {
@@ -123,6 +123,9 @@ impl<'ast> MdRender {
             }
         } else {
             self.push_source_run(&mut layout, line, line, text_format, sense);
+        }
+        if self.kind == Syntax::Plain {
+            layout.push_prose(line);
         }
         layout
     }

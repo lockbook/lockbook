@@ -516,6 +516,87 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
     }
 }
 
+/// Words for the host to spell check, one per line, or null when there are
+/// none.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_spellingRequests(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let words = workspace_rs::spelling::get(&obj.renderer.context)
+        .map(|s| s.take_requests())
+        .unwrap_or_default();
+    if words.is_empty() {
+        return std::ptr::null_mut();
+    }
+    env.new_string(words.join("\n"))
+        .expect("Couldn't create java string!")
+        .into_raw()
+}
+
+/// Whether `word` is spelled right, as the host's checker says, or that the
+/// person added it.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_spellingAnswer(
+    mut env: JNIEnv, _: JClass, obj: jlong, word: JString, correct: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let word: String = match env.get_string(&word) {
+        Ok(word) => word.into(),
+        Err(_) => return,
+    };
+    if let Some(spelling) = workspace_rs::spelling::get(&obj.renderer.context) {
+        spelling.answer(&word, correct == 1);
+    }
+}
+
+/// Accepts `word` until the app quits.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_spellingIgnore(
+    mut env: JNIEnv, _: JClass, obj: jlong, word: JString,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let word: String = match env.get_string(&word) {
+        Ok(word) => word.into(),
+        Err(_) => return,
+    };
+    if let Some(spelling) = workspace_rs::spelling::get(&obj.renderer.context) {
+        spelling.ignore(&word);
+    }
+}
+
+/// The misspelled word the selection is in, for the edit menu's fixes.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionMisspelling(
+    mut env: JNIEnv, _: JClass, obj: jlong,
+) -> jobject {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let word = obj
+        .workspace
+        .focused_mdedit_mut()
+        .and_then(|md| md.renderer.selection_misspelling());
+    let (none, start, end) = match word {
+        Some((start, end)) => (false, start.0, end.0),
+        None => (true, 0, 0),
+    };
+    let class = env.find_class("app/lockbook/workspace/JTextRange").unwrap();
+    env.new_object(
+        class,
+        "(ZII)V",
+        &[JValue::Bool(none as u8), JValue::Int(start as i32), JValue::Int(end as i32)],
+    )
+    .unwrap()
+    .into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSpellCheck(
+    _env: JNIEnv, _: JClass, obj: jlong, value: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.cfg.set_spell_check(value == 1);
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_setContactLinkedSites(
     _env: JNIEnv, _: JClass, obj: jlong, value: jboolean,

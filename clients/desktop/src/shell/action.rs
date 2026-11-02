@@ -401,6 +401,8 @@ pub enum Action {
     SetThemeMode(crate::components::ModePreference),
     SetThemeFamily(crate::components::ThemeFamily),
     SetPrefLinkPreviews(bool),
+    /// Misspelled words are marked, from now on.
+    SetPrefSpellCheck(bool),
     /// Renames and moves update the links they'd break, from now on.
     SetPrefUpdateLinks(bool),
     SetPrefOpenInNewTab(bool),
@@ -520,6 +522,7 @@ impl Action {
             Self::SetThemeMode(_) => "SetThemeMode",
             Self::SetThemeFamily(_) => "SetThemeFamily",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
+            Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",
             Self::SetPrefUpdateLinks(_) => "SetPrefUpdateLinks",
             Self::SetPrefOpenInNewTab(_) => "SetPrefOpenInNewTab",
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",

@@ -8,6 +8,7 @@ import SwiftWorkspace
         @State private var showAccountKeys = false
 
         @AppStorage("contactLinkedSites") private var contactLinkedSites: Bool = false
+        @AppStorage("spellCheck") private var spellCheck: Bool = true
         @AppStorage("openInNewTab") private var openInNewTab: Bool = true
 
         var body: some View {
@@ -44,6 +45,10 @@ import SwiftWorkspace
                     )
                 ) {
                     Toggle("Fetch link previews", isOn: $contactLinkedSites)
+                }
+
+                Section {
+                    Toggle("Check spelling", isOn: $spellCheck)
                 }
 
                 Section("Privacy") {
@@ -234,6 +239,7 @@ import SwiftWorkspace
 
     struct SettingsEditorView: View {
         @AppStorage("contactLinkedSites") private var contactLinkedSites: Bool = false
+        @AppStorage("spellCheck") private var spellCheck: Bool = true
 
         var body: some View {
             Form {
@@ -244,6 +250,9 @@ import SwiftWorkspace
                     )
                     .font(.caption)
                     .foregroundColor(.secondary)
+                }
+                Section("Writing") {
+                    Toggle("Check spelling", isOn: $spellCheck)
                 }
             }
             .formStyle(.grouped)
