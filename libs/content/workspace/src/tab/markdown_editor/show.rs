@@ -437,6 +437,7 @@ impl MdEdit {
     /// selection / IME / scroll-to-cursor / text callback via
     /// [`MdEdit::post_render`].
     pub fn show(&mut self, ui: &mut Ui, rect: Rect, id: Id) {
+        self.renderer.latch_wheel_axis(ui, rect);
         // The renderer lays out at `self.width`, not the passed rect — set it
         // here so a bare `MdEdit` renders the rect it's given. (At width 0
         // every block is skipped as too-narrow: no glyphs, and no fragments

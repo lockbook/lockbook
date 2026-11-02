@@ -62,6 +62,7 @@ impl MdLabel {
 
         let height = self.renderer.height(root);
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+        self.renderer.latch_wheel_axis(ui, rect);
 
         self.renderer.fragments.clear();
         self.renderer.table_cell_boxes.clear();
