@@ -430,8 +430,20 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
         {
             queue.push(A::SetPrefSpellCheck(spell_check));
         }
+        let width = app
+            .session
+            .ready()
+            .map(|r| r.workspace.cfg.get_column_width())
+            .unwrap_or(COLUMN_WIDTHS[0]);
+        let mut pick = COLUMN_WIDTHS.iter().position(|w| *w == width).unwrap_or(0);
+        if form_segmented(ui, t, "Text width", &["Narrow", "Medium", "Wide"], &mut pick).changed() {
+            queue.push(A::SetPrefColumnWidth(COLUMN_WIDTHS[pick]));
+        }
     });
 }
+
+/// The text column's widest points: Narrow, Medium, Wide.
+const COLUMN_WIDTHS: [f32; 3] = [600.0, 800.0, 1000.0];
 
 fn page_debug(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     // Integrity + panics load off-thread; Copy works without revealing the dump.

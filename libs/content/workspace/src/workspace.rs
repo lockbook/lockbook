@@ -2178,6 +2178,13 @@ pub struct WsPresistentData {
     /// Misspelled words are marked in notes and the chat composer.
     #[serde(default = "default_spell_check")]
     spell_check: bool,
+    /// The widest a note's text column gets, in points.
+    #[serde(default = "default_column_width")]
+    column_width: f32,
+}
+
+fn default_column_width() -> f32 {
+    600.0
 }
 
 fn default_update_links() -> bool {
@@ -2210,6 +2217,7 @@ impl Default for WsPresistentData {
             source: false,
             update_links: true,
             spell_check: true,
+            column_width: default_column_width(),
         }
     }
 }
@@ -2405,6 +2413,20 @@ impl WsPersistentStore {
             return; // no-op guard: mobile pushes this from its per-frame draw
         }
         data_lock.spell_check = spell_check;
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn get_column_width(&self) -> f32 {
+        self.data.read().unwrap().column_width
+    }
+
+    pub fn set_column_width(&mut self, column_width: f32) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.column_width == column_width {
+            return;
+        }
+        data_lock.column_width = column_width;
         drop(data_lock);
         self.write_to_file();
     }
