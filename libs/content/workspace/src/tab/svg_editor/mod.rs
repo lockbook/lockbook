@@ -287,20 +287,19 @@ impl SVGEditor {
             read_only: self.read_only,
         };
 
-        ui.scope_builder(
-            UiBuilder::new().layer_id(egui::LayerId {
-                order: egui::Order::Middle,
-                id: egui::Id::unique("canvas_ui_overlay"),
-            }),
-            |ui| {
-                let mut ui = ui.new_child(
-                    UiBuilder::new()
-                        .max_rect(ui.available_rect_before_wrap())
-                        .layout(egui::Layout::default()),
-                );
-                self.toolbar.show(&mut ui, &mut toolbar_context)
-            },
-        )
+        let overlay_layer =
+            egui::LayerId::new(egui::Order::Middle, egui::Id::unique("canvas_ui_overlay"));
+        // Register the overlay alongside its anchored child Areas so canvas
+        // painting cannot be ordered above the rest of the toolbar.
+        ui.ctx().move_to_top(overlay_layer);
+        ui.scope_builder(UiBuilder::new().layer_id(overlay_layer), |ui| {
+            let mut ui = ui.new_child(
+                UiBuilder::new()
+                    .max_rect(ui.available_rect_before_wrap())
+                    .layout(egui::Layout::default()),
+            );
+            self.toolbar.show(&mut ui, &mut toolbar_context)
+        })
         .inner
     }
 
