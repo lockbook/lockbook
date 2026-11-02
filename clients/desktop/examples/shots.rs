@@ -3,8 +3,8 @@
 //! `LOCKBOOK_PATH=… cargo run -p lockbook-desktop --features win-chrome --example shots -- scene.txt out/`
 //!
 //! One command per line: `size W H SCALE` · `ready` · `open PATH` ·
-//! `pane files|recents|shared` · `search [path|content]` · `sidebar on|off` · `expand PATH` · `settings` · `reveal` · `share PATH` ·
-//! `key [cmd+][shift+]NAME [COUNT]` · `type TEXT` · `move X Y` · `click X Y` ·
+//! `pane files|recents|shared` · `search [path|content]` · `sidebar on|off` · `sidebar-width W` · `expand PATH` · `settings` · `reveal` · `share PATH` ·
+//! `key [cmd+][shift+]NAME [COUNT]` · `type TEXT` · `move X Y` · `click X Y` · `wheel DX DY` ·
 //! `frames N` · `shot NAME` · `#` comments.
 
 use std::path::PathBuf;
@@ -325,6 +325,16 @@ impl Shots {
                 }
             }
             "settings" => self.act(Action::OpenSettings),
+            "sidebar-width" => {
+                // Same panel id the shell's sidebar uses.
+                let w = num(rest);
+                let id = self.ctx.viewport_id().root_ui_id().with("shell_sidebar");
+                if let Some(mut state) = egui::containers::panel::PanelState::load(&self.ctx, id) {
+                    state.outer_rect.set_right(state.outer_rect.left() + w);
+                    self.ctx.data_mut(|d| d.insert_persisted(id, state));
+                }
+                self.frames(30);
+            }
             "search" => {
                 let kind = match rest {
                     "content" => SearchType::Content,
@@ -356,6 +366,18 @@ impl Shots {
             "click" => {
                 let v: Vec<f32> = rest.split_whitespace().map(num).collect();
                 self.click(pos2(v[0], v[1]));
+            }
+            "wheel" => {
+                // Positive dy scrolls content up (pointer wheel toward the user).
+                let v: Vec<f32> = rest.split_whitespace().map(num).collect();
+                self.frame(vec![Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(v[0], v[1]),
+                    modifiers: Modifiers::NONE,
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Wheel,
+                }]);
+                self.frames(20);
             }
             "frames" => self.frames(num(rest) as usize),
             "dump" => println!(
