@@ -925,10 +925,11 @@ impl MdRender {
         if self.bounds.text_seq != self.text_seq {
             self.bounds.inline_paragraphs.clear();
             self.calc_source_lines();
-            // source shows folds open and images as their text
+            // source shows folds open and images and diagrams as their text
             if self.view == View::Source {
                 self.bounds.folds.clear();
                 self.bounds.images.clear();
+                self.bounds.diagrams.clear();
             } else {
                 self.calc_fold_bounds(root);
                 self.calc_atom_bounds(root);
