@@ -627,3 +627,72 @@ fn a_press_on_the_note_stops_a_coasting_table() {
     editor.enter_frame_with_input(vec![]);
     assert_eq!(editor.editor.edit.renderer.row_scrolled(table), stopped);
 }
+
+#[test]
+fn a_wheel_without_phases_picks_its_axis_again_after_a_pause() {
+    use super::super::row_scroll::RowScroller;
+
+    let md = format!("{}\n\n{}", wide(), "paragraph\n\n".repeat(200));
+    let mut editor = TestEditor::new(&md);
+    editor.enter_frame();
+    editor.enter_frame_with_input(vec![]);
+    let table = RowScroller::Table(0);
+    let scrollers = &editor.editor.edit.renderer.row_scrollers;
+    let (rect, _) = scrollers.iter().find(|(_, key)| *key == table).unwrap();
+    let pointer = egui::Event::PointerMoved(rect.center());
+    let wheel = |delta| egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta,
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: Default::default(),
+    };
+
+    for _ in 0..3 {
+        editor.enter_frame_with_input(vec![pointer.clone(), wheel(egui::vec2(-5.0, 0.0))]);
+    }
+    assert_ne!(editor.editor.edit.renderer.row_scrolled(table), 0.0);
+
+    let page = editor.editor.edit.scroll_area.stored_offset();
+    editor.enter_frame_with_input_after(1.0, vec![pointer.clone(), wheel(egui::vec2(0.0, -5.0))]);
+    for _ in 0..3 {
+        editor.enter_frame_with_input(vec![pointer.clone(), wheel(egui::vec2(0.0, -5.0))]);
+    }
+    assert_ne!(editor.editor.edit.scroll_area.stored_offset(), page);
+}
+
+#[test]
+fn a_gesture_begun_on_text_leaves_its_sideways_travel_to_the_workspace() {
+    use super::super::row_scroll::RowScroller;
+
+    let md = format!("{}\n\n{}", wide(), "paragraph\n\n".repeat(200));
+    let mut editor = TestEditor::new(&md);
+    editor.enter_frame();
+    editor.enter_frame_with_input(vec![]);
+    let scrollers = &editor.editor.edit.renderer.row_scrollers;
+    let (rect, _) = scrollers
+        .iter()
+        .find(|(_, key)| *key == RowScroller::Table(0))
+        .unwrap();
+    let pointer = egui::Event::PointerMoved(egui::pos2(rect.center().x, rect.bottom() + 100.0));
+    let wheel = |phase, delta| egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta,
+        phase,
+        source: egui::MouseWheelSource::Trackpad,
+        modifiers: Default::default(),
+    };
+
+    let start = wheel(egui::TouchPhase::Start, egui::Vec2::ZERO);
+    let down = wheel(egui::TouchPhase::Move, egui::vec2(-4.0, -6.0));
+    editor.enter_frame_with_input(vec![pointer.clone(), start, down]);
+    let sideways = wheel(egui::TouchPhase::Move, egui::vec2(-10.0, -1.0));
+    editor.enter_frame_with_input(vec![pointer, sideways]);
+    let left = editor
+        .editor
+        .edit
+        .renderer
+        .ctx
+        .input(|i| i.smooth_scroll_delta.x);
+    assert_eq!(left, -10.0);
+}

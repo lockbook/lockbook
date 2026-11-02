@@ -69,7 +69,7 @@ pub unsafe extern "C" fn ios_fling(obj: *mut c_void, vy: f32) {
         .push_markdown_event(Event::Gesture(Gesture::Fling { vy }));
 }
 
-/// Stop coasting. Returns whether the page was coasting.
+/// Stop coasting: the page and every block in it. Returns whether one was.
 ///
 /// # Safety
 /// obj must be a valid pointer to WgpuWorkspace
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn ios_stop_scroll(obj: *mut c_void) -> bool {
     obj.workspace.flush_gestures();
     obj.workspace
         .focused_mdedit_mut()
-        .is_some_and(|md| md.scroll_area.gesture_stop())
+        .is_some_and(|md| md.scroll_area.gesture_stop() | md.renderer.stop_row_coasts())
 }
 
 #[no_mangle]
