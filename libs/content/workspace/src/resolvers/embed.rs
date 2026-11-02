@@ -32,6 +32,10 @@ pub trait EmbedResolver {
 
     /// Put the image at `url` on the clipboard, once its pixels are read.
     fn copy_image(&self, _url: &str, _ctx: &egui::Context) {}
+    /// Whether anything shown since the last call is still loading.
+    fn take_pending(&self) -> bool {
+        false
+    }
 }
 
 impl EmbedResolver for () {

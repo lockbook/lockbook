@@ -3,6 +3,7 @@ use egui_wgpu_renderer::RendererState;
 use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::*;
+use lb_c::Uuid;
 use lb_java::Lb;
 use ndk_sys::{
     ANativeWindow, ANativeWindow_fromSurface, ANativeWindow_getHeight, ANativeWindow_getWidth,
@@ -153,6 +154,64 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_defaultTheme(
 ) -> jobject {
     let mode = if is_dark != 0 { Mode::Dark } else { Mode::Light };
     lb_theme_to_android_material_theme(&mut env, Theme::default(mode)).into_raw()
+}
+
+/// A preview of open session `jsession` where it's parked, at `width` by
+/// `height` dp and `scale` pixels per dp with `padding` dp around its
+/// content, in the `WorkspaceTheme` `jtheme`, whose mode it's drawn in; 0
+/// for a session that isn't open or is a search. Render it with `renderPreview`. Call on the UI thread.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_previewSession(
+    mut env: JNIEnv, _: JClass, obj: jlong, jsession: JString, width: jfloat, height: jfloat,
+    scale: jfloat, padding: jfloat, jtheme: JObject,
+) -> jlong {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let session: String = env.get_string(&jsession).unwrap().into();
+    let Ok(id) = Uuid::parse_str(&session) else { return 0 };
+    let id = workspace_rs::tab::SessionId::from_uuid(id);
+    let theme = android_material_theme_to_lb(&mut env, jtheme);
+    match obj.preview_session(id, egui::vec2(width, height), scale, padding, theme) {
+        Some(job) => Box::into_raw(Box::new(job)) as jlong,
+        None => 0,
+    }
+}
+
+/// A preview of document `jid` at `jfragment` as a URL writes it (a
+/// heading, `page=3`), empty for its top, in the `WorkspaceTheme` `jtheme`.
+/// Call on the UI thread.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_previewDocument(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, jfragment: JString, width: jfloat,
+    height: jfloat, scale: jfloat, padding: jfloat, jtheme: JObject,
+) -> jlong {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let id: String = env.get_string(&jid).unwrap().into();
+    let Ok(id) = Uuid::parse_str(&id) else { return 0 };
+    let fragment: String = env.get_string(&jfragment).unwrap().into();
+    let fragment = workspace_rs::tab::Fragment::from_url(&fragment);
+    let place = workspace_rs::tab::Place::at(workspace_rs::tab::Destination::File(id), fragment);
+    let theme = android_material_theme_to_lb(&mut env, jtheme);
+    let job = obj.preview(place, egui::vec2(width, height), scale, padding, theme);
+    Box::into_raw(Box::new(job)) as jlong
+}
+
+/// Renders a preview to PNG bytes and frees the job; null if it failed.
+/// Blocks until the tab settles; call off the UI thread.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_renderPreview(
+    env: JNIEnv, _: JClass, job: jlong,
+) -> jni::sys::jbyteArray {
+    let job = unsafe { Box::from_raw(job as *mut crate::preview::PreviewJob) };
+    match job.run() {
+        Ok(png) => env
+            .byte_array_from_slice(&png)
+            .map(|bytes| bytes.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(err) => {
+            tracing::warn!("preview failed: {err}");
+            std::ptr::null_mut()
+        }
+    }
 }
 
 fn android_material_theme_to_lb(env: &mut JNIEnv<'_>, theme: JObject<'_>) -> Theme {

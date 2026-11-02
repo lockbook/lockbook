@@ -53,7 +53,6 @@ impl Workspace {
         self.refit_source_views();
         self.process_keys();
         self.process_clip_events();
-        self.apply_pending_reveal();
 
         self.set_user_present();
 
@@ -77,8 +76,7 @@ impl Workspace {
             )
         });
         self.update_window_title();
-        self.keep_note_index();
-        if self.out.tabs_changed || self.current_tab_changed {
+        if self.take_sessions_changed() || self.out.tabs_changed || self.current_tab_changed {
             self.cfg
                 .set_tabs(&self.tab_strip, &self.current_tab, &self.last_search);
             self.current_tab_changed = false;
@@ -265,6 +263,7 @@ impl Workspace {
                 self.open_anyway(id, session);
             }
 
+            self.note_fragment_left(resp.left_fragment);
             self.out.open_camera = resp.open_camera;
             if resp.text_updated {
                 self.out.markdown_editor_text_updated = true;

@@ -6,6 +6,7 @@
 use super::*;
 use crate::file_cache::path_segments;
 use crate::show::InputStateExt as _;
+use egui::scroll_area::{ScrollBarVisibility, ScrollSource};
 
 /// A vertically-stacked, horizontally-centered column painted as one block in
 /// a rect — the shared skeleton of the onboarding chooser, connect step,
@@ -214,7 +215,10 @@ impl Chat {
         // First-run guidance, only in an empty chat and once config has
         // loaded (else it flashes before the background load lands). A
         // summoned chooser reuses the same surface over an existing chat.
-        let onboard = if self.chooser_open {
+        let embedded = self.embedded;
+        let onboard = if embedded {
+            None
+        } else if self.chooser_open {
             Some(Onboard::Choose)
         } else {
             (self.unshared && self.config_loaded && visible.is_empty())
@@ -227,7 +231,11 @@ impl Chat {
         // button — the fix always sits where you'd type. Computed regardless
         // of chat emptiness (an established chat keeps its history above) and
         // suppressed while the masked field or the roster is up.
-        let need_key = (self.unshared && self.config_loaded && !connect_open && !self.chooser_open)
+        let need_key = (self.unshared
+            && self.config_loaded
+            && !connect_open
+            && !self.chooser_open
+            && !embedded)
             .then(|| match self.onboard_stage() {
                 Some(Onboard::NeedKey { name, label }) => Some((name, label)),
                 _ => None,
@@ -239,7 +247,7 @@ impl Chat {
         // the composer surface (its text field becomes the "add key" button);
         // everything past a valid key (Connecting/Unreachable/PickModel) keeps
         // the composer too — PickModel picks its model from the toolbar.
-        let hide_composer = connect_open || matches!(onboard, Some(Onboard::Choose));
+        let hide_composer = connect_open || matches!(onboard, Some(Onboard::Choose)) || embedded;
 
         // Retry the last turn when it errored and the agent is idle.
         let can_retry = !agent_busy
@@ -279,17 +287,17 @@ impl Chat {
             COMPOSER_BOTTOM_GAP
         };
 
-        let composer_id = Id::unique("chat_composer");
+        let composer_id = self.salt.with("chat_composer");
         // Focus when first shown or whenever nothing holds focus — the
         // editor's policy, and load-bearing on iOS: typing arrives as egui
         // events only a focused composer consumes, and taps place the cursor
         // via the text FFI without touching egui focus, so lost focus must
         // self-heal here. (The touch keyboard tracks UIKit first-responder
         // state, not egui focus — the re-grab never summons it.)
-        if !self.initialized || ui.memory(|m| m.focused().is_none()) {
+        if !embedded && (!self.initialized || ui.memory(|m| m.focused().is_none())) {
             ui.memory_mut(|m| m.request_focus(composer_id));
-            self.initialized = true;
         }
+        self.initialized = true;
 
         // The connect step closes itself (validation lands in the background),
         // so no click refocuses anything — hand focus back to the composer.
@@ -367,7 +375,7 @@ impl Chat {
         // keyboard / completions / internal events. Routes to *one* editor:
         // the connect step's key field while it's open, else the composer.
         if self.key_entry.is_some() {
-            let key_field_id = Id::unique("chat_key_field");
+            let key_field_id = self.salt.with("chat_key_field");
             // No per-frame request_focus: the render block's one-shot focuses
             // the field, and its interaction + focus lock hold it after that.
             // Consume Return before handle_input so it submits rather than
@@ -395,7 +403,7 @@ impl Chat {
                 self.key_field.set_text(&cleaned);
                 key_submit = true;
             }
-        } else {
+        } else if !embedded {
             let workspace_events = self.composer.drain_workspace_events(ui.ctx());
             self.composer.event.internal_events.extend(workspace_events);
             let _ = self.composer.handle_input(ui.ctx(), composer_id);
@@ -419,13 +427,16 @@ impl Chat {
         // The composer bubble carries a toolbar row at its bottom; the model
         // dropdowns appear there for agent chats.
         let indicator = if self.unshared { self.provider.clone() } else { None };
-        let transcript_rect = Rect::from_min_max(
-            full_rect.min,
-            pos2(
-                full_rect.max.x,
-                full_rect.max.y - composer_height - TOOLBAR_H - composer_bottom_inset,
+        let transcript_rect = match embedded {
+            true => full_rect,
+            false => Rect::from_min_max(
+                full_rect.min,
+                pos2(
+                    full_rect.max.x,
+                    full_rect.max.y - composer_height - TOOLBAR_H - composer_bottom_inset,
+                ),
             ),
-        );
+        };
         let mut text_areas = Vec::new();
         let mut retry_clicked = false;
         let mut onboard_pick: Option<&'static str> = None;
@@ -438,7 +449,7 @@ impl Chat {
         // turn being in flight, and the agent-rerunning actions additionally
         // on this being an agent chat.
         let mut action: Option<RowAction> = None;
-        let can_mutate = !agent_busy;
+        let can_mutate = !agent_busy && !embedded;
         let agent_actions = self.harness.is_some();
         // The call awaiting a decision, rendered as a trailing approval card:
         // its adapted permission prose, the diff (edits), and Approve / Deny.
@@ -480,17 +491,36 @@ impl Chat {
         let mut backdrop_tapped = false;
         ui.scope_builder(egui::UiBuilder::new().max_rect(transcript_rect), |ui| {
             ui.set_clip_rect(transcript_rect.intersect(ui.clip_rect()));
-            if touch_os && !takeover {
+            if touch_os && !takeover && !embedded {
                 let backdrop = ui.interact(
                     transcript_rect,
-                    Id::unique("chat_transcript_backdrop"),
+                    self.salt.with("chat_transcript_backdrop"),
                     Sense::click(),
                 );
                 backdrop_tapped = backdrop.clicked();
             }
-            ScrollArea::vertical()
+            self.user_scrolled = ui.rect_contains_pointer(transcript_rect)
+                && ui.input(|i| {
+                    i.smooth_scroll_delta != egui::Vec2::ZERO
+                        || i.pointer.is_decidedly_dragging() && touch_os
+                });
+            // an embed stays within its entry
+            let was = self.transcript_view.min.y;
+            let mut top = was;
+            if let Some(row) = self.region_rect().filter(|_| embedded) {
+                top =
+                    top.clamp(row.top(), (row.bottom() - transcript_rect.height()).max(row.top()));
+            }
+            let (source, bar) = match embedded {
+                true => (ScrollSource::NONE, ScrollBarVisibility::AlwaysHidden),
+                false => (ScrollSource::default(), ScrollBarVisibility::VisibleWhenNeeded),
+            };
+            let out = ScrollArea::vertical()
                 .id_salt("chat_messages")
-                .stick_to_bottom(!branch_anchored)
+                .stick_to_bottom(!branch_anchored && self.region.is_none())
+                .scroll_source(source)
+                .scroll_bar_visibility(bar)
+                .offset_to((was.is_finite() && top != was).then_some(top))
                 .show(ui, |ui| {
                     let origin = ui.cursor().min;
                     let col_pad = (available_width - col_width) / 2.0;
@@ -994,6 +1024,23 @@ impl Chat {
                     let total_h = (y - origin.y) + BOTTOM_PAD;
                     let _ = ui.allocate_exact_size(vec2(available_width, total_h), Sense::hover());
 
+                    self.entry_rows = strips
+                        .iter()
+                        .filter_map(|s| {
+                            let id = self.entries[visible[s.vi].idx].msg.id?;
+                            Some((id, s.row_rect.translate(-origin.to_vec2())))
+                        })
+                        .collect();
+                    self.rows_width = available_width;
+                    if let Some(id) = self.reveal_entry.take() {
+                        let row = strips
+                            .iter()
+                            .find(|s| self.entries[visible[s.vi].idx].msg.id == Some(id));
+                        if let Some(row) = row {
+                            ui.scroll_to_rect(row.row_rect, Some(egui::Align::TOP));
+                        }
+                    }
+
                     if std::mem::take(&mut self.scroll_to_bottom) {
                         ui.scroll_to_rect(
                             Rect::from_min_size(pos2(origin.x, origin.y + total_h), vec2(1.0, 1.0)),
@@ -1009,7 +1056,7 @@ impl Chat {
                         .map(|s| {
                             ui.interact(
                                 s.row_rect,
-                                Id::unique(("chat_row", visible[s.vi].idx)),
+                                self.salt.with(("chat_row", visible[s.vi].idx)),
                                 Sense::click(),
                             )
                         })
@@ -1158,7 +1205,7 @@ impl Chat {
                                     let areas = paint_segments(
                                         ui,
                                         &mut self.entries[i].label,
-                                        Id::unique(("tool_body", i)),
+                                        self.salt.with(("tool_body", i)),
                                         &segs,
                                         rpos,
                                         rwidth,
@@ -1273,7 +1320,7 @@ impl Chat {
                                 if let Some(target) = target.filter(|_| can_mutate) {
                                     let resp = ui.interact(
                                         r,
-                                        Id::unique(("chat_arrow", vi, glyph)),
+                                        self.salt.with(("chat_arrow", vi, glyph)),
                                         Sense::click(),
                                     );
                                     if resp.clicked() {
@@ -1321,7 +1368,7 @@ impl Chat {
                                 let r = place(STRIP_H);
                                 let resp = ui.interact(
                                     r,
-                                    Id::unique(("chat_strip", i, bi)),
+                                    self.salt.with(("chat_strip", i, bi)),
                                     Sense::click(),
                                 );
                                 let color =
@@ -1440,7 +1487,7 @@ impl Chat {
                         // Deny: bordered. Allow: accent-filled.
                         let deny = ui.interact(
                             r.deny_rect,
-                            Id::unique("chat_review_deny"),
+                            self.salt.with("chat_review_deny"),
                             Sense::click(),
                         );
                         ui.painter().rect_stroke(
@@ -1456,7 +1503,7 @@ impl Chat {
                         );
                         let approve = ui.interact(
                             r.approve_rect,
-                            Id::unique("chat_review_approve"),
+                            self.salt.with("chat_review_approve"),
                             Sense::click(),
                         );
                         ui.painter()
@@ -1619,8 +1666,11 @@ impl Chat {
                             );
                         }
                         // Centered text-only Cancel, filling its reserved rect.
-                        let cancel_resp =
-                            ui.interact(cancel_rect, Id::unique("chat_key_cancel"), Sense::click());
+                        let cancel_resp = ui.interact(
+                            cancel_rect,
+                            self.salt.with("chat_key_cancel"),
+                            Sense::click(),
+                        );
                         let cancel_color =
                             if cancel_resp.hovered() { text_color } else { secondary_color };
                         ui.painter().galley(cancel_rect.min, cancel, cancel_color);
@@ -1767,7 +1817,7 @@ impl Chat {
                                         );
                                         let resp = ui.interact(
                                             cell,
-                                            Id::unique(("chat_onboard", name)),
+                                            self.salt.with(("chat_onboard", name)),
                                             Sense::click(),
                                         );
                                         if resp.hovered() {
@@ -1822,7 +1872,7 @@ impl Chat {
                                     let rect = rects[1];
                                     let resp = ui.interact(
                                         rect,
-                                        Id::unique("chat_chooser_cancel"),
+                                        self.salt.with("chat_chooser_cancel"),
                                         Sense::click(),
                                     );
                                     let color =
@@ -1911,6 +1961,9 @@ impl Chat {
                         col.show(ui, transcript_rect, center_x);
                     }
                 });
+            self.transcript_view =
+                Rect::from_min_size(out.state.clamped_offset().to_pos2(), out.inner_rect.size());
+            self.transcript_h = out.content_size.y;
         });
 
         // A bare-canvas tap dismisses the keyboard (composer surrenders
@@ -2038,7 +2091,7 @@ impl Chat {
         // `focused_mdedit_mut` + the text-interaction rect already point here.
         use crate::tab::ExtendedOutput as _;
         if self.key_entry.is_some() && self.key_field_rect.is_finite() {
-            let key_field_id = Id::unique("chat_key_field");
+            let key_field_id = self.salt.with("chat_key_field");
             // Focus + keyboard modeled on the find bar (the other text field
             // that appears without a tap): one-shot on open, edge-triggered
             // re-summon — never per-frame, which fights UIKit's own
@@ -2098,7 +2151,7 @@ impl Chat {
             {
                 self.connect_provider_key();
             }
-        } else if hide_composer && self.key_entry.is_none() {
+        } else if hide_composer && self.key_entry.is_none() && !embedded {
             // The chooser has no text input — keyboard away (also the connect
             // step's dismissal path). Not while the step awaits first layout:
             // that would race the one-shot summon right behind it.
@@ -2153,7 +2206,7 @@ impl Chat {
                 text_rect.min + vec2(H_PAD, V_PAD),
                 pos2(text_rect.max.x - H_PAD, text_rect.max.y - V_PAD),
             );
-            let resp = ui.interact(btn_rect, Id::unique("chat_add_key"), Sense::click());
+            let resp = ui.interact(btn_rect, self.salt.with("chat_add_key"), Sense::click());
             let accent = theme.bg().get_color(theme.prefs().primary);
             ui.painter()
                 .rect_filled(btn_rect, CornerRadius::same(8), accent);
@@ -2206,7 +2259,7 @@ impl Chat {
             // Touch targets stay ~44pt even where the visual is smaller.
             let hit_rect = if touch_os { button_rect.expand(7.0) } else { button_rect };
             let active = (non_empty && send_block.is_none()) || agent_busy;
-            let resp = ui.interact(hit_rect, Id::unique("chat_send"), Sense::click());
+            let resp = ui.interact(hit_rect, self.salt.with("chat_send"), Sense::click());
 
             let painter = ui.painter();
             // The markdown-toolbar icon idiom — no filled disc, just the mark
@@ -2328,7 +2381,7 @@ impl Chat {
                     ui.painter()
                         .add(egui::Shape::line(points, Stroke::new(2.0_f32, fill)));
                 }
-                ui.interact(rect, Id::unique("chat_context_ring"), Sense::hover())
+                ui.interact(rect, self.salt.with("chat_context_ring"), Sense::hover())
                     .on_hover_text(format!("{used} / {window} tokens ({:.0}%)", ratio * 100.0));
             }
 
@@ -2374,7 +2427,7 @@ impl Chat {
                     let rect =
                         Rect::from_min_size(pos2(cursor_x, toolbar_rect.min.y), vec2(w, TOOLBAR_H));
                     cursor_x = rect.max.x + STRIP_GAP;
-                    let resp = ui.interact(rect, Id::unique(id), Sense::click());
+                    let resp = ui.interact(rect, self.salt.with(id), Sense::click());
                     let text_top = rect.min.y + (TOOLBAR_H - galley.size().y) / 2.0;
                     ui.painter()
                         .galley(pos2(rect.min.x, text_top), galley, text_color);
@@ -2640,7 +2693,8 @@ impl Chat {
             // away from the per-message controls. Chips the budget folded
             // lead the menu as submenus, above the standing actions.
             {
-                let more_resp = ui.interact(more_rect, Id::unique("chat_more_btn"), Sense::click());
+                let more_resp =
+                    ui.interact(more_rect, self.salt.with("chat_more_btn"), Sense::click());
                 let color = if more_resp.hovered() { text_color } else { secondary_color };
                 let glyph = ui.fonts_mut(|f| {
                     f.layout_no_wrap(
@@ -2818,5 +2872,19 @@ impl Chat {
             composer_updated,
             composer_text_updated,
         )
+    }
+}
+
+trait OffsetTo {
+    /// Scrolls to `y` this frame, when there is one.
+    fn offset_to(self, y: Option<f32>) -> Self;
+}
+
+impl OffsetTo for ScrollArea {
+    fn offset_to(self, y: Option<f32>) -> Self {
+        match y {
+            Some(y) => self.vertical_scroll_offset(y),
+            None => self,
+        }
     }
 }

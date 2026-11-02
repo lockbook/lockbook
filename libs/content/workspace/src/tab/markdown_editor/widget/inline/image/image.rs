@@ -270,7 +270,7 @@ impl<'ast> MdEdit {
             };
             // a block card already shows everything its preview would
             let card = !is_image && self.renderer.link_renders_as_card(node);
-            let preview = (!is_image && !wikilink && !card).then_some((url, false));
+            let preview = (!is_image && !wikilink && !card).then_some((url, false, false));
             self.renderer
                 .show_link_tip(ui.ctx(), &response, state, preview);
         }

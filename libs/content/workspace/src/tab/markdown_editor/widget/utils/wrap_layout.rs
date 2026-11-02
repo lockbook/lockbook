@@ -198,6 +198,8 @@ pub enum EmbedKind {
     LinkCard,
     /// `url` is the diagram's Mermaid source.
     Diagram,
+    /// A wiki embed's tab; its url is the title.
+    Tab,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -2033,6 +2035,12 @@ impl MdRender {
                         EmbedKind::Diagram => {
                             self.paint_diagram_embed(embed_ui, url, frag.source_range, screen_rect)
                         }
+                        EmbedKind::Tab => self.paint_tab_embed(
+                            embed_ui,
+                            url,
+                            screen_rect,
+                            frag.source_range.start(),
+                        ),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,

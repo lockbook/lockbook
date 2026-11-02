@@ -1143,7 +1143,7 @@ impl MdEdit {
                         // requesting focus interrupts the input method, which on X11
                         // resets it (fcitx5 back to English); a composition the click
                         // leaves interrupts it anyway (see `ime_marked_range`)
-                        if !ui.memory(|m| m.has_focus(id)) {
+                        if self.takes_focus && !ui.memory(|m| m.has_focus(id)) {
                             ui.memory_mut(|m| m.request_focus(id));
                         }
                         // a click that edits — on a cell its row lacks, or below
@@ -1202,7 +1202,9 @@ impl MdEdit {
         // returning so a caller passing its own `ui` (e.g. the chat composer)
         // isn't left with a narrowed clip that swallows its later paints.
         let entry_clip = ui.clip_rect();
-        ui.set_clip_rect(rect.intersect(entry_clip));
+        if !self.clip_to_host {
+            ui.set_clip_rect(rect.intersect(entry_clip));
+        }
 
         // cursor / selection — iOS draws natively
         if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {
@@ -1276,7 +1278,9 @@ impl MdEdit {
         // FindMatch is consumed by the caller (it owns find state).
         if matches!(self.pending_scroll, Some(ScrollTarget::Cursor)) {
             self.pending_scroll = None;
+            let before = self.scroll_area.stored_offset();
             self.scroll_to_cursor(rect);
+            self.moved_after_paint |= self.scroll_area.stored_offset() != before;
         }
 
         // lock focus filter so arrow keys / tab / shift+enter keep reaching us

@@ -569,3 +569,97 @@ pub unsafe extern "C" fn close_session(obj: *mut c_void, id: CUuid) {
     obj.workspace
         .close_session(workspace_rs::tab::SessionId::from_uuid(id.into()));
 }
+
+/// PNG bytes from [`render_preview`]; empty when the preview failed.
+#[repr(C)]
+pub struct CPng {
+    pub data: *mut u8,
+    pub len: usize,
+}
+
+/// A preview of open session `session` where it's parked, at `width` by
+/// `height` points and `scale` pixels per point with `padding` points
+/// around its content, to render with
+/// [`render_preview`]; null for a session that isn't open or is a search.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace; call on the main thread.
+#[no_mangle]
+pub unsafe extern "C" fn preview_session(
+    obj: *mut c_void, session: CUuid, width: f32, height: f32, scale: f32, padding: f32, dark: bool,
+) -> *mut c_void {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let id = workspace_rs::tab::SessionId::from_uuid(session.into());
+    match obj.preview_session(id, vec2(width, height), scale, padding, live_theme(obj, dark)) {
+        Some(job) => Box::into_raw(Box::new(job)) as *mut c_void,
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// A preview of document `id` at `fragment` as a URL writes it (a heading,
+/// `page=3`), null or empty for its top, to render with [`render_preview`].
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace; call on the main thread.
+#[no_mangle]
+pub unsafe extern "C" fn preview_document(
+    obj: *mut c_void, id: CUuid, fragment: *const c_char, width: f32, height: f32, scale: f32,
+    padding: f32, dark: bool,
+) -> *mut c_void {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let fragment = match fragment.is_null() {
+        true => None,
+        false => unsafe { CStr::from_ptr(fragment) }.to_str().ok(),
+    };
+    let fragment = fragment.and_then(workspace_rs::tab::Fragment::from_url);
+    let place =
+        workspace_rs::tab::Place::at(workspace_rs::tab::Destination::File(id.into()), fragment);
+    let job = obj.preview(place, vec2(width, height), scale, padding, live_theme(obj, dark));
+    Box::into_raw(Box::new(job)) as *mut c_void
+}
+
+/// The live theme in light or dark, which it holds both of.
+fn live_theme(obj: &WgpuWorkspace, dark: bool) -> workspace_rs::theme::palette_v2::Theme {
+    use workspace_rs::theme::palette_v2::{Mode, ThemeExt as _};
+    let mode = if dark { Mode::Dark } else { Mode::Light };
+    obj.renderer.context.get_lb_theme().with_mode(mode)
+}
+
+/// Renders a preview to PNG bytes and frees the job. Blocks until the tab
+/// settles; call off the main thread. Free the bytes with [`free_png`].
+///
+/// # Safety
+/// job must come from [`preview_session`] or [`preview_document`], once.
+#[no_mangle]
+pub unsafe extern "C" fn render_preview(job: *mut c_void) -> CPng {
+    let job = unsafe { Box::from_raw(job as *mut crate::preview::PreviewJob) };
+    match job.run() {
+        Ok(png) => {
+            let png = png.into_boxed_slice();
+            let len = png.len();
+            CPng { data: Box::into_raw(png) as *mut u8, len }
+        }
+        Err(err) => {
+            tracing::warn!("preview failed: {err}");
+            CPng { data: std::ptr::null_mut(), len: 0 }
+        }
+    }
+}
+
+/// Frees a preview that won't be rendered.
+///
+/// # Safety
+/// job must come from [`preview_session`] or [`preview_document`], once.
+#[no_mangle]
+pub unsafe extern "C" fn free_preview(job: *mut c_void) {
+    drop(unsafe { Box::from_raw(job as *mut crate::preview::PreviewJob) });
+}
+
+/// # Safety
+/// png must come from [`render_preview`], once.
+#[no_mangle]
+pub unsafe extern "C" fn free_png(png: CPng) {
+    if !png.data.is_null() {
+        let _ = unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(png.data, png.len)) };
+    }
+}

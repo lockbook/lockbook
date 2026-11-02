@@ -26,6 +26,9 @@ const SCREEN_PADDING: egui::Pos2 =
 
 pub struct ImageViewer {
     picture: Picture,
+    /// Drawn alone inside another surface: no controls, and the context's
+    /// events are left for the host.
+    pub embedded: bool,
     images: ImageCache,
     input_controller: InputController,
     master_transform: Transform,
@@ -65,6 +68,7 @@ impl ImageViewer {
     fn of(picture: Picture, images: ImageCache) -> Self {
         Self {
             picture,
+            embedded: false,
             images,
             input_controller: InputController::new(InputControllerConfig::new(true, true), &[]),
             master_transform: Transform::identity(),
@@ -89,6 +93,8 @@ impl ImageViewer {
         painter.rect_filled(painter.clip_rect(), 0., t.neutral_bg());
 
         self.menu_open = context_menu::is_any_open(ui.ctx());
+        // an embed's host scrolls by the wheel
+        self.input_controller.pan_on_wheel = !self.embedded;
         if !self.menu_open {
             self.process_events(ui, available);
         }
@@ -117,8 +123,10 @@ impl ImageViewer {
                     ));
                 }
 
-                self.show_image_context_menu(ui, available, rect);
-                self.show_viewport_controls(ui, available, rect);
+                if !self.embedded {
+                    self.show_image_context_menu(ui, available, rect);
+                    self.show_viewport_controls(ui, available, rect);
+                }
             }
             ImageState::Failed(ref msg) => {
                 let what = match self.picture {
@@ -133,7 +141,26 @@ impl ImageViewer {
             }
         }
 
-        ui.ctx().pop_events();
+        if !self.embedded {
+            ui.ctx().pop_events();
+        }
+    }
+
+    /// Height over width, once the image has loaded.
+    pub fn aspect(&self) -> Option<f32> {
+        let Picture::File(id) = &self.picture else { return None };
+        let state = self.images.get_or_load(&ImageKey::File(*id), true);
+        let ImageState::Loaded(texture) = *state.lock().unwrap() else { return None };
+        let [w, h] = self.images.texture_size(texture)?;
+        Some(h as f32 / (w as f32).max(1.0))
+    }
+
+    /// The image has loaded or failed to.
+    pub fn settled(&self) -> bool {
+        let Picture::File(id) = &self.picture else { return true };
+        let state = self.images.get_or_load(&ImageKey::File(*id), true);
+        let loading = matches!(*state.lock().unwrap(), ImageState::Loading);
+        !loading
     }
 
     /// The picture as the image cache would have it. A diagram that has

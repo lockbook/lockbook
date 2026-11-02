@@ -18,10 +18,12 @@ use crate::widgets::GlyphonLabel;
 use crate::widgets::TextOverflow;
 
 /// Width of the hover card's content.
-pub(super) const CARD_W: f32 = 320.0;
+pub(crate) const CARD_W: f32 = 320.0;
+/// A hover card showing a file: Obsidian's hover preview, 450 by 400.
+pub(crate) const FILE_CARD: egui::Vec2 = egui::Vec2::new(450.0, 400.0);
 /// Space between a card's edge and its content.
-pub(super) const CARD_PAD: Space = Space::Md;
-pub(super) const CARD_RADIUS: Radius = Radius::Control;
+pub(crate) const CARD_PAD: Space = Space::Md;
+pub(crate) const CARD_RADIUS: Radius = Radius::Control;
 /// A picture this wide or wider runs across the card; narrower ones are left out.
 const BANNER_MIN_ASPECT: f32 = 1.4;
 const FAVICON: f32 = 16.0;
@@ -32,9 +34,15 @@ impl MdRender {
     /// card's buttons. `shows_url`: the link's text is its URL, so a card
     /// with nothing fetched would only repeat it. False when it has no card.
     pub(super) fn show_link_preview(
-        &self, ctx: &egui::Context, response: &Response, url: &str, shows_url: bool,
+        &self, ctx: &egui::Context, response: &Response, url: &str, shows_url: bool, wikilink: bool,
     ) -> bool {
         if self.touch_mode {
+            return false;
+        }
+        if let Some(place) = self.link_place(url, wikilink) {
+            return self.show_tab_card(ctx, response, url, place);
+        }
+        if wikilink {
             return false;
         }
         let Some(ResolvedLink::External(target)) = self.resolve_link(url) else {
@@ -56,8 +64,8 @@ impl MdRender {
             response.rect,
             CARD_W,
             egui::Margin::same(CARD_PAD.pts() as i8),
-            |ui| {
-                ui.set_width(CARD_W);
+            |ui, width| {
+                ui.set_width(width);
                 ui.spacing_mut().item_spacing.y = Space::Sm.pts();
                 match &meta {
                     Some(meta) => {
@@ -72,7 +80,7 @@ impl MdRender {
                         ui.add(
                             GlyphonLabel::new(&target, ink_secondary(&ui.ctx().get_lb_theme()))
                                 .role(TypeRole::Mono)
-                                .max_width(CARD_W)
+                                .max_width(width)
                                 .text_overflow(TextOverflow::EndEllipsis),
                         );
                     }
@@ -142,6 +150,15 @@ impl MdRender {
             .trim_start_matches("http://")
             .trim_start_matches("www.")
             .trim_end_matches('/');
+        self.card_footer(ui, shown, actions, true)
+    }
+
+    /// A card's last row: `shown`, where the link goes, and with `actions`
+    /// beside it an Open button and a `⋯` menu, whose choice this returns.
+    pub(crate) fn card_footer(
+        &self, ui: &mut Ui, shown: &str, actions: bool, refreshable: bool,
+    ) -> Option<LinkMenuAction> {
+        let t = ui.ctx().get_lb_theme();
         let url = |ui: &mut Ui| {
             ui.add(
                 GlyphonLabel::new(shown, ink_secondary(&t))
@@ -156,24 +173,32 @@ impl MdRender {
         }
         let mut chosen = None;
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = Space::Xs.pts();
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let more = icon_button(ui, &t, DOTS_THREE, false, t.neutral_bg());
-                let editable = !self.readonly;
-                chosen = context_menu::show_click(&more, &t, |e| {
-                    fill_link_menu(e, false, editable, true, |a| a)
-                });
-                let open = Button::secondary(&t, "Open").show(ui);
-                if open.clicked() {
-                    chosen = Some(LinkMenuAction::Open);
-                }
-                // controls keep the arrow over the page's text cursor
-                if more.hovered() || open.hovered() {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
-                }
+                chosen = self.card_actions(ui, refreshable);
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), url);
             });
         });
+        chosen
+    }
+
+    /// A card's `⋯` menu then its Open button, right to left in `ui`; the
+    /// choice from either.
+    pub(crate) fn card_actions(&self, ui: &mut Ui, refreshable: bool) -> Option<LinkMenuAction> {
+        let t = ui.ctx().get_lb_theme();
+        ui.spacing_mut().item_spacing.x = Space::Xs.pts();
+        let more = icon_button(ui, &t, DOTS_THREE, false, t.neutral_bg());
+        let editable = !self.readonly;
+        let mut chosen = context_menu::show_click(&more, &t, |e| {
+            fill_link_menu(e, false, editable, refreshable, |a| a)
+        });
+        let open = Button::secondary(&t, "Open").show(ui);
+        if open.clicked() {
+            chosen = Some(LinkMenuAction::Open);
+        }
+        // controls keep the arrow over the page's text cursor
+        if more.hovered() || open.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
+        }
         chosen
     }
 
@@ -323,7 +348,7 @@ fn ago(at: i64) -> String {
 
 /// The palette's secondary neutral, 800 on light and 200 on dark: the
 /// quietest grey its rules allow on the card's 50 / 950 background.
-fn ink_secondary(t: &Theme) -> Color32 {
+pub(crate) fn ink_secondary(t: &Theme) -> Color32 {
     let toward_bg = if t.light() { 0.29 } else { 0.15 };
     t.neutral_fg().lerp_to_gamma(t.neutral_bg(), toward_bg)
 }

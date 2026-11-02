@@ -1,5 +1,5 @@
 pub(crate) mod card;
-mod hover;
+pub(crate) mod hover;
 
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
@@ -219,17 +219,18 @@ impl<'ast> MdRender {
     }
 
     /// The hover card explaining a yellow or red link: what's wrong, then the
-    /// fix in quieter ink; for any other web link, its preview card.
-    /// `state` is worked out only under the pointer. `preview` is the link's
-    /// URL and whether its text is that URL, for links that may preview.
+    /// fix in quieter ink; for any other link, its preview card: a web
+    /// page's, or the tab a file's. `state` is worked out only under the
+    /// pointer. `preview` is the link's URL, whether its text is that URL,
+    /// and whether it's a wiki title, for links that may preview.
     pub fn show_link_tip(
         &self, ctx: &egui::Context, response: &egui::Response, state: impl FnOnce() -> LinkState,
-        preview: Option<(&str, bool)>,
+        preview: Option<(&str, bool, bool)>,
     ) {
         if !response.contains_pointer() {
             // the pointer may be on its way to the preview's buttons
-            if let Some((url, shows_url)) = preview {
-                if self.show_link_preview(ctx, response, url, shows_url) {
+            if let Some((url, shows_url, wikilink)) = preview {
+                if self.show_link_preview(ctx, response, url, shows_url, wikilink) {
                     return;
                 }
             }
@@ -248,8 +249,8 @@ impl<'ast> MdRender {
         | LinkState::Broken { message }
         | LinkState::Placeholder { message }) = state()
         else {
-            if let Some((url, shows_url)) = preview {
-                self.show_link_preview(ctx, response, url, shows_url);
+            if let Some((url, shows_url, wikilink)) = preview {
+                self.show_link_preview(ctx, response, url, shows_url, wikilink);
             }
             return;
         };
@@ -773,8 +774,8 @@ impl<'ast> MdRender {
             if response.hovered() && response.sense.senses_click() {
                 crate::style::link_cursor(ui.ctx());
             }
-            let preview =
-                (!is_wikilink && !is_image).then(|| (url.as_str(), self.link_is_auto(node, &url)));
+            let shows_url = !is_wikilink && self.link_is_auto(node, &url);
+            let preview = (!is_image).then_some((url.as_str(), shows_url, is_wikilink));
             self.show_link_tip(
                 ui.ctx(),
                 response,
@@ -837,7 +838,10 @@ impl<'ast> MdRender {
 
         match self.previews.get(&resolved_url) {
             Preview::Loaded(meta) => LinkMetaLookup::Loaded(meta),
-            Preview::Loading => LinkMetaLookup::Loading,
+            Preview::Loading => {
+                self.previews_pending.set(true);
+                LinkMetaLookup::Loading
+            }
             Preview::Unavailable => LinkMetaLookup::Unavailable,
         }
     }

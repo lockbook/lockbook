@@ -163,6 +163,20 @@ fn source_note_tables_take_tab_and_return() {
     assert_eq!(ws.get_text(), "\n| a | b |\n| - | - |\n| c | d |\n\n");
 }
 
+/// A hover card's note held to its rows switches to source and back.
+#[test]
+fn source_switch_in_a_card() {
+    let mut ws = TestEditor::new("# Reading list\n\none\n\ntwo\n");
+    ws.editor.embedded = true;
+    ws.editor.in_card = true;
+    ws.enter_frame();
+    for source in [true, false] {
+        ws.editor.persistence.set_source(source);
+        ws.enter_frame();
+        assert_eq!(ws.editor.shows_source(), source);
+    }
+}
+
 /// A table comes from the keyboard alone, in source as rendered: ⌥⌘T
 /// inserts one with the caret in its first cell, Return after a header row
 /// makes that row a table's header, and Tab past a blank last row leaves.
