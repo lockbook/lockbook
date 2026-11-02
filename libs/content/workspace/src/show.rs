@@ -250,6 +250,10 @@ impl Workspace {
             if let Some(md) = tab.markdown_mut() {
                 md.edit.phone_mode = md.edit.renderer.touch_mode && software_keyboard;
             }
+            #[cfg(not(target_family = "wasm"))]
+            if let Some(chat) = tab.chat_mut() {
+                chat.composer.renderer.spell_check = self.cfg.get_spell_check();
+            }
 
             let resp = self.open_guard.show(tab, |tab| tab.show(ui));
             if let Some(id) = resp.open_anyway {

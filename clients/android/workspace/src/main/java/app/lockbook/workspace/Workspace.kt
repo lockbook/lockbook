@@ -207,6 +207,16 @@ object Workspace {
     external fun openSelectionLinks(rustObj: Long)
     external fun refreshSelectionPreviews(rustObj: Long)
     external fun setContactLinkedSites(rustObj: Long, value: Boolean)
+
+    external fun setSpellCheck(rustObj: Long, value: Boolean)
+
+    external fun spellingRequests(rustObj: Long): String?
+
+    external fun spellingAnswer(rustObj: Long, word: String, correct: Boolean)
+
+    external fun spellingIgnore(rustObj: Long, word: String)
+
+    external fun selectionMisspelling(rustObj: Long): JTextRange
 }
 
 @Serializable

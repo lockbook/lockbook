@@ -395,6 +395,7 @@
             syncAccentColor(mtkView)
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
+            set_spell_check(wsHandle, UserDefaults.standard.object(forKey: "spellCheck") as? Bool ?? true)
 
             set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
@@ -406,6 +407,11 @@
             set_ws_inset(wsHandle, Float(overlap * scale()))
 
             handle(ios_frame(wsHandle))
+
+            let keyboard = (mtkView.currentWrapper as? TextPage)?.text.textInputMode
+            if Spelling.answer(wsHandle, mode: keyboard) {
+                mtkView.requestFrame()
+            }
         }
 
         /// A frame that consumes no queued input, so geometry reflects an edit

@@ -1043,6 +1043,11 @@
                   let range = replacement.value(forKey: "range") as? UITextRange,
                   let text = replacement.value(forKey: "replacementText") as? String
             else { return }
+            replaceReported(range, withText: text)
+        }
+
+        /// A replacement made for UIKit rather than by it.
+        private func replaceReported(_ range: UITextRange, withText text: String) {
             inputDelegate?.selectionWillChange(self)
             inputDelegate?.textWillChange(self)
             replace(range, withText: text)
@@ -1370,7 +1375,7 @@
         /// (image, preview), which has no source on screen to select.
         private func editorMenuItems(atom: Bool) -> [UIMenuElement] {
             guard let wsHandle else { return [] }
-            var items: [UIMenuElement] = []
+            var items: [UIMenuElement] = spellingMenuItems()
             if atom {
                 items.append(UIAction(title: "Edit", image: UIImage(systemName: "pencil")) { [weak self] _ in
                     enter_selected_atom(wsHandle)
@@ -1403,6 +1408,50 @@
                     self?.mtkView.requestFrame()
                 })
             }
+            return items
+        }
+
+        /// Unlearn for a word the person taught the system, when the caret is in one.
+        private func unlearnMenuItems(_ wsHandle: UnsafeMutableRawPointer) -> [UIMenuElement] {
+            guard let caret = selectedTextRange?.start,
+                  let range = tokenizer.rangeEnclosingPosition(caret, with: .word, inDirection: .storage(.backward))
+                  ?? tokenizer.rangeEnclosingPosition(caret, with: .word, inDirection: .storage(.forward)),
+                  let word = text(in: range), UITextChecker.hasLearnedWord(word)
+            else { return [] }
+            let language = Spelling.language(textInputMode)
+            return [UIAction(title: "Unlearn Spelling", image: UIImage(systemName: "arrow.uturn.backward")) { [weak self] _ in
+                UITextChecker.unlearnWord(word)
+                spelling_answer(wsHandle, word, !Spelling.isMisspelled(word, language: language))
+                self?.mtkView.requestFrame()
+            }]
+        }
+
+        /// Fixes for the misspelled word the selection is in.
+        private func spellingMenuItems() -> [UIMenuElement] {
+            guard documentEditable, let wsHandle,
+                  UserDefaults.standard.object(forKey: "spellCheck") as? Bool ?? true
+            else { return [] }
+            let misspelling = selection_misspelling(wsHandle)
+            if misspelling.none { return unlearnMenuItems(wsHandle) }
+            let range = TextRange(Int(misspelling.start.pos), Int(misspelling.end.pos))
+            guard let word = text(in: range) else { return [] }
+            let language = Spelling.language(textInputMode)
+            var items: [UIMenuElement] = Spelling.guesses(word, language: language).map { guess in
+                UIAction(title: guess) { [weak self] _ in
+                    // the word may have moved while the menu was open
+                    guard let self, self.text(in: range) == word else { return }
+                    self.replaceReported(range, withText: guess)
+                }
+            }
+            items.append(UIAction(title: "Learn Spelling", image: UIImage(systemName: "checkmark")) { [weak self] _ in
+                UITextChecker.learnWord(word)
+                spelling_answer(wsHandle, word, true)
+                self?.mtkView.requestFrame()
+            })
+            items.append(UIAction(title: "Ignore Spelling", image: UIImage(systemName: "eye.slash")) { [weak self] _ in
+                spelling_ignore(wsHandle, word)
+                self?.mtkView.requestFrame()
+            })
             return items
         }
 
