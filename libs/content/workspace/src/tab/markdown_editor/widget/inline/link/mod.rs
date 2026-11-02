@@ -937,6 +937,7 @@ impl MdEdit {
 pub enum LinkMenuAction {
     Open,
     Copy,
+    CopyImage,
     Edit,
     Refresh,
 }
@@ -975,6 +976,9 @@ pub fn fill_link_menu<T>(
         ("Open Link", "Copy Link", "Edit Link")
     };
     e.item(crate::style::phosphor::ARROW_SQUARE_OUT, open, map(LinkMenuAction::Open));
+    if is_image {
+        e.item(crate::style::phosphor::IMAGE, "Copy Image", map(LinkMenuAction::CopyImage));
+    }
     e.item(crate::style::phosphor::COPY, copy, map(LinkMenuAction::Copy));
     if editable {
         e.item(crate::style::phosphor::PENCIL, edit, map(LinkMenuAction::Edit));

@@ -333,6 +333,7 @@ public enum WorkspaceDestKind: Int32 {
     case search = 1
     case mindMap = 2
     case spaceInspector = 3
+    case diagram = 4
 }
 
 public struct WorkspaceTabInfo: Identifiable, Hashable {
@@ -352,6 +353,7 @@ public struct WorkspaceTabInfo: Identifiable, Hashable {
         case .search: "Search"
         case .mindMap: "Mind Map"
         case .spaceInspector: "Space Inspector"
+        case .diagram: "Diagram"
         case .file: "unknown"
         }
     }

@@ -4,6 +4,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as 
 use crate::tab::markdown_editor::MdRender;
 
 pub(crate) mod code_block;
+pub(crate) mod diagram;
 pub(crate) mod front_matter;
 pub(crate) mod heading;
 pub(crate) mod html_block;

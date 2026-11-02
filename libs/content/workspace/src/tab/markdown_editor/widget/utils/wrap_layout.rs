@@ -196,6 +196,8 @@ pub struct EmbedSpec {
 pub enum EmbedKind {
     Image,
     LinkCard,
+    /// `url` is the diagram's Mermaid source.
+    Diagram,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -2028,6 +2030,9 @@ impl MdRender {
                             egui::CornerRadius::same(2),
                         ),
                         EmbedKind::LinkCard => self.paint_link_card(embed_ui, url, screen_rect),
+                        EmbedKind::Diagram => {
+                            self.paint_diagram_embed(embed_ui, url, frag.source_range, screen_rect)
+                        }
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,

@@ -63,6 +63,7 @@ import app.lockbook.util.VerticalTabItemHolder
 import app.lockbook.util.WorkspaceTextInputConnection
 import app.lockbook.util.WorkspaceView
 import app.lockbook.util.getIconResource
+import app.lockbook.workspace.NULL_UUID
 import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
@@ -549,8 +550,9 @@ class WorkspaceFragment : Fragment() {
 
         model._showKeyboard.observe(viewLifecycleOwner) {
             if (it) {
+                // the keyboard comes up only for the view that takes the text
                 (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                    .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+                    .showSoftInput(view.findFocus() ?: view, InputMethodManager.SHOW_IMPLICIT)
             } else {
                 (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                     .hideSoftInputFromWindow(view.windowToken, 0)
@@ -623,7 +625,9 @@ class WorkspaceFragment : Fragment() {
         val nativeTabs = workspaceWrapper.workspaceView.getTabs()
 
         val files = FileMetadataStore.snapshots.value?.idsAndFiles ?: return
-        val tabTitle = files[newTab.id]?.name
+        // a diagram opened from a note shows in the image viewer with no file of its own
+        val diagram = newTab.type == WorkspaceTabType.Image && newTab.id == NULL_UUID
+        val tabTitle = if (diagram) "Diagram" else files[newTab.id]?.name
 
         val openTabs =
             nativeTabs.mapNotNull { raw ->
@@ -647,7 +651,7 @@ class WorkspaceFragment : Fragment() {
             updateTabControls(nativeTabs.size)
         }
         if (!metadataOnly || binding.documentName.text.toString() != tabTitle.orEmpty()) updateDocumentName(tabTitle)
-        if (isMissingTab(tabTitle, newTab)) return
+        if (!diagram && isMissingTab(tabTitle, newTab)) return
         workspaceWrapper.updateWrapperBasedOnTab(newTab.type)
         if (!metadataOnly) toolbarHiddenByScroll = false
         updateToolbarVisibility()

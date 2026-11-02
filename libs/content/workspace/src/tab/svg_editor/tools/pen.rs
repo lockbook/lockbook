@@ -213,7 +213,7 @@ impl Pen {
 
             let el = Element::Path(Path {
                 data: Subpath::new(vec![], false),
-                visibility: resvg::usvg::Visibility::Visible,
+                visible: true,
                 fill: None,
                 stroke: Some(path_stroke),
                 transform: Transform::identity(),
