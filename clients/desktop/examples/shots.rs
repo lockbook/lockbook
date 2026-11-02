@@ -151,7 +151,7 @@ impl Shots {
     }
 
     fn act(&mut self, a: Action) {
-        self.app.push_action(a);
+        self.app.push(a);
         self.frames(30);
     }
 

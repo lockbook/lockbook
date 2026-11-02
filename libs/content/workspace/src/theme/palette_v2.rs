@@ -5,6 +5,8 @@ use egui::{
 use epaint::hex_color;
 use serde::{Deserialize, Serialize};
 
+use crate::style::color::{oklch_to_srgb, srgb_to_oklch};
+
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Theme {
     #[serde(skip)]
@@ -226,6 +228,16 @@ pub fn apca(text: Color32, background: Color32) -> f32 {
     if c.abs() < 0.1 { 0.0 } else { (c.abs() - 0.027) * 100.0 }
 }
 
+/// Accents keep at most this OKLCH chroma; a tint made for a filled
+/// control is too saturated for text.
+pub const MAX_TEXT_CHROMA: f32 = 0.20;
+
+/// `color` with its OKLCH chroma capped at `max`, hue and lightness kept.
+pub fn capped_chroma(color: Color32, max: f32) -> Color32 {
+    let (l, c, h) = srgb_to_oklch(color);
+    if c <= max { color } else { oklch_to_srgb(l, max, h) }
+}
+
 /// `color`, moved toward black or white (whichever reads better on
 /// `background`) just far enough to read as text on it.
 pub fn readable_on(color: Color32, background: Color32) -> Color32 {
@@ -323,7 +335,7 @@ impl Theme {
             for c in
                 [&mut v.red, &mut v.green, &mut v.yellow, &mut v.blue, &mut v.magenta, &mut v.cyan]
             {
-                *c = readable_on(*c, ground);
+                *c = readable_on(capped_chroma(*c, MAX_TEXT_CHROMA), ground);
             }
         };
         let (light_page, dark_page) = (self.bright.white, self.dim.black);
@@ -740,6 +752,38 @@ mod tests {
                     Palette::Cyan,
                 ] {
                     assert!(apca(theme.fg().get_color(palette), ground) >= MIN_TEXT_LC);
+                }
+            }
+        }
+    }
+
+    /// Every accent sits under the chroma cap after `readable()`, and a
+    /// second pass leaves the theme as it is.
+    #[test]
+    fn theme_accents_stay_under_the_chroma_cap() {
+        let themes: [fn(Mode) -> Theme; 7] = [
+            Theme::default,
+            Theme::apple,
+            Theme::apple_macos,
+            Theme::darcula,
+            Theme::intellij,
+            Theme::vscode,
+            Theme::catppuccin,
+        ];
+        for make in themes {
+            for mode in [Mode::Light, Mode::Dark] {
+                let theme = make(mode);
+                let again = theme.readable();
+                for v in [theme.dim, theme.bright] {
+                    for c in [v.red, v.green, v.yellow, v.blue, v.magenta, v.cyan] {
+                        assert!(srgb_to_oklch(c).1 <= MAX_TEXT_CHROMA + 0.002);
+                    }
+                }
+                for (a, b) in [(theme.dim, again.dim), (theme.bright, again.bright)] {
+                    assert_eq!(
+                        [a.red, a.green, a.yellow, a.blue, a.magenta, a.cyan],
+                        [b.red, b.green, b.yellow, b.blue, b.magenta, b.cyan]
+                    );
                 }
             }
         }

@@ -215,7 +215,8 @@ impl<'ast> MdEdit {
     /// (desktop). Touch taps always select and pop the context menu, whose
     /// "Open Link" action opens. Shared by every embed kind.
     pub fn embed_tap_opens(&self, ui: &egui::Ui) -> bool {
-        !self.renderer.touch_mode && ui.ctx().input(|i| i.modifiers.command)
+        !self.renderer.touch_mode
+            && (self.renderer.readonly || ui.ctx().input(|i| i.modifiers.command))
     }
 
     /// Shared tap handling for one embed fragment (inline image, link card, or
@@ -241,7 +242,7 @@ impl<'ast> MdEdit {
         };
 
         let node_range = self.renderer.node_range(node);
-        // a wiki embed's key holds its title
+        // a wiki link's key holds its title
         let (dest, wikilink) = match wiki_embed_title(url) {
             Some(title) => (title, true),
             None => (url, false),
@@ -270,7 +271,7 @@ impl<'ast> MdEdit {
             };
             // a block card already shows everything its preview would
             let card = !is_image && self.renderer.link_renders_as_card(node);
-            let preview = (!is_image && !wikilink && !card).then_some((url, false, false));
+            let preview = (!is_image && !card).then_some((dest, false, wikilink));
             self.renderer
                 .show_link_tip(ui.ctx(), &response, state, preview);
         }
@@ -298,7 +299,10 @@ impl<'ast> MdEdit {
         if !self.renderer.touch_mode {
             let editable = !self.renderer.readonly;
             // cards/capsules render fetched previews; images don't
-            let refreshable = !is_image && self.renderer.contact_linked_sites;
+            let refreshable = !is_image
+                && !wikilink
+                && self.renderer.contact_linked_sites
+                && matches!(self.renderer.resolve_link(url), Some(ResolvedLink::External(_)));
             let t = ui.ctx().get_lb_theme();
             let action = crate::style::context_menu::show(&response, &t, |e| {
                 fill_link_menu(e, is_image, editable, refreshable, |a| a);

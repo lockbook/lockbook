@@ -4640,6 +4640,7 @@ dependencies = [
  "serde_json",
  "tracing",
  "wgpu",
+ "windows-sys 0.52.0",
  "winit",
  "workspace",
  "x11rb",

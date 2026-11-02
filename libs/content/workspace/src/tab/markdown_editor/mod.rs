@@ -177,6 +177,9 @@ pub struct MdRender {
     pub row_scrolls: HashMap<row_scroll::RowScroller, row_scroll::RowScroll>,
     /// Per-frame: where each block wider than the note shows.
     pub row_scrollers: Vec<(Rect, row_scroll::RowScroller)>,
+    /// The wheel or trackpad gesture over the note. See
+    /// [`MdRender::latch_wheel_axis`].
+    pub wheel: row_scroll::WheelGesture,
     /// Per-frame: each line of a scrolled code block, as the rect it shows
     /// in and its source.
     pub code_line_clips: Vec<(Rect, (Grapheme, Grapheme))>,
@@ -720,6 +723,7 @@ impl MdRender {
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
+            wheel: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
             diagrams,
@@ -836,6 +840,7 @@ impl MdRender {
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
+            wheel: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
             diagrams,
@@ -1059,6 +1064,7 @@ impl Editor {
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
+            wheel: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
             diagrams,
@@ -2074,6 +2080,7 @@ impl Editor {
                             self.edit.touch_reorder,
                             widget::block::drag::TouchReorder::Armed { .. }
                         );
+                        self.edit.renderer.latch_wheel_axis(ui, canvas_rect);
 
                         // Body alloc → pre_render → scrollbar/content
                         // ordering puts pre_render's click rect above

@@ -348,11 +348,12 @@ fn show_area(
         .default_size(vec2(0.0, 0.0))
         .fade_in(false)
         .show(ctx, |ui| {
-            // the area clips to its side; the shadow crosses that line
-            ui.set_clip_rect(screen);
+            let shadow = crate::style::overlay_shadow(&t);
+            // the area clips to `side`; only the shadow may cross it
+            ui.set_clip_rect((side + shadow.margin()).intersect(screen));
             Frame::new()
                 .fill(t.neutral_bg())
-                .shadow(crate::style::overlay_shadow(&t))
+                .shadow(shadow)
                 .corner_radius(Radius::Control.corner())
                 .inner_margin(margin)
                 .show(ui, |ui| {
@@ -453,6 +454,41 @@ mod tests {
         }
         let card = last.unwrap();
         assert!(screen.contains_rect(card) && !card.contains(host.center()), "{card:?}");
+    }
+
+    /// The card's shadow paints on every side, the pointer's included.
+    #[test]
+    fn card_shadow_paints_on_the_pointer_side() {
+        let ctx = Context::default();
+        ctx.set_lb_theme(Theme::default(Mode::Light));
+        let screen = Rect::from_min_size(Pos2::ZERO, vec2(400.0, 400.0));
+        let host = Rect::from_min_size(pos2(50.0, 180.0), vec2(100.0, 20.0));
+        let card = Id::unique("host").with("design_tip");
+        let mut out = None;
+        for frame in 0..30 {
+            let events = if frame == 0 { vec![Event::PointerMoved(host.center())] } else { vec![] };
+            let input = RawInput {
+                screen_rect: Some(screen),
+                time: Some(frame as f64 * 0.1),
+                events,
+                ..Default::default()
+            };
+            let mut frame_out = ctx.run_ui(input, |ui| {
+                let resp = ui.interact(host, Id::unique("host"), Sense::hover());
+                tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, None, |ui, width| {
+                    ui.allocate_space(vec2(width, 100.0));
+                });
+            });
+            frame_out.textures_delta.clear();
+            out = Some(frame_out);
+        }
+        let card = ctx.memory(|m| m.area_rect(card)).unwrap();
+        let shadow = card + crate::style::overlay_shadow(&ctx.get_lb_theme()).margin();
+        let shapes = out.unwrap().shapes;
+        assert!(!shapes.is_empty());
+        for s in shapes {
+            assert!(s.clip_rect.contains_rect(shadow), "{:?} {shadow:?}", s.clip_rect);
+        }
     }
     /// A card that fits on both sides of the pointer opens on the side
     /// where it hides less of the text it rose from.

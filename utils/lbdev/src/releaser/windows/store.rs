@@ -355,6 +355,13 @@ const MANIFEST_TEMPLATE: &str = r##"<?xml version="1.0" encoding="utf-8"?>
         Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:DefaultTile Square71x71Logo="Assets\Square71x71Logo.png" />
       </uap:VisualElements>
+      <Extensions>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="lb">
+            <uap:DisplayName>Lockbook</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+      </Extensions>
     </Application>
   </Applications>
 </Package>
