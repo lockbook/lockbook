@@ -325,6 +325,7 @@ impl Shots {
                 }
             }
             "settings" => self.act(Action::OpenSettings),
+            "sidecar" => self.act(Action::ToggleSidecar),
             "sidebar-width" => {
                 // Same panel id the shell's sidebar uses.
                 let w = num(rest);
@@ -343,6 +344,7 @@ impl Shots {
                 self.act(Action::OpenSearch(Some(kind)));
             }
             "reveal" => self.act(Action::RevealPhrase),
+            "expand-id" => self.act(Action::ToggleExpand(rest.parse().expect("uuid"))),
             "expand" => {
                 let id = self.id_for(rest);
                 self.act(Action::ToggleExpand(id));

@@ -64,6 +64,7 @@ impl MdRender {
             response.rect,
             CARD_W,
             egui::Margin::same(CARD_PAD.pts() as i8),
+            Some(self.column()),
             |ui, width| {
                 ui.set_width(width);
                 ui.spacing_mut().item_spacing.y = Space::Sm.pts();

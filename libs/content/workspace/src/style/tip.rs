@@ -66,10 +66,11 @@ pub fn tip_card_placed(
 /// where the pointer rested so it takes the wheel without standing where
 /// the page scrolls. It stays while the pointer is on the card, inside the
 /// triangle from where it left the host to the card's near edge, or in a
-/// menu the card opened.
+/// menu the card opened. Of the sides it fits on, it opens on the one
+/// where it covers the least of `clear`, the text it rose from.
 pub fn tip_card_reachable(
     ctx: &Context, hit: &Response, place: egui::Rect, max_w: f32, margin: Margin,
-    add_contents: impl FnOnce(&mut Ui, f32),
+    clear: Option<egui::Rect>, add_contents: impl FnOnce(&mut Ui, f32),
 ) {
     let id = hit.id.with("design_tip");
     let pointer = ctx.input(|i| i.pointer.latest_pos());
@@ -106,7 +107,9 @@ pub fn tip_card_reachable(
     let screen = ctx.content_rect();
     let side = (screen.right() - anchor.x).max(anchor.x - screen.left());
     let width = max_w.min(side - Space::Xs.pts() - margin.sum().x).max(0.0);
-    show_area(ctx, hit.id, place, width, margin, Some(anchor), |ui| add_contents(ui, width));
+    show_area(ctx, hit.id, place, width, margin, Some((anchor, clear)), |ui| {
+        add_contents(ui, width)
+    });
 }
 
 /// Puts away whatever tip is open, as a click does.
@@ -281,10 +284,10 @@ fn show_anchored_at(
 }
 
 /// `beside`: the card takes the pointer, above the page but under menus,
-/// and opens to a side of that point.
+/// and opens to a side of that point, hiding the least it can of `clear`.
 fn show_area(
-    ctx: &Context, host_id: Id, host: egui::Rect, max_w: f32, margin: Margin, beside: Option<Pos2>,
-    add_contents: impl FnOnce(&mut Ui),
+    ctx: &Context, host_id: Id, host: egui::Rect, max_w: f32, margin: Margin,
+    beside: Option<(Pos2, Option<egui::Rect>)>, add_contents: impl FnOnce(&mut Ui),
 ) {
     let t = ctx.get_lb_theme();
     let screen = ctx.content_rect();
@@ -295,12 +298,23 @@ fn show_area(
         .memory(|m| m.area_rect(id))
         .map_or(vec2(max_w + margin.sum().x, 0.0), |r| r.size());
     let (side, pos, pivot) = match beside {
-        Some(at) => {
+        Some((at, clear)) => {
             let (right, left) = (screen.right() - at.x - gap, at.x - screen.left() - gap);
-            // right if it fits, else left if it fits, else the roomier side
             let y = (at.y - size.y / 2.0)
                 .clamp(screen.top(), (screen.bottom() - size.y).max(screen.top()));
-            if size.x <= right || size.x > left && right >= left {
+            // how much of `clear` the card would hide on each side
+            let covers = |x0: f32| {
+                clear.map_or(0.0, |c| (c.right().min(x0 + size.x) - c.left().max(x0)).max(0.0))
+            };
+            let (hides_right, hides_left) = (covers(at.x + gap), covers(at.x - gap - size.x));
+            // the side it fits on; both: the one it hides less on, ties right;
+            // neither: the roomier side
+            let go_right = match (size.x <= right, size.x <= left) {
+                (true, true) => hides_right <= hides_left,
+                (fits_right, false) => fits_right || right >= left,
+                (false, true) => false,
+            };
+            if go_right {
                 let side = Rect::from_min_max(Pos2::new(at.x + gap, screen.top()), screen.max);
                 (side, Pos2::new(side.left(), y), Align2::LEFT_TOP)
             } else {
@@ -334,6 +348,8 @@ fn show_area(
         .default_size(vec2(0.0, 0.0))
         .fade_in(false)
         .show(ctx, |ui| {
+            // the area clips to its side; the shadow crosses that line
+            ui.set_clip_rect(screen);
             Frame::new()
                 .fill(t.neutral_bg())
                 .shadow(crate::style::overlay_shadow(&t))
@@ -392,7 +408,7 @@ mod tests {
             let mut drawn = false;
             let mut out = ctx.run_ui(input, |ui| {
                 let resp = ui.interact(host, Id::unique("host"), Sense::hover());
-                tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, |ui, _| {
+                tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, None, |ui, _| {
                     ui.allocate_space(vec2(200.0, 330.0));
                     drawn = true;
                 });
@@ -428,7 +444,7 @@ mod tests {
             };
             let mut out = ctx.run_ui(input, |ui| {
                 let resp = ui.interact(host, Id::unique("host"), Sense::hover());
-                tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, |ui, width| {
+                tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, None, |ui, width| {
                     ui.allocate_space(vec2(width, 100.0));
                 });
             });
@@ -437,5 +453,37 @@ mod tests {
         }
         let card = last.unwrap();
         assert!(screen.contains_rect(card) && !card.contains(host.center()), "{card:?}");
+    }
+    /// A card that fits on both sides of the pointer opens on the side
+    /// where it hides less of the text it rose from.
+    #[test]
+    fn card_opens_on_the_side_that_hides_less_text() {
+        let ctx = Context::default();
+        ctx.set_lb_theme(Theme::default(Mode::Light));
+        let screen = Rect::from_min_size(Pos2::ZERO, vec2(1000.0, 400.0));
+        let column = Rect::from_x_y_ranges(300.0..=900.0, f32::MIN..=f32::MAX);
+        let host = Rect::from_min_size(pos2(320.0, 180.0), vec2(80.0, 20.0));
+        let card = Id::unique("host").with("design_tip");
+        let mut last = None;
+        for frame in 0..30 {
+            let events = if frame == 0 { vec![Event::PointerMoved(host.center())] } else { vec![] };
+            let input = RawInput {
+                screen_rect: Some(screen),
+                time: Some(frame as f64 * 0.1),
+                events,
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                let resp = ui.interact(host, Id::unique("host"), Sense::hover());
+                let clear = Some(column);
+                tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, clear, |ui, width| {
+                    ui.allocate_space(vec2(width, 100.0));
+                });
+            });
+            out.textures_delta.clear();
+            last = ctx.memory(|m| m.area_rect(card));
+        }
+        let card = last.unwrap();
+        assert!(card.right() <= host.center().x, "{card:?}");
     }
 }

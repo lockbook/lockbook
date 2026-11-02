@@ -265,6 +265,8 @@ pub struct MdRender {
     // viewport
     pub width: f32,
     pub width_seq: u64,
+    /// The text column's left edge this frame, in screen points.
+    pub column_x: f32,
 
     pub viewport_height: f32,
 
@@ -708,6 +710,7 @@ impl MdRender {
             heading_copied: None,
             caret_moved: false,
             typing: false,
+            column_x: 0.0,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
@@ -778,6 +781,11 @@ impl MdRender {
     /// actually changes — frame-scoped writers reassign every frame even
     /// when the layout hasn't moved, and an unconditional bump would
     /// invalidate every cached height.
+    /// The text column: `width` wide from `column_x`, any height.
+    pub fn column(&self) -> Rect {
+        Rect::from_x_y_ranges(self.column_x..=self.column_x + self.width, f32::MIN..=f32::MAX)
+    }
+
     pub fn set_width(&mut self, width: f32) {
         if self.width.to_bits() != width.to_bits() {
             self.width = width;
@@ -819,6 +827,7 @@ impl MdRender {
             heading_copied: None,
             caret_moved: false,
             typing: false,
+            column_x: 0.0,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
@@ -1013,7 +1022,10 @@ impl Editor {
 
         let dark_mode = ctx.global_style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
-        let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
+        let mut layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
+        if !touch_mode {
+            layout.max_width = persistence.get_column_width();
+        }
 
         let client: HttpClient = Default::default();
         let ws_seq = crate::seq::ws_seq(&ctx);
@@ -1036,6 +1048,7 @@ impl Editor {
             heading_copied: None,
             caret_moved: false,
             typing: false,
+            column_x: 0.0,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -1406,6 +1419,10 @@ impl Editor {
             resp.scroll_updated = true;
         }
 
+        // Desktop follows the text width setting; touch keeps its own cap.
+        if !self.edit.renderer.touch_mode {
+            self.edit.renderer.layout.max_width = self.persistence.get_column_width();
+        }
         let height = ui.available_size().y.round();
         let width = ui
             .max_rect()
@@ -2018,6 +2035,7 @@ impl Editor {
                 // that body via `content_x`.
                 let touch_scroll = self.edit.renderer.touch_mode;
                 let content_x = canvas_rect.min.x + egui::lerp(centered..=open_left, t);
+                self.edit.renderer.column_x = content_x;
                 self.card = (shown > 0.0).then(|| {
                     let width = SIDECAR_W.min(canvas_width - 2.0 * edge).max(0.0);
                     let x = match docks {

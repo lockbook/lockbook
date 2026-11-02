@@ -403,6 +403,7 @@ pub enum Action {
     SetPrefLinkPreviews(bool),
     /// Misspelled words are marked, from now on.
     SetPrefSpellCheck(bool),
+    SetPrefColumnWidth(f32),
     /// Renames and moves update the links they'd break, from now on.
     SetPrefUpdateLinks(bool),
     SetPrefOpenInNewTab(bool),
@@ -523,6 +524,7 @@ impl Action {
             Self::SetThemeFamily(_) => "SetThemeFamily",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
             Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",
+            Self::SetPrefColumnWidth(_) => "SetPrefColumnWidth",
             Self::SetPrefUpdateLinks(_) => "SetPrefUpdateLinks",
             Self::SetPrefOpenInNewTab(_) => "SetPrefOpenInNewTab",
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",

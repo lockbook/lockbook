@@ -453,6 +453,7 @@ impl<'ast> MdRender {
             response.rect,
             FILE_CARD.x - 2.0 * CARD_PAD.pts(),
             egui::Margin::same(CARD_PAD.pts() as i8),
+            Some(self.column()),
             |ui, width| {
                 let folder = self.card_folder(&place);
                 let height = self
