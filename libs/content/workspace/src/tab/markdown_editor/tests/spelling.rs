@@ -23,8 +23,15 @@ impl SpellCheck for Teh {
 
 /// The words marked after a frame with the caret at `caret`.
 fn marked(md: &str, caret: usize) -> Vec<(usize, String)> {
+    marked_in(md, caret, false)
+}
+
+/// The words marked after a frame with the caret at `caret`, in source view
+/// if `source`.
+fn marked_in(md: &str, caret: usize, source: bool) -> Vec<(usize, String)> {
     let mut ws = TestEditor::new(md);
     install(&ws.editor.edit.renderer.ctx, Some(Spelling::new(Box::new(Teh))));
+    ws.editor.persistence.set_source(source);
     let at = Location::Grapheme(Grapheme(caret));
     ws.push(Event::Select { region: Region::BetweenLocations { start: at, end: at } });
     ws.enter_frame();
@@ -43,6 +50,15 @@ fn marks_prose_only() {
         marked(md, md.len()),
         vec![(0, "teh".into()), (11, "teh".into()), (67, "teh".into())]
     );
+}
+
+#[test]
+fn source_marks_what_rendered_marks() {
+    let md =
+        "# teh\n\n- **teh** `teh` [teh](https://teh.com) https://teh.example\n\n```\nteh\n```\n";
+    let words = vec![(2, "teh".into()), (11, "teh".into()), (24, "teh".into())];
+    assert_eq!(marked_in(md, md.len(), false), words, "rendered");
+    assert_eq!(marked_in(md, md.len(), true), words, "source");
 }
 
 #[test]

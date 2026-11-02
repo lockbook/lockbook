@@ -124,8 +124,16 @@ impl<'ast> MdRender {
         } else {
             self.push_source_run(&mut layout, line, line, text_format, sense);
         }
-        if self.kind == Syntax::Plain {
-            layout.push_prose(line);
+        match self.kind {
+            Syntax::Plain => layout.push_prose(line),
+            Syntax::Markdown => {
+                let prose = &self.bounds.source_prose;
+                let first = prose.partition_point(|p| p.end() <= line.start());
+                for p in prose[first..].iter().take_while(|p| p.start() < line.end()) {
+                    layout.push_prose(p.trim(&line));
+                }
+            }
+            Syntax::Code(_) => {}
         }
         layout
     }

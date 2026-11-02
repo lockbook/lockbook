@@ -923,6 +923,7 @@ impl MdRender {
                 self.calc_atom_bounds(root);
             }
             self.calc_source_links(root);
+            self.calc_source_prose(root);
             self.calc_table_bounds(root);
             self.calc_code_block_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
