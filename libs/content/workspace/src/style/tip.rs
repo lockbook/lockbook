@@ -334,9 +334,12 @@ fn show_area(
         .default_size(vec2(0.0, 0.0))
         .fade_in(false)
         .show(ctx, |ui| {
+            let shadow = crate::style::overlay_shadow(&t);
+            // the area clips to `side`; only the shadow may cross it
+            ui.set_clip_rect((side + shadow.margin()).intersect(screen));
             Frame::new()
                 .fill(t.neutral_bg())
-                .shadow(crate::style::overlay_shadow(&t))
+                .shadow(shadow)
                 .corner_radius(Radius::Control.corner())
                 .inner_margin(margin)
                 .show(ui, |ui| {
