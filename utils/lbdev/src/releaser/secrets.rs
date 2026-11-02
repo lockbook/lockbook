@@ -3,6 +3,11 @@ use std::env;
 pub struct CratesIO(pub String);
 pub struct Github(pub String);
 pub struct AppStore(pub String);
+pub struct AppStoreConnect {
+    pub key_id: String,
+    pub issuer_id: String,
+    pub private_key: String,
+}
 pub struct PlayStore {
     pub service_account_key: String,
 }
@@ -22,6 +27,16 @@ impl Github {
 impl AppStore {
     pub fn env() -> Self {
         Self(env_or_panic("APPLE_ID_PASSWORD"))
+    }
+}
+
+impl AppStoreConnect {
+    pub fn env() -> Self {
+        Self {
+            key_id: env_or_panic("APP_STORE_CONNECT_KEY_ID"),
+            issuer_id: env_or_panic("APP_STORE_CONNECT_ISSUER_ID"),
+            private_key: env_or_panic("APP_STORE_CONNECT_PRIVATE_KEY"),
+        }
     }
 }
 

@@ -1,8 +1,8 @@
-//! Blocks wider than the note — tables and code blocks — scroll along their
-//! rows: a wheel over one, a touch drag that sets out sideways, or the
-//! platform's own pan recognizer moves it, and it coasts after a fling. It
-//! follows what the user is shown: a find or preview match, or the end of a
-//! selection the user moved. An edge with more beyond it fades out.
+//! Blocks wider than the note — tables, code blocks, and diagrams — scroll
+//! along their rows: a wheel over one, a touch drag that sets out sideways,
+//! or the platform's own pan recognizer moves it, and it coasts after a
+//! fling. It follows what the user is shown: a find or preview match, or the
+//! end of a selection the user moved. An edge with more beyond it fades out.
 
 use egui::{Color32, Pos2, Rangef, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
@@ -17,6 +17,8 @@ pub enum RowScroller {
     Table(usize),
     /// A block drawn as code, by its place among them.
     Code(usize),
+    /// A collapsed diagram, by its place among the diagrams.
+    Diagram(usize),
 }
 
 /// Where a block wider than the note is scrolled to along its rows.

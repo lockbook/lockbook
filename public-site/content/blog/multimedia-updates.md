@@ -1,6 +1,7 @@
 +++
 title = "Multimedia Updates!"
 date = 2024-07-06
+description = "How Lockbook Workspace brings Markdown, SVG drawings, image and PDF previews together, plus the story behind its virtual filesystem."
 [extra]
 author = "parth"
 author_link = "https://github.com/Parth"

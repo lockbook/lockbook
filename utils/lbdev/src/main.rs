@@ -64,6 +64,7 @@ fn main() {
                     .subcommand(Command::name("ios").handler(|| releaser::apple::ios::release(true)))
                     .subcommand(Command::name("mac-app-store").handler(|| releaser::apple::mac::release(true, false, true)))
                     .subcommand(Command::name("mac-gh").handler(|| releaser::apple::mac::release(true, true, false)))
+                    .subcommand(Command::name("app-store-submit").description("submits the archived iOS and macOS builds for app store review").handler(releaser::apple::app_store::submit_for_review))
                 )
                 .subcommand(Command::name("android")
                     .subcommand(Command::name("all").handler(|| releaser::android::release(true, true, AndroidTrack::Production)))

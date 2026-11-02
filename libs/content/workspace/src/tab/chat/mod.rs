@@ -31,6 +31,7 @@ use crate::GlyphonRendererCallback;
 use crate::file_cache::{FileCache, FilesExt};
 use crate::resolvers::FileCacheLinkResolver;
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
+use crate::tab::markdown_editor::{Syntax, View};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
 
@@ -336,13 +337,18 @@ impl Entry {
 
 pub struct Chat {
     pub id: Uuid,
+    /// What the chat's widget ids derive from.
+    pub salt: Id,
+    /// Drawn alone inside another surface: the transcript only, read-only,
+    /// and it never takes focus.
+    pub embedded: bool,
     pub hmac: Option<DocumentHmac>,
     pub entries: Vec<Entry>,
     pub composer: MdEdit,
     /// The connect step's masked API-key input. A real `MdEdit` (not an egui
     /// `TextEdit`) so the native iOS keyboard/caret reach it through the same
     /// bridge the composer uses — `focused_mdedit_mut` points here while the
-    /// connect step is open. Plaintext + `mask` so it renders as `*`.
+    /// connect step is open. Plain source + `mask` so it renders as `*`.
     pub key_field: MdEdit,
     /// The masked field's tight layout rect (one centered row), where the
     /// `MdEdit` renders and clips.
@@ -374,6 +380,19 @@ pub struct Chat {
     /// Sending while scrolled up jumps back to the bottom (which also
     /// re-sticks the scroll). Set on submit, consumed next frame.
     scroll_to_bottom: bool,
+    /// The entry to scroll to the top of the transcript next frame.
+    pub reveal_entry: Option<Uuid>,
+    /// The user scrolled the transcript this frame.
+    pub user_scrolled: bool,
+    /// The transcript's view in its content, and the content's height.
+    transcript_view: Rect,
+    transcript_h: f32,
+    /// Each entry's row in the transcript's content as last laid out, and
+    /// the width it was laid out at.
+    entry_rows: Vec<(Uuid, Rect)>,
+    rows_width: f32,
+    /// The entry an embed shows.
+    pub region: Option<Uuid>,
     /// Chosen child per fork (parent id → child id), for the ‹ 2/3 › arrows.
     /// View state: per-device, unsynced, defaults to the newest sibling.
     branch_choice: HashMap<Uuid, Uuid>,
@@ -628,6 +647,30 @@ fn last_model_for(entries: &[Entry], username: &str, provider: &str) -> Option<S
 }
 
 impl Chat {
+    fn region_rect(&self) -> Option<Rect> {
+        let id = self.region?;
+        self.entry_rows
+            .iter()
+            .find(|(e, _)| *e == id)
+            .map(|(_, r)| *r)
+    }
+
+    /// How tall `entry`'s row, or the whole transcript, stood when last
+    /// laid out at `width`; None if it hasn't been.
+    pub fn region_height(&self, entry: Option<Uuid>, width: f32) -> Option<f32> {
+        if self.rows_width != width {
+            return None;
+        }
+        match entry {
+            Some(id) => self
+                .entry_rows
+                .iter()
+                .find(|(e, _)| *e == id)
+                .map(|(_, r)| r.height()),
+            None => Some(self.transcript_h),
+        }
+    }
+
     pub fn new(
         bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, account: Account, ctx: egui::Context,
         files: Arc<RwLock<FileCache>>, core: &lb_rs::blocking::Lb,
@@ -645,14 +688,15 @@ impl Chat {
 
         // The connect step's key input, set up like the composer (files, link
         // resolver, file id) so the native iOS text bridge reaches it the same
-        // way. `plaintext + mask` renders every byte as `*` — byte-length
+        // way. Masked plain source renders every byte as `*` — byte-length
         // preserving, so cursor/selection and the iOS text rects stay aligned
         // with the real (unmasked) buffer.
         let mut key_field = MdEdit::empty(ctx.clone());
         key_field.renderer.files = Arc::clone(&files);
         key_field.renderer.link_resolver =
             Box::new(FileCacheLinkResolver::new(Arc::clone(&files), id));
-        key_field.renderer.plaintext = true;
+        key_field.renderer.kind = Syntax::Plain;
+        key_field.renderer.view = View::Source;
         key_field.renderer.mask = true;
         // API keys are long; a wrapped key doesn't fit the fixed-height field.
         key_field.renderer.single_line = true;
@@ -670,6 +714,8 @@ impl Chat {
         });
         Self {
             id,
+            salt: Id::unique(id),
+            embedded: false,
             hmac,
             entries,
             composer,
@@ -685,6 +731,13 @@ impl Chat {
             composer_text_seq: 0,
             key_field_shown: false,
             scroll_to_bottom: false,
+            reveal_entry: None,
+            user_scrolled: false,
+            transcript_view: Rect::NOTHING,
+            transcript_h: 0.0,
+            entry_rows: Vec::new(),
+            rows_width: 0.0,
+            region: None,
             branch_choice: HashMap::new(),
             branch_anchor: None,
             hide_children_of: None,

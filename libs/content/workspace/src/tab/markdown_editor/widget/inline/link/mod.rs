@@ -1,5 +1,5 @@
 pub(crate) mod card;
-mod hover;
+pub(crate) mod hover;
 
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
@@ -21,6 +21,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     BG_ROW_GAP, CHIP_SIDE_PAD, Format, FragmentContent, Layout, StyleInfo,
 };
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Syntax, View};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
 use crate::theme::palette_v2::ThemeExt as _;
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -56,7 +57,7 @@ impl<'ast> MdRender {
         }
     }
 
-    fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
+    pub(crate) fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
         self.infix_range(node)
             .is_some_and(|r| &self.buffer[r] == url)
     }
@@ -218,17 +219,18 @@ impl<'ast> MdRender {
     }
 
     /// The hover card explaining a yellow or red link: what's wrong, then the
-    /// fix in quieter ink; for any other web link, its preview card.
-    /// `state` is worked out only under the pointer. `preview` is the link's
-    /// URL and whether its text is that URL, for links that may preview.
+    /// fix in quieter ink; for any other link, its preview card: a web
+    /// page's, or the tab a file's. `state` is worked out only under the
+    /// pointer. `preview` is the link's URL, whether its text is that URL,
+    /// and whether it's a wiki title, for links that may preview.
     pub fn show_link_tip(
         &self, ctx: &egui::Context, response: &egui::Response, state: impl FnOnce() -> LinkState,
-        preview: Option<(&str, bool)>,
+        preview: Option<(&str, bool, bool)>,
     ) {
         if !response.contains_pointer() {
             // the pointer may be on its way to the preview's buttons
-            if let Some((url, shows_url)) = preview {
-                if self.show_link_preview(ctx, response, url, shows_url) {
+            if let Some((url, shows_url, wikilink)) = preview {
+                if self.show_link_preview(ctx, response, url, shows_url, wikilink) {
                     return;
                 }
             }
@@ -247,8 +249,8 @@ impl<'ast> MdRender {
         | LinkState::Broken { message }
         | LinkState::Placeholder { message }) = state()
         else {
-            if let Some((url, shows_url)) = preview {
-                self.show_link_preview(ctx, response, url, shows_url);
+            if let Some((url, shows_url, wikilink)) = preview {
+                self.show_link_preview(ctx, response, url, shows_url, wikilink);
             }
             return;
         };
@@ -496,6 +498,22 @@ impl<'ast> MdRender {
         }
 
         ui.set_clip_rect(entry_clip);
+    }
+
+    pub fn calc_source_links<'a>(&mut self, root: &'a AstNode<'a>) {
+        self.bounds.source_links.clear();
+        if self.view == View::Rendered {
+            return;
+        }
+        for node in root.descendants() {
+            if matches!(
+                node.data.borrow().value,
+                NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_)
+            ) {
+                self.bounds.source_links.push(self.node_range(node));
+            }
+        }
+        self.bounds.source_links.sort_unstable();
     }
 
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
@@ -756,8 +774,8 @@ impl<'ast> MdRender {
             if response.hovered() && response.sense.senses_click() {
                 crate::style::link_cursor(ui.ctx());
             }
-            let preview =
-                (!is_wikilink && !is_image).then(|| (url.as_str(), self.link_is_auto(node, &url)));
+            let shows_url = !is_wikilink && self.link_is_auto(node, &url);
+            let preview = (!is_image).then_some((url.as_str(), shows_url, is_wikilink));
             self.show_link_tip(
                 ui.ctx(),
                 response,
@@ -820,7 +838,10 @@ impl<'ast> MdRender {
 
         match self.previews.get(&resolved_url) {
             Preview::Loaded(meta) => LinkMetaLookup::Loaded(meta),
-            Preview::Loading => LinkMetaLookup::Loading,
+            Preview::Loading => {
+                self.previews_pending.set(true);
+                LinkMetaLookup::Loading
+            }
             Preview::Unavailable => LinkMetaLookup::Unavailable,
         }
     }
@@ -904,7 +925,7 @@ impl MdEdit {
     /// [`Self::heading_link`] for the heading on the caret's line, for the
     /// platform edit menu's "Copy Heading Link".
     pub fn selection_heading_link(&mut self) -> Option<String> {
-        if self.renderer.plaintext {
+        if self.renderer.kind != Syntax::Markdown {
             return None;
         }
         let arena = Arena::new();
@@ -920,6 +941,7 @@ impl MdEdit {
 pub enum LinkMenuAction {
     Open,
     Copy,
+    CopyImage,
     Edit,
     Refresh,
 }
@@ -958,6 +980,9 @@ pub fn fill_link_menu<T>(
         ("Open Link", "Copy Link", "Edit Link")
     };
     e.item(crate::style::phosphor::ARROW_SQUARE_OUT, open, map(LinkMenuAction::Open));
+    if is_image {
+        e.item(crate::style::phosphor::IMAGE, "Copy Image", map(LinkMenuAction::CopyImage));
+    }
     e.item(crate::style::phosphor::COPY, copy, map(LinkMenuAction::Copy));
     if editable {
         e.item(crate::style::phosphor::PENCIL, edit, map(LinkMenuAction::Edit));

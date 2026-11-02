@@ -1,6 +1,7 @@
 +++
 title = "Why Lockbook chose Rust"
 date = 2023-01-02
+description = "Why Lockbook chose Rust for its shared core: managing complex encryption and sync logic while supporting native apps across platforms."
 [extra]
 author = "parth"
 author_link = "https://github.com/Parth"

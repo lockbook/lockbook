@@ -1,6 +1,7 @@
 +++
 title = "OpSec FAQ"
 date = 2024-10-03
+description = "How Lockbook's encryption and account keys protect your notes, what trust in the server means, and why device security still matters."
 [extra]
 author = "parth"
 author_link = "https://github.com/Parth"

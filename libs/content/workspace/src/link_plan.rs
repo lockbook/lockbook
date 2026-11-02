@@ -82,6 +82,7 @@ pub fn planned(files: &FileCache, change: &Change) -> Arc<Plan> {
 /// file would change is mended to reach the file it reaches now, in the form
 /// it's written in; a delete mends nothing and lists what breaks.
 pub fn plan(files: &FileCache, change: &Change) -> Plan {
+    files.notes.want();
     let mut plan = changes(files, change);
     plan.checking = !files.notes.is_ready();
     plan

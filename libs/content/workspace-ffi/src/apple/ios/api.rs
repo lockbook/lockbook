@@ -3,6 +3,7 @@ use lb_c::model::text::offset_types::{Grapheme, RangeExt as _};
 use std::cmp;
 use std::ffi::{CStr, CString, c_char, c_void};
 use tracing::instrument;
+use workspace_rs::history_swipe::SwipeDir;
 use workspace_rs::tab::markdown_editor::TouchTarget;
 use workspace_rs::tab::markdown_editor::bounds::BoundExt as _;
 use workspace_rs::tab::markdown_editor::input::{
@@ -79,6 +80,26 @@ pub unsafe extern "C" fn ios_stop_scroll(obj: *mut c_void) -> bool {
     obj.workspace
         .focused_mdedit_mut()
         .is_some_and(|md| md.scroll_area.gesture_stop())
+}
+
+#[no_mangle]
+pub extern "C" fn history_swipe(obj: *mut c_void, forward: bool, travel: f32, y: f32) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let dir = if forward { SwipeDir::Forward } else { SwipeDir::Back };
+    let travel = obj.renderer.pos_from_points(travel, y);
+    obj.workspace.history_swipe(dir, travel.x, Some(travel.y))
+}
+
+#[no_mangle]
+pub extern "C" fn history_swipe_end(obj: *mut c_void) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.history_swipe_end()
+}
+
+#[no_mangle]
+pub extern "C" fn history_swipe_cancel(obj: *mut c_void) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.history_swipe_cancel();
 }
 
 /// # Safety
@@ -207,7 +228,43 @@ pub unsafe extern "C" fn copy_image(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     if let Some(image_viewer) = obj.workspace.current_tab_image() {
         image_viewer.copy_image(&obj.renderer.context);
+    } else {
+        obj.renderer
+            .context
+            .push_markdown_event(workspace_rs::tab::markdown_editor::input::Event::CopyImage);
     }
+}
+
+/// Whether the selection is a picture (image or diagram) "Copy Image" copies.
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn selection_has_picture(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_has_picture())
+}
+
+/// Whether the selection is a diagram "Open" shows in the image viewer.
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn selection_has_diagram(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_has_diagram())
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn open_selected_diagram(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.renderer
+        .context
+        .push_markdown_event(workspace_rs::tab::markdown_editor::input::Event::OpenDiagram);
 }
 
 /// A key press as egui sees it, for the editor's chrome and popups.
@@ -1175,4 +1232,54 @@ pub unsafe extern "C" fn ios_text_traits(obj: *mut c_void) -> CTextTraits {
         },
         None => CTextTraits::default(),
     }
+}
+
+/// Words for the host to spell check, one per line, or null when there are
+/// none. The returned string must be freed with `free_text`.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn spelling_requests(obj: *mut c_void) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let words = workspace_rs::spelling::get(&obj.renderer.context)
+        .map(|s| s.take_requests())
+        .unwrap_or_default();
+    if words.is_empty() {
+        return std::ptr::null();
+    }
+    CString::new(words.join("\n"))
+        .map(|s| s.into_raw() as *const c_char)
+        .unwrap_or(std::ptr::null())
+}
+
+/// Whether `word` is spelled right, as the host's checker says, or that the
+/// person learned it.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn spelling_answer(obj: *mut c_void, word: *const c_char, correct: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Ok(word) = CStr::from_ptr(word).to_str() else { return };
+    if let Some(spelling) = workspace_rs::spelling::get(&obj.renderer.context) {
+        spelling.answer(word, correct);
+    }
+}
+
+/// Accepts `word` until the app quits.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn spelling_ignore(obj: *mut c_void, word: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Ok(word) = CStr::from_ptr(word).to_str() else { return };
+    if let Some(spelling) = workspace_rs::spelling::get(&obj.renderer.context) {
+        spelling.ignore(word);
+    }
+}
+
+/// The misspelled word the selection is in, for the edit menu's fixes.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn selection_misspelling(obj: *mut c_void) -> CTextRange {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CTextRange::default() };
+    let Some(word) = md.renderer.selection_misspelling() else { return CTextRange::default() };
+    CTextRange { none: false, start: position(md, word.start()), end: position(md, word.end()) }
 }

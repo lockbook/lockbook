@@ -24,6 +24,7 @@ public protocol LbAPI {
     func renameFile(id: UUID, newName: String) -> Result<Void, LbError>
     func moveFile(id: UUID, newParent: UUID) -> Result<Void, LbError>
     func shareFile(id: UUID, username: String, mode: ShareMode) -> Result<Void, LbError>
+    func unshareFile(id: UUID, username: String) -> Result<Void, LbError>
     func getPendingShares() -> Result<[File], LbError>
     func getPendingShareFiles() -> Result<[File], LbError>
     func deletePendingShare(id: UUID) -> Result<Void, LbError>
@@ -266,6 +267,17 @@ public class Lb: LbAPI {
 
     public func shareFile(id: UUID, username: String, mode: ShareMode) -> Result<Void, LbError> {
         let err = lb_share_file(lb, id.toLbUuid(), username, mode.toLbShareMode())
+
+        if let err {
+            defer { lb_free_err(err) }
+            return .failure(LbError(err.pointee))
+        }
+
+        return .success(())
+    }
+
+    public func unshareFile(id: UUID, username: String) -> Result<Void, LbError> {
+        let err = lb_unshare_file(lb, id.toLbUuid(), username)
 
         if let err {
             defer { lb_free_err(err) }
@@ -518,7 +530,7 @@ public class MockLb: LbAPI {
 
     public let rootId: UUID
     public let file0: File
-    public let file1: File
+    public var file1: File
     public let file2: File
     public let file3: File
     public let file4: File
@@ -565,6 +577,12 @@ public class MockLb: LbAPI {
     public func renameFile(id: UUID, newName: String) -> Result<Void, LbError> { .success(()) }
     public func moveFile(id: UUID, newParent: UUID) -> Result<Void, LbError> { .success(()) }
     public func shareFile(id: UUID, username: String, mode: ShareMode) -> Result<Void, LbError> { .success(()) }
+    public func unshareFile(id: UUID, username: String) -> Result<Void, LbError> {
+        if file1.id == id {
+            file1.shares.removeAll { $0.with == username }
+        }
+        return .success(())
+    }
     public func getPendingShares() -> Result<[File], LbError> { .success([file1, file1, file1, file1, file1]) }
     public func getPendingShareFiles() -> Result<[File], LbError> { .success([file1, file1, file1, file1, file1]) }
     public func deletePendingShare(id: UUID) -> Result<Void, LbError> { .success(()) }

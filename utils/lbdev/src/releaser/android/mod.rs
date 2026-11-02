@@ -20,6 +20,9 @@ const PACKAGE: &str = "app.lockbook";
 // another flavor cannot change the artifact that release automation uploads.
 const PLAY_RELEASE_APK: &str = "apk/play/release/app-play-release.apk";
 const PLAY_RELEASE_BUNDLE: &str = "bundle/playRelease/app-play-release.aab";
+const FDROID_STANDALONE_APKS: &str =
+    "clients/android/app/build/standalone/outputs/apk/fdroid/release";
+const APK_ABIS: &[&str] = &["armeabi-v7a", "arm64-v8a", "x86", "x86_64"];
 
 const RELEASES: &str = "https://github.com/lockbook/lockbook/releases/tag";
 
@@ -75,6 +78,10 @@ fn build_android() -> CliResult<()> {
 
 fn release_gh() -> CliResult<()> {
     build_android()?;
+    Command::new("./gradlew")
+        .args(["assembleFdroidRelease", "-PstandaloneApks=true", "--max-workers=2"])
+        .current_dir("clients/android")
+        .assert_success()?;
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
@@ -92,6 +99,19 @@ fn release_gh() -> CliResult<()> {
             None,
         )
         .unwrap();
+    for abi in APK_ABIS {
+        let path = format!("{FDROID_STANDALONE_APKS}/app-fdroid-{abi}-release.apk");
+        client
+            .upload_release_asset(
+                &lb_repo(),
+                release.id,
+                &format!("lockbook-android-fdroid-{abi}.apk"),
+                "application/vnd.android.package-archive",
+                File::open(path).unwrap(),
+                None,
+            )
+            .unwrap();
+    }
     Ok(())
 }
 

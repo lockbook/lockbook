@@ -282,6 +282,8 @@ pub enum Action {
     NavForward,
     /// Show or hide the sidecar beside the current note.
     ToggleSidecar,
+    /// Show files with a rendered form as source, or rendered again.
+    ToggleSource,
     /// Open documents (filters folders). Multi: first reuses tab path unless
     /// `new_tab`; further docs always open as new tabs.
     OpenDocuments {
@@ -322,6 +324,7 @@ pub enum Action {
     ShareInvite,
     /// Drop someone from the multi-add stage (chip dismiss).
     ShareUnstage(String),
+    ShareRemove(String),
     /// Open create sheet. Folder-context fills `folder` and selects Choose;
     /// file-context fills `alongside` and selects that plate (Choose stays empty).
     /// Chrome / ⌘N leaves both None and follows the open document tab.
@@ -398,6 +401,8 @@ pub enum Action {
     SetThemeMode(crate::components::ModePreference),
     SetThemeFamily(crate::components::ThemeFamily),
     SetPrefLinkPreviews(bool),
+    /// Misspelled words are marked, from now on.
+    SetPrefSpellCheck(bool),
     /// Renames and moves update the links they'd break, from now on.
     SetPrefUpdateLinks(bool),
     SetPrefOpenInNewTab(bool),
@@ -455,6 +460,7 @@ impl Action {
             Self::NavBack => "NavBack",
             Self::NavForward => "NavForward",
             Self::ToggleSidecar => "ToggleSidecar",
+            Self::ToggleSource => "ToggleSource",
             Self::OpenDocuments { .. } => "OpenDocuments",
             Self::SelectTab(_) => "SelectTab",
             Self::CloseTab(_) => "CloseTab",
@@ -476,6 +482,7 @@ impl Action {
             Self::ShareStageField => "ShareStageField",
             Self::ShareInvite => "ShareInvite",
             Self::ShareUnstage(_) => "ShareUnstage",
+            Self::ShareRemove(_) => "ShareRemove",
             Self::OpenCreate { .. } => "OpenCreate",
             Self::CreateSetKind(_) => "CreateSetKind",
             Self::CreateSetLoc(_) => "CreateSetLoc",
@@ -515,6 +522,7 @@ impl Action {
             Self::SetThemeMode(_) => "SetThemeMode",
             Self::SetThemeFamily(_) => "SetThemeFamily",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
+            Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",
             Self::SetPrefUpdateLinks(_) => "SetPrefUpdateLinks",
             Self::SetPrefOpenInNewTab(_) => "SetPrefOpenInNewTab",
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",

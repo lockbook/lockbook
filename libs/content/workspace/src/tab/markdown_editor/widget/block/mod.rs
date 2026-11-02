@@ -97,12 +97,15 @@ impl<'ast> MdRender {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
         }
+        // stamped with the inputs as they were before computing: a load
+        // landing mid-computation must not pass for already counted
+        let deps = self.height_deps();
 
         // Block too narrow to fit anything meaningful: render nothing.
         // `show_block` short-circuits on the same condition, so this
         // matches what gets painted.
         if self.width(node) < self.layout.row_height {
-            self.set_cached_node_height(node, 0.0);
+            self.set_cached_node_height(node, 0.0, deps);
             return 0.0;
         }
 
@@ -172,7 +175,7 @@ impl<'ast> MdRender {
             NodeValue::ThematicBreak => self.height_thematic_break(),
         };
 
-        self.set_cached_node_height(node, height);
+        self.set_cached_node_height(node, height, deps);
 
         height
     }
@@ -185,12 +188,13 @@ impl<'ast> MdRender {
         if let Some(cached) = self.get_cached_node_height_approx(node) {
             return cached;
         }
+        let deps = self.height_deps();
         if self.hidden_by_fold(node) {
-            self.set_cached_node_height_approx(node, 0.);
+            self.set_cached_node_height_approx(node, 0., deps);
             return 0.;
         }
         if self.width(node) < self.layout.row_height {
-            self.set_cached_node_height_approx(node, 0.);
+            self.set_cached_node_height_approx(node, 0., deps);
             return 0.;
         }
         let value = &node.data.borrow().value;
@@ -220,6 +224,10 @@ impl<'ast> MdRender {
                 // height separately and `max` it in at the end.
                 let mut image_height = 0.0f32;
                 for d in node.descendants() {
+                    if let Some(height) = self.tab_embed_height(d) {
+                        image_height = image_height.max(height);
+                        continue;
+                    }
                     if let Some(url) = image_url(d) {
                         let dims = self.embeds.size(&url);
                         image_height =
@@ -251,7 +259,7 @@ impl<'ast> MdRender {
             NodeValue::FrontMatter(_) => self.height_front_matter(node),
             _ => 0.,
         };
-        self.set_cached_node_height_approx(node, height);
+        self.set_cached_node_height_approx(node, height, deps);
         height
     }
 
@@ -373,7 +381,9 @@ impl<'ast> MdRender {
     /// inside `* a`'s paragraph picks the paragraph, not the item).
     /// Containers that *fully contain* the selection are picked only when
     /// no proper descendant block intersects — the empty-container case
-    /// (`* ` with no body), where there's nothing deeper to target.
+    /// (`* ` with no body), or the caret on the container's marker. A
+    /// selection in a gap between two of its blocks (a blank line between
+    /// list items) picks nothing.
     pub fn selected_block(&self, node: &'ast AstNode<'ast>) -> bool {
         // the document is never selected
         let Some(parent) = node.parent() else {
@@ -388,12 +398,25 @@ impl<'ast> MdRender {
         if !node.is_container_block() {
             return false;
         }
-        // multi-block selection that extends past this container, OR
-        // empty container (deepest, no descendant blocks to target)
-        !self.node_contains_selection(node)
-            || !node.descendants().skip(1).any(|d| {
-                (d.is_leaf_block() || d.is_container_block()) && self.node_intersects_selection(d)
-            })
+        // multi-block selection that extends past this container
+        if !self.node_contains_selection(node) {
+            return true;
+        }
+        let blocks = || {
+            node.children()
+                .filter(|c| c.is_leaf_block() || c.is_container_block())
+        };
+        let deeper = node.descendants().skip(1).any(|d| {
+            (d.is_leaf_block() || d.is_container_block()) && self.node_intersects_selection(d)
+        });
+        let selection = self.buffer.current.selection;
+        // a block ends before the selection and another starts on a later line
+        let gap = blocks().any(|c| self.node_range(c).end() <= selection.start())
+            && blocks().any(|c| {
+                let start = self.node_range(c).start();
+                start >= selection.end() && self.buffer[(selection.end(), start)].contains('\n')
+            });
+        !deeper && !gap
     }
 
     /// Returns the portion of the line that's within the node, excluding line
@@ -689,10 +712,10 @@ type LinePrefixKey = (u64, (Grapheme, Grapheme));
 type TableColumns = (std::rc::Rc<[f32]>, HeightDeps);
 type LinePrefixValue = (Graphemes, bool);
 
-/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq]`. Text-
+/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq, diagrams_seq]`. Text-
 /// change invalidation is handled wholesale by [`LayoutCache::ensure_text_consistent`]
 /// before any read, so text_seq isn't part of the per-entry stamp.
-pub type HeightDeps = [u64; 4];
+pub type HeightDeps = [u64; 6];
 
 /// A table cell's stamp, a width as bits, and whether the cell is being
 /// measured for its column's width or laid out in it.
@@ -897,7 +920,14 @@ impl MdRender {
 
 impl<'ast> MdRender {
     fn height_deps(&self) -> HeightDeps {
-        [self.width_seq, self.embeds.seq(), self.previews.seq(), self.reveal_seq]
+        [
+            self.width_seq,
+            self.embeds.seq(),
+            self.previews.seq(),
+            self.reveal_seq,
+            self.diagrams.seq(),
+            self.tab_embeds.seq(),
+        ]
     }
 
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
@@ -908,9 +938,8 @@ impl<'ast> MdRender {
         (*stamps == deps).then_some(*v)
     }
 
-    pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32) {
+    pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32, deps: HeightDeps) {
         let key = Self::pack_node_key(node);
-        let deps = self.height_deps();
         self.layout_cache
             .height
             .borrow_mut()
@@ -925,9 +954,10 @@ impl<'ast> MdRender {
         (*stamps == deps).then_some(*v)
     }
 
-    pub fn set_cached_node_height_approx(&self, node: &'ast AstNode<'ast>, height: f32) {
+    pub fn set_cached_node_height_approx(
+        &self, node: &'ast AstNode<'ast>, height: f32, deps: HeightDeps,
+    ) {
         let key = Self::pack_node_key(node);
-        let deps = self.height_deps();
         self.layout_cache
             .height_approx
             .borrow_mut()

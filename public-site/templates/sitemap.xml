@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  {%- for entry in entries %}
+  <url>
+    <loc>{{ entry.permalink | escape_xml | safe }}</loc>
+    {%- if entry.updated %}<lastmod>{{ entry.updated }}</lastmod>{% endif %}
+  </url>
+  {%- endfor %}
+  {#- Read mdBook's existing chapter list instead of maintaining a second one. #}
+  {%- set summary = load_data(path=".docs/SUMMARY.md", format="plain") %}
+  {%- for line in summary | split(pat="\n") %}
+    {%- if ".md)" in line %}
+      {%- set chapter = line | split(pat="](") | last | split(pat=")") | first %}
+      {%- set content = load_data(path=".docs/" ~ chapter, format="plain") %}
+      {%- if content | trim %}
+        {%- if chapter == "book.md" %}
+          {%- set url = get_url(path="docs/", trailing_slash=true) %}
+        {%- else %}
+          {%- set url = get_url(path="docs/" ~ chapter | replace(from=".md", to=".html")) %}
+        {%- endif %}
+  <url><loc>{{ url | escape_xml | safe }}</loc></url>
+      {%- endif %}
+    {%- endif %}
+  {%- endfor %}
+</urlset>

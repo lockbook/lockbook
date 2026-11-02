@@ -1,3 +1,4 @@
+pub mod app_store;
 pub mod cli;
 pub mod ios;
 pub mod mac;
@@ -23,6 +24,7 @@ pub fn release() -> CliResult<()> {
     ios::release(false)?;
     mac::release(false, true, true)?;
     upload_dsyms()?;
+    app_store::submit_for_review()?;
     Ok(())
 }
 

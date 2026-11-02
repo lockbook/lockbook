@@ -26,11 +26,10 @@ use super::{SCREEN_PADDING, Toolbar, ToolbarContext};
 
 impl Toolbar {
     pub fn show_tools_island(
-        &mut self, ui: &mut egui::Ui,
+        &mut self, ui: &mut egui::Ui, controls_rect: egui::Rect,
     ) -> InnerResponse<InnerResponse<InnerResponse<()>>> {
         // Let Area measure invisibly before anchoring its first visible frame.
         // A previous-frame height places new or resized tools below the anchor.
-        let available = ui.available_rect_before_wrap();
         let style = ui.style().clone();
         let opacity = ui.opacity();
         let clip_rect = ui.clip_rect();
@@ -50,7 +49,10 @@ impl Toolbar {
             .enabled(ui.is_enabled())
             .default_size(egui::Vec2::ZERO)
             .pivot(egui::Align2::CENTER_BOTTOM)
-            .fixed_pos(egui::pos2(available.center().x, available.bottom() - SCREEN_PADDING.y))
+            .fixed_pos(egui::pos2(
+                controls_rect.center().x,
+                controls_rect.bottom() - SCREEN_PADDING.y,
+            ))
             .sizing_pass(self.layout.tools_island.is_none())
             .show(ui.ctx(), |ui| {
                 ui.set_style(style);
@@ -224,19 +226,20 @@ impl Toolbar {
                 .height();
 
         cursor_pos.x = (cursor_pos.x - tool_popovers_size.x)
-            .max(tlbr_ctx.viewport_settings.container_rect.left() + screen_bounds);
+            .max(tlbr_ctx.controls_rect.left() + SCREEN_PADDING.x)
+            .min(
+                (tlbr_ctx.controls_rect.right() - tool_popovers_size.x - SCREEN_PADDING.x)
+                    .max(tlbr_ctx.controls_rect.left()),
+            );
 
         cursor_pos.y -= tool_popovers_size.y;
 
-        if cursor_pos.y < tlbr_ctx.viewport_settings.container_rect.top() + screen_bounds {
-            cursor_pos.y = tlbr_ctx.viewport_settings.container_rect.top() + screen_bounds;
+        if cursor_pos.y < tlbr_ctx.controls_rect.top() + screen_bounds {
+            cursor_pos.y = tlbr_ctx.controls_rect.top() + screen_bounds;
         }
 
-        if cursor_pos.y + tool_popovers_size.y > tlbr_ctx.viewport_settings.container_rect.bottom()
-        {
-            cursor_pos.y = tlbr_ctx.viewport_settings.container_rect.bottom()
-                - tool_popovers_size.y
-                - screen_bounds
+        if cursor_pos.y + tool_popovers_size.y > tlbr_ctx.controls_rect.bottom() {
+            cursor_pos.y = tlbr_ctx.controls_rect.bottom() - tool_popovers_size.y - screen_bounds
         }
 
         let tool_popover_rect = egui::Rect::from_min_size(cursor_pos, tool_popovers_size);
@@ -297,7 +300,10 @@ impl Toolbar {
                 .enabled(ui.is_enabled())
                 .default_size(egui::Vec2::ZERO)
                 .pivot(egui::Align2::CENTER_BOTTOM)
-                .fixed_pos(egui::pos2(tools_island_rect.center().x, tools_island_rect.top() - 10.0))
+                .fixed_pos(egui::pos2(
+                    tlbr_ctx.controls_rect.center().x,
+                    tools_island_rect.top() - 10.0,
+                ))
                 .sizing_pass(self.layout.tool_popover.is_none())
                 .show(ui.ctx(), |ui| {
                     ui.set_style(style);
@@ -649,8 +655,11 @@ mod tests {
                         crate::theme::visuals::apply(ui.style_mut());
                         crate::tab::svg_editor::set_style(ui);
                         viewport.container_rect = ui.available_rect_before_wrap();
-                        let anchor = viewport.container_rect.bottom() - SCREEN_PADDING.y;
-                        let tools = toolbar.show_tools_island(ui).response.rect;
+                        // Controls can be inset independently of the canvas viewport.
+                        let controls_rect = viewport.container_rect.shrink2(egui::vec2(40.0, 24.0));
+                        let anchor = controls_rect.bottom() - SCREEN_PADDING.y;
+                        let tools = toolbar.show_tools_island(ui, controls_rect).response.rect;
+                        assert!((tools.center().x - controls_rect.center().x).abs() <= 0.5);
                         assert!(
                             (tools.bottom() - anchor).abs() <= 0.5,
                             "{tool:?}, frame {frame}: {tools:?}"
@@ -660,6 +669,7 @@ mod tests {
                             .show_tool_popovers(
                                 ui,
                                 &mut ToolbarContext {
+                                    controls_rect,
                                     painter: &mut painter,
                                     buffer: &mut buffer,
                                     history: &mut history,

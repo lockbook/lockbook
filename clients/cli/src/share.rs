@@ -20,6 +20,17 @@ pub async fn new(target: String, username: String, read_only: bool) -> CliResult
 }
 
 #[tokio::main]
+pub async fn remove(target: String, username: String) -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
+
+    let id = find_file(lb, &target).await?.id;
+    lb.unshare_file(id, &username).await?;
+    println!("done!\nfile '{id}' will stop being shared with '{username}' next time you sync.");
+    Ok(())
+}
+
+#[tokio::main]
 pub async fn pending() -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;

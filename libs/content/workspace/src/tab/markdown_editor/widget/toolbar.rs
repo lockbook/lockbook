@@ -719,7 +719,7 @@ impl<'ast> Editor {
                     let (clicked, rect) = toolbar_icon_at(
                         ui,
                         &t,
-                        phosphor::LIST_DASHES,
+                        phosphor::INFO,
                         self.outline.is_open(),
                         menu_open,
                         "Outline",

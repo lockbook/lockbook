@@ -24,6 +24,8 @@ struct AppState {
     lb: WgpuLockbook<'static>,
     egui_winit: egui_winit::State,
     clipboard: arboard::Clipboard,
+    /// The last gif copied, keyed by a hash of the pixels it put on the clipboard
+    copied_gif: Option<(u64, Vec<u8>)>,
     pending_paste: bool,
     last_pointer_pos: Pos2,
     modifiers: winit::keyboard::ModifiersState,
@@ -118,6 +120,7 @@ impl ApplicationHandler<UserEvent> for App {
             lb,
             egui_winit,
             clipboard,
+            copied_gif: None,
             pending_paste: false,
             last_pointer_pos: Pos2::ZERO,
             modifiers: Default::default(),
@@ -324,6 +327,12 @@ impl AppState {
                         .iter()
                         .flat_map(|px| px.to_srgba_unmultiplied())
                         .collect();
+                    self.copied_gif = self
+                        .lb
+                        .renderer
+                        .context
+                        .pop_copied_gif()
+                        .map(|gif| (pixels_hash(&bytes), gif));
                     let _ = self.clipboard.set_image(arboard::ImageData {
                         width: image.width(),
                         height: image.height(),
@@ -421,6 +430,20 @@ impl AppState {
         let Ok(img) = self.clipboard.get_image() else {
             return false;
         };
+        // pixels we put there paste as the gif they came from
+        if let Some((hash, gif)) = &self.copied_gif {
+            if *hash == pixels_hash(&img.bytes) {
+                let content = vec![ClipContent::Image(gif.clone())];
+                self.lb
+                    .renderer
+                    .context
+                    .push_event(workspace_rs::Event::Paste {
+                        content,
+                        position: self.last_pointer_pos,
+                    });
+                return true;
+            }
+        }
         let Some(rgba) =
             image::RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.into_owned())
         else {
@@ -686,4 +709,11 @@ pub fn run() {
 
     let mut app = App { state: None, proxy: event_loop.create_proxy() };
     event_loop.run_app(&mut app).expect("event loop failed");
+}
+
+fn pixels_hash(bytes: &[u8]) -> u64 {
+    use std::hash::{DefaultHasher, Hash as _, Hasher as _};
+    let mut hasher = DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    hasher.finish()
 }

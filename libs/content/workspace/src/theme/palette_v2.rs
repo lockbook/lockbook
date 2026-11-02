@@ -15,35 +15,6 @@ pub struct Theme {
 
     pub bright: ThemeVariant,
     pub dark_prefs: Preferences,
-
-    #[serde(default)]
-    pub code: Option<CodeTheme>,
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct CodeTheme {
-    pub light: CodeVariant,
-    pub dark: CodeVariant,
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct CodeVariant {
-    #[serde(with = "color32_hex")]
-    pub background: Color32,
-    #[serde(with = "color32_hex")]
-    pub text: Color32,
-    #[serde(with = "color32_hex")]
-    pub comment: Color32,
-    #[serde(with = "color32_hex")]
-    pub class: Color32,
-    #[serde(with = "color32_hex")]
-    pub function: Color32,
-    #[serde(with = "color32_hex")]
-    pub keyword: Color32,
-    #[serde(with = "color32_hex")]
-    pub string: Color32,
-    #[serde(with = "color32_hex")]
-    pub number: Color32,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -145,13 +116,6 @@ impl Theme {
 
     pub fn dark(&self) -> bool {
         !self.light()
-    }
-
-    pub fn code_variant(&self) -> Option<CodeVariant> {
-        self.code.map(|code| match self.current {
-            Mode::Light => code.light,
-            Mode::Dark => code.dark,
-        })
     }
 
     /// Returns the foreground neutral color i.e. black in light mode, white in
@@ -348,7 +312,7 @@ impl Theme {
         current: Mode, dim: ThemeVariant, light_prefs: Preferences, bright: ThemeVariant,
         dark_prefs: Preferences,
     ) -> Self {
-        Self { current, dim, light_prefs, bright, dark_prefs, code: None }.readable()
+        Self { current, dim, light_prefs, bright, dark_prefs }.readable()
     }
 
     /// The theme with each accent moved just far enough to read as text on
@@ -411,7 +375,6 @@ impl Theme {
                 tertiary: Palette::Magenta,
                 quaternary: Palette::Cyan,
             },
-            code: None,
         }
         .readable()
     }
@@ -453,28 +416,6 @@ impl Theme {
                 tertiary: Palette::Magenta,
                 quaternary: Palette::Cyan,
             },
-            code: Some(CodeTheme {
-                light: CodeVariant {
-                    background: hex_color!("#FFFFFF"),
-                    text: hex_color!("#000000"),
-                    comment: hex_color!("#5D6C79"),
-                    class: hex_color!("#1C464A"),
-                    function: hex_color!("#326D74"),
-                    keyword: hex_color!("#9B2393"),
-                    string: hex_color!("#C41A16"),
-                    number: hex_color!("#1C00CF"),
-                },
-                dark: CodeVariant {
-                    background: hex_color!("#25252A"),
-                    text: hex_color!("#FFFFFF"),
-                    comment: hex_color!("#6C7986"),
-                    class: hex_color!("#9EF1DD"),
-                    function: hex_color!("#67B7A4"),
-                    keyword: hex_color!("#FC5FA3"),
-                    string: hex_color!("#FC6A5D"),
-                    number: hex_color!("#D0BF69"),
-                },
-            }),
         }
         .readable()
     }
@@ -522,7 +463,6 @@ impl Theme {
                 tertiary: Palette::Yellow,
                 quaternary: Palette::Cyan,
             },
-            code: None,
         }
         .readable()
     }
@@ -564,7 +504,6 @@ impl Theme {
                 tertiary: Palette::Yellow,
                 quaternary: Palette::Cyan,
             },
-            code: None,
         }
         .readable()
     }
@@ -606,7 +545,6 @@ impl Theme {
                 tertiary: Palette::Green,
                 quaternary: Palette::Magenta,
             },
-            code: None,
         }
         .readable()
     }
@@ -648,7 +586,6 @@ impl Theme {
                 tertiary: Palette::Green,
                 quaternary: Palette::Yellow,
             },
-            code: None,
         }
         .readable()
     }

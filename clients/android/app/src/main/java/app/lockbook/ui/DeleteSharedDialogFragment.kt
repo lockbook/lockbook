@@ -6,11 +6,11 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatDialogFragment
-import androidx.core.os.bundleOf
-import androidx.fragment.app.setFragmentResult
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.model.AlertModel
+import app.lockbook.model.FileMetadataStore
+import app.lockbook.util.withFileMetadata
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
 import net.lockbook.File
@@ -28,9 +28,6 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
 
         const val FILES_ID_KEY = "files_key"
 
-        const val DELETE_SHARE_REQUEST_KEY = "delete_share_request_key"
-        const val DELETE_SHARE_BUNDLE_KEY = "delete_share_bundle_key"
-
         fun newInstance(files: ArrayList<File>): DeleteSharedDialogFragment {
             val dialog = DeleteSharedDialogFragment()
 
@@ -43,24 +40,29 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val files = requireArguments().getStringArray(FILES_ID_KEY)!!.map { Lb.getFileById(it) }
+        val files by lazy { requireArguments().getStringArray(FILES_ID_KEY)!!.map { FileMetadataStore.requireFile(it) } }
 
         return MaterialAlertDialogBuilder(requireContext())
-            .apply {
-                val msg =
-                    if (files.size == 1) {
-                        getString(R.string.delete_shared_1_message, files[0].name)
-                    } else {
-                        getString(R.string.delete_shared_message, files.size)
-                    }
-
-                setMessage(msg)
-            }.setNegativeButton(R.string.cancel, null)
+            .setMessage(R.string.metadata_loading)
+            .setNegativeButton(R.string.cancel, null)
             .setPositiveButton(R.string.delete_shared_reject, null)
             .create()
             .apply {
                 setOnShowListener {
+                    getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
                     getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive(files) }
+                }
+                withFileMetadata {
+                    setMessage(
+                        if (files.size ==
+                            1
+                        ) {
+                            getString(R.string.delete_shared_1_message, files[0].name)
+                        } else {
+                            getString(R.string.delete_shared_message, files.size)
+                        },
+                    )
+                    getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
                 }
             }
     }
@@ -72,7 +74,6 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
                     withContext(Dispatchers.IO) {
                         Lb.deletePendingShare(file.id)
                     }
-                    setFragmentResult(DELETE_SHARE_REQUEST_KEY, bundleOf(DELETE_SHARE_BUNDLE_KEY to file.id))
                 } catch (err: LbError) {
                     alertModel.notifyError(err)
                 }

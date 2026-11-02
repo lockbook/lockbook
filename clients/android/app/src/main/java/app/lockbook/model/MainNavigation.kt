@@ -58,6 +58,7 @@ sealed interface MainNavigationAction {
     data class OpenDocument(
         val id: String,
         val newFile: Boolean,
+        val closeDetailOnBack: Boolean = true,
     ) : MainNavigationAction
 
     data class CreateLink(
@@ -75,16 +76,9 @@ sealed interface MainNavigationAction {
     data object Back : MainNavigationAction
 }
 
-sealed interface MainNavigationEffect {
-    data class OpenDocument(
-        val id: String,
-        val newFile: Boolean,
-    ) : MainNavigationEffect
-}
-
 data class MainNavigationTransition(
     val state: MainNavigationState,
-    val effect: MainNavigationEffect? = null,
+    val documentToOpen: MainNavigationAction.OpenDocument? = null,
     val handled: Boolean = true,
 )
 
@@ -144,7 +138,7 @@ fun reduceMainNavigation(
                         paneIntent = paneIntent,
                         searchOverlay = null,
                     ),
-                effect = MainNavigationEffect.OpenDocument(action.id, action.newFile),
+                documentToOpen = action,
             )
         }
 

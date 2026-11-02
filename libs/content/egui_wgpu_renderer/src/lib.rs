@@ -15,7 +15,10 @@ use wgpu::{
 pub use egui_wgpu;
 pub use wgpu;
 
+mod offscreen;
 mod shame;
+
+pub use offscreen::{OFFSCREEN_FORMAT, OffscreenFrame, render_offscreen};
 
 const NOOB_FACTOR: u64 = 8;
 const FRAME_BUDGET: Duration = Duration::from_micros((16_667 / 2) * NOOB_FACTOR);
@@ -372,6 +375,11 @@ impl<'w> RenderBackend<'w> {
                 self.free_textures(textures);
                 return; // todo: could this be the source of a bug if some
                 // response has a default value of true or something
+            }
+            // the window is hidden; there's nothing to draw into
+            wgpu::CurrentSurfaceTexture::Occluded => {
+                self.free_textures(textures);
+                return;
             }
             other => {
                 eprintln!("Dropped frame: {other:?}");

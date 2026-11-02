@@ -452,6 +452,19 @@ pub extern "C" fn lb_share_file(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn lb_unshare_file(
+    lb: *mut Lb, id: LbUuid, username: *const c_char,
+) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+    let username = rstr(username);
+
+    match lb.unshare_file(id.into(), username) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_pending_shares(lb: *mut Lb) -> LbFileListRes {
     let lb = rlb(lb);
 

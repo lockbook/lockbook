@@ -196,6 +196,10 @@ pub struct EmbedSpec {
 pub enum EmbedKind {
     Image,
     LinkCard,
+    /// `url` is the diagram's Mermaid source.
+    Diagram,
+    /// A wiki embed's tab; its url is the title.
+    Tab,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -222,12 +226,25 @@ impl StyleInfo {
     }
 }
 
-/// A strike/underline rule, painted on top of text (see `deco_lines`).
+/// A strike/underline rule or a spelling mark, painted on top of text (see
+/// `deco_lines`).
 #[derive(Clone, Debug)]
 pub struct DecoLine {
     pub x: std::ops::RangeInclusive<f32>,
     pub y: f32,
     pub color: egui::Color32,
+    pub dotted: bool,
+}
+
+impl DecoLine {
+    pub fn paint(&self, painter: &egui::Painter) {
+        if self.dotted {
+            let ends = [Pos2::new(*self.x.start(), self.y), Pos2::new(*self.x.end(), self.y)];
+            painter.extend(egui::Shape::dotted_line(&ends, self.color, 3.0, 1.0));
+        } else {
+            painter.hline(self.x.clone(), self.y, egui::Stroke::new(1.0_f32, self.color));
+        }
+    }
 }
 
 /// One visual row of a wrap unit, emitted by `build_rows`.
@@ -269,6 +286,8 @@ pub struct WrapUnitLayout {
     /// painted glyphs will sit at a different scale from the
     /// fragment rects.
     pub row_height: f32,
+    /// Source ranges of prose, whose words are spell checked.
+    pub prose: Vec<(Grapheme, Grapheme)>,
 }
 
 /// Per-side padding between a fragment's outer rect and its glyph
@@ -376,6 +395,8 @@ pub struct Layout {
     /// substitutes these to spaces too — cosmic-text never sees `\t`.
     /// Walker computes pixel-stop advance for each at shape time.
     tab_positions: Vec<usize>,
+    /// Source ranges of prose, whose words are spell checked.
+    prose: Vec<(Grapheme, Grapheme)>,
 }
 
 #[derive(Clone, Debug)]
@@ -408,6 +429,14 @@ impl Layout {
             events: Vec::new(),
             source_range,
             tab_positions: Vec::new(),
+            prose: Vec::new(),
+        }
+    }
+
+    /// Marks `source` as prose, whose words are spell checked.
+    pub fn push_prose(&mut self, source: (Grapheme, Grapheme)) {
+        if !source.is_empty() {
+            self.prose.push(source);
         }
     }
 
@@ -611,7 +640,7 @@ impl MdRender {
             let last = rows.last().unwrap();
             last.y_top + last.ascent + last.descent
         };
-        WrapUnitLayout { source_range, rows, height, width, row_height }
+        WrapUnitLayout { source_range, rows, height, width, row_height, prose: layout.prose }
     }
 
     /// How wide a wrap unit can usefully be made: at least its longest run
@@ -1890,6 +1919,8 @@ impl MdRender {
             let [r, g, b, a] = c.to_array();
             glyphon::Color::rgba(r, g, b, a)
         };
+        let misspelled = self.misspelled_words(&layout.prose);
+        self.misspelled.extend_from_slice(&misspelled);
 
         for row_idx in 0..layout.rows.len() {
             let row = &layout.rows[row_idx];
@@ -2001,6 +2032,15 @@ impl MdRender {
                             egui::CornerRadius::same(2),
                         ),
                         EmbedKind::LinkCard => self.paint_link_card(embed_ui, url, screen_rect),
+                        EmbedKind::Diagram => {
+                            self.paint_diagram_embed(embed_ui, url, frag.source_range, screen_rect)
+                        }
+                        EmbedKind::Tab => self.paint_tab_embed(
+                            embed_ui,
+                            url,
+                            screen_rect,
+                            frag.source_range.start(),
+                        ),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,
@@ -2038,6 +2078,7 @@ impl MdRender {
                             x: x.clone(),
                             y: baseline_top + row_height * 0.55,
                             color: fmt.color,
+                            dotted: false,
                         });
                     }
                     if fmt.underline {
@@ -2045,6 +2086,7 @@ impl MdRender {
                             x,
                             y: baseline_top + row_height * 0.95,
                             color: fmt.color,
+                            dotted: false,
                         });
                     }
                 }
@@ -2052,6 +2094,7 @@ impl MdRender {
                 // Mirror onto the flat fragment list for cursor / hit-test.
                 let mut f = frag.clone();
                 f.rect = screen_rect;
+                self.mark_misspellings(ui, &f, &misspelled, row_height);
                 self.fragments.push(f);
             }
 

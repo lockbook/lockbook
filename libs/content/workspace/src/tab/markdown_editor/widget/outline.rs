@@ -40,6 +40,13 @@ pub struct OutlineRow {
     pub span: (Grapheme, Grapheme),
 }
 
+/// The outline's rows, and what it says when there are none.
+#[derive(Clone, Copy)]
+pub struct Headings<'a> {
+    pub rows: &'a [OutlineRow],
+    pub empty: &'a str,
+}
+
 /// A note that links to this one, and its links here.
 pub struct LinkedNote {
     pub id: Uuid,
@@ -58,12 +65,10 @@ pub struct Mention {
 /// What a click in the outline asks for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Choice {
-    Heading(String),
+    /// A row of the outline, by its place.
+    Heading(usize),
     /// A linking note, at the link when there's a span.
-    Note {
-        id: Uuid,
-        span: Option<Range<usize>>,
-    },
+    Note { id: Uuid, span: Option<Range<usize>> },
 }
 
 /// Where the card stands: `area` bounds it, and `floating` puts it over the
@@ -119,7 +124,7 @@ impl Outline {
     /// The sheet, if open. Returns the chosen row's choice and the rect that
     /// takes touches.
     pub fn show(
-        &mut self, ctx: &egui::Context, id: Id, rows: &[OutlineRow], current: Option<usize>,
+        &mut self, ctx: &egui::Context, id: Id, rows: Headings, current: Option<usize>,
         linked: &[LinkedNote],
     ) -> (Option<Choice>, Option<Rect>) {
         if !self.sheet_open {
@@ -138,7 +143,7 @@ impl Outline {
     /// the desktop card is, with a close button: the outline, then the notes
     /// `linked` here.
     fn sheet(
-        &mut self, ctx: &egui::Context, id: Id, rows: &[OutlineRow], current: Option<usize>,
+        &mut self, ctx: &egui::Context, id: Id, rows: Headings, current: Option<usize>,
         linked: &[LinkedNote],
     ) -> (Option<Choice>, Rect, bool) {
         let t = ctx.get_lb_theme();
@@ -218,7 +223,7 @@ impl Outline {
     /// whether it was dismissed.
     #[allow(clippy::too_many_arguments)]
     pub fn card(
-        &mut self, ctx: &egui::Context, id: Id, place: Option<CardPlace>, rows: &[OutlineRow],
+        &mut self, ctx: &egui::Context, id: Id, place: Option<CardPlace>, rows: Headings,
         current: Option<usize>, linked: &[LinkedNote],
     ) -> (Option<Choice>, Option<Rect>, bool) {
         let Some(CardPlace { area, floating, shown, open }) = place else {
@@ -398,17 +403,6 @@ impl Scroll {
             let at = Align2::LEFT_CENTER
                 .align_size_within_rect(m.galley.size(), text_rect)
                 .min;
-            // a faint dot in each step of a heading's indent, beside its first line
-            if matches!(m.choice, Choice::Heading(_)) {
-                let line = m.galley.rows.first().map_or(0.0, |r| r.rect().height());
-                let y = at.y + line / 2.0;
-                let ink = t.neutral_fg_secondary().gamma_multiply(0.45);
-                let steps = (m.indent / Space::Md.pts()).round() as usize;
-                for step in 0..steps {
-                    let x = rect.left() + Space::Sm.pts() + (step as f32 + 0.5) * Space::Md.pts();
-                    painter.circle_filled(pos2(x, y), 1.0, ink);
-                }
-            }
             painter.galley(at, m.galley.clone(), Color32::PLACEHOLDER);
             if m.galley.elided {
                 tip_text(ui.ctx(), &resp, m.tip.clone());
@@ -483,8 +477,9 @@ impl Measured {
 /// Lays out heading `rows` at `width`. Touch rows are a thumb tall and wrap a
 /// long title to two lines; mouse rows are a control tall and truncate.
 fn measure_headings(
-    ctx: &egui::Context, rows: &[OutlineRow], current: Option<usize>, width: f32, touch: bool,
+    ctx: &egui::Context, headings: Headings, current: Option<usize>, width: f32, touch: bool,
 ) -> Measured {
+    let rows = headings.rows;
     let t = ctx.get_lb_theme();
     let measured = rows
         .iter()
@@ -500,12 +495,12 @@ fn measure_headings(
             let min_h = if touch { TOUCH_ROW_H } else { control_height() };
             let height = min_h.max(galley.size().y + 2.0 * Space::Xs.pts());
             let tip = row.text.clone();
-            MeasuredRow { galley, height, indent, tip, choice: Choice::Heading(row.slug.clone()) }
+            MeasuredRow { galley, height, indent, tip, choice: Choice::Heading(i) }
         })
         .collect();
     let empty = rows
         .is_empty()
-        .then(|| quiet_text(ctx, "No headings yet. Start a line with # to add one.", width));
+        .then(|| quiet_text(ctx, headings.empty, width));
     Measured::new(measured, current, empty)
 }
 

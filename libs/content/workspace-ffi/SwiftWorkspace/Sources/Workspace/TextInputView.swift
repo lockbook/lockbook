@@ -1020,7 +1020,10 @@
             // text is the paste. A line beside an image names the image.
             let text = UIPasteboard.general.string ?? UIPasteboard.general.url?.absoluteString
             let cells = text.map { $0.contains("\t") || $0.contains("\n") } ?? false
-            if let image = UIPasteboard.general.image, !cells {
+            if let gif = UIPasteboard.general.data(forPasteboardType: UTType.gif.identifier), !cells {
+                mtkView.importContent(.imageData(gif), isPaste: true)
+                mtkView.requestFrame()
+            } else if let image = UIPasteboard.general.image, !cells {
                 mtkView.importContent(.image(image), isPaste: true)
                 mtkView.requestFrame()
             } else if let text {
@@ -1040,6 +1043,11 @@
                   let range = replacement.value(forKey: "range") as? UITextRange,
                   let text = replacement.value(forKey: "replacementText") as? String
             else { return }
+            replaceReported(range, withText: text)
+        }
+
+        /// A replacement made for UIKit rather than by it.
+        private func replaceReported(_ range: UITextRange, withText text: String) {
             inputDelegate?.selectionWillChange(self)
             inputDelegate?.textWillChange(self)
             replace(range, withText: text)
@@ -1281,7 +1289,7 @@
         // MARK: - Gesture relationships
 
         override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            if isInteractiveContentPop(gestureRecognizer) {
+            if blocksNavigationPop(gestureRecognizer) {
                 return false
             }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
@@ -1363,11 +1371,18 @@
             menuVisible = false
         }
 
-        /// Open and Copy for a selected link; Edit and Refresh for an atom
-        /// (image, preview), which has no source on screen to select.
+        /// Open for a diagram; Open and Copy for a selected link; Edit for an
+        /// atom (image, diagram, preview), which has no source on screen to
+        /// select; Copy Image for a picture; Refresh for a link preview.
         private func editorMenuItems(atom: Bool) -> [UIMenuElement] {
             guard let wsHandle else { return [] }
-            var items: [UIMenuElement] = []
+            var items: [UIMenuElement] = spellingMenuItems()
+            if atom, selection_has_diagram(wsHandle) {
+                items.append(UIAction(title: "Open", image: UIImage(systemName: "arrow.up.left.and.arrow.down.right")) { [weak self] _ in
+                    open_selected_diagram(wsHandle)
+                    self?.mtkView.requestFrame()
+                })
+            }
             if atom {
                 items.append(UIAction(title: "Edit", image: UIImage(systemName: "pencil")) { [weak self] _ in
                     enter_selected_atom(wsHandle)
@@ -1375,7 +1390,14 @@
                     self?.mtkView.requestFrame()
                 })
             }
-            if let target = selection_open_target(wsHandle) {
+            if atom, selection_has_picture(wsHandle) {
+                items.append(UIAction(title: "Copy Image", image: UIImage(systemName: "photo")) { [weak self] _ in
+                    copy_image(wsHandle)
+                    self?.mtkView.requestFrame()
+                })
+            }
+            let target = selection_open_target(wsHandle)
+            if let target {
                 let url = String(cString: target)
                 free_text(target)
                 let open = selection_target_is_image(wsHandle) ? "Open Image" : "Open Link"
@@ -1394,12 +1416,56 @@
                     UIPasteboard.general.string = url
                 })
             }
-            if atom {
+            if atom, target != nil {
                 items.append(UIAction(title: "Refresh Preview", image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in
                     refresh_selection_previews(wsHandle)
                     self?.mtkView.requestFrame()
                 })
             }
+            return items
+        }
+
+        /// Unlearn for a word the person taught the system, when the caret is in one.
+        private func unlearnMenuItems(_ wsHandle: UnsafeMutableRawPointer) -> [UIMenuElement] {
+            guard let caret = selectedTextRange?.start,
+                  let range = tokenizer.rangeEnclosingPosition(caret, with: .word, inDirection: .storage(.backward))
+                  ?? tokenizer.rangeEnclosingPosition(caret, with: .word, inDirection: .storage(.forward)),
+                  let word = text(in: range), UITextChecker.hasLearnedWord(word)
+            else { return [] }
+            let language = Spelling.language(textInputMode)
+            return [UIAction(title: "Unlearn Spelling", image: UIImage(systemName: "arrow.uturn.backward")) { [weak self] _ in
+                UITextChecker.unlearnWord(word)
+                spelling_answer(wsHandle, word, !Spelling.isMisspelled(word, language: language))
+                self?.mtkView.requestFrame()
+            }]
+        }
+
+        /// Fixes for the misspelled word the selection is in.
+        private func spellingMenuItems() -> [UIMenuElement] {
+            guard documentEditable, let wsHandle,
+                  UserDefaults.standard.object(forKey: "spellCheck") as? Bool ?? true
+            else { return [] }
+            let misspelling = selection_misspelling(wsHandle)
+            if misspelling.none { return unlearnMenuItems(wsHandle) }
+            let range = TextRange(Int(misspelling.start.pos), Int(misspelling.end.pos))
+            guard let word = text(in: range) else { return [] }
+            let language = Spelling.language(textInputMode)
+            var items: [UIMenuElement] = Spelling.guesses(word, language: language).map { guess in
+                UIAction(title: guess) { [weak self] _ in
+                    // the word may have moved while the menu was open
+                    guard let self, self.text(in: range) == word else { return }
+                    self.replaceReported(range, withText: guess)
+                }
+            }
+            items.append(UIAction(title: "Learn Spelling", image: UIImage(systemName: "checkmark")) { [weak self] _ in
+                UITextChecker.learnWord(word)
+                spelling_answer(wsHandle, word, true)
+                self?.mtkView.requestFrame()
+            })
+            items.append(UIAction(title: "Ignore Spelling", image: UIImage(systemName: "eye.slash")) { [weak self] _ in
+                spelling_ignore(wsHandle, word)
+                self?.mtkView.requestFrame()
+            })
             return items
         }
 
@@ -1463,7 +1529,17 @@
         /// reports the change to UIKit.
         func dropInteraction(_: UIDropInteraction, performDrop session: UIDropSession) {
             let mtkView = mtkView
-            if session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier]) {
+            if session.hasItemsConforming(toTypeIdentifiers: [UTType.gif.identifier]) {
+                for item in session.items {
+                    _ = item.itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.gif.identifier) { gif, _ in
+                        guard let gif else { return }
+                        DispatchQueue.main.async {
+                            mtkView.importContent(.imageData(gif), isPaste: true)
+                            mtkView.requestFrame()
+                        }
+                    }
+                }
+            } else if session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier]) {
                 _ = session.loadObjects(ofClass: UIImage.self) { images in
                     for case let image as UIImage in images {
                         mtkView.importContent(.image(image), isPaste: true)

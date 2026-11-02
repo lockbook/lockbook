@@ -16,16 +16,19 @@ use crate::tab::input_controller::{
     InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
 use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
+use crate::widgets::diagram_cache::{DiagramCache, DiagramSize};
 use crate::widgets::image_cache::{ImageCache, ImageKey, ImageState};
 
 const MIN_ZOOM_LEVEL: f32 = 0.1;
 const ZOOM_STEP: f32 = 10.0;
 const SCREEN_PADDING: egui::Pos2 =
-    if cfg!(target_os = "android") { egui::pos2(10.0, 50.0) } else { egui::pos2(20.0, 20.0) };
-const BACK_LABEL: &str = "Back to image";
+    if cfg!(target_os = "android") { egui::pos2(10.0, 10.0) } else { egui::pos2(20.0, 20.0) };
 
 pub struct ImageViewer {
-    pub id: Uuid,
+    picture: Picture,
+    /// Drawn alone inside another surface: no controls, and the context's
+    /// events are left for the host.
+    pub embedded: bool,
     images: ImageCache,
     input_controller: InputController,
     master_transform: Transform,
@@ -33,6 +36,13 @@ pub struct ImageViewer {
     islands: Vec<Rect>,
     /// A menu is open over the canvas; touches go to it.
     menu_open: bool,
+}
+
+/// What the viewer shows: an image file, or a note's diagram, drawn from
+/// its source at the size it's shown so it stays sharp as it's zoomed.
+enum Picture {
+    File(Uuid),
+    Diagram(String),
 }
 
 #[derive(Clone, Copy)]
@@ -48,13 +58,30 @@ enum ImageCmd {
 
 impl ImageViewer {
     pub fn new(id: Uuid, images: ImageCache) -> Self {
+        Self::of(Picture::File(id), images)
+    }
+
+    pub fn diagram(source: String, images: ImageCache) -> Self {
+        Self::of(Picture::Diagram(source), images)
+    }
+
+    fn of(picture: Picture, images: ImageCache) -> Self {
         Self {
-            id,
+            picture,
+            embedded: false,
             images,
-            input_controller: InputController::new(InputControllerConfig::new(true, true)),
+            input_controller: InputController::new(InputControllerConfig::new(true, true), &[]),
             master_transform: Transform::identity(),
             islands: Vec::new(),
             menu_open: false,
+        }
+    }
+
+    /// The image file shown, if it's a file.
+    pub fn file(&self) -> Option<Uuid> {
+        match self.picture {
+            Picture::File(id) => Some(id),
+            Picture::Diagram(_) => None,
         }
     }
 
@@ -66,38 +93,114 @@ impl ImageViewer {
         painter.rect_filled(painter.clip_rect(), 0., t.neutral_bg());
 
         self.menu_open = context_menu::is_any_open(ui.ctx());
+        // an embed's host scrolls by the wheel
+        self.input_controller.pan_on_wheel = !self.embedded;
         if !self.menu_open {
             self.process_events(ui, available);
         }
 
-        let state = self.images.get_or_load(&ImageKey::File(self.id), true);
-        let image_state = state.lock().unwrap().deref().clone();
-
         self.islands.clear();
-        match image_state {
+        match self.state(ui) {
             ImageState::Loading => loading_indicator(ui),
             ImageState::Loaded(texture_id) => {
-                let [img_w, img_h] = ui.ctx().tex_manager().read().meta(texture_id).unwrap().size;
-                let image_size = Vec2::new(img_w as f32, img_h as f32);
+                let size = self.natural_size(ui, texture_id);
+                let rect = self.image_rect(available, size);
 
-                let rect = self.image_rect(available, image_size);
+                // a diagram's texture is drawn for the size it's shown at
+                let texture_id = match &self.picture {
+                    Picture::Diagram(source) => {
+                        let px = rect.width() * ui.ctx().pixels_per_point();
+                        // in steps, so a zoom redraws now and then rather than every frame
+                        let px = 2f32.powf((px.max(1.0).log2() * 4.0).ceil() / 4.0) as u32;
+                        DiagramCache::of(ui.ctx()).texture(source, px)
+                    }
+                    Picture::File(_) => Some(texture_id),
+                };
+                if let Some(texture_id) = texture_id {
+                    painter.add(RectShape::filled(rect, 0.0, Color32::WHITE).with_texture(
+                        texture_id,
+                        Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
+                    ));
+                }
 
-                painter.add(RectShape::filled(rect, 0.0, Color32::WHITE).with_texture(
-                    texture_id,
-                    Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
-                ));
-
-                self.show_image_context_menu(ui, available, rect);
-                self.show_viewport_controls(ui, available, rect);
+                if !self.embedded {
+                    self.show_image_context_menu(ui, available, rect);
+                    self.show_viewport_controls(ui, available, rect);
+                }
             }
-            ImageState::Failed(ref msg) => message_indicator(
-                ui,
-                phosphor::IMAGE_BROKEN,
-                &format!("Failed to load image: {msg}"),
-            ),
+            ImageState::Failed(ref msg) => {
+                let what = match self.picture {
+                    Picture::File(_) => "image",
+                    Picture::Diagram(_) => "diagram",
+                };
+                message_indicator(
+                    ui,
+                    phosphor::IMAGE_BROKEN,
+                    &format!("Failed to load {what}: {msg}"),
+                )
+            }
         }
 
-        ui.ctx().pop_events();
+        if !self.embedded {
+            ui.ctx().pop_events();
+        }
+    }
+
+    /// Height over width, once the image has loaded.
+    pub fn aspect(&self) -> Option<f32> {
+        let Picture::File(id) = &self.picture else { return None };
+        let state = self.images.get_or_load(&ImageKey::File(*id), true);
+        let ImageState::Loaded(texture) = *state.lock().unwrap() else { return None };
+        let [w, h] = self.images.texture_size(texture)?;
+        Some(h as f32 / (w as f32).max(1.0))
+    }
+
+    /// The image has loaded or failed to.
+    pub fn settled(&self) -> bool {
+        let Picture::File(id) = &self.picture else { return true };
+        let state = self.images.get_or_load(&ImageKey::File(*id), true);
+        let loading = matches!(*state.lock().unwrap(), ImageState::Loading);
+        !loading
+    }
+
+    /// The picture as the image cache would have it. A diagram that has
+    /// drawn is `Loaded` with a stand-in texture id; [`Self::show`] asks
+    /// for its texture at the size it's shown.
+    fn state(&self, ui: &egui::Ui) -> ImageState {
+        match &self.picture {
+            Picture::File(id) => {
+                let state = self.images.get_or_load(&ImageKey::File(*id), true);
+                let state = state.lock().unwrap().deref().clone();
+                state
+            }
+            Picture::Diagram(source) => match DiagramCache::of(ui.ctx()).size(source) {
+                DiagramSize::Pending => ImageState::Loading,
+                DiagramSize::Ready(_) => ImageState::Loaded(egui::TextureId::default()),
+                DiagramSize::Failed(message) => ImageState::Failed(message),
+            },
+        }
+    }
+
+    /// The picture's size before the viewer scales it: an image's pixels,
+    /// a diagram's points.
+    fn natural_size(&self, ui: &egui::Ui, texture_id: egui::TextureId) -> Vec2 {
+        match &self.picture {
+            Picture::File(_) => {
+                let [w, h] = ui.ctx().tex_manager().read().meta(texture_id).unwrap().size;
+                Vec2::new(w as f32, h as f32)
+            }
+            Picture::Diagram(source) => match DiagramCache::of(ui.ctx()).size(source) {
+                DiagramSize::Ready(size) => size,
+                _ => Vec2::splat(1.0),
+            },
+        }
+    }
+
+    fn back_label(&self) -> &'static str {
+        match self.picture {
+            Picture::File(_) => "Back to image",
+            Picture::Diagram(_) => "Back to diagram",
+        }
     }
 
     pub fn detect_islands_interaction(&self, pos: Pos2) -> bool {
@@ -139,6 +242,7 @@ impl ImageViewer {
     /// Zoom island at the top right; "Back to image" beside it while the
     /// image is panned out of view.
     fn show_viewport_controls(&mut self, ui: &mut egui::Ui, available: Rect, image_rect: Rect) {
+        let controls = crate::safe_area::controls_rect(ui).shrink2(SCREEN_PADDING.to_vec2());
         let t = ui.ctx().get_lb_theme();
         let hit = control_height();
         let font = TypeRole::Body.font_id();
@@ -150,18 +254,25 @@ impl ImageViewer {
                 .x
                 + 2.0 * control_space::PAD_X.pts()
         };
-        let pct_w = text_w("000%");
+        let zoom_percentage = (self.master_transform.sx * 100.0).round();
+        let label = if self.master_transform.sx <= MIN_ZOOM_LEVEL {
+            "Max".to_string()
+        } else {
+            format!("{}%", zoom_percentage as i32)
+        };
+        // digits needn't be one width: room for the label as it reads
+        let pct_w = text_w("000%").max(text_w(&label));
 
+        let zoom_size = egui::vec2(island::width(2.0 * hit + pct_w), island::height());
+        if controls.width() < zoom_size.x || controls.height() < zoom_size.y {
+            return;
+        }
         let zoom_rect = Rect::from_min_size(
-            egui::pos2(
-                available.right() - SCREEN_PADDING.x - island::width(2.0 * hit + pct_w),
-                available.top() + SCREEN_PADDING.y,
-            ),
-            egui::vec2(island::width(2.0 * hit + pct_w), island::height()),
+            egui::pos2(controls.right() - island::width(2.0 * hit + pct_w), controls.top()),
+            zoom_size,
         );
         self.islands.push(zoom_rect);
 
-        let zoom_percentage = (self.master_transform.sx * 100.0).round();
         let mut stop = None;
         island::island(ui, zoom_rect, |ui| {
             let can_zoom_out = zoom_percentage > ZOOM_STEP;
@@ -184,11 +295,6 @@ impl ImageViewer {
                 self.zoom_to(target, available.center());
             }
 
-            let label = if self.master_transform.sx <= MIN_ZOOM_LEVEL {
-                "Max".to_string()
-            } else {
-                format!("{}%", zoom_percentage as i32)
-            };
             let pct = Button::secondary(&t, label)
                 .min_width(pct_w)
                 .max_width(pct_w)
@@ -225,21 +331,28 @@ impl ImageViewer {
         if available.intersects(image_rect) {
             return;
         }
-        let back_w = island::width(text_w(BACK_LABEL));
-        let back_rect = Rect::from_min_size(
-            egui::pos2(zoom_rect.left() - Space::Sm.pts() - back_w, zoom_rect.top()),
-            egui::vec2(back_w, island::height()),
-        );
+        let back_label = self.back_label();
+        let back_w = island::width(text_w(back_label));
+        let beside = zoom_rect.left() - Space::Sm.pts() - back_w;
+        let back_pos = if beside >= controls.left() {
+            egui::pos2(beside, zoom_rect.top())
+        } else {
+            // Stack the return action on narrow screens instead of crossing the safe edge.
+            egui::pos2(controls.right() - back_w, zoom_rect.bottom() + Space::Sm.pts())
+        };
+        let back_rect = Rect::from_min_size(back_pos, egui::vec2(back_w, island::height()));
+        if !controls.contains_rect(back_rect) {
+            return;
+        }
         self.islands.push(back_rect);
-        if island::island(ui, back_rect, |ui| Button::secondary(&t, BACK_LABEL).show(ui)).clicked()
+        if island::island(ui, back_rect, |ui| Button::secondary(&t, back_label).show(ui)).clicked()
         {
             self.reset_viewport();
         }
     }
 
     fn show_image_context_menu(&mut self, ui: &mut egui::Ui, available: Rect, image_rect: Rect) {
-        // a tap that dismisses an open menu shouldn't also open the native one
-        if self.menu_open || !available.intersects(image_rect) {
+        if !available.intersects(image_rect) {
             return;
         }
 
@@ -250,7 +363,8 @@ impl ImageViewer {
         );
 
         if cfg!(any(target_os = "ios", target_os = "android")) {
-            if response.clicked() {
+            // a tap that dismisses an open menu shouldn't also open the native one
+            if response.clicked() && !self.menu_open {
                 if let Some(pos) = response.interact_pointer_pos() {
                     ui.ctx().set_context_menu(pos, ContextMenuTarget::Image);
                 }
@@ -268,8 +382,22 @@ impl ImageViewer {
     }
 
     pub fn copy_image(&self, ctx: &egui::Context) {
-        match self.images.color_image(self.id) {
-            Ok(image) => ctx.copy_image(image),
+        let id = match &self.picture {
+            Picture::File(id) => *id,
+            Picture::Diagram(source) => {
+                if let Some((image, _)) = DiagramCache::of(ctx).image(source) {
+                    ctx.copy_image(image);
+                }
+                return;
+            }
+        };
+        match self.images.copied_image(id) {
+            Ok((image, bytes)) => {
+                if image::guess_format(&bytes).is_ok_and(|f| f == image::ImageFormat::Gif) {
+                    ctx.set_copied_gif(bytes);
+                }
+                ctx.copy_image(image);
+            }
             Err(err) => error!("failed to copy image to clipboard: {err}"),
         }
     }

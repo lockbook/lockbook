@@ -15,25 +15,30 @@
 use comrak::Arena;
 use egui::os::OperatingSystem;
 use egui::{
-    Context, EventFilter, Id, ImeEvent, Key, Pos2, Rect, Sense, Stroke, Ui, UiBuilder,
-    ViewportCommand,
+    Context, EventFilter, Id, ImeEvent, Key, Pos2, Rect, Sense, Ui, UiBuilder, ViewportCommand,
 };
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::style::{ThemeExt as _, phosphor};
 use crate::tab::markdown_editor::ScrollTarget;
+use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, DragUnit, TouchReorder};
+use super::widget::block::leaf::diagram::Picture;
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use super::{ImeMarked, MdEdit, MdRender};
 
 #[derive(Clone)]
 enum EditorMenuCmd {
+    Suggestion(String),
+    LearnSpelling,
+    IgnoreSpelling,
+    UnlearnSpelling,
     Link(LinkMenuAction),
     HeadingLink,
     Cut,
@@ -94,6 +99,9 @@ impl MdEdit {
         // pass below doesn't see those keys.
         self.emoji_completions
             .update_active_state(&self.renderer.buffer, &self.renderer.bounds.inline_paragraphs);
+        let fenced = !self.renderer.readonly && self.renderer.kind == Syntax::Markdown;
+        self.language_completions
+            .update_active_state(&self.renderer.buffer, fenced);
         let files = self.renderer.files.clone();
         let file_id = self.file_id;
         self.link_completions.update_active_state(
@@ -102,7 +110,7 @@ impl MdEdit {
             &files,
             file_id,
         );
-        if !self.renderer.readonly && !self.renderer.plaintext {
+        if !self.renderer.readonly && self.renderer.kind == Syntax::Markdown {
             self.emoji_completions.handle_input(
                 ctx,
                 &self.renderer.buffer,
@@ -114,6 +122,12 @@ impl MdEdit {
                 &self.renderer.buffer,
                 &files,
                 file_id,
+                focused,
+                &mut self.event.internal_events,
+            );
+            self.language_completions.handle_input(
+                ctx,
+                &self.renderer.buffer,
                 focused,
                 &mut self.event.internal_events,
             );
@@ -227,6 +241,8 @@ impl MdEdit {
             self.caret_moved = true;
         }
         self.renderer.caret_moved |= buf_resp.selection_user_moved;
+        self.renderer
+            .note_typing(buf_resp.text_updated, buf_resp.selection_user_moved);
 
         buf_resp
     }
@@ -380,6 +396,8 @@ impl MdEdit {
             self.caret_moved = true;
             self.renderer.caret_moved |= resp.selection_user_moved;
         }
+        self.renderer
+            .note_typing(resp.text_updated, resp.selection_user_moved);
         ctx.request_repaint();
         resp
     }
@@ -454,6 +472,7 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
+        self.renderer.misspelled.clear();
         self.renderer.clear_row_scroll_frame();
         self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
@@ -772,7 +791,7 @@ impl MdEdit {
                 ));
         }
         for d in floating_deco {
-            ui.painter().hline(d.x, d.y, Stroke::new(1.0_f32, d.color));
+            d.paint(ui.painter());
         }
     }
 
@@ -819,6 +838,8 @@ impl MdEdit {
 
         // image / card / link taps → open (cmd) or select + menu (touch)
         self.handle_image_interactions(root, ui, id, &mut ops);
+        self.escape_diagram_source(root, ui, id, &mut ops);
+        self.handle_diagram_interactions(root, ui, id, &mut ops);
         self.handle_card_interactions(root, ui, id, &mut ops);
         self.handle_link_capsule_interactions(root, ui, id, &mut ops);
         self.handle_link_menu_taps(root, ui, id, &mut ops);
@@ -835,12 +856,51 @@ impl MdEdit {
                     let offset = self.location_to_char_offset(Location::Pos(pos));
                     self.renderer.heading_slug_at(root, offset)
                 });
+                self.context_menu_spelling = pos.and_then(|pos| {
+                    let offset = self.location_to_char_offset(Location::Pos(pos));
+                    let word = self.renderer.misspelled_at(offset)?;
+                    let spelling = crate::spelling::get(ui.ctx())?;
+                    let text = self.renderer.buffer[word].to_string();
+                    let suggestions = spelling.suggest(&text);
+                    Some((word, text, suggestions))
+                });
+                self.context_menu_learned = pos
+                    .filter(|_| self.renderer.spelling_marked())
+                    .and_then(|pos| {
+                        let offset = self.location_to_char_offset(Location::Pos(pos));
+                        let word = self.renderer.word_at(offset)?;
+                        let spelling = crate::spelling::get(ui.ctx())?;
+                        let text = &self.renderer.buffer[word];
+                        spelling.learned(text).then(|| text.to_string())
+                    });
             }
             let link_target = self.context_menu_link.clone();
             let heading = self.context_menu_heading.clone();
-            let (readonly, plaintext) = (self.renderer.readonly, self.renderer.plaintext);
+            let spelling = self.context_menu_spelling.clone();
+            let learned = self.context_menu_learned.clone();
+            let (readonly, markdown) =
+                (self.renderer.readonly, self.renderer.kind == Syntax::Markdown);
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
+                if let Some((_, _, suggestions)) = &spelling {
+                    for suggestion in suggestions {
+                        e.item_plain(
+                            suggestion.clone(),
+                            EditorMenuCmd::Suggestion(suggestion.clone()),
+                        );
+                    }
+                    e.item(phosphor::CHECK, "Learn Spelling", EditorMenuCmd::LearnSpelling);
+                    e.item(phosphor::EYE_SLASH, "Ignore Spelling", EditorMenuCmd::IgnoreSpelling);
+                    e.separator();
+                }
+                if learned.is_some() {
+                    e.item(
+                        phosphor::ARROW_COUNTER_CLOCKWISE,
+                        "Unlearn Spelling",
+                        EditorMenuCmd::UnlearnSpelling,
+                    );
+                    e.separator();
+                }
                 if let Some(link) = &link_target {
                     // plain links never render a preview — nothing to refresh
                     fill_link_menu(e, link.is_image, !readonly, false, EditorMenuCmd::Link);
@@ -858,12 +918,46 @@ impl MdEdit {
                 if !readonly {
                     e.item(phosphor::CLIPBOARD_TEXT, "Paste", EditorMenuCmd::Paste);
                 }
-                if !readonly && !plaintext {
+                if !readonly && markdown {
                     e.item(phosphor::TABLE, "Paste as table", EditorMenuCmd::PasteTable);
                 }
             });
             let mut menu_events: Vec<Event> = Vec::new();
+            let spelled = spelling.map(|(word, text, _)| (word, text));
             match chosen {
+                // an edit, which is the next input pass's to make; skipped
+                // if the word moved while the menu was open
+                Some(EditorMenuCmd::Suggestion(text)) => {
+                    if let Some((word, _)) =
+                        spelled.filter(|(w, t)| self.renderer.buffer[*w] == **t)
+                    {
+                        self.event.internal_events.push(Event::Replace {
+                            region: word.into(),
+                            text,
+                            advance_cursor: true,
+                        });
+                        ui.ctx().request_repaint();
+                    }
+                }
+                Some(EditorMenuCmd::UnlearnSpelling) => {
+                    if let (Some(spelling), Some(word)) = (crate::spelling::get(ui.ctx()), learned)
+                    {
+                        spelling.unlearn(&word);
+                        ui.ctx().request_repaint();
+                    }
+                }
+                Some(cmd @ (EditorMenuCmd::LearnSpelling | EditorMenuCmd::IgnoreSpelling)) => {
+                    if let (Some(spelling), Some((_, word))) =
+                        (crate::spelling::get(ui.ctx()), spelled)
+                    {
+                        if matches!(cmd, EditorMenuCmd::LearnSpelling) {
+                            spelling.learn(&word);
+                        } else {
+                            spelling.ignore(&word);
+                        }
+                        ui.ctx().request_repaint();
+                    }
+                }
                 Some(EditorMenuCmd::HeadingLink) => {
                     if let Some(slug) = &heading {
                         ui.ctx().copy_text(self.heading_link(slug));
@@ -879,6 +973,9 @@ impl MdEdit {
                             LinkMenuAction::Copy => ui
                                 .ctx()
                                 .copy_text(self.renderer.link_to_copy(&link.url, link.is_wikilink)),
+                            LinkMenuAction::CopyImage => {
+                                self.renderer.copy_picture(Picture::Image(link.url.clone()))
+                            }
                             LinkMenuAction::Refresh => self.renderer.refresh_link_meta(&link.url),
                             LinkMenuAction::Edit => {
                                 if link.force_reveal {
@@ -1046,7 +1143,7 @@ impl MdEdit {
                         // requesting focus interrupts the input method, which on X11
                         // resets it (fcitx5 back to English); a composition the click
                         // leaves interrupts it anyway (see `ime_marked_range`)
-                        if !ui.memory(|m| m.has_focus(id)) {
+                        if self.takes_focus && !ui.memory(|m| m.has_focus(id)) {
                             ui.memory_mut(|m| m.request_focus(id));
                         }
                         // a click that edits — on a cell its row lacks, or below
@@ -1074,6 +1171,8 @@ impl MdEdit {
             self.caret_moved = true;
         }
         self.renderer.caret_moved |= pointer_resp.selection_user_moved;
+        self.renderer
+            .note_typing(pointer_resp.text_updated, pointer_resp.selection_user_moved);
         // Pointer only emits Select ops (no text change), so no re-parse
         // needed — but reveal must reflect the applied ops (and any
         // `entered_atom` a menu "Edit" set) in this frame's paint: iOS
@@ -1103,7 +1202,9 @@ impl MdEdit {
         // returning so a caller passing its own `ui` (e.g. the chat composer)
         // isn't left with a narrowed clip that swallows its later paints.
         let entry_clip = ui.clip_rect();
-        ui.set_clip_rect(rect.intersect(entry_clip));
+        if !self.clip_to_host {
+            ui.set_clip_rect(rect.intersect(entry_clip));
+        }
 
         // cursor / selection — iOS draws natively
         if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {
@@ -1177,7 +1278,9 @@ impl MdEdit {
         // FindMatch is consumed by the caller (it owns find state).
         if matches!(self.pending_scroll, Some(ScrollTarget::Cursor)) {
             self.pending_scroll = None;
+            let before = self.scroll_area.stored_offset();
             self.scroll_to_cursor(rect);
+            self.moved_after_paint |= self.scroll_area.stored_offset() != before;
         }
 
         // lock focus filter so arrow keys / tab / shift+enter keep reaching us
@@ -1224,8 +1327,7 @@ impl MdEdit {
         }
         // strikethroughs and underlines painted on top of text
         for deco in std::mem::take(&mut self.renderer.deco_lines) {
-            ui.painter()
-                .hline(deco.x, deco.y, Stroke::new(1.0_f32, deco.color));
+            deco.paint(ui.painter());
         }
 
         // A reorder selects the dragged section; its handles would clutter
@@ -1276,11 +1378,12 @@ impl MdEdit {
     /// clip — so popup text lands on a later glyphon layer and can extend
     /// past the editor's viewport (e.g. over a toolbar above the cursor).
     pub fn show_completions(&mut self, ui: &mut Ui) {
-        if self.renderer.plaintext {
+        if self.renderer.kind != Syntax::Markdown {
             return;
         }
         self.show_emoji_completions(ui);
         self.show_link_completions(ui);
+        self.show_language_completions(ui);
     }
 
     /// Reset the buffer to empty state. Chat composers call this after

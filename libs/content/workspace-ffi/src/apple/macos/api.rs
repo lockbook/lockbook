@@ -10,7 +10,9 @@ use crate::apple::keyboard::NSKeys;
 #[no_mangle]
 pub unsafe extern "C" fn macos_frame(obj: *mut c_void) -> MacOSResponse {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.frame().into()
+    let mut response: MacOSResponse = obj.frame().into();
+    response.chrome_text_focused = obj.workspace.chrome_text_focused();
+    response
 }
 
 /// # Safety

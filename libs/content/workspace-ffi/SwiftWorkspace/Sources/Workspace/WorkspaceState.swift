@@ -19,6 +19,10 @@ import Observation
     public var outlineAvailable: Bool = false
     /// The outline sheet is up: floating buttons would cover it.
     public var outlineOpen: Bool = false
+    /// The open file has a rendered form: native chrome offers its source.
+    public var sourceAvailable: Bool = false
+    /// Files with a rendered form show as source.
+    public var sourceOn: Bool = false
 
     public var mobileToolbarShown: Bool = false
 
@@ -188,6 +192,13 @@ import Observation
         redraw.send(())
     }
 
+    public func toggleSource() {
+        guard let wsHandle else { return }
+
+        toggle_source(wsHandle)
+        redraw.send(())
+    }
+
     public func showFindInDoc() {
         guard let wsHandle else { return }
 
@@ -322,6 +333,7 @@ public enum WorkspaceDestKind: Int32 {
     case search = 1
     case mindMap = 2
     case spaceInspector = 3
+    case diagram = 4
 }
 
 public struct WorkspaceTabInfo: Identifiable, Hashable {
@@ -341,6 +353,7 @@ public struct WorkspaceTabInfo: Identifiable, Hashable {
         case .search: "Search"
         case .mindMap: "Mind Map"
         case .spaceInspector: "Space Inspector"
+        case .diagram: "Diagram"
         case .file: "unknown"
         }
     }

@@ -78,3 +78,37 @@ fn pasted_id_links_are_written_for_the_note() {
     assert_eq!(paste("see ", (4, 4), &unknown), format!("see {unknown}"));
     assert_eq!(paste("see ", (4, 4), "https://lockbook.net"), "see https://lockbook.net");
 }
+
+/// Whether completions are open after typing `typed` at `caret` in `md`,
+/// one grapheme a frame, in `/project/notes.md`.
+fn completes(md: &str, caret: usize, typed: &str) -> bool {
+    let files = shared_project();
+    let note = at(&files, "/project/notes.md");
+    let mut ws = TestEditor::in_files(files, note, md);
+    ws.push(Event::Select { region: (Grapheme(caret), Grapheme(caret)).into() });
+    ws.enter_frame();
+    for c in typed.chars() {
+        ws.push(Event::Replace {
+            region: Region::Selection,
+            text: c.to_string(),
+            advance_cursor: true,
+        });
+        ws.enter_frame();
+    }
+    ws.editor.edit.link_completions.active
+}
+
+/// A link typed between words completes as one typed at the end of a line,
+/// even before another link.
+#[test]
+fn link_completions_open_mid_line() {
+    let mut closed = vec![];
+    for typed in ["[[pl", "![[ch", "[pl", "![ch"] {
+        for md in ["see ", "see  after", "see  and [[other]]", "see  and [x](y)"] {
+            if !completes(md, 4, typed) {
+                closed.push(format!("{typed:?} in {md:?}"));
+            }
+        }
+    }
+    assert!(closed.is_empty(), "closed: {closed:#?}");
+}

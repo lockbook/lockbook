@@ -17,9 +17,7 @@ if [ -z "$NO_WASM" ]; then
     rm -f static/wasm/base.html
 fi
 
-zola build
-
-cd ../docs ; mdbook build ; mv book ../public-site/public ; cd ../public-site/public ; mv book docs ; cd ..
+sh scripts/build-content.sh
 
 if [ "$DEPLOY" = true ]; then
     # The wasm is large and highly compressible — serve it encoded, and cache it

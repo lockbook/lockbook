@@ -1,6 +1,7 @@
 +++
 title = "Lockbook's Editor"
 date = 2023-06-12
+description = "How Lockbook built a shared Markdown editor in Rust and egui, then integrated it with native desktop and mobile interfaces."
 [extra]
 author = "parth"
 author_link = "https://github.com/Parth"

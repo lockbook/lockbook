@@ -24,6 +24,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
 
         ready.workspace.desktop_tab_policy = true;
         ready.workspace.sidebar_open = sidebar_open;
+        ready.workspace.trackpad_history_swipe = trackpad_history_swipe();
         // Workspace create-dest follows the open tab. Tree `cursor` is selection
         // only — a folder right-click must not retarget ⌘N / landing create.
         ready.workspace.focused_parent = ready.workspace.current_tab_id();
@@ -55,4 +56,14 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
     for msg in failures {
         app.toasts.error(msg);
     }
+}
+
+#[cfg(target_os = "macos")]
+fn trackpad_history_swipe() -> bool {
+    unsafe { objc2_app_kit::NSEvent::isSwipeTrackingFromScrollEventsEnabled() }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn trackpad_history_swipe() -> bool {
+    true
 }

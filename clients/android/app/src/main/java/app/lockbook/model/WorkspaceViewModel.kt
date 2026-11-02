@@ -7,6 +7,7 @@ package app.lockbook.model
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import app.lockbook.util.SingleMutableLiveData
 import app.lockbook.util.StagedAttachment
@@ -15,7 +16,21 @@ import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import net.lockbook.File
 import java.util.ArrayDeque
 
-class WorkspaceViewModel : ViewModel() {
+class WorkspaceViewModel(
+    private val savedState: SavedStateHandle = SavedStateHandle(),
+) : ViewModel() {
+    fun recordTabCloseBehavior(
+        sessionId: String,
+        closeDetailOnBack: Boolean,
+    ) {
+        if (sessionId == NULL_UUID) return
+        val behaviors = savedState.get<HashMap<String, Boolean>>("tab_close_detail") ?: hashMapOf()
+        savedState["tab_close_detail"] = HashMap(behaviors).apply { put(sessionId, closeDetailOnBack) }
+    }
+
+    fun shouldCloseDetailOnBack(sessionId: String): Boolean =
+        savedState.get<HashMap<String, Boolean>>("tab_close_detail")?.get(sessionId) ?: true
+
     /** request workspace to  open a file **/
     private val _openFile = SingleMutableLiveData<OpenFileRequest>()
     val openFile: LiveData<OpenFileRequest>
@@ -36,24 +51,19 @@ class WorkspaceViewModel : ViewModel() {
     val finishedAction: LiveData<FinishedAction>
         get() = _finishedAction
 
-    val _hideToolbar = SingleMutableLiveData<Float>()
-    val hideToolbar: LiveData<Float>
-        get() = _hideToolbar
-
     var tabs = emptyDataSourceTyped<OpenTab>()
+
+    private val _openTabCount = MutableLiveData(0)
+    val openTabCount: LiveData<Int>
+        get() = _openTabCount
+
+    internal fun updateOpenTabCount(count: Int) {
+        if (_openTabCount.value != count) _openTabCount.value = count
+    }
 
     val _keyboardVisible = MutableLiveData<Boolean>()
     val keyboardVisible: LiveData<Boolean>
         get() = _keyboardVisible
-
-    val _nativeMarkdownToolbarVisible = MutableLiveData(false)
-    val nativeMarkdownToolbarVisible: LiveData<Boolean>
-        get() = _nativeMarkdownToolbarVisible
-
-    /** The open note has headings, so the app bar offers its outline. */
-    val _outlineAvailable = MutableLiveData(false)
-    val outlineAvailable: LiveData<Boolean>
-        get() = _outlineAvailable
 
     /** The outline sheet is up: the bottom bar would cover it. */
     val _outlineOpen = MutableLiveData(false)
@@ -63,10 +73,6 @@ class WorkspaceViewModel : ViewModel() {
     val _showKeyboard = MutableLiveData<Boolean>()
     val showKeyboard: LiveData<Boolean>
         get() = _showKeyboard
-
-    val _tabListExpanded = MutableLiveData(false)
-    val tabListExpanded: LiveData<Boolean>
-        get() = _tabListExpanded
 
     val _bottomInset = MutableLiveData<Int>()
     val bottomInset: LiveData<Int>
@@ -83,7 +89,7 @@ class WorkspaceViewModel : ViewModel() {
     /** Holds staged files until the workspace copies their bytes into a paste event. */
     private val pendingAttachments = ArrayDeque<StagedAttachment>()
 
-    /** request workspace view to navigate within tab history **/
+    /** Go back within the tab, then close it to Welcome, then return Home. */
     private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
     val workspaceBackRequested: LiveData<Unit>
         get() = _workspaceBackRequested
@@ -129,6 +135,8 @@ data class OpenFileRequest(
     val presentation: OpenFilePresentation,
     /** The heading a link's `#fragment` names, to open at. */
     val heading: String? = null,
+    /** False for welcome-screen documents: close the tab, but keep the detail pane open. */
+    val closeDetailOnBack: Boolean = true,
 )
 
 enum class OpenFilePresentation {

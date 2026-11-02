@@ -208,6 +208,19 @@ You can also create a code block by indenting each line with four spaces. Indent
 >     // some code
 >     fn main() { println!("Hello, world!"); }
 
+## Diagrams
+A code block whose language is `mermaid` draws as a diagram. Tap it to select it; edit it to change its source. See [Mermaid's documentation](https://mermaid.js.org/intro/) for the kinds of diagrams and their syntax.
+```md
+    ```mermaid
+    flowchart LR
+        A[Idea] --> B[Note] --> C[Diagram]
+    ```
+```
+> ```mermaid
+> flowchart LR
+>     A[Idea] --> B[Note] --> C[Diagram]
+> ```
+
 ## Thematic Breaks
 A thematic break is written with `***`, `---`, or `___` and shows a horizontal line across the page.
 ```md

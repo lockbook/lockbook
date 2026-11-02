@@ -76,7 +76,11 @@ impl<'ast> MdRender {
             } else {
                 // wider than the note: the table scrolls along its rows
                 let scroll = self.table_scroll(ui, node, &columns, table);
-                let clip = table.x_range().intersection(ui.clip_rect().x_range());
+                // text scrolls inside the border, which stays put over it
+                let clip = table
+                    .shrink(1.0)
+                    .x_range()
+                    .intersection(ui.clip_rect().x_range());
                 let clip = Rect::from_x_y_ranges(clip, ui.clip_rect().y_range());
                 let touch_targets = self.touch_targets.len();
 
@@ -102,6 +106,19 @@ impl<'ast> MdRender {
                     let key = RowScroller::Table(ordinal);
                     let content = content + inside.width() - table.width();
                     self.row_scroll_chrome(ui, key, inside, clip, content, &bands);
+                }
+                // the rules between rows run edge to edge over the fades, as
+                // the border stays put; a drag float paints no fades
+                if !self.painting_drag_float {
+                    let stroke = egui::Stroke::new(1., theme.neutral_bg_tertiary());
+                    let span = inside.x_range().intersection(clip.x_range());
+                    let mut y = top_left.y;
+                    for row in node.children() {
+                        if y > top_left.y {
+                            self.over_text.push(egui::Shape::hline(span, y, stroke));
+                        }
+                        y += self.height_table_row(row);
+                    }
                 }
 
                 // what the table hides of a cell is not there to touch
