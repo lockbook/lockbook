@@ -277,6 +277,9 @@ pub enum Action {
     OpenFile(Uuid),
     /// Open document in a new tab.
     OpenFileNewTab(Uuid),
+    /// Open the file an `lb://` link from outside the app names, once the
+    /// account loads, syncing first if this device hasn't seen it.
+    OpenLink(String),
     /// Per-tab workspace history (same as mobile `nav_back` / `nav_forward`).
     NavBack,
     NavForward,
@@ -457,6 +460,7 @@ impl Action {
             Self::CollapseSubtree(_) => "CollapseSubtree",
             Self::OpenFile(_) => "OpenFile",
             Self::OpenFileNewTab(_) => "OpenFileNewTab",
+            Self::OpenLink(_) => "OpenLink",
             Self::NavBack => "NavBack",
             Self::NavForward => "NavForward",
             Self::ToggleSidecar => "ToggleSidecar",

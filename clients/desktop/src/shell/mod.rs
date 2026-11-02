@@ -113,6 +113,8 @@ pub struct ShellApp {
     pub(crate) onboard_auto_rx: Option<mpsc::Receiver<apply_onboard::AutoOnboard>>,
     /// After a successful create, show the account-key backup sheet.
     pub(crate) onboard_backup_pending: bool,
+    /// The file a link from outside the app names, until it opens.
+    pub(crate) incoming_link: Option<apply::IncomingLink>,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -179,11 +181,17 @@ impl Default for ShellApp {
             native_dialog_rx: None,
             onboard_auto_rx: None,
             onboard_backup_pending: false,
+            incoming_link: None,
         }
     }
 }
 
 impl ShellApp {
+    /// Queues `action` from the host, applied next frame.
+    pub fn push(&mut self, action: A) {
+        self.queue.push(action);
+    }
+
     pub fn close_account_panel(&mut self) {
         self.account_panel = AccountPanel::Closed;
     }
@@ -324,6 +332,7 @@ impl ShellApp {
         }
         apply_onboard::poll_auto_import(self, ctx);
         apply::poll_native_dialog(self, ctx);
+        apply::poll_incoming_link(self, ctx);
         if let Session::Ready(r) = &self.session {
             if self.lb_rx.is_none() {
                 self.lb_rx = Some(r.workspace.core.subscribe());

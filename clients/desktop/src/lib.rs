@@ -7,6 +7,7 @@
 
 mod components;
 pub mod host;
+mod link_inbox;
 mod perf;
 mod settings;
 pub mod shell;
