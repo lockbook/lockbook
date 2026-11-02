@@ -353,6 +353,26 @@ impl SVGEditor {
         };
 
         if has_click_outside_islands && self.toolbar.has_visible_popover() {
+            if ui.input(|i| {
+                i.events.iter().any(|e| {
+                    matches!(
+                        e,
+                        egui::Event::PointerButton {
+                            button: egui::PointerButton::Secondary,
+                            pressed: true,
+                            ..
+                        }
+                    )
+                })
+            }) {
+                tracing::info!(target: "workspace::canvas_context_menu",
+                    frame = ui.ctx().cumulative_frame_nr(), pass = ui.ctx().cumulative_pass_nr(),
+                    tool = ?self.toolbar.active_tool,
+                    tool_popover = self.toolbar.show_tool_popover,
+                    viewport_popover = self.toolbar.viewport_popover.is_some(),
+                    cursor_popover = self.toolbar.show_at_cursor_tool_popover.is_some(),
+                    "canvas right-click intercepted while closing toolbar popover");
+            }
             self.toolbar
                 .close_all_popovers(tool_context.settings, &mut self.cfg);
             return;

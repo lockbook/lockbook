@@ -56,6 +56,15 @@ fn frame(ctx: &Context, events: Vec<Event>, f: impl FnOnce(&mut egui::Ui)) {
 fn button(pos: Pos2, button: PointerButton, pressed: bool) -> Event {
     Event::PointerButton { pos, button, pressed, modifiers: Modifiers::NONE }
 }
+fn trackpad_wheel(delta: egui::Vec2, phase: egui::TouchPhase) -> Event {
+    Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta,
+        phase,
+        source: egui::MouseWheelSource::Trackpad,
+        modifiers: Modifiers::NONE,
+    }
+}
 fn open(ctx: &Context, svg: &mut SVGEditor, pos: Pos2) {
     frame(ctx, vec![button(pos, PointerButton::Secondary, true)], |ui| svg.process_events(ui));
     assert!(svg.context_menu.quick);
@@ -118,11 +127,212 @@ fn escape_focus_loss_and_zoom_dismiss_without_editing() {
         },
         Event::WindowFocused(false),
         Event::Zoom(1.2),
+        trackpad_wheel(vec2(0., 1.), egui::TouchPhase::Move),
     ] {
         open(&ctx, &mut svg, pos2(400., 300.));
         frame(&ctx, vec![event], |ui| svg.process_events(ui));
         assert!(!svg.context_menu.quick && !svg.context_menu.advanced);
         assert!(svg.context_menu.rect.is_none());
+        assert!(!svg.history.has_undo());
+    }
+}
+
+#[test]
+fn right_click_menu_survives_zero_delta_trackpad_start_and_end() {
+    let ctx = context();
+    let mut svg = editor(&ctx, EMPTY);
+    for _ in 0..3 {
+        frame(&ctx, vec![], |ui| {
+            svg.show(ui);
+        });
+    }
+    let pos = pos2(400., 300.);
+    frame(&ctx, vec![button(pos, PointerButton::Secondary, true)], |ui| {
+        svg.show(ui);
+    });
+    assert!(svg.context_menu.quick);
+    // Exact event sequence from the reported flicker: trackpad phase-only
+    // notifications arrive in the pass immediately after right-click opens.
+    frame(
+        &ctx,
+        vec![
+            trackpad_wheel(egui::Vec2::ZERO, egui::TouchPhase::Start),
+            trackpad_wheel(egui::Vec2::ZERO, egui::TouchPhase::End),
+        ],
+        |ui| {
+            svg.show(ui);
+        },
+    );
+    assert!(svg.context_menu.quick);
+    frame(&ctx, vec![button(pos, PointerButton::Secondary, false)], |ui| {
+        svg.show(ui);
+    });
+    assert!(svg.context_menu.quick && svg.context_menu.rect.is_some());
+    assert!(!svg.history.has_undo());
+}
+
+#[test]
+fn identity_zoom_and_multitouch_keep_menu_open_but_actual_pan_dismisses() {
+    let ctx = context();
+    let mut svg = editor(&ctx, EMPTY);
+    let pos = pos2(400., 300.);
+    open(&ctx, &mut svg, pos);
+    frame(&ctx, vec![Event::Zoom(1.0)], |ui| svg.process_events(ui));
+    assert!(svg.context_menu.quick);
+    for delta in [egui::Vec2::ZERO, vec2(1., 0.)] {
+        ctx.push_event(crate::Event::MultiTouchGesture {
+            rotation_delta: 0.,
+            translation_delta: delta,
+            zoom_factor: 1.,
+            center_pos: pos,
+            start_positions: vec![pos],
+        });
+        frame(&ctx, vec![], |ui| svg.process_events(ui));
+        assert_eq!(svg.context_menu.quick, delta == egui::Vec2::ZERO);
+    }
+    assert!(!svg.history.has_undo());
+}
+
+#[test]
+fn selection_context_controls_survive_zoom_pan_and_multitouch() {
+    for advanced in [false, true] {
+        let ctx = context();
+        let mut svg = editor(&ctx, DRAWING);
+        open(&ctx, &mut svg, pos2(130., 130.));
+        let selected = svg.current_context_selection();
+        assert_eq!(selected.len(), 1);
+        if advanced {
+            frame(&ctx, vec![], |ui| svg.context_action(ui, CanvasAction::More as u32));
+        }
+        let transform = svg.viewport_settings.master_transform;
+        for event in [Event::Zoom(1.2), trackpad_wheel(vec2(25., 10.), egui::TouchPhase::Move)] {
+            frame(&ctx, vec![Event::PointerMoved(pos2(400., 300.)), event], |ui| {
+                svg.process_events(ui);
+                svg.show_context_menu(ui);
+            });
+            assert_eq!(svg.context_menu.quick, !advanced);
+            assert_eq!(svg.context_menu.advanced, advanced);
+            assert_eq!(svg.current_context_selection(), selected);
+            assert!(svg.context_menu.rect.is_some());
+        }
+        assert_ne!(svg.viewport_settings.master_transform, transform);
+        ctx.push_event(crate::Event::MultiTouchGesture {
+            rotation_delta: 0.,
+            translation_delta: vec2(15., 10.),
+            zoom_factor: 1.1,
+            center_pos: pos2(400., 300.),
+            start_positions: vec![pos2(400., 300.), pos2(450., 300.)],
+        });
+        frame(&ctx, vec![], |ui| {
+            svg.process_events(ui);
+            svg.show_context_menu(ui);
+        });
+        assert_eq!(svg.context_menu.quick, !advanced);
+        assert_eq!(svg.context_menu.advanced, advanced);
+        assert_eq!(svg.current_context_selection(), selected);
+        assert!(!svg.history.has_undo());
+    }
+}
+
+#[test]
+fn selection_context_controls_still_dismiss_on_focus_loss_or_escape() {
+    let ctx = context();
+    let mut svg = editor(&ctx, DRAWING);
+    for event in [
+        Event::WindowFocused(false),
+        Event::Key {
+            key: egui::Key::Escape,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        },
+    ] {
+        open(&ctx, &mut svg, pos2(130., 130.));
+        frame(&ctx, vec![event], |ui| svg.process_events(ui));
+        assert!(!svg.context_menu.quick && !svg.context_menu.advanced);
+        assert_eq!(svg.current_context_selection().len(), 1);
+        assert!(!svg.history.has_undo());
+    }
+}
+
+#[test]
+fn context_selection_caret_can_expand_and_go_back_repeatedly() {
+    let ctx = context();
+    let mut svg = editor(&ctx, DRAWING);
+    open(&ctx, &mut svg, pos2(130., 130.));
+    let selected = svg.current_context_selection();
+    for _ in 0..2 {
+        for _ in 0..3 {
+            frame(&ctx, vec![], |ui| svg.show_context_menu(ui));
+        }
+        let rect = svg.context_menu.rect.unwrap();
+        let more = pos2(rect.right() - 10., rect.center().y);
+        for pressed in [true, false] {
+            frame(
+                &ctx,
+                vec![Event::PointerMoved(more), button(more, PointerButton::Primary, pressed)],
+                |ui| {
+                    svg.process_events(ui);
+                    svg.show_context_menu(ui);
+                },
+            );
+        }
+        assert!(svg.context_menu.advanced && !svg.context_menu.quick);
+        for _ in 0..3 {
+            frame(&ctx, vec![], |ui| svg.show_context_menu(ui));
+        }
+        // The expanded layout keeps the back caret on the left, beside
+        // the properties panel, exactly like the regular selection popover.
+        let rect = svg.context_menu.rect.unwrap();
+        let back = rect.min + vec2(10., 12.);
+        for pressed in [true, false] {
+            frame(
+                &ctx,
+                vec![Event::PointerMoved(back), button(back, PointerButton::Primary, pressed)],
+                |ui| {
+                    svg.process_events(ui);
+                    svg.show_context_menu(ui);
+                },
+            );
+        }
+        assert!(svg.context_menu.quick && !svg.context_menu.advanced);
+        assert_eq!(svg.current_context_selection(), selected);
+        assert!(!svg.history.has_undo());
+    }
+}
+
+#[test]
+fn mobile_back_caret_returns_from_rust_properties_to_native_selection_row() {
+    for os in [egui::os::OperatingSystem::Android, egui::os::OperatingSystem::IOS] {
+        let ctx = context();
+        ctx.set_os(os);
+        let mut svg = editor(&ctx, DRAWING);
+        frame(&ctx, vec![], |ui| svg.request_context_menu(ui, pos2(130., 130.)));
+        assert!(svg.context_menu.native);
+        ctx.pop_context_menu();
+        let selected = svg.current_context_selection();
+        frame(&ctx, vec![], |ui| svg.context_action(ui, CanvasAction::More as u32));
+        assert!(svg.context_menu.advanced && !svg.context_menu.native);
+        ctx.pop_context_menu();
+        for _ in 0..3 {
+            frame(&ctx, vec![], |ui| svg.show_context_menu(ui));
+        }
+        let back = svg.context_menu.rect.unwrap().min + vec2(10., 12.);
+        for pressed in [true, false] {
+            frame(
+                &ctx,
+                vec![Event::PointerMoved(back), button(back, PointerButton::Primary, pressed)],
+                |ui| {
+                    svg.process_events(ui);
+                    svg.show_context_menu(ui);
+                },
+            );
+        }
+        assert!(svg.context_menu.native && !svg.context_menu.quick && !svg.context_menu.advanced);
+        assert_eq!(svg.current_context_selection(), selected);
+        assert!(matches!(ctx.pop_context_menu(), Some((_, ContextMenuTarget::Canvas(spec)))
+            if spec & 0xffff == 1 | 2 | 4));
         assert!(!svg.history.has_undo());
     }
 }

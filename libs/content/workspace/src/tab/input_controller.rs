@@ -396,6 +396,14 @@ impl InputController {
 
         match *event {
             egui::Event::PointerButton { pos, button, pressed, modifiers } => {
+                if button == egui::PointerButton::Secondary && pressed {
+                    tracing::info!(target: "workspace::canvas_context_menu",
+                        ?pos, ?modifiers, touches = self.touches.len(),
+                        touch_frame = self.is_touch_frame,
+                        inside_canvas = ctx.draw_area.contains(pos),
+                        over_overlay = pos_collides_with_layout(pos, ctx),
+                        "canvas right-click received by input controller");
+                }
                 if self.suppress_mouse && button == egui::PointerButton::Primary {
                     if !pressed {
                         self.suppress_mouse = false;

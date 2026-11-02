@@ -31,6 +31,74 @@ pub(super) enum ActionLabel<'a> {
     ChevronLeft,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum SelectionAction {
+    Copy,
+    Delete,
+    More,
+    Back,
+}
+
+pub(super) struct SelectionControls {
+    pub action: Option<SelectionAction>,
+    pub row_rect: egui::Rect,
+    pub properties_rect: Option<egui::Rect>,
+}
+
+/// One expansion state machine and layout for both selection entry points:
+/// Copy/Delete/More collapses to a back caret beside the advanced controls.
+pub(super) fn selection_controls(
+    ui: &mut egui::Ui, expanded: &mut bool, read_only: bool, properties: impl FnOnce(&mut egui::Ui),
+) -> SelectionControls {
+    let row = ui
+        .scope(|ui| action_row(ui, |ui| selection_buttons(ui, *expanded, read_only)))
+        .inner;
+    let action = row.inner.inner;
+    match action {
+        Some(SelectionAction::More) => *expanded = true,
+        Some(SelectionAction::Back) => *expanded = false,
+        _ => {}
+    }
+    // Let the opening click finish before introducing property widgets under
+    // the pointer, matching the regular selection tooltip's behavior.
+    let properties_rect = if *expanded && action != Some(SelectionAction::More) {
+        let rect = egui::Rect::from_min_size(
+            row.response.rect.right_top() + egui::vec2(5., 0.),
+            egui::Vec2::ZERO,
+        );
+        Some(
+            ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                egui::Frame::window(ui.style()).show(ui, |ui| ui.vertical(properties));
+            })
+            .response
+            .rect,
+        )
+    } else {
+        None
+    };
+    SelectionControls { action, row_rect: row.response.rect, properties_rect }
+}
+
+/// The regular selection tooltip and a context-menu selection hit draw the
+/// exact same controls. Only their placement and action dispatch differ.
+pub(super) fn selection_buttons(
+    ui: &mut egui::Ui, expanded: bool, read_only: bool,
+) -> Option<SelectionAction> {
+    use SelectionAction::*;
+    if expanded {
+        action_buttons(ui, [(Back, ActionLabel::ChevronLeft, true)])
+    } else {
+        action_buttons(
+            ui,
+            [
+                (Copy, ActionLabel::Text("Copy"), true),
+                (Delete, ActionLabel::Text("Delete"), !read_only),
+                (More, ActionLabel::ChevronRight, true),
+            ],
+        )
+    }
+}
+
 /// Both menus use the same buttons, separators, margins and icon glyphs.
 pub(super) fn action_buttons<T: Copy>(
     ui: &mut egui::Ui, actions: impl IntoIterator<Item = (T, ActionLabel<'static>, bool)>,

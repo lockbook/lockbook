@@ -16,7 +16,7 @@ use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::clip::duplicate_elements;
 use crate::tab::svg_editor::element::BoundedElement;
 use crate::tab::svg_editor::history::{self, TransformElement};
-use crate::tab::svg_editor::popover::{self, ActionLabel};
+use crate::tab::svg_editor::popover::{self, SelectionAction};
 use crate::tab::svg_editor::toolbar::{
     ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
@@ -802,66 +802,29 @@ impl Selection {
                 id: egui::Id::unique("selection_tooltip"),
             }),
             |ui| {
+                let mut expanded = self.show_selection_popover;
                 let res = ui.scope_builder(UiBuilder::new().max_rect(tooltip_rect), |ui| {
-                    popover::action_row(ui, |ui| self.show_tooltip(ui, selection_ctx))
+                    popover::selection_controls(ui, &mut expanded, selection_ctx.read_only, |ui| {
+                        self.show_advanced(ui, selection_ctx);
+                    })
                 });
-                let show_popover_toggled = res.inner.inner.inner;
-
-                self.layout.container_tooltip = Some(res.response.rect);
-
-                let popover_min = res.response.rect.right_top() + egui::vec2(5.0, 0.0);
-                let rect = egui::Rect::from_min_size(popover_min, egui::vec2(0.0, 0.0));
-                let res = ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                    if self.show_selection_popover && !show_popover_toggled {
-                        egui::Frame::window(ui.style()).show(ui, |ui| {
-                            ui.vertical(|ui| {
-                                self.show_advanced(ui, selection_ctx);
-                            });
-                        });
+                self.show_selection_popover = expanded;
+                self.layout.container_tooltip = Some(res.inner.row_rect);
+                self.layout.popover = res.inner.properties_rect;
+                match res.inner.action {
+                    Some(SelectionAction::Copy) => {
+                        self.copy_selection(ui, selection_ctx);
+                        self.clear_selection_els();
                     }
-                });
-
-                self.layout.popover = Some(res.response.rect)
+                    Some(SelectionAction::Delete) => self.delete_selection(selection_ctx),
+                    _ => {}
+                }
             },
         );
 
         if opacity == 0.0 {
             self.layout.container_tooltip = None;
         }
-    }
-
-    fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) -> bool {
-        #[derive(Clone, Copy)]
-        enum Action {
-            Copy,
-            Delete,
-            More,
-            Back,
-        }
-
-        let actions = if self.show_selection_popover {
-            vec![(Action::Back, ActionLabel::ChevronLeft, true)]
-        } else {
-            vec![
-                (Action::Copy, ActionLabel::Text("Copy"), true),
-                (Action::Delete, ActionLabel::Text("Delete"), !selection_ctx.read_only),
-                (Action::More, ActionLabel::ChevronRight, true),
-            ]
-        };
-        match popover::action_buttons(ui, actions) {
-            Some(Action::Copy) => {
-                self.copy_selection(ui, selection_ctx);
-                self.clear_selection_els();
-            }
-            Some(Action::Delete) => self.delete_selection(selection_ctx),
-            Some(Action::More) => {
-                self.show_selection_popover = true;
-                return true;
-            }
-            Some(Action::Back) => self.show_selection_popover = false,
-            None => {}
-        }
-        false
     }
 
     fn cut_selection(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext<'_>) {

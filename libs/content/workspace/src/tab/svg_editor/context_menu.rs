@@ -5,7 +5,7 @@ use lb_rs::Uuid;
 use resvg::usvg::Transform;
 
 use super::element::BoundedElement;
-use super::popover::{self, ActionLabel};
+use super::popover::{self, ActionLabel, SelectionAction};
 use super::toolbar::ToolContext;
 use super::tools::InputControllerTool;
 use super::tools::selection::{SelectionEvent, is_selectable};
@@ -36,6 +36,7 @@ pub(super) struct CanvasContextMenu {
     quick: bool,
     advanced: bool,
     pending_insert: Option<Pos2>,
+    diagnostic_frames_remaining: u8,
 }
 
 impl Default for CanvasContextMenu {
@@ -51,6 +52,7 @@ impl Default for CanvasContextMenu {
             quick: false,
             advanced: false,
             pending_insert: None,
+            diagnostic_frames_remaining: 0,
         }
     }
 }
@@ -171,7 +173,8 @@ impl SVGEditor {
     }
 
     pub(super) fn request_context_menu(&mut self, ui: &mut egui::Ui, position: Pos2) {
-        self.dismiss_context_menu(ui.ctx());
+        self.log_context_menu(ui.ctx(), "open requested");
+        self.dismiss_context_menu(ui.ctx(), "replaced by context request");
         self.toolbar
             .close_all_popovers(&mut self.settings, &mut self.cfg);
         self.toolbar.selection.dismiss_popover();
@@ -200,23 +203,28 @@ impl SVGEditor {
                 .unwrap_or_default(),
             position,
         );
-        self.context_menu.advanced = false;
-        let native = matches!(
-            ui.ctx().os(),
-            egui::os::OperatingSystem::Android | egui::os::OperatingSystem::IOS
-        );
-        self.context_menu.quick = !native;
-        self.context_menu.native = native;
         self.context_menu.selection = self.current_context_selection();
         self.context_menu.tool = self.toolbar.active_tool;
+        self.present_quick_context_menu(ui.ctx());
+    }
+
+    fn present_quick_context_menu(&mut self, ctx: &egui::Context) {
+        self.context_menu.advanced = false;
+        self.context_menu.rect = None;
+        let native =
+            matches!(ctx.os(), egui::os::OperatingSystem::Android | egui::os::OperatingSystem::IOS);
+        self.context_menu.quick = !native;
+        self.context_menu.native = native;
+        self.context_menu.diagnostic_frames_remaining = 4;
+        self.log_context_menu(ctx, "opened");
         if native {
-            ui.ctx().memory_mut(|m| {
+            ctx.memory_mut(|m| {
                 m.data
                     .insert_temp(Id::unique("canvas_native_menu_owner"), self.context_menu.owner)
             });
-            ui.ctx().set_context_menu(
-                position,
-                ContextMenuTarget::Canvas(self.context_actions(ui.ctx())),
+            ctx.set_context_menu(
+                map_position(self.viewport_settings.master_transform, self.context_menu.position),
+                ContextMenuTarget::Canvas(self.context_actions(ctx)),
             );
         }
     }
@@ -232,9 +240,11 @@ impl SVGEditor {
 
     fn context_action(&mut self, ui: &mut egui::Ui, action: u32) {
         use CanvasAction::*;
+        tracing::info!(target: "workspace::canvas_context_menu", action,
+            frame = ui.ctx().cumulative_frame_nr(), "canvas menu action received");
         if action == 0 {
             if self.context_menu.native {
-                self.dismiss_context_menu(ui.ctx());
+                self.dismiss_context_menu(ui.ctx(), "native dismissal callback");
             }
             return;
         }
@@ -244,7 +254,7 @@ impl SVGEditor {
         if action.count_ones() != 1 || (self.context_actions(ui.ctx()) >> 16) & action == 0 {
             return;
         }
-        self.dismiss_context_menu(ui.ctx());
+        self.dismiss_context_menu(ui.ctx(), "action selected");
         match action {
             a if a == More as u32 => {
                 self.context_menu.advanced = true;
@@ -328,7 +338,24 @@ impl SVGEditor {
             .collect()
     }
 
-    pub fn dismiss_context_menu(&mut self, ctx: &egui::Context) {
+    fn log_context_menu(&self, ctx: &egui::Context, reason: &'static str) {
+        tracing::info!(target: "workspace::canvas_context_menu",
+            reason, editor = %self.context_menu.owner,
+            frame = ctx.cumulative_frame_nr(), pass = ctx.cumulative_pass_nr(),
+            quick = self.context_menu.quick, native = self.context_menu.native,
+            advanced = self.context_menu.advanced, rect = ?self.context_menu.rect,
+            position = ?self.context_menu.position, tool = ?self.toolbar.active_tool,
+            selected = self.toolbar.selection.selected_elements.len(),
+            selection_contextual = self.toolbar.selection.contextual_menu,
+            selection_tooltip = ?self.toolbar.selection.layout.container_tooltip,
+            toolbar_popover = self.toolbar.has_visible_popover(),
+            "canvas menu lifecycle");
+    }
+
+    pub fn dismiss_context_menu(&mut self, ctx: &egui::Context, reason: &'static str) {
+        if self.context_menu.quick || self.context_menu.native || self.context_menu.advanced {
+            self.log_context_menu(ctx, reason);
+        }
         if self.context_menu.native {
             ctx.set_context_menu(Pos2::ZERO, ContextMenuTarget::Canvas(DISMISS_NATIVE_MENU));
         }
@@ -348,7 +375,7 @@ impl SVGEditor {
     }
 
     pub fn deactivate_context_menu(&mut self, ctx: &egui::Context) {
-        self.dismiss_context_menu(ctx);
+        self.dismiss_context_menu(ctx, "document deactivated");
         self.context_menu.pending_insert = None;
         self.context_menu.cancel_tool = true;
         self.input_controller.reset();
@@ -381,7 +408,13 @@ impl SVGEditor {
                 || self.context_menu.tool != self.toolbar.active_tool
                 || self.toolbar.has_visible_popover())
         {
-            self.dismiss_context_menu(ctx);
+            tracing::info!(target: "workspace::canvas_context_menu",
+                selection_changed = self.context_menu.selection != self.current_context_selection(),
+                tool_changed = self.context_menu.tool != self.toolbar.active_tool,
+                previous_tool = ?self.context_menu.tool,
+                toolbar_popover = self.toolbar.has_visible_popover(),
+                "canvas menu validation failed");
+            self.dismiss_context_menu(ctx, "validation failed");
         }
     }
 
@@ -395,6 +428,20 @@ impl SVGEditor {
             return;
         }
         let events = ui.input(|i| i.events.clone());
+        for event in &events {
+            if matches!(
+                event,
+                egui::Event::PointerButton { .. }
+                    | egui::Event::Touch { .. }
+                    | egui::Event::MouseWheel { .. }
+                    | egui::Event::Zoom(_)
+                    | egui::Event::WindowFocused(_)
+            ) {
+                tracing::info!(target: "workspace::canvas_context_menu",
+                    frame = ui.ctx().cumulative_frame_nr(), pass = ui.ctx().cumulative_pass_nr(),
+                    ?event, "canvas menu input while open");
+            }
+        }
         let outside_press = events.iter().any(|e| match e {
             egui::Event::Touch { phase: egui::TouchPhase::Start, pos, .. }
             | egui::Event::PointerButton {
@@ -405,22 +452,46 @@ impl SVGEditor {
             } => !self.context_menu.rect.is_some_and(|r| r.contains(*pos)),
             _ => false,
         });
-        let viewport_or_focus = events.iter().any(|e| {
-            matches!(
-                e,
-                egui::Event::MouseWheel { .. }
-                    | egui::Event::Zoom(_)
-                    | egui::Event::WindowFocused(false)
-            )
+        // Trackpads can send phase-only Start/End notifications after a
+        // secondary click. Those do not move the viewport or dismiss the menu.
+        let viewport_change = events.iter().any(|e| match e {
+            egui::Event::MouseWheel { delta, .. } => *delta != egui::Vec2::ZERO,
+            egui::Event::Zoom(factor) => *factor != 1.0,
+            _ => false,
         });
-        let multi_touch = ui
-            .ctx()
-            .read_events()
+        let focus_lost = events
             .iter()
-            .any(|e| matches!(e, crate::Event::MultiTouchGesture { .. }));
+            .any(|e| matches!(e, egui::Event::WindowFocused(false)));
+        let multi_touch = ui.ctx().read_events().iter().any(|e| match e {
+            crate::Event::MultiTouchGesture { translation_delta, zoom_factor, .. } => {
+                *translation_delta != egui::Vec2::ZERO || *zoom_factor != 1.0
+            }
+            _ => false,
+        });
         let escape = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
-        if outside_press || viewport_or_focus || multi_touch || escape {
-            self.dismiss_context_menu(ui.ctx());
+        // Selection controls remain useful while inspecting the selected
+        // elements at another zoom level, just like the regular selection row.
+        // Empty-space menus are transient and close when navigating the canvas.
+        let selection_menu = !self.context_menu.selection.is_empty();
+        let dismiss_for_navigation = !selection_menu && (viewport_change || multi_touch);
+        if outside_press || focus_lost || dismiss_for_navigation || escape {
+            tracing::info!(target: "workspace::canvas_context_menu",
+                outside_press, focus_lost, viewport_change, multi_touch, selection_menu, escape,
+                "canvas menu input dismissal");
+            for event in ui.ctx().read_events() {
+                if let crate::Event::MultiTouchGesture {
+                    translation_delta,
+                    zoom_factor,
+                    rotation_delta,
+                    ..
+                } = event
+                {
+                    tracing::info!(target: "workspace::canvas_context_menu",
+                        ?translation_delta, zoom_factor, rotation_delta,
+                        "canvas menu multitouch input");
+                }
+            }
+            self.dismiss_context_menu(ui.ctx(), "input dismissal");
             self.cancel_context_tool(ui);
             if outside_press {
                 self.input_controller.suppress_context_press(&events);
@@ -431,7 +502,10 @@ impl SVGEditor {
 
     pub(super) fn suspend_context_menu(&mut self, ui: &mut egui::Ui) {
         if self.context_menu.quick || self.context_menu.native || self.context_menu.advanced {
-            self.dismiss_context_menu(ui.ctx());
+            tracing::info!(target: "workspace::canvas_context_menu",
+                sizing_pass = ui.is_sizing_pass(), opacity = ui.opacity(),
+                "canvas menu parent UI disabled");
+            self.dismiss_context_menu(ui.ctx(), "canvas UI disabled");
             self.cancel_context_tool(ui);
             self.input_controller.reset();
         }
@@ -469,37 +543,46 @@ impl SVGEditor {
         let mut action = None;
         let spec = self.context_actions(ui.ctx());
         let advanced = self.context_menu.advanced;
+        let mut expanded = advanced;
         let style = ui.style().clone();
+        let diagnose = self.context_menu.diagnostic_frames_remaining > 0;
+        let previous_rect = self.context_menu.rect;
         let result = egui::Area::new(Id::unique("canvas_context_menu"))
             .order(egui::Order::Foreground)
             .fixed_pos(pos)
             // Leave one physical pixel for egui's rounded Area position.
             .constrain_to(bounds.shrink(ui.ctx().pixels_per_point().recip()))
             .show(ui.ctx(), |ui| {
+                if diagnose {
+                    tracing::info!(target: "workspace::canvas_context_menu",
+                        frame = ui.ctx().cumulative_frame_nr(), pass = ui.ctx().cumulative_pass_nr(),
+                        sizing_pass = ui.is_sizing_pass(), enabled = ui.is_enabled(),
+                        opacity = ui.opacity(), requested_position = ?pos, ?bounds,
+                        "canvas menu render pass");
+                }
                 // Areas start from the context style; inherit the canvas style
                 // just like the selection popover's child UI does.
                 ui.set_style(style);
                 popover::apply_style(ui);
-                if advanced {
-                    egui::Frame::window(ui.style()).show(ui, |ui| {
-                        self.toolbar.selection.show_advanced(
-                            ui,
-                            &mut ToolContext {
-                                painter: &mut self.painter,
-                                buffer: &mut self.buffer,
-                                history: &mut self.history,
-                                settings: &mut self.settings,
-                                viewport_settings: &mut self.viewport_settings,
-                                read_only: self.read_only,
-                            },
-                        );
+                if spec & CanvasAction::Copy as u32 != 0 {
+                    let controls = popover::selection_controls(ui, &mut expanded, self.read_only, |ui| {
+                        self.toolbar.selection.show_advanced(ui, &mut ToolContext {
+                            painter: &mut self.painter,
+                            buffer: &mut self.buffer,
+                            history: &mut self.history,
+                            settings: &mut self.settings,
+                            viewport_settings: &mut self.viewport_settings,
+                            read_only: self.read_only,
+                        });
                     });
+                    action = match controls.action {
+                        Some(SelectionAction::Copy) => Some(CanvasAction::Copy as u32),
+                        Some(SelectionAction::Delete) => Some(CanvasAction::Delete as u32),
+                        _ => None,
+                    };
                 } else {
                     action = popover::action_row(ui, |ui| {
                         let actions = [
-                            (CanvasAction::Copy, ActionLabel::Text("Copy")),
-                            (CanvasAction::Delete, ActionLabel::Text("Delete")),
-                            (CanvasAction::More, ActionLabel::ChevronRight),
                             (CanvasAction::Paste, ActionLabel::Text("Paste")),
                             (CanvasAction::ImportImage, ActionLabel::Text("Import image")),
                             (CanvasAction::SelectAll, ActionLabel::Text("Select all")),
@@ -517,6 +600,21 @@ impl SVGEditor {
                 }
             });
         self.context_menu.rect = Some(result.response.rect);
+        if diagnose {
+            self.context_menu.diagnostic_frames_remaining -= 1;
+            tracing::info!(target: "workspace::canvas_context_menu",
+                frame = ui.ctx().cumulative_frame_nr(), ?previous_rect,
+                rect = ?result.response.rect, "canvas menu rendered bounds");
+        }
+        if expanded != advanced {
+            if expanded {
+                self.context_menu.quick = false;
+                self.context_menu.advanced = true;
+            } else {
+                self.present_quick_context_menu(ui.ctx());
+            }
+            ui.ctx().request_repaint();
+        }
         if let Some(action) = action {
             self.context_action(ui, action);
         }
