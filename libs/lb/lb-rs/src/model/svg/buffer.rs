@@ -25,6 +25,9 @@ const WEAK_VIEWPORT_SETTINGS_G_ID: &str = "lb_viewport_settings";
 pub struct Buffer {
     pub elements: IndexMap<Uuid, Element>,
     pub weak_images: WeakImages,
+    /// Export destinations keyed by file identity. UUID metadata remains authoritative
+    /// in Lockbook; relative SVG images let other editors render the same drawing.
+    pub image_hrefs: HashMap<Uuid, String>,
     pub weak_path_pressures: WeakPathPressures,
     pub weak_viewport_settings: WeakViewportSettings,
     pub master_transform_changed: bool,
@@ -57,7 +60,21 @@ impl Buffer {
         let mut weak_path_pressures = WeakPathPressures::default();
         let mut weak_viewport_settings = WeakViewportSettings::default();
 
-        let maybe_tree = usvg::Tree::from_str(content, &Options::default());
+        let mut options = Options::default();
+        // The model parser never reads image files from the host filesystem.
+        options.image_href_resolver.resolve_string = Box::new(|_, _| None);
+        // Our export viewport is for external viewers. The canvas stores
+        // document coordinates in metadata, so do not translate paths by it.
+        let mut model_content = content.to_owned();
+        if let Ok(doc) = usvg::roxmltree::Document::parse(content) {
+            let root = doc.root_element();
+            if root.attribute("data-lb-paint-order") == Some("back-to-front") {
+                if let Some(attr) = root.attributes().find(|attr| attr.name() == "viewBox") {
+                    model_content.replace_range(attr.range(), "");
+                }
+            }
+        }
+        let maybe_tree = usvg::Tree::from_str(&model_content, &options);
 
         if let Err(err) = maybe_tree {
             println!("{err:#?}");
@@ -76,7 +93,23 @@ impl Buffer {
             });
         }
 
+        let image_hrefs = usvg::roxmltree::Document::parse(content)
+            .ok()
+            .map(|doc| {
+                if doc.root_element().attribute("data-lb-paint-order") == Some("back-to-front") {
+                    elements.reverse();
+                }
+                doc.descendants()
+                    .filter(|node| node.has_tag_name("image"))
+                    .filter_map(|node| {
+                        let target = node.attribute("data-lb-file")?.parse::<Uuid>().ok()?;
+                        Some((target, node.attribute("href")?.to_owned()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         Self {
+            image_hrefs,
             elements,
             id_map,
             weak_images,
@@ -205,12 +238,13 @@ impl Buffer {
         }
     }
     pub fn serialize(&self) -> String {
-        serialize_inner(
+        serialize_with_images(
             &self.id_map,
             &self.elements,
             &self.weak_viewport_settings,
             &self.weak_images,
             &self.weak_path_pressures,
+            &self.image_hrefs,
         )
     }
 }
@@ -220,12 +254,51 @@ pub fn serialize_inner(
     weak_viewport_settings: &WeakViewportSettings, buffer_weak_images: &WeakImages,
     weak_pressures: &WeakPathPressures,
 ) -> String {
-    let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
+    serialize_with_images(
+        id_map,
+        elements,
+        weak_viewport_settings,
+        buffer_weak_images,
+        weak_pressures,
+        &HashMap::new(),
+    )
+}
+
+fn serialize_with_images(
+    id_map: &HashMap<Uuid, String>, elements: &IndexMap<Uuid, Element>,
+    weak_viewport_settings: &WeakViewportSettings, buffer_weak_images: &WeakImages,
+    weak_pressures: &WeakPathPressures, image_hrefs: &HashMap<Uuid, String>,
+) -> String {
+    let mut root =
+        r#"<svg xmlns="http://www.w3.org/2000/svg" data-lb-paint-order="back-to-front">"#.into();
     let mut weak_images = WeakImages::default();
     let master_transform = Transform::from(weak_viewport_settings.master_transform);
 
-    for (index, el) in elements.iter().enumerate() {
-        match el.1 {
+    enum SvgElement<'a> {
+        Element(&'a Element),
+        Image(WeakImage),
+    }
+    let mut ordered: Vec<_> = elements
+        .iter()
+        .filter(|(id, _)| !buffer_weak_images.contains_key(id))
+        .map(|(id, el)| (*id, SvgElement::Element(el)))
+        .collect();
+    let mut pending: Vec<_> = buffer_weak_images.iter().collect();
+    pending.sort_by_key(|(id, image)| (image.z_index, **id));
+    for (id, image) in pending {
+        ordered.insert(image.z_index.min(ordered.len()), (*id, SvgElement::Image(*image)));
+    }
+    for (index, (id, element)) in ordered.into_iter().enumerate().rev() {
+        let el = match element {
+            SvgElement::Element(el) => el,
+            SvgElement::Image(mut image) => {
+                image.z_index = index;
+                write_svg_image(&mut root, id, image, image_hrefs);
+                weak_images.insert(id, image);
+                continue;
+            }
+        };
+        match el {
             Element::Path(p) => {
                 if p.deleted {
                     continue;
@@ -240,7 +313,7 @@ pub fn serialize_inner(
                         stroke.color.light.green,
                         stroke.color.light.blue,
                         stroke.opacity,
-                        id_map.get(el.0).unwrap_or(&el.0.to_string()),
+                        id_map.get(&id).unwrap_or(&id.to_string()),
                         to_svg_transform(p.transform)
                     );
                 }
@@ -263,7 +336,8 @@ pub fn serialize_inner(
 
                 weak_image.transform(master_transform.invert().unwrap_or_default());
 
-                weak_images.insert(*el.0, weak_image);
+                write_svg_image(&mut root, id, weak_image, image_hrefs);
+                weak_images.insert(id, weak_image);
             }
             Element::Text(_) => {}
         }
@@ -279,8 +353,6 @@ pub fn serialize_inner(
         master_transform.tx,
         master_transform.ty
     );
-
-    weak_images.extend(buffer_weak_images.iter());
 
     if !weak_images.is_empty() {
         let binary_data = bincode::serialize(&weak_images).expect("Failed to serialize");
@@ -308,7 +380,67 @@ pub fn serialize_inner(
     );
 
     let _ = write!(&mut root, "{zoom_level} </svg>");
+    // Give external viewers a viewport that includes the entire drawing,
+    // including images beyond SVG's default 300 by 150 viewport.
+    let mut bounds: Option<[f32; 4]> = None;
+    let mut include = |x: f32, y: f32, w: f32, h: f32| {
+        if ![x, y, w, h].iter().all(|v| v.is_finite()) || w <= 0.0 || h <= 0.0 {
+            return;
+        }
+        bounds = Some(match bounds {
+            Some(b) => [b[0].min(x), b[1].min(y), b[2].max(x + w), b[3].max(y + h)],
+            None => [x, y, x + w, y + h],
+        });
+    };
+    let mut options = Options::default();
+    options.image_href_resolver.resolve_string = Box::new(|_, _| None);
+    if let Ok(tree) = usvg::Tree::from_str(&root, &options) {
+        let bb = tree.root().abs_stroke_bounding_box();
+        include(bb.left(), bb.top(), bb.width(), bb.height());
+    }
+    for image in weak_images.values() {
+        include(image.x, image.y, image.width, image.height);
+    }
+    if let Some([x, y, right, bottom]) = bounds {
+        root = root.replacen(
+            "<svg ",
+            &format!(
+                r#"<svg viewBox="{x} {y} {} {}" width="{}" height="{}" "#,
+                right - x,
+                bottom - y,
+                right - x,
+                bottom - y
+            ),
+            1,
+        );
+    }
     root
+}
+
+fn write_svg_image(root: &mut String, id: Uuid, image: WeakImage, hrefs: &HashMap<Uuid, String>) {
+    let Some(href) = hrefs.get(&image.href) else { return };
+    if usvg::NonZeroRect::from_xywh(image.x, image.y, image.width, image.height).is_none()
+        || !image.opacity.is_finite()
+    {
+        return;
+    }
+    let href = href
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;");
+    // Bounds already include element transforms. Applying the transform again
+    // would move/scale the exported image twice.
+    let _ = write!(
+        root,
+        r#"<image id="{id}" data-lb-file="{}" href="{href}" x="{}" y="{}" width="{}" height="{}" opacity="{}" preserveAspectRatio="none"/>"#,
+        image.href,
+        image.x,
+        image.y,
+        image.width,
+        image.height,
+        image.opacity.clamp(0.0, 1.0)
+    );
 }
 
 pub fn parse_child(
@@ -320,16 +452,15 @@ pub fn parse_child(
         usvg::Node::Group(group) => {
             if group.id().eq(WEAK_IMAGE_G_ID) {
                 if let Some(usvg::Node::Group(weak_images_g)) = group.children().first() {
-                    let base64 = base64::decode(weak_images_g.id().as_bytes())
-                        .expect("Failed to decode base64");
+                    let base64 = base64::decode(weak_images_g.id().as_bytes()).unwrap_or_default();
 
                     let decoded: WeakImages = bincode::deserialize(&base64).unwrap_or_default();
                     *weak_images = decoded;
                 }
             } else if group.id().eq(WEAK_PATH_PRESSURES_G_ID) {
                 if let Some(usvg::Node::Group(weak_pressures_g)) = group.children().first() {
-                    let base64 = base64::decode(weak_pressures_g.id().as_bytes())
-                        .expect("Failed to decode base64");
+                    let base64 =
+                        base64::decode(weak_pressures_g.id().as_bytes()).unwrap_or_default();
 
                     let decoded: WeakPathPressures =
                         bincode::deserialize(&base64).unwrap_or_default();
@@ -339,7 +470,7 @@ pub fn parse_child(
                 if let Some(usvg::Node::Group(weak_viewport_settings_g)) = group.children().first()
                 {
                     let base64 = base64::decode(weak_viewport_settings_g.id().as_bytes())
-                        .expect("Failed to decode base64");
+                        .unwrap_or_default();
 
                     let decoded: WeakViewportSettings =
                         bincode::deserialize(&base64).unwrap_or_default();

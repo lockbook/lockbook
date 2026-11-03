@@ -1,18 +1,19 @@
 use std::collections::HashMap;
 
-use egui::{Mesh, TextureHandle};
+use egui::Mesh;
 use glam::f64::DVec2;
 use lb_rs::Uuid;
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{Element, Image, Path, WeakPathPressures};
+use lb_rs::model::svg::element::{Element, Path, WeakPathPressures};
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
 use lyon::tessellation::{
     self, BuffersBuilder, FillVertexConstructor, StrokeOptions, StrokeTessellator,
     StrokeVertexConstructor, VertexBuffers,
 };
 
+use crate::widgets::document_image::DocumentImage;
 use rayon::prelude::*;
-use resvg::usvg::{ImageKind, Transform};
+use resvg::usvg::Transform;
 use tracing::{Level, span};
 
 use crate::theme::palette::ThemePalette;
@@ -39,17 +40,15 @@ impl StrokeVertexConstructor<epaint::Vertex> for VertexConstructor {
     }
 }
 
-enum RenderOp<'a> {
+enum RenderOp {
     Delete,
     Paint(MeshShape),
     Transform(Transform),
-    ForwordImage(&'a mut Image),
 }
 
 #[derive(Default)]
 pub struct Renderer {
     mesh_cache: HashMap<Uuid, MeshShape>,
-    tex_cache: HashMap<Uuid, TextureHandle>,
     dark_mode: bool,
     viewport_transform: Transform,
     pub request_rerender: bool,
@@ -72,7 +71,6 @@ impl Renderer {
     pub fn new(elements_count: usize) -> Self {
         Self {
             mesh_cache: HashMap::with_capacity(elements_count),
-            tex_cache: HashMap::new(),
             dark_mode: false,
             viewport_transform: Transform::identity(),
             request_rerender: true,
@@ -81,7 +79,7 @@ impl Renderer {
 
     pub fn render_svg(
         &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, painter: &mut egui::Painter,
-        render_options: RenderOptions, master_transform: Transform,
+        render_options: RenderOptions, master_transform: Transform, images: &DocumentImage,
     ) -> RendererOutput {
         let span = span!(Level::TRACE, "rendering svg");
         let _ = span.enter();
@@ -110,7 +108,7 @@ impl Renderer {
         let paint_ops: Vec<(Uuid, RenderOp)> = buffer
             .elements
             .par_iter_mut()
-            .filter_map(|(id, el)| -> Option<(Uuid, RenderOp<'_>)> {
+            .filter_map(|(id, el)| -> Option<(Uuid, RenderOp)> {
                 if el.deleted() {
                     return Some((*id, RenderOp::Delete));
                 };
@@ -172,35 +170,7 @@ impl Renderer {
                             self.viewport_transform,
                         )
                     }
-                    Element::Image(image) => {
-                        if image.deleted
-                            || (!image.diff_state.opacity_changed
-                                && !image.diff_state.data_changed
-                                && !image.diff_state.delete_changed
-                                && image.diff_state.transformed.is_none()
-                                && !self.request_rerender
-                                && !fit_content_transform_changed)
-                        {
-                            return None;
-                        }
-
-                        if let Some(transform) = image.diff_state.transformed {
-                            let mut re_tess = false;
-                            if !is_main_canvas_render {
-                                if buffer.master_transform_changed {
-                                    return None;
-                                } else {
-                                    re_tess = true;
-                                }
-                            };
-
-                            if !re_tess && self.mesh_cache.contains_key(id) {
-                                return Some((*id, RenderOp::Transform(transform)));
-                            }
-                        }
-
-                        Some((*id, RenderOp::ForwordImage(image)))
-                    }
+                    Element::Image(_) => None,
                     Element::Text(_) => todo!(),
                 }
             })
@@ -225,32 +195,52 @@ impl Renderer {
                         }
                     }
                 }
-                RenderOp::ForwordImage(img) => {
-                    diff_state.data_changed = true;
-                    self.alloc_image_mesh(id, img, ui, self.viewport_transform, master_transform);
+            }
+        }
+        // Texture lifetime is owned by ImageCache. Look images up each frame,
+        // including when their geometry has not changed and while loading/failed.
+        for (id, element) in buffer.elements.iter().rev() {
+            if let Element::Image(image) = element {
+                diff_state.data_changed |= image.diff_state.is_dirty();
+                if image.deleted {
+                    continue;
+                }
+                if !image.visible {
+                    continue;
+                }
+                let rect = egui::Rect::from_min_max(
+                    egui::pos2(image.view_box.left(), image.view_box.top()),
+                    egui::pos2(image.view_box.right(), image.view_box.bottom()),
+                );
+                let rect = transform_rect(
+                    transform_rect(rect, master_transform.invert().unwrap_or_default()),
+                    self.viewport_transform,
+                );
+                if painter.clip_rect().intersects(rect) {
+                    let url = format!("lb://{}", image.href);
+                    images.paint(ui, painter, &url, rect, egui::CornerRadius::ZERO, image.opacity);
+                    if is_main_canvas_render
+                        && images.withheld(&url)
+                        && ui
+                            .interact(
+                                rect,
+                                egui::Id::unique(("canvas_reveal_image", id)),
+                                egui::Sense::click(),
+                            )
+                            .clicked()
+                    {
+                        images.load_anyway(&url);
+                    }
+                }
+            } else if let Some(MeshShape { shape, .. }) = self.mesh_cache.get(id) {
+                if !element.deleted()
+                    && painter.clip_rect().intersects(shape.calc_bounds())
+                    && !shape.is_empty()
+                {
+                    painter.add(egui::Shape::mesh(shape.clone()));
                 }
             }
         }
-        if !self.mesh_cache.is_empty() {
-            painter.extend(buffer.elements.iter_mut().rev().filter_map(|(id, _)| {
-                if let Some(MeshShape { shape, .. }) = self.mesh_cache.get_mut(id) {
-                    let shape_rect = shape.calc_bounds();
-                    if !painter.clip_rect().contains_rect(shape_rect)
-                        && !painter.clip_rect().intersects(shape_rect)
-                    {
-                        return None;
-                    }
-
-                    if !shape.vertices.is_empty() && !shape.indices.is_empty() {
-                        Some(egui::Shape::mesh(shape.to_owned()))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }));
-        };
 
         self.request_rerender = false;
 
@@ -261,65 +251,13 @@ impl Renderer {
                 .pre_concat(master_transform.invert().unwrap_or_default()),
         }
     }
-
-    fn alloc_image_mesh(
-        &mut self, id: Uuid, img: &mut Image, ui: &mut egui::Ui, viewport_transform: Transform,
-        master_transform: Transform,
-    ) {
-        match &img.data {
-            ImageKind::JPEG(bytes) | ImageKind::PNG(bytes) => {
-                let image = image::load_from_memory(bytes).unwrap();
-
-                let egui_image = egui::ColorImage::from_rgba_unmultiplied(
-                    [image.width() as usize, image.height() as usize],
-                    &image.to_rgba8(),
-                );
-
-                self.tex_cache.entry(id).or_insert_with(|| {
-                    let texture = ui.ctx().load_texture(
-                        format!("canvas_img_{id}"),
-                        egui_image,
-                        Default::default(),
-                    );
-                    texture
-                });
-
-                let texture = self.tex_cache.get(&id).unwrap();
-
-                let rect = egui::Rect {
-                    min: egui::pos2(img.view_box.left(), img.view_box.top()),
-                    max: egui::pos2(img.view_box.right(), img.view_box.bottom()),
-                };
-
-                let t = master_transform.invert().unwrap_or_default();
-                let rect = transform_rect(rect, t);
-
-                let t = viewport_transform;
-                let rect = transform_rect(rect, t);
-
-                let uv = egui::Rect {
-                    min: egui::Pos2 { x: 0.0, y: 0.0 },
-                    max: egui::Pos2 { x: 1.0, y: 1.0 },
-                };
-
-                let mut mesh = egui::Mesh::with_texture(texture.id());
-
-                mesh.add_rect_with_uv(rect, uv, egui::Color32::WHITE.linear_multiply(img.opacity));
-                self.mesh_cache
-                    .insert(id, MeshShape { shape: mesh, scale: img.transform.sx });
-            }
-            _ => {
-                println!("image type is not supported")
-            }
-        }
-    }
 }
 
 // todo: maybe impl this on element struct
 fn tesselate_path<'a>(
     p: &'a mut Path, id: &'a Uuid, dark_mode: bool, master_transform: Transform,
     weak_path_pressures: &WeakPathPressures, viewport_transform: Transform,
-) -> Option<(Uuid, RenderOp<'a>)> {
+) -> Option<(Uuid, RenderOp)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
 

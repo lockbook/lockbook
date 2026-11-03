@@ -33,7 +33,7 @@ use lb_rs::{Uuid, spawn};
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform};
 
-use crate::file_cache::FileCache;
+use crate::file_cache::{FileCache, FilesExt as _, Reach};
 use crate::seq::ws_seq;
 use crate::tab::markdown_editor::HttpClient;
 use crate::workspace::WsPersistentStore;
@@ -290,13 +290,17 @@ impl ImageCache {
     pub fn copy_image(&self, key: &ImageKey) {
         let key = key.clone();
         let (ctx, client, core) = (self.ctx.clone(), self.client.clone(), self.core.clone());
+        let files = self.files.clone();
         spawn!({
             let read = || -> Result<ColorImage, String> {
                 let (bytes, is_svg) = match &key {
                     ImageKey::File(id) => {
                         let bytes = core.read_document(*id, false).map_err(|e| e.to_string())?;
                         let file = core.get_file_by_id(*id).map_err(|e| e.to_string())?;
-                        (bytes, file.name.ends_with(".svg"))
+                        {
+                            let is_svg = file.name.ends_with(".svg") || bytes_look_like_svg(&bytes);
+                            (bytes, is_svg)
+                        }
                     }
                     ImageKey::Web(url) => {
                         let bytes = download_image(&client, url)?;
@@ -305,7 +309,17 @@ impl ImageCache {
                     }
                 };
                 let bytes = if is_svg {
-                    rasterize_svg(&bytes, matches!(key, ImageKey::File(_)), 2048.0, 1.0)?
+                    match &key {
+                        ImageKey::File(id) => rasterize_file_svg(
+                            &bytes,
+                            *id,
+                            core.clone(),
+                            files.clone(),
+                            2048.0,
+                            1.0,
+                        )?,
+                        ImageKey::Web(_) => rasterize_svg(&bytes, false, 2048.0, 1.0)?,
+                    }
                 } else {
                     bytes
                 };
@@ -374,6 +388,7 @@ impl ImageCache {
         let key = key.clone();
         let client = self.client.clone();
         let core = self.core.clone();
+        let files = self.files.clone();
         let loader = self.loader();
 
         // viewport width is used to scale SVG rasterization — use the screen
@@ -392,7 +407,10 @@ impl ImageCache {
                             .read_document(*id, user_activity)
                             .map_err(|e| e.to_string())?;
                         let file = core.get_file_by_id(*id).map_err(|e| e.to_string())?;
-                        (bytes, file.name.ends_with(".svg"))
+                        {
+                            let is_svg = file.name.ends_with(".svg") || bytes_look_like_svg(&bytes);
+                            (bytes, is_svg)
+                        }
                     }
                     ImageKey::Web(url) => {
                         if !url.starts_with("http://") && !url.starts_with("https://") {
@@ -412,8 +430,19 @@ impl ImageCache {
                 };
 
                 let image_bytes = if is_svg {
-                    let is_lockbook_svg = matches!(key, ImageKey::File(_));
-                    rasterize_svg(&image_bytes, is_lockbook_svg, viewport_width, pixels_per_point)?
+                    match &key {
+                        ImageKey::File(id) => rasterize_file_svg(
+                            &image_bytes,
+                            *id,
+                            core.clone(),
+                            files.clone(),
+                            viewport_width,
+                            pixels_per_point,
+                        )?,
+                        ImageKey::Web(_) => {
+                            rasterize_svg(&image_bytes, false, viewport_width, pixels_per_point)?
+                        }
+                    }
                 } else {
                     image_bytes
                 };
@@ -612,6 +641,20 @@ async fn play(playback: Playback) {
     }
 }
 
+/// Validate an import with the display decoder and return its oriented dimensions.
+pub fn image_dimensions(bytes: &[u8]) -> Result<Vec2, String> {
+    let bytes = if bytes_look_like_svg(bytes) {
+        rasterize_svg(bytes, false, 2048.0, 1.0)?
+    } else {
+        bytes.to_vec()
+    };
+    let first = match decode(bytes)? {
+        Decoded::Still(image) => image,
+        Decoded::Animated(first, _) => first.image,
+    };
+    Ok(Vec2::new(first.size[0] as f32, first.size[1] as f32))
+}
+
 /// Decodes `bytes` as an animation if it has more than one frame, else as a
 /// still with its EXIF orientation applied.
 fn decode(bytes: Vec<u8>) -> Result<Decoded, String> {
@@ -680,7 +723,7 @@ fn gif_plays(bytes: &[u8]) -> Option<u32> {
 
 /// Sniff for SVG bytes — `<?xml` or `<svg` after optional BOM and
 /// leading whitespace.
-fn bytes_look_like_svg(bytes: &[u8]) -> bool {
+pub(crate) fn bytes_look_like_svg(bytes: &[u8]) -> bool {
     let mut s = bytes;
     if let [0xEF, 0xBB, 0xBF, rest @ ..] = s {
         s = rest;
@@ -695,10 +738,71 @@ fn bytes_look_like_svg(bytes: &[u8]) -> bool {
     s.starts_with(b"<?xml") || s.starts_with(b"<svg")
 }
 
+/// Resolve SVG image resources from the same document tree as editor images.
+/// This runs on the cache's worker, and never treats a Lockbook href as a host path.
+fn file_svg_options(
+    core: Lb, files: Arc<RwLock<FileCache>>, document: Uuid, mut ancestors: Vec<Uuid>,
+) -> usvg::Options<'static> {
+    ancestors.push(document);
+    let mut options = usvg::Options::default();
+    options.image_href_resolver.resolve_string = Box::new(move |href, _| {
+        let target = {
+            let files = files.read().unwrap();
+            let (target, reach) = files.locate_link(href, document)?;
+            if reach != Reach::Scope {
+                return None;
+            }
+            target
+        };
+        if ancestors.contains(&target) || ancestors.len() >= 16 {
+            return None;
+        }
+        let bytes = core.read_document(target, false).ok()?;
+        if bytes_look_like_svg(&bytes) {
+            let nested = file_svg_options(core.clone(), files.clone(), target, ancestors.clone());
+            usvg::Tree::from_data(&bytes, &nested)
+                .ok()
+                .map(usvg::ImageKind::SVG)
+        } else {
+            let image = decode_with_orientation(&bytes).ok()?;
+            let mut png = Cursor::new(Vec::new());
+            image.write_to(&mut png, ImageFormat::Png).ok()?;
+            Some(usvg::ImageKind::PNG(Arc::new(png.into_inner())))
+        }
+    });
+    options
+}
+
+fn rasterize_file_svg(
+    bytes: &[u8], document: Uuid, core: Lb, files: Arc<RwLock<FileCache>>, viewport_width: f32,
+    pixels_per_point: f32,
+) -> Result<Vec<u8>, String> {
+    rasterize_svg_with_options(
+        bytes,
+        true,
+        viewport_width,
+        pixels_per_point,
+        &file_svg_options(core, files, document, Vec::new()),
+    )
+}
+
 fn rasterize_svg(
     bytes: &[u8], is_lockbook_svg: bool, viewport_width: f32, pixels_per_point: f32,
 ) -> Result<Vec<u8>, String> {
-    let tree = usvg::Tree::from_data(bytes, &Default::default()).map_err(|e| e.to_string())?;
+    rasterize_svg_with_options(
+        bytes,
+        is_lockbook_svg,
+        viewport_width,
+        pixels_per_point,
+        &Default::default(),
+    )
+}
+
+fn rasterize_svg_with_options(
+    bytes: &[u8], is_lockbook_svg: bool, viewport_width: f32, pixels_per_point: f32,
+    options: &usvg::Options,
+) -> Result<Vec<u8>, String> {
+    let tree = usvg::Tree::from_data(bytes, options).map_err(|e| e.to_string())?;
 
     let (w, h, base_transform) = if is_lockbook_svg {
         // lockbook drawings don't have meaningful dimensions; use bounding box

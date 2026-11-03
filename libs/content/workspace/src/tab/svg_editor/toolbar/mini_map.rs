@@ -96,6 +96,7 @@ impl Toolbar {
             &mut painter,
             RenderOptions { viewport_transform: Some(viewport_transform) },
             tlbr_ctx.viewport_settings.master_transform,
+            tlbr_ctx.document_images,
         );
 
         let viewport_rect =

@@ -3,6 +3,7 @@ pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;
 pub mod history_swipe;
+pub mod image_import;
 pub mod landing;
 pub mod link_plan;
 pub mod link_preview;

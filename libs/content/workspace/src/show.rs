@@ -66,6 +66,12 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_open_tab(ui));
             self.landing_page_first_frame = true;
         }
+        let failures = self
+            .current_tab_mut()
+            .and_then(|tab| tab.svg_mut())
+            .map(|svg| std::mem::take(&mut svg.failure_messages))
+            .unwrap_or_default();
+        self.out.failure_messages.extend(failures);
         self.history_swipe_content_scrolled(wheel_x);
         self.paint_history_swipe(rect);
         // A gesture no editor took this frame is not owed to the next one.

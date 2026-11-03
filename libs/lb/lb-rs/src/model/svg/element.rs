@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use bezier_rs::{Identifier, Subpath};
 use serde::{Deserialize, Serialize};
 
-use usvg::{self, Fill, ImageKind, NonZeroRect, Text, Transform};
+use usvg::{self, Fill, NonZeroRect, Text, Transform};
 use uuid::Uuid;
 
 use super::buffer::u_transform_to_bezier;
@@ -86,7 +86,6 @@ impl PartialEq for Path {
 
 #[derive(Clone)]
 pub struct Image {
-    pub data: ImageKind,
     pub visible: bool,
     pub transform: Transform,
     pub view_box: NonZeroRect,
@@ -161,6 +160,10 @@ pub struct WeakImage {
 impl PartialEq for WeakImage {
     fn eq(&self, other: &Self) -> bool {
         self.href == other.href
+            && self.x == other.x
+            && self.y == other.y
+            && self.width == other.width
+            && self.height == other.height
             && self.transform == other.transform
             && self.opacity == other.opacity
             && self.z_index == other.z_index

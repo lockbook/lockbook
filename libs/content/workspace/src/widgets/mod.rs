@@ -3,6 +3,7 @@ pub mod button;
 pub mod button_group;
 pub mod caret;
 pub mod diagram_cache;
+pub mod document_image;
 pub mod glyphon_cache;
 pub mod glyphon_label;
 pub mod glyphon_render;

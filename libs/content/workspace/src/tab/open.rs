@@ -195,6 +195,7 @@ impl TabContent {
                 hmac,
                 &res.persistence,
                 read_only,
+                res.images.clone(),
             ))),
             #[cfg(not(target_family = "wasm"))]
             DocType::Chat => {
@@ -250,13 +251,15 @@ impl TabContent {
                 true
             }
             TabContent::Svg(svg) => {
+                let remote = svg::buffer::Buffer::new(String::from_utf8_lossy(bytes).as_ref());
+                svg.buffer.image_hrefs.extend(remote.image_hrefs.clone());
                 svg::buffer::Buffer::reload(
                     &mut svg.buffer.elements,
                     &mut svg.buffer.weak_images,
                     &mut svg.buffer.weak_path_pressures,
                     &mut svg.buffer.weak_viewport_settings,
                     &svg.opened_content,
-                    &svg::buffer::Buffer::new(String::from_utf8_lossy(bytes).as_ref()),
+                    &remote,
                 );
                 svg.open_file_hmac = hmac;
                 true
