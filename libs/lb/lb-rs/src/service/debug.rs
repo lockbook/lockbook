@@ -257,6 +257,7 @@ pub fn generate_panic_filename(path: &str) -> String {
 
 pub fn generate_panic_content(config: &Config, panic_info: &str, bt: &str) -> String {
     let version = &config.lb_version;
+    let time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S %Z");
     let config = serde_json::to_string_pretty(config).unwrap_or_default();
-    format!("{version} panicked at {panic_info}\n\n{}\n\n{config}\n", bt.trim_end())
+    format!("{version} panicked at {panic_info}\n\ntime: {time}\n\n{}\n\n{config}\n", bt.trim_end())
 }
