@@ -721,6 +721,12 @@ impl ShellApp {
                     self.queue.push(A::NavForward);
                 }
             }
+            if ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Extra1)) {
+                self.queue.push(A::NavBack);
+            }
+            if ctx.input(|i| i.pointer.button_pressed(egui::PointerButton::Extra2)) {
+                self.queue.push(A::NavForward);
+            }
             // No Files-tree keybinding surface: the editor holds focus whenever a
             // doc is open, so ↑↓/⌘C/… almost never hit the tree. Rename / delete
             // stay on context menus (and global chrome above).
