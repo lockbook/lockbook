@@ -2,6 +2,7 @@
 Type=Application
 Comment=The private, polished note-taking platform.
 Terminal=false
-Exec=lockbook-desktop
+Exec=lockbook-desktop %u
+MimeType=x-scheme-handler/lb;
 Name=Lockbook
 Icon=net.lockbook.Lockbook

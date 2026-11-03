@@ -6,7 +6,7 @@ fn main() {
             "lockbook-desktop — Lockbook desktop app\n\
              \n\
              Usage:\n\
-               lockbook-desktop\n\
+               lockbook-desktop [lb://<id>]\n\
                lockbook-desktop --help"
         );
         return;

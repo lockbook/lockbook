@@ -6,6 +6,7 @@ use lb_c::Uuid;
 use lb_c::model::text::offset_types::Grapheme;
 use serde::Serialize;
 use std::panic::catch_unwind;
+use workspace_rs::tab::markdown_editor::Syntax;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::markdown_editor::table::TableAction;
 use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
@@ -14,6 +15,20 @@ use super::keyboard::AndroidKeys;
 use super::response::*;
 use crate::WgpuWorkspace;
 use workspace_rs::tab::markdown_editor::MarkdownToolbarAction;
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownExcerptNative(
+    mut env: JNIEnv, _: JClass, text: JString, cursor: jint,
+) -> jstring {
+    let Ok(text) = env.get_string(&text) else { return std::ptr::null_mut() };
+    let excerpt = workspace_rs::document_preview::markdown_excerpt(
+        &String::from(text),
+        cursor.max(0) as usize,
+    );
+    env.new_string(serde_json::to_string(&excerpt).expect("serialize Markdown excerpt"))
+        .expect("create Markdown excerpt")
+        .into_raw()
+}
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarStateNative(
@@ -37,7 +52,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTable(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let Some(editor) = obj.workspace.current_tab_markdown_mut() else { return };
-    if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
+    if editor.edit.renderer.readonly || editor.edit.renderer.kind != Syntax::Markdown {
         return;
     }
     let (columns, rows) = (columns.max(1) as usize, rows.max(1) as usize - 1);
@@ -50,10 +65,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_canEditMarkdown(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) -> jboolean {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace
-        .current_tab_markdown()
-        .is_some_and(|editor| !editor.edit.renderer.readonly && !editor.edit.renderer.plaintext)
-        as jboolean
+    obj.workspace.current_tab_markdown().is_some_and(|editor| {
+        !editor.edit.renderer.readonly && editor.edit.renderer.kind == Syntax::Markdown
+    }) as jboolean
 }
 
 #[unsafe(no_mangle)]
@@ -65,7 +79,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarActi
     let Ok(action) = serde_json::from_str::<MarkdownToolbarAction>(&action) else { return };
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     if let Some(editor) = obj.workspace.current_tab_markdown_mut() {
-        if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
+        if editor.edit.renderer.readonly || editor.edit.renderer.kind != Syntax::Markdown {
             return;
         }
         let event = editor.toolbar_action(action);
@@ -239,7 +253,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_queueFileForEditorI
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let Some(tab) = obj.workspace.current_tab() else { return 0 };
     let Some(md) = tab.markdown() else { return 0 };
-    if tab.read_only || md.edit.renderer.readonly || md.edit.renderer.plaintext {
+    if tab.read_only || md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {
         return 0;
     }
     obj.renderer
@@ -406,6 +420,33 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleOutline(
     }
 }
 
+/// Whether the current file has a rendered form to trade for its source.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_sourceAvailable(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.source_offered() as jboolean
+}
+
+/// Whether files with a rendered form show as source.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_sourceOn(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.source_on() as jboolean
+}
+
+/// Shows files with a rendered form as source, or rendered again.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleSource(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.toggle_source();
+}
+
 /// A link to the heading on the caret's line, or null, for the edit menu's
 /// "Copy Heading Link".
 #[no_mangle]
@@ -473,6 +514,87 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
         md.keyboard_visible = shown;
         md.virtual_keyboard_shown = shown;
     }
+}
+
+/// Words for the host to spell check, one per line, or null when there are
+/// none.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_spellingRequests(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let words = workspace_rs::spelling::get(&obj.renderer.context)
+        .map(|s| s.take_requests())
+        .unwrap_or_default();
+    if words.is_empty() {
+        return std::ptr::null_mut();
+    }
+    env.new_string(words.join("\n"))
+        .expect("Couldn't create java string!")
+        .into_raw()
+}
+
+/// Whether `word` is spelled right, as the host's checker says, or that the
+/// person added it.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_spellingAnswer(
+    mut env: JNIEnv, _: JClass, obj: jlong, word: JString, correct: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let word: String = match env.get_string(&word) {
+        Ok(word) => word.into(),
+        Err(_) => return,
+    };
+    if let Some(spelling) = workspace_rs::spelling::get(&obj.renderer.context) {
+        spelling.answer(&word, correct == 1);
+    }
+}
+
+/// Accepts `word` until the app quits.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_spellingIgnore(
+    mut env: JNIEnv, _: JClass, obj: jlong, word: JString,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let word: String = match env.get_string(&word) {
+        Ok(word) => word.into(),
+        Err(_) => return,
+    };
+    if let Some(spelling) = workspace_rs::spelling::get(&obj.renderer.context) {
+        spelling.ignore(&word);
+    }
+}
+
+/// The misspelled word the selection is in, for the edit menu's fixes.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionMisspelling(
+    mut env: JNIEnv, _: JClass, obj: jlong,
+) -> jobject {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let word = obj
+        .workspace
+        .focused_mdedit_mut()
+        .and_then(|md| md.renderer.selection_misspelling());
+    let (none, start, end) = match word {
+        Some((start, end)) => (false, start.0, end.0),
+        None => (true, 0, 0),
+    };
+    let class = env.find_class("app/lockbook/workspace/JTextRange").unwrap();
+    env.new_object(
+        class,
+        "(ZII)V",
+        &[JValue::Bool(none as u8), JValue::Int(start as i32), JValue::Int(end as i32)],
+    )
+    .unwrap()
+    .into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSpellCheck(
+    _env: JNIEnv, _: JClass, obj: jlong, value: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.cfg.set_spell_check(value == 1);
 }
 
 #[no_mangle]
@@ -767,6 +889,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.workspace.close_all_tabs();
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeCurrentTabToWelcome(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.close_current_tab_to_welcome().into()
 }
 
 #[no_mangle]
@@ -1147,7 +1277,43 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_copyImage(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     if let Some(image_viewer) = obj.workspace.current_tab_image() {
         image_viewer.copy_image(&obj.renderer.context);
+    } else {
+        obj.renderer.context.push_markdown_event(Event::CopyImage);
     }
+}
+
+/// Whether the selection is a picture (image or diagram) "Copy Image" copies.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionHasPicture(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let has = obj
+        .workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_has_picture());
+    has as jboolean
+}
+
+/// Whether the selection is a diagram "Open" shows in the image viewer.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionHasDiagram(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let has = obj
+        .workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.renderer.selection_has_diagram());
+    has as jboolean
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_openSelectedDiagram(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer.context.push_markdown_event(Event::OpenDiagram);
 }
 
 #[no_mangle]

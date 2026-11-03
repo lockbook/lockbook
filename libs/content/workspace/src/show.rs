@@ -34,6 +34,7 @@ impl Workspace {
             cache.lock().unwrap().begin_frame();
         }
         self.images.begin_frame();
+        crate::widgets::diagram_cache::DiagramCache::of(ui.ctx()).begin_frame();
         self.tabs.begin_frame();
         for slot in &self.tab_strip {
             self.tabs.promote(&slot.id);
@@ -49,12 +50,14 @@ impl Workspace {
         self.process_bg_tasks();
         self.process_lb_updates();
         self.process_task_updates();
+        self.refit_source_views();
         self.process_keys();
         self.process_clip_events();
-        self.apply_pending_reveal();
 
         self.set_user_present();
 
+        let rect = ui.max_rect();
+        let wheel_x = self.history_swipe_wheel(rect);
         if self.is_empty() {
             self.show_landing_page(ui);
 
@@ -63,6 +66,8 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_open_tab(ui));
             self.landing_page_first_frame = true;
         }
+        self.history_swipe_content_scrolled(wheel_x);
+        self.paint_history_swipe(rect);
         // A gesture no editor took this frame is not owed to the next one.
         self.ctx.pop_events_where(&mut |e| {
             matches!(
@@ -71,8 +76,7 @@ impl Workspace {
             )
         });
         self.update_window_title();
-        self.keep_note_index();
-        if self.out.tabs_changed || self.current_tab_changed {
+        if self.take_sessions_changed() || self.out.tabs_changed || self.current_tab_changed {
             self.cfg
                 .set_tabs(&self.tab_strip, &self.current_tab, &self.last_search);
             self.current_tab_changed = false;
@@ -90,6 +94,7 @@ impl Workspace {
             cache.lock().unwrap().end_frame();
         }
         self.images.end_frame();
+        crate::widgets::diagram_cache::DiagramCache::of(ui.ctx()).end_frame();
         self.tabs.end_frame();
 
         mem::take(&mut self.out)
@@ -156,6 +161,9 @@ impl Workspace {
                 drop(files);
                 for (id, heading, new_tab) in open_ids {
                     self.open_link(id, heading, new_tab);
+                }
+                if let Some(source) = ui.ctx().pop_open_diagram() {
+                    self.navigate_to(crate::tab::Destination::Diagram(source));
                 }
                 for (id, heading, new_tab) in ui.ctx().pop_open_files() {
                     self.open_link(id, heading, new_tab);
@@ -245,12 +253,17 @@ impl Workspace {
             if let Some(md) = tab.markdown_mut() {
                 md.edit.phone_mode = md.edit.renderer.touch_mode && software_keyboard;
             }
+            #[cfg(not(target_family = "wasm"))]
+            if let Some(chat) = tab.chat_mut() {
+                chat.composer.renderer.spell_check = self.cfg.get_spell_check();
+            }
 
             let resp = self.open_guard.show(tab, |tab| tab.show(ui));
             if let Some(id) = resp.open_anyway {
                 self.open_anyway(id, session);
             }
 
+            self.note_fragment_left(resp.left_fragment);
             self.out.open_camera = resp.open_camera;
             if resp.text_updated {
                 self.out.markdown_editor_text_updated = true;
@@ -305,6 +318,15 @@ impl Workspace {
             if let Some(idx) = self.current_slot_index() {
                 self.save_tab(idx);
             }
+        }
+
+        // ⌥⌘U shows source, as browsers view it; before the editor's ⌘U
+        if self.source_offered()
+            && self
+                .ctx
+                .input_mut(|i| i.consume_key_exact(COMMAND | ALT, egui::Key::U))
+        {
+            self.toggle_source();
         }
 
         // Ctrl-M to open mind map
@@ -399,9 +421,12 @@ impl Workspace {
         }
 
         // tab navigation
-        let completions_active = self
-            .current_tab_markdown()
-            .is_some_and(|md| md.edit.emoji_completions.active || md.edit.link_completions.active);
+        let completions_active = self.current_tab_markdown().is_some_and(|md| {
+            let edit = &md.edit;
+            edit.emoji_completions.active
+                || edit.link_completions.active
+                || edit.language_completions.active
+        });
         // The search tab claims Cmd+1–9 to quick-open results, so don't let the
         // workspace consume them for tab switching while search is showing.
         let search_active = matches!(self.current_dest(), Some(crate::tab::Destination::Search(_)));
@@ -594,13 +619,6 @@ impl Display for DocType {
     }
 }
 
-pub fn syntax_ext_for(ext: &str) -> &str {
-    match ext {
-        "jsonl" | "jsonc" => "json",
-        other => other,
-    }
-}
-
 impl DocType {
     pub fn from_name(name: &str) -> Self {
         let ext = name
@@ -616,14 +634,14 @@ impl DocType {
             "pdf" => Self::PDF,
             "chat" => Self::Chat,
             _ if image_viewer::is_supported_image_fmt(&ext) => Self::Image,
-            _ if crate::tab::markdown_editor::syntax_set()
-                .find_syntax_by_extension(syntax_ext_for(&ext))
-                .is_some() =>
-            {
-                Self::Code
-            }
+            _ if crate::syntax::Lang::from_extension(&ext).is_some() => Self::Code,
             _ => Self::Unknown,
         }
+    }
+
+    /// Whether the file has a rendered form it can trade for its source.
+    pub fn has_source_view(&self) -> bool {
+        matches!(self, DocType::Markdown | DocType::SVG)
     }
 
     pub fn hide_ext(&self) -> bool {

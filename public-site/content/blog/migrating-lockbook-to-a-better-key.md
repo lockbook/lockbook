@@ -1,6 +1,7 @@
 +++
 title = "Migrating Lockbook to a Better Key Format"
 date = 2024-09-09
+description = "How Lockbook moved from long account keys to compact keys and recovery phrases while preserving access for existing accounts."
 [extra]
 author = "smail"
 author_link = "https://barkouch.me/"

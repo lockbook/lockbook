@@ -11,6 +11,7 @@ use crate::style::ThemeExt;
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
+use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
@@ -205,6 +206,7 @@ impl<'ast> MdRender {
         }
         images.sort_unstable();
         self.bounds.images = images;
+        self.calc_diagram_bounds(root);
     }
 }
 
@@ -213,7 +215,8 @@ impl<'ast> MdEdit {
     /// (desktop). Touch taps always select and pop the context menu, whose
     /// "Open Link" action opens. Shared by every embed kind.
     pub fn embed_tap_opens(&self, ui: &egui::Ui) -> bool {
-        !self.renderer.touch_mode && ui.ctx().input(|i| i.modifiers.command)
+        !self.renderer.touch_mode
+            && (self.renderer.readonly || ui.ctx().input(|i| i.modifiers.command))
     }
 
     /// Shared tap handling for one embed fragment (inline image, link card, or
@@ -239,7 +242,7 @@ impl<'ast> MdEdit {
         };
 
         let node_range = self.renderer.node_range(node);
-        // a wiki embed's key holds its title
+        // a wiki link's key holds its title
         let (dest, wikilink) = match wiki_embed_title(url) {
             Some(title) => (title, true),
             None => (url, false),
@@ -268,7 +271,7 @@ impl<'ast> MdEdit {
             };
             // a block card already shows everything its preview would
             let card = !is_image && self.renderer.link_renders_as_card(node);
-            let preview = (!is_image && !wikilink && !card).then_some((url, false));
+            let preview = (!is_image && !card).then_some((dest, false, wikilink));
             self.renderer
                 .show_link_tip(ui.ctx(), &response, state, preview);
         }
@@ -296,7 +299,10 @@ impl<'ast> MdEdit {
         if !self.renderer.touch_mode {
             let editable = !self.renderer.readonly;
             // cards/capsules render fetched previews; images don't
-            let refreshable = !is_image && self.renderer.contact_linked_sites;
+            let refreshable = !is_image
+                && !wikilink
+                && self.renderer.contact_linked_sites
+                && matches!(self.renderer.resolve_link(url), Some(ResolvedLink::External(_)));
             let t = ui.ctx().get_lb_theme();
             let action = crate::style::context_menu::show(&response, &t, |e| {
                 fill_link_menu(e, is_image, editable, refreshable, |a| a);
@@ -306,6 +312,9 @@ impl<'ast> MdEdit {
                 Some(LinkMenuAction::Copy) => ui
                     .ctx()
                     .copy_text(self.renderer.link_to_copy(dest, wikilink)),
+                Some(LinkMenuAction::CopyImage) => {
+                    self.renderer.copy_picture(Picture::Image(url.to_string()))
+                }
                 Some(LinkMenuAction::Refresh) => self.renderer.refresh_link_meta(url),
                 Some(LinkMenuAction::Edit) => {
                     let (select, force_reveal) = self.atom_edit_selection(node);
@@ -377,11 +386,23 @@ impl<'ast> MdEdit {
         let Some(offset) = self.renderer.selection_offset() else {
             return false;
         };
-        for &img in &self.renderer.bounds.images {
-            if self.renderer.range_revealed_interior(img) {
+        let r = &self.renderer;
+        let last = r.buffer.current.segs.last_cursor_position();
+        let newline = |at: Grapheme| at < last && r.buffer[(at, at + 1)] == *"\n";
+        // a diagram is a block: the newline beside it is against it too
+        let diagrams = r
+            .collapsed_diagrams()
+            .map(|d| (d, newline(d.end()), d.start() > 0 && newline(d.start() - 1)));
+        let images = r.bounds.images.iter().map(|&img| (img, false, false));
+        for (img, newline_after, newline_before) in images.chain(diagrams) {
+            if r.range_revealed_interior(img) {
                 continue;
             }
-            let against = if backwards { offset == img.end() } else { offset == img.start() };
+            let against = if backwards {
+                offset == img.end() || newline_after && offset == img.end() + 1
+            } else {
+                offset == img.start() || newline_before && offset + 1 == img.start()
+            };
             if against {
                 operations.push(Operation::Select(img));
                 return true;

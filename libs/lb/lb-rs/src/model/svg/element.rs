@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use bezier_rs::{Identifier, Subpath};
 use serde::{Deserialize, Serialize};
 
-use usvg::{self, Fill, ImageKind, NonZeroRect, Text, Transform, Visibility};
+use usvg::{self, Fill, ImageKind, NonZeroRect, Text, Transform};
 use uuid::Uuid;
 
 use super::buffer::u_transform_to_bezier;
@@ -20,7 +20,7 @@ pub enum Element {
 #[derive(Clone)]
 pub struct Path {
     pub data: Subpath<ManipulatorGroupId>,
-    pub visibility: Visibility,
+    pub visible: bool,
     pub fill: Option<Fill>,
     pub stroke: Option<Stroke>,
     pub transform: Transform,
@@ -78,7 +78,7 @@ impl Default for DynamicColor {
 impl PartialEq for Path {
     fn eq(&self, other: &Self) -> bool {
         self.data.len() == other.data.len()
-            && self.visibility == other.visibility
+            && self.visible == other.visible
             && self.transform == other.transform
             && self.deleted == other.deleted
     }
@@ -87,7 +87,7 @@ impl PartialEq for Path {
 #[derive(Clone)]
 pub struct Image {
     pub data: ImageKind,
-    pub visibility: Visibility,
+    pub visible: bool,
     pub transform: Transform,
     pub view_box: NonZeroRect,
     pub opacity: f32,

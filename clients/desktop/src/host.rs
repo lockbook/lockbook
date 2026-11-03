@@ -17,6 +17,8 @@ use crate::{Output, ShellApp, WgpuLockbook};
 struct App {
     state: Option<AppState>,
     proxy: EventLoopProxy<UserEvent>,
+    /// Links that arrived before the window, opened once it exists.
+    links: Vec<String>,
 }
 
 struct AppState {
@@ -24,6 +26,8 @@ struct AppState {
     lb: WgpuLockbook<'static>,
     egui_winit: egui_winit::State,
     clipboard: arboard::Clipboard,
+    /// The last gif copied, keyed by a hash of the pixels it put on the clipboard
+    copied_gif: Option<(u64, Vec<u8>)>,
     pending_paste: bool,
     last_pointer_pos: Pos2,
     modifiers: winit::keyboard::ModifiersState,
@@ -111,6 +115,10 @@ impl ApplicationHandler<UserEvent> for App {
             None,
         );
 
+        for url in self.links.drain(..) {
+            lb.app.push(crate::shell::action::Action::OpenLink(url));
+        }
+
         let clipboard = arboard::Clipboard::new().expect("failed to initialize clipboard");
 
         self.state = Some(AppState {
@@ -118,6 +126,7 @@ impl ApplicationHandler<UserEvent> for App {
             lb,
             egui_winit,
             clipboard,
+            copied_gif: None,
             pending_paste: false,
             last_pointer_pos: Pos2::ZERO,
             modifiers: Default::default(),
@@ -216,7 +225,12 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
-        let Some(state) = &mut self.state else { return };
+        let Some(state) = &mut self.state else {
+            if let UserEvent::OpenLink(url) = event {
+                self.links.push(url);
+            }
+            return;
+        };
         match event {
             UserEvent::RepaintRequested { when, cumulative_pass_nr, viewport_id } => {
                 let current_pass_nr = state
@@ -234,6 +248,15 @@ impl ApplicationHandler<UserEvent> for App {
                         .next_repaint
                         .map_or(when, |existing| existing.min(when)),
                 );
+            }
+            UserEvent::OpenLink(url) => {
+                state
+                    .lb
+                    .app
+                    .push(crate::shell::action::Action::OpenLink(url));
+                state.window.set_minimized(false);
+                state.window.focus_window();
+                state.window.request_redraw();
             }
         }
     }
@@ -324,6 +347,12 @@ impl AppState {
                         .iter()
                         .flat_map(|px| px.to_srgba_unmultiplied())
                         .collect();
+                    self.copied_gif = self
+                        .lb
+                        .renderer
+                        .context
+                        .pop_copied_gif()
+                        .map(|gif| (pixels_hash(&bytes), gif));
                     let _ = self.clipboard.set_image(arboard::ImageData {
                         width: image.width(),
                         height: image.height(),
@@ -421,6 +450,20 @@ impl AppState {
         let Ok(img) = self.clipboard.get_image() else {
             return false;
         };
+        // pixels we put there paste as the gif they came from
+        if let Some((hash, gif)) = &self.copied_gif {
+            if *hash == pixels_hash(&img.bytes) {
+                let content = vec![ClipContent::Image(gif.clone())];
+                self.lb
+                    .renderer
+                    .context
+                    .push_event(workspace_rs::Event::Paste {
+                        content,
+                        position: self.last_pointer_pos,
+                    });
+                return true;
+            }
+        }
         let Some(rgba) =
             image::RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.into_owned())
         else {
@@ -518,7 +561,13 @@ fn init_with_renderer(mut renderer: RendererState<'static>) -> WgpuLockbook<'sta
 
 #[derive(Debug)]
 enum UserEvent {
-    RepaintRequested { when: Instant, cumulative_pass_nr: u64, viewport_id: ViewportId },
+    RepaintRequested {
+        when: Instant,
+        cumulative_pass_nr: u64,
+        viewport_id: ViewportId,
+    },
+    /// A link another launch of the app handed over.
+    OpenLink(String),
 }
 
 struct IconData {
@@ -649,8 +698,17 @@ fn resources_declare_xft_dpi(resources: &str) -> bool {
         .any(|(key, value)| key.trim() == "Xft.dpi" && !value.trim().is_empty())
 }
 
-/// Product shell.
+/// Opens the product shell at the `lb://` link it was launched with, if any,
+/// or hands that link to the app already open.
 pub fn run() {
+    let link = std::env::args()
+        .skip(1)
+        .find(|a| a.get(..3).is_some_and(|s| s.eq_ignore_ascii_case("lb:")));
+    if let Some(url) = &link {
+        if crate::link_inbox::send(url) {
+            return;
+        }
+    }
     env_logger::init();
 
     let config = lb::model::core_config::Config::ui_config("egui");
@@ -684,6 +742,18 @@ pub fn run() {
     let event_loop = builder.build().expect("failed to create event loop");
     event_loop.set_control_flow(ControlFlow::Wait);
 
-    let mut app = App { state: None, proxy: event_loop.create_proxy() };
+    let proxy = event_loop.create_proxy();
+    crate::link_inbox::listen(move |url| {
+        let _ = proxy.send_event(UserEvent::OpenLink(url));
+    });
+    let links = link.into_iter().collect();
+    let mut app = App { state: None, proxy: event_loop.create_proxy(), links };
     event_loop.run_app(&mut app).expect("event loop failed");
+}
+
+fn pixels_hash(bytes: &[u8]) -> u64 {
+    use std::hash::{DefaultHasher, Hash as _, Hasher as _};
+    let mut hasher = DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    hasher.finish()
 }

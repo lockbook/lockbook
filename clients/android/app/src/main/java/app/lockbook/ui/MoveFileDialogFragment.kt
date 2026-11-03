@@ -15,6 +15,7 @@ import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.AlertModel
+import app.lockbook.model.FileMetadataStore
 import app.lockbook.model.MoveFileViewModel
 import app.lockbook.util.FileMetadataRowInfo
 import app.lockbook.util.FileMetadataViewHolder
@@ -24,15 +25,11 @@ import com.afollestad.recyclical.withItem
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.listitem.ListItemLayout
 import net.lockbook.File
-import net.lockbook.Lb
 import java.lang.ref.WeakReference
 
 class MoveFileDialogFragment : DialogFragment() {
     private lateinit var binding: DialogMoveFileBinding
 
-    private val files: List<File> by lazy {
-        requireArguments().getStringArrayList(FILE_IDS_KEY).orEmpty().map(Lb::getFileById)
-    }
     private val model: MoveFileViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
@@ -41,7 +38,8 @@ class MoveFileDialogFragment : DialogFragment() {
                     if (modelClass.isAssignableFrom(MoveFileViewModel::class.java)) {
                         return MoveFileViewModel(
                             requireActivity().application,
-                            files.first().parent,
+                            null,
+                            requireArguments().getStringArrayList(FILE_IDS_KEY)?.firstOrNull(),
                         ) as T
                     }
                     throw IllegalArgumentException("Unknown ViewModel class")
@@ -76,6 +74,7 @@ class MoveFileDialogFragment : DialogFragment() {
             .create()
             .apply {
                 setOnShowListener {
+                    getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = model.ready.value == true
                     getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
                 }
             }
@@ -100,7 +99,7 @@ class MoveFileDialogFragment : DialogFragment() {
             }
         }
 
-        model.ids = files.map { it.id }
+        model.ids = requireArguments().getStringArrayList(FILE_IDS_KEY).orEmpty()
     }
 
     override fun onCreateView(
@@ -113,6 +112,9 @@ class MoveFileDialogFragment : DialogFragment() {
         view: View,
         savedInstanceState: Bundle?,
     ) {
+        model.ready.observe(viewLifecycleOwner) { ready ->
+            (dialog as? androidx.appcompat.app.AlertDialog)?.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = ready
+        }
         model.closeDialog.observe(
             viewLifecycleOwner,
         ) {

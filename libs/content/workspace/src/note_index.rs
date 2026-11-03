@@ -26,8 +26,10 @@ pub struct NoteIndex {
     version: AtomicU64,
     /// Every note has been read once.
     ready: AtomicBool,
-    /// Something has asked; the workspace starts the reading.
+    /// Something has asked; the reading starts.
     wanted: AtomicBool,
+    /// Wakes the reader waiting for the first ask.
+    wake: Mutex<Option<std::sync::mpsc::Sender<()>>>,
     /// The last change planned for, until the notes or the tree change.
     pub(crate) planned: Mutex<Option<(Change, Arc<Plan>)>>,
 }
@@ -77,7 +79,11 @@ impl NoteIndex {
 
     /// Asks for the index to be filled.
     pub fn want(&self) {
-        self.wanted.store(true, Ordering::Relaxed);
+        if !self.wanted.swap(true, Ordering::Relaxed) {
+            if let Some(wake) = self.wake.lock().unwrap().take() {
+                let _ = wake.send(());
+            }
+        }
     }
 
     pub fn is_wanted(&self) -> bool {
@@ -172,15 +178,27 @@ impl NoteIndex {
     /// files are notes comes from `lb`, not `files`: sync announces a change
     /// before the workspace has rebuilt its cache, and a note new to this
     /// device arrives with no write announced at all.
+    /// The reader waits for the first ask and stops with the cache.
     #[cfg(not(target_family = "wasm"))]
-    pub fn keep(files: Arc<RwLock<FileCache>>, lb: Lb, ctx: egui::Context) {
+    pub(crate) fn keep(files: &Arc<RwLock<FileCache>>, lb: Lb, ctx: egui::Context) {
+        let (wake, woken) = std::sync::mpsc::channel();
+        *files.read().unwrap().notes.wake.lock().unwrap() = Some(wake);
+        let files = Arc::downgrade(files);
         thread::spawn(move || {
+            let wanted = |files: &Arc<RwLock<FileCache>>| files.read().unwrap().notes.is_wanted();
+            if !files.upgrade().is_some_and(|f| wanted(&f)) && woken.recv().is_err() {
+                return;
+            }
             let mut events = lb.subscribe();
-            read_notes(&files, &lb, false);
-            files.read().unwrap().notes.set_ready();
+            let Some(strong) = files.upgrade() else { return };
+            read_notes(&strong, &lb, false);
+            strong.read().unwrap().notes.set_ready();
+            drop(strong);
             ctx.request_repaint();
             loop {
-                match events.blocking_recv() {
+                let event = events.blocking_recv();
+                let Some(files) = files.upgrade() else { return };
+                match event {
                     Ok(Event::DocumentWritten(id, _)) => {
                         let markdown = lb.get_file_by_id(id).is_ok_and(|f| is_note(&f));
                         if let Some(note) = read(&lb, id).filter(|_| markdown) {

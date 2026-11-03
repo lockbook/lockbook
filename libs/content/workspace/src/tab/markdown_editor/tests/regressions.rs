@@ -4,6 +4,7 @@
 //! specific outcome (often a shipped bug fix). Render-side tests reuse the
 //! property `_check` helpers exposed by [`super::render_props`].
 
+use crate::tab::markdown_editor::{Syntax, View};
 use comrak::Arena;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt};
 
@@ -303,6 +304,25 @@ fn enter_atom_selects_image_url() {
     let sel = ws.editor.edit.renderer.buffer.current.selection;
     assert_eq!(&ws.editor.edit.renderer.buffer[sel], url, "url selected: {sel:?}");
     assert!(ws.editor.edit.renderer.range_revealed_interior(img), "source revealed");
+}
+
+/// Backspace with a diagram ending the note, no newline after it.
+#[test]
+fn backspace_beside_diagram_at_note_end() {
+    use super::super::input::Increment;
+    let mut ws = TestEditor::new("a\n\n```mermaid\ngraph TD\nA-->B\n```");
+    ws.enter_frame();
+    assert_eq!(ws.editor.edit.renderer.bounds.diagrams.len(), 1);
+    ws.push(Event::Select { region: (Grapheme(1), Grapheme(1)).into() });
+    ws.enter_frame();
+    ws.push(Event::Delete {
+        region: Region::SelectionOrAdvance {
+            advance: Advance::By(Increment::Char),
+            backwards: true,
+        },
+    });
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), "\n\n```mermaid\ngraph TD\nA-->B\n```");
 }
 
 /// Mobile edit-menu "Edit" on a labeled link: with the selection exactly
@@ -2010,7 +2030,7 @@ fn find_esc_closes_widget() {
 }
 
 /// The chat connect step's masked key field: a standalone `MdEdit` with
-/// `plaintext + mask + single_line` must produce glyph fragments (the `*`s)
+/// Masked plain source on a single line must produce glyph fragments (the `*`s)
 /// on one unwrapped row, scrolled so a cursor at the end of an overlong key
 /// stays inside the rect.
 #[test]
@@ -2020,9 +2040,11 @@ fn masked_plaintext_mdedit_renders_glyphs() {
 
     let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let mut edit = MdEdit::empty(ctx.clone());
-    edit.renderer.plaintext = true;
+    edit.renderer.kind = Syntax::Plain;
+    edit.renderer.view = View::Source;
     edit.renderer.mask = true;
     edit.renderer.single_line = true;
+    assert_ne!(edit.renderer.kind, Syntax::Markdown, "a key never takes markdown edits");
     // Long enough that a 300px field must overflow (~8px/char mono).
     let key = "sk-test-".repeat(16);
     edit.set_text(&key);

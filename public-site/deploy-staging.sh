@@ -7,9 +7,7 @@ if [ -z "$NO_WASM" ]; then
     rm -f static/wasm/base.html
 fi
 
-zola build -o public --force
-
-cd ../docs && mdbook build && rm -rf ../public-site/public/docs && mv book ../public-site/public/docs && cd ../public-site
+sh scripts/build-content.sh
 
 REV=$(git rev-parse --short HEAD)
 git diff --quiet HEAD -- . || REV="$REV-dirty"

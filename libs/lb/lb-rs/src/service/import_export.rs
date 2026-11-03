@@ -9,7 +9,12 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use tokio::sync::Semaphore;
 use uuid::Uuid;
+
+// File descriptors are process-wide. Share the limit across nested folders and
+// simultaneous exports, and only acquire permits for documents (never parents).
+static EXPORT_DOCUMENTS: Semaphore = Semaphore::const_new(16);
 
 pub enum ImportStatus {
     CalculatedTotal(usize),
@@ -155,6 +160,13 @@ impl Lb {
 
         match file.file_type {
             FileType::Document => {
+                let _permit = EXPORT_DOCUMENTS
+                    .acquire()
+                    .await
+                    .expect("export semaphore is never closed");
+                let content = self.read_document(file.id, true).await?;
+
+                // Do not hold an output file open while awaiting document I/O.
                 let mut disk_file = if edit {
                     OpenOptions::new()
                         .write(true)
@@ -169,9 +181,7 @@ impl Lb {
                 }
                 .map_err(LbErr::from)?;
 
-                disk_file
-                    .write_all(self.read_document(file.id, true).await?.as_slice())
-                    .map_err(LbErr::from)?;
+                disk_file.write_all(&content).map_err(LbErr::from)?;
             }
             FileType::Folder => {
                 fs::create_dir(new_dest.clone()).map_err(LbErr::from)?;

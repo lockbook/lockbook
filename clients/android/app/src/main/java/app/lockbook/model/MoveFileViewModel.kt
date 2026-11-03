@@ -18,13 +18,20 @@ import net.lockbook.LbError
 
 class MoveFileViewModel(
     application: Application,
-    private val startId: String,
+    private val startId: String?,
+    private val sourceFileId: String? = null,
 ) : AndroidViewModel(application) {
     lateinit var currentParent: File
-    lateinit var ids: List<String>
+    var ids: List<String> = emptyList()
+        set(value) {
+            field = value
+            if (::currentParent.isInitialized) refreshOverFolder()
+        }
 
     var files = emptyDataSourceTyped<File>()
 
+    private val _ready = MutableLiveData(false)
+    val ready: LiveData<Boolean> = _ready
     private val _closeDialog = MutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
 
@@ -41,13 +48,19 @@ class MoveFileViewModel(
     init {
         viewModelScope.launch(Dispatchers.IO) {
             startWithCurrentParent()
+            FileMetadataStore.folderSnapshots.collect { snapshot ->
+                if (::currentParent.isInitialized) refreshOverFolder()
+            }
         }
     }
 
-    private fun startWithCurrentParent() {
+    private suspend fun startWithCurrentParent() {
         try {
-            currentParent = Lb.getFileById(startId)
+            val snapshot = FileMetadataStore.awaitLoaded()
+            val parentId = startId ?: sourceFileId?.let { FileMetadataStore.requireFile(it).parent }
+            currentParent = parentId?.let(FileMetadataStore::requireFile) ?: snapshot.root
             refreshOverFolder()
+            _ready.postValue(true)
         } catch (err: LbError) {
             _notifyError.postValue(err)
         }
@@ -70,9 +83,11 @@ class MoveFileViewModel(
 
     fun refreshOverFolder() {
         try {
+            val snapshot = FileMetadataStore.current()
+            currentParent = snapshot.idsAndFiles[currentParent.id]?.takeIf { it.type == FileType.Folder } ?: snapshot.root
             val tempFiles =
-                Lb
-                    .getChildren(currentParent.id)
+                snapshot
+                    .children(currentParent.id)
                     .filter { file ->
                         file.type == FileType.Folder && !ids.contains(file.id)
                     }.toMutableList()
@@ -95,7 +110,7 @@ class MoveFileViewModel(
 
     private fun setParentAsParent() {
         try {
-            currentParent = Lb.getFileById(currentParent.parent)
+            currentParent = FileMetadataStore.requireFile(currentParent.parent)
         } catch (err: LbError) {
             _notifyError.postValue(err)
         }

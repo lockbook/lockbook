@@ -1,6 +1,6 @@
 use comrak::nodes::AstNode;
 use lb_rs::Uuid;
-use lb_rs::model::text::offset_types::Grapheme;
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
@@ -21,10 +21,17 @@ impl<'ast> MdRender {
         let node_range = self.node_range(node);
         let state = self.link_state_for_wikilink(&url);
         let fmt = self.text_format_link(parent, state);
+        let revealed = self.range_revealed_interior(node_range);
+        let trimmed = node_range.trim(&range);
+        if !revealed && !trimmed.is_empty() {
+            if let Some(chip) = self.chip(node) {
+                self.layout_chip(layout, node, trimmed, chip);
+                return;
+            }
+        }
         // Read-only views have no cursor to place, so a plain click follows
         // the link; the editor requires cmd, and touch taps select the link
         // and pop the menu — unless revealed, when taps place the cursor.
-        let revealed = self.range_revealed_interior(node_range);
         let clickable = self.readonly
             || self.ctx.input(|i| i.modifiers.command)
             || (self.touch_mode && !revealed);

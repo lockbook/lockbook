@@ -443,6 +443,23 @@ pub(crate) fn share_invite(app: &mut ShellApp, ctx: &Context) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_share_need_focus"), true));
 }
 
+pub(crate) fn share_remove(app: &mut ShellApp, user: &str) {
+    let Some(Modal::Share { id, .. }) = &app.modal else {
+        return;
+    };
+    let id = *id;
+    let Some(r) = app.session.ready_mut() else {
+        return;
+    };
+    let res = r.workspace.core.unshare_file(id, user);
+    if res.is_ok() {
+        r.refresh_status();
+    }
+    if let Some(Modal::Share { err, .. }) = &mut app.modal {
+        *err = res.err().map(|e| e.to_string());
+    }
+}
+
 #[cfg(test)]
 mod share_complete_tests {
     use super::shortest_prefix_match;

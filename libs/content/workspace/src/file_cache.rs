@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 use std::iter;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock, RwLock};
 
 use db_rs::hasher::UuidIdentityHasherBuilder;
 use lb_rs::Uuid;
@@ -59,6 +59,8 @@ pub struct FileCache {
     pub notes: NoteIndex,
     /// Documents by the titles they answer to, lowercased; built on first use.
     titles: OnceLock<HashMap<String, Vec<u32>>>,
+    /// Counts the caches swapped in by [`Self::replace`].
+    pub generation: u64,
 }
 
 /// Folders first, then name. Parent+name is unique so `id` is not in the key.
@@ -102,6 +104,7 @@ impl FileCache {
             by_id: [(root_id, 0)].into_iter().collect(),
             notes: Default::default(),
             titles: Default::default(),
+            generation: 0,
         }
     }
 
@@ -134,6 +137,7 @@ impl FileCache {
             last_modified,
             notes: Default::default(),
             titles: Default::default(),
+            generation: 0,
         }
     }
 
@@ -227,6 +231,48 @@ impl FileCache {
 }
 
 impl FileCache {
+    /// Puts `cache` in place of this one, keeping the notes it still has, as
+    /// the next generation.
+    pub fn replace(&mut self, mut cache: FileCache) {
+        let mut notes = std::mem::take(&mut self.notes);
+        notes.retain_in(&cache);
+        cache.notes = notes;
+        cache.generation = self.generation + 1;
+        *self = cache;
+    }
+
+    /// Keeps `files` current from here on: rebuilt off the lock when the
+    /// tree changes, its note index read once something wants it. The
+    /// workers stop with the cache.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn keep(files: &Arc<RwLock<FileCache>>, lb: &Lb, ctx: &egui::Context) {
+        use lb_rs::service::events::{Event, SyncIncrement};
+        use tokio::sync::broadcast::error::RecvError;
+
+        NoteIndex::keep(files, lb.clone(), ctx.clone());
+        let (weak, lb, ctx) = (Arc::downgrade(files), lb.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            let mut events = lb.subscribe();
+            loop {
+                match events.blocking_recv() {
+                    Ok(Event::MetadataChanged(_) | Event::IpcChangesApplied)
+                    | Err(RecvError::Lagged(_)) => {
+                        let cache = FileCache::new(&lb);
+                        let Some(files) = weak.upgrade() else { return };
+                        match cache {
+                            Ok(cache) => files.write().unwrap().replace(cache),
+                            Err(err) => tracing::error!("file cache rebuild failed: {err:?}"),
+                        }
+                        ctx.request_repaint();
+                    }
+                    Ok(Event::Sync(SyncIncrement::SyncFinished(_))) => ctx.request_repaint(),
+                    Ok(_) => {}
+                    Err(RecvError::Closed) => return,
+                }
+            }
+        });
+    }
+
     /// The tree as it would be after `change`, without the notes. Sizes and
     /// times are carried over as they were.
     pub fn after(&self, change: &Change) -> FileCache {

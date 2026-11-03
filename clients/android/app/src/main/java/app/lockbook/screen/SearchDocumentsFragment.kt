@@ -15,8 +15,6 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.databinding.FragmentSearchDocumentsBinding
@@ -58,22 +56,7 @@ class SearchDocumentsFragment : Fragment() {
             }
     }
 
-    private val model: SearchDocumentsViewModel by viewModels(
-        factoryProducer = {
-            object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(SearchDocumentsViewModel::class.java)) {
-                        return SearchDocumentsViewModel(
-                            requireActivity().application,
-                            ViewModelProvider(requireActivity())[FileTreeViewModel::class.java],
-                        ) as T
-                    }
-                    throw IllegalArgumentException("Unknown ViewModel class")
-                }
-            }
-        },
-    )
+    private val model: SearchDocumentsViewModel by viewModels()
     private val mainScreenModel: MainScreenViewModel by activityViewModels()
     private val fileTreeModel: FileTreeViewModel by activityViewModels()
 

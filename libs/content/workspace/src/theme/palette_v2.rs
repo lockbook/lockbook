@@ -5,6 +5,8 @@ use egui::{
 use epaint::hex_color;
 use serde::{Deserialize, Serialize};
 
+use crate::style::color::{oklch_to_srgb, srgb_to_oklch};
+
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Theme {
     #[serde(skip)]
@@ -15,35 +17,6 @@ pub struct Theme {
 
     pub bright: ThemeVariant,
     pub dark_prefs: Preferences,
-
-    #[serde(default)]
-    pub code: Option<CodeTheme>,
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct CodeTheme {
-    pub light: CodeVariant,
-    pub dark: CodeVariant,
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct CodeVariant {
-    #[serde(with = "color32_hex")]
-    pub background: Color32,
-    #[serde(with = "color32_hex")]
-    pub text: Color32,
-    #[serde(with = "color32_hex")]
-    pub comment: Color32,
-    #[serde(with = "color32_hex")]
-    pub class: Color32,
-    #[serde(with = "color32_hex")]
-    pub function: Color32,
-    #[serde(with = "color32_hex")]
-    pub keyword: Color32,
-    #[serde(with = "color32_hex")]
-    pub string: Color32,
-    #[serde(with = "color32_hex")]
-    pub number: Color32,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -145,13 +118,6 @@ impl Theme {
 
     pub fn dark(&self) -> bool {
         !self.light()
-    }
-
-    pub fn code_variant(&self) -> Option<CodeVariant> {
-        self.code.map(|code| match self.current {
-            Mode::Light => code.light,
-            Mode::Dark => code.dark,
-        })
     }
 
     /// Returns the foreground neutral color i.e. black in light mode, white in
@@ -262,6 +228,16 @@ pub fn apca(text: Color32, background: Color32) -> f32 {
     if c.abs() < 0.1 { 0.0 } else { (c.abs() - 0.027) * 100.0 }
 }
 
+/// Accents keep at most this OKLCH chroma; a tint made for a filled
+/// control is too saturated for text.
+pub const MAX_TEXT_CHROMA: f32 = 0.20;
+
+/// `color` with its OKLCH chroma capped at `max`, hue and lightness kept.
+pub fn capped_chroma(color: Color32, max: f32) -> Color32 {
+    let (l, c, h) = srgb_to_oklch(color);
+    if c <= max { color } else { oklch_to_srgb(l, max, h) }
+}
+
 /// `color`, moved toward black or white (whichever reads better on
 /// `background`) just far enough to read as text on it.
 pub fn readable_on(color: Color32, background: Color32) -> Color32 {
@@ -348,7 +324,7 @@ impl Theme {
         current: Mode, dim: ThemeVariant, light_prefs: Preferences, bright: ThemeVariant,
         dark_prefs: Preferences,
     ) -> Self {
-        Self { current, dim, light_prefs, bright, dark_prefs, code: None }.readable()
+        Self { current, dim, light_prefs, bright, dark_prefs }.readable()
     }
 
     /// The theme with each accent moved just far enough to read as text on
@@ -359,7 +335,7 @@ impl Theme {
             for c in
                 [&mut v.red, &mut v.green, &mut v.yellow, &mut v.blue, &mut v.magenta, &mut v.cyan]
             {
-                *c = readable_on(*c, ground);
+                *c = readable_on(capped_chroma(*c, MAX_TEXT_CHROMA), ground);
             }
         };
         let (light_page, dark_page) = (self.bright.white, self.dim.black);
@@ -411,7 +387,6 @@ impl Theme {
                 tertiary: Palette::Magenta,
                 quaternary: Palette::Cyan,
             },
-            code: None,
         }
         .readable()
     }
@@ -453,28 +428,6 @@ impl Theme {
                 tertiary: Palette::Magenta,
                 quaternary: Palette::Cyan,
             },
-            code: Some(CodeTheme {
-                light: CodeVariant {
-                    background: hex_color!("#FFFFFF"),
-                    text: hex_color!("#000000"),
-                    comment: hex_color!("#5D6C79"),
-                    class: hex_color!("#1C464A"),
-                    function: hex_color!("#326D74"),
-                    keyword: hex_color!("#9B2393"),
-                    string: hex_color!("#C41A16"),
-                    number: hex_color!("#1C00CF"),
-                },
-                dark: CodeVariant {
-                    background: hex_color!("#25252A"),
-                    text: hex_color!("#FFFFFF"),
-                    comment: hex_color!("#6C7986"),
-                    class: hex_color!("#9EF1DD"),
-                    function: hex_color!("#67B7A4"),
-                    keyword: hex_color!("#FC5FA3"),
-                    string: hex_color!("#FC6A5D"),
-                    number: hex_color!("#D0BF69"),
-                },
-            }),
         }
         .readable()
     }
@@ -522,7 +475,6 @@ impl Theme {
                 tertiary: Palette::Yellow,
                 quaternary: Palette::Cyan,
             },
-            code: None,
         }
         .readable()
     }
@@ -564,7 +516,6 @@ impl Theme {
                 tertiary: Palette::Yellow,
                 quaternary: Palette::Cyan,
             },
-            code: None,
         }
         .readable()
     }
@@ -606,7 +557,6 @@ impl Theme {
                 tertiary: Palette::Green,
                 quaternary: Palette::Magenta,
             },
-            code: None,
         }
         .readable()
     }
@@ -648,7 +598,6 @@ impl Theme {
                 tertiary: Palette::Green,
                 quaternary: Palette::Yellow,
             },
-            code: None,
         }
         .readable()
     }
@@ -803,6 +752,38 @@ mod tests {
                     Palette::Cyan,
                 ] {
                     assert!(apca(theme.fg().get_color(palette), ground) >= MIN_TEXT_LC);
+                }
+            }
+        }
+    }
+
+    /// Every accent sits under the chroma cap after `readable()`, and a
+    /// second pass leaves the theme as it is.
+    #[test]
+    fn theme_accents_stay_under_the_chroma_cap() {
+        let themes: [fn(Mode) -> Theme; 7] = [
+            Theme::default,
+            Theme::apple,
+            Theme::apple_macos,
+            Theme::darcula,
+            Theme::intellij,
+            Theme::vscode,
+            Theme::catppuccin,
+        ];
+        for make in themes {
+            for mode in [Mode::Light, Mode::Dark] {
+                let theme = make(mode);
+                let again = theme.readable();
+                for v in [theme.dim, theme.bright] {
+                    for c in [v.red, v.green, v.yellow, v.blue, v.magenta, v.cyan] {
+                        assert!(srgb_to_oklch(c).1 <= MAX_TEXT_CHROMA + 0.002);
+                    }
+                }
+                for (a, b) in [(theme.dim, again.dim), (theme.bright, again.bright)] {
+                    assert_eq!(
+                        [a.red, a.green, a.yellow, a.blue, a.magenta, a.cyan],
+                        [b.red, b.green, b.yellow, b.blue, b.magenta, b.cyan]
+                    );
                 }
             }
         }

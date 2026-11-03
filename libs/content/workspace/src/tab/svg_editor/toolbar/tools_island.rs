@@ -26,14 +26,12 @@ use super::{SCREEN_PADDING, Toolbar, ToolbarContext};
 
 impl Toolbar {
     pub fn show_tools_island(
-        &mut self, ui: &mut egui::Ui,
+        &mut self, ui: &mut egui::Ui, controls_rect: egui::Rect,
     ) -> InnerResponse<InnerResponse<InnerResponse<()>>> {
         let tools_island_size = self.layout.tools_island.unwrap_or(egui::Rect::ZERO).size();
 
-        let tools_island_x_start = ui.available_rect_before_wrap().left()
-            + (ui.available_width() - tools_island_size.x) / 2.0;
-        let tools_island_y_start =
-            ui.available_rect_before_wrap().bottom() - SCREEN_PADDING.y - tools_island_size.y;
+        let tools_island_x_start = controls_rect.center().x - tools_island_size.x / 2.0;
+        let tools_island_y_start = controls_rect.bottom() - SCREEN_PADDING.y - tools_island_size.y;
 
         let tools_island_rect = egui::Rect {
             min: egui::pos2(tools_island_x_start, tools_island_y_start),
@@ -211,19 +209,20 @@ impl Toolbar {
                 .height();
 
         cursor_pos.x = (cursor_pos.x - tool_popovers_size.x)
-            .max(tlbr_ctx.viewport_settings.container_rect.left() + screen_bounds);
+            .max(tlbr_ctx.controls_rect.left() + SCREEN_PADDING.x)
+            .min(
+                (tlbr_ctx.controls_rect.right() - tool_popovers_size.x - SCREEN_PADDING.x)
+                    .max(tlbr_ctx.controls_rect.left()),
+            );
 
         cursor_pos.y -= tool_popovers_size.y;
 
-        if cursor_pos.y < tlbr_ctx.viewport_settings.container_rect.top() + screen_bounds {
-            cursor_pos.y = tlbr_ctx.viewport_settings.container_rect.top() + screen_bounds;
+        if cursor_pos.y < tlbr_ctx.controls_rect.top() + screen_bounds {
+            cursor_pos.y = tlbr_ctx.controls_rect.top() + screen_bounds;
         }
 
-        if cursor_pos.y + tool_popovers_size.y > tlbr_ctx.viewport_settings.container_rect.bottom()
-        {
-            cursor_pos.y = tlbr_ctx.viewport_settings.container_rect.bottom()
-                - tool_popovers_size.y
-                - screen_bounds
+        if cursor_pos.y + tool_popovers_size.y > tlbr_ctx.controls_rect.bottom() {
+            cursor_pos.y = tlbr_ctx.controls_rect.bottom() - tool_popovers_size.y - screen_bounds
         }
 
         let tool_popover_rect = egui::Rect::from_min_size(cursor_pos, tool_popovers_size);
@@ -268,8 +267,7 @@ impl Toolbar {
         ui.set_opacity(opacity);
         let tool_popovers_size = self.layout.tool_popover.unwrap_or(egui::Rect::ZERO).size();
 
-        let tool_popover_x_start = ui.available_rect_before_wrap().left()
-            + (ui.available_width() - tool_popovers_size.x) / 2.0;
+        let tool_popover_x_start = tlbr_ctx.controls_rect.center().x - tool_popovers_size.x / 2.0;
         let tool_popover_y_start = tools_island_rect.top() - tool_popovers_size.y - 10.0;
         let tool_popover_rect = egui::Rect {
             min: egui::pos2(tool_popover_x_start, tool_popover_y_start),

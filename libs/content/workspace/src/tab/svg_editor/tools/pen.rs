@@ -99,7 +99,7 @@ impl InputControllerTool for Pen {
             | InputControllerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),
             InputControllerEvent::ToolHover(_) => None,
             InputControllerEvent::ViewportChange(_) => None,
-            InputControllerEvent::Gesture(_) => None,
+            InputControllerEvent::Gesture(_) | InputControllerEvent::KeyboardAction(_) => None,
             InputControllerEvent::ToolPredictedRun(pos2, force) => {
                 Some(PathEvent::PredictedDraw(ToolPayload { pos: pos2, force, id: None }))
             }
@@ -213,7 +213,7 @@ impl Pen {
 
             let el = Element::Path(Path {
                 data: Subpath::new(vec![], false),
-                visibility: resvg::usvg::Visibility::Visible,
+                visible: true,
                 fill: None,
                 stroke: Some(path_stroke),
                 transform: Transform::identity(),

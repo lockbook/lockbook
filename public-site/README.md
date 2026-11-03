@@ -12,6 +12,30 @@ All of this can be done though `./build.sh` which will also start a development 
 
 ensure that you have `trunk`, `zola` and added `wasm` as rust compilation target. this can be done through `./setup_macos.sh`
 
+To build the HTML and docs without rebuilding WASM or starting a server, run
+`sh scripts/build-content.sh`. This requires Zola and mdBook. Both deployment
+scripts use the same content build.
+
+## Search and sharing metadata
+
+Zola page titles and descriptions come from each content file's front matter.
+The homepage title and shared preview image are configured in `config.toml`.
+The base template uses these values for search descriptions, canonical URLs,
+Open Graph, and Twitter cards.
+
+Documentation uses mdBook's chapter titles and the shared description in
+`../docs/book.toml`. Its `theme/head.hbs` adds sharing metadata and gives the
+duplicate `docs/book.html` and docs index the canonical URL
+`https://lockbook.net/docs/`. Other chapters keep their existing URLs without
+custom canonical tags or per-chapter descriptions.
+
+Zola's `templates/sitemap.xml` includes the docs by reading the existing
+Markdown chapter links in `../docs/SUMMARY.md`. The build temporarily copies
+the docs into `.docs/` because Zola restricts file reads to its site directory.
+Empty chapters are skipped; print, table of contents, and error pages are not
+in that chapter list. No separate chapter registry or HTML postprocessing is
+needed.
+
 ## Deploy
 
 to deploy to gcp, run `./build.sh --deploy`

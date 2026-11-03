@@ -30,6 +30,8 @@ pub struct MindMap {
     directional_links: HashMap<usize, Vec<usize>>,
     thread_positions: Arc<RwLock<Vec<Pos2>>>,
     stop: Arc<RwLock<bool>>,
+    /// The layout thread has finished.
+    laid_out: Arc<std::sync::atomic::AtomicBool>,
     frame_count: usize,
     fps: f32,
     last_fps_update: Instant,
@@ -96,6 +98,7 @@ impl MindMap {
             directional_links: HashMap::new(),
             thread_positions: Arc::new(RwLock::new(thread_positions)),
             stop: Arc::new(RwLock::new(false)),
+            laid_out: Default::default(),
             frame_count: 0,
             fps: 0.0,
             last_fps_update: Instant::now(),
@@ -589,6 +592,11 @@ impl MindMap {
             && self.cursor_loc.y < max_range.y
     }
 
+    /// The layout thread has stopped moving the nodes.
+    pub fn settled(&self) -> bool {
+        self.graph_complete && self.laid_out.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     pub fn stop(&mut self) {
         // println!("in stop in mindmap");
         self.graph_complete = true;
@@ -719,8 +727,10 @@ impl MindMap {
             let positioninfo = Arc::clone(&self.thread_positions);
             let stop = Arc::clone(&self.stop);
             let graph = self.graph.clone();
+            let laid_out = Arc::clone(&self.laid_out);
             spawn!({
                 Self::apply_spring_layout(positioninfo, &graph, 2500000, screen, stop, linkess);
+                laid_out.store(true, std::sync::atomic::Ordering::Relaxed);
             });
         }
         if !self.urls_complete {

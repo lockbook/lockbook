@@ -254,7 +254,7 @@
         override public func gestureRecognizerShouldBegin(
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            if isInteractiveContentPop(gestureRecognizer) {
+            if blocksNavigationPop(gestureRecognizer) {
                 return false
             }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
@@ -265,7 +265,9 @@
                 return
             }
 
-            if let image = UIPasteboard.general.image {
+            if let gif = UIPasteboard.general.data(forPasteboardType: UTType.gif.identifier) {
+                mtkView.importContent(.imageData(gif), isPaste: true)
+            } else if let image = UIPasteboard.general.image {
                 mtkView.importContent(.image(image), isPaste: true)
             } else if let string = UIPasteboard.general.string {
                 mtkView.importContent(.text(string), isPaste: true)
@@ -393,6 +395,7 @@
             syncAccentColor(mtkView)
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
+            set_spell_check(wsHandle, UserDefaults.standard.object(forKey: "spellCheck") as? Bool ?? true)
 
             set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
@@ -404,6 +407,11 @@
             set_ws_inset(wsHandle, Float(overlap * scale()))
 
             handle(ios_frame(wsHandle))
+
+            let keyboard = (mtkView.currentWrapper as? TextPage)?.text.textInputMode
+            if Spelling.answer(wsHandle, mode: keyboard) {
+                mtkView.requestFrame()
+            }
         }
 
         /// A frame that consumes no queued input, so geometry reflects an edit
@@ -481,6 +489,18 @@
                     mtkView.workspaceOutput!.outlineOpen = outlineOpen
                 }
             }
+            let source = source_available(wsHandle)
+            if source != mtkView.workspaceOutput!.sourceAvailable {
+                DispatchQueue.main.async {
+                    mtkView.workspaceOutput!.sourceAvailable = source
+                }
+            }
+            let sourceOn = source_on(wsHandle)
+            if sourceOn != mtkView.workspaceOutput!.sourceOn {
+                DispatchQueue.main.async {
+                    mtkView.workspaceOutput!.sourceOn = sourceOn
+                }
+            }
 
             if currentTab != mtkView.workspaceOutput!.currentTab {
                 if let currentWrapper = mtkView.currentWrapper as? SvgView {
@@ -549,8 +569,9 @@
                 }
             }
 
-            if let png = dataFromBytes(b: output.copied_image) {
-                UIPasteboard.general.setData(png, forPasteboardType: UTType.png.identifier)
+            if let image = dataFromBytes(b: output.copied_image) {
+                let type = image.starts(with: Array("GIF8".utf8)) ? UTType.gif : UTType.png
+                UIPasteboard.general.setData(image, forPasteboardType: type.identifier)
             }
 
             mtkView.redrawTask?.cancel()
@@ -699,11 +720,19 @@
             let pan = UIPanGestureRecognizer(
                 target: self, action: #selector(handleTrackpadScroll(_:))
             )
-            pan.allowedScrollTypesMask = .all
+            pan.allowedScrollTypesMask = .continuous
             pan.maximumNumberOfTouches = 0
 
             addGestureRecognizer(pan)
             panRecognizer = pan
+
+            let wheel = UIPanGestureRecognizer(
+                target: self, action: #selector(handleTrackpadScroll(_:))
+            )
+            wheel.allowedScrollTypesMask = .discrete
+            wheel.maximumNumberOfTouches = 0
+
+            addGestureRecognizer(wheel)
 
             // mtk
             mtkDelegate = iOSMTKViewDelegate(mtkView: self)
@@ -753,7 +782,14 @@
         }
 
         @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
-            guard let event = sender, event.state != .cancelled, event.state != .failed else {
+            guard let event = sender, event.state != .failed else {
+                return
+            }
+            let precise = event === panRecognizer
+
+            if event.state == .cancelled {
+                scroll_wheel(wsHandle, 0, 0, 16, 0, precise, false, false, false, false)
+                setNeedsDisplay()
                 return
             }
 
@@ -762,9 +798,11 @@
             velocity.x /= 50
             velocity.y /= 50
 
+            scrollId += 1
+
             if event.state == .ended {
-                let currentScrollId = Int(Date().timeIntervalSince1970)
-                scrollId = currentScrollId
+                scroll_wheel(wsHandle, 0, 0, 8, 0, precise, false, false, false, false)
+                let currentScrollId = scrollId
 
                 Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
                     if currentScrollId != scrollId {
@@ -784,8 +822,8 @@
                         mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                     }
                     scroll_wheel(
-                        wsHandle, Float(velocity.x), Float(velocity.y), false, false, false,
-                        false
+                        wsHandle, Float(velocity.x), Float(velocity.y), 0, 4, precise, false, false,
+                        false, false
                     )
                     if !cursorTracked {
                         mouse_gone(wsHandle)
@@ -797,8 +835,10 @@
                 if !cursorTracked {
                     mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                 }
+                let phase: UInt64 = event.state == .began ? 1 : 4
                 scroll_wheel(
-                    wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false
+                    wsHandle, Float(velocity.x), Float(velocity.y), phase, 0, precise, false, false,
+                    false, false
                 )
                 if !cursorTracked {
                     mouse_gone(wsHandle)
@@ -907,6 +947,7 @@
             workspaceInput?.wsHandle = wsHandle
 
             if let wsHandle {
+                set_trackpad_history_swipe(wsHandle, true)
                 RepaintRelay.register(wsHandle) { [weak self] delayMs in
                     DispatchQueue.main.async {
                         self?.repaintRequested(inMs: delayMs)
@@ -975,7 +1016,7 @@
         override public func gestureRecognizerShouldBegin(
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            if isInteractiveContentPop(gestureRecognizer) {
+            if blocksNavigationPop(gestureRecognizer) {
                 return false
             }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
@@ -1182,6 +1223,8 @@
                 if let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
                     workspaceInput?.pasteImage(data: data, isPaste: isPaste)
                 }
+            case let .imageData(data):
+                workspaceInput?.pasteImage(data: data, isPaste: isPaste)
             case let .text(text):
                 clipboard_paste(wsHandle, text)
             }
@@ -1227,17 +1270,26 @@
     public enum SupportedImportFormat {
         case url(URL)
         case image(UIImage)
+        /// An image's file bytes, kept as they are: a gif keeps its frames.
+        case imageData(Data)
         case text(String)
     }
 
     extension UIView {
-        func isInteractiveContentPop(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        func blocksNavigationPop(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             var responder = next
+            var manager: iOSMTKInputManager?
             while let current = responder {
+                if let found = current as? iOSMTKInputManager {
+                    manager = found
+                }
                 if let controller = current as? UIViewController {
-                    return gestureRecognizer
-                        === controller.navigationController?
-                        .interactiveContentPopGestureRecognizer
+                    guard let navigation = controller.navigationController else { return false }
+                    if gestureRecognizer === navigation.interactiveContentPopGestureRecognizer {
+                        return true
+                    }
+                    return gestureRecognizer === navigation.interactivePopGestureRecognizer
+                        && manager?.mtkView.workspaceInput?.canNavBack() == true
                 }
                 responder = current.next
             }

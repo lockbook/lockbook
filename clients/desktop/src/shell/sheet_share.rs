@@ -130,11 +130,20 @@ pub(crate) fn show_share(
                             };
                             let tone =
                                 if row.is_owner { PersonTone::Ok } else { PersonTone::Neutral };
-                            let _ = PersonRow::new(t, &row.username)
+                            let mut person = PersonRow::new(t, &row.username)
                                 .icon(icon)
                                 .status(status)
-                                .tone(tone)
-                                .show(ui);
+                                .tone(tone);
+                            let removable = !row.is_owner && row.via.is_none();
+                            if removable {
+                                person = person.trailing(
+                                    phosphor::TRASH,
+                                    format!("Stop sharing with {}", row.username),
+                                );
+                            }
+                            if person.show(ui).trailing_clicked {
+                                queue.push(A::ShareRemove(row.username.clone()));
+                            }
                         }
                     }
                 });

@@ -79,9 +79,12 @@ internal class FileSelectionBottomBarController(
         root.findViewById<View>(R.id.clear_file_selection).setOnClickListener { onClearSelection() }
     }
 
-    fun render(state: FileSelectionUiState) {
+    fun render(
+        state: FileSelectionUiState,
+        title: String? = null,
+    ) {
         if (state.isActive) {
-            count.text = root.context.getString(R.string.files_list_items_selected, state.selectedCount)
+            count.text = title ?: root.context.getString(R.string.files_list_items_selected, state.selectedCount)
             actionButtons.forEach { (action, button) ->
                 button.isVisible = action in state.visibleActions
             }

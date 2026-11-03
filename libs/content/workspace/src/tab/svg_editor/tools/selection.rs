@@ -197,6 +197,7 @@ pub enum SelectionEvent {
     EndTransform,
     Delete,
     Copy,
+    Cut,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BuildPayload {
@@ -511,6 +512,7 @@ impl InputControllerTool for Selection {
                 self.delete_selection(selection_ctx);
             }
             SelectionEvent::Copy => self.copy_selection(ui, selection_ctx),
+            SelectionEvent::Cut => self.cut_selection(ui, selection_ctx),
         }
     }
 
@@ -539,6 +541,9 @@ impl InputControllerTool for Selection {
 }
 impl Selection {
     fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
+        if self.selected_elements.is_empty() {
+            return;
+        }
         let elements = self
             .selected_elements
             .iter()
@@ -806,6 +811,9 @@ impl Selection {
     }
 
     fn copy_selection(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext<'_>) {
+        if self.selected_elements.is_empty() {
+            return;
+        }
         let id_map = &selection_ctx.buffer.id_map;
         let elements: IndexMap<Uuid, Element> = self
             .selected_elements

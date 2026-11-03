@@ -1,6 +1,7 @@
 +++
 title = "Creating a sick CLI"
 date = 2023-10-11
+description = "How Lockbook's CLI combines dynamic tab completion, your favorite text editor, and shell workflows for scripting and exporting encrypted notes."
 [extra]
 author= "parth"
 author_link = "https://github.com/Parth"

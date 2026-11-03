@@ -62,7 +62,7 @@ impl<'ast> MdRender {
             return None;
         }
         let format = self.text_format(node);
-        let loaded = (self.embeds.seq(), self.previews.seq());
+        let loaded = (self.embeds.seq(), self.previews.seq(), self.tab_embeds.seq());
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.buffer[span].hash(&mut hasher);
         // a pipe before the cell and definitions elsewhere change the parse

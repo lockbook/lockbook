@@ -6,6 +6,7 @@ plugins {
 android {
     namespace 'app.lockbook.workspace'
     compileSdk=36
+    ndkVersion rootProject.ext.ndk_version
 
     defaultConfig {
         minSdkVersion 24

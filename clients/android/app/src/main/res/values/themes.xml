@@ -65,17 +65,6 @@
         <item name="cornerSizeBottomRight">20dp</item>
     </style>
 
-    <style name="ButtonGroupMiddleShape">
-        <item name="cornerFamilyTopLeft">rounded</item>
-        <item name="cornerSizeTopLeft">8dp</item>
-        <item name="cornerFamilyTopRight">rounded</item>
-        <item name="cornerSizeTopRight">8dp</item>
-        <item name="cornerFamilyBottomLeft">rounded</item>
-        <item name="cornerSizeBottomLeft">8dp</item>
-        <item name="cornerFamilyBottomRight">rounded</item>
-        <item name="cornerSizeBottomRight">8dp</item>
-    </style>
-
     <style name="FileSelectionBottomSheetShape">
         <item name="cornerFamilyTopLeft">rounded</item>
         <item name="cornerFamilyTopRight">rounded</item>

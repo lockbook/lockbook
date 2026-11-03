@@ -34,6 +34,7 @@ pub fn build_lb() -> Lb {
         client_name: "tests".into(),
         build_info: None,
         client_type: ClientType::Unknown,
+        ..Default::default()
     })
     .unwrap()
 }
@@ -45,6 +46,8 @@ pub struct TestEditor {
     pending: Vec<Event>,
     /// Text the last frame put on the clipboard.
     pub copied: Option<String>,
+    /// Every URL a frame asked the platform to open.
+    pub opened: Vec<String>,
 }
 
 impl TestEditor {
@@ -65,9 +68,32 @@ impl TestEditor {
             editor: build_editor(lb, md, embeds, super::super::test_egui_ctx(), None),
             pending: vec![],
             copied: None,
+            opened: vec![],
         };
         harness.enter_frame();
         harness
+    }
+
+    /// A file with extension `ext` rather than a note.
+    pub fn file(md: &str, ext: &str) -> Self {
+        let ctx = super::super::test_egui_ctx();
+        let (persistence, previews) = store_and_previews(&ctx);
+        let editor = Editor::new(
+            md,
+            Uuid::new_v4(),
+            None,
+            MdResources {
+                ctx,
+                previews,
+                core: build_lb(),
+                persistence,
+                link_resolver: Box::new(TestLinks),
+                embeds: Box::new(()),
+                files: Arc::new(RwLock::new(FileCache::empty())),
+            },
+            MdConfig { readonly: false, ext: ext.into() },
+        );
+        Self::from_editor(editor)
     }
 
     /// Build with a [`TestEmbeds`] embed resolver and return a handle so
@@ -84,6 +110,7 @@ impl TestEditor {
             ),
             pending: vec![],
             copied: None,
+            opened: vec![],
         };
         harness.enter_frame();
         (harness, embeds)
@@ -126,7 +153,7 @@ impl TestEditor {
     /// or other non-default construction can still drive it through the
     /// harness's `enter_frame` API.
     pub fn from_editor(editor: super::super::Editor) -> Self {
-        let mut harness = Self { editor, pending: vec![], copied: None };
+        let mut harness = Self { editor, pending: vec![], copied: None, opened: vec![] };
         harness.enter_frame();
         harness
     }
@@ -182,14 +209,18 @@ impl TestEditor {
             },
         );
         out.textures_delta.clear();
-        self.copied = out
-            .platform_output
-            .commands
-            .into_iter()
-            .find_map(|command| match command {
-                egui::OutputCommand::CopyText(text) => Some(text),
-                _ => None,
-            });
+        self.record(out.platform_output);
+    }
+
+    fn record(&mut self, output: egui::PlatformOutput) {
+        self.copied = None;
+        for command in output.commands {
+            match command {
+                egui::OutputCommand::CopyText(text) => self.copied = Some(text),
+                egui::OutputCommand::OpenUrl(url) => self.opened.push(url.url),
+                _ => {}
+            }
+        }
     }
 
     pub fn get_text(&self) -> &str {
@@ -208,14 +239,27 @@ impl TestEditor {
     pub fn enter_frame_with_input_held(
         &mut self, events: Vec<egui::Event>, modifiers: egui::Modifiers,
     ) {
+        self.enter_frame_with_input_inner(events, modifiers, None);
+    }
+
+    /// Like [`enter_frame_with_input`], `idle` seconds after the last frame
+    /// with none between, as an app that stopped drawing.
+    pub fn enter_frame_with_input_after(&mut self, idle: f64, events: Vec<egui::Event>) {
+        let time = self.editor.edit.renderer.ctx.input(|i| i.time) + idle;
+        self.enter_frame_with_input_inner(events, egui::Modifiers::NONE, Some(time));
+    }
+
+    fn enter_frame_with_input_inner(
+        &mut self, events: Vec<egui::Event>, modifiers: egui::Modifiers, time: Option<f64>,
+    ) {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, SCREEN_SIZE);
         let events = std::iter::once(egui::Event::ModifiersChanged(modifiers))
             .chain(events)
             .collect();
-        ctx.run_pass(
-            RawInput { screen_rect: Some(screen_rect), events, ..Default::default() },
+        let mut out = ctx.run_pass(
+            RawInput { screen_rect: Some(screen_rect), events, time, ..Default::default() },
             |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
                 crate::register_font_system(ctx);
@@ -228,9 +272,9 @@ impl TestEditor {
                     })
                 });
             },
-        )
-        .textures_delta
-        .clear();
+        );
+        out.textures_delta.clear();
+        self.record(out.platform_output);
     }
 
     pub fn has_focus(&self, id: egui::Id) -> bool {

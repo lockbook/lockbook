@@ -507,13 +507,15 @@ pub(crate) fn detect_wikilink(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
         }
     }
 
+    // an unclosed wikilink ends at the cursor; the rest of the line isn't its
+    let mut end = cursor_idx;
     let mut j = cursor_idx;
     while j < len {
-        if grapheme_at(buffer, j) == "\n" {
+        if grapheme_at(buffer, j) == "\n" || grapheme_at(buffer, j) == "[" {
             break;
         }
         if grapheme_at(buffer, j) == "]" && j + 1 < len && grapheme_at(buffer, j + 1) == "]" {
-            j += 2;
+            end = j + 2;
             break;
         }
         if j - cursor_idx > 200 {
@@ -522,7 +524,7 @@ pub(crate) fn detect_wikilink(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
         j += 1;
     }
 
-    Some((Grapheme(bracket_start), Grapheme(j)))
+    Some((Grapheme(bracket_start), Grapheme(end)))
 }
 
 /// Returns the range of a `[text](path)` or `![text](path)` link under the cursor,
@@ -567,9 +569,11 @@ pub(crate) fn detect_link(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool
     let start = if is_image { open_bracket - 1 } else { open_bracket };
 
     // Scan forward from cursor. If `](...)` follows, include it so the whole
-    // link is replaced when the user picks a result.
+    // link is replaced when the user picks a result; an unclosed `[` ends at
+    // the cursor.
+    let mut end = cursor_idx;
     let mut j = cursor_idx;
-    while j < len && grapheme_at(buffer, j) != "\n" {
+    while j < len && grapheme_at(buffer, j) != "\n" && grapheme_at(buffer, j) != "[" {
         if grapheme_at(buffer, j) == "]" {
             j += 1;
             if j < len && grapheme_at(buffer, j) == "(" {
@@ -581,12 +585,13 @@ pub(crate) fn detect_link(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool
                     j += 1;
                 }
             }
+            end = j;
             break;
         }
         j += 1;
     }
 
-    Some(((Grapheme(start), Grapheme(j)), is_image))
+    Some(((Grapheme(start), Grapheme(end)), is_image))
 }
 
 /// Returns the sub-range of `range` covering just the query text, with syntax stripped.

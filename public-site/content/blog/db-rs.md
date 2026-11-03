@@ -1,6 +1,7 @@
 +++
 title = "The story of how Lockbook created its own database for speed and productivity"
 date = 2023-04-19
+description = "Why Lockbook built db-rs: the database design that reduced latency and simplified persistence for its Rust clients and server."
 [extra]
 author= "parth"
 author_link = "https://github.com/Parth"

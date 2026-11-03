@@ -1,6 +1,7 @@
 +++
 title = "Defect Finder"
 date = 2023-08-24
+description = "How Lockbook tests offline file operations and sync with a randomized defect finder that reproduces failures across clients and servers."
 [extra]
 author = "parth"
 author_link = "https://github.com/Parth"

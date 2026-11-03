@@ -2,6 +2,7 @@ mod background;
 mod clip;
 mod element;
 mod history;
+pub(super) mod keyboard_shortcuts;
 mod viewport;
 
 mod renderer;
@@ -40,6 +41,9 @@ use tools::pen::PenSettings;
 use tracing::info;
 
 pub struct SVGEditor {
+    /// Drawn alone inside another surface: no toolbar, and the context's
+    /// events are left for the host.
+    pub embedded: bool,
     pub buffer: Buffer,
     pub opened_content: Buffer,
     pub open_file_hmac: Option<DocumentHmac>,
@@ -183,6 +187,7 @@ impl SVGEditor {
         }
 
         Self {
+            embedded: false,
             buffer,
             opened_content: Buffer::new(content),
             open_file_hmac: hmac,
@@ -203,10 +208,10 @@ impl SVGEditor {
             viewport_settings,
             cfg,
             read_only,
-            input_controller: InputController::new(InputControllerConfig::new(
-                settings.pencil_only_drawing,
-                read_only,
-            )),
+            input_controller: InputController::new(
+                InputControllerConfig::new(settings.pencil_only_drawing, read_only),
+                keyboard_shortcuts::BINDINGS,
+            ),
         }
     }
 
@@ -221,7 +226,7 @@ impl SVGEditor {
         self.buffer
             .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
 
-        let request_diff_change = self.show_toolbar(ui);
+        let request_diff_change = !self.embedded && self.show_toolbar(ui);
 
         if !request_diff_change {
             for (_, el) in &mut self.buffer.elements {
@@ -233,13 +238,19 @@ impl SVGEditor {
             }
         }
         self.input_controller.sync_canvas_settings(&self.settings);
+        // an embed's host scrolls by the wheel
+        self.input_controller.pan_on_wheel = !self.embedded;
 
         self.process_events(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
 
         self.paint_background_colors(ui);
-        ui.set_clip_rect(self.viewport_settings.working_rect);
+        ui.set_clip_rect(
+            self.viewport_settings
+                .working_rect
+                .intersect(ui.clip_rect()),
+        );
 
         self.show_background_overlay();
         let global_diff = self.show_canvas(ui);
@@ -251,7 +262,7 @@ impl SVGEditor {
             self.settings,
             &self.buffer,
             &global_diff,
-            self.toolbar.hide_overlay,
+            self.toolbar.hide_overlay || self.embedded,
         );
 
         if non_empty_weak_imaegs {
@@ -270,13 +281,18 @@ impl SVGEditor {
             };
 
         self.buffer.master_transform_changed = false;
-        ui.ctx().pop_events();
+        if !self.embedded {
+            ui.ctx().pop_events();
+        }
 
         Response { request_save: !self.read_only && needs_save_and_frame_is_cheap }
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) -> bool {
+        let controls_rect =
+            crate::safe_area::inset_rect(ui.ctx(), self.viewport_settings.container_rect);
         let mut toolbar_context = ToolbarContext {
+            controls_rect,
             buffer: &mut self.buffer,
             history: &mut self.history,
             settings: &mut self.settings,
@@ -295,7 +311,7 @@ impl SVGEditor {
             |ui| {
                 let mut ui = ui.new_child(
                     UiBuilder::new()
-                        .max_rect(ui.available_rect_before_wrap())
+                        .max_rect(controls_rect)
                         .layout(egui::Layout::default()),
                 );
                 self.toolbar.show(&mut ui, &mut toolbar_context)
@@ -309,17 +325,7 @@ impl SVGEditor {
             return;
         }
 
-        if !self.read_only {
-            if ui.input_mut(|r| {
-                r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
-            }) {
-                self.history.redo(&mut self.buffer);
-            }
-
-            if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-                self.history.undo(&mut self.buffer);
-            }
-
+        if self.input_controller.keyboard_enabled(ui) {
             self.handle_clip_input(ui);
         }
 
@@ -354,13 +360,22 @@ impl SVGEditor {
             self.toolbar.get_rects(),
         );
 
-        let active_tool = self.toolbar.active_tool;
-        let tool = self.toolbar.active_tool_mut(); // returns &mut dyn Tool
-
-        tool.show_tool_ui(ui, &mut tool_context);
-
+        self.toolbar
+            .active_tool_mut()
+            .show_tool_ui(ui, &mut tool_context);
         let mut selection_seen_tool_run = false;
         for event in self.input_controller.process(ui, &layout_ctx) {
+            if let InputControllerEvent::KeyboardAction(action) = event {
+                execute_keyboard_action(
+                    ui,
+                    action,
+                    &mut self.toolbar,
+                    &mut tool_context,
+                    &mut self.cfg,
+                );
+                continue;
+            }
+            let active_tool = self.toolbar.active_tool;
             if selection_seen_tool_run && matches!(event, InputControllerEvent::ToolRun(..)) {
                 continue;
             }
@@ -374,7 +389,11 @@ impl SVGEditor {
                     tool_context.history.redo(tool_context.buffer)
                 }
             } else {
-                tool.process_controller_event(ui, event, &mut tool_context);
+                self.toolbar.active_tool_mut().process_controller_event(
+                    ui,
+                    event,
+                    &mut tool_context,
+                );
             }
 
             if active_tool == Tool::Selection && matches!(event, InputControllerEvent::ToolRun(..))
@@ -383,8 +402,11 @@ impl SVGEditor {
             }
         }
 
-        self.input_controller
-            .show_hover_indicator(ui, &mut tool_context, tool);
+        self.input_controller.show_hover_indicator(
+            ui,
+            &mut tool_context,
+            self.toolbar.active_tool_mut(),
+        );
 
         self.toolbar.input_controller_interrupt = self.input_controller.should_hide_overlay();
     }
@@ -428,6 +450,37 @@ impl SVGEditor {
                 egui::Color32::RED,
                 format!("{} anchor | {} fps", anchor_count, 1000 / frame_cost.as_millis()),
             );
+        }
+    }
+}
+
+fn execute_keyboard_action(
+    ui: &mut egui::Ui, action: keyboard_shortcuts::CanvasAction, toolbar: &mut Toolbar,
+    ctx: &mut ToolContext, cfg: &mut WsPersistentStore,
+) {
+    use keyboard_shortcuts::CanvasAction as A;
+    use tools::{InputControllerTool, selection::SelectionEvent};
+    match action {
+        A::Undo => ctx.history.undo(ctx.buffer),
+        A::Redo => ctx.history.redo(ctx.buffer),
+        A::SetTool(tool) => toolbar.set_tool(tool, ctx.settings, cfg),
+        A::ToggleToolPopover => toolbar.toggle_at_cursor_tool_popover(),
+        A::DeleteSelection => toolbar
+            .selection
+            .handle_tool_event(ui, SelectionEvent::Delete, ctx),
+        A::CopySelection => toolbar
+            .selection
+            .handle_tool_event(ui, SelectionEvent::Copy, ctx),
+        A::CutSelection => toolbar
+            .selection
+            .handle_tool_event(ui, SelectionEvent::Cut, ctx),
+        A::SelectAll => {
+            if toolbar.active_tool != Tool::Selection {
+                toolbar.set_tool(Tool::Selection, ctx.settings, cfg);
+            }
+            toolbar
+                .selection
+                .handle_tool_event(ui, SelectionEvent::SelectAll, ctx);
         }
     }
 }

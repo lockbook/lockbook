@@ -86,7 +86,9 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
+                        android:fadingEdgeLength="32dp"
                         android:fillViewport="true"
+                        android:requiresFadingEdge="horizontal"
                         android:scrollbars="none">
 
                         <LinearLayout

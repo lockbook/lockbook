@@ -13,10 +13,10 @@
 //!
 //! Title stays full `fg`. Status + icon use [`PersonTone`].
 
-use egui::{
-    Color32, Response, Ui, pos2, text::LayoutJob, text::TextFormat, text::TextWrapping, vec2,
-};
+use egui::{Color32, Ui, pos2, text::LayoutJob, text::TextFormat, text::TextWrapping, vec2};
 
+use crate::components::atoms::icon_button_hit;
+use crate::components::compounds::tip_text;
 use crate::components::foundation::chrome::{
     Radius, control_height, phosphor, phosphor_ui_font_id, row_wash_inset,
 };
@@ -55,6 +55,11 @@ pub struct PersonRow<'a> {
     status: Option<String>,
     icon: Option<&'static str>,
     tone: PersonTone,
+    trailing: Option<(&'static str, String)>,
+}
+
+pub struct PersonRowOut {
+    pub trailing_clicked: bool,
 }
 
 /// Measured pitch for a person row — **same stack as [`PersonRow::show`]**.
@@ -89,6 +94,7 @@ impl<'a> PersonRow<'a> {
             status: None,
             icon: Some(phosphor::USER),
             tone: PersonTone::Neutral,
+            trailing: None,
         }
     }
 
@@ -107,7 +113,12 @@ impl<'a> PersonRow<'a> {
         self
     }
 
-    pub fn show(self, ui: &mut Ui) -> Response {
+    pub fn trailing(mut self, glyph: &'static str, tip: impl Into<String>) -> Self {
+        self.trailing = Some((glyph, tip.into()));
+        self
+    }
+
+    pub fn show(self, ui: &mut Ui) -> PersonRowOut {
         let t = self.tokens;
         let pad_x = control_space::PAD_X;
         let pad_y = control_space::PAD_Y;
@@ -135,11 +146,19 @@ impl<'a> PersonRow<'a> {
         let height = (pad_y.pts() * 2.0 + stack_h).max(control_height());
         let width = crate::components::ui_width(ui).max(1.0);
 
+        let side = Space::Xs.pts();
+        let hit = (TypeRole::Body.size() + side * 2.0)
+            .min(control_height())
+            .min((height - side * 2.0).max(1.0))
+            .max(1.0);
+        let trail = if self.trailing.is_some() { hit + side * 2.0 } else { 0.0 };
+
         // sense_click (no FOCUSABLE) — must not steal sticky text-edit focus
         // when used under Share / other sheets (sticky text focus).
         let (rect, response) = ui.allocate_at_least(vec2(width, height), sense_click());
-        let pointer_over = ui.ctx().rect_contains_pointer(ui.layer_id(), rect);
-        let over = pointer_over;
+        let mut row_hit = rect;
+        row_hit.max.x = (rect.right() - trail).max(rect.left());
+        let over = ui.ctx().rect_contains_pointer(ui.layer_id(), row_hit);
 
         let fills = quiet_canvas_fills(t);
         let fill = interact_fill(
@@ -195,7 +214,7 @@ impl<'a> PersonRow<'a> {
             x += icon_block;
         }
 
-        let text_w = (mid.right() - x).max(1.0);
+        let text_w = (mid.right().min(rect.right() - trail) - x).max(1.0);
         let title_trunc = layout_truncate(ui, &self.title, text_w, &title_font);
         let mut y = stack_top;
         ui.painter()
@@ -208,7 +227,23 @@ impl<'a> PersonRow<'a> {
             ui.painter().galley(pos2(x, y), status_trunc, tone_ink);
         }
 
-        response
+        let mut trailing_clicked = false;
+        if let Some((glyph, tip)) = self.trailing {
+            let btn_rect = egui::Rect::from_min_size(
+                pos2(rect.right() - side - hit, rect.center().y - hit / 2.0),
+                vec2(hit, hit),
+            );
+            let mut btn_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(btn_rect)
+                    .layout(egui::Layout::centered_and_justified(egui::Direction::TopDown)),
+            );
+            let r = icon_button_hit(&mut btn_ui, t, glyph, false, fills.rest, hit);
+            tip_text(ui.ctx(), &r, tip);
+            trailing_clicked = r.clicked();
+        }
+
+        PersonRowOut { trailing_clicked }
     }
 }
 
