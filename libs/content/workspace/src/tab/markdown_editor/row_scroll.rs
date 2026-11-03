@@ -211,6 +211,12 @@ impl MdEdit {
         // a touch the platform cancels ends with no release: the pointer is
         // gone and the body is dragged still, through the next press
         let (pressed, gone) = ui.input(|i| (i.pointer.any_pressed(), !i.pointer.has_pointer()));
+        // a lift also takes the pointer away, so only a cancel says the platform claimed it
+        let cancelled = ui.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::Touch { phase: egui::TouchPhase::Cancel, .. }))
+        });
         if body.drag_started() || (pressed && body.dragged()) {
             let scroller = origin.and_then(|origin| self.renderer.row_scroller_at(origin));
             self.row_pan = scroller.map(|scroller| (scroller, None));
@@ -221,7 +227,7 @@ impl MdEdit {
             // a finger lifted mid-motion leaves the block coasting
             if let Some((key, Some(true))) = self.row_pan.take() {
                 if let Some(scroll) = self.renderer.row_scrolls.get_mut(&key) {
-                    scroll.velocity = if gone { 0.0 } else { scroll.tracked };
+                    scroll.velocity = if cancelled { 0.0 } else { scroll.tracked };
                 }
             }
             self.row_pan = None;
