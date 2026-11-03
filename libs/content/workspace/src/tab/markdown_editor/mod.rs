@@ -1013,7 +1013,10 @@ impl Editor {
 
         let dark_mode = ctx.global_style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
-        let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
+        let mut layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
+        if !touch_mode {
+            layout.max_width = persistence.get_column_width();
+        }
 
         let client: HttpClient = Default::default();
         let ws_seq = crate::seq::ws_seq(&ctx);
@@ -1406,6 +1409,10 @@ impl Editor {
             resp.scroll_updated = true;
         }
 
+        // Desktop follows the text width setting; touch keeps its own cap.
+        if !self.edit.renderer.touch_mode {
+            self.edit.renderer.layout.max_width = self.persistence.get_column_width();
+        }
         let height = ui.available_size().y.round();
         let width = ui
             .max_rect()
