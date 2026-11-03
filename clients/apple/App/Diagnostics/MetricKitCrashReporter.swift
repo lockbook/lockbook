@@ -36,11 +36,18 @@ final class MetricKitCrashReporter {
 
     @available(iOS 27.0, macOS 27.0, *)
     private static func save(_ report: DiagnosticReport, directory: () -> URL) throws {
-        guard case .crash = report.result else { return }
+        guard case let .crash(crash) = report.result else { return }
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let json = try encoder.encode(report)
+        let info = summary(crash, report: report)
+
+        if AppState.lb.lbUnsafeRawPtr != nil,
+           case .success = AppState.lb.writePanicToFile(info: info, backtrace: String(decoding: json, as: UTF8.self))
+        {
+            return
+        }
 
         // Use receipt time so the existing panic-file uploader notices delayed
         // reports. The JSON retains Apple's diagnostic timing and crashed build.
@@ -59,8 +66,25 @@ final class MetricKitCrashReporter {
         let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         defer { try? handle.close() }
 
-        let environment = report.environment
-        let header = "INFO: MetricKit crash in \(environment.bundleIdentifier) (version \(environment.applicationVersion))\nBT: "
+        let header = "INFO: \(info)\nBT: "
         try handle.write(contentsOf: Data(header.utf8) + json + Data("\n".utf8))
+    }
+
+    @available(iOS 27.0, macOS 27.0, *)
+    private static func summary(_ crash: CrashDiagnostic, report: DiagnosticReport) -> String {
+        let reason = crash.exceptionReason?.composedMessage
+            ?? crash.terminationReason?.description
+            ?? crash.signal.map { "signal \($0)" }
+            ?? crash.exceptionType.map { "exception type \($0)" }
+            ?? "unknown crash"
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss zzz"
+        let start = formatter.string(from: report.timeRange.start)
+        let end = formatter.string(from: report.timeRange.end)
+
+        let environment = report.environment
+        return "MetricKit: \(reason) in \(environment.bundleIdentifier) \(environment.applicationVersion) (\(environment.applicationBuildVersion)), crashed between \(start) and \(end)"
     }
 }
