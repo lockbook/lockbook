@@ -5,8 +5,8 @@
 //! freed) after one grace frame. Matches the lifecycle pattern used by
 //! [`GlyphonCache`](super::glyphon_cache::GlyphonCache).
 //!
-//! The cache loads lockbook files and http(s) URLs, keeps Lockbook drawings
-//! on the canvas mesh pipeline, rasterizes generic SVG via resvg, and
+//! The cache loads lockbook files and http(s) URLs, rasterizes Lockbook drawings
+//! with the canvas renderer and generic SVG via resvg, and
 //! corrects EXIF orientation. Decoded images are uploaded as
 //! egui textures. Animated gifs, WebPs and PNGs play: a [`Player`] swaps
 //! each frame into the image's one texture as the frame clock reaches it.
@@ -36,6 +36,7 @@ use resvg::usvg::{self, Transform};
 
 use crate::file_cache::FileCache;
 use crate::seq::ws_seq;
+use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::HttpClient;
 use crate::tab::svg_editor::drawing::Drawing;
 use crate::workspace::WsPersistentStore;
@@ -45,38 +46,24 @@ use crate::workspace::WsPersistentStore;
 /// synchronously on native (where `spawn!` backs onto a worker thread).
 #[cfg(target_arch = "wasm32")]
 macro_rules! async_on_wasm {
-    ($block:block) => {
-        (async || -> Result<Decoded, String> { $block })
+    ($result:ty, $block:block) => {
+        (async || -> Result<$result, String> { $block })
     };
 }
 #[cfg(not(target_arch = "wasm32"))]
 macro_rules! async_on_wasm {
-    ($block:block) => {
-        (|| -> Result<Decoded, String> { $block })
+    ($result:ty, $block:block) => {
+        (|| -> Result<$result, String> { $block })
     };
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum ImageState {
     #[default]
     Loading,
     Loaded(TextureId),
-    Drawing(Arc<Drawing>),
     Failed(String),
 }
-
-impl PartialEq for ImageState {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Loading, Self::Loading) => true,
-            (Self::Loaded(a), Self::Loaded(b)) => a == b,
-            (Self::Drawing(a), Self::Drawing(b)) => Arc::ptr_eq(a, b),
-            (Self::Failed(a), Self::Failed(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-impl Eq for ImageState {}
 
 /// The image an embed shows: the file it names, however the note names it,
 /// or the URL it fetches.
@@ -105,6 +92,14 @@ struct Inner {
     shown_anyway: HashSet<(Uuid, ImageKey)>,
     /// Animations that are loaded and still playing; evicted with their texture.
     players: HashMap<ImageKey, Player>,
+    /// Only dependency IDs and rasterization settings survive drawing loads.
+    drawings: HashMap<ImageKey, DrawingTexture>,
+}
+
+struct DrawingTexture {
+    references: Vec<Uuid>,
+    dark_mode: bool,
+    pixels_per_point: f32,
 }
 
 #[derive(Clone)]
@@ -152,6 +147,7 @@ impl ImageCache {
     pub fn begin_frame(&self) {
         #[cfg(not(target_family = "wasm"))]
         self.reload_written();
+        self.reload_drawings();
         let now = self.ctx.input(|i| i.time);
         let mut inner = self.inner.lock().unwrap();
         if !inner.began_this_frame {
@@ -212,12 +208,13 @@ impl ImageCache {
             let (keep_loading, free_id) = match state.lock().unwrap().deref() {
                 ImageState::Loading => (true, None),
                 ImageState::Loaded(id) => (false, Some(*id)),
-                ImageState::Drawing(_) | ImageState::Failed(_) => (false, None),
+                ImageState::Failed(_) => (false, None),
             };
             if keep_loading {
                 keep.push((key, state));
             } else if let Some(id) = free_id {
                 inner.players.remove(&key);
+                inner.drawings.remove(&key);
                 texture_manager.write().free(id);
             }
         }
@@ -253,12 +250,6 @@ impl ImageCache {
 
     /// Real texture dimensions for `key`, if known.
     pub fn dims(&self, key: &ImageKey) -> Option<Vec2> {
-        let inner = self.inner.lock().unwrap();
-        if let Some(state) = inner.current.get(key).or_else(|| inner.previous.get(key)) {
-            if let ImageState::Drawing(drawing) = &*state.lock().unwrap() {
-                return Some(drawing.bounds.size() * self.ctx.pixels_per_point());
-            }
-        }
         self.persistence
             .image_dims(&key.persisted())
             .map(|[w, h]| Vec2::new(w, h))
@@ -301,26 +292,14 @@ impl ImageCache {
         self.ctx.pixels_per_point()
     }
 
-    /// The file's pixels, an animation's first frame, and its bytes.
-    pub fn copied_image(&self, id: Uuid) -> Result<(ColorImage, Vec<u8>), String> {
-        let bytes = self
-            .core
-            .read_document(id, false)
-            .map_err(|e| e.to_string())?;
-        let image = decode_with_orientation(&bytes)?;
-        let size = [image.width() as usize, image.height() as usize];
-        Ok((ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()), bytes))
-    }
-
     /// Put `key`'s image on the clipboard once it's read and decoded, off
     /// the UI thread.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn copy_image(&self, key: &ImageKey) {
         let key = key.clone();
         let (ctx, client, core) = (self.ctx.clone(), self.client.clone(), self.core.clone());
         let dark_mode = ctx.style_of(ctx.theme()).visuals.dark_mode;
         spawn!({
-            let read = || -> Result<ColorImage, String> {
+            let read = async_on_wasm!((ColorImage, Vec<u8>), {
                 let (bytes, is_svg) = match &key {
                     ImageKey::File(id) => {
                         let bytes = core.read_document(*id, false).map_err(|e| e.to_string())?;
@@ -328,25 +307,37 @@ impl ImageCache {
                         (bytes, file.name.ends_with(".svg"))
                     }
                     ImageKey::Web(url) => {
+                        #[cfg(target_arch = "wasm32")]
+                        let bytes = download_image(&client, url)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        #[cfg(not(target_arch = "wasm32"))]
                         let bytes = download_image(&client, url)?;
                         let is_svg = url.ends_with(".svg") || bytes_look_like_svg(&bytes);
                         (bytes, is_svg)
                     }
                 };
                 if is_svg && matches!(key, ImageKey::File(_)) && Drawing::is_drawing(&bytes) {
-                    return Drawing::load(&bytes, &core)?.image(dark_mode);
+                    return Ok((Drawing::load(&bytes, &core)?.image(dark_mode)?, bytes));
                 }
-                let bytes = if is_svg {
-                    rasterize_svg(&bytes, matches!(key, ImageKey::File(_)), 2048.0, 1.0)?
+                let rasterized = if is_svg {
+                    Some(rasterize_svg(&bytes, matches!(key, ImageKey::File(_)), 2048.0, 1.0)?)
                 } else {
-                    bytes
+                    None
                 };
-                let image = decode_with_orientation(&bytes)?;
+                let image = decode_with_orientation(rasterized.as_deref().unwrap_or(&bytes))?;
                 let size = [image.width() as usize, image.height() as usize];
-                Ok(ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()))
-            };
-            match read() {
-                Ok(image) => {
+                Ok((ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()), bytes))
+            });
+            #[cfg(target_arch = "wasm32")]
+            let result = read().await;
+            #[cfg(not(target_arch = "wasm32"))]
+            let result = read();
+            match result {
+                Ok((image, bytes)) => {
+                    if image::guess_format(&bytes).is_ok_and(|f| f == ImageFormat::Gif) {
+                        ctx.set_copied_gif(bytes);
+                    }
                     ctx.copy_image(image);
                     ctx.request_repaint();
                 }
@@ -354,9 +345,6 @@ impl ImageCache {
             }
         });
     }
-
-    #[cfg(target_arch = "wasm32")]
-    pub fn copy_image(&self, _key: &ImageKey) {}
 
     /// Whether `key`'s texture is decoded and ready to paint this session — the
     /// real `Loaded` state, not just persisted dims (which outlive the texture).
@@ -366,7 +354,7 @@ impl ImageCache {
             .current
             .get(key)
             .or_else(|| inner.previous.get(key))
-            .map(|s| matches!(&*s.lock().unwrap(), ImageState::Loaded(_) | ImageState::Drawing(_)))
+            .map(|s| matches!(&*s.lock().unwrap(), ImageState::Loaded(_)))
             .unwrap_or(false)
     }
 
@@ -417,7 +405,7 @@ impl ImageCache {
         spawn!({
             let span = tracing::trace_span!("ImageCache::load").entered();
 
-            let decode_closure = async_on_wasm!({
+            let decode_closure = async_on_wasm!(Decoded, {
                 let (image_bytes, is_svg) = match &key {
                     ImageKey::File(id) => {
                         let bytes = core
@@ -485,12 +473,12 @@ impl ImageCache {
     pub fn invalidate(&self, id: Uuid) {
         let mut inner = self.inner.lock().unwrap();
         let mut removed = Vec::new();
-        let Inner { current, previous, .. } = &mut *inner;
+        let Inner { current, previous, drawings, .. } = &mut *inner;
         for map in [current, previous] {
             map.retain(|key, state| {
                 let state = state.lock().unwrap();
                 let affected = *key == ImageKey::File(id)
-                    || matches!(&*state, ImageState::Drawing(drawing) if drawing.references(id))
+                    || drawings.get(key).is_some_and(|drawing| drawing.references.contains(&id))
                     // Dependencies are not known until a load completes.
                     || matches!((key, &*state), (ImageKey::File(_), ImageState::Loading));
                 if affected {
@@ -510,6 +498,7 @@ impl ImageCache {
         }
         for (key, texture) in removed {
             inner.players.remove(&key);
+            inner.drawings.remove(&key);
             if let Some(texture) = texture {
                 self.ctx.tex_manager().write().free(texture);
             }
@@ -517,6 +506,28 @@ impl ImageCache {
         self.seq
             .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
         self.ctx.request_repaint();
+    }
+
+    /// Flattened drawings must be rebuilt when their colors or pixel density change.
+    fn reload_drawings(&self) {
+        let dark_mode = self.ctx.style_of(self.ctx.theme()).visuals.dark_mode;
+        let pixels_per_point = self.ctx.pixels_per_point();
+        let ids: Vec<_> = self
+            .inner
+            .lock()
+            .unwrap()
+            .drawings
+            .iter()
+            .filter_map(|(key, drawing)| {
+                if drawing.dark_mode == dark_mode && drawing.pixels_per_point == pixels_per_point {
+                    return None;
+                }
+                if let ImageKey::File(id) = key { Some(*id) } else { None }
+            })
+            .collect();
+        for id in ids {
+            self.invalidate(id);
+        }
     }
 
     #[cfg(not(target_family = "wasm"))]
@@ -593,6 +604,25 @@ impl Loader {
     fn install(
         &self, key: &ImageKey, state: &Mutex<ImageState>, result: Result<Decoded, String>,
     ) -> Option<Playback> {
+        // Rasterize on the loading worker, before taking the cache lock. Drop
+        // the parsed buffer and mesh caches as soon as pixels are available.
+        let result = result.and_then(|decoded| match decoded {
+            Decoded::Drawing(drawing) => {
+                let dark_mode = self.ctx.style_of(self.ctx.theme()).visuals.dark_mode;
+                let pixels_per_point = self.ctx.pixels_per_point();
+                let max_side =
+                    (self.ctx.content_rect().width() * pixels_per_point).clamp(1.0, 2048.0);
+                let image = drawing.rasterize(dark_mode, max_side)?;
+                let metadata = DrawingTexture {
+                    references: drawing.references().to_vec(),
+                    dark_mode,
+                    pixels_per_point,
+                };
+                Ok((Arc::new(image), None, Some(metadata)))
+            }
+            Decoded::Still(image) => Ok((image, None, None)),
+            Decoded::Animated(first, rest) => Ok((first.image, Some((first.delay, rest)), None)),
+        });
         let mut inner = self.inner.lock().unwrap();
         if !inner
             .current
@@ -603,17 +633,10 @@ impl Loader {
             return None;
         }
         let mut playback = None;
-        let shown = result.map(|decoded| {
-            let (image, rest) = match decoded {
-                Decoded::Drawing(drawing) => {
-                    let size = drawing.bounds.size() * self.ctx.pixels_per_point();
-                    self.persistence
-                        .merge_image_dims(HashMap::from([(key.persisted(), [size.x, size.y])]));
-                    return ImageState::Drawing(drawing);
-                }
-                Decoded::Still(image) => (image, None),
-                Decoded::Animated(first, rest) => (first.image, Some((first.delay, rest))),
-            };
+        let shown = result.map(|(image, rest, drawing_texture)| {
+            if let Some(drawing) = drawing_texture {
+                inner.drawings.insert(key.clone(), drawing);
+            }
             let [w, h] = image.size;
             self.persistence
                 .merge_image_dims(HashMap::from([(key.persisted(), [w as f32, h as f32])]));
@@ -642,9 +665,9 @@ impl Loader {
     }
 }
 
-/// A decoded image: a still, or an animation's first frame and the rest.
+/// A decoded source, ready for rasterization or texture upload.
 enum Decoded {
-    Drawing(Arc<Drawing>),
+    Drawing(Drawing),
     Still(Arc<ColorImage>),
     Animated(Frame, Rest),
 }
@@ -654,7 +677,7 @@ fn decode_source(
     pixels_per_point: f32,
 ) -> Result<Decoded, String> {
     if is_svg && is_file && Drawing::is_drawing(&bytes) {
-        return Ok(Decoded::Drawing(Arc::new(Drawing::load(&bytes, core)?)));
+        return Ok(Decoded::Drawing(Drawing::load(&bytes, core)?));
     }
     let bytes = if is_svg {
         rasterize_svg(&bytes, is_file, viewport_width, pixels_per_point)?
@@ -970,14 +993,18 @@ mod tests {
             super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 1.0).unwrap();
         images.loader().install(&key, &state, Ok(result));
         assert!(images.is_loaded(&key));
-        assert_eq!(images.dims(&key).unwrap(), egui::vec2(108.0, 8.0));
-        images.ctx.set_pixels_per_point(2.0);
-        let mut frame = images.ctx.run_pass(Default::default(), |_| {});
-        frame.textures_delta.clear();
-        assert_eq!(images.dims(&key).unwrap(), egui::vec2(216.0, 16.0));
+        let texture = match *state.lock().unwrap() {
+            ImageState::Loaded(texture) => texture,
+            ref state => panic!("expected a flattened drawing, got {state:?}"),
+        };
+        let size = images.texture_size(texture).unwrap();
+        assert!(size[0] <= 2048 && size[1] <= 2048);
+        assert_eq!(images.dims(&key).unwrap(), egui::vec2(size[0] as f32, size[1] as f32));
         let ImageKey::File(id) = key else { unreachable!() };
         let seq = images.seq();
         images.invalidate(id);
+        assert!(images.texture_size(texture).is_none());
+        assert!(!images.inner.lock().unwrap().drawings.contains_key(&key));
         assert!(!images.is_loaded(&key));
         assert!(images.seq() > seq);
 
@@ -996,6 +1023,60 @@ mod tests {
             .loader()
             .install(&key, &replacement, Err("unreadable image".into()));
         assert_eq!(*replacement.lock().unwrap(), ImageState::Failed("unreadable image".into()));
+    }
+
+    #[test]
+    fn drawing_textures_reload_for_dependencies_and_density_and_evict_metadata() {
+        let images = drawing_cache();
+        let key = ImageKey::File(Uuid::new_v4());
+        let dependency = Uuid::new_v4();
+        let install = || {
+            let state = Arc::new(std::sync::Mutex::new(super::ImageState::Loading));
+            images
+                .inner
+                .lock()
+                .unwrap()
+                .current
+                .insert(key.clone(), state.clone());
+            let decoded =
+                super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 1.0)
+                    .unwrap();
+            images.loader().install(&key, &state, Ok(decoded));
+            let texture = match *state.lock().unwrap() {
+                super::ImageState::Loaded(texture) => texture,
+                ref state => panic!("expected a texture, got {state:?}"),
+            };
+            texture
+        };
+        let texture = install();
+        images
+            .inner
+            .lock()
+            .unwrap()
+            .drawings
+            .get_mut(&key)
+            .unwrap()
+            .references
+            .push(dependency);
+        images.invalidate(dependency);
+        assert!(!images.is_loaded(&key));
+        assert!(images.texture_size(texture).is_none());
+
+        let texture = install();
+        images.ctx.set_pixels_per_point(2.0);
+        let mut output = images
+            .ctx
+            .run_pass(Default::default(), |_| images.begin_frame());
+        output.textures_delta.clear();
+        assert!(!images.is_loaded(&key));
+        assert!(images.texture_size(texture).is_none());
+        images.end_frame();
+
+        let texture = install();
+        images.begin_frame();
+        images.end_frame();
+        assert!(images.texture_size(texture).is_none());
+        assert!(images.inner.lock().unwrap().drawings.is_empty());
     }
 
     #[test]
@@ -1028,15 +1109,6 @@ mod tests {
         );
         let key = ImageKey::File(drawing);
         let state = Arc::new(std::sync::Mutex::new(super::ImageState::Loading));
-        images
-            .inner
-            .lock()
-            .unwrap()
-            .current
-            .insert(key.clone(), state.clone());
-        let result =
-            super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 1.0).unwrap();
-        images.loader().install(&key, &state, Ok(result));
         let mut editor = Editor::new(
             "![drawing](drawing.svg)\n\n![[drawing.svg]]\n\nend\n",
             note,
@@ -1063,7 +1135,7 @@ mod tests {
             images
                 .ctx
                 .set_lb_theme(Theme::default(if dark { Mode::Dark } else { Mode::Light }));
-            for _ in 0..2 {
+            for frame in 0..2 {
                 let mut output = images.ctx.run_pass(
                     egui::RawInput {
                         screen_rect: Some(egui::Rect::from_min_size(
@@ -1074,6 +1146,26 @@ mod tests {
                     },
                     |ctx| {
                         images.begin_frame();
+                        if !images.is_loaded(&key) {
+                            // Install synchronously to exercise both embed syntaxes without
+                            // depending on worker timing or a document in the core database.
+                            images
+                                .inner
+                                .lock()
+                                .unwrap()
+                                .current
+                                .insert(key.clone(), state.clone());
+                            let decoded = super::decode_source(
+                                drawing_bytes(),
+                                true,
+                                true,
+                                &images.core,
+                                800.0,
+                                1.0,
+                            )
+                            .unwrap();
+                            images.loader().install(&key, &state, Ok(decoded));
+                        }
                         editor.surrender_focus(ctx);
                         ctx.root_ui(|ui| {
                             editor.show(ui);
@@ -1081,17 +1173,33 @@ mod tests {
                         images.end_frame();
                     },
                 );
-                let ink = if dark { Color32::WHITE } else { Color32::BLACK };
-                let meshes = output
-                    .shapes
+                let texture = match *state.lock().unwrap() {
+                    super::ImageState::Loaded(texture) => texture,
+                    ref state => panic!("expected a texture, got {state:?}"),
+                };
+                assert_eq!(images.inner.lock().unwrap().drawings[&key].dark_mode, dark);
+                if frame == 0 {
+                    assert!(
+                        output.textures_delta.set.contains_key(&texture),
+                        "theme changes must upload fresh pixels"
+                    );
+                }
+                // Ink lives in texture pixels now; the editor paints white-tinted rectangles.
+                for (_, deltas) in output
+                    .textures_delta
+                    .set
                     .iter()
-                    .filter(|s| {
-                        matches!(&s.shape, egui::Shape::Mesh(mesh)
-                    if mesh.vertices.first().is_some_and(|v| v.color == ink))
-                    })
-                    .count();
+                    .filter(|(id, _)| **id == texture)
+                {
+                    let egui::ImageData::Color(image) = &deltas[0].image;
+                    let ink = if dark { Color32::WHITE } else { Color32::BLACK };
+                    assert!(image.pixels.iter().any(|pixel| *pixel == ink));
+                }
+                let embeds = output.shapes.iter().filter(|shape| {
+                    matches!(&shape.shape, egui::Shape::Rect(rect) if rect.fill_texture_id() == texture)
+                }).count();
                 output.textures_delta.clear();
-                assert_eq!(meshes, 2, "both syntaxes must render current theme, dark={dark}");
+                assert_eq!(embeds, 2, "both syntaxes must paint the drawing texture, dark={dark}");
             }
         }
     }

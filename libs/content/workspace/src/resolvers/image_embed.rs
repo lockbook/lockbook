@@ -144,7 +144,6 @@ impl EmbedResolver for ImageEmbedResolver {
                         Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
                     ));
             }
-            ImageState::Drawing(drawing) => drawing.show(ui, rect),
             ImageState::Failed(message) => {
                 show_placeholder(ui, rect, phosphor::IMAGE_BROKEN, &message, None);
             }

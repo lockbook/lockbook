@@ -1,11 +1,6 @@
-//! Read-only drawing previews using the canvas renderer. Meshes stay in
-//! drawing coordinates; placement never changes the buffer or its cache.
+//! Rasterize Lockbook drawings with the canvas renderer.
 
-use std::sync::Mutex;
-
-#[cfg(not(target_arch = "wasm32"))]
-use egui::ColorImage;
-use egui::{Rect, Vec2};
+use egui::{ColorImage, Rect, Vec2};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::svg::buffer::Buffer;
@@ -18,20 +13,7 @@ use super::renderer::{RenderOptions, Renderer};
 pub struct Drawing {
     pub bounds: Rect,
     references: Vec<Uuid>,
-    render: Mutex<DrawingRender>,
-}
-
-struct DrawingRender {
     buffer: Buffer,
-    renderer: Renderer,
-}
-
-impl std::fmt::Debug for Drawing {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Drawing")
-            .field("bounds", &self.bounds)
-            .finish_non_exhaustive()
-    }
 }
 
 impl Drawing {
@@ -126,55 +108,51 @@ impl Drawing {
         if bounds.width() < 1.0 || bounds.height() < 1.0 {
             bounds = Rect::from_center_size(bounds.center(), bounds.size().max(Vec2::splat(1.0)));
         }
-        let renderer = Renderer::new(buffer.elements.len());
-        Self { bounds, references, render: Mutex::new(DrawingRender { buffer, renderer }) }
+        Self { bounds, references, buffer }
     }
 
-    pub fn references(&self, id: Uuid) -> bool {
-        self.references.contains(&id)
+    pub fn references(&self) -> &[Uuid] {
+        &self.references
     }
 
-    /// Paint only: the host owns layout, events, and clipping.
-    pub fn show(&self, ui: &mut egui::Ui, rect: Rect) {
-        if !rect.is_positive() || !ui.is_rect_visible(rect) {
-            return;
-        }
-        let scale = (rect.width() / self.bounds.width()).min(rect.height() / self.bounds.height());
-        let transform = egui::emath::TSTransform {
-            scaling: scale,
-            translation: rect.center().to_vec2() - self.bounds.center().to_vec2() * scale,
-        };
-        let mut painter = ui.painter().with_clip_rect(rect);
-        let mut render = self.render.lock().unwrap();
-        let DrawingRender { buffer, renderer } = &mut *render;
-        renderer.render_svg(
-            ui,
-            buffer,
-            &mut painter,
-            RenderOptions { paint_transform: Some(transform), ..Default::default() },
-            Transform::identity(),
-        );
-    }
-
-    /// Copy the same meshes that previews paint, including theme and pressure,
-    /// on a private context so texture IDs never cross contexts.
-    #[cfg(not(target_arch = "wasm32"))]
+    /// Clipboard pixels use the same rendering as cached previews.
     pub fn image(&self, dark_mode: bool) -> Result<ColorImage, String> {
-        let buffer = self.render.lock().unwrap().buffer.clone();
-        let drawing = Self::new(buffer);
-        let scale = (2048.0 / drawing.bounds.width().max(drawing.bounds.height())).min(1.0);
-        let size = (drawing.bounds.size() * scale).ceil().max(Vec2::splat(1.0));
+        self.rasterize(dark_mode, self.bounds.size().max_elem().min(2048.0))
+    }
+
+    /// Flatten at the requested pixel size; callers bound it to their texture budget.
+    pub fn rasterize(&self, dark_mode: bool, max_side: f32) -> Result<ColorImage, String> {
+        let mut buffer = self.buffer.clone();
+        let mut renderer = Renderer::new(buffer.elements.len());
+        let scale = max_side / self.bounds.size().max_elem();
+        let size = (self.bounds.size() * scale).ceil().max(Vec2::splat(1.0));
         let rect = Rect::from_min_size(egui::Pos2::ZERO, size);
         let ctx = egui::Context::default();
         ctx.set_visuals(if dark_mode { egui::Visuals::dark() } else { egui::Visuals::light() });
         let mut output =
             ctx.run_pass(egui::RawInput { screen_rect: Some(rect), ..Default::default() }, |ctx| {
                 ctx.root_ui(|ui| {
-                    egui::CentralPanel::default()
-                        .frame(egui::Frame::NONE)
-                        .show(ui, |ui| drawing.show(ui, rect));
+                    let mut painter = ui.painter().clone();
+                    painter.set_clip_rect(self.bounds);
+                    renderer.render_svg(
+                        ui,
+                        &mut buffer,
+                        &mut painter,
+                        RenderOptions::default(),
+                        Transform::identity(),
+                    );
                 });
             });
+        let transform = egui::emath::TSTransform {
+            scaling: scale,
+            translation: rect.center().to_vec2() - self.bounds.center().to_vec2() * scale,
+        };
+        for clipped in &mut output.shapes {
+            if let egui::Shape::Mesh(mesh) = &mut clipped.shape {
+                std::sync::Arc::make_mut(mesh).transform(transform);
+                clipped.clip_rect = rect;
+            }
+        }
         let result = rasterize_meshes(&output, size);
         output.textures_delta.clear();
         result
@@ -182,9 +160,8 @@ impl Drawing {
 }
 
 /// Canvas meshes have a single stroke color, or a rectangular image texture.
-/// Rasterizing the mesh triangles keeps clipboard output on the same drawing
-/// pipeline without requiring a GPU on the worker thread.
-#[cfg(not(target_arch = "wasm32"))]
+/// Rasterizing the mesh triangles keeps previews and clipboard output on the
+/// same drawing pipeline without requiring a GPU on the worker thread.
 fn rasterize_meshes(output: &egui::FullOutput, size: Vec2) -> Result<ColorImage, String> {
     use resvg::tiny_skia::{self as sk, FillRule, Paint, PathBuilder, Pixmap};
     let mut target = Pixmap::new(size.x as u32, size.y as u32).ok_or("invalid drawing size")?;
@@ -259,7 +236,7 @@ fn rasterize_meshes(output: &egui::FullOutput, size: Vec2) -> Result<ColorImage,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use egui::{Color32, Pos2};
+    use egui::Color32;
 
     fn strokes() -> Buffer {
         Buffer::new(
@@ -270,70 +247,18 @@ mod tests {
         )
     }
 
-    fn paint(
-        ctx: &egui::Context, drawing: &Drawing, rects: &[Rect],
-    ) -> Vec<egui::epaint::ClippedShape> {
-        let mut output = ctx.run_pass(Default::default(), |ctx| {
-            ctx.root_ui(|ui| {
-                egui::CentralPanel::default().show(ui, |ui| {
-                    let cursor = ui.cursor();
-                    for rect in rects {
-                        drawing.show(ui, *rect);
-                    }
-                    assert_eq!(
-                        ui.cursor(),
-                        cursor,
-                        "painting must not advance the editor's layout"
-                    );
-                })
-            });
-        });
-        let shapes = std::mem::take(&mut output.shapes);
-        output.textures_delta.clear();
-        shapes
-    }
-
     #[test]
-    fn previews_switch_theme_and_keep_placements_independent() {
+    fn rasterization_scales_and_uses_current_theme() {
         let drawing = Drawing::new(strokes());
-        let ctx = egui::Context::default();
-        let rects = [
-            Rect::from_min_size(Pos2::new(20.0, 20.0), drawing.bounds.size()),
-            Rect::from_min_size(Pos2::new(200.0, 200.0), drawing.bounds.size() * 2.0),
-        ];
-        let mut original = None;
         for dark in [false, true, false] {
-            ctx.set_visuals(if dark { egui::Visuals::dark() } else { egui::Visuals::light() });
-            let shapes = paint(&ctx, &drawing, &rects);
-            let meshes: Vec<_> = shapes
-                .iter()
-                .filter_map(|s| {
-                    if let egui::Shape::Mesh(m) = &s.shape { Some((s.clip_rect, m)) } else { None }
-                })
-                .collect();
-            assert_eq!(meshes.len(), 4);
-            for (i, (clip, mesh)) in meshes.iter().enumerate() {
-                let rect = rects[i / 2];
-                assert_eq!(*clip, rect);
-                assert!(rect.expand(0.01).contains_rect(mesh.calc_bounds()));
-                let color = mesh.vertices[0].color;
-                assert!(
-                    color == Color32::from_rgb(0x12, 0x34, 0x56)
-                        || color == if dark { Color32::WHITE } else { Color32::BLACK }
-                );
-            }
-            assert!(
-                meshes.iter().any(|(_, m)| m.vertices[0].color
-                    == if dark { Color32::WHITE } else { Color32::BLACK })
-            );
-            let positions: Vec<_> = meshes
-                .iter()
-                .flat_map(|(_, m)| m.vertices.iter().map(|v| v.pos))
-                .collect();
-            if let Some(original) = &original {
-                assert_eq!(original, &positions);
-            } else {
-                original = Some(positions);
+            for scale in [1.0, 2.0] {
+                let image = drawing
+                    .rasterize(dark, drawing.bounds.size().max_elem() * scale)
+                    .unwrap();
+                assert_eq!(image.size, [108 * scale as usize, 48 * scale as usize]);
+                let ink = if dark { Color32::WHITE } else { Color32::BLACK };
+                assert!(image.pixels.contains(&ink));
+                assert!(image.pixels.contains(&Color32::from_rgb(0x12, 0x34, 0x56)));
             }
         }
     }
