@@ -13,7 +13,7 @@ use db_rs_old::{Config as OldConfig, Db};
 use lb_rs::io::MigrationResult;
 use lb_rs::model::file_metadata::{DocumentHmac, Owner};
 use lb_rs::model::server_meta::ServerMeta;
-use lb_rs::service::debug::DebugInfoV1;
+use lb_rs::service::debug::DebugInfo;
 use lb_rs::service::lb_id::LbID;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -49,13 +49,12 @@ pub struct ServerV6 {
     pub server_egress: DbOption<BandwidthReport>,
     pub egress_by_owner: DbHashMap<Owner, BandwidthReport>,
     pub scheduled_file_cleanups: DbHashMap<(Uuid, DocumentHmac), i64>,
-    pub debug_info: DbHashMapMap<Owner, LbID, DebugInfoV1>,
-    pub debug_info_v2: DbHashMapMap<Owner, LbID, String>,
+    pub debug_info: DbHashMapMap<Owner, LbID, DebugInfo>,
 }
 
 impl Schema for ServerV6 {
     fn views_mut(&mut self) -> impl AsMut<[&mut dyn View]> {
-        let views: [&mut dyn View; 15] = [
+        let views: [&mut dyn View; 14] = [
             &mut self.usernames,
             &mut self.metas,
             &mut self.google_play_ids,
@@ -70,7 +69,6 @@ impl Schema for ServerV6 {
             &mut self.egress_by_owner,
             &mut self.scheduled_file_cleanups,
             &mut self.debug_info,
-            &mut self.debug_info_v2,
         ];
         views
     }

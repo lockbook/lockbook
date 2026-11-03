@@ -30,29 +30,6 @@ pub struct DebugInfo {
     pub lb_id: LbID,
     pub time: String,
     pub name: String,
-    pub server_url: String,
-    pub last_synced: String,
-    pub is_syncing: bool,
-    pub status: String,
-    pub integrity: String,
-    pub rust_triple: String,
-    pub config: Config,
-    pub panics: Vec<PanicReport>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct PanicReport {
-    pub time: String,
-    pub info: String,
-    pub config: Option<Config>,
-    pub backtrace: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct DebugInfoV1 {
-    pub lb_id: LbID,
-    pub time: String,
-    pub name: String,
     pub last_synced: String,
     pub lb_version: String,
     pub rust_triple: String,
@@ -63,6 +40,14 @@ pub struct DebugInfoV1 {
     pub is_syncing: bool,
     pub status: String,
     pub panics: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct PanicReport {
+    pub time: String,
+    pub info: String,
+    pub config: Option<Config>,
+    pub backtrace: String,
 }
 
 pub trait DebugInfoDisplay {
@@ -176,6 +161,11 @@ impl Lb {
             self.lb_id()
         );
 
+        let panics = panics?
+            .iter()
+            .map(|panic| serde_json::to_string(panic).unwrap_or_default())
+            .collect();
+
         let mut status = self.status().await;
         status.space_used = None;
         let status = format!("{status:?}");
@@ -185,17 +175,19 @@ impl Lb {
             lb_id: lb_id?,
             time: self.now(),
             name: account.username.clone(),
-            server_url: account.api_url.clone(),
             last_synced,
-            is_syncing,
-            status,
+            lb_version: self.config.lb_version.clone(),
+            rust_triple: format!("{arch}.{family}.{os}"),
+            os_info: self.config.os_version.clone().unwrap_or_default(),
+            lb_dir: self.config.writeable_path.clone(),
+            server_url: account.api_url.clone(),
             integrity: format!(
                 "{} {integrity:?}",
                 if check_docs { "" } else { "doc checks skipped" }
             ),
-            rust_triple: format!("{arch}.{family}.{os}"),
-            config: self.config.clone(),
-            panics: panics?,
+            is_syncing,
+            status,
+            panics,
         })
     }
 }
