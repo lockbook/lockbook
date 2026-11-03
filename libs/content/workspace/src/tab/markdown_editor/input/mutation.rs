@@ -1081,10 +1081,17 @@ impl<'ast> MdEdit {
             }
         }
 
+        // the content between head and tail, where a selection can crop the styled region
+        let content = |node| {
+            let head = self.renderer.head_range(node).unwrap();
+            let tail = self.renderer.tail_range(node).unwrap();
+            (head.end(), tail.start())
+        };
         if unapply {
             // if unapplying, tail or dehead node containing start to crop styled region to selection
             if let Some(start_node) = start_node {
-                if self.renderer.head_range(start_node).unwrap().end() < range.start() {
+                let (content_start, content_end) = content(start_node);
+                if content_start < range.start() && range.start() <= content_end {
                     let offset = self.adjust_for_whitespace(range.start(), true);
                     self.insert_tail(offset, style.clone(), operations);
                 } else {
@@ -1097,7 +1104,8 @@ impl<'ast> MdEdit {
 
             // if unapplying, head or detail node containing end to crop styled region to selection
             if let Some(end_node) = end_node {
-                if self.renderer.tail_range(end_node).unwrap().start() > range.end() {
+                let (content_start, content_end) = content(end_node);
+                if content_start <= range.end() && range.end() < content_end {
                     let offset = self.adjust_for_whitespace(range.end(), false);
                     self.insert_head(offset, style.clone(), operations);
                 } else {
