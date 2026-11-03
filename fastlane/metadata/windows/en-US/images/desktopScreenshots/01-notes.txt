@@ -1,0 +1,1 @@
+Type punctuation and watch plain text turn into headings, lists, tables, and code. The toolbar knows every style so you don't have to.

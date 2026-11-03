@@ -1,0 +1,15 @@
+# Links: the overview note with the sidecar open (outline and backlinks); the
+# pointer rests on [[packing-list]] at the end of the course section and the hover card previews the checklist.
+size 1440 1100 2
+ready
+sidebar off
+open /trips/croatia/croatia.md
+frames 60
+sidecar
+frames 60
+click 700 275
+frames 10
+move 470 475
+frames 120
+blur
+shot 04-links

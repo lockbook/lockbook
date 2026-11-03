@@ -1,0 +1,12 @@
+# Hero: the Dubrovnik note with the trip folder open in the tree.
+size 1440 900 2
+ready
+sidebar on
+sidebar-width 320
+expand /trips/
+expand /trips/croatia/
+open /trips/croatia/dubrovnik.md
+click 720 504
+frames 300
+blur
+shot 01-hero

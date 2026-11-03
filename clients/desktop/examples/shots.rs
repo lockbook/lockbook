@@ -29,6 +29,8 @@ struct Shots {
     size: (u32, u32),
     scale: f32,
     pointer: Pos2,
+    /// The window is in the background: no caret, as on a desktop.
+    blurred: bool,
     last: Option<(Vec<egui::ClippedPrimitive>, f32)>,
     out: PathBuf,
     time: f64,
@@ -77,6 +79,7 @@ impl Shots {
             size: (1325, 917),
             scale: 2.0,
             pointer: pos2(0.0, 0.0),
+            blurred: false,
             last: None,
             out,
             time: 0.0,
@@ -91,6 +94,7 @@ impl Shots {
             time: Some(self.time),
             events,
             max_texture_side: Some(self.device.limits().max_texture_dimension_2d as usize),
+            focused: !self.blurred,
             ..Default::default()
         };
         raw.viewports
@@ -325,6 +329,10 @@ impl Shots {
                 }
             }
             "settings" => self.act(Action::OpenSettings),
+            "blur" => {
+                self.blurred = true;
+                self.frames(5);
+            }
             "sidecar" => self.act(Action::ToggleSidecar),
             "sidebar-width" => {
                 // Same panel id the shell's sidebar uses.

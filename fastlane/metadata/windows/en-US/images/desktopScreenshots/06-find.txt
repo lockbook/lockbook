@@ -1,0 +1,1 @@
+Find a note by its name or by what's in it. Search runs on your device: quickly, privately, and offline.

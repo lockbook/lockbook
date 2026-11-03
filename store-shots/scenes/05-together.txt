@@ -1,0 +1,19 @@
+# Together: a narrow window, sidebar on the Shared with me pane with the
+# lb-maintainers share expanded, share sheet on the trip folder with john
+# listed and travis typed so the sheet says who the folder will be shared with.
+# The slide pushes the window right and puts an iPhone in the space it leaves.
+size 1100 800 2
+ready
+sidebar on
+sidebar-width 320
+open /trips/croatia/packing-list.md
+frames 60
+pane shared
+frames 30
+expand-id 6c3b4bae-6f99-41bf-86c3-ac33e615f9fc
+frames 30
+share /trips/croatia/
+frames 60
+type travis
+frames 120
+shot 05-together

@@ -1,0 +1,1 @@
+Mention one note in another and see which notes mention it back. Start typing a title and pick the note. Links stay intact when notes are renamed or moved.

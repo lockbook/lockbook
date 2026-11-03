@@ -1,0 +1,15 @@
+size 1440 900 2
+ready
+sidebar on
+sidebar-width 320
+expand /trips/
+expand /trips/croatia/
+open /trips/croatia/dubrovnik.md
+frames 60
+click 720 504
+frames 10
+settings
+reveal
+frames 60
+blur
+shot 07-keys

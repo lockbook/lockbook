@@ -1,0 +1,13 @@
+# Search: a content search for "maritime" with the overview note open behind; sidebar off.
+# ArrowDown walks the flat list (file rows and their snippets); landing on the
+# table snippet scrolls the preview to that match and highlights it.
+size 1440 900 2
+ready
+sidebar off
+open /trips/croatia/croatia.md
+search content
+type maritime
+frames 120
+key ArrowDown 3
+frames 90
+shot 06-search

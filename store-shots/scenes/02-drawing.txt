@@ -1,0 +1,21 @@
+# Sketch: Euler napkin, sidebar 320, window bottom on the slide bottom so the toolbar shows.
+# Zoom island at this sidebar (y 78): minus 451, percent label 487 (opens zoom stops), plus 525, chevron 559 (settings). Stops: FIT 491 128, 120% 491 156.
+size 1440 712 2
+ready
+sidebar on
+sidebar-width 320
+open /euler.svg
+frames 60
+key S
+click 487 78
+frames 10
+click 491 128
+frames 10
+click 491 156
+frames 10
+click 1200 200
+frames 10
+wheel -43 -5
+move 900 400
+frames 420
+shot 02-drawing

@@ -1,0 +1,15 @@
+# Rendered and scratch output, local fonts, reference material, compiled tools.
+out/
+final/
+fonts/
+ref/
+dl/
+.DS_Store
+ambient
+backdrop
+compose
+mask
+pdfpages
+phone
+sheet
+slate

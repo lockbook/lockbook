@@ -1,0 +1,21 @@
+# Everything: the set reconciliation paper open from the work folder, zoomed
+# from page width (192%) down to 152%, scrolled to the figures at the top of page 4. Sidebar off.
+# Viewer zoom island with no sidebar: minus 1018, plus 1090 (y 78); each click is -10 from the current value.
+size 1440 900 2
+ready
+sidebar off
+open /work/lockbook/whats-the-difference.pdf
+frames 300
+click 1018 78
+frames 10
+click 1018 78
+frames 10
+click 1018 78
+frames 10
+click 1018 78
+frames 10
+frames 30
+move 700 500
+wheel 0 -3740
+frames 60
+shot 03-everything
