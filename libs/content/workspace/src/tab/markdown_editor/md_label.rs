@@ -77,8 +77,13 @@ impl MdLabel {
         // them on plain click.
         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
             self.renderer.show_block(ui, root, top_left);
+            self.renderer.show_capsule_overlays(ui, root, rect, 0);
+            for shape in std::mem::take(&mut self.renderer.over_text) {
+                ui.painter().add(shape);
+            }
             self.renderer.interact_fragments(ui);
-            self.renderer.handle_link_interactions(root, ui);
+            self.renderer.handle_link_interactions(root, ui, false);
+            self.renderer.handle_link_interactions(root, ui, true);
         });
 
         (std::mem::take(&mut self.renderer.text_areas), rect)
