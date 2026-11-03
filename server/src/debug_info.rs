@@ -7,7 +7,7 @@ use lb_rs::model::{
     api::{UpsertDebugInfoError, UpsertDebugInfoRequest},
     file_metadata::Owner,
 };
-use lb_rs::service::debug::PanicReport;
+use lb_rs::service::debug::DebugInfo;
 use libsecp256k1::PublicKey;
 use reqwest::multipart;
 use serde_json::json;
@@ -70,30 +70,34 @@ where
     }
 
     async fn send_panic_to_discord(
-        &self, debug_info: &lb_rs::service::debug::DebugInfo, panic: &str,
+        &self, debug_info: &DebugInfo, panic: &str,
     ) -> Result<(), ServerError<UpsertDebugInfoError>> {
         let discord_webhook_url = match &self.config.server.discord_webhook_url {
             Some(url) => url,
             None => return Ok(()),
         };
 
-        let panic = serde_json::from_str::<PanicReport>(panic)
-            .map(|report| report.info)
-            .unwrap_or_else(|_| panic.to_owned());
-        let panic_title = panic.lines().next().map(str::to_owned);
+        let panic_title: String = panic
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .chars()
+            .take(256)
+            .collect();
 
         let payload = json!({
             "username": "Panic Reporter",
             "embeds": [{
                 "color": 14622784,
                 "author": { "name": debug_info.name },
-                "title": panic_title.unwrap_or("".to_string()),
+                "title": panic_title,
             }]
         });
 
-        let debug_info_part = multipart::Part::bytes(serde_json::to_vec_pretty(&debug_info)?)
-            .file_name(format!("{}_{}_debug_info.json", debug_info.name, debug_info.panics.len()))
-            .mime_str("application/json")?;
+        let debug_info_part =
+            multipart::Part::bytes(panic_report_markdown(debug_info)?.into_bytes())
+                .file_name(format!("{}_{}_debug_info.md", debug_info.name, debug_info.panics.len()))
+                .mime_str("text/markdown")?;
 
         let form = multipart::Form::new()
             .part("file", debug_info_part)
@@ -122,4 +126,34 @@ where
 
         is_beta
     }
+}
+
+fn panic_report_markdown(debug_info: &DebugInfo) -> Result<String, serde_json::Error> {
+    let mut summary = serde_json::to_value(debug_info)?;
+    if let Some(fields) = summary.as_object_mut() {
+        fields.remove("panics");
+    }
+
+    let mut report = format!(
+        "# {}'s current debug info\n\n```json\n{}\n```\n",
+        debug_info.name,
+        serde_json::to_string_pretty(&summary)?
+    );
+
+    let count = debug_info.panics.len();
+    for (index, panic) in debug_info.panics.iter().enumerate() {
+        let panic = panic.trim();
+        let (panic, config) = match panic.rsplit_once("\n\n") {
+            Some((rest, config)) if config.starts_with('{') => (rest.trim_end(), Some(config)),
+            _ => (panic, None),
+        };
+        let title = panic.lines().next().unwrap_or_default();
+
+        report += &format!("\n# panic {} - {title}\n\n```\n{panic}\n```\n", count - index);
+        if let Some(config) = config {
+            report += &format!("\n```json\n{config}\n```\n");
+        }
+    }
+
+    Ok(report)
 }

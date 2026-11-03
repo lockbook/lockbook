@@ -19,10 +19,19 @@ use super::api;
 
 pub type LbResult<T> = Result<T, LbErr>;
 
-#[derive(Debug)]
 pub struct LbErr {
     pub kind: LbErrKind,
     pub backtrace: Option<Backtrace>,
+}
+
+impl fmt::Debug for LbErr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.kind)?;
+        if let Some(backtrace) = &self.backtrace {
+            write!(f, "\n{}", backtrace.to_string().trim_end())?;
+        }
+        Ok(())
+    }
 }
 
 /// Using this within core has limited meaning as the unexpected / expected error

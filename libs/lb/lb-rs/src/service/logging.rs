@@ -232,7 +232,13 @@ fn panic_capture(config: &Config) {
         tracing::error!("panic detected: {error_header} {}", bt);
         eprintln!("panic detected and logged: {error_header} {bt}");
         let file_name = generate_panic_filename(&config.writeable_path);
-        let content = generate_panic_content(&config, &error_header.to_string(), &bt.to_string());
+        let location = error_header
+            .location()
+            .map(|location| location.to_string())
+            .unwrap_or_default();
+        let message = error_header.payload_as_str().unwrap_or_default();
+        let content =
+            generate_panic_content(&config, &format!("{location}: {message}"), &bt.to_string());
 
         let mut file = OpenOptions::new()
             .create(true)
