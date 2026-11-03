@@ -41,14 +41,12 @@ pub struct LbInitRes {
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_init(
     writeable_path: *const c_char, client_name: *const c_char, build_info: *const c_char,
-    os_version: *const c_char, logs: bool, background_work: bool,
+    logs: bool, background_work: bool,
 ) -> LbInitRes {
     let config = Config {
         client_name: r_opt_str(client_name).unwrap_or_default().to_owned(),
         build_info: r_opt_str(build_info).map(str::to_owned),
-        os_version: r_opt_str(os_version)
-            .map(str::to_owned)
-            .or_else(host_os_version),
+        os_version: host_os_version(),
         writeable_path: rstring(writeable_path),
         background_work,
         logs,

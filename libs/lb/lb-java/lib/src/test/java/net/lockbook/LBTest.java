@@ -11,7 +11,7 @@ public class LBTest {
 
     @Test
     public void someLibraryMethodReturnsTrue() throws LbError {
-        Lb.init(testDir(), System.getProperty("os.name"));
+        Lb.init(testDir());
 
         LbError exc = null;
         try {

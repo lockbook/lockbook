@@ -196,7 +196,30 @@ pub fn host_os_version() -> Option<String> {
     Some(format!("Windows {}.{}.{}", info.dwMajorVersion, info.dwMinorVersion, info.dwBuildNumber))
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "linux", windows)))]
+#[cfg(target_os = "android")]
+pub fn host_os_version() -> Option<String> {
+    fn property(name: &std::ffi::CStr) -> Option<String> {
+        let mut buf = [0u8; libc::PROP_VALUE_MAX as usize];
+        let len = unsafe { libc::__system_property_get(name.as_ptr(), buf.as_mut_ptr().cast()) };
+        if len <= 0 {
+            return None;
+        }
+        String::from_utf8(buf[..len as usize].to_vec()).ok()
+    }
+    let release = property(c"ro.build.version.release")?;
+    match property(c"ro.build.version.sdk") {
+        Some(sdk) => Some(format!("Android {release} (SDK {sdk})")),
+        None => Some(format!("Android {release}")),
+    }
+}
+
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "linux",
+    target_os = "android",
+    windows
+)))]
 pub fn host_os_version() -> Option<String> {
     None
 }

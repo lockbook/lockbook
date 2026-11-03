@@ -13,6 +13,7 @@ use lb_rs::model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
     StripeAccountTier, SubscriptionInfo,
 };
+use lb_rs::model::core_config::host_os_version;
 pub use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
@@ -29,7 +30,6 @@ pub use lb_rs::*;
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, path: JString<'local>,
-    os_version: JString<'local>,
 ) {
     let config = Config {
         writeable_path: rstring(&mut env, path),
@@ -39,7 +39,7 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
         colored_logs: false,
         client_name: "android".into(),
         build_info: None,
-        os_version: Some(rstring(&mut env, os_version)),
+        os_version: host_os_version(),
         client_type: ClientType::Ui,
         ..Default::default()
     };
