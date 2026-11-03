@@ -321,8 +321,7 @@ public class Lb: LbAPI {
     }
 
     public func debugInfo() -> String {
-        let osInfo = ProcessInfo.processInfo.operatingSystemVersion
-        let debugInfo = lb_debug_info(lb, "\(osInfo.majorVersion).\(osInfo.minorVersion).\(osInfo.patchVersion)")
+        let debugInfo = lb_debug_info(lb)
         defer { lb_free_str(debugInfo) }
 
         return String(cString: debugInfo!)

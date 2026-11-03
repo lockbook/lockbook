@@ -226,15 +226,9 @@ pub(crate) fn spawn_debug_info(app: &mut ShellApp, ctx: &Context, force: bool) {
     let core = r.workspace.core.clone();
     let slot = app.debug_info.clone();
     let ctx = ctx.clone();
-    let os_info = format!(
-        "{} {} / lockbook-desktop {}",
-        std::env::consts::OS,
-        std::env::consts::ARCH,
-        env!("CARGO_PKG_VERSION")
-    );
     thread::spawn(move || {
         use lb::service::debug::DebugInfoDisplay as _;
-        let s = core.debug_info(os_info).to_string();
+        let s = core.debug_info().to_string();
         if let Ok(mut g) = slot.lock() {
             *g = DebugInfoCache::Ready(s);
         }

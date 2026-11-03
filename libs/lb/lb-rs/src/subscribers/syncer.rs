@@ -1273,10 +1273,13 @@ impl Lb {
             return;
         }
 
-        let debug_info = self
-            .debug_info("none provided - sync".to_string(), false)
-            .await
-            .unwrap();
+        let debug_info = match self.debug_info(false).await {
+            Ok(debug_info) => debug_info,
+            Err(e) => {
+                warn!("could not collect debug_info: {e:?}");
+                return;
+            }
+        };
 
         let new_marker = max_panic_time.unwrap_or(0);
         let bg_self = self.clone();

@@ -3,7 +3,6 @@ package app.lockbook.screen
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.os.Build
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
@@ -46,8 +45,7 @@ class DebugInfoActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val osInfo = "${Build.VERSION.RELEASE}.${Build.VERSION.SDK_INT}"
-                debugInfo = Lb.getDebugInfo(osInfo)
+                debugInfo = Lb.getDebugInfo()
                 withContext(Dispatchers.Main) {
                     binding.debugInfoText.text = debugInfo
                     binding.debugInfoProgressBar.visibility = View.GONE
