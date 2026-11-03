@@ -656,7 +656,7 @@ impl MdEdit {
             return self.draw_dragged_column(ui, root, drag, column, p);
         }
         let theme = self.renderer.ctx.get_lb_theme();
-        let primary = theme.bg().get_color(theme.prefs().primary);
+        let primary = theme.accent_bg();
         // a table's rows touch: nothing of one reaches past its rect
         let is_row = drag.unit == DragUnit::Row;
 
@@ -1214,7 +1214,7 @@ impl MdEdit {
                 .in_progress_selection
                 .unwrap_or(self.renderer.buffer.current.selection);
             let theme = self.renderer.ctx.get_lb_theme();
-            let color = theme.bg().get_color(theme.prefs().primary);
+            let color = theme.accent_bg();
 
             // Fill the reserved slot so the highlight paints behind the
             // markers (drawn during block render); the cursor stays on top.
@@ -1244,9 +1244,9 @@ impl MdEdit {
             // Android Material You: `fg()` is colorPrimary in both modes.
             // `bright` is the washed primaryContainer in light.
             let caret = if ui.ctx().os() == OperatingSystem::Android {
-                theme.fg().get_color(theme.prefs().primary)
+                theme.accent()
             } else {
-                theme.bright.get_color(theme.prefs().primary)
+                theme.bright.get_color(theme.accent_hue)
             };
             if focused {
                 let blink = now - self.cursor_last_interact.unwrap_or(now);

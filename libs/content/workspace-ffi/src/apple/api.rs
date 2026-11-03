@@ -228,10 +228,12 @@ pub unsafe extern "C" fn set_accent_color(obj: *mut c_void, light: u32, dark: u3
 
     let current = obj.renderer.context.get_lb_theme();
     let mut theme = current;
-    theme.dim.blue = unpack(light);
-    theme.bright.blue = unpack(dark);
+    *theme.dim.get_color_mut(theme.accent_hue) = unpack(light);
+    *theme.bright.get_color_mut(theme.accent_hue) = unpack(dark);
     let theme = theme.readable();
-    if theme.dim.blue == current.dim.blue && theme.bright.blue == current.bright.blue {
+    if theme.dim.get_color(theme.accent_hue) == current.dim.get_color(theme.accent_hue)
+        && theme.bright.get_color(theme.accent_hue) == current.bright.get_color(theme.accent_hue)
+    {
         return;
     }
     obj.renderer.context.set_lb_theme(theme);

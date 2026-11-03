@@ -2,12 +2,15 @@ use std::{fs, io, path::PathBuf};
 
 use crate::components::ModePreference;
 use crate::util::data_dir;
+use workspace_rs::theme::palette_v2::Palette;
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub theme_mode: ModePreference,
     pub theme_name: String,
+    /// Overrides the theme's accent; cleared when the theme changes.
+    pub theme_accent: Option<Palette>,
     pub sidebar_usage: bool,
     pub zen_mode: bool, // hide side panel and maximize the content workspace
     #[cfg(target_os = "linux")]
@@ -73,6 +76,7 @@ impl Default for Settings {
         Self {
             theme_mode: ModePreference::System,
             theme_name: "default".to_string(),
+            theme_accent: None,
             sidebar_usage: true,
             path: "".to_string(),
             zen_mode: false,

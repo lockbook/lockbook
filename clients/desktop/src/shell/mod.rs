@@ -46,7 +46,7 @@ use workspace_rs::search::SearchType;
 
 use crate::components::{
     self, Space, Spacer, Theme, ThemeExt, ThemeFamily, TypeRole, handle_toggle_shortcut,
-    set_mode_preference, set_theme_family, sheet_panel_fit,
+    set_mode_preference, set_theme_accent, set_theme_family, sheet_panel_fit,
 };
 use crate::settings::Settings;
 
@@ -569,6 +569,9 @@ impl ShellApp {
             .copied()
             .unwrap_or_default();
         set_theme_family(ctx, fam);
+        if let Some(accent) = self.settings.theme_accent {
+            set_theme_accent(ctx, accent);
+        }
     }
 
     fn drain_events(&mut self) {

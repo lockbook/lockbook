@@ -1084,10 +1084,7 @@ impl Chat {
                                     ui.painter().rect_stroke(
                                         bubble_rect,
                                         CornerRadius::same(2),
-                                        Stroke::new(
-                                            1.0_f32,
-                                            theme.fg().get_color(theme.prefs().primary),
-                                        ),
+                                        Stroke::new(1.0_f32, theme.accent()),
                                         StrokeKind::Inside,
                                     );
                                 }
@@ -1458,7 +1455,7 @@ impl Chat {
                     if let Some(r) = review_plan {
                         // Fill with the bg-family accent (the send button's
                         // pattern) — the fg accent is for text and strokes.
-                        let accent = theme.bg().get_color(theme.prefs().primary);
+                        let accent = theme.accent_bg();
                         ui.painter()
                             .add(crate::style::pin_shadow(&theme).as_shape(r.border, 2));
                         ui.painter().rect_filled(r.border, 2.0, theme.neutral_bg());
@@ -2207,7 +2204,7 @@ impl Chat {
                 pos2(text_rect.max.x - H_PAD, text_rect.max.y - V_PAD),
             );
             let resp = ui.interact(btn_rect, self.salt.with("chat_add_key"), Sense::click());
-            let accent = theme.bg().get_color(theme.prefs().primary);
+            let accent = theme.accent_bg();
             ui.painter()
                 .rect_filled(btn_rect, CornerRadius::same(8), accent);
             let btn_label = ui.fonts_mut(|f| {
@@ -2264,11 +2261,7 @@ impl Chat {
             let painter = ui.painter();
             // The markdown-toolbar icon idiom — no filled disc, just the mark
             // itself: accent when actionable, foreground when idle.
-            let mark = if active {
-                theme.fg().get_color(theme.prefs().primary)
-            } else {
-                theme.neutral_fg()
-            };
+            let mark = if active { theme.accent() } else { theme.neutral_fg() };
             if agent_busy {
                 let side = send_d * 0.36;
                 painter.rect_filled(
@@ -2362,11 +2355,7 @@ impl Chat {
                 cursor_x = rect.max.x + STRIP_GAP;
 
                 let track = theme.neutral_bg().lerp_to_gamma(theme.neutral_fg(), 0.18);
-                let fill = if ratio >= 0.85 {
-                    error_color
-                } else {
-                    theme.fg().get_color(theme.prefs().primary)
-                };
+                let fill = if ratio >= 0.85 { error_color } else { theme.accent() };
                 ui.painter()
                     .circle_stroke(center, r, Stroke::new(2.0_f32, track));
                 if ratio > 0.0 {
@@ -2443,7 +2432,7 @@ impl Chat {
 
             // Menu rows in the main foreground color; the current row in the
             // accent so selection still reads without dimming the rest.
-            let accent = theme.fg().get_color(theme.prefs().primary);
+            let accent = theme.accent();
             let row_text = |text: &str, selected: bool| {
                 egui::RichText::new(text).color(if selected { accent } else { text_color })
             };

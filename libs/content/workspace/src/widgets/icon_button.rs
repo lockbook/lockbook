@@ -100,7 +100,7 @@ impl IconButton {
         }
 
         let icon_color = if self.colored || resp.is_pointer_button_down_on() {
-            theme.fg().get_color(theme.prefs().primary)
+            theme.accent()
         } else if self.disabled {
             theme.neutral()
         } else if self.subdued {

@@ -444,7 +444,7 @@ impl MdEdit {
     ) {
         let r = &self.renderer;
         let theme = r.ctx.get_lb_theme();
-        let primary = theme.bg().get_color(theme.prefs().primary);
+        let primary = theme.accent_bg();
         let key = drag.parent_start;
         let cells: Vec<TableCellBox> = r
             .table_boxes(key)

@@ -2055,7 +2055,7 @@ impl MdRender {
                         let sr = frag.source_range;
                         if !sel.is_empty() && sel.contains_range(&sr, true, true) {
                             let theme = self.ctx.get_lb_theme();
-                            let accent = theme.bg().get_color(theme.prefs().primary);
+                            let accent = theme.accent_bg();
                             let tint = egui::Color32::from_rgba_unmultiplied(
                                 accent.r(),
                                 accent.g(),

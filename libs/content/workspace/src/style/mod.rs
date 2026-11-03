@@ -24,6 +24,7 @@ pub mod sheet;
 pub mod space;
 pub mod spacer;
 pub mod sticky;
+pub mod swatches;
 pub mod tip;
 pub mod tree_metrics;
 pub mod typography;
