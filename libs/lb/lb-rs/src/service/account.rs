@@ -15,7 +15,7 @@ use qrcode_generator::QrCodeEcc;
 
 use crate::io::network::ApiError;
 
-impl Lb {
+impl<S: Server> Lb<S> {
     /// CoreError::AccountExists,
     /// CoreError::UsernameTaken,
     /// CoreError::UsernameInvalid,

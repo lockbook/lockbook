@@ -1,3 +1,4 @@
+use crate::io::server::Server;
 use std::collections::HashSet;
 
 use crate::Lb;
@@ -15,7 +16,7 @@ use uuid::Uuid;
 use super::activity;
 use super::events::Actor;
 
-impl Lb {
+impl<S: Server> Lb<S> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn read_document(
         &self, id: Uuid, user_activity: bool,

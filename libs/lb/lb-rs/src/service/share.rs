@@ -23,7 +23,7 @@ pub struct SharingContact {
     pub total_file_count: u64,
 }
 
-impl Lb {
+impl<S: Server> Lb<S> {
     /// Ranked contacts for the signed-in account. This is a local, read-only query;
     /// callers should run it off their UI thread.
     /// Inheritance follows real metadata parents, never the local placement of a link.

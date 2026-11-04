@@ -1,3 +1,4 @@
+use crate::io::server::Server;
 use std::fs::{self, DirBuilder};
 use std::io::{self, ErrorKind};
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt};
@@ -95,7 +96,7 @@ impl Drop for Ipc {
     }
 }
 
-impl Lb {
+impl<S: Server> Lb<S> {
     pub(crate) async fn setup_ipc(&self) -> LbResult<()> {
         if !self.config.background_work {
             return Ok(());

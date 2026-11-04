@@ -74,7 +74,7 @@ pub struct SyncState {
 // should_fetch is going to be a tree fn that will return true if:
 //     is md or svg that descends from
 
-impl Lb {
+impl<S: Server> Lb<S> {
     /// Outside iOS and WASM, returns `AlreadySyncing` if another instance is syncing this data directory.
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn sync(&self) -> LbResult<()> {

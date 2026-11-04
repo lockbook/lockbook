@@ -6,7 +6,7 @@ use crate::model::api::*;
 use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use uuid::Uuid;
 
-impl Lb {
+impl<S: Server> Lb<S> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn disappear_account(&self, username: &str) -> LbResult<()> {
         let account = self.get_account()?;

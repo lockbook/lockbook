@@ -18,7 +18,7 @@ pub struct UsageItemMetric {
     pub readable: String,
 }
 
-impl Lb {
+impl<S: Server> Lb<S> {
     /// fetches data footprint on server along with data cap information
     /// compares this to local changes to estimate net data increase
     ///

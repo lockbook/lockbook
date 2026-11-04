@@ -186,7 +186,7 @@ impl Drop for LbTx<'_> {
     }
 }
 
-impl Lb {
+impl<S> Lb<S> {
     pub async fn ro_tx(&self) -> LbRO<'_> {
         let start = Instant::now();
 

@@ -7,7 +7,7 @@ use crate::model::api::*;
 /// What a request of type `T` resolves to.
 pub type ApiResult<T> = Result<<T as Request>::Response, ApiError<<T as Request>::Error>>;
 
-/// `Send` on native targets, where requests run on tokio's thread pool; nothing on wasm, whose
+/// `Send` on native targets, where lb-rs spawns onto tokio's thread pool; nothing on wasm, whose
 /// HTTP futures are single-threaded.
 #[cfg(not(target_family = "wasm"))]
 pub trait MaybeSend: Send {}
@@ -19,8 +19,19 @@ pub trait MaybeSend {}
 #[cfg(target_family = "wasm")]
 impl<T> MaybeSend for T {}
 
+/// `Sync` where [MaybeSend] is `Send`.
+#[cfg(not(target_family = "wasm"))]
+pub trait MaybeSync: Sync {}
+#[cfg(not(target_family = "wasm"))]
+impl<T: Sync> MaybeSync for T {}
+
+#[cfg(target_family = "wasm")]
+pub trait MaybeSync {}
+#[cfg(target_family = "wasm")]
+impl<T> MaybeSync for T {}
+
 /// Lockbook's server as lb-rs reaches it: one method per [Request] in [crate::model::api].
-pub trait Server {
+pub trait Server: Clone + MaybeSend + MaybeSync + 'static {
     fn new_account_v2(
         &self, account: &Account, request: NewAccountRequestV2,
     ) -> impl Future<Output = ApiResult<NewAccountRequestV2>> + MaybeSend;
