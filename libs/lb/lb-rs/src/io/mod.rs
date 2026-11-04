@@ -8,6 +8,7 @@
 pub mod docs;
 pub mod legacy;
 pub mod network;
+pub mod server;
 
 use crate::Lb;
 use crate::model::account::Account;
