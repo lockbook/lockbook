@@ -52,7 +52,7 @@ impl<S: Server> Lb<S> {
             let mut tree = (&db.base_metadata)
                 .to_staged(&mut db.local_metadata)
                 .to_lazy();
-            self.docs.promote_pending(pending).await?;
+            pending.promote().await?;
             tree.overwrite_document_hmac(&id, Some(hmac), Some(encrypted_size), &self.keychain)?;
             tx.end();
         }
@@ -159,7 +159,7 @@ impl<S: Server> Lb<S> {
             let mut tree = (&db.base_metadata)
                 .to_staged(&mut db.local_metadata)
                 .to_lazy();
-            self.docs.promote_pending(pending).await?;
+            pending.promote().await?;
             if tree.find(&id)?.document_hmac() != old_hmac.as_ref() {
                 return Err(LbErrKind::ReReadRequired.into());
             }

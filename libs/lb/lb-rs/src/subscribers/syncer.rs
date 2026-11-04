@@ -8,10 +8,7 @@ use std::{
 };
 
 #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
-use std::{
-    fs::{File, TryLockError},
-    path::Path,
-};
+use std::fs::{File, TryLockError};
 
 use futures::{StreamExt, stream};
 use tokio::sync::{Mutex, broadcast::error::TryRecvError};
@@ -109,15 +106,18 @@ impl<S: Server> Lb<S> {
     }
 
     #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
-    fn lock_sync(&self) -> LbResult<File> {
+    fn lock_sync(&self) -> LbResult<Option<File>> {
+        let Some(path) = &self.sync_lock else {
+            return Ok(None);
+        };
         let file = File::options()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
-            .open(Path::new(&self.config.writeable_path).join("sync.lock"))?;
+            .open(path)?;
         match file.try_lock() {
-            Ok(()) => Ok(file),
+            Ok(()) => Ok(Some(file)),
             Err(TryLockError::WouldBlock) => Err(LbErrKind::AlreadySyncing.into()),
             Err(TryLockError::Error(err)) => Err(err.into()),
         }

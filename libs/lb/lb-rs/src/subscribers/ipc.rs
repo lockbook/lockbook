@@ -101,7 +101,10 @@ impl<S: Server> Lb<S> {
         if !self.config.background_work {
             return Ok(());
         }
-        let socket = AsyncUnixDatagram::from_std(self.ipc.socket.try_clone()?)?;
+        let Some(ipc) = &self.ipc else {
+            return Ok(());
+        };
+        let socket = AsyncUnixDatagram::from_std(ipc.socket.try_clone()?)?;
 
         // The socket is registered before catching up, so startup cannot miss a commit.
         self.catch_up_from_ipc().await?;
