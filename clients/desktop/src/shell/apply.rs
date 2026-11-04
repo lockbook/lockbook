@@ -596,24 +596,63 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::OpenImportParent { paths } => open_import_parent_sheet(app, ctx, paths),
         A::ImportParentSelect(id) => {
-            if let Some(Modal::ImportParent { dest, .. }) = &mut app.modal {
+            if let Some(Modal::ImportParent { dest, leave, .. }) = &mut app.modal {
                 *dest = Some(id);
+                *leave = None;
             }
             replan_import(app, ctx, None);
         }
-        A::ConfirmImportParent => {
-            // Only a settled plan that fits confirms.
-            let fits = matches!(
-                &app.modal,
-                Some(Modal::ImportParent { plan: Some(plan), planning: None, .. })
-                    if plan.writes() > 0 && plan.over_cap().is_none()
-            );
-            if fits {
-                if let Some(Modal::ImportParent { paths, plan: Some(plan), .. }) = app.modal.take()
-                {
-                    import_paths(app, ctx, paths, plan);
+        A::ImportLeaveKind(kind) => {
+            if let Some(mut leave) = import_leave(app) {
+                match leave.kinds.iter().position(|k| *k == kind) {
+                    Some(i) => _ = leave.kinds.remove(i),
+                    None => leave.kinds.push(kind),
                 }
+                replan_import(app, ctx, Some(leave));
             }
+        }
+        A::ImportLeaveFolder(folder) => {
+            if let Some(mut leave) = import_leave(app) {
+                leave.folder =
+                    if leave.folder.as_ref() == Some(&folder) { None } else { Some(folder) };
+                replan_import(app, ctx, Some(leave));
+            }
+        }
+        A::ConfirmImportParent => {
+            // Only a settled plan confirms; over the cap, a free account upgrades.
+            let upgrade = match &app.modal {
+                Some(Modal::ImportParent { plan: Some(plan), planning: None, .. })
+                    if plan.writes() > 0 =>
+                {
+                    match (plan.over_cap(), plan.room.is_some_and(|r| r.premium())) {
+                        (None, _) => Some(false),
+                        (Some(_), false) => Some(true),
+                        (Some(_), true) => None,
+                    }
+                }
+                _ => None,
+            };
+            match upgrade {
+                Some(true) => apply(app, ctx, A::ImportUpgrade),
+                Some(false) => {
+                    if let Some(Modal::ImportParent { paths, plan: Some(plan), .. }) =
+                        app.modal.take()
+                    {
+                        import_paths(app, ctx, paths, plan);
+                    }
+                }
+                None => {}
+            }
+        }
+        A::ImportUpgrade => {
+            // Held until the account is premium, then offered again with nothing left out.
+            if let Some(Modal::ImportParent { paths, dest: Some(dest), plan, .. }) =
+                app.modal.take()
+            {
+                let cap = plan.and_then(|p| p.room).map_or(0, |r| r.cap);
+                app.import_after_upgrade = Some((paths, dest, cap));
+            }
+            apply(app, ctx, A::OpenUpgrade);
         }
         A::ImportShow(id) => {
             if let Some(r) = app.session.ready_mut() {
@@ -624,9 +663,22 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::ImportDismiss => app.import_job = None,
         A::ImportPlanned(p) => {
-            if let Some(Modal::ImportParent { plan, planning, .. }) = &mut app.modal {
+            if let Some(Modal::ImportParent { plan, planning, leave, .. }) = &mut app.modal {
+                *leave = Some(p.leave.clone());
                 *plan = Some(p);
                 *planning = None;
+            }
+        }
+        A::ImportResume => {
+            if let Some((paths, dest, _)) = app.import_after_upgrade.take() {
+                app.modal = Some(Modal::ImportParent {
+                    paths,
+                    dest: Some(dest),
+                    plan: None,
+                    planning: None,
+                    leave: Some(Default::default()),
+                });
+                replan_import(app, ctx, Some(Default::default()));
             }
         }
         A::OpenSearch(search_type) => {
@@ -1513,8 +1565,17 @@ fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBu
         )));
         d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_import_parent"));
     });
-    app.modal = Some(Modal::ImportParent { paths, dest, plan: None, planning: None });
+    app.import_after_upgrade = None;
+    app.modal = Some(Modal::ImportParent { paths, dest, plan: None, planning: None, leave: None });
     replan_import(app, ctx, None);
+}
+
+/// What the open import leaves out now.
+fn import_leave(app: &ShellApp) -> Option<workspace_rs::import::Leave> {
+    match &app.modal {
+        Some(Modal::ImportParent { leave: Some(leave), .. }) => Some(leave.clone()),
+        _ => None,
+    }
 }
 
 /// Plan the open import again off the UI thread. `None` leaves out whatever
@@ -1527,7 +1588,13 @@ fn replan_import(app: &mut ShellApp, ctx: &Context, leave: Option<workspace_rs::
     else {
         return;
     };
-    if let Some(Modal::ImportParent { paths, dest: Some(dest), planning, .. }) = &mut app.modal {
+    if let Some(Modal::ImportParent {
+        paths, dest: Some(dest), planning, leave: requested, ..
+    }) = &mut app.modal
+    {
+        if leave.is_some() {
+            *requested = leave.clone();
+        }
         *planning = Some(workspace_rs::import::plan_in_background(
             core,
             paths.clone(),
@@ -1539,14 +1606,21 @@ fn replan_import(app: &mut ShellApp, ctx: &Context, leave: Option<workspace_rs::
     }
 }
 
-/// A finished plan for the open sheet.
+/// A finished plan for the open sheet, or a held import the account now has room for.
 pub(crate) fn import_event(app: &ShellApp) -> Option<A> {
-    match &app.modal {
-        Some(Modal::ImportParent { planning: Some(rx), .. }) => {
-            rx.try_recv().ok().map(A::ImportPlanned)
-        }
-        _ => None,
+    if let Some(Modal::ImportParent { planning: Some(rx), .. }) = &app.modal {
+        return rx.try_recv().ok().map(A::ImportPlanned);
     }
+    let (_, _, waiting_on) = app.import_after_upgrade.as_ref()?;
+    let cap = app
+        .session
+        .ready()?
+        .status
+        .space_used
+        .as_ref()?
+        .data_cap
+        .exact;
+    (cap > *waiting_on && app.modal.is_none()).then_some(A::ImportResume)
 }
 
 fn import_paths(

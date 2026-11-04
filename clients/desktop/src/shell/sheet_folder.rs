@@ -414,6 +414,9 @@ pub(crate) fn show_import_parent(
             .unwrap_or_else(|| "file".into()),
         n => format!("{n} items"),
     };
+    let upgrade =
+        plan.is_some_and(|p| p.over_cap().is_some() && !p.room.is_some_and(|r| r.premium()));
+    let primary = if upgrade { "Upgrade" } else { "Import" };
     folder_picker_sheet(
         app,
         ctx,
@@ -423,7 +426,7 @@ pub(crate) fn show_import_parent(
         "Import",
         &subject,
         "Choose a folder to import into.",
-        "Import",
+        primary,
         dest,
         &[],
         FolderPickKind::ImportParent,
@@ -533,7 +536,7 @@ fn folder_picker_sheet(
                             dest_action_summary(ui, t, app, subject, "will be saved to", dest)
                         }
                         FolderPickKind::ImportParent => match plan {
-                            Some(plan) => import_plan_block(ui, t, app, plan),
+                            Some(plan) => import_plan_block(ui, t, app, queue, plan),
                             None => {
                                 let name = display_file_name(subject);
                                 sentence(ui, t, &format!("Counting the files in **{name}**…"))
@@ -553,7 +556,9 @@ fn folder_picker_sheet(
                                 && (!kind_is_import(kind)
                                     || (!planning
                                         && plan.is_some_and(|p| {
-                                            p.writes() > 0 && p.over_cap().is_none()
+                                            p.writes() > 0
+                                                && (p.over_cap().is_none()
+                                                    || !p.room.is_some_and(|r| r.premium()))
                                         }))),
                         )
                         .primary_shortcut(shortcut_enter()),
@@ -601,17 +606,21 @@ fn dest_action_summary(
     );
 }
 
-/// What an import will do: what comes in and where, then what's skipped.
+/// What an import will do: what comes in and where, then what's skipped, then
+/// how it sits against the account's cap with ways to make it fit.
 fn import_plan_block(
-    ui: &mut egui::Ui, t: &Theme, app: &ShellApp, plan: &workspace_rs::import::ImportPlan,
+    ui: &mut egui::Ui, t: &Theme, app: &ShellApp, queue: &mut Vec<Action>,
+    plan: &workspace_rs::import::ImportPlan,
 ) {
     use crate::components::domain::import_card::count;
+    use crate::components::{Button, form_group, form_row_detail, form_toggle_detail};
 
     let path = match folder_path_slash(app, Some(plan.dest)).as_str() {
         "/" => "Home".to_owned(),
         p => p.to_owned(),
     };
     let subject = display_file_name(&plan.subject).to_owned();
+    let premium = plan.room.is_some_and(|r| r.premium());
 
     // Owned pieces first; the label borrows them.
     let (files, noun) = (count(plan.files), plural(plan.files, "file"));
@@ -646,7 +655,72 @@ fn import_plan_block(
     if !skips.is_empty() {
         text.push_str(&format!(" {} will be skipped.", series(&skips)));
     }
+    if let Some((after, cap)) = plan.over_cap() {
+        let (after, cap) = (si_bytes(after), si_bytes(cap));
+        text.push_str(&if premium {
+            format!(" This import brings your account to **{after}**, over its **{cap}** limit. Reduce the size of the import.")
+        } else {
+            format!(" This import brings your account to **{after}**, over the **{cap}** free tier limit. Reduce the size of the import or upgrade to premium.")
+        });
+    }
     sentence(ui, t, &text);
+
+    if !plan.whole_over_cap() {
+        return;
+    }
+    // Ways to fit: each kind there is, the one folder that would do it alone, or Premium.
+    let folder = plan
+        .leave
+        .folder
+        .clone()
+        .and_then(|f| plan.folders.iter().find(|(x, _)| *x == f).cloned())
+        .or_else(|| {
+            let whole =
+                workspace_rs::import::ImportPlan { leave: Default::default(), ..plan.clone() };
+            whole.fitting_folder()
+        });
+    ui.add(Spacer::new(Space::Md));
+    form_group(ui, t, |ui| {
+        for (i, (kind, share)) in plan.kinds.iter().enumerate() {
+            if i > 0 {
+                ui.add(Spacer::new(Space::Sm));
+            }
+            let mut on = plan.leave.kinds.contains(kind);
+            let label = format!("Skip all {}", kind.noun());
+            let detail = format!(
+                "{} {}, {}",
+                count(share.files),
+                plural(share.files, "file"),
+                si_bytes(share.usage)
+            );
+            if form_toggle_detail(ui, t, &label, &detail, &mut on).changed() {
+                queue.push(A::ImportLeaveKind(*kind));
+            }
+        }
+        if let Some((name, share)) = folder {
+            let mut on = plan.leave.folder.as_ref() == Some(&name);
+            ui.add(Spacer::new(Space::Sm));
+            let label = format!("Skip **{name}**");
+            let detail = format!(
+                "{} {}, {}",
+                count(share.files),
+                plural(share.files, "file"),
+                si_bytes(share.usage)
+            );
+            if form_toggle_detail(ui, t, &label, &detail, &mut on).changed() {
+                queue.push(A::ImportLeaveFolder(name));
+            }
+        }
+        if premium {
+            return;
+        }
+        ui.add(Spacer::new(Space::Sm));
+        form_row_detail(ui, t, "Bring everything", "Premium holds 30 GB", |ui| {
+            if Button::secondary(t, "Upgrade").show(ui).clicked() {
+                queue.push(A::ImportUpgrade);
+            }
+        });
+    });
 }
 
 fn plural(n: usize, one: &str) -> String {

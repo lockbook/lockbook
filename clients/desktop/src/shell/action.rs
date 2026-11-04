@@ -174,6 +174,8 @@ pub enum Modal {
         plan: Option<workspace_rs::import::ImportPlan>,
         /// A plan being worked out; it replaces `plan` when it arrives.
         planning: Option<std::sync::mpsc::Receiver<workspace_rs::import::ImportPlan>>,
+        /// What the latest request leaves out; `None` until the fitting choice arrives.
+        leave: Option<workspace_rs::import::Leave>,
     },
     Help,
     Onboard {
@@ -405,8 +407,15 @@ pub enum Action {
     },
     ImportParentSelect(Uuid),
     ConfirmImportParent,
+    /// Leave a kind of file, or a folder, out of the import (or bring it back).
+    ImportLeaveKind(workspace_rs::import::Kind),
+    ImportLeaveFolder(String),
+    /// Hold the open import, upgrade, and offer it again with room for everything.
+    ImportUpgrade,
     /// A plan for the open import finished.
     ImportPlanned(workspace_rs::import::ImportPlan),
+    /// The account's cap grew past the one a held import was waiting on.
+    ImportResume,
     /// Reveal the folder an import made.
     ImportShow(Uuid),
     ImportDismiss,
@@ -541,7 +550,11 @@ impl Action {
             Self::OpenImportParent { .. } => "OpenImportParent",
             Self::ImportParentSelect(_) => "ImportParentSelect",
             Self::ConfirmImportParent => "ConfirmImportParent",
+            Self::ImportLeaveKind(_) => "ImportLeaveKind",
+            Self::ImportLeaveFolder(_) => "ImportLeaveFolder",
+            Self::ImportUpgrade => "ImportUpgrade",
             Self::ImportPlanned(_) => "ImportPlanned",
+            Self::ImportResume => "ImportResume",
             Self::ImportShow(_) => "ImportShow",
             Self::ImportDismiss => "ImportDismiss",
             Self::OpenSearch(_) => "OpenSearch",
