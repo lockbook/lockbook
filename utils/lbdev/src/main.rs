@@ -33,14 +33,21 @@ fn main() {
                         .description("build workspace and run on a given macOS or iOS device")
                         .subcommand(Command::name("macos").description("runs lockbook macOS on this device").handler(local::apple_run_macos))
                         .subcommand(Command::name("ios").description("deploys lockbook to a connected iOS device").input(Arg::str("device-name").description("looks up a device udid by the given friendly name, builds lb and deploys it on that device.").completor(local::apple_device_name_completor)).handler(|device| local::apple_run_ios(device.get())))
+                        .subcommand(Command::name("sim").description("builds lockbook for the iOS simulator and launches it on the given simulator").input(Arg::str("simulator").description("a simulator name or udid from `xcrun simctl list devices available`").completor(local::simulator_name_completor)).handler(|sim| local::apple_run_sim(sim.get())))
                 )
         )
         .subcommand(
             Command::name("android")
-                .description("utilties for building for android development")
+                .description("utilties for building for android development or launching lockbook on android devices.")
                 .subcommand(
                     Command::name("ws")
                         .description("build workspace for android").handler(local::android_ws)
+                )
+                .subcommand(
+                    Command::name("run")
+                        .description("builds the debug app, installs it over the existing one keeping its data, and launches it")
+                        .input(Arg::str("device").description("an adb serial or model name from `adb devices -l`").completor(local::android_device_completor))
+                        .handler(|device| local::android_run(device.get()))
                 )
         )
         .subcommand(Command::name("server").handler(local::server))
