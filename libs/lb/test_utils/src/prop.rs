@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use super::shrink::shrink;
+use crate::shrink::shrink;
 
 /// Wallclock ceiling for one property test. Generous — it's a safety stop
 /// for a pathologically slow machine, not a per-property budget.

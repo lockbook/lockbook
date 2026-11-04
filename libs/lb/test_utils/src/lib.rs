@@ -1,4 +1,7 @@
 pub mod assert;
+pub mod byte_source;
+pub mod prop;
+pub mod shrink;
 
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::{ClientType, Config};
@@ -27,6 +30,9 @@ pub fn test_config() -> Config {
 
 /// The client the tests drive: over HTTP to the server at [url], or with the `in-process` feature,
 /// to one server shared by every test in this process.
+#[cfg(feature = "in-process")]
+pub use lockbook_server_lib;
+
 #[cfg(not(feature = "in-process"))]
 pub type Lb = lb_rs::Lb;
 #[cfg(feature = "in-process")]
