@@ -21,9 +21,12 @@ pub(crate) mod wrap_layout;
 /// one unit (so a tab straddling a nested-block boundary stays with
 /// the outermost block). Editing ops needing per-level granularity
 /// should use [`leading_indent_cols`] +
-/// `MdRender::deindent_level_cols`.
-pub fn consume_indent_columns(text: &str, target_columns: usize) -> usize {
-    let mut cols = 0;
+/// `MdRender::deindent_level_cols`. `text` starts at column `start_col`
+/// of its line, which sets where its tabs stop; `target_columns` counts
+/// from there.
+pub fn consume_indent_columns(text: &str, start_col: usize, target_columns: usize) -> usize {
+    let target_columns = start_col.saturating_add(target_columns);
+    let mut cols = start_col;
     let mut graphemes = 0;
     for c in text.chars() {
         if cols >= target_columns {
