@@ -38,10 +38,16 @@ fn main() {
         )
         .subcommand(
             Command::name("android")
-                .description("utilties for building for android development")
+                .description("utilties for building for android development or launching lockbook on android devices.")
                 .subcommand(
                     Command::name("ws")
                         .description("build workspace for android").handler(local::android_ws)
+                )
+                .subcommand(
+                    Command::name("run")
+                        .description("builds the debug app, installs it over the existing one keeping its data, and launches it")
+                        .input(Arg::str("device").description("an adb serial or model name from `adb devices -l`").completor(local::android_device_completor))
+                        .handler(|device| local::android_run(device.get()))
                 )
         )
         .subcommand(Command::name("server").handler(local::server))

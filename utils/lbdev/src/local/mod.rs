@@ -1,9 +1,15 @@
-use std::{fs, path::PathBuf, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use cli_rs::cli_error::CliResult;
 
 use crate::{
-    places::{apple_dir, local_env_path, root, target, workspace_ffi, workspace_swift_libs},
+    places::{
+        android_dir, apple_dir, local_env_path, root, target, workspace_ffi, workspace_swift_libs,
+    },
     utils::CommandRunner,
 };
 
@@ -415,4 +421,163 @@ fn simulators() -> CliResult<Vec<Simulator>> {
             })
         })
         .collect())
+}
+
+pub fn android_run(device: String) -> CliResult<()> {
+    let serial = adb_serial(&device)?;
+    let sdk = android_sdk();
+    let adb = || {
+        let mut cmd = Command::new(adb_path(&sdk));
+        cmd.args(["-s", &serial]);
+        cmd
+    };
+
+    let abi_out = adb()
+        .args(["shell", "getprop", "ro.product.cpu.abi"])
+        .success_output()?;
+    let abi = String::from_utf8_lossy(&abi_out.stdout).trim().to_string();
+    let rust_target = match abi.as_str() {
+        "arm64-v8a" => "aarch64-linux-android",
+        "armeabi-v7a" => "armv7-linux-androideabi",
+        "x86_64" => "x86_64-linux-android",
+        "x86" => "i686-linux-android",
+        _ => return Err(format!("{serial} reports an unknown abi '{abi}'").into()),
+    };
+
+    let mut ndk = Command::new("cargo");
+    ndk.args(["ndk", "--target", rust_target, "--platform", "22"])
+        .args(["--", "build", "--release"])
+        .current_dir(workspace_ffi());
+    android_env(&mut ndk, &sdk)?.assert_success()?;
+
+    let jni_libs = android_dir().join("workspace/src/main/jniLibs").join(&abi);
+    fs::create_dir_all(&jni_libs)?;
+    fs::copy(
+        target().join(rust_target).join("release/libworkspace.so"),
+        jni_libs.join("libworkspace.so"),
+    )?;
+
+    let mut gradle = Command::new(android_dir().join("gradlew"));
+    gradle
+        .arg("assemblePlayDebug")
+        .arg(format!("-Pandroid.injected.build.abi={abi}"))
+        .current_dir(android_dir());
+    android_env(&mut gradle, &sdk)?.assert_success()?;
+
+    adb()
+        .args(["install", "-r", "-t", "-d"])
+        .arg(android_dir().join("app/build/intermediates/apk/play/debug/app-play-debug.apk"))
+        .assert_success()?;
+    let launcher = ["-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER"];
+    let resolved = adb()
+        .args(["shell", "cmd", "package", "resolve-activity", "--brief"])
+        .args(launcher)
+        .arg("app.lockbook")
+        .success_output()?;
+    let resolved = String::from_utf8_lossy(&resolved.stdout);
+    let activity = resolved
+        .lines()
+        .last()
+        .filter(|line| line.contains('/'))
+        .ok_or(format!("no launcher activity for app.lockbook on {serial}: {resolved}"))?;
+    adb()
+        .args(["shell", "am", "start", "-S", "-W", "-n", activity])
+        .assert_success()?;
+    Ok(())
+}
+
+pub fn android_device_completor(prompt: &str) -> CliResult<Vec<String>> {
+    Ok(adb_devices()?
+        .into_iter()
+        .flat_map(|(serial, model)| [Some(serial), model])
+        .flatten()
+        .filter(|entry| entry.starts_with(prompt))
+        .collect())
+}
+
+/// Resolves an adb serial or a model name (`Pixel_8_Pro` or `Pixel 8 Pro`) to a serial.
+fn adb_serial(device: &str) -> CliResult<String> {
+    let devices = adb_devices()?;
+    let model = device.replace(' ', "_");
+    let matches: Vec<&(String, Option<String>)> = devices
+        .iter()
+        .filter(|(serial, m)| serial == device || m.as_deref() == Some(model.as_str()))
+        .collect();
+    match matches.as_slice() {
+        [(serial, _)] => Ok(serial.clone()),
+        _ => {
+            let rows: Vec<String> = devices
+                .iter()
+                .map(|(serial, model)| format!("  {serial} {}", model.as_deref().unwrap_or("")))
+                .collect();
+            let problem = if matches.is_empty() { "matches no" } else { "matches several" };
+            Err(format!("'{device}' {problem} connected device, adb lists:\n{}", rows.join("\n"))
+                .into())
+        }
+    }
+}
+
+/// Serial and model of every device adb can install to.
+fn adb_devices() -> CliResult<Vec<(String, Option<String>)>> {
+    let out = Command::new(adb_path(&android_sdk()))
+        .args(["devices", "-l"])
+        .success_output()?;
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .skip(1)
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let serial = fields.next()?;
+            if fields.next()? != "device" {
+                return None;
+            }
+            let model = fields
+                .find_map(|f| f.strip_prefix("model:"))
+                .map(String::from);
+            Some((serial.to_string(), model))
+        })
+        .collect())
+}
+
+fn android_sdk() -> PathBuf {
+    if let Some(sdk) = std::env::var_os("ANDROID_HOME").or(std::env::var_os("ANDROID_SDK_ROOT")) {
+        return PathBuf::from(sdk);
+    }
+    let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
+    if cfg!(target_os = "macos") {
+        home.join("Library/Android/sdk")
+    } else {
+        home.join("Android/Sdk")
+    }
+}
+
+fn adb_path(sdk: &Path) -> PathBuf {
+    let adb = sdk.join("platform-tools/adb");
+    if adb.exists() { adb } else { PathBuf::from("adb") }
+}
+
+/// Gradle and cargo-ndk need the SDK, the NDK version in `ANDROID_NDK_VERSION`, and a JDK;
+/// fills in the SDK found above, its newest NDK and Android Studio's JDK when they aren't set.
+fn android_env<'a>(cmd: &'a mut Command, sdk: &Path) -> CliResult<&'a mut Command> {
+    cmd.env("ANDROID_HOME", sdk);
+    if std::env::var_os("ANDROID_NDK_VERSION").is_none() {
+        let mut versions: Vec<String> = fs::read_dir(sdk.join("ndk"))
+            .map_err(|e| format!("no NDK under {}: {e}", sdk.display()))?
+            .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+            .collect();
+        versions.sort_by_key(|v| {
+            v.split('.')
+                .map(|n| n.parse::<u64>().unwrap_or(0))
+                .collect::<Vec<_>>()
+        });
+        let newest = versions
+            .pop()
+            .ok_or(format!("no NDK under {}", sdk.display()))?;
+        cmd.env("ANDROID_NDK_VERSION", newest);
+    }
+    let studio_jdk = Path::new("/Applications/Android Studio.app/Contents/jbr/Contents/Home");
+    if std::env::var_os("JAVA_HOME").is_none() && studio_jdk.exists() {
+        cmd.env("JAVA_HOME", studio_jdk);
+    }
+    Ok(cmd)
 }
