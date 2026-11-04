@@ -12,10 +12,12 @@ use resvg::usvg::Transform;
 
 use lb_rs::model::svg::buffer::serialize_inner;
 
+use crate::tab::ExtendedInput as _;
 use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::clip::duplicate_elements;
 use crate::tab::svg_editor::element::BoundedElement;
 use crate::tab::svg_editor::history::{self, TransformElement};
+use crate::tab::svg_editor::keyboard_shortcuts::{CanvasAction, LayerMove};
 use crate::tab::svg_editor::toolbar::{
     ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
@@ -964,48 +966,69 @@ impl Selection {
             show_opacity_slider(ui, &mut common_properties.opacity, &DynamicColor::default());
 
         if slider_res.drag_started() || slider_res.clicked() {
-            self.selection_opacity_snapshot = self
-                .selected_elements
-                .iter()
-                .filter_map(|s_el| {
-                    selection_ctx
-                        .buffer
-                        .elements
-                        .get(&s_el.id)
-                        .map(|el| (s_el.id, el.opacity()))
-                })
-                .collect();
+            self.begin_opacity_edit(selection_ctx);
         }
         if slider_res.dragged() || slider_res.clicked() {
-            self.selected_elements.iter().for_each(|s_el| {
-                if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
-                    el.set_opacity(common_properties.opacity);
-                    buffer_changed = true;
-                }
-            });
+            buffer_changed |= self.apply_opacity(selection_ctx, common_properties.opacity);
         }
         if slider_res.drag_stopped() || slider_res.clicked() {
-            let event = history::Event::OpacityChange(
-                self.selected_elements
-                    .iter()
-                    .filter_map(|s_el: &selection::SelectedElement| {
-                        selection_ctx.buffer.elements.get(&s_el.id).and_then(|el| {
-                            self.selection_opacity_snapshot
-                                .get(&s_el.id)
-                                .map(|old_opacity| history::OpacityChangeElement {
-                                    id: s_el.id,
-                                    old_opacity: *old_opacity,
-                                    new_opacity: el.opacity(),
-                                })
-                        })
-                    })
-                    .collect(),
-            );
-            self.selection_opacity_snapshot.clear();
-            selection_ctx.history.save(event);
+            self.commit_opacity_edit(selection_ctx);
         }
 
         buffer_changed
+    }
+
+    fn begin_opacity_edit(&mut self, selection_ctx: &mut ToolContext) {
+        self.selection_opacity_snapshot = self
+            .selected_elements
+            .iter()
+            .filter_map(|s_el| {
+                selection_ctx
+                    .buffer
+                    .elements
+                    .get(&s_el.id)
+                    .map(|el| (s_el.id, el.opacity()))
+            })
+            .collect();
+    }
+
+    fn apply_opacity(&mut self, selection_ctx: &mut ToolContext, opacity: f32) -> bool {
+        let mut buffer_changed = false;
+        self.selected_elements.iter().for_each(|s_el| {
+            if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                el.set_opacity(opacity);
+                buffer_changed = true;
+            }
+        });
+        buffer_changed
+    }
+
+    fn commit_opacity_edit(&mut self, selection_ctx: &mut ToolContext) {
+        let event = history::Event::OpacityChange(
+            self.selected_elements
+                .iter()
+                .filter_map(|s_el: &selection::SelectedElement| {
+                    selection_ctx.buffer.elements.get(&s_el.id).and_then(|el| {
+                        self.selection_opacity_snapshot
+                            .get(&s_el.id)
+                            .map(|old_opacity| history::OpacityChangeElement {
+                                id: s_el.id,
+                                old_opacity: *old_opacity,
+                                new_opacity: el.opacity(),
+                            })
+                    })
+                })
+                .collect(),
+        );
+        self.selection_opacity_snapshot.clear();
+        selection_ctx.history.save(event);
+    }
+
+    /// The opacity slider, clicked at `opacity`.
+    pub fn set_opacity(&mut self, selection_ctx: &mut ToolContext, opacity: f32) {
+        self.begin_opacity_edit(selection_ctx);
+        self.apply_opacity(selection_ctx, opacity);
+        self.commit_opacity_edit(selection_ctx);
     }
 
     fn show_stroke_properties(
@@ -1026,32 +1049,8 @@ impl Selection {
 
                 let color_btn = show_color_btn(ui, color, active_color, None);
                 if color_btn.clicked() || color_btn.drag_started() {
-                    let event = history::Event::StrokeChange(
-                        self.selected_elements
-                            .iter()
-                            .filter_map(|s_el: &selection::SelectedElement| {
-                                if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
-                                    let old_stroke = el.stroke();
-                                    stroke.color = c;
-                                    if let Some(mut el_stroke) = el.stroke() {
-                                        el_stroke.color = c;
-                                        el.set_stroke(*stroke);
-                                        buffer_changed = true;
-                                        Some(history::StrokeChangeElement {
-                                            id: s_el.id,
-                                            old_stroke,
-                                            new_stroke: Some(el_stroke),
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect(),
-                    );
-                    selection_ctx.history.save(event);
+                    ui.ctx()
+                        .push_event(crate::tab::Event::Canvas(CanvasAction::SetSelectionColor(c)));
                 }
             });
         });
@@ -1062,51 +1061,106 @@ impl Selection {
         let slider_res = show_thickness_slider(ui, &mut stroke.width, range, 0.0);
 
         if slider_res.drag_started() || slider_res.clicked() {
-            self.selection_stroke_snashot = self
-                .selected_elements
-                .iter()
-                .filter_map(|s_el| {
-                    if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
-                        el.stroke().map(|stroke| (s_el.id, stroke))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+            self.begin_stroke_edit(selection_ctx);
         }
         if slider_res.dragged() || slider_res.clicked() {
-            self.selected_elements.iter().for_each(|s_el| {
-                if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
-                    if let Some(mut el_stroke) = el.stroke() {
-                        el_stroke.width = stroke.width;
-                        el.set_stroke(el_stroke);
-                        buffer_changed = true;
-                    }
-                }
-            });
+            buffer_changed |= self.apply_width(selection_ctx, stroke.width);
         }
         if slider_res.drag_stopped() || slider_res.clicked() {
-            let event = history::Event::StrokeChange(
-                self.selected_elements
-                    .iter()
-                    .filter_map(|s_el: &selection::SelectedElement| {
-                        if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
-                            Some(history::StrokeChangeElement {
-                                id: s_el.id,
-                                old_stroke: self.selection_stroke_snashot.get(&s_el.id).copied(),
-                                new_stroke: el.stroke(),
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect(),
-            );
-            self.selection_stroke_snashot.clear();
-            selection_ctx.history.save(event);
+            self.commit_stroke_edit(selection_ctx);
         }
 
         buffer_changed
+    }
+
+    /// A color swatch: each selected stroke takes the panel's stroke in `color`.
+    pub fn set_color(&mut self, selection_ctx: &mut ToolContext, color: DynamicColor) {
+        let ElementSpecificEditableProperties::Stroke(StrokeEditableProperties { mut stroke }) =
+            ElementEditableProperties::from_selection(
+                &self.selected_elements,
+                selection_ctx.buffer,
+            )
+            .specific
+        else {
+            return;
+        };
+        let event = history::Event::StrokeChange(
+            self.selected_elements
+                .iter()
+                .filter_map(|s_el: &selection::SelectedElement| {
+                    let el = selection_ctx.buffer.elements.get_mut(&s_el.id)?;
+                    let old_stroke = el.stroke();
+                    stroke.color = color;
+                    let mut el_stroke = el.stroke()?;
+                    el_stroke.color = color;
+                    el.set_stroke(stroke);
+                    Some(history::StrokeChangeElement {
+                        id: s_el.id,
+                        old_stroke,
+                        new_stroke: Some(el_stroke),
+                    })
+                })
+                .collect(),
+        );
+        selection_ctx.history.save(event);
+    }
+
+    fn begin_stroke_edit(&mut self, selection_ctx: &mut ToolContext) {
+        self.selection_stroke_snashot = self
+            .selected_elements
+            .iter()
+            .filter_map(|s_el| {
+                let el = selection_ctx.buffer.elements.get(&s_el.id)?;
+                el.stroke().map(|stroke| (s_el.id, stroke))
+            })
+            .collect();
+    }
+
+    fn apply_width(&mut self, selection_ctx: &mut ToolContext, width: f32) -> bool {
+        let mut buffer_changed = false;
+        self.selected_elements.iter().for_each(|s_el| {
+            if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                if let Some(mut el_stroke) = el.stroke() {
+                    el_stroke.width = width;
+                    el.set_stroke(el_stroke);
+                    buffer_changed = true;
+                }
+            }
+        });
+        buffer_changed
+    }
+
+    fn commit_stroke_edit(&mut self, selection_ctx: &mut ToolContext) {
+        let event = history::Event::StrokeChange(
+            self.selected_elements
+                .iter()
+                .filter_map(|s_el: &selection::SelectedElement| {
+                    let el = selection_ctx.buffer.elements.get_mut(&s_el.id)?;
+                    Some(history::StrokeChangeElement {
+                        id: s_el.id,
+                        old_stroke: self.selection_stroke_snashot.get(&s_el.id).copied(),
+                        new_stroke: el.stroke(),
+                    })
+                })
+                .collect(),
+        );
+        self.selection_stroke_snashot.clear();
+        selection_ctx.history.save(event);
+    }
+
+    /// The thickness slider, clicked at `width`.
+    pub fn set_width(&mut self, selection_ctx: &mut ToolContext, width: f32) {
+        self.begin_stroke_edit(selection_ctx);
+        self.apply_width(selection_ctx, width);
+        self.commit_stroke_edit(selection_ctx);
+    }
+
+    /// The layer indices the selection spans: lowest and highest.
+    fn layer_span(&self, buffer: &Buffer) -> (usize, usize) {
+        self.selected_elements
+            .iter()
+            .filter_map(|s_el| buffer.elements.get_index_of(&s_el.id))
+            .fold((usize::MAX, 0), |(lo, hi), i| (lo.min(i), hi.max(i)))
     }
 
     fn show_layer_controls(&mut self, selection_ctx: &mut ToolContext<'_>, ui: &mut egui::Ui) {
@@ -1114,124 +1168,60 @@ impl Selection {
             let btn_rounding = 5.0;
             let icon_size = 14.0;
 
-            let mut max_current_index = 0;
-            let mut min_cureent_index = usize::MAX;
-            self.selected_elements.iter().for_each(|selected_element| {
-                if let Some((el_id, _, _)) =
-                    selection_ctx.buffer.elements.get_full(&selected_element.id)
+            let (lowest, highest) = self.layer_span(selection_ctx.buffer);
+            let at_back = highest == selection_ctx.buffer.elements.len() - 1;
+            let at_front = lowest == 0;
+            let buttons = [
+                (Icon::BRING_TO_BACK, at_back, LayerMove::ToBack),
+                (Icon::CHEVRON_LEFT, at_back, LayerMove::Backward),
+                (Icon::CHEVRON_RIGHT, at_front, LayerMove::Forward),
+                (Icon::BRING_TO_FRONT, at_front, LayerMove::ToFront),
+            ];
+            for (icon, disabled, layer) in buttons {
+                let color = if disabled {
+                    ui.visuals().text_color().linear_multiply(0.4)
+                } else {
+                    ui.visuals().text_color()
+                };
+                if Button::default()
+                    .icon(&icon.size(icon_size).color(color))
+                    .frame(true)
+                    .margin(egui::vec2(3.0, 0.0))
+                    .rounding(btn_rounding)
+                    .show(ui)
+                    .clicked()
                 {
-                    max_current_index = el_id.max(max_current_index);
-                    min_cureent_index = el_id.min(min_cureent_index);
+                    ui.ctx().push_event(crate::tab::Event::Canvas(
+                        CanvasAction::MoveSelectionLayer(layer),
+                    ));
                 }
-            });
-
-            if Button::default()
-                .icon(&Icon::BRING_TO_BACK.size(icon_size).color(
-                    if max_current_index == selection_ctx.buffer.elements.len() - 1 {
-                        ui.visuals().text_color().linear_multiply(0.4)
-                    } else {
-                        ui.visuals().text_color()
-                    },
-                ))
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-                && max_current_index != selection_ctx.buffer.elements.len() - 1
-            {
-                self.selected_elements.iter().for_each(|selected_element| {
-                    if let Some((el_id, _, _)) =
-                        selection_ctx.buffer.elements.get_full(&selected_element.id)
-                    {
-                        selection_ctx
-                            .buffer
-                            .elements
-                            .move_index(el_id, selection_ctx.buffer.elements.len() - 1);
-                    }
-                });
-            }
-
-            if Button::default()
-                .icon(&Icon::CHEVRON_LEFT.size(icon_size).color(
-                    if max_current_index == selection_ctx.buffer.elements.len() - 1 {
-                        ui.visuals().text_color().linear_multiply(0.4)
-                    } else {
-                        ui.visuals().text_color()
-                    },
-                ))
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-                && max_current_index != selection_ctx.buffer.elements.len() - 1
-            {
-                self.selected_elements.iter().for_each(|selected_element| {
-                    if let Some((el_id, _, _)) =
-                        selection_ctx.buffer.elements.get_full(&selected_element.id)
-                    {
-                        if el_id < selection_ctx.buffer.elements.len() - 1 {
-                            selection_ctx.buffer.elements.swap_indices(el_id, el_id + 1);
-                        }
-                    }
-                });
-            }
-
-            if Button::default()
-                .icon(
-                    &Icon::CHEVRON_RIGHT
-                        .size(icon_size)
-                        .color(if min_cureent_index == 0 {
-                            ui.visuals().text_color().linear_multiply(0.4)
-                        } else {
-                            ui.visuals().text_color()
-                        }),
-                )
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-                && min_cureent_index != 0
-            {
-                self.selected_elements.iter().for_each(|selected_element| {
-                    if let Some((el_id, _, _)) =
-                        selection_ctx.buffer.elements.get_full(&selected_element.id)
-                    {
-                        if el_id > 0 {
-                            selection_ctx.buffer.elements.swap_indices(el_id, el_id - 1);
-                        }
-                    }
-                });
-            }
-
-            if Button::default()
-                .icon(
-                    &Icon::BRING_TO_FRONT
-                        .size(icon_size)
-                        .color(if min_cureent_index == 0 {
-                            ui.visuals().text_color().linear_multiply(0.4)
-                        } else {
-                            ui.visuals().text_color()
-                        }),
-                )
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-                && min_cureent_index != 0
-            {
-                self.selected_elements.iter().for_each(|selected_element| {
-                    if let Some((el_id, _, _)) =
-                        selection_ctx.buffer.elements.get_full(&selected_element.id)
-                    {
-                        selection_ctx.buffer.elements.move_index(el_id, 0);
-                    }
-                });
             }
         });
+    }
+
+    /// A layer button: moves every selected element, unless the selection
+    /// already reaches that end.
+    pub fn move_layer(&mut self, selection_ctx: &mut ToolContext, layer: LayerMove) {
+        let (lowest, highest) = self.layer_span(selection_ctx.buffer);
+        let last = selection_ctx.buffer.elements.len() - 1;
+        let elements = &mut selection_ctx.buffer.elements;
+        let reached = match layer {
+            LayerMove::ToBack | LayerMove::Backward => highest == last,
+            LayerMove::Forward | LayerMove::ToFront => lowest == 0,
+        };
+        if reached {
+            return;
+        }
+        for s_el in &self.selected_elements {
+            let Some(i) = elements.get_index_of(&s_el.id) else { continue };
+            match layer {
+                LayerMove::ToBack => elements.move_index(i, last),
+                LayerMove::Backward if i < last => elements.swap_indices(i, i + 1),
+                LayerMove::Forward if i > 0 => elements.swap_indices(i, i - 1),
+                LayerMove::ToFront => elements.move_index(i, 0),
+                _ => {}
+            }
+        }
     }
 
     fn show_action_controls(&mut self, selection_ctx: &mut ToolContext, ui: &mut egui::Ui) {

@@ -7,6 +7,8 @@ use lb_rs::model::svg::element::{DynamicColor, ManipulatorGroupId};
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};
 
 use crate::set_tool;
+use crate::tab::ExtendedInput as _;
+use crate::tab::svg_editor::keyboard_shortcuts::CanvasAction;
 use crate::tab::svg_editor::renderer::VertexConstructor;
 use crate::tab::svg_editor::toolbar::{show_color_btn, show_opacity_slider, show_thickness_slider};
 use crate::tab::svg_editor::tools::eraser::DEFAULT_ERASER_RADIUS;
@@ -158,7 +160,7 @@ impl Toolbar {
                         Some(8.0),
                     );
                     if res.clicked() || res.drag_started() {
-                        change_pen_color(&mut self.pen, color);
+                        self.pen.change_color(color);
                     }
                 }
             }
@@ -490,19 +492,10 @@ fn show_color_swatches(ui: &mut egui::Ui, colors: Vec<DynamicColor>, pen: &mut P
             ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode);
         let color_btn = show_color_btn(ui, color, active_color, None);
         if color_btn.clicked() || color_btn.drag_started() {
-            change_pen_color(pen, c);
+            ui.ctx()
+                .push_event(crate::tab::Event::Canvas(CanvasAction::SetPenColor(c)));
         }
     });
-}
-
-fn change_pen_color(pen: &mut Pen, new_color: DynamicColor) {
-    if new_color == pen.active_color {
-        return;
-    }
-
-    pen.colors_history[1] = pen.colors_history[0];
-    pen.colors_history[0] = pen.active_color;
-    pen.active_color = new_color;
 }
 
 fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {

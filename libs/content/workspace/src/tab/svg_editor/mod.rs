@@ -365,14 +365,8 @@ impl SVGEditor {
             .show_tool_ui(ui, &mut tool_context);
         let mut selection_seen_tool_run = false;
         for event in self.input_controller.process(ui, &layout_ctx) {
-            if let InputControllerEvent::KeyboardAction(action) = event {
-                execute_keyboard_action(
-                    ui,
-                    action,
-                    &mut self.toolbar,
-                    &mut tool_context,
-                    &mut self.cfg,
-                );
+            if let InputControllerEvent::Action(action) = event {
+                execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
                 continue;
             }
             let active_tool = self.toolbar.active_tool;
@@ -454,7 +448,7 @@ impl SVGEditor {
     }
 }
 
-fn execute_keyboard_action(
+fn execute_action(
     ui: &mut egui::Ui, action: keyboard_shortcuts::CanvasAction, toolbar: &mut Toolbar,
     ctx: &mut ToolContext, cfg: &mut WsPersistentStore,
 ) {
@@ -482,6 +476,13 @@ fn execute_keyboard_action(
                 .selection
                 .handle_tool_event(ui, SelectionEvent::SelectAll, ctx);
         }
+        A::SetSelectionColor(color) => toolbar.selection.set_color(ctx, color),
+        A::SetSelectionWidth(width) => toolbar.selection.set_width(ctx, width),
+        A::SetSelectionOpacity(opacity) => toolbar.selection.set_opacity(ctx, opacity),
+        A::MoveSelectionLayer(layer) => toolbar.selection.move_layer(ctx, layer),
+        A::SetPenColor(color) => toolbar.active_pen().change_color(color),
+        A::SetPenWidth(width) => toolbar.active_pen().active_stroke_width = width,
+        A::SetPenOpacity(opacity) => toolbar.active_pen().active_opacity = opacity,
     }
 }
 
