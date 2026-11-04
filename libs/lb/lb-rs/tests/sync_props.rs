@@ -94,6 +94,7 @@ impl Tier {
 #[derive(Clone, Debug)]
 enum Step {
     Sync { device: usize },
+    SyncAll { device: usize },
     CreateDocument { device: usize, parent: usize, name: usize },
     CreateFolder { device: usize, parent: usize, name: usize },
     Write { device: usize, file: usize, content: usize },
@@ -112,28 +113,33 @@ const CONTENTS: [&str; 3] = ["one", "two\nlines", ""];
 
 fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
     let mut src = ByteSource::new(bytes);
-    let count = 1 + src.draw(16);
+    let count = 1 + src.draw(48);
     let shares = if tier.accounts > 1 { 2 } else { 0 };
+    let mut device = 0;
     (0..count)
         .map(|_| {
-            let device = src.draw(tier.all_devices());
-            match src.bias(&[3, 3, 2, 3, 2, 2, 1, shares, shares, shares, shares]) {
+            // people work on one device for a while
+            if src.bias(&[4, 1]) == 1 {
+                device = src.draw(tier.all_devices());
+            }
+            match src.bias(&[3, 1, 3, 2, 3, 2, 2, 1, shares, shares, shares, shares]) {
                 0 => Step::Sync { device },
-                1 => Step::CreateDocument { device, parent: src.draw(8), name: src.draw(3) },
-                2 => Step::CreateFolder { device, parent: src.draw(8), name: src.draw(3) },
-                3 => Step::Write { device, file: src.draw(8), content: src.draw(3) },
-                4 => Step::Rename { device, file: src.draw(8), name: src.draw(3) },
-                5 => Step::Move { device, file: src.draw(8), parent: src.draw(8) },
-                6 => Step::Delete { device, file: src.draw(8) },
-                7 => Step::Share {
+                1 => Step::SyncAll { device },
+                2 => Step::CreateDocument { device, parent: src.draw(8), name: src.draw(3) },
+                3 => Step::CreateFolder { device, parent: src.draw(8), name: src.draw(3) },
+                4 => Step::Write { device, file: src.draw(8), content: src.draw(3) },
+                5 => Step::Rename { device, file: src.draw(8), name: src.draw(3) },
+                6 => Step::Move { device, file: src.draw(8), parent: src.draw(8) },
+                7 => Step::Delete { device, file: src.draw(8) },
+                8 => Step::Share {
                     device,
                     file: src.draw(8),
-                    to: src.draw(tier.accounts - 1),
+                    to: src.draw(tier.accounts),
                     write: src.draw(2) == 1,
                 },
-                8 => Step::Accept { device, pending: src.draw(8), name: src.draw(3) },
-                9 => Step::Reject { device, pending: src.draw(8) },
-                _ => Step::Unshare { device, file: src.draw(8), from: src.draw(tier.accounts) },
+                9 => Step::Accept { device, pending: src.draw(8), name: src.draw(3) },
+                10 => Step::Reject { device, pending: src.draw(8) },
+                _ => Step::Unshare { device, file: src.draw(8), from: src.draw(4) },
             }
         })
         .collect()
@@ -143,6 +149,7 @@ impl Step {
     fn device(&self) -> usize {
         match *self {
             Step::Sync { device }
+            | Step::SyncAll { device }
             | Step::CreateDocument { device, .. }
             | Step::CreateFolder { device, .. }
             | Step::Write { device, .. }
@@ -230,6 +237,13 @@ impl World {
         let device = &self.devices[on];
         match *step {
             Step::Sync { .. } => device.sync().await.is_ok(),
+            Step::SyncAll { .. } => {
+                let mut all = true;
+                for device in &self.devices {
+                    all &= device.sync().await.is_ok();
+                }
+                all
+            }
             Step::CreateDocument { parent, name, .. } | Step::CreateFolder { parent, name, .. } => {
                 let file_type = match step {
                     Step::CreateFolder { .. } => FileType::Folder,
@@ -274,12 +288,16 @@ impl World {
                     return false;
                 };
                 let mode = if write { ShareMode::Write } else { ShareMode::Read };
-                // sharing with yourself is a known finding, left out until it's settled
-                let to = (on / self.per_account + 1 + to) % self.names.len();
-                device.share_file(file, &self.names[to], mode).await.is_ok()
+                // sharing a file with its owner is a known finding, left out until it's settled
+                let owner = device.get_file_by_id(file).await.unwrap().owner;
+                let others: Vec<_> = self.names.iter().filter(|name| **name != owner).collect();
+                device
+                    .share_file(file, others[to % others.len()], mode)
+                    .await
+                    .is_ok()
             }
             Step::Accept { pending, name, .. } => {
-                let Some(target) = pick_pending(device, pending).await else {
+                let Some((device, target)) = self.pending_from(on, pending).await else {
                     return false;
                 };
                 device
@@ -288,18 +306,31 @@ impl World {
                     .is_ok()
             }
             Step::Reject { pending, .. } => {
-                let Some(target) = pick_pending(device, pending).await else {
+                let Some((device, target)) = self.pending_from(on, pending).await else {
                     return false;
                 };
                 device.reject_share(&target).await.is_ok()
             }
             Step::Unshare { file, from, .. } => {
-                let Some(file) = pick(device, reach, file, Kind::Any).await else {
+                let Some(file) = pick(device, reach, file, Kind::Shared).await else {
                     return false;
                 };
-                device.unshare_file(file, &self.names[from]).await.is_ok()
+                let shares = device.get_file_by_id(file).await.unwrap().shares;
+                let sharee = &shares[from % shares.len()].shared_with;
+                device.unshare_file(file, sharee).await.is_ok()
             }
         }
+    }
+
+    /// A share waiting for the first device, counting on from `on`, that has one.
+    async fn pending_from(&self, on: usize, index: usize) -> Option<(&Lb, Uuid)> {
+        for offset in 0..self.devices.len() {
+            let device = &self.devices[(on + offset) % self.devices.len()];
+            if let Some(target) = pick_pending(device, index).await {
+                return Some((device, target));
+            }
+        }
+        None
     }
 
     /// Takes every step on the device it names.
@@ -375,6 +406,7 @@ async fn documents(device: &Lb) -> BTreeMap<Uuid, String> {
 #[derive(Clone, Copy, PartialEq)]
 enum Kind {
     Any,
+    Shared,
     Document,
     Folder,
 }
@@ -386,6 +418,7 @@ async fn pick(device: &Lb, reach: Reach, index: usize, kind: Kind) -> Option<Uui
         let is_root = file.parent == file.id;
         let fits = match kind {
             Kind::Any => !is_root && reach.reaches(&file.name),
+            Kind::Shared => !file.shares.is_empty() && reach.reaches(&file.name),
             Kind::Document => file.is_document() && reach.reaches(&file.name),
             Kind::Folder => file.is_folder() && (is_root || reach.reaches(&file.name)),
         };
@@ -421,7 +454,7 @@ type Check = fn(Tier, &[u8]) -> Result<(), String>;
 fn run(tier: Tier, seeds: u64, check: Check) {
     prop::run(
         seeds,
-        64,
+        160,
         |bytes| {
             std::panic::catch_unwind(|| check(tier, bytes)).unwrap_or_else(|panic| {
                 let message = panic
@@ -454,7 +487,7 @@ fn syncing_alone_changes_nothing_check(tier: Tier, bytes: &[u8]) -> Result<(), S
         for (n, step) in steps(tier, bytes).iter().enumerate() {
             let before = tree(&world.devices[0]).await;
             let accepted = world.take(step, 0, Reach::Shared).await;
-            if matches!(step, Step::Sync { .. }) {
+            if matches!(step, Step::Sync { .. } | Step::SyncAll { .. }) {
                 if !accepted {
                     return Err(format!("step {n}: sync failed"));
                 }
@@ -484,10 +517,9 @@ fn disjoint_changes_equal_sequential_check(tier: Tier, bytes: &[u8]) -> Result<(
 
         let sequential = World::new(SOLO).await;
         for device in 0..tier.all_devices() {
-            for step in steps
-                .iter()
-                .filter(|s| s.device() == device && !matches!(s, Step::Sync { .. }))
-            {
+            for step in steps.iter().filter(|s| {
+                s.device() == device && !matches!(s, Step::Sync { .. } | Step::SyncAll { .. })
+            }) {
                 sequential.take(step, 0, Reach::Own(device)).await;
             }
         }
@@ -534,7 +566,10 @@ fn a_refused_step_changes_nothing_check(tier: Tier, bytes: &[u8]) -> Result<(), 
             let before = tree(&world.devices[on]).await;
             let accepted = world.take(step, on, Reach::Shared).await;
             let after = tree(&world.devices[on]).await;
-            if !accepted && !matches!(step, Step::Sync { .. }) && after != before {
+            if !accepted
+                && !matches!(step, Step::Sync { .. } | Step::SyncAll { .. })
+                && after != before
+            {
                 return Err(format!(
                     "step {n} was refused but changed device {on}\n{before:#?}\ninto\n{after:#?}"
                 ));
