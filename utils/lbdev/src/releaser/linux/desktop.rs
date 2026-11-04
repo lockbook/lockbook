@@ -359,9 +359,9 @@ pub fn overwrite_flatpak_manifest(
             "build-commands": [
                 "cargo build --release --offline -p lockbook-linux",
                 "install -Dm755 target/release/lockbook-linux /app/bin/lockbook-desktop",
-                "install -Dm644 docs/graphics/logo.svg /app/share/icons/hicolor/scalable/apps/net.lockbook.Lockbook.svg",
+                "install -Dm644 docs/graphics/store-tile.svg /app/share/icons/hicolor/scalable/apps/net.lockbook.Lockbook.svg",
                 "install -Dm644 utils/dev/flatpak-package/lockbook-desktop.desktop /app/share/applications/net.lockbook.Lockbook.desktop",
-                "install -Dm644 utils/dev/flatpak-package/net.lockbook.Lockbook.appdata.xml /app/share/appdata/net.lockbook.Lockbook.appdata.xml",
+                "install -Dm644 utils/dev/flatpak-package/net.lockbook.Lockbook.metainfo.xml /app/share/metainfo/net.lockbook.Lockbook.metainfo.xml",
                 "install -Dm0644 UNLICENSE -t /app/share/licenses/net.lockbook.Lockbook/"
             ],
             "sources": [

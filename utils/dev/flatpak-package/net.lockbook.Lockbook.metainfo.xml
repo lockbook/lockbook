@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>net.lockbook.Lockbook</id>
+
+  <name>Lockbook</name>
+  <summary>Write, sketch, and share privately</summary>
+  <developer id="net.lockbook">
+    <name>Lockbook</name>
+  </developer>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>Unlicense</project_license>
+
+  <description>
+    <p>Lockbook is an open-source notebook for Markdown notes and drawings, encrypted on your device and shared only by invitation. Notes are Markdown files and drawings are SVGs, kept in ordinary folders. Open them in any other app and you'll find nothing missing.</p>
+    <p>Your notes are encrypted on your device, so no one else can read them, not even us. Sign up with just a username: we never ask for an email, a phone number, or a name.</p>
+    <ul>
+      <li>Type punctuation and watch plain text turn into headings, lists, tables, and code</li>
+      <li>Sketch, handwrite, and diagram on an infinite canvas</li>
+      <li>Mention one note in another and see which notes mention it back</li>
+      <li>Find a note by its name or by what's in it, privately and offline</li>
+      <li>Keep photos, PDFs, and everything else worth keeping</li>
+      <li>Share any note or folder with read or write access</li>
+      <li>Edits sync without being dropped, duplicated, or clobbered</li>
+      <li>Also on Windows, Mac, iPhone, iPad, and Android</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">net.lockbook.Lockbook.desktop</launchable>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+    <control>tablet</control>
+  </supports>
+
+  <url type="homepage">https://lockbook.net/</url>
+  <url type="bugtracker">https://github.com/lockbook/lockbook/issues</url>
+  <url type="vcs-browser">https://github.com/lockbook/lockbook</url>
+  <url type="contact">https://discord.gg/lockbook</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.4/utils/dev/flatpak-package/screenshots/01-hero.png</image>
+      <caption>The best place for your notes</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.4/utils/dev/flatpak-package/screenshots/02-drawing.png</image>
+      <caption>Sketch on an infinite canvas</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.4/utils/dev/flatpak-package/screenshots/06-pdf.png</image>
+      <caption>Your home for everything</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.4/utils/dev/flatpak-package/screenshots/03-links.png</image>
+      <caption>Your notes, connected</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.4/utils/dev/flatpak-package/screenshots/04-together.png</image>
+      <caption>Shared only by invitation</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.4/utils/dev/flatpak-package/screenshots/07-keys.png</image>
+      <caption>You hold the keys</caption>
+    </screenshot>
+  </screenshots>
+
+  <branding>
+    <color type="primary" scheme_preference="dark">#1c4f80</color>
+    <color type="primary" scheme_preference="light">#8fc4f5</color>
+  </branding>
+
+  <categories>
+    <category>Office</category>
+  </categories>
+
+  <keywords>
+    <keyword>notes</keyword>
+    <keyword>note taking</keyword>
+    <keyword>markdown</keyword>
+    <keyword>notebook</keyword>
+    <keyword>encrypted notes</keyword>
+    <keyword>private notes</keyword>
+    <keyword>journal</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="26.11.4" date="2026-11-04" />
+  </releases>
+</component>
