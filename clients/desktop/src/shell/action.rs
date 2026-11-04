@@ -424,6 +424,10 @@ pub enum Action {
 
     /// Linux only — persisted; takes effect after restart.
     SetPrefAllowWayland(bool),
+    /// The nudge card's button: it's done, and the sign-in QR code shows.
+    NudgeAccept,
+    /// The nudge card's X: it doesn't come back.
+    NudgeDismiss,
     /// Settings → Account: show 24-word phrase in-content.
     RevealPhrase,
     /// Settings → Account: show account key QR in-content.
@@ -547,6 +551,8 @@ impl Action {
             Self::SetPrefOpenInNewTab(_) => "SetPrefOpenInNewTab",
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",
             Self::SetPrefAllowWayland(_) => "SetPrefAllowWayland",
+            Self::NudgeAccept => "NudgeAccept",
+            Self::NudgeDismiss => "NudgeDismiss",
             Self::RevealPhrase => "RevealPhrase",
             Self::OpenAccountQr => "OpenAccountQr",
             Self::HideAccountKey => "HideAccountKey",

@@ -89,6 +89,17 @@ const PAD_X: Space = Space::Sm;
 const BAR_H: f32 = Space::Xxs.pts() * 3.0;
 const BAR_WARN_FRAC: f32 = 0.7;
 
+/// The footer's height: the usage track when it shows, then the status row.
+pub fn measure(app: &ShellApp) -> f32 {
+    let Some(ready) = app.session.ready() else {
+        return 0.0;
+    };
+    let usage = ready.status.space_used.as_ref();
+    let track = app.settings.sidebar_usage && usage.is_some_and(|u| u.data_cap.exact != 0);
+    let track_h = if track { BAR_H + V_PAD.pts() } else { 0.0 };
+    V_PAD.pts() + track_h + control_height() + V_PAD.pts()
+}
+
 pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     let Some(ready) = app.session.ready() else {
         return;
