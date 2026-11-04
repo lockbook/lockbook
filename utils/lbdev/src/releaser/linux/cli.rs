@@ -40,7 +40,6 @@ description: |
 
   Lockbook is an open-source notebook for **Markdown** notes and drawings, encrypted on your device and shared only by invitation. The CLI works on the same account as every other Lockbook app:
 
-  * `lockbook edit` opens a note in your `$EDITOR`
   * `lockbook search` finds notes by name or by what's in them
   * `lockbook cat` and `lockbook write` pipe notes in and out
   * `lockbook share new` invites someone to a note or folder
