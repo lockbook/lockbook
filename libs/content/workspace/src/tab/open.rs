@@ -190,7 +190,7 @@ impl TabContent {
             DocType::SVG if !as_source => Ok(TabContent::Svg(SVGEditor::new(
                 &bytes,
                 &res.ctx,
-                res.core.clone(),
+                Box::new(res.core.clone()),
                 id,
                 hmac,
                 &res.persistence,

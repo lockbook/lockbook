@@ -159,7 +159,7 @@ impl eframe::App for LbWebApp {
                     self.canvas = Some(SVGEditor::new(
                         svg.as_bytes(),
                         ui.ctx(),
-                        self.core.clone(),
+                        Box::new(self.core.clone()),
                         Uuid::new_v4(),
                         None,
                         &self.cfg,

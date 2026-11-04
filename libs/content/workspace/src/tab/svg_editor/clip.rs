@@ -27,12 +27,8 @@ impl SVGEditor {
                             ClipContent::NamedImage { name, data } => (Some(name), data),
                             ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
                         };
-                        let Ok(file) = crate::tab::import_image(
-                            &self.lb,
-                            self.open_file,
-                            name.as_deref(),
-                            &data,
-                        ) else {
+                        let Ok(href) = self.images.import(self.open_file, name.as_deref(), &data)
+                        else {
                             continue;
                         };
 
@@ -85,7 +81,7 @@ impl SVGEditor {
                                     fitted_img_rect.height(),
                                 )
                                 .unwrap(),
-                                href: file.id,
+                                href,
                                 opacity: 1.0,
                                 diff_state: DiffState::new(),
                                 deleted: false,
@@ -109,8 +105,10 @@ impl SVGEditor {
                     }
                     let mut pasted_buffer = Buffer::new(payload);
 
-                    pasted_buffer
-                        .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
+                    pasted_buffer.promote_weak_images(
+                        self.viewport_settings.master_transform,
+                        &*self.images,
+                    );
 
                     if !pasted_buffer.elements.is_empty() || !pasted_buffer.weak_images.is_empty() {
                         let mut container = egui::Rect::NOTHING;

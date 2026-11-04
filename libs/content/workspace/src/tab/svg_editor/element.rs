@@ -1,4 +1,6 @@
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+use lb_rs::model::errors::LbResult;
 use lb_rs::model::svg::WeakTransform;
 use lb_rs::model::svg::buffer::{Buffer, WeakViewportSettings};
 use lb_rs::model::svg::diff::DiffState;
@@ -50,14 +52,29 @@ impl BoundedElement for Path {
     }
 }
 
+/// Where a drawing's images live: read by id, and pasted images stored
+/// beside the drawing.
+pub trait CanvasImages: Send + Sync {
+    fn read(&self, id: Uuid) -> LbResult<Vec<u8>>;
+    fn import(&self, drawing: Uuid, name: Option<&str>, data: &[u8]) -> Result<Uuid, String>;
+}
+
+impl CanvasImages for Lb {
+    fn read(&self, id: Uuid) -> LbResult<Vec<u8>> {
+        self.read_document(id, false)
+    }
+
+    fn import(&self, drawing: Uuid, name: Option<&str>, data: &[u8]) -> Result<Uuid, String> {
+        crate::tab::import_image(self, drawing, name, data).map(|file| file.id)
+    }
+}
+
 pub trait PromoteWeakImage {
-    fn from_weak(value: WeakImage, lb: &Lb) -> Image;
+    fn from_weak(value: WeakImage, images: &dyn CanvasImages) -> Image;
 }
 impl PromoteWeakImage for Image {
-    fn from_weak(value: WeakImage, lb: &Lb) -> Self {
-        let data = lb
-            .read_document(value.href, false)
-            .expect("could not read image");
+    fn from_weak(value: WeakImage, images: &dyn CanvasImages) -> Self {
+        let data = images.read(value.href).expect("could not read image");
 
         Image {
             data: resvg::usvg::ImageKind::PNG(data.into()),
@@ -110,15 +127,15 @@ impl From<WeakViewportSettings> for ViewportSettings {
 }
 
 pub trait PromoteBufferWeakImages {
-    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb);
+    fn promote_weak_images(&mut self, master_transform: Transform, images: &dyn CanvasImages);
 }
 
 impl PromoteBufferWeakImages for Buffer {
-    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb) {
+    fn promote_weak_images(&mut self, master_transform: Transform, images: &dyn CanvasImages) {
         self.weak_images.drain().for_each(|(id, mut weak_image)| {
             weak_image.transform(master_transform);
 
-            let mut image = Image::from_weak(weak_image, lb);
+            let mut image = Image::from_weak(weak_image, images);
 
             image.diff_state.transformed = None;
 
