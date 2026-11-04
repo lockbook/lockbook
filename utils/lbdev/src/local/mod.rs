@@ -321,3 +321,98 @@ pub fn server() -> CliResult<()> {
 
     Ok(())
 }
+
+pub fn apple_run_sim(name: String) -> CliResult<()> {
+    let udid = simulator_udid(&name)?;
+    apple_ws(WsBuildTargets { ios: false, ios_sim: true, arm_macos: false, x86_macos: false })?;
+
+    let derived_data = apple_dir().join("build/DerivedData-sim");
+    Command::new("xcodebuild")
+        .args(["-workspace", "clients/apple/lockbook.xcworkspace", "-scheme", "Lockbook"])
+        .args(["-destination", &format!("id={udid}"), "-configuration", "Debug"])
+        .arg("-derivedDataPath")
+        .arg(&derived_data)
+        .arg("build")
+        .current_dir(root())
+        .assert_success()?;
+
+    Command::new("xcrun")
+        .args(["simctl", "bootstatus", &udid, "-b"])
+        .assert_success()?;
+    Command::new("xcrun")
+        .args(["simctl", "install", &udid])
+        .arg(derived_data.join("Build/Products/Debug-iphonesimulator/Lockbook.app"))
+        .assert_success()?;
+    Command::new("xcrun")
+        .args(["simctl", "launch", "--terminate-running-process", &udid, "app.lockbook"])
+        .assert_success()?;
+    Ok(())
+}
+
+pub fn simulator_name_completor(prompt: &str) -> CliResult<Vec<String>> {
+    let mut names: Vec<String> = simulators()?
+        .into_iter()
+        .map(|sim| sim.name)
+        .filter(|name| name.starts_with(prompt))
+        .collect();
+    names.sort();
+    names.dedup();
+    Ok(names)
+}
+
+fn simulator_udid(name: &str) -> CliResult<String> {
+    let sims = simulators()?;
+    let matches: Vec<&Simulator> = sims
+        .iter()
+        .filter(|sim| sim.udid == name || sim.name == name)
+        .collect();
+    match matches.as_slice() {
+        [sim] => Ok(sim.udid.clone()),
+        [] => Err(format!("no available simulator named or with udid '{name}'").into()),
+        _ => {
+            let rows: Vec<String> = matches
+                .iter()
+                .map(|sim| format!("  {} {} ({})", sim.udid, sim.name, sim.runtime))
+                .collect();
+            Err(format!("'{name}' names several simulators, pass a udid:\n{}", rows.join("\n"))
+                .into())
+        }
+    }
+}
+
+struct Simulator {
+    udid: String,
+    name: String,
+    runtime: String,
+}
+
+fn simulators() -> CliResult<Vec<Simulator>> {
+    #[derive(Deserialize)]
+    struct SimctlList {
+        devices: std::collections::BTreeMap<String, Vec<SimctlDevice>>,
+    }
+    #[derive(Deserialize)]
+    struct SimctlDevice {
+        udid: String,
+        name: String,
+    }
+
+    let out = Command::new("xcrun")
+        .args(["simctl", "list", "devices", "available", "-j"])
+        .success_output()?;
+    let list: SimctlList = serde_json::from_slice(&out.stdout)?;
+    Ok(list
+        .devices
+        .into_iter()
+        .flat_map(|(runtime, devices)| {
+            let runtime = runtime
+                .trim_start_matches("com.apple.CoreSimulator.SimRuntime.")
+                .to_string();
+            devices.into_iter().map(move |d| Simulator {
+                udid: d.udid,
+                name: d.name,
+                runtime: runtime.clone(),
+            })
+        })
+        .collect())
+}

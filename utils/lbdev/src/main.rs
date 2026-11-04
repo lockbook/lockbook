@@ -33,6 +33,7 @@ fn main() {
                         .description("build workspace and run on a given macOS or iOS device")
                         .subcommand(Command::name("macos").description("runs lockbook macOS on this device").handler(local::apple_run_macos))
                         .subcommand(Command::name("ios").description("deploys lockbook to a connected iOS device").input(Arg::str("device-name").description("looks up a device udid by the given friendly name, builds lb and deploys it on that device.").completor(local::apple_device_name_completor)).handler(|device| local::apple_run_ios(device.get())))
+                        .subcommand(Command::name("sim").description("builds lockbook for the iOS simulator and launches it on the given simulator").input(Arg::str("simulator").description("a simulator name or udid from `xcrun simctl list devices available`").completor(local::simulator_name_completor)).handler(|sim| local::apple_run_sim(sim.get())))
                 )
         )
         .subcommand(
