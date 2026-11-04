@@ -1,6 +1,7 @@
 use lb_rs::Lb;
 use lb_rs::service::events::{Actor, Event};
-use test_utils::{random_name, test_core, test_core_with_account, url};
+use test_utils::http::{test_core, test_core_with_account};
+use test_utils::{random_name, url};
 
 #[tokio::test]
 async fn catch_up_emits_an_ipc_event_for_document_changes() {

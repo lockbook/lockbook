@@ -1,6 +1,6 @@
 use lb_rs::{Lb, LbErrKind};
 use std::{fs::File, path::Path};
-use test_utils::test_core;
+use test_utils::http::test_core;
 
 #[tokio::test]
 async fn sync_lock_excludes_other_syncers_but_not_transactions() {

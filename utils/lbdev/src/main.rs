@@ -143,6 +143,10 @@ fn main() {
                 .subcommand(Command::name("android-format").handler(ci::format_android))
                 .subcommand(Command::name("assert-git-clean").handler(ci::assert_git_clean))
                 .subcommand(Command::name("assert-no-udeps").handler(ci::assert_no_udeps))
+                .subcommand(
+                    Command::name("assert-clients-without-server")
+                        .handler(ci::assert_clients_without_server),
+                )
         )
         .parse()
         .exit();

@@ -1,4 +1,3 @@
-use lb_rs::Lb;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_metadata::FileType;
 use test_utils::*;

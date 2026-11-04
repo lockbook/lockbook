@@ -1,4 +1,5 @@
 use lb_rs::io::network::ApiError;
+use lb_rs::io::server::Server;
 use lb_rs::model::api::*;
 use lb_rs::model::crypto::AESEncrypted;
 use lb_rs::model::file_like::FileLike;
@@ -26,27 +27,25 @@ async fn get_document() {
         .set_hmac_and_size(Some([0; 32]), Some(1));
 
     // update document content
-    core.client
-        .request(
-            account,
-            ChangeDocRequestV2 {
-                diff: FileDiff::edit(old, new.clone()),
-                new_content: AESEncrypted {
-                    value: vec![69],
-                    nonce: vec![69],
-                    _t: Default::default(),
-                },
-            },
-        )
-        .await
-        .unwrap();
+    Server::change_doc_v2(
+        &core.client,
+        account,
+        ChangeDocRequestV2 {
+            diff: FileDiff::edit(old, new.clone()),
+            new_content: AESEncrypted { value: vec![69], nonce: vec![69], _t: Default::default() },
+        },
+    )
+    .await
+    .unwrap();
 
     // get document
-    let result = core
-        .client
-        .request(account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
-        .await
-        .unwrap();
+    let result = Server::get_document(
+        &core.client,
+        account,
+        GetDocRequest { id, hmac: *new.document_hmac().unwrap() },
+    )
+    .await
+    .unwrap();
     assert_eq!(
         result.content,
         AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() }
@@ -74,10 +73,12 @@ async fn get_document_not_found() {
         .set_hmac_and_size(Some([0; 32]), Some(0));
 
     // get document we never created
-    let result = core
-        .client
-        .request(account, GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() })
-        .await;
+    let result = Server::get_document(
+        &core.client,
+        account,
+        GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() },
+    )
+    .await;
     assert_matches!(
         result,
         Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::DocumentNotFound))

@@ -32,6 +32,8 @@ jobs:
     - name: Server Logs
       if: always()
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci server-logs"
+    - name: Check Clients Without Server
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci assert-clients-without-server"
     - name: Check Lock File
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci assert-git-clean"
     - name: Install Nightly

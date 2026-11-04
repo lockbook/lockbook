@@ -9,9 +9,8 @@ use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::service::import_export::{ExportFileInfo, ImportStatus};
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use test_utils::{
-    generate_premium_account_tier, random_name, test_core_from, test_credit_cards, url,
-};
+use test_utils::http::test_core_from;
+use test_utils::{generate_premium_account_tier, random_name, test_credit_cards, url};
 use uuid::Uuid;
 
 const ONE_MIB: usize = 1024 * 1024;

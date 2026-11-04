@@ -1,6 +1,6 @@
 use lb_rs::Lb;
 use lb_rs::model::errors::LbErrKind;
-use test_utils::test_core_with_account;
+use test_utils::http::test_core_with_account;
 
 #[tokio::test]
 async fn reads_catch_up_when_another_instance_replaces_the_document() {

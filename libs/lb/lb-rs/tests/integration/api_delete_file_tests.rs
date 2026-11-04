@@ -1,4 +1,5 @@
 use lb_rs::io::network::ApiError;
+use lb_rs::io::server::Server;
 use lb_rs::model::api::*;
 use lb_rs::model::file_metadata::FileDiff;
 use test_utils::*;
@@ -21,10 +22,13 @@ async fn delete_document() {
         .clone();
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.set_deleted(true);
-    core.client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc1, doc2)] })
-        .await
-        .unwrap();
+    Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::edit(doc1, doc2)] },
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]
@@ -46,16 +50,15 @@ async fn delete_document_not_found() {
     // delete document
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.set_deleted(true);
-    let result = core
-        .client
-        .request(
-            account,
-            UpsertRequestV2 {
-                // create document as if deleting an existing document
-                updates: vec![FileDiff::edit(doc1, doc2)],
-            },
-        )
-        .await;
+    let result = Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 {
+            // create document as if deleting an existing document
+            updates: vec![FileDiff::edit(doc1, doc2)],
+        },
+    )
+    .await;
     assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::OldFileNotFound)));
 }
 
@@ -75,10 +78,12 @@ async fn delete_document_new_document() {
         .clone();
     doc.timestamped_value.value.set_deleted(true);
 
-    let result = core
-        .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc)] })
-        .await;
+    let result = Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::new(doc)] },
+    )
+    .await;
     assert_matches!(result, Ok(_));
 }
 
@@ -101,10 +106,13 @@ async fn delete_document_deleted() {
     // delete document
     let mut doc2 = doc.clone();
     doc2.timestamped_value.value.set_deleted(true);
-    core.client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc, doc2)] })
-        .await
-        .unwrap();
+    Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::edit(doc, doc2)] },
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]
@@ -123,10 +131,12 @@ async fn delete_cannot_delete_root() {
 
     let mut root2 = root1.clone();
     root2.timestamped_value.value.set_deleted(true);
-    let result = core
-        .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(root1, root2)] })
-        .await;
+    let result = Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::edit(root1, root2)] },
+    )
+    .await;
     assert_matches!(
         result,
         Err(ApiError::<UpsertError>::Endpoint(UpsertError::RootModificationInvalid))
