@@ -35,6 +35,9 @@ pub const BETA_USERS: &[&str] = &[
     "coreycole",
 ];
 
+/// Users who get developer-only checks, like panicking when a frame or lock overruns its budget.
+pub const DEV_USERS: &[&str] = &["parth", "adam", "travis", "at"];
+
 pub type Username = String;
 pub type ApiUrl = String;
 
@@ -151,6 +154,10 @@ impl Account {
 
     pub fn is_beta(&self) -> bool {
         BETA_USERS.contains(&self.username.as_str())
+    }
+
+    pub fn is_dev(&self) -> bool {
+        DEV_USERS.contains(&self.username.as_str())
     }
 }
 
