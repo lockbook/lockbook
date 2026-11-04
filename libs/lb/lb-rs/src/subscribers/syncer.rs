@@ -400,6 +400,8 @@ impl<S: Server> Lb<S> {
             let mut files_to_unmove: HashSet<Uuid> = HashSet::new();
             let mut files_to_unshare: HashSet<Uuid> = HashSet::new();
             let mut links_to_delete: HashSet<Uuid> = HashSet::new();
+            // a local attachments folder whose document already has one: its files go there
+            let mut attachments_to_fold: HashMap<Uuid, Uuid> = HashMap::new();
             let mut rename_increments: HashMap<Uuid, usize> = HashMap::new();
             // Id and key share one lifetime: the merge, including construction retries.
             // A new key per attempt encrypts with the key cached by the failed attempt.
@@ -491,20 +493,25 @@ impl<S: Server> Lb<S> {
                             && !deletions.calculate_deleted(&id)?
                             && remote.maybe_find(&id).is_none()
                             && !links_to_delete.contains(&id)
+                            && !attachments_to_fold.contains_key(&id)
                             && !lost_access(&local, me, &id)?
                         {
                             creations.insert(id);
                         }
                     }
+                    let attached: Vec<Uuid> = creations.iter().copied().collect();
                     'drain_creations: while !creations.is_empty() {
                         'choose_a_creation: for id in &creations {
                             // create
                             let id = *id;
                             let local_file = local.find(&id)?.clone();
+                            let parent = attachments_to_fold
+                                .get(local_file.parent())
+                                .unwrap_or(local_file.parent());
                             let result = merge.create_unvalidated(
                                 id,
                                 local.decrypt_key(&id, &self.keychain)?,
-                                local_file.parent(),
+                                parent,
                                 &local.name(&id, &self.keychain)?,
                                 local_file.file_type(),
                                 &self.keychain,
@@ -529,6 +536,11 @@ impl<S: Server> Lb<S> {
                         ))
                         .into());
                     }
+                    for id in attached {
+                        if let Some(of) = local.find(&id)?.attachments_of() {
+                            merge.attach_unvalidated(&id, &of.id, &self.keychain)?;
+                        }
+                    }
 
                     // moves, renames, edits, and shares
                     // creations happen first in case a file is moved into a new folder
@@ -540,6 +552,7 @@ impl<S: Server> Lb<S> {
                             || (remote.maybe_find(&id).is_some()
                                 && remote.calculate_deleted(&id)?)
                             || links_to_delete.contains(&id)
+                            || attachments_to_fold.contains_key(&id)
                             || lost_access(&local, me, &id)?
                         {
                             continue;
@@ -559,7 +572,10 @@ impl<S: Server> Lb<S> {
                                 && remote_file.parent() == base_file.parent()
                                 && !files_to_unmove.contains(&id)
                             {
-                                merge.move_unvalidated(&id, local_file.parent(), &self.keychain)?;
+                                let parent = attachments_to_fold
+                                    .get(local_file.parent())
+                                    .unwrap_or(local_file.parent());
+                                merge.move_unvalidated(&id, parent, &self.keychain)?;
                             }
 
                             // rename
@@ -941,6 +957,41 @@ impl<S: Server> Lb<S> {
                                     .into());
                                 }
                             }
+                            ValidationFailure::DuplicateAttachments { document } => {
+                                // move this device's new folder's files into the existing one
+                                let mut progress = false;
+                                let folders: Vec<Uuid> = merge
+                                    .ids()
+                                    .into_iter()
+                                    .filter(|id| {
+                                        merge
+                                            .find(id)
+                                            .ok()
+                                            .and_then(|f| f.attachments_of())
+                                            .is_some_and(|of| of.id == *document)
+                                    })
+                                    .collect();
+                                let mut existing = None;
+                                for id in &folders {
+                                    if remote.maybe_find(id).is_some()
+                                        && !merge.calculate_deleted(id)?
+                                    {
+                                        existing = Some(id);
+                                    }
+                                }
+                                let new = folders.iter().find(|id| remote.maybe_find(id).is_none());
+                                if let (Some(&existing), Some(&new)) = (existing, new) {
+                                    if attachments_to_fold.insert(new, existing).is_none() {
+                                        progress = true;
+                                    }
+                                }
+                                if !progress {
+                                    return Err(LbErrKind::Unexpected(format!(
+                                        "sync failed to resolve duplicate attachments: document: {document:?}"
+                                    ))
+                                    .into());
+                                }
+                            }
                             ValidationFailure::BrokenLink(link) => {
                                 // delete local link with this target
                                 if !links_to_delete.insert(*link) {
@@ -979,7 +1030,8 @@ impl<S: Server> Lb<S> {
                             | ValidationFailure::FileWithDifferentOwnerParent(_)
                             | ValidationFailure::FileNameTooLong(_)
                             | ValidationFailure::DeletedFileUpdated(_)
-                            | ValidationFailure::NonDecryptableFileName(_) => {
+                            | ValidationFailure::NonDecryptableFileName(_)
+                            | ValidationFailure::InvalidAttachmentsFolder(_) => {
                                 validate_result?;
                             }
                         },

@@ -100,6 +100,8 @@ itertools = "0.10.1"
 rand = "0.8.4"
 tempfile = { version = "3.1.0" }
 test_utils = { path = "../test_utils" }
+# the release that reads V2 metadata, which keeps syncing alongside the one that writes it
+lb-rs-read = { package = "lb-rs", git = "https://github.com/lockbook/lockbook", rev = "66b7a9585a9cc255144d5cce3e8c3b3376f894fe" }
 
 [[bench]]
 name = "bench_main"

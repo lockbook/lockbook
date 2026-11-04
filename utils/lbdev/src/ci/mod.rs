@@ -25,7 +25,8 @@ pub fn clippy() -> CliResult<()> {
         .assert_success()?;
 
     Command::new("cargo")
-        .args(["clippy", "-p", "lb-rs", "--tests", "--features", "in-process-tests"])
+        .args(["clippy", "--manifest-path", "libs/lb/lb-rs/Cargo.toml", "--tests"])
+        .args(["--features", "in-process-tests"])
         .args(["--", "-D", "warnings"])
         .current_dir(root())
         .assert_success()
@@ -70,7 +71,8 @@ pub fn run_rust_tests() -> CliResult<()> {
         .assert_success()?;
 
     Command::new("cargo")
-        .args(["test", "-p", "lb-rs", "--features", "in-process-tests"])
+        .args(["test", "--manifest-path", "libs/lb/lb-rs/Cargo.toml"])
+        .args(["--features", "in-process-tests"])
         .current_dir(root())
         .assert_success()
 }

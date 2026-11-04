@@ -161,6 +161,9 @@ impl<F: FileLike> Debug for FileDiff<F> {
                 Diff::Deleted => result.field("new_deleted", &self.new.explicitly_deleted()),
                 Diff::Hmac => result.field("new_hmac", &self.new.document_hmac()),
                 Diff::UserKeys => result.field("new_user_keys", &true),
+                Diff::AttachmentsOf => {
+                    result.field("new_attachments_of", &self.new.attachments_of())
+                }
             };
         }
         result.finish()
@@ -176,6 +179,7 @@ pub enum Diff {
     Deleted,
     Hmac,
     UserKeys,
+    AttachmentsOf,
 }
 
 impl<F: FileLike> FileDiff<F> {
@@ -213,6 +217,10 @@ impl<F: FileLike> FileDiff<F> {
 
                 if old.user_access_keys() != new.user_access_keys() {
                     changes.push(UserKeys);
+                }
+
+                if old.attachments_of() != new.attachments_of() {
+                    changes.push(AttachmentsOf);
                 }
 
                 changes
