@@ -1,4 +1,5 @@
 use crate::experiments::{WelcomeDoc, cohort};
+use crate::io::server::Server;
 use crate::model::account::{Account, MAX_USERNAME_LENGTH};
 use crate::model::api::{
     DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequestV2,
@@ -45,7 +46,7 @@ impl Lb {
 
         let last_synced = self
             .client
-            .request(&account, NewAccountRequestV2::new(&account, &root))
+            .new_account_v2(&account, NewAccountRequestV2::new(&account, &root))
             .await?
             .last_synced;
 
@@ -159,7 +160,7 @@ impl Lb {
     pub async fn import_account_private_key_v1(&self, account: Account) -> LbResult<Account> {
         let server_public_key = self
             .client
-            .request(&account, GetPublicKeyRequest { username: account.username.clone() })
+            .get_public_key(&account, GetPublicKeyRequest { username: account.username.clone() })
             .await?
             .key;
 
@@ -186,7 +187,7 @@ impl Lb {
 
         account.username = self
             .client
-            .request(&account, GetUsernameRequest { key: public_key })
+            .get_username(&account, GetUsernameRequest { key: public_key })
             .await?
             .username;
 
@@ -228,7 +229,7 @@ impl Lb {
         let account = self.get_account()?;
 
         self.client
-            .request(account, DeleteAccountRequest {})
+            .delete_account(account, DeleteAccountRequest {})
             .await
             .map_err(|err| match err {
                 ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,

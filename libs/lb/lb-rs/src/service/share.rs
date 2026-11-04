@@ -1,4 +1,5 @@
 use crate::Lb;
+use crate::io::server::Server;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::{File, ShareMode};
@@ -110,7 +111,7 @@ impl Lb {
 
         let sharee = Owner(
             self.client
-                .request(account, GetPublicKeyRequest { username: username.clone() })
+                .get_public_key(account, GetPublicKeyRequest { username: username.clone() })
                 .await
                 .map_err(LbErr::from)?
                 .key,
@@ -244,7 +245,7 @@ impl Lb {
 
         match self
             .client
-            .request(account, GetPublicKeyRequest { username })
+            .get_public_key(account, GetPublicKeyRequest { username })
             .await
         {
             Ok(_) => Ok(true),

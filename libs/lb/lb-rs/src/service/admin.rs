@@ -1,5 +1,6 @@
 use crate::Lb;
 use crate::io::network::ApiError;
+use crate::io::server::Server;
 use crate::model::account::Username;
 use crate::model::api::*;
 use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
@@ -11,7 +12,10 @@ impl Lb {
         let account = self.get_account()?;
 
         self.client
-            .request(account, AdminDisappearAccountRequest { username: username.to_string() })
+            .admin_disappear_account(
+                account,
+                AdminDisappearAccountRequest { username: username.to_string() },
+            )
             .await
             .map_err(|err| {
                 match err {
@@ -33,7 +37,7 @@ impl Lb {
     pub async fn disappear_file(&self, id: Uuid) -> LbResult<()> {
         let account = self.get_account()?;
         self.client
-            .request(account, AdminDisappearFileRequest { id })
+            .admin_disappear_file(account, AdminDisappearFileRequest { id })
             .await
             .map_err(|err| {
                 match err {
@@ -57,7 +61,7 @@ impl Lb {
 
         Ok(self
             .client
-            .request(account, AdminListUsersRequest { filter })
+            .admin_list_users(account, AdminListUsersRequest { filter })
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(AdminListUsersError::NotPermissioned) => {
@@ -76,7 +80,7 @@ impl Lb {
 
         Ok(self
             .client
-            .request(account, AdminGetAccountInfoRequest { identifier })
+            .admin_get_account_info(account, AdminGetAccountInfoRequest { identifier })
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(AdminGetAccountInfoError::NotPermissioned) => {
@@ -96,7 +100,10 @@ impl Lb {
     pub async fn validate_account(&self, username: &str) -> LbResult<AdminValidateAccount> {
         let account = self.get_account()?;
         self.client
-            .request(account, AdminValidateAccountRequest { username: username.to_string() })
+            .admin_validate_account(
+                account,
+                AdminValidateAccountRequest { username: username.to_string() },
+            )
             .await
             .map_err(|err| {
                 match err {
@@ -118,7 +125,7 @@ impl Lb {
     pub async fn validate_server(&self) -> LbResult<AdminValidateServer> {
         let account = self.get_account()?;
         self.client
-            .request(account, AdminValidateServerRequest {})
+            .admin_validate_server(account, AdminValidateServerRequest {})
             .await
             .map_err(|err| {
                 match err {
@@ -137,7 +144,7 @@ impl Lb {
     pub async fn file_info(&self, id: Uuid) -> LbResult<AdminFileInfoResponse> {
         let account = self.get_account()?;
         self.client
-            .request(account, AdminFileInfoRequest { id })
+            .admin_file_info(account, AdminFileInfoRequest { id })
             .await
             .map_err(|err| {
                 match err {
@@ -159,7 +166,7 @@ impl Lb {
     pub async fn rebuild_index(&self, index: ServerIndex) -> LbResult<()> {
         let account = self.get_account()?;
         self.client
-            .request(account, AdminRebuildIndexRequest { index })
+            .admin_rebuild_index(account, AdminRebuildIndexRequest { index })
             .await
             .map_err(|err| {
                 match err {
@@ -178,7 +185,10 @@ impl Lb {
     pub async fn set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
         let account = self.get_account()?;
         self.client
-            .request(account, AdminSetUserTierRequest { username: username.to_string(), info })
+            .admin_set_user_tier(
+                account,
+                AdminSetUserTierRequest { username: username.to_string(), info },
+            )
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(AdminSetUserTierError::NotPermissioned) => {
