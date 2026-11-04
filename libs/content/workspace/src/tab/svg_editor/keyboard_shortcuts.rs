@@ -1,9 +1,11 @@
 //! Canvas keyboard bindings.
 use egui::{Key, Modifiers};
+use lb_rs::model::svg::element::DynamicColor;
 
 use super::Tool;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// What a shortcut or a toolbar control does to the canvas.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CanvasAction {
     DeleteSelection,
     CutSelection,
@@ -13,6 +15,23 @@ pub enum CanvasAction {
     Redo,
     SetTool(Tool),
     ToggleToolPopover,
+    SetSelectionColor(DynamicColor),
+    SetSelectionWidth(f32),
+    SetSelectionOpacity(f32),
+    MoveSelectionLayer(LayerMove),
+    /// for the pen or highlighter, whichever is active
+    SetPenColor(DynamicColor),
+    SetPenWidth(f32),
+    SetPenOpacity(f32),
+}
+
+/// Index 0 is drawn on top.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LayerMove {
+    ToBack,
+    Backward,
+    Forward,
+    ToFront,
 }
 
 #[derive(Debug)]

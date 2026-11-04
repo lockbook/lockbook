@@ -124,7 +124,7 @@ enum ButtonType {
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum InputControllerEvent {
-    KeyboardAction(CanvasAction),
+    Action(CanvasAction),
     ToolStart(ToolPayload),
     ToolRun(ToolPayload),
     ToolPredictedRun(egui::Pos2, Option<f32>),
@@ -269,7 +269,7 @@ impl InputController {
                 let Some(action) = self.resolve_keyboard_action(event) else {
                     return true;
                 };
-                !controller_events.contains(&InputControllerEvent::KeyboardAction(action))
+                !controller_events.contains(&InputControllerEvent::Action(action))
             })
         });
         let extended_controller_events =
@@ -311,6 +311,9 @@ impl InputController {
         &mut self, event: &Event, ctx: &LayoutContext,
     ) -> Option<InputControllerEvent> {
         match event {
+            Event::Canvas(action) if !self.config.is_read_only => {
+                Some(InputControllerEvent::Action(*action))
+            }
             Event::PredictedTouch { id, force, pos } => {
                 if let Some(start_touch) = self.tool_start_touch {
                     if start_touch.eq(id) {
@@ -436,7 +439,7 @@ impl InputController {
             {
                 return None;
             }
-            return Some(InputControllerEvent::KeyboardAction(binding.action));
+            return Some(InputControllerEvent::Action(binding.action));
         }
         match *event {
             egui::Event::PointerButton { pos, button, pressed, modifiers } => {
