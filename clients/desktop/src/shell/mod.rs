@@ -354,6 +354,9 @@ impl ShellApp {
             }
         }
 
+        if let Some(a) = apply::import_event(self) {
+            self.queue.push(a);
+        }
         if let (Some(r), Some(job)) = (self.session.ready(), &mut self.import_job) {
             job.tick(&r.status);
             if job.view().phase != workspace_rs::import::Phase::Done {

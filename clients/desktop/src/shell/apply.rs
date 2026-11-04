@@ -590,16 +590,29 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             persist_zen(app);
         }
         A::Import => import_pick(app, ctx),
-        A::ImportPaths { paths, parent } => import_paths(app, ctx, paths, parent),
+        A::ImportPaths { paths, parent } => {
+            open_import_parent_sheet(app, ctx, paths);
+            apply(app, ctx, A::ImportParentSelect(parent));
+        }
         A::OpenImportParent { paths } => open_import_parent_sheet(app, ctx, paths),
         A::ImportParentSelect(id) => {
             if let Some(Modal::ImportParent { dest, .. }) = &mut app.modal {
                 *dest = Some(id);
             }
+            replan_import(app, ctx, None);
         }
         A::ConfirmImportParent => {
-            if let Some(Modal::ImportParent { paths, dest: Some(parent) }) = app.modal.take() {
-                import_paths(app, ctx, paths, parent);
+            // Only a settled plan that fits confirms.
+            let fits = matches!(
+                &app.modal,
+                Some(Modal::ImportParent { plan: Some(plan), planning: None, .. })
+                    if plan.writes() > 0 && plan.over_cap().is_none()
+            );
+            if fits {
+                if let Some(Modal::ImportParent { paths, plan: Some(plan), .. }) = app.modal.take()
+                {
+                    import_paths(app, ctx, paths, plan);
+                }
             }
         }
         A::ImportShow(id) => {
@@ -610,6 +623,12 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             app.import_job = None;
         }
         A::ImportDismiss => app.import_job = None,
+        A::ImportPlanned(p) => {
+            if let Some(Modal::ImportParent { plan, planning, .. }) = &mut app.modal {
+                *plan = Some(p);
+                *planning = None;
+            }
+        }
         A::OpenSearch(search_type) => {
             if let Some(r) = app.session.ready_mut() {
                 r.workspace.upsert_search(search_type);
@@ -1494,29 +1513,52 @@ fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBu
         )));
         d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_import_parent"));
     });
-    app.modal = Some(Modal::ImportParent { paths, dest });
+    app.modal = Some(Modal::ImportParent { paths, dest, plan: None, planning: None });
+    replan_import(app, ctx, None);
 }
 
-fn import_paths(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBuf>, parent: Uuid) {
-    let Some(r) = app.session.ready() else {
+/// Plan the open import again off the UI thread. `None` leaves out whatever
+/// makes it fit.
+fn replan_import(app: &mut ShellApp, ctx: &Context, leave: Option<workspace_rs::import::Leave>) {
+    let Some((core, status)) = app
+        .session
+        .ready()
+        .map(|r| (r.workspace.core.clone(), r.status.clone()))
+    else {
         return;
     };
-    let core = r.workspace.core.clone();
-    let ctx = ctx.clone();
-    let n = paths.len();
-    let toast_inbox = app.toasts.inbox.clone();
-    if let Some(r) = app.session.ready_mut() {
-        r.expanded.insert(parent);
-        r.status_msg = format!("Importing {n}…");
+    if let Some(Modal::ImportParent { paths, dest: Some(dest), planning, .. }) = &mut app.modal {
+        *planning = Some(workspace_rs::import::plan_in_background(
+            core,
+            paths.clone(),
+            *dest,
+            leave,
+            status,
+            ctx.clone(),
+        ));
     }
-    thread::spawn(move || {
-        if let Err(e) = core.import_files(&paths, parent, &|_| {}) {
-            eprintln!("import failed: {e:?}");
-            toast_inbox.error(format!("Import failed: {e}"));
+}
+
+/// A finished plan for the open sheet.
+pub(crate) fn import_event(app: &ShellApp) -> Option<A> {
+    match &app.modal {
+        Some(Modal::ImportParent { planning: Some(rx), .. }) => {
+            rx.try_recv().ok().map(A::ImportPlanned)
         }
-        let _ = n;
-        ctx.request_repaint();
-    });
+        _ => None,
+    }
+}
+
+fn import_paths(
+    app: &mut ShellApp, ctx: &Context, paths: Vec<PathBuf>, plan: workspace_rs::import::ImportPlan,
+) {
+    let Some(r) = app.session.ready_mut() else {
+        return;
+    };
+    r.expanded.insert(plan.dest);
+    let (core, status) = (r.workspace.core.clone(), r.status.clone());
+    app.import_job =
+        Some(workspace_rs::import::ImportJob::start(core, paths, plan, status, ctx.clone()));
 }
 
 fn request_sync(app: &mut ShellApp, ctx: &Context) {

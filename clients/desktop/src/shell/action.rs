@@ -170,6 +170,10 @@ pub enum Modal {
     ImportParent {
         paths: Vec<PathBuf>,
         dest: Option<Uuid>,
+        /// What importing into `dest` would do, recomputed when `dest` changes.
+        plan: Option<workspace_rs::import::ImportPlan>,
+        /// A plan being worked out; it replaces `plan` when it arrives.
+        planning: Option<std::sync::mpsc::Receiver<workspace_rs::import::ImportPlan>>,
     },
     Help,
     Onboard {
@@ -401,6 +405,8 @@ pub enum Action {
     },
     ImportParentSelect(Uuid),
     ConfirmImportParent,
+    /// A plan for the open import finished.
+    ImportPlanned(workspace_rs::import::ImportPlan),
     /// Reveal the folder an import made.
     ImportShow(Uuid),
     ImportDismiss,
@@ -535,6 +541,7 @@ impl Action {
             Self::OpenImportParent { .. } => "OpenImportParent",
             Self::ImportParentSelect(_) => "ImportParentSelect",
             Self::ConfirmImportParent => "ConfirmImportParent",
+            Self::ImportPlanned(_) => "ImportPlanned",
             Self::ImportShow(_) => "ImportShow",
             Self::ImportDismiss => "ImportDismiss",
             Self::OpenSearch(_) => "OpenSearch",
