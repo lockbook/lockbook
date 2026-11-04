@@ -675,6 +675,16 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
             let _ = v;
         }
+        A::NudgeAccept => {
+            if let Some(then) = app.nudges.as_mut().map(|n| n.accept()) {
+                apply(app, ctx, then);
+            }
+        }
+        A::NudgeDismiss => {
+            if let Some(nudges) = &mut app.nudges {
+                nudges.dismiss();
+            }
+        }
         A::RevealPhrase => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::Phrase;

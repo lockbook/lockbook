@@ -3,6 +3,7 @@
 
 pub mod chips;
 pub mod footer;
+pub mod nudge_card;
 pub mod pins;
 pub mod settings_plate;
 pub mod sidebar_resize;
