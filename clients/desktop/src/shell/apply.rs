@@ -602,6 +602,14 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 import_paths(app, ctx, paths, parent);
             }
         }
+        A::ImportShow(id) => {
+            if let Some(r) = app.session.ready_mut() {
+                super::reveal_and_scroll(r, id);
+                r.select_only(id);
+            }
+            app.import_job = None;
+        }
+        A::ImportDismiss => app.import_job = None,
         A::OpenSearch(search_type) => {
             if let Some(r) = app.session.ready_mut() {
                 r.workspace.upsert_search(search_type);

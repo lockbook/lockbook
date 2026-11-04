@@ -401,6 +401,9 @@ pub enum Action {
     },
     ImportParentSelect(Uuid),
     ConfirmImportParent,
+    /// Reveal the folder an import made.
+    ImportShow(Uuid),
+    ImportDismiss,
     /// `None` keeps the last search's mode.
     OpenSearch(Option<workspace_rs::search::SearchType>),
     /// Open cancel-subscription confirm.
@@ -532,6 +535,8 @@ impl Action {
             Self::OpenImportParent { .. } => "OpenImportParent",
             Self::ImportParentSelect(_) => "ImportParentSelect",
             Self::ConfirmImportParent => "ConfirmImportParent",
+            Self::ImportShow(_) => "ImportShow",
+            Self::ImportDismiss => "ImportDismiss",
             Self::OpenSearch(_) => "OpenSearch",
             Self::CancelSubscription => "CancelSubscription",
             Self::ConfirmCancelSub => "ConfirmCancelSub",

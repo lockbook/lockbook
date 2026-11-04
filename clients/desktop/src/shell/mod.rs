@@ -115,6 +115,8 @@ pub struct ShellApp {
     pub(crate) onboard_backup_pending: bool,
     /// The file a link from outside the app names, until it opens.
     pub(crate) incoming_link: Option<apply::IncomingLink>,
+    /// The import running or just finished, drawn above the sync footer.
+    pub import_job: Option<workspace_rs::import::ImportJob>,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -182,6 +184,7 @@ impl Default for ShellApp {
             onboard_auto_rx: None,
             onboard_backup_pending: false,
             incoming_link: None,
+            import_job: None,
         }
     }
 }
@@ -348,6 +351,13 @@ impl ShellApp {
         if ctx.input(|i| i.viewport().close_requested()) {
             if let Some(r) = self.session.ready_mut() {
                 r.workspace.save_all_tabs();
+            }
+        }
+
+        if let (Some(r), Some(job)) = (self.session.ready(), &mut self.import_job) {
+            job.tick(&r.status);
+            if job.view().phase != workspace_rs::import::Phase::Done {
+                ctx.request_repaint_after(std::time::Duration::from_millis(250));
             }
         }
 
