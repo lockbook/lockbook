@@ -458,7 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn colon_after_word_does_not_trigger() {
+    fn colon_after_word_or_punctuation_does_not_trigger() {
         assert!(detect_query(&cursor_at_end("word:")).is_none());
         assert!(detect_query(&cursor_at_end("**word**:")).is_none());
         assert!(detect_query(&cursor_at_end("*word*:")).is_none());
@@ -467,14 +467,22 @@ mod tests {
         assert!(detect_query(&cursor_at_end("~~strike~~:")).is_none());
         assert!(detect_query(&cursor_at_end("[label]:")).is_none());
         assert!(detect_query(&cursor_at_end("http://")).is_none());
+        assert!(detect_query(&cursor_at_end("10pm-?:")).is_none());
+        assert!(detect_query(&cursor_at_end("e.g.:")).is_none());
     }
 
     #[test]
-    fn colon_after_space_or_start_does_trigger() {
+    fn colon_after_space_start_or_opener_does_trigger() {
         assert!(detect_query(&cursor_at_end(":")).is_some());
         assert!(detect_query(&cursor_at_end("word :")).is_some());
         assert!(detect_query(&cursor_at_end("**word** :")).is_some());
         assert!(detect_query(&cursor_at_end("word :smi")).is_some());
+        assert!(detect_query(&cursor_at_end(":+1::ta")).is_some());
+        assert!(detect_query(&cursor_at_end("🎉:fi")).is_some());
+        assert!(detect_query(&cursor_at_end("(:smi")).is_some());
+        assert!(detect_query(&cursor_at_end("**:fi")).is_some());
+        assert!(detect_query(&cursor_at_end("|:smi")).is_some());
+        assert!(detect_query(&cursor_at_end("line\n:smi")).is_some());
     }
 
     #[test]
