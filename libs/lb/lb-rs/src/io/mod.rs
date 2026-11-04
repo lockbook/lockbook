@@ -151,7 +151,7 @@ pub struct LbTx<'a> {
     guard: RwLockWriteGuard<'a, CoreDb>,
     tx: Option<WriteTx>,
     #[cfg(all(unix, not(target_os = "ios")))]
-    ipc: &'a Ipc,
+    ipc: Option<&'a Ipc>,
 }
 
 impl LbTx<'_> {
@@ -170,7 +170,9 @@ impl LbTx<'_> {
         // Empty transactions retain the previous sequence, including after catch-up.
         if committed_seq == seq_no {
             #[cfg(all(unix, not(target_os = "ios")))]
-            self.ipc.notify_peers();
+            if let Some(ipc) = self.ipc {
+                ipc.notify_peers();
+            }
         }
         Ok(())
     }
@@ -229,7 +231,7 @@ impl<S> Lb<S> {
             guard,
             tx: Some(tx),
             #[cfg(all(unix, not(target_os = "ios")))]
-            ipc: &self.ipc,
+            ipc: self.ipc.as_deref(),
         }
     }
 }

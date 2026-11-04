@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fmt, fs};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Config {
     pub server: ServerConfig,
     pub index_db: IndexDbConf,
@@ -36,7 +36,7 @@ impl Config {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct IndexDbConf {
     pub db_location: String,
     pub time_between_compacts: Duration,
@@ -73,7 +73,7 @@ impl AdminConfig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FeatureFlags {
     pub new_accounts: bool,
     pub new_account_rate_limit: bool,
@@ -99,7 +99,7 @@ impl FeatureFlags {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FilesConfig {
     pub path: PathBuf,
 }
@@ -113,9 +113,10 @@ impl FilesConfig {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum Environment {
     Prod,
+    #[default]
     Local,
     Unknown,
 }
@@ -139,7 +140,7 @@ impl Display for Environment {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ServerConfig {
     pub env: Environment,
     pub port: u16,
@@ -185,7 +186,7 @@ impl ServerConfig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MetricsConfig {
     pub time_between_metrics_refresh: Duration,
     pub time_between_metrics: Duration,
@@ -209,7 +210,7 @@ impl MetricsConfig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BillingConfig {
     pub millis_between_user_payment_flows: u64,
     pub time_between_lock_attempts: Duration,
@@ -236,7 +237,7 @@ impl BillingConfig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AppleConfig {
     pub iap_key: String,
     pub iap_key_id: String,
@@ -286,7 +287,7 @@ impl AppleConfig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct GoogleConfig {
     pub service_account_key: Option<String>,
     pub premium_subscription_product_id: String,
@@ -309,7 +310,7 @@ impl GoogleConfig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct StripeConfig {
     pub stripe_secret: String,
     pub signing_secret: String,
