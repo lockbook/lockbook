@@ -1,4 +1,5 @@
 use crate::Lb;
+use crate::io::server::Server;
 use crate::model::errors::LbResult;
 use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
@@ -7,7 +8,7 @@ use std::cmp::{self, Ordering};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-impl Lb {
+impl<S: Server> Lb<S> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
         let db = self.ro_tx().await;

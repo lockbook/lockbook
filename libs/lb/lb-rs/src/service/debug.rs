@@ -1,4 +1,5 @@
 use crate::Lb;
+use crate::io::server::Server;
 use crate::model::clock;
 use crate::model::core_config::Config;
 use crate::model::errors::LbResult;
@@ -54,7 +55,7 @@ impl DebugInfoDisplay for LbResult<DebugInfo> {
     }
 }
 
-impl Lb {
+impl<S: Server> Lb<S> {
     async fn human_last_synced(&self) -> String {
         let tx = self.ro_tx().await;
         let db = tx.db();

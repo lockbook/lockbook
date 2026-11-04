@@ -30,14 +30,14 @@ pub mod subscribers;
 pub mod wasm;
 
 #[derive(Clone)]
-pub struct Lb {
+pub struct Lb<S = Network> {
     pub config: Config,
     pub user_last_seen: Arc<RwLock<Instant>>,
     pub user_wake: Arc<Notify>,
     pub keychain: Keychain,
     pub db: LbDb,
     pub docs: AsyncDocs,
-    pub client: Network,
+    pub client: S,
     pub events: EventSubs,
     pub status: StatusUpdater,
     pub syncer: Syncer,
@@ -48,6 +48,13 @@ pub struct Lb {
 impl Lb {
     #[instrument(name = "Lb::init", level = "info", skip_all, err(Debug))]
     pub async fn init(config: Config) -> LbResult<Self> {
+        let client = Network { client_type: config.client_type, ..Network::default() };
+        Self::with_server(config, client).await
+    }
+}
+
+impl<S: Server> Lb<S> {
+    pub async fn with_server(config: Config, client: S) -> LbResult<Self> {
         logging::init(&config)?;
 
         let docs = AsyncDocs::from(&config);
@@ -57,7 +64,6 @@ impl Lb {
         let db = Arc::new(RwLock::new(db));
         #[cfg(all(unix, not(target_os = "ios")))]
         let ipc = Arc::new(Ipc::new(&*db.read().await, config.background_work)?);
-        let client = Network { client_type: config.client_type, ..Network::default() };
 
         let status = StatusUpdater::default();
         let syncer = Default::default();
@@ -112,6 +118,7 @@ use crate::service::logging;
 use io::LbDb;
 use io::docs::AsyncDocs;
 use io::network::Network;
+use io::server::Server;
 use model::core_config::Config;
 pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
