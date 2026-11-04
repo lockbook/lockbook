@@ -77,6 +77,7 @@
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>
     <string name="move_file_move">Move</string>
+    <string name="reject_files_confirmation">Are you sure you want to reject the selected files?</string>
     <string name="delete_file_delete">Delete</string>
     <string name="delete_shared_reject">Reject</string>
     <string name="delete_1_file_message">Are you sure you want to delete \"%s\"?</string>
