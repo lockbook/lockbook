@@ -1,4 +1,6 @@
 #![cfg(all(unix, not(target_os = "ios")))]
+// Shares a data directory between clients, which an in-memory client has none of.
+#![cfg(not(feature = "in-process-tests"))]
 
 use std::env;
 use std::io::{self, Read};

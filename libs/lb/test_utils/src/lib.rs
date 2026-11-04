@@ -1,6 +1,5 @@
 pub mod assert;
 
-use lb_rs::Lb;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::crypto::EncryptedDocument;
@@ -26,8 +25,27 @@ pub fn test_config() -> Config {
     }
 }
 
+/// The client the tests drive: over HTTP to the server at [url], or with the `in-process` feature,
+/// to one server shared by every test in this process.
+#[cfg(not(feature = "in-process"))]
+pub type Lb = lb_rs::Lb;
+#[cfg(feature = "in-process")]
+pub type Lb = lb_rs::Lb<lockbook_server_lib::in_process::InMemoryServer>;
+
+#[cfg(not(feature = "in-process"))]
 pub async fn test_core() -> Lb {
     Lb::init(test_config()).await.unwrap()
+}
+
+#[cfg(feature = "in-process")]
+pub async fn test_core() -> Lb {
+    use lockbook_server_lib::in_process::InMemoryServer;
+    use std::sync::LazyLock;
+
+    static SERVER: LazyLock<InMemoryServer> = LazyLock::new(InMemoryServer::in_memory);
+    Lb::with_server(test_config(), SERVER.clone())
+        .await
+        .unwrap()
 }
 
 pub async fn test_core_from(core: &Lb) -> Lb {

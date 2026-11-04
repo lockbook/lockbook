@@ -1,3 +1,6 @@
+// Tests the HTTP client: versions, clocks, and URLs.
+#![cfg(not(feature = "in-process-tests"))]
+
 use libsecp256k1::PublicKey;
 
 use lb_rs::get_code_version;

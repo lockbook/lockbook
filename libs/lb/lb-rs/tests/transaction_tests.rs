@@ -1,4 +1,6 @@
 #![cfg(not(target_family = "wasm"))]
+// Shares a data directory between clients, which an in-memory client has none of.
+#![cfg(not(feature = "in-process-tests"))]
 
 use db_rs::View;
 use lb_rs::Lb;

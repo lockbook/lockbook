@@ -13,6 +13,10 @@ name = "lb_rs"
 crate-type = ["lib", "staticlib", "cdylib"]
 bench = false
 
+[features]
+# Runs the integration tests against a server in this process instead of over HTTP.
+in-process-tests = ["test_utils/in-process"]
+
 [dependencies]
 aes-gcm = "0.10.3"
 base64 = "0.13.0"

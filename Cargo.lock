@@ -8274,6 +8274,7 @@ version = "26.10.31"
 dependencies = [
  "bincode 1.3.3",
  "lb-rs",
+ "lockbook-server",
  "time",
  "uuid 1.24.0",
 ]

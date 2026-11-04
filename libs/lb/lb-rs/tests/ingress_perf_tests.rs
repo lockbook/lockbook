@@ -1,3 +1,6 @@
+// Measures uploads over HTTP and pays through Stripe.
+#![cfg(not(feature = "in-process-tests"))]
+
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};

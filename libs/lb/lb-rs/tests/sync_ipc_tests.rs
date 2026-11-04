@@ -1,4 +1,6 @@
 #![cfg(not(any(target_family = "wasm", target_os = "ios")))]
+// Shares a data directory between clients, which an in-memory client has none of.
+#![cfg(not(feature = "in-process-tests"))]
 
 use lb_rs::{Lb, LbErrKind};
 use std::{fs::File, path::Path};
