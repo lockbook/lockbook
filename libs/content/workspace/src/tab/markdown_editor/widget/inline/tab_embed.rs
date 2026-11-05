@@ -233,7 +233,7 @@ impl TabEmbeds {
             SlotState::Open(tab) => {
                 // the pad takes what hangs past the content: a list's numbers, a last line's descent
                 let clip = rect.intersect(ui.clip_rect());
-                let child = &mut ui.new_child(UiBuilder::new().max_rect(inner));
+                let child = &mut ui.new_child(UiBuilder::new().max_rect(inner).scope_id(tab.salt));
                 child.set_clip_rect(clip);
                 if !slot.shown {
                     child.set_invisible();
