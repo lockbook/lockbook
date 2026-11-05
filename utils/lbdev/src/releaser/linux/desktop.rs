@@ -27,7 +27,7 @@ name: lockbook-desktop
 base: core26
 version: '{version}'
 title: Lockbook
-summary: We built a notebook we can't read.
+summary: Write, sketch, and share privately
 description: |
   Lockbook is an open-source notebook for **Markdown** notes and drawings, encrypted on your device and shared only by invitation.
 
