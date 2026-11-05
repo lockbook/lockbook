@@ -3,8 +3,8 @@ package app.lockbook.billing
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.net.toUri
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
@@ -41,7 +41,7 @@ class StoreBillingManager(
         appCompatActivity.lifecycleScope.launch {
             try {
                 val url = withContext(Dispatchers.IO) { Lb.stripeCheckoutUrl(false) }
-                activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                activity.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
             } catch (error: CancellationException) {
                 throw error
             } catch (error: LbError) {
