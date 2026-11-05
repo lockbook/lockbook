@@ -7,6 +7,7 @@ use std::fmt::Write;
 use lb_rs::io::server::Server;
 use lb_rs::model::account::Account;
 use lb_rs::model::api::{AdminValidateServer, AdminValidateServerRequest};
+use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
 use test_utils::byte_source::ByteSource;
@@ -422,11 +423,20 @@ async fn documents(device: &Lb) -> BTreeMap<Uuid, String> {
     documents
 }
 
-/// A listed document's content, or the error reading it.
+/// A listed document's content. One the server no longer serves this device reads as gone until
+/// the next sync.
 async fn read(device: &Lb, id: Uuid) -> String {
     match device.read_document(id, false).await {
         Ok(content) => format!("{:?}", String::from_utf8_lossy(&content)),
-        Err(err) => format!("unreadable: {:?}", err.kind),
+        Err(err)
+            if matches!(
+                err.kind,
+                LbErrKind::FileNonexistent | LbErrKind::InsufficientPermission
+            ) =>
+        {
+            "gone".into()
+        }
+        Err(err) => panic!("a listed document failed to read: {:?}", err.kind),
     }
 }
 
