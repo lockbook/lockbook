@@ -434,7 +434,7 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
             .session
             .ready()
             .map(|r| r.workspace.cfg.get_column_width())
-            .unwrap_or(COLUMN_WIDTHS[0]);
+            .unwrap_or(COLUMN_WIDTHS[1]);
         let mut pick = COLUMN_WIDTHS.iter().position(|w| *w == width).unwrap_or(0);
         if form_segmented(ui, t, "Text width", &["Narrow", "Medium", "Wide"], &mut pick).changed() {
             queue.push(A::SetPrefColumnWidth(COLUMN_WIDTHS[pick]));

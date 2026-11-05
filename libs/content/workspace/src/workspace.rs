@@ -2184,7 +2184,7 @@ pub struct WsPresistentData {
 }
 
 fn default_column_width() -> f32 {
-    600.0
+    800.0
 }
 
 fn default_update_links() -> bool {
