@@ -331,7 +331,7 @@ pub fn overwrite_flatpak_manifest(
         r#"{{
     "app-id": "net.lockbook.Lockbook",
     "runtime": "org.freedesktop.Platform",
-    "runtime-version": "25.08",
+    "runtime-version": "26.08",
     "sdk": "org.freedesktop.Sdk",
     "sdk-extensions": [
         "org.freedesktop.Sdk.Extension.rust-stable"
