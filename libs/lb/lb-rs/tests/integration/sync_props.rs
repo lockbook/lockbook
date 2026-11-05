@@ -21,42 +21,42 @@ use uuid::Uuid;
 
 #[test]
 fn syncing_alone_changes_nothing() {
-    run(SOLO, 200, syncing_alone_changes_nothing_check);
+    run(SOLO, 2000, syncing_alone_changes_nothing_check);
 }
 
 #[test]
 fn disjoint_changes_equal_sequential() {
-    run(DEVICES, 200, disjoint_changes_equal_sequential_check);
+    run(DEVICES, 2000, disjoint_changes_equal_sequential_check);
 }
 
 #[test]
 fn a_new_device_sees_what_was_synced() {
-    run(SHARES, 200, a_new_device_sees_what_was_synced_check);
+    run(SHARES, 2000, a_new_device_sees_what_was_synced_check);
 }
 
 #[test]
 fn a_refused_step_changes_nothing() {
-    run(SHARES, 200, a_refused_step_changes_nothing_check);
+    run(SHARES, 2000, a_refused_step_changes_nothing_check);
 }
 
 #[test]
 fn a_second_sync_changes_nothing() {
-    run(SHARES, 200, a_second_sync_changes_nothing_check);
+    run(SHARES, 2000, a_second_sync_changes_nothing_check);
 }
 
 #[test]
 fn devices_converge() {
-    run(SHARES, 200, devices_converge_check);
+    run(SHARES, 2000, devices_converge_check);
 }
 
 #[test]
 fn accounts_agree_on_what_they_share() {
-    run(SHARES, 200, accounts_agree_on_what_they_share_check);
+    run(SHARES, 2000, accounts_agree_on_what_they_share_check);
 }
 
 #[test]
 fn the_server_stays_valid() {
-    run(SHARES, 200, the_server_stays_valid_check);
+    run(SHARES, 2000, the_server_stays_valid_check);
 }
 
 // ---------------------------------------------------------------------------------------------
