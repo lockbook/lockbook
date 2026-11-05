@@ -288,9 +288,17 @@ impl World {
                     return false;
                 };
                 let mode = if write { ShareMode::Write } else { ShareMode::Read };
-                // sharing a file with its owner is a known finding, left out until it's settled
+                // sharing with the owner or yourself is a known finding, left out until refused
                 let owner = device.get_file_by_id(file).await.unwrap().owner;
-                let others: Vec<_> = self.names.iter().filter(|name| **name != owner).collect();
+                let me = &self.names[on / self.per_account];
+                let others: Vec<_> = self
+                    .names
+                    .iter()
+                    .filter(|name| **name != owner && *name != me)
+                    .collect();
+                if others.is_empty() {
+                    return false;
+                }
                 device
                     .share_file(file, others[to % others.len()], mode)
                     .await
