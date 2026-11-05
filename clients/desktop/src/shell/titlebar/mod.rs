@@ -378,6 +378,14 @@ fn titlebar_icon(
 #[cfg(not(target_os = "macos"))]
 fn window_resize_edges(ctx: &egui::Context) {
     use egui::{CursorIcon, PointerButton, ResizeDirection, ViewportCommand};
+    // A resize on a maximized or fullscreen window never starts, and on Windows
+    // winit then refuses every later resize and title-bar drag.
+    let sized_by_os = ctx.input(|i| {
+        i.viewport().maximized.unwrap_or(false) || i.viewport().fullscreen.unwrap_or(false)
+    });
+    if sized_by_os {
+        return;
+    }
     let r = ctx.content_rect();
     let b = 6.0;
     let zones = [
