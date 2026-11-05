@@ -435,6 +435,11 @@ where
                             if unchanged {
                                 continue;
                             }
+                            if !key.deleted && (for_ == file_diff.new.owner() || for_ == by) {
+                                Err(LbErrKind::Validation(ValidationFailure::SelfShare(
+                                    *file_diff.id(),
+                                )))?;
+                            }
                             let deletes_own_key = for_ == owner
                                 && key.deleted
                                 && base_key

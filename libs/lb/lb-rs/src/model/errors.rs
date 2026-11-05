@@ -154,6 +154,9 @@ impl Display for LbErrKind {
                 ValidationFailure::SharedLink { .. } => {
                     write!(f, "you cannot place a link inside a shared folder!")
                 }
+                ValidationFailure::SelfShare(_) => {
+                    write!(f, "you cannot share a file with its owner or yourself")
+                }
                 _ => write!(f, "unexpected validation failure: {validation_failure:?}"),
             },
             LbErrKind::Diff(diff_error) => {
