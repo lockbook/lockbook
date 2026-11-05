@@ -29,7 +29,8 @@ impl<S: Server> Lb<S> {
     #[instrument(level = "debug", skip(self))]
     pub async fn get_usage(&self) -> LbResult<UsageMetrics> {
         let acc = self.get_account()?;
-        let usage = self.client.get_usage(acc, GetUsageRequest {}).await?;
-        Ok(get_usage(usage))
+        let usage = get_usage(self.client.get_usage(acc, GetUsageRequest {}).await?);
+        self.record_usage(&usage).await;
+        Ok(usage)
     }
 }
