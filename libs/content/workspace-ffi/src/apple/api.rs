@@ -176,6 +176,13 @@ pub unsafe extern "C" fn set_spell_check(obj: *mut c_void, value: bool) {
 
 /// # Safety
 #[no_mangle]
+pub unsafe extern "C" fn set_column_width(obj: *mut c_void, value: f32) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.cfg.set_column_width(value);
+}
+
+/// # Safety
+#[no_mangle]
 pub unsafe extern "C" fn set_open_in_new_tab(obj: *mut c_void, value: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.workspace.cfg.set_open_in_new_tab(value);

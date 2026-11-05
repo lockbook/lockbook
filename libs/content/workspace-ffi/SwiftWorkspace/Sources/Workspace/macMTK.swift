@@ -39,6 +39,7 @@
         var modifierEventHandle: Any?
         var screenChangeObserver: NSObjectProtocol?
         var accentChangeObserver: NSObjectProtocol?
+        var settingsChangeObserver: NSObjectProtocol?
         var appActiveObserver: NSObjectProtocol?
         var keyWindowObservers: [NSObjectProtocol] = []
         var windowKey: Bool?
@@ -148,6 +149,16 @@
 
             accentChangeObserver = NotificationCenter.default.addObserver(
                 forName: NSColor.systemColorsDidChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                setNeedsDisplay(frame)
+            }
+
+            // draw(in:) reads the settings, so a change needs a frame to land.
+            settingsChangeObserver = NotificationCenter.default.addObserver(
+                forName: UserDefaults.didChangeNotification,
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
@@ -493,6 +504,7 @@
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
             set_spell_check(wsHandle, UserDefaults.standard.object(forKey: "spellCheck") as? Bool ?? true)
+            set_column_width(wsHandle, Float(UserDefaults.standard.object(forKey: "columnWidth") as? Double ?? 600))
             set_scale(wsHandle, scale)
             let key = window?.isKeyWindow ?? false
             if key != windowKey {
@@ -664,6 +676,9 @@
 
             if let accentChangeObserver {
                 NotificationCenter.default.removeObserver(accentChangeObserver)
+            }
+            if let settingsChangeObserver {
+                NotificationCenter.default.removeObserver(settingsChangeObserver)
             }
 
             if let appActiveObserver {
