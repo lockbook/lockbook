@@ -121,8 +121,8 @@ fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
             if src.bias(&[4, 1]) == 1 {
                 device = src.draw(tier.all_devices());
             }
-            // moves and sharing are left out until sync handles them
-            match src.bias(&[3, 1, 3, 2, 3, 2, 0, 1, 0, 0, 0, 0]) {
+            // sharing are left out until sync handles them
+            match src.bias(&[3, 1, 3, 2, 3, 2, 2, 1, 0, 0, 0, 0]) {
                 0 => Step::Sync { device },
                 1 => Step::SyncAll { device },
                 2 => Step::CreateDocument { device, parent: src.draw(8), name: src.draw(3) },

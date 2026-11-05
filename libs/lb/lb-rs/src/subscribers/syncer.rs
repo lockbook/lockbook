@@ -647,9 +647,7 @@ impl<S: Server> Lb<S> {
                         let remote_hmac =
                             maybe_remote_file.and_then(|f| f.document_hmac().cloned());
                         let local_hmac = local_file.document_hmac().cloned();
-                        if merge.access_mode(me, &id)? >= Some(UserAccessMode::Write)
-                            && local_hmac != base_hmac
-                        {
+                        if may_write_in(&local, &remote, me, &id)? && local_hmac != base_hmac {
                             if remote_hmac != base_hmac && remote_hmac != local_hmac {
                                 // merge
                                 let merge_name = merge.name(&id, &self.keychain)?;
@@ -1500,6 +1498,29 @@ impl<S: Server> Lb<S> {
 
         Ok(())
     }
+}
+
+/// Whether this device may still change `id` or what's in it: write is granted at the nearest file
+/// the server has, at or above `id` in this device's tree, and in this device's own tree, where it
+/// may have rejected a share. The merge's tree can hold a cycle while moves apply, so access is
+/// never read from it.
+fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
+    local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
+) -> LbResult<bool> {
+    if local.maybe_find(id).is_some() && local.access_mode(me, id)? < Some(UserAccessMode::Write) {
+        return Ok(false);
+    }
+    let mut id = *id;
+    while remote.maybe_find(&id).is_none() {
+        let Some(file) = local.maybe_find(&id) else {
+            return Ok(false);
+        };
+        if file.parent() == file.id() {
+            return Ok(false);
+        }
+        id = *file.parent();
+    }
+    Ok(remote.access_mode(me, &id)? >= Some(UserAccessMode::Write))
 }
 
 /// A file this device has no access to, e.g. inside a share it declined. A share root carrying
