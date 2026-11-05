@@ -3,51 +3,58 @@ use crate::io::network::ApiError;
 use crate::io::server::Server;
 use crate::model::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequestV2,
-    StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError,
+    StripeBillingPortalError, StripeBillingPortalRequest, StripeCheckoutError,
+    StripeCheckoutRequest, StripePlan, SubscriptionInfo, UpgradeAccountAppStoreError,
     UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
-    UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
 use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 
 // todo: when core is responsible for syncing, these should probably trigger syncs and status updates
 impl<S: Server> Lb<S> {
-    #[instrument(level = "debug", skip(self, account_tier), err(Debug))]
-    pub async fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
+    /// A Stripe Checkout page where this account pays for Premium on `plan`.
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn stripe_checkout_url(&self, plan: StripePlan) -> LbResult<String> {
         let account = self.get_account()?;
 
-        self.client
-            .upgrade_account_stripe(account, UpgradeAccountStripeRequest { account_tier })
+        let response = self
+            .client
+            .stripe_checkout(account, StripeCheckoutRequest { plan })
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(err) => match err {
-                    UpgradeAccountStripeError::OldCardDoesNotExist => {
-                        LbErrKind::OldCardDoesNotExist
-                    }
-                    UpgradeAccountStripeError::AlreadyPremium => LbErrKind::AlreadyPremium,
-                    UpgradeAccountStripeError::InvalidCardNumber => LbErrKind::CardInvalidNumber,
-                    UpgradeAccountStripeError::InvalidCardExpYear => LbErrKind::CardInvalidExpYear,
-                    UpgradeAccountStripeError::InvalidCardExpMonth => {
-                        LbErrKind::CardInvalidExpMonth
-                    }
-                    UpgradeAccountStripeError::InvalidCardCvc => LbErrKind::CardInvalidCvc,
-                    UpgradeAccountStripeError::CardDecline => LbErrKind::CardDecline,
-                    UpgradeAccountStripeError::InsufficientFunds => {
-                        LbErrKind::CardInsufficientFunds
-                    }
-                    UpgradeAccountStripeError::TryAgain => LbErrKind::TryAgain,
-                    UpgradeAccountStripeError::CardNotSupported => LbErrKind::CardNotSupported,
-                    UpgradeAccountStripeError::ExpiredCard => LbErrKind::CardExpired,
-                    UpgradeAccountStripeError::ExistingRequestPending => {
+                    StripeCheckoutError::AlreadyPremium => LbErrKind::AlreadyPremium,
+                    StripeCheckoutError::ExistingRequestPending => {
                         LbErrKind::ExistingRequestPending
                     }
-                    UpgradeAccountStripeError::UserNotFound => LbErrKind::AccountNonexistent,
+                    StripeCheckoutError::UserNotFound => LbErrKind::AccountNonexistent,
                 },
                 ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
                 ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?;
 
-        Ok(())
+        Ok(response.url)
+    }
+
+    /// A Stripe billing page where this account changes its card, gets receipts, or cancels.
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn stripe_billing_portal_url(&self) -> LbResult<String> {
+        let account = self.get_account()?;
+
+        let response = self
+            .client
+            .stripe_billing_portal(account, StripeBillingPortalRequest {})
+            .await
+            .map_err(|err| match err {
+                ApiError::Endpoint(StripeBillingPortalError::UserNotFound) => {
+                    LbErrKind::AccountNonexistent
+                }
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })?;
+
+        Ok(response.url)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

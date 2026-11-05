@@ -10,76 +10,48 @@
 
 # Pricing
 
-Pricing will be on an `Annual` basis or a `Monthly` basis.
-
-Billing will be:
-
-+ `$2.99 / month per 30gb`
-+ `$30 / year per 30gb`
+Premium buys room, not features. Every account syncs; Free holds `25 MB` and Premium holds `30 GB`, for `$2.99 / month` or `$30 / year`.
 
 # Data Model
 
-Upon write operations we want to be able to check to see if a user has space available for this action or not.
-
-We'll keep a table that will store:
-
-+ `account`
-+ `tier-max`
-+ `valid_until`
-+ `type` -- one of `stripe`, `apple` or `google`
-+ `billing failed` -- boolean to prompt user to go through billing cycle again
+Each account's `SubscriptionProfile` holds the billing platform it pays through, if any: Stripe, Google Play, or the App Store, with that platform's ids, the end of the paid period, and its state. The data cap follows from that state, and writes over the cap are refused.
 
 # Stripe
 
-Used for: 
+Used for desktop (macOS, Windows, Linux), the CLI, and the F-Droid Android build.
 
-+ macOS
-+ Linux
-+ Cli
-+ Windows
+People pay on Stripe's own pages, so card numbers never reach our server.
 
 ## Flow
 
-User performs a sync, a new error type is returned saying they're out of space.
+1. The client asks for `/stripe-checkout` with a plan, monthly or yearly.
+2. The server finds or creates the account's Stripe customer, records it in `stripe_ids`, and returns the URL of a [Checkout Session](https://docs.stripe.com/payments/checkout) for that customer and price.
+3. The client opens the URL in a browser. Paying returns the buyer to `lockbook.net/premium/thanks`; leaving returns them to `lockbook.net/premium/canceled`.
+4. Stripe sends a webhook. The server fetches the subscription and stores it on the account; the client sees Premium the next time it reads its usage.
 
-A dialog pops up to explain your situation, allows you to select a plan & a payment method (if you have a choice).
+`/stripe-billing-portal` returns the URL of Stripe's [customer portal](https://docs.stripe.com/customer-management), where the account changes its card, gets receipts, or cancels.
 
-For now [Stripe](https://stripe.com/) will be our payment processor. Their subscription overview can be found [here](https://stripe.com/docs/billing/subscriptions/overview) will be the processing service.
+## Webhooks
 
-To setup payment for the first time you need to send `Plan` info and `Payment` info.
+`/stripe-webhooks` verifies Stripe's signature, then for each of these events fetches the subscription it names and makes the account match it:
 
-`lockbook_server` will then:
++ `checkout.session.completed`
++ `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
++ `invoice.paid`, `invoice.payment_failed`
 
-1. [Create a `PaymentMethod`](https://stripe.com/docs/api/payment_methods/create)
-2. [Create a `Customer`](https://stripe.com/docs/api/customers/create)
-3. [Create and confirm a `SetUpIntent`](https://stripe.com/docs/api/setup_intents/create)
-4. [Create a `Subscription`](https://stripe.com/docs/api/subscriptions/create)
+Other events are acknowledged and ignored. The subscription's status decides the account's state: `active`, `trialing` and `past_due` are Premium, so Stripe's payment retries don't take it away; anything else is Free. A lapsed subscription never overwrites a newer one that is still active.
 
-Lockbook server will store `StripeUserInfo`, a struct containing user's [customer_id](https://stripe.com/docs/api/customers/object#customer_object-id), [payment_method](https://stripe.com/docs/api/payment_methods/object) history, and [subscription](https://stripe.com/docs/api/subscriptions/object) history.
+## Canceling
 
-After stripe api calls, `lockbook_server` will:
-1. store info
-2. cleanup stripe upon failure
-3. look for customer already exists errors
+Canceling, from the portal or `/cancel-subscription`, stops renewal. Premium lasts until the end of the period already paid for, when Stripe sends `customer.subscription.deleted`. An account over the free limit after that keeps its files and can't write more until it frees space.
 
-Stripe will inform us about billing success and failures via [webhooks](https://stripe.com/docs/webhooks). We'll tell them a URL to send info to. Upon failures, stripe will [retry](https://stripe.com/docs/webhooks/best-practices#retry-logic), [email us](https://stripe.com/docs/webhooks/best-practices#disable-logic) and ultimately stop trying. We can also [query for missed events](https://stripe.com/docs/api/events/list) and [see failures in their UI](https://dashboard.stripe.com/events).
+## Setup
 
-We will likely only need to listen for billing failures. In the case of a billing failure we're going to want to indicate to the user their card was declined. We don't want to just communicate that they're out of space. We want to communicate specifically that their card was declined. Likely what we'll do in this situation is keep them in that tier with that expiry information and set `billing_failed` to `true`. Next time they try to write we'll send them to the flow for declined cards. When the new request comes in it will have to complete logic to cancel the old subscription, especially if it's being transferred from one platform to another.
-
-When consuming webhook events we'll need to [verify that the event is coming from stripe](https://stripe.com/docs/webhooks/signatures) and not some random person.
-We listen for two particular events:
-- `invoice.payment_failed`: To cancel a subscription when a payment failure happens.
-- `invoice.paid`: To increase `period_end` of `StripeSubscriptionInfo`. Currently this is unused but is useful information to have in the future.
-
-Before this flow is completable we'll have to pre-register our [prices](https://stripe.com/docs/api/prices) with stripe.
-
-## Billing States
-
-Our current implementation is simple. A user is either subscribed or not. When a user misses a payment or chooses to cancel their subscription, their data cap is immediately reduced to 1 MB.
+The dashboard holds the branding (icon, colors, public business name), the payment methods, the portal's features, the webhook endpoint and its events. The server reads `STRIPE_SECRET`, `STRIPE_SIGNING_SECRET`, `STRIPE_PREMIUM_PRICE_ID` (monthly) and `STRIPE_PREMIUM_YEARLY_PRICE_ID`. The webhook endpoint's API version must match the one `async-stripe` speaks, currently `2023-10-16`.
 
 ## Testing
 
-A stripe integration can only be tested if provided a [secret testing API key](https://stripe.com/docs/keys#obtain-api-keys). [`stripe_cli`](https://stripe.com/docs/stripe-cli) also provides a way to emulate webhook events locally.  
+Run a local server with the test key in `server/local.env`, and forward events with the [Stripe CLI](https://docs.stripe.com/stripe-cli): `stripe listen --api-key <test key> --forward-to localhost:8000/stripe-webhooks`, putting the `whsec_` secret it prints in `STRIPE_SIGNING_SECRET`. Pay with Stripe's [test cards](https://docs.stripe.com/testing); `4000 0025 0000 3155` asks for bank approval. [Test clocks](https://docs.stripe.com/billing/testing/test-clocks) fast-forward renewals and cancellations.
 
 # Apple Integration 
 

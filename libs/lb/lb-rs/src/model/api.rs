@@ -346,47 +346,57 @@ impl Request for DeleteAccountRequest {
     const ROUTE: &'static str = "/delete-account";
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum StripePlan {
+    Monthly,
+    Yearly,
+}
+
+/// Asks for a Stripe Checkout page where this account pays for Premium.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum PaymentMethod {
-    NewCard { number: String, exp_year: i32, exp_month: i32, cvc: String },
-    OldCard,
+pub struct StripeCheckoutRequest {
+    pub plan: StripePlan,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum StripeAccountTier {
-    Premium(PaymentMethod),
+pub struct StripeCheckoutResponse {
+    pub url: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct UpgradeAccountStripeRequest {
-    pub account_tier: StripeAccountTier,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct UpgradeAccountStripeResponse {}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum UpgradeAccountStripeError {
-    OldCardDoesNotExist,
+pub enum StripeCheckoutError {
     AlreadyPremium,
-    CardDecline,
-    InsufficientFunds,
-    TryAgain,
-    CardNotSupported,
-    ExpiredCard,
-    InvalidCardNumber,
-    InvalidCardExpYear,
-    InvalidCardExpMonth,
-    InvalidCardCvc,
     ExistingRequestPending,
     UserNotFound,
 }
 
-impl Request for UpgradeAccountStripeRequest {
-    type Response = UpgradeAccountStripeResponse;
-    type Error = UpgradeAccountStripeError;
+impl Request for StripeCheckoutRequest {
+    type Response = StripeCheckoutResponse;
+    type Error = StripeCheckoutError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/upgrade-account-stripe";
+    const ROUTE: &'static str = "/stripe-checkout";
+}
+
+/// Asks for a Stripe billing page where this account manages its subscription.
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct StripeBillingPortalRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct StripeBillingPortalResponse {
+    pub url: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum StripeBillingPortalError {
+    NotStripeCustomer,
+    UserNotFound,
+}
+
+impl Request for StripeBillingPortalRequest {
+    type Response = StripeBillingPortalResponse;
+    type Error = StripeBillingPortalError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/stripe-billing-portal";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
