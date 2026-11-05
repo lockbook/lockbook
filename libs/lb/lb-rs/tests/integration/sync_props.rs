@@ -108,8 +108,7 @@ enum Step {
 }
 
 // few names, so devices collide on paths
-// every document is markdown, so concurrent edits always merge
-const NAMES: [&str; 3] = ["a.md", "b.md", "c.md"];
+const NAMES: [&str; 3] = ["a.md", "b.md", "c"];
 const CONTENTS: [&str; 3] = ["one", "two\nlines", ""];
 
 fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {

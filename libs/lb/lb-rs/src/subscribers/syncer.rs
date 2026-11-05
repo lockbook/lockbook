@@ -718,53 +718,67 @@ impl<S: Server> Lb<S> {
                                         self.docs.insert(id, hmac, &encrypted_document).await?;
                                     }
                                     DocumentType::Other => {
-                                        // duplicate file
-                                        let merge_parent = *merge.find(&id)?.parent();
-                                        let (duplicate_id, duplicate_key) =
-                                            if let Some(&tracked) = duplicate_file_ids.get(&id) {
-                                                tracked
-                                            } else {
-                                                let duplicate_id = Uuid::new_v4();
-                                                let duplicate_key = symkey::generate_key();
-                                                duplicate_file_ids
-                                                    .insert(id, (duplicate_id, duplicate_key));
-                                                rename_increments.insert(duplicate_id, 1);
-                                                (duplicate_id, duplicate_key)
-                                            };
+                                        // duplicate file, in the document's folder if this device
+                                        // may write there, otherwise beside its link; with no
+                                        // link there's nowhere to put it
+                                        let parent = *merge.find(&id)?.parent();
+                                        let writable = merge.maybe_find(&parent).is_some()
+                                            && may_write_in(&local, &remote, me, &parent)?;
+                                        let copy_parent = if writable {
+                                            Some(parent)
+                                        } else if let Some(link) = merge.linked_by(&id)? {
+                                            Some(*merge.find(&link)?.parent())
+                                        } else {
+                                            None
+                                        };
+                                        if let Some(merge_parent) = copy_parent {
+                                            let (duplicate_id, duplicate_key) =
+                                                if let Some(&tracked) = duplicate_file_ids.get(&id)
+                                                {
+                                                    tracked
+                                                } else {
+                                                    let duplicate_id = Uuid::new_v4();
+                                                    let duplicate_key = symkey::generate_key();
+                                                    duplicate_file_ids
+                                                        .insert(id, (duplicate_id, duplicate_key));
+                                                    rename_increments.insert(duplicate_id, 1);
+                                                    (duplicate_id, duplicate_key)
+                                                };
 
-                                        let mut merge_name = merge_name;
-                                        merge_name = NameComponents::from(&merge_name)
-                                            .generate_incremented(
-                                                rename_increments
-                                                    .get(&duplicate_id)
-                                                    .copied()
-                                                    .unwrap_or_default(),
-                                            )
-                                            .to_name();
+                                            let mut merge_name = merge_name;
+                                            merge_name = NameComponents::from(&merge_name)
+                                                .generate_incremented(
+                                                    rename_increments
+                                                        .get(&duplicate_id)
+                                                        .copied()
+                                                        .unwrap_or_default(),
+                                                )
+                                                .to_name();
 
-                                        merge.create_unvalidated(
-                                            duplicate_id,
-                                            duplicate_key,
-                                            &merge_parent,
-                                            &merge_name,
-                                            FileType::Document,
-                                            &self.keychain,
-                                        )?;
-                                        let encrypted_document = merge
-                                            .update_document_unvalidated(
-                                                &duplicate_id,
-                                                &local_document,
+                                            merge.create_unvalidated(
+                                                duplicate_id,
+                                                duplicate_key,
+                                                &merge_parent,
+                                                &merge_name,
+                                                FileType::Document,
                                                 &self.keychain,
                                             )?;
-                                        let duplicate_hmac =
-                                            merge.find(&duplicate_id)?.document_hmac().copied();
-                                        self.docs
-                                            .insert(
-                                                duplicate_id,
-                                                duplicate_hmac,
-                                                &encrypted_document,
-                                            )
-                                            .await?;
+                                            let encrypted_document = merge
+                                                .update_document_unvalidated(
+                                                    &duplicate_id,
+                                                    &local_document,
+                                                    &self.keychain,
+                                                )?;
+                                            let duplicate_hmac =
+                                                merge.find(&duplicate_id)?.document_hmac().copied();
+                                            self.docs
+                                                .insert(
+                                                    duplicate_id,
+                                                    duplicate_hmac,
+                                                    &encrypted_document,
+                                                )
+                                                .await?;
+                                        }
                                     }
                                 }
                             } else {
