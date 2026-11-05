@@ -42,27 +42,27 @@
 
   <screenshots>
     <screenshot type="default">
-      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.5/utils/dev/flatpak-package/screenshots/01-hero.png</image>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.6/utils/dev/flatpak-package/screenshots/01-hero.png</image>
       <caption>The best place for your notes</caption>
     </screenshot>
     <screenshot>
-      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.5/utils/dev/flatpak-package/screenshots/02-drawing.png</image>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.6/utils/dev/flatpak-package/screenshots/02-drawing.png</image>
       <caption>Sketch on an infinite canvas</caption>
     </screenshot>
     <screenshot>
-      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.5/utils/dev/flatpak-package/screenshots/06-pdf.png</image>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.6/utils/dev/flatpak-package/screenshots/06-pdf.png</image>
       <caption>Your home for everything</caption>
     </screenshot>
     <screenshot>
-      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.5/utils/dev/flatpak-package/screenshots/03-links.png</image>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.6/utils/dev/flatpak-package/screenshots/03-links.png</image>
       <caption>Your notes, connected</caption>
     </screenshot>
     <screenshot>
-      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.5/utils/dev/flatpak-package/screenshots/04-together.png</image>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.6/utils/dev/flatpak-package/screenshots/04-together.png</image>
       <caption>Shared only by invitation</caption>
     </screenshot>
     <screenshot>
-      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.5/utils/dev/flatpak-package/screenshots/07-keys.png</image>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/26.11.6/utils/dev/flatpak-package/screenshots/07-keys.png</image>
       <caption>You hold the keys</caption>
     </screenshot>
   </screenshots>
@@ -89,6 +89,6 @@
   <content_rating type="oars-1.1" />
 
   <releases>
-    <release version="26.11.5" date="2026-11-05" />
+    <release version="26.11.6" date="2026-11-05" />
   </releases>
 </component>
