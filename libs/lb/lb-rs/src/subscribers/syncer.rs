@@ -172,11 +172,13 @@ impl<S: Server> Lb<S> {
         let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
         let base_ids = local.tree.base.ids();
 
+        // a pending local move can place a file the server still has under a pruned folder
         let mut prunable_ids = base_ids;
         prunable_ids.retain(|id| !server_ids.contains(id));
         for id in prunable_ids.clone() {
             prunable_ids.extend(local.descendants(&id)?);
         }
+        prunable_ids.retain(|id| !server_ids.contains(id));
         for id in &prunable_ids {
             if let Some(base_file) = local.tree.base.maybe_find(id) {
                 self.docs
@@ -458,6 +460,11 @@ impl<S: Server> Lb<S> {
                                 && local_file.parent() != base_file.parent()
                                 && !files_to_unmove.contains(&id)
                             {
+                                // a move into a folder this device can no longer see is undone
+                                if deletions.maybe_find(local_file.parent()).is_none() {
+                                    files_to_unmove.insert(id);
+                                    continue;
+                                }
                                 // move
                                 deletions.move_unvalidated(
                                     &id,
