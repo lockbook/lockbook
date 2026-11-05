@@ -155,7 +155,7 @@ impl Workspace {
                     }
                     if let Some(cmd) = context_menu::show(&resp, &t, |e| {
                         e.item(phosphor::ARROW_SQUARE_OUT, "Open", RecentCmd::Open);
-                        e.item(phosphor::LINK, "Copy link", RecentCmd::CopyLink);
+                        e.item(phosphor::LINK, "Copy Link", RecentCmd::CopyLink);
                         if r.own {
                             e.separator();
                             e.item(

@@ -465,7 +465,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
         if is_file {
             m.item(phosphor::PENCIL, "Rename…", TabMenu::Rename);
             m.item(phosphor::USERS, "Share…", TabMenu::Share);
-            m.item(phosphor::LINK, "Copy link", TabMenu::CopyLink);
+            m.item(phosphor::LINK, "Copy Link", TabMenu::CopyLink);
         }
         if can_reopen {
             if is_file {

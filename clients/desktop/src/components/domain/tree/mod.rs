@@ -726,8 +726,8 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
                         e.item(phosphor::NOTE_PENCIL, "Create…", FileCmd::Create);
                         if flat.iter().any(|r| r.is_folder) {
                             e.separator();
-                            e.item(phosphor::CARET_DOWN, "Expand all", FileCmd::ExpandAll);
-                            e.item(phosphor::CARET_LEFT, "Collapse all", FileCmd::CollapseAll);
+                            e.item(phosphor::CARET_DOWN, "Expand All", FileCmd::ExpandAll);
+                            e.item(phosphor::CARET_LEFT, "Collapse All", FileCmd::CollapseAll);
                         }
                     }) {
                         match cmd {
@@ -870,14 +870,14 @@ fn paint_row(
         // Open | Create / expand | Arrange | Share / export | Delete
         if !row.is_folder {
             e.item(phosphor::ARROW_SQUARE_OUT, "Open", FileCmd::Open);
-            e.item(phosphor::APP_WINDOW, "Open in new tab", FileCmd::OpenNewTab);
+            e.item(phosphor::APP_WINDOW, "Open in New Tab", FileCmd::OpenNewTab);
             e.separator();
         }
         e.item(phosphor::NOTE_PENCIL, "Create…", FileCmd::Create);
         if row.is_folder && !kids_empty {
             e.separator();
-            e.item(phosphor::CARET_DOWN, "Expand all", FileCmd::ExpandAll);
-            e.item(phosphor::CARET_LEFT, "Collapse all", FileCmd::CollapseAll);
+            e.item(phosphor::CARET_DOWN, "Expand All", FileCmd::ExpandAll);
+            e.item(phosphor::CARET_LEFT, "Collapse All", FileCmd::CollapseAll);
         }
         e.separator();
         // Arrange — structure + pin (sidebar surface).
@@ -896,7 +896,7 @@ fn paint_row(
         if !multi_sel {
             e.item(phosphor::USERS, "Share…", FileCmd::Share);
             if !row.is_folder {
-                e.item(phosphor::LINK, "Copy link", FileCmd::CopyLink);
+                e.item(phosphor::LINK, "Copy Link", FileCmd::CopyLink);
             }
         }
         if !row.is_folder {
@@ -904,8 +904,8 @@ fn paint_row(
         }
         e.separator();
         if targets_are_saved_shares {
-            // Opposite of Shared with me → "Save to your files…".
-            e.item(phosphor::FOLDER_MINUS, "Remove from files…", FileCmd::Delete);
+            // Opposite of Shared with me → "Save to Your Files…".
+            e.item(phosphor::FOLDER_MINUS, "Remove from Files…", FileCmd::Delete);
         } else {
             e.item_danger(phosphor::TRASH, "Delete…", FileCmd::Delete);
         }

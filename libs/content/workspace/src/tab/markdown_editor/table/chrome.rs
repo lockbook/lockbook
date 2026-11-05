@@ -280,18 +280,18 @@ impl MdRender {
                 .push(Event::Select { region: row.line.into() });
         }
         let chosen = context_menu::show_toggle(&resp, &self.ctx.get_lb_theme(), |e| {
-            e.item(phosphor::ROWS_PLUS_TOP, "Insert row above", InsertRow { below: false });
-            e.item(phosphor::ROWS_PLUS_BOTTOM, "Insert row below", InsertRow { below: true });
+            e.item(phosphor::ROWS_PLUS_TOP, "Insert Row Above", InsertRow { below: false });
+            e.item(phosphor::ROWS_PLUS_BOTTOM, "Insert Row Below", InsertRow { below: true });
             // the header stays the header; it is the table
             if row.index > 0 {
                 e.separator();
-                e.item(phosphor::ARROW_UP, "Move up", MoveRow { down: false });
+                e.item(phosphor::ARROW_UP, "Move Up", MoveRow { down: false });
                 if row.index + 1 < row.of {
-                    e.item(phosphor::ARROW_DOWN, "Move down", MoveRow { down: true });
+                    e.item(phosphor::ARROW_DOWN, "Move Down", MoveRow { down: true });
                 }
             }
             e.separator();
-            let delete = if row.index > 0 { "Delete row" } else { "Delete table" };
+            let delete = if row.index > 0 { "Delete Row" } else { "Delete Table" };
             e.item_danger(phosphor::TRASH, delete, DeleteRow);
         });
         self.render_events.extend(chosen.map(Event::Table));
@@ -327,26 +327,26 @@ impl MdRender {
         let chosen = context_menu::show_toggle(&resp, &theme, |e| {
             e.item(
                 phosphor::COLUMNS_PLUS_LEFT,
-                "Insert column left",
+                "Insert Column Left",
                 InsertColumn { right: false },
             );
             e.item(
                 phosphor::COLUMNS_PLUS_RIGHT,
-                "Insert column right",
+                "Insert Column Right",
                 InsertColumn { right: true },
             );
             e.separator();
             if column.index > 0 {
-                e.item(phosphor::ARROW_LEFT, "Move left", MoveColumn { right: false });
+                e.item(phosphor::ARROW_LEFT, "Move Left", MoveColumn { right: false });
             }
             if column.index + 1 < column.of {
-                e.item(phosphor::ARROW_RIGHT, "Move right", MoveColumn { right: true });
+                e.item(phosphor::ARROW_RIGHT, "Move Right", MoveColumn { right: true });
             }
             e.separator();
             for (icon, label, alignment) in [
-                (phosphor::TEXT_ALIGN_LEFT, "Align left", TableAlignment::Left),
-                (phosphor::TEXT_ALIGN_CENTER, "Align center", TableAlignment::Center),
-                (phosphor::TEXT_ALIGN_RIGHT, "Align right", TableAlignment::Right),
+                (phosphor::TEXT_ALIGN_LEFT, "Align Left", TableAlignment::Left),
+                (phosphor::TEXT_ALIGN_CENTER, "Align Center", TableAlignment::Center),
+                (phosphor::TEXT_ALIGN_RIGHT, "Align Right", TableAlignment::Right),
             ] {
                 // the column's own is marked, and choosing it takes it away
                 if column.alignment == alignment {
@@ -356,7 +356,7 @@ impl MdRender {
                 }
             }
             e.separator();
-            e.item_danger(phosphor::TRASH, "Delete column", DeleteColumn);
+            e.item_danger(phosphor::TRASH, "Delete Column", DeleteColumn);
         });
         self.render_events.extend(chosen.map(Event::Table));
     }

@@ -310,7 +310,7 @@ fn paste(editor: &mut TestEditor, text: &str) {
     editor.enter_frame();
 }
 
-/// A paste after "Paste as table" was chosen.
+/// A paste after "Paste as Table" was chosen.
 fn paste_as_table(editor: &mut TestEditor, text: &str) {
     let edit = &editor.editor.edit;
     let now = edit.renderer.ctx.input(|i| i.time);

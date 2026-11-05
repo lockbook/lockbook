@@ -908,7 +908,7 @@ impl MdEdit {
                     e.separator();
                 }
                 if heading.is_some() {
-                    e.item(phosphor::LINK, "Copy Heading Link", EditorMenuCmd::HeadingLink);
+                    e.item(phosphor::HASH, "Copy Heading Link", EditorMenuCmd::HeadingLink);
                     e.separator();
                 }
                 if !readonly {
@@ -920,7 +920,7 @@ impl MdEdit {
                     e.item(phosphor::CLIPBOARD_TEXT, "Paste", EditorMenuCmd::Paste);
                 }
                 if !readonly && markdown {
-                    e.item(phosphor::TABLE, "Paste as table", EditorMenuCmd::PasteTable);
+                    e.item(phosphor::TABLE, "Paste as Table", EditorMenuCmd::PasteTable);
                 }
             });
             let mut menu_events: Vec<Event> = Vec::new();

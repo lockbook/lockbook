@@ -413,7 +413,7 @@ pub struct MdEdit {
     /// A word the person taught the system, under the menu's click.
     pub context_menu_learned: Option<String>,
 
-    /// When "Paste as table" was last chosen: the paste it requested from
+    /// When "Paste as Table" was last chosen: the paste it requested from
     /// the platform, which arrives as any other does, is to be a table.
     pub paste_as_table: std::cell::Cell<Option<f64>>,
 

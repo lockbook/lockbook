@@ -160,7 +160,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                                 e.item(phosphor::ARROW_SQUARE_OUT, "Open", FileCmd::Open);
                                 e.item(
                                     phosphor::APP_WINDOW,
-                                    "Open in new tab",
+                                    "Open in New Tab",
                                     FileCmd::OpenNewTab,
                                 );
                                 e.separator();
@@ -176,13 +176,13 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                                 e.item(phosphor::COPY, "Duplicate", FileCmd::Duplicate);
                                 e.separator();
                                 e.item(phosphor::USERS, "Share…", FileCmd::Share);
-                                e.item(phosphor::LINK, "Copy link", FileCmd::CopyLink);
+                                e.item(phosphor::LINK, "Copy Link", FileCmd::CopyLink);
                                 e.item(phosphor::DOWNLOAD_SIMPLE, "Export…", FileCmd::Export);
                                 e.separator();
                                 if saved_share {
                                     e.item(
                                         phosphor::FOLDER_MINUS,
-                                        "Remove from files…",
+                                        "Remove from Files…",
                                         FileCmd::Delete,
                                     );
                                 } else {
