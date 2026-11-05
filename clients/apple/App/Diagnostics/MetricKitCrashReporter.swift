@@ -39,7 +39,7 @@ final class MetricKitCrashReporter {
         guard case .crash = report.result else { return }
 
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.outputFormatting = [.sortedKeys]
         let json = try encoder.encode(report)
 
         // Use receipt time so the existing panic-file uploader notices delayed
