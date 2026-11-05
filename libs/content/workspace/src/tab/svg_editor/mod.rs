@@ -3,6 +3,8 @@ mod clip;
 mod element;
 mod history;
 pub(super) mod keyboard_shortcuts;
+#[cfg(test)]
+mod tests;
 mod viewport;
 
 mod renderer;
