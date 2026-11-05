@@ -233,7 +233,7 @@ impl TabEmbeds {
             SlotState::Open(tab) => {
                 // the pad takes what hangs past the content: a list's numbers, a last line's descent
                 let clip = rect.intersect(ui.clip_rect());
-                let child = &mut ui.new_child(UiBuilder::new().max_rect(inner));
+                let child = &mut ui.new_child(UiBuilder::new().max_rect(inner).scope_id(tab.salt));
                 child.set_clip_rect(clip);
                 if !slot.shown {
                     child.set_invisible();
@@ -608,4 +608,86 @@ fn paint_skeleton(ui: &egui::Ui, rect: Rect) {
     bar(0.0, w * 0.5, 14.0);
     bar(26.0, w, 10.0);
     bar(44.0, w * 0.8, 10.0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::ws::TestWs;
+    use lb_rs::model::file_metadata::FileType;
+    use web_time::{Duration, Instant};
+
+    /// A pdf of `pages` blank letter pages.
+    fn blank_pdf(pages: usize) -> Vec<u8> {
+        let kids: Vec<String> = (0..pages).map(|i| format!("{} 0 R", i + 3)).collect();
+        let mut objects = vec![
+            "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+            format!("<< /Type /Pages /Kids [{}] /Count {pages} >>", kids.join(" ")),
+        ];
+        for _ in 0..pages {
+            objects.push("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>".into());
+        }
+        let mut pdf = b"%PDF-1.4\n".to_vec();
+        let mut offsets = vec![];
+        for (i, object) in objects.iter().enumerate() {
+            offsets.push(pdf.len());
+            pdf.extend(format!("{} 0 obj\n{object}\nendobj\n", i + 1).bytes());
+        }
+        let xref = pdf.len();
+        pdf.extend(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).bytes());
+        for offset in offsets {
+            pdf.extend(format!("{offset:010} 00000 n \n").bytes());
+        }
+        let trailer = format!("trailer\n<< /Size {} /Root 1 0 R >>\n", objects.len() + 1);
+        pdf.extend(format!("{trailer}startxref\n{xref}\n%%EOF\n").bytes());
+        pdf
+    }
+
+    /// The page the note's one pdf embed shows, once it shows one.
+    fn embedded_page(t: &mut TestWs) -> Option<usize> {
+        let md = t.ws.current_tab_mut()?.markdown_mut()?;
+        let slots = md.edit.renderer.tab_embeds.slots.borrow();
+        let slot = slots.values().find(|slot| slot.shown)?;
+        let SlotState::Open(tab) = &slot.state else { return None };
+        let ContentState::Open(TabContent::Pdf(pdf)) = &tab.content else { return None };
+        Some(pdf.current_page())
+    }
+
+    fn frames_until(t: &mut TestWs, done: impl Fn(&mut TestWs) -> bool) {
+        let start = Instant::now();
+        while !done(t) {
+            assert!(start.elapsed() < Duration::from_secs(10), "never got there");
+            t.frame();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    /// An embed stays on the page it names while the note is edited above it.
+    #[test]
+    fn pdf_embed_keeps_its_page_through_an_edit_above() {
+        let mut t = TestWs::new();
+        let root = t.ws.core.get_root().unwrap().id;
+        let pdf =
+            t.ws.create_file_at(root, "paper.pdf", FileType::Document, false)
+                .unwrap();
+        t.ws.core.write_document(pdf.id, &blank_pdf(3)).unwrap();
+        let note = t.doc("note.md", "above\n\n![[paper.pdf#page=2]]\n");
+        t.ws.open_file(note, true, true);
+        frames_until(&mut t, |t| embedded_page(t) == Some(1));
+
+        let enter = egui::Event::Key {
+            key: egui::Key::Enter,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Default::default(),
+        };
+        t.frame_with(vec![enter]);
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        assert!(md.edit.renderer.buffer.current.text.starts_with("\nabove"));
+        for _ in 0..10 {
+            t.frame();
+        }
+        assert_eq!(embedded_page(&mut t), Some(1));
+    }
 }
