@@ -504,7 +504,7 @@
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
             set_spell_check(wsHandle, UserDefaults.standard.object(forKey: "spellCheck") as? Bool ?? true)
-            set_column_width(wsHandle, Float(UserDefaults.standard.object(forKey: "columnWidth") as? Double ?? 600))
+            set_column_width(wsHandle, Float(UserDefaults.standard.object(forKey: "columnWidth") as? Double ?? 800))
             set_scale(wsHandle, scale)
             let key = window?.isKeyWindow ?? false
             if key != windowKey {
