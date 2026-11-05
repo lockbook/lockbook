@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="section premium">
+  <div class="wrap">
+    <div class="measure">
+      <p class="eyebrow">{{ page.extra.eyebrow }}</p>
+      <h1>{{ page.title }}</h1>
+      <p class="lede">{{ page.extra.lede | markdown(inline=true) | safe }}</p>
+      <p class="next">{{ page.extra.next | markdown(inline=true) | safe }}</p>
+      <div class="actions">
+        <a class="btn btn-primary btn-lg" href="lb://">Open Lockbook</a>
+      </div>
+      {% if page.extra.foot %}<p class="foot">{{ page.extra.foot | markdown(inline=true) | safe }}</p>{% endif %}
+    </div>
+  </div>
+</section>
+
+<style>{% raw %}
+  .premium{border-top:0}
+  .premium h1{font-size:var(--t-title)}
+  .premium .lede{color:var(--fg);margin-top:var(--s-md)}
+  .premium .next{color:var(--fg-2);margin-top:var(--s-sm)}
+  .premium .actions{margin-top:var(--s-lg)}
+  .premium .foot{margin-top:var(--s-2xl);color:var(--fg-3);font-size:15px}
+  .premium strong{color:var(--fg);font-weight:600}
+{% endraw %}</style>
+{% endblock content %}
