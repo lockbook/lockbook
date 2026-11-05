@@ -122,8 +122,7 @@ fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
             if src.bias(&[4, 1]) == 1 {
                 device = src.draw(tier.all_devices());
             }
-            // rejects are left out until sync handles them
-            match src.bias(&[3, 1, 3, 2, 3, 2, 2, 1, shares, shares, 0, shares]) {
+            match src.bias(&[3, 1, 3, 2, 3, 2, 2, 1, shares, shares, shares, shares]) {
                 0 => Step::Sync { device },
                 1 => Step::SyncAll { device },
                 2 => Step::CreateDocument { device, parent: src.draw(8), name: src.draw(3) },
@@ -322,19 +321,7 @@ impl World {
                 let Some(file) = pick(device, reach, file, Kind::Shared).await else {
                     return false;
                 };
-                // unsharing yourself rejects the share
-                let me = &self.names[on / self.per_account];
-                let shares: Vec<_> = device
-                    .get_file_by_id(file)
-                    .await
-                    .unwrap()
-                    .shares
-                    .into_iter()
-                    .filter(|share| share.shared_with != *me)
-                    .collect();
-                if shares.is_empty() {
-                    return false;
-                }
+                let shares = device.get_file_by_id(file).await.unwrap().shares;
                 let sharee = &shares[from % shares.len()].shared_with;
                 device.unshare_file(file, sharee).await.is_ok()
             }

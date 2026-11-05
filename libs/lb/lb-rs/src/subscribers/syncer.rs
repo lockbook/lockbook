@@ -172,10 +172,33 @@ impl<S: Server> Lb<S> {
         let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
         let base_ids = local.tree.base.ids();
 
-        let mut prunable_ids = base_ids;
-        prunable_ids.retain(|id| !server_ids.contains(id));
-        for id in prunable_ids.clone() {
-            prunable_ids.extend(local.descendants(&id)?);
+        // files the server stopped listing, and this device's files under them it never had
+        let mut prunable_ids: HashSet<Uuid> = base_ids
+            .into_iter()
+            .filter(|id| !server_ids.contains(id))
+            .collect();
+        let mut to_visit: Vec<Uuid> = prunable_ids.iter().copied().collect();
+        while let Some(id) = to_visit.pop() {
+            for child in local.children(&id)? {
+                if !server_ids.contains(&child) && prunable_ids.insert(child) {
+                    to_visit.push(child);
+                }
+            }
+        }
+
+        // a file the server still has keeps its other changes: a pending move into a pruned
+        // folder is undone
+        let mut moved_in = Vec::new();
+        for id in db.local_metadata.ids() {
+            let parent = *local.find(&id)?.parent();
+            if let Some(base_file) = local.tree.base.maybe_find(&id) {
+                if prunable_ids.contains(&parent)
+                    && !prunable_ids.contains(&id)
+                    && !prunable_ids.contains(base_file.parent())
+                {
+                    moved_in.push((id, *base_file.parent()));
+                }
+            }
         }
         for id in &prunable_ids {
             if let Some(base_file) = local.tree.base.maybe_find(id) {
@@ -188,6 +211,13 @@ impl<S: Server> Lb<S> {
                     .delete(*id, local_file.document_hmac().copied())
                     .await?;
             }
+        }
+
+        let mut tree = (&db.base_metadata)
+            .to_staged(&mut db.local_metadata)
+            .to_lazy();
+        for (id, parent) in moved_in {
+            tree.move_unvalidated(&id, &parent, &self.keychain)?;
         }
 
         let mut base_staged = (&mut db.base_metadata).to_lazy().stage(None);
