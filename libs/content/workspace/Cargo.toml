@@ -204,3 +204,6 @@ windows = { version = "0.62", features = [
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 spellbook = "0.4"
+
+[dev-dependencies]
+test_utils = { path = "../../lb/test_utils" }

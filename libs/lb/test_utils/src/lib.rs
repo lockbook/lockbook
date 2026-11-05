@@ -1,4 +1,7 @@
 pub mod assert;
+pub mod byte_source;
+pub mod prop;
+pub mod shrink;
 
 use lb_rs::io::server::Server;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
