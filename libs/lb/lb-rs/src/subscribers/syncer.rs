@@ -487,6 +487,14 @@ impl<S: Server> Lb<S> {
                                 && local_file.parent() != base_file.parent()
                                 && !files_to_unmove.contains(&id)
                             {
+                                // a move this device may no longer make is undone
+                                let from = *remote.find(&id)?.parent();
+                                if !may_write_in(&local, &remote, me, &from)?
+                                    || !may_write_in(&local, &remote, me, local_file.parent())?
+                                {
+                                    files_to_unmove.insert(id);
+                                    continue;
+                                }
                                 // move
                                 deletions.move_unvalidated(
                                     &id,
@@ -500,7 +508,11 @@ impl<S: Server> Lb<S> {
                     // deletions (moves happen first in case a file is moved into a deleted folder)
                     for id in db.local_metadata.ids() {
                         let local_file = local.find(&id)?.clone();
-                        if local_file.explicitly_deleted() && !lost_access(&local, me, &id)? {
+                        let parent = *remote.maybe_find(&id).unwrap_or(&local_file).parent();
+                        if local_file.explicitly_deleted()
+                            && !lost_access(&local, me, &id)?
+                            && may_write_in(&local, &remote, me, &parent)?
+                        {
                             // delete
                             deletions.delete_unvalidated(&id, &self.keychain)?;
                         }
@@ -520,6 +532,7 @@ impl<S: Server> Lb<S> {
                             && remote.maybe_find(&id).is_none()
                             && !links_to_delete.contains(&id)
                             && !lost_access(&local, me, &id)?
+                            && may_write_in(&local, &remote, me, local.find(&id)?.parent())?
                         {
                             creations.insert(id);
                         }
@@ -561,9 +574,10 @@ impl<S: Server> Lb<S> {
                     // moves, renames, edits, and shares
                     // creations happen first in case a file is moved into a new folder
                     for id in db.local_metadata.ids() {
-                        // skip files that are already deleted, will be deleted, or are no
-                        // longer reachable from this device
-                        if deletions.maybe_find(&id).is_none()
+                        // skip files that are already deleted, will be deleted, were not
+                        // created, or are no longer reachable from this device
+                        if merge.maybe_find(&id).is_none()
+                            || deletions.maybe_find(&id).is_none()
                             || deletions.calculate_deleted(&id)?
                             || (remote.maybe_find(&id).is_some()
                                 && remote.calculate_deleted(&id)?)
@@ -591,7 +605,10 @@ impl<S: Server> Lb<S> {
                             }
 
                             // rename
-                            if local_name != base_name && remote_name == base_name {
+                            if local_name != base_name
+                                && remote_name == base_name
+                                && may_write_in(&local, &remote, me, merge.find(&id)?.parent())?
+                            {
                                 merge.rename_unvalidated(&id, &local_name, &self.keychain)?;
                             }
                         }
@@ -611,7 +628,8 @@ impl<S: Server> Lb<S> {
                             let remote_live = remote.filter(|&(_, deleted)| !deleted);
                             let (mode, deleted) = local;
                             if deleted {
-                                if remote_live.is_some() {
+                                let mine = for_ == me;
+                                if remote_live.is_some() && (mine || writable) {
                                     merge.delete_share_unvalidated(
                                         &id,
                                         Some(for_.0),

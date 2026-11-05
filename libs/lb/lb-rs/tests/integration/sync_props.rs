@@ -288,15 +288,6 @@ impl World {
                     return false;
                 };
                 let mode = if write { ShareMode::Write } else { ShareMode::Read };
-                // a downgrade is left out until sync drops changes a device may no longer make
-                let shares = device.get_file_by_id(file).await.unwrap().shares;
-                if !write
-                    && shares
-                        .iter()
-                        .any(|share| matches!(share.mode, ShareMode::Write))
-                {
-                    return false;
-                }
                 device
                     .share_file(file, &self.names[to % self.names.len()], mode)
                     .await
