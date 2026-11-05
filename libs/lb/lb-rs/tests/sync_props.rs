@@ -8,7 +8,7 @@ use std::fmt::Write;
 use lb_rs::io::server::Server;
 use lb_rs::model::account::Account;
 use lb_rs::model::api::{AdminValidateServer, AdminValidateServerRequest};
-use lb_rs::model::file::ShareMode;
+use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use test_utils::byte_source::ByteSource;
 use test_utils::lockbook_server_lib::in_process::InMemoryServer;
@@ -288,19 +288,8 @@ impl World {
                     return false;
                 };
                 let mode = if write { ShareMode::Write } else { ShareMode::Read };
-                // sharing with the owner or yourself is a known finding, left out until refused
-                let owner = device.get_file_by_id(file).await.unwrap().owner;
-                let me = &self.names[on / self.per_account];
-                let others: Vec<_> = self
-                    .names
-                    .iter()
-                    .filter(|name| **name != owner && *name != me)
-                    .collect();
-                if others.is_empty() {
-                    return false;
-                }
                 device
-                    .share_file(file, others[to % others.len()], mode)
+                    .share_file(file, &self.names[to % self.names.len()], mode)
                     .await
                     .is_ok()
             }
@@ -379,12 +368,12 @@ async fn device(server: &InMemoryServer) -> Lb {
         .unwrap()
 }
 
-/// What a device shows: every file's type and content, keyed by path. A document the device
-/// lists but can't read shows the error.
+/// What a device shows: every file's type, shares and content, keyed by path. A document the
+/// device lists but can't read shows the error.
 async fn tree(device: &Lb) -> BTreeMap<String, String> {
     let mut tree = BTreeMap::new();
     for file in device.list_metadatas().await.unwrap() {
-        let mut shown = format!("{:?}", file.file_type);
+        let mut shown = format!("{:?}{}", file.file_type, shares(&file));
         if file.is_document() {
             match device.read_document(file.id, false).await {
                 Ok(content) => write!(shown, " {:?}", String::from_utf8_lossy(&content)).unwrap(),
@@ -396,7 +385,7 @@ async fn tree(device: &Lb) -> BTreeMap<String, String> {
     tree
 }
 
-/// Each document a device lists, by id, with its content.
+/// Each document a device lists, by id, with its shares and content.
 async fn documents(device: &Lb) -> BTreeMap<Uuid, String> {
     let mut documents = BTreeMap::new();
     for file in device.list_metadatas().await.unwrap() {
@@ -405,10 +394,21 @@ async fn documents(device: &Lb) -> BTreeMap<Uuid, String> {
                 Ok(content) => format!("{:?}", String::from_utf8_lossy(&content)),
                 Err(err) => format!("unreadable: {:?}", err.kind),
             };
-            documents.insert(file.id, shown);
+            documents.insert(file.id, format!("{}{shown}", shares(&file)));
         }
     }
     documents
+}
+
+/// A file's shares as `by>with:mode`, sorted.
+fn shares(file: &File) -> String {
+    let mut shares: Vec<_> = file
+        .shares
+        .iter()
+        .map(|share| format!(" {}>{}:{:?}", share.shared_by, share.shared_with, share.mode))
+        .collect();
+    shares.sort();
+    shares.concat()
 }
 
 #[derive(Clone, Copy, PartialEq)]
