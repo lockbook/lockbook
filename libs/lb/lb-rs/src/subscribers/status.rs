@@ -127,6 +127,12 @@ impl Lb {
         self.status.current_status.read().await.clone()
     }
 
+    /// Status shows the usage most recently read from the server, whoever read it.
+    pub(crate) async fn record_usage(&self, usage: &UsageMetrics) {
+        self.status.current_status.write().await.space_used = Some(usage.clone());
+        self.events.status_updated();
+    }
+
     pub async fn set_initial_state(&self) -> LbResult<()> {
         if self.get_account().is_ok() {
             self.spawn_compute_usage().await;
@@ -237,14 +243,12 @@ impl Lb {
             if initialized && computed.elapsed() < web_time::Duration::from_secs(60) {
                 tokio::time::sleep(web_time::Duration::from_secs(60) - computed.elapsed()).await;
             }
-            let usage = bg.get_usage().await.log_and_ignore();
+            // get_usage records what it reads into the status
+            bg.get_usage().await.log_and_ignore();
             let mut lock = bg.status.space_updated.lock().await;
             lock.spawned = false;
             lock.last_computed = Instant::now();
             drop(lock);
-
-            bg.status.current_status.write().await.space_used = usage;
-            bg.events.status_updated();
         });
     }
 
