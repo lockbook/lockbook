@@ -483,6 +483,9 @@ impl From<ApiError<api::GetDocumentError>> for LbErr {
     fn from(e: ApiError<api::GetDocumentError>) -> Self {
         match e {
             ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+            ApiError::Endpoint(api::GetDocumentError::DocumentNotFound) => {
+                LbErrKind::FileNonexistent
+            }
             ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }
