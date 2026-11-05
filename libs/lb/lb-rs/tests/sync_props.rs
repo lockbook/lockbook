@@ -664,17 +664,12 @@ fn accounts_agree_on_what_they_share_check(tier: Tier, bytes: &[u8]) -> Result<(
     })
 }
 
-/// The server's own consistency check finds nothing after every step.
+/// Once every device has synced, the server's own consistency check finds nothing. Between
+/// syncs a recipient's link to a deleted file is broken until that recipient syncs.
 fn the_server_stays_valid_check(tier: Tier, bytes: &[u8]) -> Result<(), String> {
     block_on(async {
         let world = World::new(tier).await;
-        for (n, step) in steps(tier, bytes).iter().enumerate() {
-            world.take(step, step.device(), Reach::Shared).await;
-            world
-                .validate_server()
-                .await
-                .map_err(|err| format!("after step {n}: {err}"))?;
-        }
+        world.take_all(&steps(tier, bytes)).await;
         world.settle().await?;
         world.validate_server().await
     })
