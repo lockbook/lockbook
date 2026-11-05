@@ -566,69 +566,41 @@ impl<S: Server> Lb<S> {
                             }
                         }
 
-                        // share
-                        let mut base_keys = HashMap::new();
-                        if let Some(ref base_file) = maybe_base_file {
-                            for key in base_file.user_access_keys() {
-                                base_keys.insert(
-                                    (Owner(key.encrypted_by), Owner(key.encrypted_for)),
-                                    (key.mode, key.deleted),
-                                );
+                        // share: replay what this device changed about each recipient's share;
+                        // when the server changed it too, this device wins if either side unshared,
+                        // otherwise the higher mode
+                        let writable = may_write_in(&local, &remote, me, &id)?;
+                        let base_keys = shares_by_recipient(maybe_base_file.as_ref());
+                        let remote_keys = shares_by_recipient(maybe_remote_file.as_ref());
+                        for (for_, local) in shares_by_recipient(Some(&local_file)) {
+                            let base = base_keys.get(&for_).copied();
+                            if Some(local) == base {
+                                continue;
                             }
-                        }
-                        let mut remote_keys = HashMap::new();
-                        if let Some(ref remote_file) = maybe_remote_file {
-                            for key in remote_file.user_access_keys() {
-                                remote_keys.insert(
-                                    (Owner(key.encrypted_by), Owner(key.encrypted_for)),
-                                    (key.mode, key.deleted),
-                                );
-                            }
-                        }
-                        for key in local_file.user_access_keys() {
-                            let (by, for_) = (Owner(key.encrypted_by), Owner(key.encrypted_for));
-                            if let Some(&(remote_mode, remote_deleted)) =
-                                remote_keys.get(&(by, for_))
-                            {
-                                // upgrade/downgrade/undelete share: replay what changed on this
-                                // device; a key with no base is a concurrent add and the higher
-                                // mode wins
-                                let base_key = base_keys.get(&(by, for_)).copied();
-                                let upgraded = key.mode > remote_mode
-                                    && base_key.is_none_or(|(base_mode, _)| key.mode > base_mode);
-                                let downgraded = !key.deleted
-                                    && key.mode < remote_mode
-                                    && base_key.is_some_and(|(base_mode, _)| key.mode < base_mode);
-                                let undeleted = !key.deleted
-                                    && remote_deleted
-                                    && base_key.is_some_and(|(_, base_deleted)| base_deleted);
-                                if upgraded || downgraded || undeleted {
-                                    let mode = match key.mode {
-                                        UserAccessMode::Read => ShareMode::Read,
-                                        UserAccessMode::Write => ShareMode::Write,
-                                        UserAccessMode::Owner => continue,
-                                    };
-                                    merge.add_share_unvalidated(id, for_, mode, &self.keychain)?;
-                                }
-                                // delete share
-                                if key.deleted && !remote_deleted {
+                            let remote = remote_keys.get(&for_).copied();
+                            let remote_live = remote.filter(|&(_, deleted)| !deleted);
+                            let (mode, deleted) = local;
+                            if deleted {
+                                if remote_live.is_some() {
                                     merge.delete_share_unvalidated(
                                         &id,
                                         Some(for_.0),
                                         &self.keychain,
                                     )?;
                                 }
-                            } else {
-                                // add share
-                                let mode = match key.mode {
-                                    UserAccessMode::Read => ShareMode::Read,
-                                    UserAccessMode::Write => ShareMode::Write,
-                                    UserAccessMode::Owner => continue,
-                                };
+                                continue;
+                            }
+                            let wins = remote == base
+                                || remote_live.is_none_or(|(remote_mode, _)| mode > remote_mode);
+                            let mode = match mode {
+                                UserAccessMode::Read => ShareMode::Read,
+                                UserAccessMode::Write => ShareMode::Write,
+                                UserAccessMode::Owner => continue,
+                            };
+                            if wins && writable {
                                 merge.add_share_unvalidated(id, for_, mode, &self.keychain)?;
                             }
                         }
-
                         // share deletion due to conflicts
                         if files_to_unshare.contains(&id) {
                             merge.delete_share_unvalidated(&id, None, &self.keychain)?;
@@ -1533,4 +1505,12 @@ fn lost_access<T: TreeLike>(tree: &LazyTree<T>, me: Owner, id: &Uuid) -> LbResul
         .any(|k| k.encrypted_for == me.0);
     let reachable = tree.access_mode(me, id)?.is_some();
     Ok(!is_my_share_root && !reachable)
+}
+
+/// Each recipient's share of a file as (mode, deleted); a file keeps one share per recipient.
+fn shares_by_recipient(file: Option<&SignedMeta>) -> HashMap<Owner, (UserAccessMode, bool)> {
+    file.into_iter()
+        .flat_map(|file| file.user_access_keys())
+        .map(|key| (Owner(key.encrypted_for), (key.mode, key.deleted)))
+        .collect()
 }

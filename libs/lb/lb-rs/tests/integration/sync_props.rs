@@ -8,7 +8,7 @@ use lb_rs::io::server::Server;
 use lb_rs::model::account::Account;
 use lb_rs::model::api::{AdminValidateServer, AdminValidateServerRequest};
 use lb_rs::model::errors::LbErrKind;
-use lb_rs::model::file::ShareMode;
+use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use test_utils::byte_source::ByteSource;
 use test_utils::lockbook_server_lib::in_process::InMemoryServer;
@@ -115,6 +115,7 @@ const CONTENTS: [&str; 3] = ["one", "two\nlines", ""];
 fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
     let mut src = ByteSource::new(bytes);
     let count = 1 + src.draw(48);
+    let shares = if tier.accounts > 1 { 2 } else { 0 };
     let mut device = 0;
     (0..count)
         .map(|_| {
@@ -122,8 +123,8 @@ fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
             if src.bias(&[4, 1]) == 1 {
                 device = src.draw(tier.all_devices());
             }
-            // sharing are left out until sync handles them
-            match src.bias(&[3, 1, 3, 2, 3, 2, 2, 1, 0, 0, 0, 0]) {
+            // rejects are left out until sync handles them
+            match src.bias(&[3, 1, 3, 2, 3, 2, 2, 1, shares, shares, 0, shares]) {
                 0 => Step::Sync { device },
                 1 => Step::SyncAll { device },
                 2 => Step::CreateDocument { device, parent: src.draw(8), name: src.draw(3) },
@@ -399,11 +400,11 @@ async fn device(server: &InMemoryServer) -> Lb {
     Lb::in_memory(test_config(), server.clone()).await.unwrap()
 }
 
-/// What a device shows: every file's type and content, keyed by path.
+/// What a device shows: every file's type, shares and content, keyed by path.
 async fn tree(device: &Lb) -> BTreeMap<String, String> {
     let mut tree = BTreeMap::new();
     for file in device.list_metadatas().await.unwrap() {
-        let mut shown = format!("{:?}", file.file_type);
+        let mut shown = format!("{:?}{}", file.file_type, shares(&file));
         if file.is_document() {
             write!(shown, " {}", read(device, file.id).await).unwrap();
         }
@@ -412,12 +413,12 @@ async fn tree(device: &Lb) -> BTreeMap<String, String> {
     tree
 }
 
-/// Each document a device lists, by id, with its content.
+/// Each document a device lists, by id, with its shares and content.
 async fn documents(device: &Lb) -> BTreeMap<Uuid, String> {
     let mut documents = BTreeMap::new();
     for file in device.list_metadatas().await.unwrap() {
         if file.is_document() {
-            documents.insert(file.id, read(device, file.id).await);
+            documents.insert(file.id, format!("{}{}", shares(&file), read(device, file.id).await));
         }
     }
     documents
@@ -438,6 +439,17 @@ async fn read(device: &Lb, id: Uuid) -> String {
         }
         Err(err) => panic!("a listed document failed to read: {:?}", err.kind),
     }
+}
+
+/// A file's shares as `by>with:mode`, sorted.
+fn shares(file: &File) -> String {
+    let mut shares: Vec<_> = file
+        .shares
+        .iter()
+        .map(|share| format!(" {}>{}:{:?}", share.shared_by, share.shared_with, share.mode))
+        .collect();
+    shares.sort();
+    shares.concat()
 }
 
 #[derive(Clone, Copy, PartialEq)]
