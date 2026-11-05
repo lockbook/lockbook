@@ -155,6 +155,7 @@ impl Workspace {
                     }
                     if let Some(cmd) = context_menu::show(&resp, &t, |e| {
                         e.item(phosphor::ARROW_SQUARE_OUT, "Open", RecentCmd::Open);
+                        e.item(phosphor::APP_WINDOW, "Open in New Tab", RecentCmd::OpenNewTab);
                         e.item(phosphor::LINK, "Copy Link", RecentCmd::CopyLink);
                         if r.own {
                             e.separator();
@@ -212,6 +213,7 @@ impl Workspace {
         if let Some((id, cmd)) = file_cmd {
             match cmd {
                 RecentCmd::Open => self.open_file(id, true, false),
+                RecentCmd::OpenNewTab => self.open_file(id, true, true),
                 RecentCmd::CopyLink => {
                     if let Ok(url) = self.core.get_file_link_url(id) {
                         ctx.copy_text(url);
@@ -227,6 +229,7 @@ impl Workspace {
 #[derive(Clone, Copy)]
 enum RecentCmd {
     Open,
+    OpenNewTab,
     CopyLink,
     Pin,
     Duplicate,
