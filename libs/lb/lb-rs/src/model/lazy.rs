@@ -461,6 +461,9 @@ pub enum ValidationFailure {
     FileWithDifferentOwnerParent(Uuid),
     NonDecryptableFileName(Uuid),
     DeletedFileUpdated(Uuid),
+
+    /// You cannot share a file with its owner or with yourself
+    SelfShare(Uuid),
 }
 
 impl<T> LazyTree<T>

@@ -947,7 +947,8 @@ impl<S: Server> Lb<S> {
                             | ValidationFailure::FileWithDifferentOwnerParent(_)
                             | ValidationFailure::FileNameTooLong(_)
                             | ValidationFailure::DeletedFileUpdated(_)
-                            | ValidationFailure::NonDecryptableFileName(_) => {
+                            | ValidationFailure::NonDecryptableFileName(_)
+                            | ValidationFailure::SelfShare(_) => {
                                 validate_result?;
                             }
                         },

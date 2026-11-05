@@ -299,19 +299,8 @@ impl World {
                 {
                     return false;
                 }
-                // sharing with the owner or yourself is accepted, and leaves the server invalid
-                let owner = device.get_file_by_id(file).await.unwrap().owner;
-                let me = &self.names[on / self.per_account];
-                let others: Vec<_> = self
-                    .names
-                    .iter()
-                    .filter(|name| **name != owner && *name != me)
-                    .collect();
-                if others.is_empty() {
-                    return false;
-                }
                 device
-                    .share_file(file, others[to % others.len()], mode)
+                    .share_file(file, &self.names[to % self.names.len()], mode)
                     .await
                     .is_ok()
             }
