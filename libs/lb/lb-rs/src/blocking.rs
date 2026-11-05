@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::model::account::{Account, Username};
 use crate::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo,
-    AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo,
+    AdminValidateAccount, AdminValidateServer, ServerIndex, StripePlan, SubscriptionInfo,
 };
 use crate::model::core_config::Config;
 use crate::model::crypto::DecryptedDocument;
@@ -312,8 +312,12 @@ impl Lb {
         self.block_on(self.lb.test_repo_integrity(true))
     }
 
-    pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
-        self.block_on(self.lb.upgrade_account_stripe(account_tier))
+    pub fn stripe_checkout_url(&self, plan: StripePlan) -> LbResult<String> {
+        self.block_on(self.lb.stripe_checkout_url(plan))
+    }
+
+    pub fn stripe_billing_portal_url(&self) -> LbResult<String> {
+        self.block_on(self.lb.stripe_billing_portal_url())
     }
 
     pub fn upgrade_account_google_play(

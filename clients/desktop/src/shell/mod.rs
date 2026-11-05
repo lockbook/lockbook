@@ -609,11 +609,6 @@ impl ShellApp {
             let action = match &self.modal {
                 // Account subpanels (incl. upgrade) stay in Settings — Esc backs the panel.
                 Some(Modal::Settings { .. }) => match &self.account_panel {
-                    AccountPanel::Upgrade {
-                        stage: action::UpgradeStage::Paying,
-                        done: None,
-                        ..
-                    } => None, // mid-charge
                     AccountPanel::Upgrade { .. } => Some(A::UpgradeBack),
                     AccountPanel::Closed => Some(A::CloseModal),
                     _ => Some(A::HideAccountKey),
@@ -745,18 +740,10 @@ impl ShellApp {
                     self.queue.push(A::ShareStageField);
                 }
             } else {
-                // Pay (upgrade confirm): ⌘⏎ only. Other primaries: ⏎ or ⌘⏎.
                 let cmd_enter = ctx.input_mut(|i| i.consume_key(CMD, egui::Key::Enter));
                 let plain_enter =
                     ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
-                let pay_commit = matches!(
-                    (&modal, &self.account_panel),
-                    (
-                        Modal::Settings { .. },
-                        AccountPanel::Upgrade { stage: action::UpgradeStage::Confirm, .. }
-                    )
-                );
-                let commit = if pay_commit { cmd_enter } else { cmd_enter || plain_enter };
+                let commit = cmd_enter || plain_enter;
                 if commit {
                     match modal {
                         Modal::Delete { .. } => self.queue.push(A::ConfirmDelete),
@@ -781,22 +768,11 @@ impl ShellApp {
                             }
                             AccountPanel::CancelSub => self.queue.push(A::ConfirmCancelSub),
                             AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::EnterCard,
-                                ..
-                            } => self.queue.push(A::UpgradeNext),
-                            AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::Confirm, ..
-                            } => self.queue.push(A::UpgradeConfirmPay),
-                            AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::Paying,
-                                done: Some(Ok(())),
-                                ..
-                            } => self.queue.push(A::UpgradeDone),
-                            AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::Paying,
-                                done: Some(Err(_)),
-                                ..
-                            } => self.queue.push(A::UpgradeBack),
+                                stage: action::UpgradeStage::Choose, ..
+                            } => self.queue.push(A::UpgradeCheckout),
+                            AccountPanel::Upgrade { stage: action::UpgradeStage::Done, .. } => {
+                                self.queue.push(A::UpgradeDone)
+                            }
                             _ => {}
                         },
                         Modal::ImportParent { .. } => self.queue.push(A::ConfirmImportParent),

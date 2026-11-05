@@ -4,6 +4,10 @@ use std::fs;
 use std::thread;
 
 use egui::Context;
+use lb::model::api::{FREE_TIER_USAGE_SIZE, StripePlan, SubscriptionInfo};
+use lb::model::errors::LbErrKind;
+use lb::service::usage::UsageMetrics;
+use std::time::Duration;
 
 use super::DebugInfoCache;
 use super::ShellApp;
@@ -79,126 +83,135 @@ pub(crate) fn spawn_account_qr(app: &mut ShellApp, ctx: &Context) {
     });
 }
 
-fn upgrade_card_digits(s: &str) -> String {
-    s.chars().filter(|c| c.is_ascii_digit()).collect()
+fn checkout_failed_id() -> egui::Id {
+    egui::Id::unique("shell_upgrade_checkout_failed")
 }
 
-/// Parse `MM/YY` (or bare digits) → (month 1–12, full year).
-fn parse_card_exp(exp: &str) -> Option<(i32, i32)> {
-    let d = upgrade_card_digits(exp);
-    if d.len() != 4 {
-        return None;
-    }
-    let month: i32 = d[..2].parse().ok()?;
-    if !(1..=12).contains(&month) {
-        return None;
-    }
-    let yy: i32 = d[2..].parse().ok()?;
-    Some((month, 2000 + yy))
+/// Account standing fetched while the Browser stage waits for Premium.
+#[derive(Clone, Default)]
+struct UpgradeRefresh(Option<(Option<UsageMetrics>, Option<SubscriptionInfo>)>);
+
+fn refresh_id() -> egui::Id {
+    egui::Id::unique("shell_upgrade_refresh")
 }
 
-pub(crate) fn upgrade_validate_and_confirm(app: &mut ShellApp) {
-    let AccountPanel::Upgrade { stage: UpgradeStage::EnterCard, number, exp, cvc, .. } =
-        &app.account_panel
-    else {
-        return;
-    };
-    let number = upgrade_card_digits(number);
-    if number.is_empty() || number.len() < 12 {
-        if let AccountPanel::Upgrade { error, .. } = &mut app.account_panel {
-            *error = Some("Enter a valid card number".into());
-        }
-        return;
-    }
-    let Some((exp_month, exp_year)) = parse_card_exp(exp) else {
-        if let AccountPanel::Upgrade { error, .. } = &mut app.account_panel {
-            *error = Some("Invalid expiry (MM/YY)".into());
-        }
-        return;
-    };
-    let cvc = cvc.trim().to_string();
-    if cvc.len() < 3 {
-        if let AccountPanel::Upgrade { error, .. } = &mut app.account_panel {
-            *error = Some("Enter CVC".into());
-        }
-        return;
-    }
-    // Normalize buffers + advance (digits-only number for API; MM/YY for display).
-    if let AccountPanel::Upgrade { stage, number: n, exp: e, cvc: c, error, .. } =
-        &mut app.account_panel
-    {
-        *n = number;
-        *e = format!("{exp_month:02}/{:02}", exp_year % 100);
-        *c = cvc;
-        *error = None;
-        *stage = UpgradeStage::Confirm;
-    }
-}
+/// How often the Browser stage asks the server whether the payment landed.
+const UPGRADE_POLL: Duration = Duration::from_secs(3);
 
-pub(crate) fn upgrade_start_pay(app: &mut ShellApp, ctx: &Context) {
-    let (number, exp_month, exp_year, cvc) = match &app.account_panel {
-        AccountPanel::Upgrade { stage: UpgradeStage::Confirm, number, exp, cvc, .. } => {
-            let (m, y) = parse_card_exp(exp).unwrap_or((0, 0));
-            (upgrade_card_digits(number), m, y, cvc.clone())
-        }
-        _ => return,
+/// Opens Stripe Checkout for the chosen plan in the browser; the page then waits for Premium.
+pub(crate) fn upgrade_open_checkout(app: &mut ShellApp, ctx: &Context) {
+    let AccountPanel::Upgrade { stage, yearly } = &mut app.account_panel else {
+        return;
     };
-    if let AccountPanel::Upgrade { stage, done, error, .. } = &mut app.account_panel {
-        *stage = UpgradeStage::Paying;
-        *done = None;
-        *error = None;
-    }
+    *stage = UpgradeStage::Browser;
+    let plan = if *yearly { StripePlan::Yearly } else { StripePlan::Monthly };
     let Some(r) = app.session.ready() else {
-        if let AccountPanel::Upgrade { done, .. } = &mut app.account_panel {
-            *done = Some(Err("Not signed in".into()));
-        }
         return;
     };
     let core = r.workspace.core.clone();
+    let toasts = app.toasts.inbox.clone();
     let ctx = ctx.clone();
-    // Result channel via temp Id — worker can't mut ShellApp.
-    // Wrapper: `remove_temp` requires Default (Result doesn't implement it).
-    let result_id = egui::Id::unique("shell_upgrade_result");
-    ctx.data_mut(|d| d.remove::<UpgradePayResult>(result_id));
     thread::spawn(move || {
-        use lb::model::api::{PaymentMethod, StripeAccountTier};
-        let method = PaymentMethod::NewCard { number, exp_month, exp_year, cvc };
-        let out = core
-            .upgrade_account_stripe(StripeAccountTier::Premium(method))
-            .map_err(|e| format!("{e:?}"));
-        ctx.data_mut(|d| d.insert_temp(result_id, UpgradePayResult(Some(out))));
+        match core.stripe_checkout_url(plan) {
+            Ok(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
+            // the refresh below finds the Premium this account already has
+            Err(e) if e.kind == LbErrKind::AlreadyPremium => {}
+            Err(e) => {
+                toasts.error(format!("Couldn’t open checkout: {e}"));
+                ctx.data_mut(|d| d.insert_temp(checkout_failed_id(), true));
+            }
+        }
         ctx.request_repaint();
     });
 }
 
-#[derive(Clone, Default)]
-struct UpgradePayResult(Option<Result<(), String>>);
+/// Opens Stripe's billing page, where the account changes its card, gets receipts, or cancels.
+pub(crate) fn open_billing_portal(app: &mut ShellApp, ctx: &Context) {
+    let Some(r) = app.session.ready() else {
+        return;
+    };
+    let core = r.workspace.core.clone();
+    let toasts = app.toasts.inbox.clone();
+    let ctx = ctx.clone();
+    thread::spawn(move || {
+        match core.stripe_billing_portal_url() {
+            Ok(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
+            Err(e) => toasts.error(format!("Couldn’t open billing: {e}")),
+        }
+        ctx.request_repaint();
+    });
+}
 
-/// Poll Stripe upgrade worker + refresh sub/usage on success.
+/// While the Browser stage waits, re-reads the account every few seconds and turns to Done once
+/// it is Premium.
 pub(crate) fn poll_upgrade(app: &mut ShellApp, ctx: &Context) {
-    let AccountPanel::Upgrade { stage: UpgradeStage::Paying, done: None, .. } = &app.account_panel
-    else {
+    let AccountPanel::Upgrade { stage: UpgradeStage::Browser, .. } = &app.account_panel else {
         return;
     };
-    let result_id = egui::Id::unique("shell_upgrade_result");
-    let Some(UpgradePayResult(Some(out))) =
-        ctx.data_mut(|d| d.remove_temp::<UpgradePayResult>(result_id))
-    else {
+
+    if ctx
+        .data_mut(|d| d.remove_temp::<bool>(checkout_failed_id()))
+        .unwrap_or(false)
+    {
+        if let AccountPanel::Upgrade { stage, .. } = &mut app.account_panel {
+            *stage = UpgradeStage::Choose;
+        }
         return;
-    };
-    if out.is_ok() {
+    }
+
+    if let Some(UpgradeRefresh(Some((usage, sub_info)))) =
+        ctx.data_mut(|d| d.remove_temp::<UpgradeRefresh>(refresh_id()))
+    {
         if let Some(r) = app.session.ready_mut() {
-            let usage = r.workspace.core.get_usage().ok();
-            if let Some(u) = usage {
-                r.status.space_used = Some(u);
+            if usage.is_some() {
+                r.status.space_used = usage;
             }
-            r.sub_info = r.workspace.core.get_subscription_info().ok().flatten();
+            r.sub_info = sub_info;
             r.refresh_status();
         }
     }
-    if let AccountPanel::Upgrade { done, .. } = &mut app.account_panel {
-        *done = Some(out);
+
+    let premium = app
+        .session
+        .ready()
+        .and_then(|r| r.status.space_used.as_ref())
+        .is_some_and(|u| u.data_cap.exact > FREE_TIER_USAGE_SIZE);
+    if premium {
+        if let AccountPanel::Upgrade { stage, .. } = &mut app.account_panel {
+            *stage = UpgradeStage::Done;
+        }
+        // whatever the old cap held back uploads now
+        app.push(super::action::Action::RequestSync);
+        return;
     }
+
+    let now = ctx.input(|i| i.time);
+    let last_id = egui::Id::unique("shell_upgrade_last_poll");
+    let in_flight_id = egui::Id::unique("shell_upgrade_poll_in_flight");
+    let last = ctx.data(|d| d.get_temp::<f64>(last_id));
+    let in_flight = ctx
+        .data(|d| d.get_temp::<bool>(in_flight_id))
+        .unwrap_or(false);
+    if !in_flight && last.is_none_or(|t| now - t >= UPGRADE_POLL.as_secs_f64()) {
+        if let Some(r) = app.session.ready() {
+            ctx.data_mut(|d| {
+                d.insert_temp(last_id, now);
+                d.insert_temp(in_flight_id, true);
+            });
+            let core = r.workspace.core.clone();
+            let ctx = ctx.clone();
+            thread::spawn(move || {
+                let usage = core.get_usage().ok();
+                let sub_info = core.get_subscription_info().ok().flatten();
+                ctx.data_mut(|d| {
+                    d.insert_temp(refresh_id(), UpgradeRefresh(Some((usage, sub_info))));
+                    d.insert_temp(in_flight_id, false);
+                });
+                ctx.request_repaint();
+            });
+        }
+    }
+    ctx.request_repaint_after(UPGRADE_POLL);
 }
 
 /// Background `Lb::debug_info` (can take a beat).

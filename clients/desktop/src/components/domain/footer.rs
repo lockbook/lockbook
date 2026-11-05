@@ -112,7 +112,17 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     // Dot: don't flip green→blue while syncing; arrows show activity.
     let display = if raw == SyncIndicator::Syncing { SyncIndicator::Synced } else { raw };
 
-    let message = if !app.sync_footer.stable_message.is_empty() {
+    let tier_free = status
+        .space_used
+        .as_ref()
+        .map(|u| u.data_cap.exact <= FREE_TIER_USAGE_SIZE)
+        .unwrap_or(true);
+    // Out of space on Free: the strip names the way out and opens it on click.
+    let offer_upgrade = raw == SyncIndicator::OutOfSpace && tier_free;
+
+    let message = if offer_upgrade {
+        "Out of space.".to_string()
+    } else if !app.sync_footer.stable_message.is_empty() {
         app.sync_footer.stable_message.clone()
     } else if let Some(msg) = status.msg() {
         msg
@@ -220,6 +230,17 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 ..Default::default()
             },
         );
+        if offer_upgrade {
+            job.append(
+                "Upgrade",
+                Space::Xs.pts(),
+                egui::text::TextFormat {
+                    font_id: TypeRole::Body.font_id(),
+                    color: t.accent(),
+                    ..Default::default()
+                },
+            );
+        }
         let msg_g = ui.fonts_mut(|f| f.layout_job(job));
         ui.painter()
             .galley(pos2(x, cy - msg_g.size().y / 2.0), msg_g, t.neutral_fg_secondary());
@@ -300,15 +321,14 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         pos2(footer_left, footer_top),
         pos2(passive_right.max(footer_left + Space::Xl.pts()), footer_bot),
     );
-    let hit = ui.interact(passive_rect, ui.scope_id().with("sync_footer_passive"), Sense::hover());
+    let sense = if offer_upgrade { crate::components::sense_click() } else { Sense::hover() };
+    let hit = ui.interact(passive_rect, ui.scope_id().with("sync_footer_passive"), sense);
+    if offer_upgrade && hit.clicked() {
+        queue.push(A::OpenUpgrade);
+    }
     let gap = Space::Xs.pts();
     let frame_pad_x = Space::Sm.pts();
     let content_w = (footer_rect.width() - 2.0 * gap - 2.0 * frame_pad_x).max(Space::Xl.pts());
-    let tier_free = status
-        .space_used
-        .as_ref()
-        .map(|u| u.data_cap.exact <= FREE_TIER_USAGE_SIZE)
-        .unwrap_or(true);
     let usage = usage_info
         .as_ref()
         .map(|(u, c, f)| (u.clone(), c.clone(), *f));

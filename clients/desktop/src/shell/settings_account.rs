@@ -4,8 +4,8 @@ use egui::{Id, Ui};
 
 use crate::components::{
     Button, Field, Radius, SheetFooterOpts, Space, Spacer, Theme, TypeRole, control_height,
-    footnote, form_group, form_row, form_row_detail, form_value, section_label,
-    sheet_band_centered, sheet_footer, shortcut_enter, shortcut_return, ui_width,
+    footnote, form_group, form_row, form_row_detail, form_segmented, form_value, section_label,
+    sheet_band_centered, sheet_footer, shortcut_return, ui_width,
 };
 use crate::shell::ShellApp;
 use crate::shell::action::{Action, Action as A, UpgradeStage};
@@ -87,7 +87,8 @@ pub(crate) fn page_account(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &m
                 queue.push(A::OpenLogout);
             }
         });
-        if plan_standing(app).can_cancel() {
+        let standing = plan_standing(app);
+        if standing.can_cancel() && standing.source != Some("Stripe") {
             form_row(ui, t, "Subscription", |ui| {
                 if Button::quiet(t, "Cancel…").danger().show(ui).clicked() {
                     queue.push(A::CancelSubscription);
@@ -261,231 +262,153 @@ fn page_account_delete(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
     }
 }
 
-/// Stripe upgrade as an in-Settings page (not a sheet).
+const PRICE_MONTHLY: &str = "$2.99 / month";
+const PRICE_YEARLY: &str = "$30 / year";
+
+/// Body copy with **bold** runs, wrapped to the column.
+fn rich_body(ui: &mut Ui, t: &Theme, runs: Vec<(&str, bool)>) {
+    use workspace_rs::widgets::GlyphonLabel;
+    ui.add(
+        GlyphonLabel::new_rich(runs, t.neutral_fg())
+            .font_size(TypeRole::Body.size())
+            .line_height(TypeRole::Body.line_height())
+            .max_width(ui_width(ui).max(1.0)),
+    );
+}
+
+/// Upgrade as an in-Settings page: choose a plan, pay on Stripe's page, done.
 fn page_account_upgrade(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
-    let (stage, error, done, number_tail) = match &app.account_panel {
-        AccountPanel::Upgrade { stage, error, done, number, .. } => {
-            (*stage, error.clone(), done.clone(), number.clone())
-        }
-        _ => return,
+    let AccountPanel::Upgrade { stage, yearly } = app.account_panel else {
+        return;
     };
+    let usage = app
+        .session
+        .ready()
+        .and_then(|r| r.status.space_used.as_ref())
+        .map(|u| {
+            (
+                u.server_usage.readable.clone(),
+                u.data_cap.readable.clone(),
+                u.server_usage.exact > u.data_cap.exact,
+            )
+        });
 
     match stage {
-        UpgradeStage::EnterCard => {
-            ui.label(
-                TypeRole::Body
-                    .rich("$2.99 / month for 30 GB of storage. Cancel anytime.")
-                    .color(t.neutral_fg()),
-            );
+        UpgradeStage::Choose => {
+            match &usage {
+                Some((used, cap, true)) => rich_body(
+                    ui,
+                    t,
+                    vec![
+                        ("Your files take up ", false),
+                        (used, true),
+                        (" and Free has room for ", false),
+                        (cap, true),
+                        (". Premium has room for ", false),
+                        ("30 GB", true),
+                        (".", false),
+                    ],
+                ),
+                _ => rich_body(
+                    ui,
+                    t,
+                    vec![
+                        ("Premium has room for ", false),
+                        ("30 GB", true),
+                        (" of notes and files.", false),
+                    ],
+                ),
+            }
             ui.add(Spacer::new(Space::Md));
-            let need_focus = ui.ctx().data(|d| {
-                d.get_temp::<bool>(Id::unique("shell_upgrade_need_focus"))
-                    .unwrap_or(false)
-            });
-            {
-                let AccountPanel::Upgrade { number, exp, cvc, error: card_err, .. } =
-                    &mut app.account_panel
-                else {
-                    return;
-                };
-                let n0 = number.clone();
-                let e0 = exp.clone();
-                let c0 = cvc.clone();
-                let _ = Field::new(t, number)
-                    .hint("Card number")
-                    .id(egui::Id::unique("upgrade_number"))
-                    .rewrite(|s, c, a| {
-                        let formatted = format_card_number(s);
-                        let nc = map_digit_cursor(s, c, &formatted);
-                        let na = map_digit_cursor(s, a, &formatted);
-                        (formatted, nc, na)
-                    })
-                    .show(ui);
-                if need_focus {
-                    ui.memory_mut(|m| m.request_focus(Id::unique("upgrade_number").with("edit")));
-                    ui.ctx().data_mut(|d| {
-                        d.insert_temp(Id::unique("shell_upgrade_need_focus"), false);
+            form_group(ui, t, |ui| {
+                let mut sel = yearly as usize;
+                if form_segmented(ui, t, "Billing", &["Monthly", "Yearly"], &mut sel).changed() {
+                    queue.push(A::UpgradeYearly(sel == 1));
+                }
+                if yearly {
+                    form_row_detail(ui, t, "Price", "Two months free.", |ui| {
+                        ui.label(
+                            TypeRole::Body
+                                .rich(PRICE_YEARLY)
+                                .color(t.neutral_fg_secondary()),
+                        );
                     });
+                } else {
+                    form_value(ui, t, "Price", PRICE_MONTHLY);
                 }
-                ui.add(Spacer::new(Space::Sm));
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-                    let row_w = ui_width(ui);
-                    let gap = Space::Sm;
-                    let field_h = control_height();
-                    let w = ((row_w - gap.pts()) / 2.0).max(1.0);
-                    let _ = Field::new(t, exp)
-                        .hint("MM/YY")
-                        .width(w)
-                        .id(egui::Id::unique("upgrade_exp"))
-                        .rewrite(|s, c, a| {
-                            let formatted = format_card_exp(s);
-                            let nc = map_digit_cursor(s, c, &formatted);
-                            let na = map_digit_cursor(s, a, &formatted);
-                            (formatted, nc, na)
-                        })
-                        .show(ui);
-                    ui.add(Spacer::new(gap).fill_cross(field_h));
-                    let _ = Field::new(t, cvc)
-                        .hint("CVC")
-                        .width(w)
-                        .password(true)
-                        .id(egui::Id::unique("upgrade_cvc"))
-                        .rewrite(|s, c, a| {
-                            let formatted = format_card_cvc(s);
-                            let nc = map_digit_cursor(s, c, &formatted);
-                            let na = map_digit_cursor(s, a, &formatted);
-                            (formatted, nc, na)
-                        })
-                        .show(ui);
-                });
-                if *number != n0 || *exp != e0 || *cvc != c0 {
-                    *card_err = None;
-                }
-            }
-            if let Some(err) = &error {
-                ui.add(Spacer::new(Space::Sm));
-                ui.label(TypeRole::Body.rich(err).color(t.danger()));
-            }
+                form_value(ui, t, "Storage", "30 GB");
+            });
+            footnote(ui, t, "You pay on Stripe’s page in your browser. Cancel anytime.");
             ui.add(Spacer::new(Space::Md));
             let foot = sheet_footer(
                 ui,
                 t,
-                "Continue",
-                SheetFooterOpts::default()
-                    .divider(false)
-                    .primary_shortcut(shortcut_enter()),
-            );
-            if foot.cancel {
-                queue.push(A::UpgradeBack);
-            }
-            if foot.primary {
-                queue.push(A::UpgradeNext);
-            }
-        }
-        UpgradeStage::Confirm => {
-            let last4 =
-                if number_tail.len() >= 4 { &number_tail[number_tail.len() - 4..] } else { "????" };
-            ui.label(
-                TypeRole::Body
-                    .rich(format!(
-                        "Charge card ending in {last4} $2.99 / month for 30 GB of storage?"
-                    ))
-                    .color(t.neutral_fg()),
-            );
-            ui.add(Spacer::new(Space::Md));
-            let foot = sheet_footer(
-                ui,
-                t,
-                "Pay $2.99",
+                "Continue in browser",
                 SheetFooterOpts::default()
                     .divider(false)
                     .accent(true)
+                    .cancel_label("Back")
                     .primary_shortcut(shortcut_return()),
             );
             if foot.cancel {
                 queue.push(A::UpgradeBack);
             }
             if foot.primary {
-                queue.push(A::UpgradeConfirmPay);
+                queue.push(A::UpgradeCheckout);
             }
         }
-        UpgradeStage::Paying => match &done {
-            None => {
-                sheet_band_centered(ui, 80.0, |ui| {
-                    ui.spinner();
-                    ui.add(Spacer::new(Space::Sm));
-                    ui.label(
-                        TypeRole::Body
-                            .rich("Processing payment…")
-                            .color(t.neutral_fg_secondary()),
-                    );
-                });
-            }
-            Some(Ok(())) => {
+        UpgradeStage::Browser => {
+            sheet_band_centered(ui, 80.0, |ui| {
+                ui.spinner();
+                ui.add(Spacer::new(Space::Sm));
                 ui.label(
                     TypeRole::Body
-                        .rich("Subscription successful.")
-                        .color(t.neutral_fg()),
+                        .rich("Finish paying in your browser.")
+                        .color(t.neutral_fg_secondary()),
                 );
-                ui.add(Spacer::new(Space::Md));
-                let foot = sheet_footer(
-                    ui,
-                    t,
-                    "Done",
-                    SheetFooterOpts::default()
-                        .divider(false)
-                        .primary_shortcut(shortcut_enter()),
-                );
-                if foot.cancel || foot.primary {
-                    queue.push(A::UpgradeDone);
-                }
+            });
+            ui.add(Spacer::new(Space::Md));
+            let foot = sheet_footer(
+                ui,
+                t,
+                "Open the page again",
+                SheetFooterOpts::default()
+                    .divider(false)
+                    .quiet_primary(true)
+                    .cancel_label("Back"),
+            );
+            if foot.cancel {
+                queue.push(A::UpgradeBack);
             }
-            Some(Err(e)) => {
-                ui.label(TypeRole::Body.rich(e).color(t.danger()));
-                ui.add(Spacer::new(Space::Md));
-                let foot =
-                    sheet_footer(ui, t, "Try again", SheetFooterOpts::default().divider(false));
-                if foot.cancel || foot.primary {
-                    queue.push(A::UpgradeBack);
-                }
+            if foot.primary {
+                queue.push(A::UpgradeCheckout);
             }
-        },
-    }
-}
-
-/// Digits only, grouped for display: Amex `34`/`37` → 4-6-5, else 4-4-4-4.
-fn format_card_number(s: &str) -> String {
-    let digits: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
-    let amex = digits.starts_with("34") || digits.starts_with("37");
-    let max = if amex { 15 } else { 16 };
-    let digits = &digits[..digits.len().min(max)];
-    let mut out = String::with_capacity(digits.len() + 3);
-    for (i, c) in digits.chars().enumerate() {
-        if amex {
-            if i == 4 || i == 10 {
-                out.push(' ');
-            }
-        } else if i > 0 && i % 4 == 0 {
-            out.push(' ');
         }
-        out.push(c);
-    }
-    out
-}
-
-/// Digits only (≤4), slash after month: `MM/YY`.
-fn format_card_exp(s: &str) -> String {
-    let digits: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
-    let digits = &digits[..digits.len().min(4)];
-    if digits.len() <= 2 {
-        digits.to_string()
-    } else {
-        format!("{}/{}", &digits[..2], &digits[2..])
-    }
-}
-
-/// Digits only, max 4 (Amex CVC).
-fn format_card_cvc(s: &str) -> String {
-    s.chars().filter(|c| c.is_ascii_digit()).take(4).collect()
-}
-
-/// Keep caret on the same digit index after grouping/stripping non-digits.
-fn map_digit_cursor(old: &str, old_cursor: usize, new: &str) -> usize {
-    let digits_before = old[..old_cursor.min(old.len())]
-        .chars()
-        .filter(|c| c.is_ascii_digit())
-        .count();
-    let mut seen = 0usize;
-    for (i, c) in new.char_indices() {
-        if seen == digits_before {
-            return i;
-        }
-        if c.is_ascii_digit() {
-            seen += 1;
+        UpgradeStage::Done => {
+            rich_body(
+                ui,
+                t,
+                vec![
+                    ("You’re on Premium. You have room for ", false),
+                    ("30 GB", true),
+                    (".", false),
+                ],
+            );
+            ui.add(Spacer::new(Space::Md));
+            let foot = sheet_footer(
+                ui,
+                t,
+                "",
+                SheetFooterOpts::default()
+                    .divider(false)
+                    .back_only()
+                    .cancel_label("Done"),
+            );
+            if foot.cancel {
+                queue.push(A::UpgradeDone);
+            }
         }
     }
-    new.len()
 }
 
 /// In-settings cancel subscription. Esc / Back → HideAccountKey.
@@ -629,7 +552,14 @@ fn page_plan_body(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Ac
         form_value(ui, t, "Storage", &storage);
         if paying {
             // Standing detail (renew / access until) + source line.
-            if let Some(detail) = standing.detail.as_deref() {
+            if standing.source == Some("Stripe") && standing.can_cancel() {
+                let detail = standing.detail.as_deref().unwrap_or("");
+                form_row_detail(ui, t, "Payment", detail, |ui| {
+                    if Button::quiet(t, "Manage").show(ui).clicked() {
+                        queue.push(A::ManageBilling);
+                    }
+                });
+            } else if let Some(detail) = standing.detail.as_deref() {
                 if let Some(pay) = standing.payment_line() {
                     form_row_detail(ui, t, "Payment", detail, |ui| {
                         ui.label(TypeRole::Body.rich(pay).color(t.neutral_fg_secondary()));
@@ -645,7 +575,7 @@ fn page_plan_body(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Ac
             let detail = standing
                 .detail
                 .as_deref()
-                .unwrap_or("Premium unlocks 30 GB for $2.99 / month.");
+                .unwrap_or("Premium has room for 30 GB from $2.99 a month.");
             form_row_detail(ui, t, "Payment", detail, |ui| {
                 if Button::primary(t, "Upgrade").show(ui).clicked() {
                     queue.push(A::OpenUpgrade);
@@ -653,11 +583,4 @@ fn page_plan_body(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Ac
             });
         }
     });
-    if !paying {
-        footnote(
-            ui,
-            t,
-            "Card checkout is processed by Stripe. Review Terms of Service before upgrading.",
-        );
-    }
 }

@@ -314,6 +314,7 @@ pub struct StripeConfig {
     pub stripe_secret: String,
     pub signing_secret: String,
     pub premium_price_id: String,
+    pub premium_yearly_price_id: String,
 }
 
 impl StripeConfig {
@@ -322,6 +323,9 @@ impl StripeConfig {
             stripe_secret: env_or_panic("STRIPE_SECRET").parse().unwrap(),
             signing_secret: env_or_panic("STRIPE_SIGNING_SECRET").parse().unwrap(),
             premium_price_id: env_or_panic("STRIPE_PREMIUM_PRICE_ID").parse().unwrap(),
+            premium_yearly_price_id: env_or_panic("STRIPE_PREMIUM_YEARLY_PRICE_ID")
+                .parse()
+                .unwrap(),
         }
     }
 }
