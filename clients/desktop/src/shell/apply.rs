@@ -576,6 +576,19 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 }
             }
         }
+        A::RevealInFiles(id) => {
+            app.pane = super::action::SidebarPane::Files;
+            app.sidebar_open = true;
+            if app.settings.zen_mode {
+                let _ = app.settings.write_zen_mode(false);
+            }
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.sidebar_open = true;
+                r.select_only(id);
+                super::reveal_and_scroll(r, id);
+            }
+            persist_zen(app);
+        }
         A::Import => import_pick(app, ctx),
         A::ImportPaths { paths, parent } => import_paths(app, ctx, paths, parent),
         A::OpenImportParent { paths } => open_import_parent_sheet(app, ctx, paths),
