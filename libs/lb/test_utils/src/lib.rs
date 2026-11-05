@@ -31,6 +31,8 @@ pub fn test_config() -> Config {
     }
 }
 
+pub use lockbook_server_lib;
+
 /// The client most tests drive: in this process, against one server shared by every test.
 pub type Lb = lb_rs::Lb<InMemoryServer>;
 
