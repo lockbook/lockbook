@@ -1,4 +1,3 @@
-use lb_rs::blocking::Lb;
 use lb_rs::model::svg::WeakTransform;
 use lb_rs::model::svg::buffer::{Buffer, WeakViewportSettings};
 use lb_rs::model::svg::diff::DiffState;
@@ -51,31 +50,34 @@ impl BoundedElement for Path {
 }
 
 pub trait PromoteWeakImage {
-    fn from_weak(value: WeakImage, lb: &Lb) -> Image;
+    fn from_weak(value: WeakImage) -> Option<Image>;
 }
 impl PromoteWeakImage for Image {
-    fn from_weak(value: WeakImage, lb: &Lb) -> Self {
-        let data = lb
-            .read_document(value.href, false)
-            .expect("could not read image");
-
-        Image {
-            data: resvg::usvg::ImageKind::PNG(data.into()),
+    fn from_weak(value: WeakImage) -> Option<Self> {
+        let transform = Transform::from(value.transform);
+        if ![
+            transform.sx,
+            transform.sy,
+            transform.kx,
+            transform.ky,
+            transform.tx,
+            transform.ty,
+            value.opacity,
+        ]
+        .iter()
+        .all(|v| v.is_finite())
+        {
+            return None;
+        }
+        Some(Image {
             visible: true,
-            transform: Transform::from_row(
-                value.transform.sx,
-                value.transform.ky,
-                value.transform.kx,
-                value.transform.sy,
-                value.transform.tx,
-                value.transform.ty,
-            ),
-            view_box: NonZeroRect::from_xywh(value.x, value.y, value.width, value.height).unwrap(),
+            transform,
+            view_box: NonZeroRect::from_xywh(value.x, value.y, value.width, value.height)?,
             href: value.href,
-            opacity: value.opacity,
+            opacity: value.opacity.clamp(0.0, 1.0),
             diff_state: DiffState::new(),
             deleted: false,
-        }
+        })
     }
 }
 
@@ -110,24 +112,26 @@ impl From<WeakViewportSettings> for ViewportSettings {
 }
 
 pub trait PromoteBufferWeakImages {
-    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb);
+    fn promote_weak_images(&mut self, master_transform: Transform);
 }
 
 impl PromoteBufferWeakImages for Buffer {
-    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb) {
-        self.weak_images.drain().for_each(|(id, mut weak_image)| {
+    fn promote_weak_images(&mut self, master_transform: Transform) {
+        // Restore stacking deterministically; failed geometry stays in metadata on save.
+        let mut images: Vec<_> = self
+            .weak_images
+            .iter()
+            .map(|(id, image)| (*id, *image))
+            .collect();
+        images.sort_by_key(|(id, image)| (image.z_index, *id));
+        for (id, mut weak_image) in images {
             weak_image.transform(master_transform);
-
-            let mut image = Image::from_weak(weak_image, lb);
-
+            let Some(mut image) = Image::from_weak(weak_image) else { continue };
             image.diff_state.transformed = None;
-
-            if weak_image.z_index >= self.elements.len() {
-                self.elements.insert(id, Element::Image(Box::new(image)));
-            } else {
-                self.elements
-                    .shift_insert(weak_image.z_index, id, Element::Image(Box::new(image)));
-            };
-        });
+            let index = weak_image.z_index.min(self.elements.len());
+            self.elements
+                .shift_insert(index, id, Element::Image(Box::new(image)));
+            self.weak_images.remove(&id);
+        }
     }
 }

@@ -720,6 +720,9 @@ impl Lb {
                                             &remote_buffer,
                                         );
 
+                                        local_buffer
+                                            .image_hrefs
+                                            .extend(remote_buffer.image_hrefs.clone());
                                         let merged_document = local_buffer.serialize();
                                         let encrypted_document = merge
                                             .update_document_unvalidated(

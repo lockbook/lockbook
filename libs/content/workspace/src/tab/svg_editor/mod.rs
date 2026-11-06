@@ -2,6 +2,8 @@ mod background;
 mod clip;
 mod element;
 mod history;
+#[cfg(test)]
+mod image_tests;
 pub(super) mod keyboard_shortcuts;
 mod viewport;
 
@@ -55,6 +57,9 @@ pub struct SVGEditor {
 
     input_controller: InputController,
     lb: Lb,
+    images: crate::widgets::image_cache::ImageCache,
+    document_images: crate::widgets::document_image::DocumentImage,
+    pub failure_messages: Vec<String>,
     pub open_file: Uuid,
     last_render: Instant,
     renderer: Renderer,
@@ -153,8 +158,9 @@ impl SVGEditor {
     pub fn new(
         bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
         hmac: Option<DocumentHmac>, cfg: &WsPersistentStore, read_only: bool,
+        images: crate::widgets::image_cache::ImageCache,
     ) -> Self {
-        let content = std::str::from_utf8(bytes).unwrap();
+        let content = &String::from_utf8_lossy(bytes);
 
         let mut buffer = Buffer::new(content);
         let mut viewport_settings = ViewportSettings::from(buffer.weak_viewport_settings);
@@ -193,6 +199,12 @@ impl SVGEditor {
             open_file_hmac: hmac,
             history: History::default(),
             toolbar,
+            document_images: crate::widgets::document_image::DocumentImage::new(
+                images.clone(),
+                open_file,
+            ),
+            images,
+            failure_messages: Vec::new(),
             lb,
             open_file,
             last_render: Instant::now(),
@@ -215,6 +227,33 @@ impl SVGEditor {
         }
     }
 
+    pub fn save_buffer(&self) -> Buffer {
+        let mut buffer = self.buffer.clone();
+        let files = self.images.files();
+        let files = files.read().unwrap();
+        use crate::file_cache::FilesExt as _;
+        if let Some(canvas) = files.get_by_id(self.open_file) {
+            let parent = files.path(canvas.parent);
+            for target in buffer
+                .elements
+                .values()
+                .filter_map(|el| match el {
+                    Element::Image(image) => Some(image.href),
+                    _ => None,
+                })
+                .chain(buffer.weak_images.values().map(|image| image.href))
+            {
+                if files.get_by_id(target).is_some() {
+                    let destination = crate::file_cache::encode_link_path(
+                        &crate::file_cache::relative_path(&parent, &files.path(target)),
+                    );
+                    buffer.image_hrefs.insert(target, destination);
+                }
+            }
+        }
+        buffer
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         set_style(ui);
 
@@ -222,9 +261,8 @@ impl SVGEditor {
         self.input_ctx.update(ui);
         self.buffer.weak_viewport_settings = self.viewport_settings.into();
 
-        let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
         self.buffer
-            .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
+            .promote_weak_images(self.viewport_settings.master_transform);
 
         let request_diff_change = !self.embedded && self.show_toolbar(ui);
 
@@ -265,9 +303,6 @@ impl SVGEditor {
             self.toolbar.hide_overlay || self.embedded,
         );
 
-        if non_empty_weak_imaegs {
-            self.has_queued_save_request = true;
-        }
         if global_diff.is_dirty() {
             self.has_queued_save_request = true;
         }
@@ -301,6 +336,7 @@ impl SVGEditor {
             cfg: &mut self.cfg,
             input_ctx: &self.input_ctx,
             read_only: self.read_only,
+            document_images: &self.document_images,
         };
 
         let overlay_layer =
@@ -321,7 +357,7 @@ impl SVGEditor {
             return;
         }
 
-        if self.input_controller.keyboard_enabled(ui) {
+        if !self.read_only && !self.embedded && self.input_controller.keyboard_enabled(ui) {
             self.handle_clip_input(ui);
         }
 
@@ -343,6 +379,7 @@ impl SVGEditor {
             history: &mut self.history,
             settings: &mut self.settings,
             viewport_settings: &mut self.viewport_settings,
+            document_images: &self.document_images,
         };
 
         if has_click_outside_islands && self.toolbar.has_visible_popover() {
@@ -415,6 +452,7 @@ impl SVGEditor {
                 &mut self.painter,
                 Default::default(),
                 self.viewport_settings.master_transform,
+                &self.document_images,
             )
         })
         .inner

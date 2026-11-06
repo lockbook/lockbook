@@ -25,18 +25,21 @@ impl SVGEditor {
                         let (name, data) = match clip {
                             ClipContent::Image(data) => (None, data),
                             ClipContent::NamedImage { name, data } => (Some(name), data),
-                            ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
+                            ClipContent::Files(..) => continue, // same unsupported-content behavior as Markdown
                         };
-                        let Ok(file) = crate::tab::import_image(
+                        let imported = match crate::image_import::import(
+                            &self.images,
                             &self.lb,
                             self.open_file,
                             name.as_deref(),
                             &data,
-                        ) else {
-                            continue;
+                        ) {
+                            Ok(imported) => imported,
+                            Err(error) => {
+                                self.failure_messages.push(error);
+                                continue;
+                            }
                         };
-
-                        let img = image::load_from_memory(&data).unwrap();
 
                         let paste_pos = ui.input(|r| {
                             r.pointer.hover_pos().unwrap_or(
@@ -46,10 +49,7 @@ impl SVGEditor {
                             )
                         });
 
-                        let img_rect = egui::Rect::from_min_size(
-                            paste_pos,
-                            egui::vec2(img.width() as f32, img.height() as f32),
-                        );
+                        let img_rect = egui::Rect::from_min_size(paste_pos, imported.size);
 
                         let transform = if ui.available_rect_before_wrap().width()
                             < img_rect.width() * 2.0
@@ -71,31 +71,40 @@ impl SVGEditor {
 
                         let fitted_img_rect = transform_rect(img_rect, transform);
 
+                        let Some(view_box) = NonZeroRect::from_xywh(
+                            fitted_img_rect.min.x,
+                            fitted_img_rect.min.y,
+                            fitted_img_rect.width(),
+                            fitted_img_rect.height(),
+                        ) else {
+                            self.failure_messages
+                                .push("Could not place image in the canvas".into());
+                            continue;
+                        };
                         let id = Uuid::new_v4();
-                        self.buffer.elements.insert(
+                        self.buffer.elements.insert_before(
+                            0,
                             id,
                             Element::Image(Box::new(Image {
-                                data: resvg::usvg::ImageKind::PNG(data.into()),
                                 visible: true,
                                 transform,
-                                view_box: NonZeroRect::from_xywh(
-                                    fitted_img_rect.min.x,
-                                    fitted_img_rect.min.y,
-                                    fitted_img_rect.width(),
-                                    fitted_img_rect.height(),
-                                )
-                                .unwrap(),
-                                href: file.id,
+                                view_box,
+                                href: imported.file.id,
                                 opacity: 1.0,
                                 diff_state: DiffState::new(),
                                 deleted: false,
                             })),
                         );
 
-                        // self.toolbar.active_tool = Tool::Selection;
-
-                        // self.toolbar.selection.selected_elements =
-                        //     vec![SelectedElement { id, transform: Transform::identity() }];
+                        self.buffer
+                            .image_hrefs
+                            .insert(imported.file.id, imported.destination);
+                        self.history
+                            .save(super::Event::Insert(vec![InsertElement { id }]));
+                        self.toolbar.active_tool = Tool::Selection;
+                        self.toolbar.selection.selected_elements =
+                            vec![SelectedElement { id, transform: Transform::identity() }];
+                        self.has_queued_save_request = true;
                     }
                 }
                 _ => {}
@@ -109,10 +118,12 @@ impl SVGEditor {
                     }
                     let mut pasted_buffer = Buffer::new(payload);
 
-                    pasted_buffer
-                        .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
+                    pasted_buffer.promote_weak_images(Transform::identity());
 
-                    if !pasted_buffer.elements.is_empty() || !pasted_buffer.weak_images.is_empty() {
+                    if !pasted_buffer.elements.is_empty() {
+                        self.buffer
+                            .image_hrefs
+                            .extend(pasted_buffer.image_hrefs.clone());
                         let mut container = egui::Rect::NOTHING;
                         for el in pasted_buffer.elements.iter() {
                             let child = el.1.bounding_box();
@@ -164,7 +175,8 @@ pub fn duplicate_elements(
     src_elements: IndexMap<Uuid, Element>, src_pressure_map: WeakPathPressures,
     target: &mut Buffer, history: &mut History, maybe_transform: Option<Transform>,
 ) -> Vec<Uuid> {
-    let mut new_ids = Vec::with_capacity(src_elements.iter().count());
+    let mut new_ids = Vec::with_capacity(src_elements.len());
+    let mut new_elements = Vec::with_capacity(src_elements.len());
     for (id, el) in src_elements.iter() {
         let new_id = Uuid::new_v4();
         let mut new_el = el.clone();
@@ -192,11 +204,14 @@ pub fn duplicate_elements(
             }
         }
 
-        target.elements.insert_before(0, new_id, new_el);
+        new_elements.push((new_id, new_el));
 
         new_ids.push(new_id);
     }
 
+    for (id, element) in new_elements.into_iter().rev() {
+        target.elements.insert_before(0, id, element);
+    }
     history.save(super::Event::Insert(
         src_elements
             .iter()

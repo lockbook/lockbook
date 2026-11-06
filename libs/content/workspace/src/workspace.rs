@@ -1338,33 +1338,20 @@ impl Workspace {
                         continue;
                     }
                 };
-                let file =
-                    match crate::tab::import_image(&self.core, file_id, name.as_deref(), &data) {
-                        Ok(file) => file,
-                        Err(error) => {
-                            self.out.failure_messages.push(error);
-                            continue;
-                        }
-                    };
-
-                // Refresh before the markdown event lands, so the link it
-                // writes finds the imported file.
-                let Ok(cache) = FileCache::new(&self.core) else {
-                    self.out
-                        .failure_messages
-                        .push("Could not refresh imported files".to_owned());
-                    continue;
-                };
-                let link = crate::tab::imported_image_link(&cache, file_id, &file);
-                self.files.write().unwrap().replace(cache);
-                match link {
-                    Ok(link) => {
+                match crate::image_import::import(
+                    &self.images,
+                    &self.core,
+                    file_id,
+                    name.as_deref(),
+                    &data,
+                ) {
+                    Ok(imported) => {
                         self.ctx
                             .push_markdown_event(crate::tab::markdown_editor::Event::Replace {
                                 region: crate::tab::markdown_editor::input::Region::Selection,
-                                text: link,
+                                text: imported.markdown(),
                                 advance_cursor: true,
-                            });
+                            })
                     }
                     Err(error) => self.out.failure_messages.push(error),
                 }

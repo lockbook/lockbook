@@ -7,10 +7,8 @@ use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{Buffer, get_pen_colors};
-use lb_rs::model::svg::element::{DynamicColor, Element, ManipulatorGroupId, Stroke, WeakImages};
+use lb_rs::model::svg::element::{DynamicColor, Element, ManipulatorGroupId, Stroke};
 use resvg::usvg::Transform;
-
-use lb_rs::model::svg::buffer::serialize_inner;
 
 use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::clip::duplicate_elements;
@@ -780,6 +778,8 @@ impl Selection {
             self.clear_selection_els();
         }
 
+        self.show_copy_image(ui, selection_ctx);
+
         ui.separator();
 
         if Button::default()
@@ -821,13 +821,15 @@ impl Selection {
             .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
             .collect();
 
-        let serialized_selection = serialize_inner(
-            id_map,
-            &elements,
-            &selection_ctx.buffer.weak_viewport_settings,
-            &WeakImages::default(),
-            &selection_ctx.buffer.weak_path_pressures,
-        );
+        let serialized_selection = Buffer {
+            id_map: id_map.clone(),
+            elements,
+            weak_viewport_settings: selection_ctx.buffer.weak_viewport_settings,
+            weak_path_pressures: selection_ctx.buffer.weak_path_pressures.clone(),
+            image_hrefs: selection_ctx.buffer.image_hrefs.clone(),
+            ..Default::default()
+        }
+        .serialize();
 
         ui.ctx().copy_text(serialized_selection);
     }
@@ -1234,8 +1236,25 @@ impl Selection {
         });
     }
 
+    fn show_copy_image(&self, ui: &mut egui::Ui, selection_ctx: &ToolContext) {
+        if self.selected_elements.len() == 1 {
+            if let Some(Element::Image(image)) = selection_ctx
+                .buffer
+                .elements
+                .get(&self.selected_elements[0].id)
+            {
+                if Button::default().text("Copy image").show(ui).clicked() {
+                    selection_ctx
+                        .document_images
+                        .copy_image(&format!("lb://{}", image.href), ui.ctx());
+                }
+            }
+        }
+    }
+
     fn show_action_controls(&mut self, selection_ctx: &mut ToolContext, ui: &mut egui::Ui) {
         let btn_rounding = 5.0;
+        self.show_copy_image(ui, selection_ctx);
         ui.horizontal(|ui| {
             if Button::default()
                 .icon(&Icon::CONTENT_COPY)

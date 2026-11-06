@@ -77,6 +77,7 @@ pub enum Tool {
 }
 
 pub struct ToolContext<'a> {
+    pub document_images: &'a crate::widgets::document_image::DocumentImage,
     pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
@@ -86,6 +87,7 @@ pub struct ToolContext<'a> {
 
 pub struct ToolbarContext<'a> {
     pub controls_rect: egui::Rect,
+    pub document_images: &'a crate::widgets::document_image::DocumentImage,
     pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
