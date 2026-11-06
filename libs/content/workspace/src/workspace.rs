@@ -1803,14 +1803,13 @@ impl Workspace {
             .map(|s| s.id)
             .collect();
         let source = self.cfg.get_source();
-        let ext = new_name.split('.').next_back().unwrap_or_default();
         for tab_id in tab_ids {
             let Some(tab) = self.tabs.get_mut(&tab_id) else { continue };
             if !content_fits_name(&tab.content, &new_name, source) {
                 self.tabs.remove(&tab_id);
                 self.open_dest(tab_id, &dest);
             } else if let Some(md) = tab.markdown_mut() {
-                md.set_ext(ext);
+                md.set_ext(ext(&new_name));
             }
         }
 
@@ -1865,28 +1864,40 @@ impl Workspace {
         self.ctx.request_repaint();
     }
 
-    /// Reopens each open drawing in the drawing editor or the text editor to
-    /// match the source choice. A drawing reopens from its saved bytes, so
-    /// unsaved edits save first and nothing in flight is overtaken. Notes
-    /// switch on their own.
-    pub(crate) fn refit_source_views(&mut self) {
+    /// Reopens each open file in the editor its current name and the source
+    /// choice call for, whoever renamed it: this workspace, another process,
+    /// or another device by sync. A tab reopens from its saved bytes, so
+    /// unsaved edits save first and nothing in flight is overtaken. A note
+    /// that stays a note takes its new extension in place.
+    pub(crate) fn refit_to_names(&mut self) {
         let source = self.cfg.get_source();
-        let refits: Vec<(SessionId, Uuid)> = {
-            let files = self.files.read().unwrap();
-            self.tabs
-                .iter()
-                .filter_map(|(sid, tab)| {
-                    let id = file_dest(&tab.destination)?;
-                    let drawing = DocType::from_name(&files.get_by_id(id)?.name) == DocType::SVG;
-                    let wrong = match &tab.content {
-                        ContentState::Open(TabContent::Svg(_)) => source,
-                        ContentState::Open(TabContent::Markdown(_)) => !source,
-                        _ => false,
-                    };
-                    (drawing && wrong).then_some((*sid, id))
-                })
-                .collect()
+        let fits = |tab: &Tab, name: &str| {
+            content_fits_name(&tab.content, name, source)
+                && tab
+                    .markdown()
+                    .is_none_or(|md| md.edit.renderer.kind == Syntax::from_ext(ext(name)))
         };
+        let mut refits: Vec<(SessionId, Uuid)> = vec![];
+        let files = self.files.read().unwrap();
+        for (sid, tab) in self.tabs.iter_mut() {
+            // a failed tab retries on a reopen, not every frame
+            if !matches!(tab.content, ContentState::Open(_)) {
+                continue;
+            }
+            let Some(id) = file_dest(&tab.destination) else { continue };
+            // the cache can trail core, which names what loads, so it only
+            // points out the tabs to check
+            if files.get_by_id(id).is_none_or(|f| fits(tab, &f.name)) {
+                continue;
+            }
+            let Ok(file) = self.core.get_file_by_id(id) else { continue };
+            if !content_fits_name(&tab.content, &file.name, source) {
+                refits.push((*sid, id));
+            } else if let Some(md) = tab.markdown_mut() {
+                md.set_ext(ext(&file.name));
+            }
+        }
+        drop(files);
         for (sid, id) in refits {
             if self.tasks.busy(id) {
                 continue;
@@ -2116,6 +2127,10 @@ fn content_fits_name(content: &ContentState, name: &str, source: bool) -> bool {
         ContentState::Failed(_) => false,
         _ => true,
     }
+}
+
+fn ext(name: &str) -> &str {
+    name.split('.').next_back().unwrap_or_default()
 }
 
 fn file_dest(dest: &Destination) -> Option<Uuid> {
