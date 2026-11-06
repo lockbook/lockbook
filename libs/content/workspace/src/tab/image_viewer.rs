@@ -4,7 +4,6 @@ use egui::{Color32, Pos2, Rect, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
-use tracing::error;
 
 use crate::style::chrome::phosphor;
 use crate::style::space::control as control_space;
@@ -391,15 +390,7 @@ impl ImageViewer {
                 return;
             }
         };
-        match self.images.copied_image(id) {
-            Ok((image, bytes)) => {
-                if image::guess_format(&bytes).is_ok_and(|f| f == image::ImageFormat::Gif) {
-                    ctx.set_copied_gif(bytes);
-                }
-                ctx.copy_image(image);
-            }
-            Err(err) => error!("failed to copy image to clipboard: {err}"),
-        }
+        self.images.copy_image(&ImageKey::File(id));
     }
 
     fn zoom_to(&mut self, zoom_percentage: f32, anchor: Pos2) {

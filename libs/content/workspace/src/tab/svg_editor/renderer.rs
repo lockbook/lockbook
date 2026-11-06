@@ -343,8 +343,10 @@ fn tesselate_path<'a>(
                 stroke.width * (p.transform.sx + p.transform.sy) / 2.0 * viewport_transform.sx;
 
             if let Some(forces) = weak_path_pressures.get(id) {
-                let pressure_at_segment =
-                    if let Some(p) = forces.get(i) { p } else { forces.get(i - 1).unwrap_or(&0.0) };
+                let pressure_at_segment = forces
+                    .get(i)
+                    .or_else(|| i.checked_sub(1).and_then(|previous| forces.get(previous)))
+                    .unwrap_or(&0.0);
 
                 thickness += thickness * pressure_at_segment;
             }

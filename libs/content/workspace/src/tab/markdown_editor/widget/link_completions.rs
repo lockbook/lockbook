@@ -753,10 +753,9 @@ impl LinkCompletions {
             .filter(|f| f.is_document() && f.id != file_id)
             .filter(|f| {
                 !image
-                    || f.name
-                        .rsplit('.')
-                        .next()
-                        .is_some_and(is_supported_image_fmt)
+                    || f.name.rsplit('.').next().is_some_and(|ext| {
+                        is_supported_image_fmt(ext) || ext.eq_ignore_ascii_case("svg")
+                    })
             })
             .map(|f| {
                 let outside = f.id == scope || !cache.in_scope(scope, f.id);
@@ -1391,7 +1390,7 @@ mod tests {
     }
 
     /// `![[` offers every file, since notes, drawings and PDFs embed like
-    /// images do, and writes a wiki embed.
+    /// images do; image links offer raster images and drawings only.
     #[test]
     fn a_wiki_embed_offers_every_file() {
         use lb_rs::model::text::buffer::Buffer;
@@ -1408,13 +1407,32 @@ mod tests {
 
         let files = tree(
             "alice",
-            &["/notes/editing.md", "/notes/chart.png", "/notes/chart sketch.svg", "/chart.md"],
+            &[
+                "/notes/editing.md",
+                "/notes/chart.png",
+                "/notes/chart sketch.svg",
+                "/notes/chart upper.SVG",
+                "/notes/chart.pdf",
+                "/chart.md",
+            ],
         );
         let editing = at(&files, "/notes/editing.md");
         let cache = cache(files);
+        for mode in [CompletionMode::ImageLink, CompletionMode::ImageLinkDest] {
+            assert_eq!(
+                rows(&cache, editing, "ch", mode),
+                ["/notes/chart.png", "/notes/chart sketch.svg", "/notes/chart upper.SVG",]
+            );
+        }
         assert_eq!(
             rows(&cache, editing, "ch", mode),
-            ["/notes/chart.png", "/notes/chart sketch.svg", "/chart.md"]
+            [
+                "/notes/chart.pdf",
+                "/notes/chart.png",
+                "/notes/chart sketch.svg",
+                "/notes/chart upper.SVG",
+                "/chart.md",
+            ]
         );
         let mut events = vec![];
         LinkCompletions::default().apply_completion(
@@ -1422,10 +1440,10 @@ mod tests {
             range.0,
             range.1,
             "",
-            "chart.png",
+            "chart sketch.svg",
             mode,
         );
-        let replaced = matches!(&events[..], [crate::tab::markdown_editor::input::Event::Replace { text, .. }] if text == "![[chart.png]]");
+        let replaced = matches!(&events[..], [crate::tab::markdown_editor::input::Event::Replace { text, .. }] if text == "![[chart sketch.svg]]");
         assert!(replaced, "{events:?}");
     }
 
