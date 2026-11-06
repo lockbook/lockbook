@@ -2,10 +2,12 @@ use db_rs::View;
 use db_rs::config::Config;
 use db_rs_old::{Config as OldConfig, Db};
 use lb_rs::model::account::Account as CoreAccount;
+use lb_rs::model::doc_info::{BlobKey, Storage, VersionKind};
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::Owner;
+use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::model::meta::Meta;
-use lb_rs::model::server_meta::IntoServerMeta;
+use lb_rs::model::server_meta::{IntoServerMeta, ServerMeta};
+use lb_rs::model::symkey;
 use lb_rs::service::debug::DebugInfo;
 use lb_rs::service::lb_id::LbID;
 use lockbook_server_lib::defense::BandwidthReport;
@@ -195,4 +197,76 @@ fn server_transactions_flush_on_drop_and_catch_up() {
     let reopened = ServerDb::init(&config).unwrap();
     assert_eq!(reopened.schema.usernames.len(), 2);
     assert_eq!(reopened.last_modified(), 2);
+}
+
+#[test]
+fn moves_document_versions_into_doc_info() {
+    let config = Config::test();
+    let path = &config.log_location;
+    let account = CoreAccount::new("doc-info".into(), "http://localhost".into());
+    let owner = account.public_key();
+    let key = symkey::generate_key();
+    let root = Meta::create_root(&account).unwrap();
+    let document = |name: &str, hmac: u8, size: Option<usize>, deleted: bool| {
+        let mut meta = Meta::create(
+            Uuid::new_v4(),
+            symkey::generate_key(),
+            &owner,
+            *root.id(),
+            &key,
+            name,
+            FileType::Document,
+        )
+        .unwrap();
+        meta.set_deleted(deleted);
+        meta.into_v1(Some([hmac; 32]), size)
+            .sign_as_is(&account)
+            .unwrap()
+            .add_time(7)
+    };
+    let sized = document("sized.md", 1, Some(10), false);
+    let without_size = document("unsized.md", 2, None, false);
+    let deleted = document("deleted.md", 3, Some(30), true);
+    let scheduled = (Uuid::new_v4(), [4; 32]);
+
+    let mut db = schema::init_with_migration(path).unwrap();
+    {
+        let mut tx = ServerTx::begin(&mut db).unwrap();
+        for meta in [&sized, &without_size, &deleted] {
+            tx.metas.insert(*meta.id(), meta.clone()).unwrap();
+        }
+        tx.scheduled_file_cleanups.insert(scheduled, 99).unwrap();
+        tx.end().unwrap();
+    }
+
+    let stat = |key: &BlobKey| match key {
+        BlobKey::Legacy { hmac, .. } if *hmac == [2; 32] => Some(321),
+        _ => None,
+    };
+    schema::migrate_doc_info(&mut db, stat).unwrap();
+
+    let head = |meta: &ServerMeta| {
+        let info = db.schema.doc_info.get(meta.id()).unwrap();
+        assert_eq!(info.versions.len(), 1);
+        assert_eq!(info.updated_at, 7);
+        info.versions[0].clone()
+    };
+    let sized_head = head(&sized);
+    assert_eq!(sized_head.hmac, [1; 32]);
+    assert_eq!(sized_head.kind, VersionKind::Snapshot);
+    assert_eq!(sized_head.storage, Storage::Legacy);
+    assert_eq!(sized_head.compressed_size, 10);
+    assert_eq!(head(&without_size).compressed_size, 321);
+    assert!(db.schema.doc_info.get(deleted.id()).is_none());
+    assert!(db.schema.scheduled_file_cleanups.is_empty());
+    assert_eq!(
+        db.schema
+            .scheduled_blob_cleanups
+            .get(&BlobKey::Legacy { id: scheduled.0, hmac: scheduled.1 }),
+        Some(&99)
+    );
+
+    schema::migrate_doc_info(&mut db, |_| None).unwrap();
+    assert_eq!(db.schema.doc_info.get(sized.id()).unwrap().versions[0], sized_head);
+    assert_eq!(db.schema.doc_info.get(without_size.id()).unwrap().versions[0].compressed_size, 321);
 }

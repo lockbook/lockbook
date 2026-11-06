@@ -4,6 +4,7 @@ use tracing::{debug, error, info};
 
 use lb_rs::model::clock::get_time;
 
+use crate::doc_info_service::retained;
 use crate::{
     ServerState,
     billing::{
@@ -42,29 +43,44 @@ where
                 return;
             }
         };
-        let files = db.scheduled_file_cleanups.iter();
+        let now = get_time().0;
         let mut cleaned = 0;
         let mut skipped = 0;
         let mut remove = vec![];
-        for ((id, hmac), time) in files {
-            if get_time().0 - time > 1000 * 60 * 5 {
-                cleaned += 1;
-                if let Err(e) = self.document_service.delete::<()>(id, hmac).await {
-                    error!(
-                        "failed to garbage collect {:?} {e:?}",
-                        self.document_service.get_path(id, hmac)
-                    );
-                } else {
-                    remove.push((*id, *hmac));
-                }
-                debug!("garbage collected: {:?}", self.document_service.get_path(id, hmac));
-            } else {
+        let due: Vec<_> = db
+            .scheduled_blob_cleanups
+            .iter()
+            .map(|(key, time)| (*key, *time))
+            .collect();
+        for (key, time) in due {
+            if now - time <= 1000 * 60 * 5 {
                 skipped += 1;
+                continue;
             }
+            if retained(db.doc_info.get(&key.id()), &key) {
+                remove.push(key);
+                continue;
+            }
+            cleaned += 1;
+            if let Err(e) = self.document_service.delete::<()>(&key).await {
+                error!(
+                    "failed to garbage collect {:?} {e:?}",
+                    self.document_service.get_path(&key)
+                );
+            } else {
+                remove.push(key);
+                if let Some(mut info) = db.doc_info.get(&key.id()).cloned() {
+                    info.forget_retired(&key);
+                    if let Err(error) = db.doc_info.insert(key.id(), info) {
+                        error!(?error, "failed to forget a collected document version");
+                    }
+                }
+            }
+            debug!("garbage collected: {:?}", self.document_service.get_path(&key));
         }
 
-        for (id, hmac) in remove {
-            db.scheduled_file_cleanups.remove(&(id, hmac)).unwrap();
+        for key in remove {
+            db.scheduled_blob_cleanups.remove(&key).unwrap();
         }
 
         if let Err(error) = db.end() {

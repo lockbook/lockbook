@@ -101,6 +101,7 @@ impl<S> Lb<S> {
             db.pub_key_lookup.last_modified(),
             db.pinned_files.last_modified(),
             db.last_synced.last_modified(),
+            db.doc_info.last_modified(),
         ]
         .into_iter()
         .any(|seq| seq > previous_seq);

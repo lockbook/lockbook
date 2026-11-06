@@ -9,7 +9,7 @@ use crate::billing::billing_service::LockBillingWorkflowError::{
 use crate::billing::google_play_model::NotificationType;
 use crate::document_service::DocumentService;
 use crate::guard::ServerTx;
-use crate::schema::Account;
+use crate::schema::{Account, doc_size};
 use crate::{RequestContext, ServerError, ServerState};
 use base64::DecodeError;
 use lb_rs::model::api::{
@@ -31,6 +31,7 @@ use libsecp256k1::PublicKey;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use tracing::*;
+use uuid::Uuid;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 
@@ -308,6 +309,8 @@ where
             let mut tx = ServerTx::begin(&mut lock)?;
             let db = &mut *tx;
 
+            let doc_info = &db.doc_info;
+            let sizes = |id: &Uuid| doc_size(doc_info, id);
             let mut tree = ServerTree::new(
                 Owner(context.public_key),
                 &mut db.owned_files,
@@ -317,7 +320,7 @@ where
             )?
             .to_lazy();
 
-            let usage = tree.calculate_usage(Owner(context.public_key))?;
+            let usage = tree.calculate_usage(Owner(context.public_key), sizes)?;
 
             if usage > FREE_TIER_USAGE_SIZE {
                 debug!("Cannot downgrade user to free since they are over the data cap");

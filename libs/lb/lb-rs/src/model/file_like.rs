@@ -67,37 +67,41 @@ pub trait FileLike: PartialEq + Debug + Clone {
 impl FileLike for Meta {
     fn id(&self) -> &Uuid {
         match self {
-            Meta::V1 { id, .. } | Meta::V2 { id, .. } => id,
+            Meta::V1 { id, .. } | Meta::V2 { id, .. } | Meta::V3 { id, .. } => id,
         }
     }
 
     fn file_type(&self) -> FileType {
         match self {
-            Meta::V1 { file_type, .. } | Meta::V2 { file_type, .. } => *file_type,
+            Meta::V1 { file_type, .. }
+            | Meta::V2 { file_type, .. }
+            | Meta::V3 { file_type, .. } => *file_type,
         }
     }
 
     fn parent(&self) -> &Uuid {
         match self {
-            Meta::V1 { parent, .. } | Meta::V2 { parent, .. } => parent,
+            Meta::V1 { parent, .. } | Meta::V2 { parent, .. } | Meta::V3 { parent, .. } => parent,
         }
     }
 
     fn secret_name(&self) -> &SecretFileName {
         match self {
-            Meta::V1 { name, .. } | Meta::V2 { name, .. } => name,
+            Meta::V1 { name, .. } | Meta::V2 { name, .. } | Meta::V3 { name, .. } => name,
         }
     }
 
     fn owner(&self) -> Owner {
         match self {
-            Meta::V1 { owner, .. } | Meta::V2 { owner, .. } => *owner,
+            Meta::V1 { owner, .. } | Meta::V2 { owner, .. } | Meta::V3 { owner, .. } => *owner,
         }
     }
 
     fn explicitly_deleted(&self) -> bool {
         match self {
-            Meta::V1 { is_deleted, .. } | Meta::V2 { is_deleted, .. } => *is_deleted,
+            Meta::V1 { is_deleted, .. }
+            | Meta::V2 { is_deleted, .. }
+            | Meta::V3 { is_deleted, .. } => *is_deleted,
         }
     }
 
@@ -106,35 +110,39 @@ impl FileLike for Meta {
             Meta::V1 { doc_hmac: document_hmac, .. } | Meta::V2 { doc_hmac: document_hmac, .. } => {
                 document_hmac.as_ref()
             }
+            Meta::V3 { .. } => None,
         }
     }
 
     fn user_access_keys(&self) -> &Vec<UserAccessInfo> {
         match self {
-            Meta::V1 { user_access_keys, .. } | Meta::V2 { user_access_keys, .. } => {
-                user_access_keys
-            }
+            Meta::V1 { user_access_keys, .. }
+            | Meta::V2 { user_access_keys, .. }
+            | Meta::V3 { user_access_keys, .. } => user_access_keys,
         }
     }
 
     fn folder_access_key(&self) -> &EncryptedFolderAccessKey {
         match self {
-            Meta::V1 { folder_access_key, .. } | Meta::V2 { folder_access_key, .. } => {
-                folder_access_key
-            }
+            Meta::V1 { folder_access_key, .. }
+            | Meta::V2 { folder_access_key, .. }
+            | Meta::V3 { folder_access_key, .. } => folder_access_key,
         }
     }
 
     fn doc_size(&self) -> Option<usize> {
         match self {
             Meta::V1 { doc_size, .. } | Meta::V2 { doc_size, .. } => *doc_size,
+            Meta::V3 { .. } => None,
         }
     }
 
     fn attachments_of(&self) -> Option<&AttachmentsOf> {
         match self {
             Meta::V1 { .. } => None,
-            Meta::V2 { attachments_of, .. } => attachments_of.as_ref(),
+            Meta::V2 { attachments_of, .. } | Meta::V3 { attachments_of, .. } => {
+                attachments_of.as_ref()
+            }
         }
     }
 }

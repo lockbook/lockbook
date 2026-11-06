@@ -1,6 +1,7 @@
 use crate::model::ValidationFailure;
 use crate::model::account::{Account, Username};
 use crate::model::crypto::*;
+use crate::model::doc_info::{DocHead, DocVersion};
 use crate::model::file_metadata::{DocumentHmac, FileDiff, Owner};
 use crate::model::signed_file::SignedFile;
 use crate::service::debug::DebugInfo;
@@ -143,6 +144,99 @@ impl Request for GetDocRequest {
     type Error = GetDocumentError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-document";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetDocUpdatesRequest {
+    pub since: u64,
+    pub ids: Vec<Uuid>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetDocUpdatesResponse {
+    pub as_of: u64,
+    pub heads: Vec<(Uuid, DocHead)>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum GetDocUpdatesError {
+    UserNotFound,
+}
+
+impl Request for GetDocUpdatesRequest {
+    type Response = GetDocUpdatesResponse;
+    type Error = GetDocUpdatesError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-doc-updates";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetDocRequestV3 {
+    pub id: Uuid,
+    pub have: Option<DocumentHmac>,
+    pub want: Option<DocumentHmac>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetDocResponseV3 {
+    pub head: Option<DocHead>,
+    pub versions: Vec<(DocVersion, EncryptedDocument)>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum GetDocErrorV3 {
+    DocumentNotFound,
+    NotPermissioned,
+    VersionNotFound,
+    BandwidthExceeded,
+}
+
+impl Request for GetDocRequestV3 {
+    type Response = GetDocResponseV3;
+    type Error = GetDocErrorV3;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-document-v3";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum PayloadKind {
+    Snapshot,
+    Diff,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct PushDocRequest {
+    pub id: Uuid,
+    pub base: Option<DocumentHmac>,
+    pub hmac: DocumentHmac,
+    pub kind: PayloadKind,
+    pub content: EncryptedDocument,
+    pub uncompressed_size: u64,
+    pub content_size: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct PushDocResponse {
+    pub head: DocHead,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum PushDocError {
+    DocumentNotFound,
+    NotPermissioned,
+    NotADocument,
+    DocumentDeleted,
+    Conflict,
+    SnapshotRequired,
+    DiffMalformed,
+    UsageIsOverDataCap,
+}
+
+impl Request for PushDocRequest {
+    type Response = PushDocResponse;
+    type Error = PushDocError;
+    const METHOD: Method = Method::PUT;
+    const ROUTE: &'static str = "/push-document";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
