@@ -95,6 +95,10 @@ fn completes(md: &str, caret: usize, typed: &str) -> bool {
         });
         ws.enter_frame();
     }
+    // the popup reads the buffer as a frame starts, and a parked caret
+    // must keep it closed past its first frame
+    ws.enter_frame();
+    ws.enter_frame();
     ws.editor.edit.link_completions.active
 }
 
@@ -111,6 +115,17 @@ fn link_completions_open_mid_line() {
         }
     }
     assert!(closed.is_empty(), "closed: {closed:#?}");
+}
+
+/// Typing in a closed wikilink completes as in an unclosed one, `#` its
+/// headings, but moving the caret into one opens nothing.
+#[test]
+fn closed_wikilinks_complete_as_typed() {
+    assert!(completes("# Next steps\n\nsee [[]]", 20, "#"));
+    assert!(completes("see [[pl]]", 8, "a"));
+    for md in ["see [[Plan]]", "see [[plan.md]]", "see [[pla]]", "see [[]]", "see ![[chart.png]]"] {
+        assert!(!completes(md, md.find("]]").unwrap(), ""), "{md}");
+    }
 }
 
 /// A link to a file is a pill unless it was given a title of its own.
