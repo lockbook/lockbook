@@ -20,7 +20,7 @@ members = [
     "public-site/trunk",
     "libs/lb/lb-c",
     "libs/lb/lb-java",
-    "libs/content/egui_wgpu_renderer",
+    "libs/content/egui_wgpu_renderer", "utils/fuzzer",
 ]
 
 # restore for big binaries but good backtraces
