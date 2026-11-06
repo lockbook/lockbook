@@ -18,7 +18,7 @@ pub enum TextOverflow {
 }
 
 /// Per-span styling: bold flag and optional color override.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct SpanStyle {
     pub bold: bool,
     pub color: Option<egui::Color32>,
@@ -58,13 +58,17 @@ pub struct GlyphonLabel<'a> {
 
 /// The result of shaping a [`GlyphonLabel`]. Contains the sized glyphon buffers
 /// ready for placement at an arbitrary screen rect.
+#[derive(Clone)]
 pub struct ShapedLabel {
     main: ShapedBuffer,
     hint: Option<ShapedBuffer>,
     /// Minimum size in logical pixels: main width + gap + hint width.
     pub size: egui::Vec2,
+    /// The text was cut short with an ellipsis.
+    pub elided: bool,
 }
 
+#[derive(Clone)]
 struct ShapedBuffer {
     buffer: Arc<RwLock<Buffer>>,
     size: egui::Vec2,
@@ -228,7 +232,7 @@ impl<'a> GlyphonLabel<'a> {
     pub fn build(&self, ctx: &egui::Context) -> ShapedLabel {
         let ppi = ctx.pixels_per_point();
         let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
-        let spans = self.overflow_spans(ctx, ppi, line_height);
+        let (spans, elided) = self.overflow_spans(ctx, ppi, line_height);
         let span_refs: Vec<_> = spans
             .iter()
             .map(|span| (span.text.as_str(), span.style))
@@ -266,47 +270,47 @@ impl<'a> GlyphonLabel<'a> {
             None => main.size.y,
         };
 
-        ShapedLabel { main, hint, size: egui::vec2(width, height) }
+        ShapedLabel { main, hint, size: egui::vec2(width, height), elided }
     }
 
-    fn overflow_spans(&self, ctx: &egui::Context, ppi: f32, line_height: f32) -> Vec<OwnedSpan> {
+    /// The spans as drawn, and whether they were cut short.
+    fn overflow_spans(
+        &self, ctx: &egui::Context, ppi: f32, line_height: f32,
+    ) -> (Vec<OwnedSpan>, bool) {
         if self.text_overflow == TextOverflow::Clip
             || self.max_width == f32::MAX
             || self.max_width <= 0.0
         {
-            return self.owned_spans();
+            return (self.owned_spans(), false);
         }
 
         match self.text_overflow {
-            TextOverflow::Clip => self.owned_spans(),
+            TextOverflow::Clip => (self.owned_spans(), false),
             TextOverflow::EndEllipsis => {
-                let [(text, style)] = self.spans.as_slice() else {
-                    return self.owned_spans();
-                };
-
                 if self.max_lines > 1 {
-                    let text = self.end_ellipsis_lines(ctx, ppi, text, *style, line_height);
-                    return vec![OwnedSpan { text, style: *style }];
+                    return self.end_ellipsis_lines(ctx, ppi, line_height);
                 }
+
+                let [(text, style)] = self.spans.as_slice() else {
+                    return (self.owned_spans(), false);
+                };
 
                 if Self::measure_text_width(ctx, ppi, text, *style, self.font_size, line_height)
                     <= self.max_width
                 {
-                    return self.owned_spans();
+                    return (self.owned_spans(), false);
                 }
 
-                vec![OwnedSpan {
-                    text: Self::end_ellipsis(
-                        ctx,
-                        ppi,
-                        text,
-                        *style,
-                        self.font_size,
-                        line_height,
-                        self.max_width,
-                    ),
-                    style: *style,
-                }]
+                let text = Self::end_ellipsis(
+                    ctx,
+                    ppi,
+                    text,
+                    *style,
+                    self.font_size,
+                    line_height,
+                    self.max_width,
+                );
+                (vec![OwnedSpan { text, style: *style }], true)
             }
         }
     }
@@ -356,16 +360,20 @@ impl<'a> GlyphonLabel<'a> {
         ELLIPSIS.to_owned()
     }
 
-    /// The longest start of `text`, ellipsis added when cut, that wraps to
-    /// at most `max_lines` lines at `max_width`.
+    /// The longest start of the spans, ellipsis added when cut, that wraps
+    /// to at most `max_lines` lines at `max_width`, and whether it was cut.
     fn end_ellipsis_lines(
-        &self, ctx: &egui::Context, ppi: f32, text: &str, style: SpanStyle, line_height: f32,
-    ) -> String {
-        let fits = |candidate: &str| {
+        &self, ctx: &egui::Context, ppi: f32, line_height: f32,
+    ) -> (Vec<OwnedSpan>, bool) {
+        let fits = |candidate: &[OwnedSpan]| {
+            let spans: Vec<_> = candidate
+                .iter()
+                .map(|s| (s.text.as_str(), s.style))
+                .collect();
             let shaped = Self::shape_buffer(
                 ctx,
                 ppi,
-                &[(candidate, style)],
+                &spans,
                 egui::Color32::default(),
                 self.font_size,
                 line_height,
@@ -373,20 +381,25 @@ impl<'a> GlyphonLabel<'a> {
             );
             shaped.size.y <= line_height * self.max_lines as f32 + 0.5
         };
-        if fits(text) {
-            return text.to_owned();
+        let whole = self.owned_spans();
+        if fits(&whole) {
+            return (whole, false);
         }
-        let chars: Vec<char> = text.chars().collect();
+        let chars: Vec<(char, SpanStyle)> = self
+            .spans
+            .iter()
+            .flat_map(|&(text, style)| text.chars().map(move |c| (c, style)))
+            .collect();
         let (mut low, mut high) = (0, chars.len());
         while low < high {
             let keep = (low + high).div_ceil(2);
-            if fits(&end_ellipsis_candidate(&chars, keep)) {
+            if fits(&end_ellipsis_spans(&chars, keep)) {
                 low = keep;
             } else {
                 high = keep - 1;
             }
         }
-        end_ellipsis_candidate(&chars, low)
+        (end_ellipsis_spans(&chars, low), true)
     }
 
     fn measure_text_width(
@@ -460,7 +473,7 @@ impl<'a> GlyphonLabel<'a> {
                             attrs = attrs.weight(Weight::BOLD);
                         }
                         if let Some(c) = style.color {
-                            attrs = attrs.color(glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()));
+                            attrs = attrs.color(glyphon_color(c));
                         }
                         let emoji = emoji.clone();
                         text.graphemes(true).map(move |g| {
@@ -487,9 +500,14 @@ impl<'a> GlyphonLabel<'a> {
         let size = egui::vec2(width / ppi, lines as f32 * line_height_px / ppi);
         drop(buf);
 
-        let c = color;
-        ShapedBuffer { buffer, size, color: glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()) }
+        ShapedBuffer { buffer, size, color: glyphon_color(color) }
     }
+}
+
+/// glyphon blends straight alpha; egui's colors are premultiplied.
+fn glyphon_color(c: egui::Color32) -> glyphon::Color {
+    let [r, g, b, a] = c.to_srgba_unmultiplied();
+    glyphon::Color::rgba(r, g, b, a)
 }
 
 struct OwnedSpan {
@@ -509,6 +527,23 @@ pub(crate) fn is_emoji_grapheme(g: &str) -> bool {
         | 0x1F000.. // supplementary multilingual plane: core emoji blocks
         )
     })
+}
+
+/// The first `keep` styled chars as spans, the ellipsis in the last one's style.
+fn end_ellipsis_spans(chars: &[(char, SpanStyle)], keep: usize) -> Vec<OwnedSpan> {
+    let mut spans: Vec<OwnedSpan> = vec![];
+    for &(c, style) in &chars[..keep] {
+        match spans.last_mut() {
+            Some(last) if last.style == style => last.text.push(c),
+            _ => spans.push(OwnedSpan { text: c.into(), style }),
+        }
+    }
+    match (spans.last_mut(), chars.first()) {
+        (Some(last), _) => last.text.push_str("..."),
+        (None, Some(&(_, style))) => spans.push(OwnedSpan { text: "...".into(), style }),
+        (None, None) => {}
+    }
+    spans
 }
 
 fn end_ellipsis_candidate(chars: &[char], keep: usize) -> String {
