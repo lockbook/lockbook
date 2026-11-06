@@ -304,7 +304,7 @@ impl ImageCache {
                     ImageKey::File(id) => {
                         let bytes = core.read_document(*id, false).map_err(|e| e.to_string())?;
                         let file = core.get_file_by_id(*id).map_err(|e| e.to_string())?;
-                        (bytes, file.name.ends_with(".svg"))
+                        (bytes, file.name.to_ascii_lowercase().ends_with(".svg"))
                     }
                     ImageKey::Web(url) => {
                         #[cfg(target_arch = "wasm32")]
@@ -412,7 +412,7 @@ impl ImageCache {
                             .read_document(*id, user_activity)
                             .map_err(|e| e.to_string())?;
                         let file = core.get_file_by_id(*id).map_err(|e| e.to_string())?;
-                        (bytes, file.name.ends_with(".svg"))
+                        (bytes, file.name.to_ascii_lowercase().ends_with(".svg"))
                     }
                     ImageKey::Web(url) => {
                         if !url.starts_with("http://") && !url.starts_with("https://") {
