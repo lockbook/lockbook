@@ -558,7 +558,7 @@ impl MdEdit {
                 true
             }
             None => {
-                let target = self.advance(caret, advance, backwards);
+                let (target, _) = self.advance(caret, advance, backwards);
                 let r = &self.renderer;
                 let into_table = if r.bounds.table_at(target).is_some() {
                     Some(target)
@@ -585,7 +585,7 @@ impl MdEdit {
                 .any(|content| content.contains_inclusive(caret))
         });
         if in_content {
-            self.advance(caret, advance, backwards)
+            self.advance(caret, advance, backwards).0
         } else if backwards {
             caret - 1.min(caret.0)
         } else {
