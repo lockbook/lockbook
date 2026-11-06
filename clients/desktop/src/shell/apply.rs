@@ -2,6 +2,7 @@
 
 pub(crate) use super::apply_account::poll_upgrade;
 use super::apply_account::*;
+use super::apply_account::{open_billing_portal, upgrade_open_checkout};
 pub(crate) use super::apply_onboard::onboard_poll_uname;
 use super::apply_onboard::*;
 use super::apply_share::*;
@@ -700,51 +701,25 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OpenUpgrade => {
             // Stay in Settings → Account in-content (not a separate sheet).
             ensure_settings_account(app);
-            app.account_panel = AccountPanel::Upgrade {
-                stage: UpgradeStage::EnterCard,
-                number: String::new(),
-                exp: String::new(),
-                cvc: String::new(),
-                error: None,
-                done: None,
-            };
+            app.account_panel = AccountPanel::Upgrade { stage: UpgradeStage::Choose, yearly: true };
             app.phrase_cache = None;
-            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_upgrade_need_focus"), true));
         }
-        A::UpgradeBack => {
-            match &app.account_panel {
-                AccountPanel::Upgrade { stage: UpgradeStage::Confirm, .. } => {
-                    if let AccountPanel::Upgrade { stage, error, .. } = &mut app.account_panel {
-                        *stage = UpgradeStage::EnterCard;
-                        *error = None;
-                    }
-                }
-                // Payment failed — edit card again.
-                AccountPanel::Upgrade {
-                    stage: UpgradeStage::Paying, done: Some(Err(_)), ..
-                } => {
-                    if let AccountPanel::Upgrade { stage, done, error, .. } = &mut app.account_panel
-                    {
-                        *stage = UpgradeStage::EnterCard;
-                        *done = None;
-                        *error = None;
-                    }
-                }
-                AccountPanel::Upgrade { stage: UpgradeStage::EnterCard, .. }
-                | AccountPanel::Upgrade {
-                    stage: UpgradeStage::Paying, done: Some(Ok(())), ..
-                } => {
-                    app.close_account_panel();
-                }
-                // Mid-charge: ignore back.
-                _ => {}
+        A::UpgradeBack => match &mut app.account_panel {
+            AccountPanel::Upgrade { stage: stage @ UpgradeStage::Browser, .. } => {
+                *stage = UpgradeStage::Choose;
+            }
+            _ => app.close_account_panel(),
+        },
+        A::UpgradeYearly(on) => {
+            if let AccountPanel::Upgrade { yearly, .. } = &mut app.account_panel {
+                *yearly = on;
             }
         }
-        A::UpgradeNext => upgrade_validate_and_confirm(app),
-        A::UpgradeConfirmPay => upgrade_start_pay(app, ctx),
+        A::UpgradeCheckout => upgrade_open_checkout(app, ctx),
         A::UpgradeDone => {
             app.close_account_panel();
         }
+        A::ManageBilling => open_billing_portal(app, ctx),
         A::OpenLogout => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::Logout { acked: false };

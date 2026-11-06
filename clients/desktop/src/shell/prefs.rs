@@ -27,14 +27,7 @@ pub enum AccountPanel {
     /// Stripe upgrade — in-Settings page (not a sheet).
     Upgrade {
         stage: UpgradeStage,
-        /// Display buffer (spaces grouped while typing).
-        number: String,
-        /// Display buffer `MM/YY` (slash auto-inserted).
-        exp: String,
-        cvc: String,
-        error: Option<String>,
-        /// Set when Paying finishes (`Ok` or error string).
-        done: Option<Result<(), String>>,
+        yearly: bool,
     },
 }
 

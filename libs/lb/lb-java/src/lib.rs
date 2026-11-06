@@ -10,8 +10,7 @@ use jni::sys::{jboolean, jbyteArray, jint, jlong, jobject, jobjectArray, jstring
 pub use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
 use lb_rs::model::api::{
-    AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
-    StripeAccountTier, SubscriptionInfo,
+    AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, StripePlan, SubscriptionInfo,
 };
 use lb_rs::model::core_config::host_os_version;
 pub use lb_rs::model::core_config::{ClientType, Config};
@@ -653,21 +652,15 @@ pub extern "system" fn Java_net_lockbook_Lb_upgradeAccountGooglePlay<'local>(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_net_lockbook_Lb_upgradeAccountStripe<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jnumber: JString<'local>, exp_year: jint,
-    exp_month: jint, jcvc: JString<'local>,
-) {
+pub extern "system" fn Java_net_lockbook_Lb_stripeCheckoutUrl<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, yearly: jboolean,
+) -> jstring {
     let lb = rlb(&mut env, &class);
+    let plan = if yearly != 0 { StripePlan::Yearly } else { StripePlan::Monthly };
 
-    let payment_method = PaymentMethod::NewCard {
-        number: rstring(&mut env, jnumber),
-        exp_year,
-        exp_month,
-        cvc: rstring(&mut env, jcvc),
-    };
-
-    if let Err(err) = lb.upgrade_account_stripe(StripeAccountTier::Premium(payment_method)) {
-        throw_err(&mut env, err);
+    match lb.stripe_checkout_url(plan) {
+        Ok(url) => jni_string(&mut env, url).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
     }
 }
 
