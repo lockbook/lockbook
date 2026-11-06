@@ -242,7 +242,7 @@
             }
 
             if let wsHandle {
-                update_virtual_keyboard(wsHandle, isSoftwareKeyboardUp)
+                update_virtual_keyboard(wsHandle, isFirstResponder && documentEditable)
             }
         }
 

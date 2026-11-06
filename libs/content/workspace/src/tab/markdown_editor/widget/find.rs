@@ -121,7 +121,7 @@ impl Find {
     /// transitions happen inside this call; [`FindOutput`] carries only the
     /// effects the caller must apply (buffer events, scroll hint, close).
     pub fn show(
-        &mut self, buffer: &Buffer, text_seq: u64, virtual_keyboard_shown: bool, ui: &mut Ui,
+        &mut self, buffer: &Buffer, text_seq: u64, keyboard_shown: bool, ui: &mut Ui,
     ) -> FindOutput {
         let mut output = FindOutput::default();
 
@@ -185,7 +185,7 @@ impl Find {
         self.prev_focused = focused;
         // The keyboard going down under a focused field (Done on a phone)
         // ends find, as Escape does.
-        if focused && self.was_focused && !virtual_keyboard_shown && self.term.is_some() {
+        if focused && self.was_focused && !keyboard_shown && self.term.is_some() {
             self.was_focused = false;
             self.close_to_match(&mut output);
             ui.ctx().request_repaint();
@@ -195,7 +195,7 @@ impl Find {
             ui.ctx().set_virtual_keyboard_shown(true);
         }
         // reset when keyboard is dismissed so re-tapping requests it again
-        self.was_focused = focused && virtual_keyboard_shown;
+        self.was_focused = focused && keyboard_shown;
         if find_focused {
             ui.memory_mut(|m| m.set_focus_lock_filter(self.id, focus_filter));
             if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Tab)) {
