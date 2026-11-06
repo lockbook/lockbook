@@ -25,6 +25,10 @@
         private var menuForAtom = false
         /// A UIKit tap, loupe drag, or handle drag is writing the selection.
         private var textInteractionActive = false
+        /// A selection UIKit wrote itself, not for a person's gesture or our
+        /// own command: before deleteBackward it grows the caret this way.
+        /// Lives until the next frame.
+        private var uikitSelection: TextRange?
 
         weak var inputDelegate: UITextInputDelegate?
         lazy var tokenizer: UITextInputTokenizer = EditorTokenizer(textInput: self)
@@ -196,6 +200,7 @@
         /// Apply one frame's output. Only changes the editor made itself are
         /// reported to UIKit; edits UIKit made were applied synchronously.
         func apply(_ output: IOSResponse) {
+            uikitSelection = nil
             if pendingSelection != nil, !(page?.touches.touching ?? false) {
                 textInteractionActive = false
                 commitPendingSelection()
@@ -346,6 +351,7 @@
             commitPendingSelection()
             inputDelegate?.selectionWillChange(self)
             selectedTextRange = range
+            uikitSelection = nil
             inputDelegate?.selectionDidChange(self)
             let keyboardWasUp = isFirstResponder
             if !keyboardWasUp {
@@ -388,9 +394,9 @@
         // MARK: - Hardware keys
 
         /// Each key has one owner. UIKit's text system takes text keys:
-        /// characters, arrows, deletes, Return, Tab, and the standard edit
-        /// chords. The editor takes its own shortcuts and the keys UIKit
-        /// ignores, like Home and End.
+        /// characters, arrows, Return, Tab, and the standard edit chords. The
+        /// editor takes its own shortcuts, the keys UIKit ignores, like Home
+        /// and End, and the deletes as key commands.
         private var editorKeys = Set<UIKeyboardHIDUsage>()
 
         override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -531,7 +537,36 @@
             // system swallows the chord before `pressesBegan`.
             let send = UIKeyCommand(input: "\r", modifierFlags: .command, action: #selector(sendCommand(_:)))
             send.wantsPriorityOverSystemBehavior = true
-            return iOSMTK.workspaceBracketKeyCommands() + [find, send]
+            return iOSMTK.workspaceBracketKeyCommands() + [find, send] + deleteCommands()
+        }
+
+        /// ⌫ and ⌦ with their word and line chords reach the editor as keys,
+        /// so its delete rules decide; while text is marked, or the find
+        /// field has focus, they stay UIKit's.
+        private func deleteCommands() -> [UIKeyCommand] {
+            guard marked == nil, !chromeFocused else { return [] }
+            let chords: [UIKeyModifierFlags] = [[], .alternate, .command, .shift]
+            return [("\u{8}", UIKeyboardHIDUsage.keyboardDeleteOrBackspace), (UIKeyCommand.inputDelete, .keyboardDeleteForward)]
+                .flatMap { input, key in
+                    chords.map { flags in
+                        let command = UIKeyCommand(
+                            action: #selector(deleteCommand(_:)), input: input, modifierFlags: flags,
+                            propertyList: key.rawValue
+                        )
+                        command.wantsPriorityOverSystemBehavior = true
+                        command.repeatBehavior = .repeatable
+                        return command
+                    }
+                }
+        }
+
+        @objc private func deleteCommand(_ command: UIKeyCommand) {
+            guard let wsHandle, let key = command.propertyList as? Int else { return }
+            let mods = command.modifierFlags
+            let (shift, alt, cmd) = (mods.contains(.shift), mods.contains(.alternate), mods.contains(.command))
+            ios_key_event(wsHandle, key, shift, false, alt, cmd, true)
+            ios_key_event(wsHandle, key, shift, false, alt, cmd, false)
+            mtkView.requestFrame()
         }
 
         @objc private func sendCommand(_: UIKeyCommand) {
@@ -701,8 +736,18 @@
             commitPendingSelection()
             editMenu.dismissMenu()
             guard let wsHandle else { return }
+            let composing = marked != nil
             marked = nil
             let before = selectedTextRange as? TextRange
+            // UIKit selects the character before a caret, then deletes the
+            // selection: that is the caret's Backspace, which the editor's own
+            // rules decide (an atom or a fold selects first). A character a
+            // person selected is deleted as selected.
+            let grown = before.flatMap { $0 == uikitSelection ? $0 : nil }
+            uikitSelection = nil
+            if let grown, grown.hi - grown.lo == 1, !composing, !chromeFocused {
+                set_selected(wsHandle, cRange(grown.hi, grown.hi), false)
+            }
             backspace(wsHandle)
             if chromeFocused {
                 chromeMarkedLength = 0
@@ -797,6 +842,7 @@
                 // finger: no reveal, which would scroll to the far end.
                 let reveal = !(page?.textDragActive ?? false)
                 set_selected(wsHandle, cRange(range.lo, range.hi), reveal)
+                uikitSelection = reveal ? range : nil
                 mtkView.requestFrame()
             }
         }
@@ -851,6 +897,7 @@
                 ?? TextRange(under.offset, under.offset)
             if next != range {
                 selectedTextRange = next
+                uikitSelection = nil
                 // UIKit draws its highlight from its own candidate range,
                 // which follows a change it hears of; the bare notification
                 // leaves the keyboard's context alone.
@@ -1070,6 +1117,7 @@
             else { return }
             inputDelegate?.selectionWillChange(self)
             selectedTextRange = word
+            uikitSelection = nil
             inputDelegate?.selectionDidChange(self)
         }
 
@@ -1078,6 +1126,7 @@
             guard !chromeFocused else { return }
             inputDelegate?.selectionWillChange(self)
             selectedTextRange = TextRange(0, endOffset)
+            uikitSelection = nil
             inputDelegate?.selectionDidChange(self)
         }
 

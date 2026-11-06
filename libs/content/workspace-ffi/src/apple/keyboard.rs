@@ -607,6 +607,7 @@ impl UIKeys {
             73 => Insert,
             74 => Home,
             75 => PageUp,
+            76 => DeleteForward,
             77 => End,
             78 => PageDown,
 
@@ -685,7 +686,8 @@ impl UIKeys {
             Num7 => egui::Key::Num7,
             Num8 => egui::Key::Num8,
             Num9 => egui::Key::Num9,
-            DeleteOrBackspace => egui::Key::Delete,
+            DeleteOrBackspace => egui::Key::Backspace,
+            DeleteForward => egui::Key::Delete,
             Escape => egui::Key::Escape,
             Return => egui::Key::Enter,
             ReturnOrEnter => egui::Key::Enter,

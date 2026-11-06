@@ -176,7 +176,7 @@ impl ImageViewer {
             Picture::Diagram(source) => match DiagramCache::of(ui.ctx()).size(source) {
                 DiagramSize::Pending => ImageState::Loading,
                 DiagramSize::Ready(_) => ImageState::Loaded(egui::TextureId::default()),
-                DiagramSize::Failed(message) => ImageState::Failed(message),
+                DiagramSize::Failed(error) => ImageState::Failed(error.message),
             },
         }
     }

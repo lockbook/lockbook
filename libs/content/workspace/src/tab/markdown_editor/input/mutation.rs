@@ -241,7 +241,7 @@ impl<'ast> MdEdit {
 
                 // Deleting against a collapsed image selects it (a second
                 // press deletes) rather than erasing a char of its source.
-                if self.delete_at_image(region, operations) {
+                if self.delete_at_image(root, region, operations) {
                     return response;
                 }
 
