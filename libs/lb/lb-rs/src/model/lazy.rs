@@ -141,7 +141,9 @@ impl<T: TreeLike> LazyTree<T> {
     /// Calculates the total usage in bytes for all non-deleted files owned by the owner.
     /// This includes the document size plus METADATA_FEE for each file.
     /// Files shared with this owner (but owned by others) are excluded.
-    pub fn calculate_usage(&mut self, owner: Owner) -> LbResult<u64> {
+    pub fn calculate_usage(
+        &mut self, owner: Owner, doc_size: impl Fn(&Uuid) -> u64,
+    ) -> LbResult<u64> {
         let mut total: u64 = 0;
         for id in self.ids() {
             // Check owner first
@@ -153,7 +155,7 @@ impl<T: TreeLike> LazyTree<T> {
             if self.calculate_deleted(&id)? {
                 continue;
             }
-            let file_size = self.find(&id)?.doc_size().unwrap_or(0) as u64;
+            let file_size = doc_size(&id);
             total += file_size + METADATA_FEE;
         }
         Ok(total)

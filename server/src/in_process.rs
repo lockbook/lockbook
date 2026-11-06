@@ -13,8 +13,7 @@ use lb_rs::io::server::{ApiResult, Server};
 use lb_rs::model::account::Account;
 use lb_rs::model::api::*;
 use lb_rs::model::crypto::EncryptedDocument;
-use lb_rs::model::file_metadata::DocumentHmac;
-use uuid::Uuid;
+use lb_rs::model::doc_info::BlobKey;
 
 use crate::billing::Nop;
 use crate::billing::app_store_client::AppStoreClient;
@@ -53,57 +52,57 @@ impl InMemoryServer {
 /// Documents held in memory.
 #[derive(Clone, Default)]
 pub struct InMemDocuments {
-    docs: Arc<Mutex<HashMap<(Uuid, DocumentHmac), EncryptedDocument>>>,
+    docs: Arc<Mutex<HashMap<BlobKey, EncryptedDocument>>>,
 }
 
 #[async_trait]
 impl DocumentService for InMemDocuments {
     async fn insert<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
+        &self, key: &BlobKey, content: &EncryptedDocument,
     ) -> Result<(), ServerError<T>> {
-        self.docs
-            .lock()
-            .unwrap()
-            .insert((*id, *hmac), content.clone());
+        self.docs.lock().unwrap().insert(*key, content.clone());
         Ok(())
     }
 
-    async fn get<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
-    ) -> Result<EncryptedDocument, ServerError<T>> {
-        self.maybe_get(id, hmac)
+    async fn get<T: Debug>(&self, key: &BlobKey) -> Result<EncryptedDocument, ServerError<T>> {
+        self.maybe_get(key)
             .await?
-            .ok_or_else(|| internal!("no document {id} at that hmac"))
+            .ok_or_else(|| internal!("no document at {key:?}"))
     }
 
     async fn maybe_get<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
+        &self, key: &BlobKey,
     ) -> Result<Option<EncryptedDocument>, ServerError<T>> {
-        Ok(self.docs.lock().unwrap().get(&(*id, *hmac)).cloned())
+        Ok(self.docs.lock().unwrap().get(key).cloned())
     }
 
-    async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>> {
-        self.docs.lock().unwrap().remove(&(*id, *hmac));
+    async fn delete<T: Debug>(&self, key: &BlobKey) -> Result<(), ServerError<T>> {
+        self.docs.lock().unwrap().remove(key);
         Ok(())
     }
 
-    fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool {
-        self.docs.lock().unwrap().contains_key(&(*id, *hmac))
+    fn exists(&self, key: &BlobKey) -> bool {
+        self.docs.lock().unwrap().contains_key(key)
     }
 
-    fn get_path(&self, id: &Uuid, hmac: &DocumentHmac) -> PathBuf {
-        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
-        PathBuf::from(format!("memory/{id}-{hmac}"))
+    fn get_path(&self, key: &BlobKey) -> PathBuf {
+        PathBuf::from(format!("memory/{key:?}"))
     }
 }
 
 fn context<T>(account: &Account, request: T) -> RequestContext<T> {
-    RequestContext { request, public_key: account.public_key(), ip: None }
+    RequestContext {
+        request,
+        public_key: account.public_key(),
+        ip: None,
+        client_version: semver::Version::parse(lb_rs::get_code_version()).ok(),
+    }
 }
 
 fn api_error<E: Debug>(err: ServerError<E>) -> ApiError<E> {
     match err {
         ServerError::ClientError(e) => ApiError::Endpoint(e),
+        ServerError::ClientUpdateRequired => ApiError::ClientUpdateRequired,
         ServerError::InternalError(e) => {
             tracing::error!("internal: {e}");
             ApiError::InternalError
@@ -186,6 +185,30 @@ where
         &self, account: &Account, request: GetUpdatesRequestV2,
     ) -> ApiResult<GetUpdatesRequestV2> {
         ServerState::get_updates_v2(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
+    async fn get_doc_updates(
+        &self, account: &Account, request: GetDocUpdatesRequest,
+    ) -> ApiResult<GetDocUpdatesRequest> {
+        ServerState::get_doc_updates(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
+    async fn get_doc_v3(
+        &self, account: &Account, request: GetDocRequestV3,
+    ) -> ApiResult<GetDocRequestV3> {
+        ServerState::get_doc_v3(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
+    async fn push_doc(
+        &self, account: &Account, request: PushDocRequest,
+    ) -> ApiResult<PushDocRequest> {
+        ServerState::push_doc(self, context(account, request))
             .await
             .map_err(api_error)
     }

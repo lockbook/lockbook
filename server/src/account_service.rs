@@ -5,7 +5,7 @@ use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
 use crate::guard::ServerTx;
-use crate::schema::{Account, ServerV6};
+use crate::schema::{Account, ServerV6, doc_size};
 use crate::utils::username_is_valid;
 use crate::{RequestContext, ServerError, ServerState};
 use lb_rs::model::account::Username;
@@ -20,6 +20,7 @@ use lb_rs::model::api::{
     NewAccountRequestV2, NewAccountResponse, PaymentPlatform,
 };
 use lb_rs::model::clock::get_time;
+use lb_rs::model::doc_info::BlobKey;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::server_meta::IntoServerMeta;
@@ -30,6 +31,7 @@ use libsecp256k1::PublicKey;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use tracing::warn;
+use uuid::Uuid;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
 where
@@ -157,6 +159,8 @@ where
         let cap = Self::get_cap(db, &context.public_key)?;
         let owner = Owner(context.public_key);
 
+        let doc_info = &db.doc_info;
+        let sizes = |id: &Uuid| doc_size(doc_info, id);
         let mut tree = ServerTree::new(
             owner,
             &mut db.owned_files,
@@ -177,8 +181,7 @@ where
                 if file.owner() != owner {
                     return None;
                 }
-                let file_size = file.doc_size().unwrap_or(0) as u64;
-                Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
+                Some(FileUsage { file_id, size_bytes: sizes(&file_id) + METADATA_FEE })
             })
             .collect();
 
@@ -358,6 +361,8 @@ where
                 }
             });
 
+        let doc_info = &db.doc_info;
+        let sizes = |id: &Uuid| doc_size(doc_info, id);
         let mut tree = ServerTree::new(
             owner,
             &mut db.owned_files,
@@ -367,7 +372,7 @@ where
         )?
         .to_lazy();
 
-        let usage = tree.calculate_usage(owner)?;
+        let usage = tree.calculate_usage(owner, sizes)?;
 
         let usage_str = bytes_to_human(usage);
 
@@ -401,13 +406,21 @@ where
             .to_lazy();
             let metas_to_delete = tree.ids();
 
+            let mut owned_docs = vec![];
             for id in metas_to_delete.clone() {
                 if !tree.calculate_deleted(&id)? {
                     let meta = tree.find(&id)?;
                     if meta.is_document() && &(meta.owner().0) == public_key {
-                        if let Some(hmac) = meta.document_hmac() {
-                            docs_to_delete.push((*meta.id(), *hmac));
-                        }
+                        owned_docs.push((id, meta.document_hmac().copied()));
+                    }
+                }
+            }
+            drop(tree);
+            for (id, legacy_hmac) in owned_docs {
+                match db.doc_info.remove(&id)? {
+                    Some(info) => docs_to_delete.extend(info.blobs(id)),
+                    None => {
+                        docs_to_delete.extend(legacy_hmac.map(|hmac| BlobKey::Legacy { id, hmac }))
                     }
                 }
             }
@@ -441,8 +454,8 @@ where
             drop(lock);
         }
 
-        for (id, version) in docs_to_delete {
-            self.document_service.delete(&id, &version).await?;
+        for key in docs_to_delete {
+            self.document_service.delete(&key).await?;
         }
         Ok(())
     }

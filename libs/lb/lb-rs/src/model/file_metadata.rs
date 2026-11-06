@@ -211,7 +211,7 @@ impl<F: FileLike> FileDiff<F> {
                     changes.push(Deleted)
                 }
 
-                if old.document_hmac() != new.document_hmac() {
+                if new.document_hmac().is_some() && old.document_hmac() != new.document_hmac() {
                     changes.push(Hmac);
                 }
 

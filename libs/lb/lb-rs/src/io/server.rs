@@ -68,6 +68,18 @@ pub trait Server: Clone + MaybeSend + MaybeSync + 'static {
         &self, account: &Account, request: GetUpdatesRequestV2,
     ) -> impl Future<Output = ApiResult<GetUpdatesRequestV2>> + MaybeSend;
 
+    fn get_doc_updates(
+        &self, account: &Account, request: GetDocUpdatesRequest,
+    ) -> impl Future<Output = ApiResult<GetDocUpdatesRequest>> + MaybeSend;
+
+    fn get_doc_v3(
+        &self, account: &Account, request: GetDocRequestV3,
+    ) -> impl Future<Output = ApiResult<GetDocRequestV3>> + MaybeSend;
+
+    fn push_doc(
+        &self, account: &Account, request: PushDocRequest,
+    ) -> impl Future<Output = ApiResult<PushDocRequest>> + MaybeSend;
+
     fn get_build_info(
         &self, account: &Account, request: GetBuildInfoRequest,
     ) -> impl Future<Output = ApiResult<GetBuildInfoRequest>> + MaybeSend;

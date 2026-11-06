@@ -16,7 +16,13 @@ async fn catch_up_emits_an_ipc_event_for_document_changes() {
     writer.write_document(id, b"new").await.unwrap();
     reader.begin_tx().await.end();
 
-    assert!(matches!(events.try_recv().unwrap(), Event::IpcChangesApplied));
+    let first = loop {
+        match events.try_recv().unwrap() {
+            Event::StatusUpdated => continue,
+            event => break event,
+        }
+    };
+    assert!(matches!(first, Event::IpcChangesApplied));
     assert_eq!(reader.read_document(id, false).await.unwrap(), b"new");
 
     reader.begin_tx().await.end();

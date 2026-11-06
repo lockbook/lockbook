@@ -1,8 +1,9 @@
 use crate::{Lb, get_dirty_ids, slices_equal_ignore_order, test_core_from};
+use lb_rs::io::CoreV5;
 use lb_rs::io::server::Server;
-use lb_rs::model::api::GetUpdatesRequestV2;
+use lb_rs::model::api::{GetDocUpdatesRequest, GetUpdatesRequestV2};
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::{FileType, Owner};
+use lb_rs::model::file_metadata::{DocumentHmac, FileType, Owner};
 use lb_rs::model::path_ops::Filter::DocumentsOnly;
 use lb_rs::model::staged::StagedTreeLikeMut;
 use lb_rs::model::tree_like::TreeLike;
@@ -50,6 +51,17 @@ pub async fn cores_equal(left: &Lb, right: &Lb) {
             .iter()
             .collect::<HashMap<_, _>>()
     );
+    assert_eq!(content_versions(left_tx.db()), content_versions(right_tx.db()));
+}
+
+fn content_versions(db: &CoreV5) -> HashMap<Uuid, DocumentHmac> {
+    db.doc_info
+        .iter()
+        .filter(|(id, _)| {
+            db.base_metadata.get(*id).is_some() || db.local_metadata.get(*id).is_some()
+        })
+        .filter_map(|(id, info)| info.current_hmac().map(|hmac| (*id, hmac)))
+        .collect()
 }
 
 pub async fn new_synced_client_core_equal(lb: &Lb) {
@@ -240,10 +252,28 @@ pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
         .pruned()
         .unwrap()
         .to_lazy();
-    let mut actual_paths = remote
-        .tree
-        .staged
-        .ids()
+    let doc_updates = Server::get_doc_updates(
+        &core.client,
+        account,
+        GetDocUpdatesRequest {
+            since: db.last_doc_synced.as_ref().copied().unwrap_or_default(),
+            ids: vec![],
+        },
+    )
+    .await
+    .unwrap()
+    .heads;
+    let mut changed_ids = remote.tree.staged.ids();
+    for (id, head) in doc_updates {
+        let known = db.doc_info.get(&id).and_then(|info| info.remote_hmac());
+        if known != Some(head.hmac)
+            && remote.maybe_find(&id).is_some()
+            && !changed_ids.contains(&id)
+        {
+            changed_ids.push(id);
+        }
+    }
+    let mut actual_paths = changed_ids
         .iter()
         .filter(|id| !matches!(remote.find(id).unwrap().file_type(), FileType::Link { .. }))
         .collect::<Vec<_>>()

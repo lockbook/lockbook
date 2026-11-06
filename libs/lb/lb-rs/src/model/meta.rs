@@ -69,15 +69,13 @@ impl Meta {
         let key = symkey::generate_key();
         let pub_key = account.public_key();
 
-        Ok(Meta::V2 {
+        Ok(Meta::V3 {
             id,
             file_type: FileType::Folder,
             parent: id,
             name: SecretFileName::from_str(&account.username, &key, &key)?,
             owner: Owner(pub_key),
             is_deleted: false,
-            doc_hmac: None,
-            doc_size: None,
             user_access_keys: vec![UserAccessInfo::encrypt(
                 account,
                 &pub_key,
@@ -94,15 +92,13 @@ impl Meta {
         id: Uuid, key: AESKey, owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str,
         file_type: FileType,
     ) -> LbResult<Self> {
-        Ok(Meta::V2 {
+        Ok(Meta::V3 {
             id,
             file_type,
             parent,
             name: SecretFileName::from_str(name, &key, parent_key)?,
             owner: Owner(*owner),
             is_deleted: false,
-            doc_hmac: None,
-            doc_size: None,
             user_access_keys: Default::default(),
             folder_access_key: symkey::encrypt(parent_key, &key)?,
             attachments_of: None,
@@ -113,53 +109,9 @@ impl Meta {
         matches!(self, Meta::V3 { .. })
     }
 
-    pub fn into_v3(self) -> Self {
-        match self {
-            Meta::V1 {
-                id,
-                file_type,
-                parent,
-                name,
-                owner,
-                is_deleted,
-                user_access_keys,
-                folder_access_key,
-                ..
-            } => Meta::V3 {
-                id,
-                file_type,
-                parent,
-                name,
-                owner,
-                is_deleted,
-                user_access_keys,
-                folder_access_key,
-                attachments_of: None,
-            },
-            Meta::V2 {
-                id,
-                file_type,
-                parent,
-                name,
-                owner,
-                is_deleted,
-                user_access_keys,
-                folder_access_key,
-                attachments_of,
-                ..
-            } => Meta::V3 {
-                id,
-                file_type,
-                parent,
-                name,
-                owner,
-                is_deleted,
-                user_access_keys,
-                folder_access_key,
-                attachments_of,
-            },
-            v3 @ Meta::V3 { .. } => v3,
-        }
+    pub fn into_v3(mut self) -> Self {
+        self.upgrade();
+        self
     }
 
     pub fn into_v1(self, doc_hmac: Option<DocumentHmac>, doc_size: Option<usize>) -> Self {
@@ -242,16 +194,6 @@ impl Meta {
         }
     }
 
-    pub fn set_hmac_and_size(&mut self, new_hmac: Option<DocumentHmac>, new_size: Option<usize>) {
-        match self {
-            Meta::V1 { doc_hmac, doc_size, .. } | Meta::V2 { doc_hmac, doc_size, .. } => {
-                *doc_hmac = new_hmac;
-                *doc_size = new_size;
-            }
-            Meta::V3 { .. } => {}
-        }
-    }
-
     pub fn set_type(&mut self, new_type: FileType) {
         match self {
             Meta::V1 { file_type, .. }
@@ -275,45 +217,64 @@ impl Meta {
     }
 
     pub fn set_attachments_of(&mut self, new_attachments_of: Option<AttachmentsOf>) {
-        let (Meta::V2 { attachments_of, .. } | Meta::V3 { attachments_of, .. }) = self.upgrade()
-        else {
-            unreachable!()
-        };
+        let Meta::V3 { attachments_of, .. } = self.upgrade() else { unreachable!() };
         *attachments_of = new_attachments_of;
     }
 
     fn upgrade(&mut self) -> &mut Self {
-        if let Meta::V1 {
-            id,
-            file_type,
-            parent,
-            name,
-            owner,
-            is_deleted,
-            doc_size,
-            doc_hmac,
-            user_access_keys,
-            folder_access_key,
-        } = self.clone()
-        {
-            *self = Meta::V2 {
+        let upgraded = match self.clone() {
+            Meta::V1 {
                 id,
                 file_type,
                 parent,
                 name,
                 owner,
                 is_deleted,
-                doc_size,
-                doc_hmac,
+                user_access_keys,
+                folder_access_key,
+                ..
+            } => Some(Meta::V3 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
                 user_access_keys,
                 folder_access_key,
                 attachments_of: None,
-            };
+            }),
+            Meta::V2 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                user_access_keys,
+                folder_access_key,
+                attachments_of,
+                ..
+            } => Some(Meta::V3 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                user_access_keys,
+                folder_access_key,
+                attachments_of,
+            }),
+            Meta::V3 { .. } => None,
+        };
+        if let Some(upgraded) = upgraded {
+            *self = upgraded;
         }
         self
     }
 
-    // every change a client signs is written as V2
+    // every change a client signs is written as V3
     pub fn sign(mut self, keychain: &Keychain) -> LbResult<SignedMeta> {
         self.upgrade();
         pubkey::sign(&keychain.get_account()?.private_key, &keychain.get_pk()?, self, get_time)
@@ -321,6 +282,10 @@ impl Meta {
 
     pub fn sign_with(mut self, account: &Account) -> LbResult<SignedMeta> {
         self.upgrade();
+        pubkey::sign(&account.private_key, &account.public_key(), self, get_time)
+    }
+
+    pub fn sign_as_is(self, account: &Account) -> LbResult<SignedMeta> {
         pubkey::sign(&account.private_key, &account.public_key(), self, get_time)
     }
 }
