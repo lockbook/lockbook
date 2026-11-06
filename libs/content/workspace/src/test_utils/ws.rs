@@ -26,6 +26,7 @@ pub fn test_lb() -> Lb {
         client_name: "tests".into(),
         build_info: None,
         client_type: lb_rs::model::core_config::ClientType::Unknown,
+        ..Default::default()
     })
     .unwrap();
     let url = std::env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".into());

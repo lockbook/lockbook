@@ -198,12 +198,12 @@ impl Workspace {
     }
 
     fn go_swiped(&mut self, went: Option<SwipeDir>) -> bool {
-        self.ctx.request_repaint();
         match went {
             Some(SwipeDir::Back) => self.back(),
             Some(SwipeDir::Forward) => self.forward(),
             None => return false,
         }
+        self.ctx.request_repaint();
         true
     }
 
@@ -250,6 +250,10 @@ impl Workspace {
                 }
         });
         self.go_swiped(went);
+        // Wheels without a TouchPhase::End end only when a later frame sees scrolling stop.
+        if !matches!(self.swipe.wheel, Wheel::Idle) {
+            self.ctx.request_repaint();
+        }
 
         if matches!(self.swipe.wheel, Wheel::Swiping) {
             self.ctx.input_mut(|i| i.smooth_scroll_delta = Vec2::ZERO);
@@ -502,5 +506,19 @@ mod tests {
             s.settle
                 .is_some_and(|settle| !settle.went && settle.since == 1.0)
         );
+    }
+
+    /// A workspace with nothing happening asks for no more frames.
+    #[test]
+    fn idle_workspace_stops_repainting() {
+        let mut t = crate::test_utils::ws::TestWs::new();
+        let id = t.doc("a.md", "# Notes\n\nsome text\n");
+        t.ws.open_file(id, true, false);
+        t.settle();
+        let quiet = (0..10).any(|_| {
+            t.frame();
+            !t.ctx.requested_repaint_last_pass()
+        });
+        assert!(quiet);
     }
 }

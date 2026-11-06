@@ -304,20 +304,16 @@ impl SVGEditor {
             read_only: self.read_only,
         };
 
-        ui.scope_builder(
-            UiBuilder::new().layer_id(egui::LayerId {
-                order: egui::Order::Middle,
-                id: egui::Id::unique("canvas_ui_overlay"),
-            }),
-            |ui| {
-                let mut ui = ui.new_child(
-                    UiBuilder::new()
-                        .max_rect(controls_rect)
-                        .layout(egui::Layout::default()),
-                );
-                self.toolbar.show(&mut ui, &mut toolbar_context)
-            },
-        )
+        let overlay_layer =
+            egui::LayerId::new(egui::Order::Middle, egui::Id::unique("canvas_ui_overlay"));
+        ui.scope_builder(UiBuilder::new().layer_id(overlay_layer), |ui| {
+            let mut ui = ui.new_child(
+                UiBuilder::new()
+                    .max_rect(controls_rect)
+                    .layout(egui::Layout::default()),
+            );
+            self.toolbar.show(&mut ui, &mut toolbar_context)
+        })
         .inner
     }
 

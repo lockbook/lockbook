@@ -177,6 +177,9 @@ pub struct MdRender {
     pub row_scrolls: HashMap<row_scroll::RowScroller, row_scroll::RowScroll>,
     /// Per-frame: where each block wider than the note shows.
     pub row_scrollers: Vec<(Rect, row_scroll::RowScroller)>,
+    /// The wheel or trackpad gesture over the note. See
+    /// [`MdRender::latch_wheel_axis`].
+    pub wheel: row_scroll::WheelGesture,
     /// Per-frame: each line of a scrolled code block, as the rect it shows
     /// in and its source.
     pub code_line_clips: Vec<(Rect, (Grapheme, Grapheme))>,
@@ -717,6 +720,7 @@ impl MdRender {
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
+            wheel: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
             diagrams,
@@ -827,6 +831,7 @@ impl MdRender {
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
+            wheel: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
             diagrams,
@@ -1013,7 +1018,10 @@ impl Editor {
 
         let dark_mode = ctx.global_style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
-        let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
+        let mut layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
+        if !touch_mode {
+            layout.max_width = persistence.get_column_width();
+        }
 
         let client: HttpClient = Default::default();
         let ws_seq = crate::seq::ws_seq(&ctx);
@@ -1046,6 +1054,7 @@ impl Editor {
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
+            wheel: Default::default(),
             code_line_clips: Default::default(),
             code_copied: None,
             diagrams,
@@ -1214,6 +1223,7 @@ impl Editor {
             client_name: "tests".into(),
             build_info: None,
             client_type: ClientType::Unknown,
+            ..Default::default()
         })
         .unwrap();
         Self::new(
@@ -1406,6 +1416,10 @@ impl Editor {
             resp.scroll_updated = true;
         }
 
+        // Desktop follows the text width setting; touch keeps its own cap.
+        if !self.edit.renderer.touch_mode {
+            self.edit.renderer.layout.max_width = self.persistence.get_column_width();
+        }
         let height = ui.available_size().y.round();
         let width = ui
             .max_rect()
@@ -2056,6 +2070,7 @@ impl Editor {
                             self.edit.touch_reorder,
                             widget::block::drag::TouchReorder::Armed { .. }
                         );
+                        self.edit.renderer.latch_wheel_axis(ui, canvas_rect);
 
                         // Body alloc → pre_render → scrollbar/content
                         // ordering puts pre_render's click rect above

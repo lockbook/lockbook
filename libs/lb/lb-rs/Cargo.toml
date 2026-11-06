@@ -1,6 +1,6 @@
 [package]
 name = "lb-rs"
-version = "26.10.31"
+version = "26.11.6"
 edition = "2021"
 description = "The rust library for interacting with your lockbook."
 repository = "https://github.com/lockbook/lockbook"
@@ -65,8 +65,10 @@ libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
+    "Wdk_System_SystemServices",
     "Win32_Foundation",
     "Win32_System_ProcessStatus",
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
 ] }
 

@@ -716,6 +716,14 @@ pub(crate) const BG_ROW_GAP: f32 = 2.0;
 /// caret beside the atom renders beside the capsule).
 pub(crate) const CHIP_SIDE_PAD: f32 = 0.3;
 
+/// The source span of the chip `f` is part of; touching chips stay apart.
+pub(crate) fn chip_of(f: &Fragment) -> Option<(Grapheme, Grapheme)> {
+    f.style_stack
+        .last()
+        .filter(|s| s.chip)
+        .map(|s| s.source_range)
+}
+
 fn chip_is_icon(s: &StyleInfo) -> bool {
     s.chip && s.format.family == FontFamily::Phosphor
 }
@@ -973,7 +981,7 @@ fn shape_to_items(
                     natural: 0.0,
                     source_range: (source_range.start(), source_range.start()),
                     visible_byte_range: lo_u..lo_u,
-                    buffer: empty_buffer(&fs, row_height, ppi),
+                    buffer: empty_buffer(row_height, ppi),
                     cluster_advances: Vec::new(),
                 });
             }
@@ -1240,7 +1248,7 @@ fn emit_cluster_split_boxes(
                 natural: 0.0,
                 source_range: (start_g + i, start_g + i),
                 visible_byte_range: abs_lo..abs_lo,
-                buffer: empty_buffer(fs, row_height, ppi),
+                buffer: empty_buffer(row_height, ppi),
                 cluster_advances: Vec::new(),
             });
         }
@@ -1260,18 +1268,12 @@ fn emit_cluster_split_boxes(
     }
 }
 
-/// An empty (no-text) buffer used for zero-width separators. Cheap;
-/// glyphon caches the empty-shape result.
-fn empty_buffer(
-    fs: &std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>, row_height: f32, ppi: f32,
-) -> std::sync::Arc<std::sync::RwLock<glyphon::Buffer>> {
-    use std::sync::{Arc, RwLock};
+/// An unshaped buffer for zero-width separators; it has no glyphs to paint.
+fn empty_buffer(row_height: f32, ppi: f32) -> std::sync::Arc<std::sync::RwLock<glyphon::Buffer>> {
     let metric = row_height * ppi;
-    let buffer = {
-        let mut guard = fs.lock().unwrap();
-        glyphon::Buffer::new(&mut guard, glyphon::Metrics::new(metric, metric))
-    };
-    Arc::new(RwLock::new(buffer))
+    std::sync::Arc::new(std::sync::RwLock::new(glyphon::Buffer::new_empty(glyphon::Metrics::new(
+        metric, metric,
+    ))))
 }
 
 /// Map a visible byte range back to source. Returns `(start, start)`
@@ -1930,7 +1932,6 @@ impl MdRender {
                     .map(|s| s.format.background)
                     .filter(|c| *c != egui::Color32::TRANSPARENT)
             };
-            let chip_of = |f: &Fragment| -> bool { f.style_stack.last().is_some_and(|s| s.chip) };
 
             // Pass 1: coalesce same-bg chains into one pill (single
             // fill, single stroke — no seams at fragment boundaries).
@@ -1963,7 +1964,7 @@ impl MdRender {
                     egui::Pos2::new(chain_right, row_bottom + pad),
                 );
                 // a chip is one row, so a whole capsule
-                let radius = if chip { bg_rect.height() / 2.0 } else { 2.0 };
+                let radius = if chip.is_some() { bg_rect.height() / 2.0 } else { 2.0 };
                 if ui.clip_rect().intersects(bg_rect) {
                     let rounding = egui::CornerRadius::same(radius as u8);
                     ui.painter().rect_filled(bg_rect, rounding, bg);

@@ -13,6 +13,7 @@ use lb_rs::model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
     StripeAccountTier, SubscriptionInfo,
 };
+use lb_rs::model::core_config::host_os_version;
 pub use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
@@ -38,7 +39,9 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
         colored_logs: false,
         client_name: "android".into(),
         build_info: None,
+        os_version: host_os_version(),
         client_type: ClientType::Ui,
+        ..Default::default()
     };
 
     match Lb::init(config) {
@@ -67,12 +70,11 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getDebugInfo<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, os_info: JString<'local>,
+    mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jstring {
     let lb = rlb(&mut env, &class);
 
-    let os_info = rstring(&mut env, os_info);
-    jni_string(&mut env, lb.debug_info(os_info).to_string()).into_raw()
+    jni_string(&mut env, lb.debug_info().to_string()).into_raw()
 }
 
 #[unsafe(no_mangle)]

@@ -37,7 +37,7 @@ pub enum CompletionMode {
     Link,
     /// `![alt text](path)` — image link, shows only image files.
     ImageLink,
-    /// `![[title]]` — wiki embed, shows only image files.
+    /// `![[title]]` — wiki embed, shows all files.
     WikiEmbed,
     /// `[display text](des...` — cursor in the destination; completes file
     /// paths while the display text is kept as-is.
@@ -744,10 +744,7 @@ impl LinkCompletions {
         if self.candidates_for == key {
             return;
         }
-        let image = matches!(
-            mode,
-            CompletionMode::ImageLink | CompletionMode::ImageLinkDest | CompletionMode::WikiEmbed
-        );
+        let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
         let scope = cache.scope_top(file_id);
         let from = cache.get_by_id(file_id).map_or(file_id, |f| f.parent);
         let from_path = cache.path(from);
@@ -790,7 +787,7 @@ impl LinkCompletions {
         &mut self, cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode, note: &str,
     ) -> Vec<FileResult> {
         let heading_query = match mode {
-            CompletionMode::WikiLink => wiki_fragment(query),
+            CompletionMode::WikiLink | CompletionMode::WikiEmbed => wiki_fragment(query),
             CompletionMode::LinkDest => split_fragment(query),
             _ => (query, None),
         };
@@ -817,10 +814,7 @@ impl LinkCompletions {
         });
         ranked.truncate(MAX_RESULTS);
 
-        let image = matches!(
-            mode,
-            CompletionMode::ImageLink | CompletionMode::ImageLinkDest | CompletionMode::WikiEmbed
-        );
+        let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
         let origin = self
             .open_origin
             .as_deref()
@@ -829,7 +823,13 @@ impl LinkCompletions {
             .into_iter()
             .filter_map(|(_, candidate)| {
                 let f = cache.get_by_id(candidate.id)?;
-                let name = if image { f.name.clone() } else { strip_ext(&f.name).to_string() };
+                let markdown = f.name.to_lowercase().ends_with(".md");
+                // an embed shows what it is, so only a note's name drops its extension
+                let name = match mode {
+                    CompletionMode::WikiEmbed if !markdown => f.name.clone(),
+                    _ if image => f.name.clone(),
+                    _ => strip_ext(&f.name).to_string(),
+                };
                 // a wikilink title, or a link destination: a relative path in
                 // the scope, the external URL out of it, never an absolute
                 // path; a title past the scope is unique in the reader's tree
@@ -846,7 +846,7 @@ impl LinkCompletions {
                     }
                 };
                 let (outside, path) = (candidate.outside, cache.path(f.id));
-                let headings = !image && f.name.to_lowercase().ends_with(".md");
+                let headings = !image && markdown;
                 Some(FileResult {
                     id: f.id,
                     name,
@@ -876,7 +876,7 @@ impl LinkCompletions {
         &mut self, cache: &FileCache, file_id: Uuid, file_part: &str, needle: &str,
         mode: CompletionMode, note: &str,
     ) -> Vec<FileResult> {
-        let wiki = mode == CompletionMode::WikiLink;
+        let wiki = matches!(mode, CompletionMode::WikiLink | CompletionMode::WikiEmbed);
         let markdown = |f: &File| f.name.to_lowercase().ends_with(".md");
         // the notes, each with how a link writes it
         let mut notes: Vec<(Uuid, String)> = vec![];
@@ -902,6 +902,10 @@ impl LinkCompletions {
                     }
                 }
             }
+        }
+        // a note embedding itself cycles and shows as a link
+        if mode == CompletionMode::WikiEmbed {
+            notes.retain(|(id, _)| *id != file_id);
         }
         // a note's name, or its shortest title where two names are the same
         let stem = |id: Uuid| {
@@ -1320,6 +1324,14 @@ mod tests {
             ],
             "a tie lists both notes' headings"
         );
+        assert_eq!(
+            rows("floo#", CompletionMode::WikiEmbed),
+            [row("Floor plan", "Kitchen", "Floor plan#Kitchen", 1)]
+        );
+        assert!(!rows("editing#", CompletionMode::WikiLink).is_empty());
+        for query in ["#", "editing#"] {
+            assert!(rows(query, CompletionMode::WikiEmbed).is_empty(), "{query} embeds itself");
+        }
         assert!(rows("Roadmap#", CompletionMode::WikiLink).is_empty(), "not read yet");
         assert!(rows("Nowhere#x", CompletionMode::WikiLink).is_empty());
     }
@@ -1377,9 +1389,10 @@ mod tests {
         );
     }
 
-    /// Image searches offer raster images and drawings, and `![[` writes a wiki embed.
+    /// `![[` offers every file, since notes, drawings and PDFs embed like
+    /// images do; image links offer raster images and drawings only.
     #[test]
-    fn a_wiki_embed_offers_images() {
+    fn a_wiki_embed_offers_every_file() {
         use lb_rs::model::text::buffer::Buffer;
         use lb_rs::model::text::offset_types::Grapheme;
 
@@ -1399,19 +1412,28 @@ mod tests {
                 "/notes/chart.png",
                 "/notes/chart sketch.svg",
                 "/notes/chart upper.SVG",
+                "/notes/chart.pdf",
                 "/chart.md",
             ],
         );
         let editing = at(&files, "/notes/editing.md");
         let cache = cache(files);
-        for mode in
-            [CompletionMode::ImageLink, CompletionMode::ImageLinkDest, CompletionMode::WikiEmbed]
-        {
+        for mode in [CompletionMode::ImageLink, CompletionMode::ImageLinkDest] {
             assert_eq!(
                 rows(&cache, editing, "ch", mode),
                 ["/notes/chart.png", "/notes/chart sketch.svg", "/notes/chart upper.SVG",]
             );
         }
+        assert_eq!(
+            rows(&cache, editing, "ch", mode),
+            [
+                "/notes/chart.pdf",
+                "/notes/chart.png",
+                "/notes/chart sketch.svg",
+                "/notes/chart upper.SVG",
+                "/chart.md",
+            ]
+        );
         let mut events = vec![];
         LinkCompletions::default().apply_completion(
             &mut events,

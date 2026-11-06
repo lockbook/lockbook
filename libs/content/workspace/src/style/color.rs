@@ -63,7 +63,7 @@ fn linear_to_srgb_channel(c: f32) -> f32 {
 
 // OKLab matrix coefficients from the reference transform (more digits than f32).
 #[allow(clippy::excessive_precision)]
-fn srgb_to_oklch(color: Color32) -> (f32, f32, f32) {
+pub(crate) fn srgb_to_oklch(color: Color32) -> (f32, f32, f32) {
     let r = srgb_channel_to_linear(color.r() as f32 / 255.0);
     let g = srgb_channel_to_linear(color.g() as f32 / 255.0);
     let b = srgb_channel_to_linear(color.b() as f32 / 255.0);
@@ -86,7 +86,7 @@ fn srgb_to_oklch(color: Color32) -> (f32, f32, f32) {
 }
 
 #[allow(clippy::excessive_precision)]
-fn oklch_to_srgb(l: f32, c: f32, h_deg: f32) -> Color32 {
+pub(crate) fn oklch_to_srgb(l: f32, c: f32, h_deg: f32) -> Color32 {
     let h = h_deg.to_radians();
     let a = c * h.cos();
     let b = c * h.sin();

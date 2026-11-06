@@ -403,8 +403,8 @@ impl Lb {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    pub fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
-        self.rt.block_on(self.lb.debug_info(os_info, true))
+    pub fn debug_info(&self) -> LbResult<DebugInfo> {
+        self.rt.block_on(self.lb.debug_info(true))
     }
 
     pub fn recent_panic(&self) -> LbResult<Option<chrono::DateTime<chrono::Local>>> {

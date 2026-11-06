@@ -13,6 +13,7 @@ use lb_rs::model::text::operation_types::Operation;
 use super::LinkMenuAction;
 use super::hover::{CARD_PAD, CARD_RADIUS, CARD_W};
 use crate::link_preview::LinkMeta;
+use crate::resolvers::image_embed::wiki_embed_key;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::LinkMetaLookup;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
@@ -78,7 +79,7 @@ impl<'ast> MdRender {
             // Skeleton only while fetching; failed/unavailable yields `None` so
             // the link degrades to a plain link rather than a stuck skeleton.
             LinkMetaLookup::Loading => Some(vec2(box_w, SKELETON_HEIGHT)),
-            LinkMetaLookup::Internal(_) | LinkMetaLookup::Unavailable => None,
+            LinkMetaLookup::Internal { .. } | LinkMetaLookup::Unavailable => None,
         }
     }
 
@@ -203,6 +204,7 @@ impl<'ast> MdEdit {
         for node in root.descendants() {
             let url = match &node.data.borrow().value {
                 NodeValue::Link(link) => link.url.clone(),
+                NodeValue::WikiLink(wl) if !wl.embed => wiki_embed_key(&wl.url),
                 _ => continue,
             };
             let salt = MdRender::link_capsule_id_salt(self.renderer.node_range(node));

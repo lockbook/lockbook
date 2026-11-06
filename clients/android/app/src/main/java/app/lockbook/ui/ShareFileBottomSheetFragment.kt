@@ -34,7 +34,6 @@ import app.lockbook.model.FileMetadataStore
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.util.harmonizedIdentityColors
-import app.lockbook.util.withFileMetadata
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -54,17 +53,22 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
     private var _binding: SheetShareFileBinding? = null
     private val binding get() = _binding!!
     private val fileTreeViewModel: FileTreeViewModel by activityViewModels()
-    private val file: File by lazy { FileMetadataStore.requireFile(requireArguments().getString(FILE_ID_KEY)!!) }
+    private val fileId by lazy { requireArguments().getString(FILE_ID_KEY)!! }
     private var sharedUsernames: List<String> = emptyList()
 
     companion object {
         const val TAG = "ShareFileBottomSheetFragment"
         private const val FILE_ID_KEY = "file_id"
+        private const val FILE_NAME_KEY = "file_name"
         private const val INVITE_FORM_VISIBLE_KEY = "invite_form_visible"
 
-        fun newInstance(fileId: String): ShareFileBottomSheetFragment =
+        fun newInstance(file: File): ShareFileBottomSheetFragment =
             ShareFileBottomSheetFragment().apply {
-                arguments = Bundle().apply { putString(FILE_ID_KEY, fileId) }
+                arguments =
+                    Bundle().apply {
+                        putString(FILE_ID_KEY, file.id)
+                        putString(FILE_NAME_KEY, file.name)
+                    }
             }
     }
 
@@ -82,15 +86,15 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         savedInstanceState: Bundle?,
     ) {
         super.onViewCreated(view, savedInstanceState)
-        withFileMetadata(viewLifecycleOwner) { configureShareView(savedInstanceState) }
+        configureShareView(savedInstanceState)
     }
 
     private fun configureShareView(savedInstanceState: Bundle?) {
-        binding.shareFileName.text = file.name
-        binding.shareFileInviteName.text = file.name
+        binding.shareFileName.text = requireArguments().getString(FILE_NAME_KEY)
+        binding.shareFileInviteName.text = binding.shareFileName.text
         FileMetadataStore.snapshots.asLiveData().observe(viewLifecycleOwner) { snapshot ->
             if (snapshot != null) {
-                val current = snapshot.idsAndFiles[requireArguments().getString(FILE_ID_KEY)]
+                val current = snapshot.idsAndFiles[fileId]
                 if (current == null) {
                     dismissAllowingStateLoss()
                 } else {
@@ -305,7 +309,7 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         binding.shareFileBack.isEnabled = false
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             try {
-                Lb.shareFile(file.id, username, mode == ShareMode.Write)
+                Lb.shareFile(fileId, username, mode == ShareMode.Write)
                 fileTreeViewModel._notifyUpdateFilesUI.postValue(UpdateFilesUI.RequestSync)
                 withContext(Dispatchers.Main) {
                     binding.shareFileAddUser.isEnabled = true
@@ -351,7 +355,7 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             val currentContext = context ?: return
             val clipboard = currentContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(
-                ClipData.newPlainText(currentContext.getString(R.string.copy_lockbook_link), Lb.getFileLinkUrl(file.id)),
+                ClipData.newPlainText(currentContext.getString(R.string.copy_lockbook_link), Lb.getFileLinkUrl(fileId)),
             )
         }.onFailure(::showUnexpectedError)
     }

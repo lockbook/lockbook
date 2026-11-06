@@ -277,6 +277,9 @@ pub enum Action {
     OpenFile(Uuid),
     /// Open document in a new tab.
     OpenFileNewTab(Uuid),
+    /// Open the file an `lb://` link from outside the app names, once the
+    /// account loads, syncing first if this device hasn't seen it.
+    OpenLink(String),
     /// Per-tab workspace history (same as mobile `nav_back` / `nav_forward`).
     NavBack,
     NavForward,
@@ -403,6 +406,7 @@ pub enum Action {
     SetPrefLinkPreviews(bool),
     /// Misspelled words are marked, from now on.
     SetPrefSpellCheck(bool),
+    SetPrefColumnWidth(f32),
     /// Renames and moves update the links they'd break, from now on.
     SetPrefUpdateLinks(bool),
     SetPrefOpenInNewTab(bool),
@@ -457,6 +461,7 @@ impl Action {
             Self::CollapseSubtree(_) => "CollapseSubtree",
             Self::OpenFile(_) => "OpenFile",
             Self::OpenFileNewTab(_) => "OpenFileNewTab",
+            Self::OpenLink(_) => "OpenLink",
             Self::NavBack => "NavBack",
             Self::NavForward => "NavForward",
             Self::ToggleSidecar => "ToggleSidecar",
@@ -523,6 +528,7 @@ impl Action {
             Self::SetThemeFamily(_) => "SetThemeFamily",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
             Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",
+            Self::SetPrefColumnWidth(_) => "SetPrefColumnWidth",
             Self::SetPrefUpdateLinks(_) => "SetPrefUpdateLinks",
             Self::SetPrefOpenInNewTab(_) => "SetPrefOpenInNewTab",
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",

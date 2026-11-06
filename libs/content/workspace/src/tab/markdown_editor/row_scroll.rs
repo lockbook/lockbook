@@ -4,7 +4,7 @@
 //! fling. It follows what the user is shown: a find or preview match, or the
 //! end of a selection the user moved. An edge with more beyond it fades out.
 
-use egui::{Color32, Pos2, Rangef, Rect, Ui, Vec2};
+use egui::{Color32, Event, MouseWheelSource, Pos2, Rangef, Rect, TouchPhase, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::style::{EDGE_FADE, overlay_scroll};
@@ -35,6 +35,31 @@ pub struct RowScroll {
     /// Only the program moved it this frame — to show the caret or a match,
     /// or back inside its bounds — which leaves its bar hidden.
     pub quiet: bool,
+}
+
+/// How far a touch drag or a wheel gesture over a block moves before it
+/// picks the axis it keeps.
+const SLOP: f32 = 6.0;
+
+/// A wheel or trackpad gesture, from its first event through the coast the
+/// OS adds after the fingers lift.
+#[derive(Clone, Copy, Debug)]
+pub struct WheelGesture {
+    /// The block wider than the note it began on and, once it has moved,
+    /// whether along the rows. None: it's the page's.
+    pan: Option<(RowScroller, Option<bool>)>,
+    /// How far it has moved while picking its axis.
+    travel: Vec2,
+    /// Between a start and an end, for platforms that send them.
+    phased: bool,
+    /// When its latest event came.
+    at: f64,
+}
+
+impl Default for WheelGesture {
+    fn default() -> Self {
+        Self { pan: None, travel: Vec2::ZERO, phased: false, at: f64::NEG_INFINITY }
+    }
 }
 
 impl MdRender {
@@ -108,6 +133,17 @@ impl MdRender {
         scroll.quiet = scroll.offset != users;
         self.row_scrolls.insert(key, scroll);
         scroll.offset
+    }
+
+    /// Stops every block coasting along its rows, as a finger landing on
+    /// the note does. Returns whether one was.
+    pub fn stop_row_coasts(&mut self) -> bool {
+        let mut coasting = false;
+        for scroll in self.row_scrolls.values_mut() {
+            coasting |= scroll.velocity.abs() > 1.0;
+            scroll.velocity = 0.0;
+        }
+        coasting
     }
 
     /// How far `key` is scrolled along its rows.
@@ -199,18 +235,97 @@ impl MdRender {
     }
 }
 
+impl MdRender {
+    /// Keeps a wheel or trackpad gesture over the note to one axis, as
+    /// macOS scroll views do. One that begins on a block wider than the
+    /// note picks the axis it first moves along, a touch drag's slop away,
+    /// and keeps it through its coast. One that begins elsewhere is the
+    /// page's, and no block it passes over scrolls.
+    pub fn latch_wheel_axis(&mut self, ui: &mut Ui, rect: Rect) {
+        // egui's: this long without an event ends a scroll action, or with
+        // fingers resting on a trackpad between its start and end
+        const SCROLL_ACTION_TIMEOUT: f64 = 0.150;
+        const RESTING_FINGER_TIMEOUT: f64 = 1.0;
+        let hovered = ui.rect_contains_pointer(rect);
+        let under = ui
+            .input(|i| i.pointer.hover_pos())
+            .filter(|_| hovered)
+            .and_then(|pos| self.row_scroller_at(pos));
+        let gesture = &mut self.wheel;
+        ui.input_mut(|i| {
+            for event in &i.events {
+                let Event::MouseWheel { phase, source, .. } = *event else { continue };
+                let begins = match phase {
+                    TouchPhase::Start => {
+                        gesture.phased = true;
+                        source != MouseWheelSource::Momentum
+                    }
+                    TouchPhase::Move => {
+                        let resting = gesture.phased && source == MouseWheelSource::Trackpad;
+                        let timeout =
+                            if resting { RESTING_FINGER_TIMEOUT } else { SCROLL_ACTION_TIMEOUT };
+                        i.time - gesture.at > timeout
+                    }
+                    TouchPhase::End | TouchPhase::Cancel => {
+                        gesture.phased = false;
+                        false
+                    }
+                };
+                if begins {
+                    gesture.pan = under.map(|block| (block, None));
+                    gesture.travel = Vec2::ZERO;
+                }
+                gesture.at = i.time;
+            }
+
+            let delta = &mut i.smooth_scroll_delta;
+            if !hovered || *delta == Vec2::ZERO {
+                return;
+            }
+            let Some((_, along)) = &mut gesture.pan else {
+                if under.is_some() {
+                    delta.x = 0.0;
+                }
+                return;
+            };
+            if along.is_none() {
+                gesture.travel += *delta;
+                if gesture.travel.length() < SLOP {
+                    *delta = Vec2::ZERO;
+                    return;
+                }
+                *along = Some(gesture.travel.x.abs() > gesture.travel.y.abs());
+                *delta = gesture.travel;
+            }
+            if *along == Some(true) {
+                delta.y = 0.0;
+            } else {
+                delta.x = 0.0;
+            }
+        });
+    }
+}
+
 impl MdEdit {
     /// Gives a touch drag on the note's body to the block wider than the
     /// note it began on, if it sets out along the rows: the block pans and
     /// the page stays where it is. One that sets out down the rows is the
     /// page's, as anywhere. True while the drag is not the page's.
     pub fn pan_rows(&mut self, ui: &Ui, body: &egui::Response) -> bool {
-        const SLOP: f32 = 6.0;
         let (origin, pos, delta) =
             ui.input(|i| (i.pointer.press_origin(), i.pointer.interact_pos(), i.pointer.delta()));
         // a touch the platform cancels ends with no release: the pointer is
         // gone and the body is dragged still, through the next press
         let (pressed, gone) = ui.input(|i| (i.pointer.any_pressed(), !i.pointer.has_pointer()));
+        if pressed && body.contains_pointer() {
+            self.renderer.stop_row_coasts();
+        }
+        // a lift also takes the pointer away, so only a cancel says the platform claimed it
+        let cancelled = ui.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::Touch { phase: egui::TouchPhase::Cancel, .. }))
+        });
         if body.drag_started() || (pressed && body.dragged()) {
             let scroller = origin.and_then(|origin| self.renderer.row_scroller_at(origin));
             self.row_pan = scroller.map(|scroller| (scroller, None));
@@ -221,7 +336,7 @@ impl MdEdit {
             // a finger lifted mid-motion leaves the block coasting
             if let Some((key, Some(true))) = self.row_pan.take() {
                 if let Some(scroll) = self.renderer.row_scrolls.get_mut(&key) {
-                    scroll.velocity = if gone { 0.0 } else { scroll.tracked };
+                    scroll.velocity = if cancelled { 0.0 } else { scroll.tracked };
                 }
             }
             self.row_pan = None;

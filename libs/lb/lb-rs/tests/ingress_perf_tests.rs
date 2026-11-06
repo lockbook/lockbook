@@ -96,6 +96,7 @@ fn verbose_config() -> Config {
         client_name: "tests".into(),
         build_info: None,
         client_type: ClientType::Unknown,
+        ..Default::default()
     }
 }
 

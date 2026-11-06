@@ -19,7 +19,7 @@ pub fn bump(bump_type: BumpType) -> CliResult<()> {
     handle_cargo_tomls(&new_version);
     handle_apple(&new_version)?;
     bump_android(&new_version);
-    bump_appdata(&new_version);
+    bump_metainfo(&new_version);
     generate_lockfile()?;
     perform_checks()?;
     push_to_git(&new_version);
@@ -131,15 +131,15 @@ pub fn bump_android(version: &str) {
     fs::write(path, gradle_build).unwrap();
 }
 
-fn bump_appdata(version: &str) {
-    let path = "utils/dev/flatpak-package/net.lockbook.Lockbook.appdata.xml";
+fn bump_metainfo(version: &str) {
+    let path = "utils/dev/flatpak-package/net.lockbook.Lockbook.metainfo.xml";
     let today = Local::now().format("%Y-%m-%d");
 
-    let appdata = APPDATA_TEMPLATE
+    let metainfo = METAINFO_TEMPLATE
         .replace("{version}", version)
         .replace("{today}", &today.to_string());
 
-    fs::write(path, appdata).unwrap();
+    fs::write(path, metainfo).unwrap();
 }
 
 pub fn set_android_version_code(code: i64) {
@@ -209,15 +209,35 @@ fn perform_checks() -> CliResult<()> {
         .assert_success()
 }
 
-const APPDATA_TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+const METAINFO_TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>net.lockbook.Lockbook</id>
 
   <name>Lockbook</name>
-  <summary>Lockbook is an open source note taking app</summary>
+  <summary>Write, sketch, and share privately</summary>
+  <developer id="net.lockbook">
+    <name>Lockbook</name>
+  </developer>
 
   <metadata_license>MIT</metadata_license>
   <project_license>Unlicense</project_license>
+
+  <description>
+    <p>Lockbook is an open-source notebook for Markdown notes and drawings, encrypted on your device and shared only by invitation. Notes are Markdown files and drawings are SVGs, kept in ordinary folders. Open them in any other app and you'll find nothing missing.</p>
+    <p>Your notes are encrypted on your device, so no one else can read them, not even us. Sign up with just a username: we never ask for an email, a phone number, or a name.</p>
+    <ul>
+      <li>Type punctuation and watch plain text turn into headings, lists, tables, and code</li>
+      <li>Sketch, handwrite, and diagram on an infinite canvas</li>
+      <li>Mention one note in another and see which notes mention it back</li>
+      <li>Find a note by its name or by what's in it, privately and offline</li>
+      <li>Keep photos, PDFs, and everything else worth keeping</li>
+      <li>Share any note or folder with read or write access</li>
+      <li>Edits sync without being dropped, duplicated, or clobbered</li>
+      <li>Also on Windows, Mac, iPhone, iPad, and Android</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">net.lockbook.Lockbook.desktop</launchable>
 
   <supports>
     <control>pointing</control>
@@ -226,49 +246,61 @@ const APPDATA_TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
     <control>tablet</control>
   </supports>
 
-  <description>
-    <p>
-      Write notes, sketch ideas, and store files in one secure place. Share seamlessly, keep data synced, and access it on any platform—even offline. Lockbook encrypts files so even we can't see them, but don't take our word for it: Lockbook is 100% open-source.
-    </p>
-  </description>
-
-  <launchable type="desktop-id">net.lockbook.Lockbook.desktop</launchable>
-
   <url type="homepage">https://lockbook.net/</url>
   <url type="bugtracker">https://github.com/lockbook/lockbook/issues</url>
   <url type="vcs-browser">https://github.com/lockbook/lockbook</url>
-
+  <url type="contact">https://discord.gg/lockbook</url>
 
   <screenshots>
-      <screenshot type="default">
-          <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/master/utils/dev/flatpak-package/screenshots/flatpak-dark-theme-screenshot.png</image>
-          <caption>dark theme</caption>
-      </screenshot>
-      <screenshot>
-          <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/master/utils/dev/flatpak-package/screenshots/flatpak-light-theme-screenshot.png</image>
-          <caption>light theme</caption>
-      </screenshot>
+    <screenshot type="default">
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/{version}/utils/dev/flatpak-package/screenshots/01-hero.png</image>
+      <caption>The best place for your notes</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/{version}/utils/dev/flatpak-package/screenshots/02-drawing.png</image>
+      <caption>Sketch on an infinite canvas</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/{version}/utils/dev/flatpak-package/screenshots/06-pdf.png</image>
+      <caption>Your home for everything</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/{version}/utils/dev/flatpak-package/screenshots/03-links.png</image>
+      <caption>Your notes, connected</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/{version}/utils/dev/flatpak-package/screenshots/04-together.png</image>
+      <caption>Shared only by invitation</caption>
+    </screenshot>
+    <screenshot>
+      <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/{version}/utils/dev/flatpak-package/screenshots/07-keys.png</image>
+      <caption>You hold the keys</caption>
+    </screenshot>
   </screenshots>
 
+  <branding>
+    <color type="primary" scheme_preference="dark">#1c4f80</color>
+    <color type="primary" scheme_preference="light">#8fc4f5</color>
+  </branding>
+
   <categories>
-      <category>Office</category>
+    <category>Office</category>
   </categories>
 
-  <developer id="net.lockbook">
-      <name>Parth</name>
-  </developer>
+  <keywords>
+    <keyword>notes</keyword>
+    <keyword>note taking</keyword>
+    <keyword>markdown</keyword>
+    <keyword>notebook</keyword>
+    <keyword>encrypted notes</keyword>
+    <keyword>private notes</keyword>
+    <keyword>journal</keyword>
+  </keywords>
 
   <content_rating type="oars-1.1" />
 
   <releases>
-      <release version="{version}" date="{today}">
-          <description>
-              <p>
-                  {version} release
-              </p>
-          </description>
-      </release>
+    <release version="{version}" date="{today}" />
   </releases>
-
 </component>
 "#;

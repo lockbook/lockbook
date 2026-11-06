@@ -1705,6 +1705,7 @@ mod tests {
             client_name: "tests".into(),
             build_info: None,
             client_type: ClientType::Unknown,
+            ..Default::default()
         })
         .unwrap();
         let files = Arc::new(RwLock::new(FileCache::empty()));
@@ -1758,6 +1759,7 @@ mod tests {
             client_name: "tests".into(),
             build_info: None,
             client_type: ClientType::Unknown,
+            ..Default::default()
         })
         .unwrap();
         let files = Arc::new(RwLock::new(FileCache::empty()));
@@ -1810,6 +1812,7 @@ mod tests {
             client_name: "tests".into(),
             build_info: None,
             client_type: ClientType::Unknown,
+            ..Default::default()
         })
         .unwrap();
         let files = Arc::new(RwLock::new(FileCache::empty()));
@@ -1872,6 +1875,7 @@ mod tests {
             client_name: "tests".into(),
             build_info: None,
             client_type: ClientType::Unknown,
+            ..Default::default()
         })
         .unwrap();
         let files = Arc::new(RwLock::new(FileCache::empty()));
@@ -2069,6 +2073,7 @@ mod tests {
             client_name: "tests".into(),
             build_info: None,
             client_type: ClientType::Unknown,
+            ..Default::default()
         })
         .unwrap();
         let files = Arc::new(RwLock::new(FileCache::empty()));
