@@ -479,6 +479,15 @@ pub enum ValidationFailure {
     FileWithDifferentOwnerParent(Uuid),
     NonDecryptableFileName(Uuid),
     DeletedFileUpdated(Uuid),
+
+    /// A folder linked to something other than a document, or something other than a folder
+    /// linked to a document
+    InvalidAttachmentsFolder(Uuid),
+
+    /// A document given a second attachments folder
+    DuplicateAttachments {
+        document: Uuid,
+    },
 }
 
 impl<T> LazyTree<T>

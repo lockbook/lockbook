@@ -5,7 +5,7 @@ use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
 use crate::model::lazy::LazyTree;
-use crate::model::meta::Meta;
+use crate::model::meta::{AttachmentsOf, Meta};
 use crate::model::secret_filename::{HmacSha256, SecretFileName};
 use crate::model::staged::{StagedTree, StagedTreeLike};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
@@ -144,6 +144,19 @@ where
 
         debug!("new {:?} with id: {}", file_type, id);
         Ok((file, id))
+    }
+
+    pub fn attach_op(
+        &mut self, id: &Uuid, document: &Uuid, keychain: &Keychain,
+    ) -> LbResult<SignedMeta> {
+        let mut file = self.find(id)?.timestamped_value.value.clone();
+        let key = self.decrypt_key(id, keychain)?;
+        let document_key = self.decrypt_key(document, keychain)?;
+        file.set_attachments_of(Some(AttachmentsOf {
+            id: *document,
+            key: symkey::encrypt(&document_key, &key)?,
+        }));
+        file.sign(keychain)
     }
 
     pub fn rename_op(
@@ -357,6 +370,38 @@ where
 
         let (op, id) = self.create_op(id, key, parent, name, file_type, keychain)?;
         self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
+        Ok(id)
+    }
+
+    pub fn attach_unvalidated(
+        &mut self, id: &Uuid, document: &Uuid, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let op = self.attach_op(id, document, keychain)?;
+        self.stage_and_promote(Some(op))?;
+        Ok(())
+    }
+
+    /// Creates `document`'s attachments folder beside it.
+    pub fn create_attachments(
+        &mut self, document: &Uuid, name: &str, keychain: &Keychain,
+    ) -> LbResult<Uuid> {
+        let parent = *self.find(document)?.parent();
+        if self.calculate_deleted(document)? {
+            return Err(LbErrKind::FileNonexistent.into());
+        }
+        validate::file_name(name)?;
+        let key = symkey::generate_key();
+        let parent_owner = self.find(&parent)?.owner().0;
+        let parent_key = self.decrypt_key(&parent, keychain)?;
+        let document_key = self.decrypt_key(document, keychain)?;
+        let id = Uuid::new_v4();
+        let mut file =
+            Meta::create(id, key, &parent_owner, parent, &parent_key, name, FileType::Folder)?;
+        file.set_attachments_of(Some(AttachmentsOf {
+            id: *document,
+            key: symkey::encrypt(&document_key, &key)?,
+        }));
+        self.stage_validate_and_promote(Some(file.sign(keychain)?), Owner(keychain.get_pk()?))?;
         Ok(id)
     }
 

@@ -66,6 +66,7 @@ where
         self.assert_no_duplicate_links()?;
         self.assert_no_broken_links()?;
         self.assert_no_owned_links()?;
+        self.assert_valid_attachments()?;
 
         // authorization check
         self.assert_changes_authorized(owner)?;
@@ -126,6 +127,45 @@ where
                     Err(LbErrKind::Validation(ValidationFailure::FileWithDifferentOwnerParent(
                         *file.id(),
                     )))?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Checks only folders this change links to a document; a partial view of the tree can't
+    /// tell which of the folders it already has are deleted.
+    pub fn assert_valid_attachments(&mut self) -> LbResult<()> {
+        for file_diff in self.diffs()? {
+            let id = *file_diff.id();
+            let Some(document) = file_diff.new.attachments_of().map(|of| of.id) else {
+                continue;
+            };
+            if file_diff
+                .old
+                .as_ref()
+                .and_then(|old| old.attachments_of())
+                .map(|of| of.id)
+                == Some(document)
+                || self.calculate_deleted(&id)?
+            {
+                continue;
+            }
+            if !file_diff.new.is_folder()
+                || !self
+                    .maybe_find(&document)
+                    .is_some_and(|document| document.is_document())
+            {
+                Err(LbErrKind::Validation(ValidationFailure::InvalidAttachmentsFolder(id)))?;
+            }
+            for other in self.ids() {
+                if other != id
+                    && self.find(&other)?.attachments_of().map(|of| of.id) == Some(document)
+                    && !self.calculate_deleted(&other)?
+                {
+                    Err(LbErrKind::Validation(ValidationFailure::DuplicateAttachments {
+                        document,
+                    }))?;
                 }
             }
         }
@@ -347,9 +387,12 @@ where
                                 Some(parent) => base.access_mode(owner, parent.id())?,
                                 None => None, // this file is shared and its parent is not
                             };
+                            // a new file sits in a folder its creator can write to
                             let through_document = match base.maybe_find_attached(file) {
-                                Some(document) => base.access_mode(owner, document.id())?,
-                                None => None,
+                                Some(document) if field_diff != Diff::New => {
+                                    base.access_mode(owner, document.id())?
+                                }
+                                _ => None,
                             };
                             if through_parent < Some(UserAccessMode::Write)
                                 && through_document < Some(UserAccessMode::Write)
@@ -404,7 +447,7 @@ where
                             }
                         }
                     }
-                    Diff::Hmac => {
+                    Diff::AttachmentsOf | Diff::Hmac => {
                         // check self access
                         if base.access_mode(owner, file_diff.id())? < Some(UserAccessMode::Write) {
                             Err(LbErrKind::InsufficientPermission)?;
@@ -454,6 +497,20 @@ where
                             Err(LbErrKind::InsufficientPermission)?;
                         }
                     }
+                }
+            }
+
+            // linking a folder to a document takes write access to the document too
+            let old_document = file_diff.old.as_ref().and_then(|old| old.attachments_of());
+            let new_document = file_diff.new.attachments_of().map(|of| of.id);
+            if let Some(document) =
+                new_document.filter(|&d| old_document.map(|of| of.id) != Some(d))
+            {
+                if !new_files.contains(&document)
+                    && base.maybe_find(&document).is_some()
+                    && base.access_mode(owner, &document)? < Some(UserAccessMode::Write)
+                {
+                    Err(LbErrKind::InsufficientPermission)?;
                 }
             }
         }

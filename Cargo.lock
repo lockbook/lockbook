@@ -142,7 +142,7 @@ dependencies = [
  "basic-human-duration",
  "clap",
  "dialoguer",
- "lb-rs",
+ "lb-rs 26.10.31",
  "libsecp256k1",
  "time",
 ]
@@ -4286,7 +4286,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 name = "lb-c"
 version = "26.11.6"
 dependencies = [
- "lb-rs",
+ "lb-rs 26.10.31",
  "test_utils",
 ]
 
@@ -4300,7 +4300,7 @@ name = "lb-fs"
 version = "26.11.6"
 dependencies = [
  "cli-rs",
- "lb-rs",
+ "lb-rs 26.10.31",
  "nfs3_server",
  "tokio",
  "tracing",
@@ -4312,7 +4312,7 @@ name = "lb-java"
 version = "26.11.6"
 dependencies = [
  "jni 0.21.1",
- "lb-rs",
+ "lb-rs 26.10.31",
  "serde_json",
 ]
 
@@ -4363,6 +4363,7 @@ dependencies = [
  "http",
  "indexmap 2.14.2",
  "itertools 0.10.5",
+ "lb-rs 26.10.31 (git+https://github.com/lockbook/lockbook?rev=66b7a9585a9cc255144d5cce3e8c3b3376f894fe)",
  "libc",
  "libsecp256k1",
  "nucleo",
@@ -4378,6 +4379,59 @@ dependencies = [
  "strum_macros",
  "tempfile",
  "test_utils",
+ "time",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-logcat",
+ "tracing-perfetto-file",
+ "tracing-subscriber",
+ "tracing-wasm",
+ "unicode-segmentation",
+ "usvg",
+ "uuid 1.24.0",
+ "wasm-bindgen-futures",
+ "web-time",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "lb-rs"
+version = "26.10.31"
+source = "git+https://github.com/lockbook/lockbook?rev=66b7a9585a9cc255144d5cce3e8c3b3376f894fe#66b7a9585a9cc255144d5cce3e8c3b3376f894fe"
+dependencies = [
+ "aes-gcm",
+ "base64 0.13.1",
+ "basic-human-duration",
+ "bezier-rs",
+ "bincode 1.3.3",
+ "bip39-dict",
+ "bytes",
+ "chrono",
+ "crossbeam",
+ "db-rs 0.3.7",
+ "db-rs 0.4.2",
+ "db-rs-derive",
+ "flate2",
+ "futures",
+ "getrandom 0.2.17",
+ "glam",
+ "hmac 0.11.0",
+ "http",
+ "indexmap 2.14.2",
+ "libc",
+ "libsecp256k1",
+ "nucleo",
+ "qrcode-generator",
+ "rand 0.8.7",
+ "reqwest",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "sha2 0.9.9",
+ "similar",
+ "strum",
+ "strum_macros",
  "time",
  "tokio",
  "tracing",
@@ -4608,7 +4662,7 @@ dependencies = [
  "fs_extra",
  "is-terminal",
  "lb-fs",
- "lb-rs",
+ "lb-rs 26.10.31",
  "notify",
  "rpassword",
  "tokio",
@@ -4627,7 +4681,7 @@ dependencies = [
  "egui_wgpu_renderer",
  "env_logger",
  "image 0.25.10",
- "lb-rs",
+ "lb-rs 26.10.31",
  "libc",
  "log",
  "objc2 0.5.2",
@@ -4669,7 +4723,7 @@ dependencies = [
  "itertools 0.10.5",
  "jsonwebtoken 8.3.0",
  "lazy_static",
- "lb-rs",
+ "lb-rs 26.10.31",
  "libsecp256k1",
  "pagerduty-rs",
  "prometheus",
@@ -6556,7 +6610,7 @@ dependencies = [
  "egui",
  "futures",
  "glyphon",
- "lb-rs",
+ "lb-rs 26.10.31",
  "log",
  "serde",
  "tracing",
@@ -8273,7 +8327,7 @@ name = "test_utils"
 version = "26.11.6"
 dependencies = [
  "bincode 1.3.3",
- "lb-rs",
+ "lb-rs 26.10.31",
  "lockbook-server",
  "time",
  "uuid 1.24.0",
@@ -10677,7 +10731,7 @@ dependencies = [
  "jni 0.21.1",
  "lazy_static",
  "lb-fonts",
- "lb-rs",
+ "lb-rs 26.10.31",
  "linkify",
  "lyon",
  "memmap2",
