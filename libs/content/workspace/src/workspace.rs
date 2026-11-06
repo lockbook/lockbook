@@ -1800,14 +1800,13 @@ impl Workspace {
             .filter(|s| s.dest.id() == id)
             .map(|s| s.id)
             .collect();
-        let ext = new_name.split('.').next_back().unwrap_or_default();
         for tab_id in tab_ids {
             let Some(tab) = self.tabs.get_mut(&tab_id) else { continue };
             if !content_fits_name(&tab.content, &new_name) {
                 self.tabs.remove(&tab_id);
                 self.open_dest(tab_id, &dest);
             } else if let Some(md) = tab.markdown_mut() {
-                md.set_ext(ext);
+                md.set_ext(ext(&new_name));
             }
         }
 
@@ -1837,6 +1836,63 @@ impl Workspace {
         self.cfg.set_source(source);
 
         self.ctx.request_repaint();
+    }
+
+    /// Reopens each open file in the editor its current name calls for,
+    /// whoever renamed it: this workspace, another process, or another device
+    /// by sync. A tab reopens from its saved bytes, so unsaved edits save
+    /// first and nothing in flight is overtaken. A note that stays a note
+    /// takes its new extension in place.
+    pub(crate) fn refit_to_names(&mut self) {
+        let fits = |tab: &Tab, name: &str| {
+            content_fits_name(&tab.content, name)
+                && tab
+                    .markdown()
+                    .is_none_or(|md| md.edit.renderer.kind == Syntax::from_ext(ext(name)))
+        };
+        let mut refits: Vec<(SessionId, Uuid)> = vec![];
+        let files = self.files.read().unwrap();
+        for (sid, tab) in self.tabs.iter_mut() {
+            // a failed tab retries on a reopen, not every frame
+            if !matches!(tab.content, ContentState::Open(_)) {
+                continue;
+            }
+            let Some(id) = file_dest(&tab.destination) else { continue };
+            // the cache can trail core, which names what loads, so it only
+            // points out the tabs to check
+            if files.get_by_id(id).is_none_or(|f| fits(tab, &f.name)) {
+                continue;
+            }
+            let Ok(file) = self.core.get_file_by_id(id) else { continue };
+            if !content_fits_name(&tab.content, &file.name) {
+                refits.push((*sid, id));
+            } else if let Some(md) = tab.markdown_mut() {
+                md.set_ext(ext(&file.name));
+            }
+        }
+        drop(files);
+        for (sid, id) in refits {
+            if self.tasks.busy(id) {
+                continue;
+            }
+            let dirty = self.tabs.get(&sid).is_some_and(|t| t.is_dirty(&self.tasks));
+            if dirty {
+                self.queue_save_for_session(sid);
+            } else {
+                // nothing to edit until the other editor has the file
+                if let Some(tab) = self.tabs.get_mut(&sid) {
+                    tab.content = ContentState::Loading(id);
+                }
+                self.tasks.queue_load(LoadRequest {
+                    id,
+                    tab_created: true,
+                    make_current: false,
+                    is_preview: false,
+                    target: Some(sid),
+                });
+            }
+            self.ctx.request_repaint();
+        }
     }
 
     pub fn move_file(&mut self, req: (Uuid, Uuid)) -> bool {
@@ -2038,6 +2094,10 @@ fn content_fits_name(content: &ContentState, name: &str) -> bool {
         ContentState::Failed(_) => false,
         _ => true,
     }
+}
+
+fn ext(name: &str) -> &str {
+    name.split('.').next_back().unwrap_or_default()
 }
 
 fn file_dest(dest: &Destination) -> Option<Uuid> {
@@ -2515,5 +2575,57 @@ mod fragment_tests {
         t.frame_with(vec![button(false)]);
         t.settle();
         assert_eq!(t.ws.tab_strip[0].fragment, None);
+    }
+}
+
+#[cfg(test)]
+mod rename_tests {
+    use web_time::{Duration, Instant};
+
+    use crate::test_utils::ws::TestWs;
+
+    /// Frames until the current tab's editor is the kind `want` names.
+    fn until_editor(t: &mut TestWs, want: &str) {
+        let start = Instant::now();
+        loop {
+            t.settle();
+            let tab = t.ws.current_tab().unwrap();
+            let kind = if tab.markdown().is_some() {
+                "markdown"
+            } else if tab.svg().is_some() {
+                "drawing"
+            } else {
+                "other"
+            };
+            if kind == want {
+                return;
+            }
+            assert!(start.elapsed() < Duration::from_secs(10), "tab stayed a {kind} editor");
+        }
+    }
+
+    /// A rename that arrives by sync switches an open tab's editor as an
+    /// in-app rename does, so the tab never saves one format over another.
+    #[test]
+    fn synced_rename_switches_the_editor() {
+        let mut t = TestWs::new();
+        let text = "# Welcome\n\nmarkdown body\n";
+        let id = t.doc("welcome.md", text);
+        t.ws.core.sync().unwrap();
+        let other = t.other_device();
+        t.ws.open_file(id, true, false);
+        until_editor(&mut t, "markdown");
+
+        other.rename_file(&id, "welcome.svg").unwrap();
+        other.sync().unwrap();
+        t.ws.core.sync().unwrap();
+        until_editor(&mut t, "drawing");
+
+        other.rename_file(&id, "welcome.md").unwrap();
+        other.sync().unwrap();
+        t.ws.core.sync().unwrap();
+        until_editor(&mut t, "markdown");
+        let md = t.ws.current_tab().unwrap().markdown().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.text, text);
     }
 }
