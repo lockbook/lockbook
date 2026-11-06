@@ -43,6 +43,17 @@ pub enum Meta {
         /// On a folder: the document whose attachments it holds.
         attachments_of: Option<AttachmentsOf>,
     },
+    V3 {
+        id: Uuid,
+        file_type: FileType,
+        parent: Uuid,
+        name: SecretFileName,
+        owner: Owner,
+        is_deleted: bool,
+        user_access_keys: Vec<UserAccessInfo>,
+        folder_access_key: EncryptedFolderAccessKey,
+        attachments_of: Option<AttachmentsOf>,
+    },
 }
 
 /// A document's id, and the folder's key encrypted with that document's key.
@@ -98,45 +109,136 @@ impl Meta {
         })
     }
 
+    pub fn is_v3(&self) -> bool {
+        matches!(self, Meta::V3 { .. })
+    }
+
+    pub fn into_v3(self) -> Self {
+        match self {
+            Meta::V1 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                user_access_keys,
+                folder_access_key,
+                ..
+            } => Meta::V3 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                user_access_keys,
+                folder_access_key,
+                attachments_of: None,
+            },
+            Meta::V2 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                user_access_keys,
+                folder_access_key,
+                attachments_of,
+                ..
+            } => Meta::V3 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                user_access_keys,
+                folder_access_key,
+                attachments_of,
+            },
+            v3 @ Meta::V3 { .. } => v3,
+        }
+    }
+
+    pub fn into_v1(self, doc_hmac: Option<DocumentHmac>, doc_size: Option<usize>) -> Self {
+        match self.into_v3() {
+            Meta::V3 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                user_access_keys,
+                folder_access_key,
+                ..
+            } => Meta::V1 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                doc_size,
+                doc_hmac,
+                user_access_keys,
+                folder_access_key,
+            },
+            Meta::V1 { .. } | Meta::V2 { .. } => unreachable!(),
+        }
+    }
+
+    pub fn same_file_state(&self, other: &Self) -> bool {
+        self.clone().into_v3() == other.clone().into_v3()
+    }
+
     pub fn set_parent(&mut self, new_parent: Uuid) {
         match self {
-            Meta::V1 { parent, .. } | Meta::V2 { parent, .. } => *parent = new_parent,
+            Meta::V1 { parent, .. } | Meta::V2 { parent, .. } | Meta::V3 { parent, .. } => {
+                *parent = new_parent
+            }
         }
     }
 
     pub fn set_name(&mut self, new_name: SecretFileName) {
         match self {
-            Meta::V1 { name, .. } | Meta::V2 { name, .. } => *name = new_name,
+            Meta::V1 { name, .. } | Meta::V2 { name, .. } | Meta::V3 { name, .. } => {
+                *name = new_name
+            }
         }
     }
 
     pub fn set_owner(&mut self, new_owner: Owner) {
         match self {
-            Meta::V1 { owner, .. } | Meta::V2 { owner, .. } => *owner = new_owner,
+            Meta::V1 { owner, .. } | Meta::V2 { owner, .. } | Meta::V3 { owner, .. } => {
+                *owner = new_owner
+            }
         }
     }
 
     pub fn set_deleted(&mut self, new_is_deleted: bool) {
         match self {
-            Meta::V1 { is_deleted, .. } | Meta::V2 { is_deleted, .. } => {
-                *is_deleted = new_is_deleted
-            }
+            Meta::V1 { is_deleted, .. }
+            | Meta::V2 { is_deleted, .. }
+            | Meta::V3 { is_deleted, .. } => *is_deleted = new_is_deleted,
         }
     }
 
     pub fn set_folder_access_keys(&mut self, new_keys: EncryptedFolderAccessKey) {
         match self {
-            Meta::V1 { folder_access_key, .. } | Meta::V2 { folder_access_key, .. } => {
-                *folder_access_key = new_keys
-            }
+            Meta::V1 { folder_access_key, .. }
+            | Meta::V2 { folder_access_key, .. }
+            | Meta::V3 { folder_access_key, .. } => *folder_access_key = new_keys,
         }
     }
 
     pub fn user_access_keys_mut(&mut self) -> &mut Vec<UserAccessInfo> {
         match self {
-            Meta::V1 { user_access_keys, .. } | Meta::V2 { user_access_keys, .. } => {
-                user_access_keys
-            }
+            Meta::V1 { user_access_keys, .. }
+            | Meta::V2 { user_access_keys, .. }
+            | Meta::V3 { user_access_keys, .. } => user_access_keys,
         }
     }
 
@@ -146,18 +248,21 @@ impl Meta {
                 *doc_hmac = new_hmac;
                 *doc_size = new_size;
             }
+            Meta::V3 { .. } => {}
         }
     }
 
     pub fn set_type(&mut self, new_type: FileType) {
         match self {
-            Meta::V1 { file_type, .. } | Meta::V2 { file_type, .. } => *file_type = new_type,
+            Meta::V1 { file_type, .. }
+            | Meta::V2 { file_type, .. }
+            | Meta::V3 { file_type, .. } => *file_type = new_type,
         }
     }
 
     pub fn set_id(&mut self, new_id: Uuid) {
         match self {
-            Meta::V1 { id, .. } | Meta::V2 { id, .. } => *id = new_id,
+            Meta::V1 { id, .. } | Meta::V2 { id, .. } | Meta::V3 { id, .. } => *id = new_id,
         }
     }
 
@@ -165,11 +270,15 @@ impl Meta {
     pub fn doc_size(&self) -> &Option<usize> {
         match self {
             Meta::V1 { doc_size, .. } | Meta::V2 { doc_size, .. } => doc_size,
+            Meta::V3 { .. } => &None,
         }
     }
 
     pub fn set_attachments_of(&mut self, new_attachments_of: Option<AttachmentsOf>) {
-        let Meta::V2 { attachments_of, .. } = self.upgrade() else { unreachable!() };
+        let (Meta::V2 { attachments_of, .. } | Meta::V3 { attachments_of, .. }) = self.upgrade()
+        else {
+            unreachable!()
+        };
         *attachments_of = new_attachments_of;
     }
 
@@ -231,5 +340,6 @@ impl PartialEq for Meta {
             && self.user_access_keys() == other.user_access_keys()
             && FileLike::doc_size(self) == FileLike::doc_size(other)
             && self.attachments_of() == other.attachments_of()
+            && self.is_v3() == other.is_v3()
     }
 }
