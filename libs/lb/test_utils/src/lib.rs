@@ -43,9 +43,7 @@ pub async fn test_core() -> Lb {
     use std::sync::LazyLock;
 
     static SERVER: LazyLock<InMemoryServer> = LazyLock::new(InMemoryServer::in_memory);
-    Lb::with_server(test_config(), SERVER.clone())
-        .await
-        .unwrap()
+    Lb::in_memory(test_config(), SERVER.clone()).await.unwrap()
 }
 
 pub async fn test_core_from(core: &Lb) -> Lb {

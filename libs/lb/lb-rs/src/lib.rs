@@ -81,7 +81,7 @@ impl Lb {
 impl<S: Server> Lb<S> {
     /// An instance whose database and documents live in memory, shared with no other process,
     /// that sends every request to `server`. Only logs and panic reports use `config.writeable_path`.
-    pub async fn with_server(config: Config, server: S) -> LbResult<Self> {
+    pub async fn in_memory(config: Config, server: S) -> LbResult<Self> {
         logging::init(&config)?;
 
         let db = io::CoreDb::init(&db_rs::config::Config::in_memory())?;
