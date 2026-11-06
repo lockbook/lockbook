@@ -50,7 +50,6 @@ impl Workspace {
         self.process_bg_tasks();
         self.process_lb_updates();
         self.process_task_updates();
-        self.refit_source_views();
         self.process_keys();
         self.process_clip_events();
 
@@ -633,7 +632,7 @@ impl DocType {
 
     /// Whether the file has a rendered form it can trade for its source.
     pub fn has_source_view(&self) -> bool {
-        matches!(self, DocType::Markdown | DocType::SVG)
+        *self == DocType::Markdown
     }
 
     pub fn hide_ext(&self) -> bool {
