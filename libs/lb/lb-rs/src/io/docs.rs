@@ -25,6 +25,15 @@ pub struct AsyncDocs {
     location: PathBuf,
 }
 
+/// A document written beside its final path, made readable by [AsyncDocs::promote_pending].
+/// Each write gets its own pending path, so writers of the same id and hmac never share one.
+pub struct PendingDocument {
+    #[cfg(not(target_family = "wasm"))]
+    path: String,
+    #[cfg(not(target_family = "wasm"))]
+    final_path: String,
+}
+
 #[cfg(target_family = "wasm")]
 impl AsyncDocs {
     pub async fn insert(
@@ -35,11 +44,11 @@ impl AsyncDocs {
 
     pub async fn insert_pending(
         &self, _id: Uuid, _hmac: DocumentHmac, _document: &EncryptedDocument,
-    ) -> LbResult<()> {
-        Ok(())
+    ) -> LbResult<PendingDocument> {
+        Ok(PendingDocument {})
     }
 
-    pub async fn promote_pending(&self, _id: Uuid, _hmac: DocumentHmac) -> LbResult<()> {
+    pub async fn promote_pending(&self, _pending: PendingDocument) -> LbResult<()> {
         Ok(())
     }
 
@@ -72,15 +81,15 @@ impl AsyncDocs {
         &self, id: Uuid, hmac: Option<DocumentHmac>, document: &EncryptedDocument,
     ) -> LbResult<()> {
         if let Some(hmac) = hmac {
-            self.insert_pending(id, hmac, document).await?;
-            self.promote_pending(id, hmac).await?;
+            let pending = self.insert_pending(id, hmac, document).await?;
+            self.promote_pending(pending).await?;
         }
         Ok(())
     }
 
     pub async fn insert_pending(
         &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
-    ) -> LbResult<()> {
+    ) -> LbResult<PendingDocument> {
         let value = &bincode::serialize(document).map_unexpected()?;
         let path_str = pending_path(&self.location, id, hmac);
         let path = Path::new(&path_str);
@@ -93,13 +102,11 @@ impl AsyncDocs {
             .open(path)
             .await?;
         f.write_all(value).await?;
-        Ok(())
+        Ok(PendingDocument { path: path_str, final_path: key_path(&self.location, id, hmac) })
     }
 
-    pub async fn promote_pending(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
-        let pending = pending_path(&self.location, id, hmac);
-        let final_path = key_path(&self.location, id, hmac);
-        Ok(fs::rename(&pending, &final_path).await?)
+    pub async fn promote_pending(&self, pending: PendingDocument) -> LbResult<()> {
+        Ok(fs::rename(&pending.path, &pending.final_path).await?)
     }
 
     pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> bool {
@@ -217,7 +224,7 @@ pub fn key_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String 
 }
 
 fn pending_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String {
-    key_path(writeable_path, key, hmac) + ".pending"
+    format!("{}.{}.pending", key_path(writeable_path, key, hmac), Uuid::new_v4())
 }
 
 impl From<&Config> for AsyncDocs {

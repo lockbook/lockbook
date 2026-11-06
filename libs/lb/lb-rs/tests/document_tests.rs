@@ -175,3 +175,24 @@ async fn sync_ignores_foreign_files_in_documents_dir() {
     core.sync().await.unwrap();
     assert_eq!(core.read_document(doc.id, false).await.unwrap(), b"hello");
 }
+
+/// A tab's read and the background pull can download the same document at once.
+#[tokio::test(flavor = "multi_thread")]
+async fn concurrent_insert_same_document() {
+    let config = &test_config();
+    let key = &symkey::generate_key();
+    let docs = AsyncDocs::from(config);
+    let document = symkey::encrypt(key, &String::from("document").into_bytes()).unwrap();
+
+    for _ in 0..100 {
+        let id = Uuid::new_v4();
+        let inserts = (0..4).map(|_| {
+            let (docs, document) = (docs.clone(), document.clone());
+            tokio::spawn(async move { docs.insert(id, Some(Default::default()), &document).await })
+        });
+        for insert in futures::future::join_all(inserts).await {
+            insert.unwrap().unwrap();
+        }
+        assert_eq!(docs.get(id, Some(Default::default())).await.unwrap(), document);
+    }
+}
