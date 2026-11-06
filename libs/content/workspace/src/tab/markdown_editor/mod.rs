@@ -557,6 +557,7 @@ pub struct Editor {
     pub unprocessed_scroll: Option<Instant>,
     prev_dimensions: Option<Vec2>,
     prev_keyboard_shown: bool,
+    prev_editing: bool,
     /// The find bar's height while open; opening and closing scroll the
     /// page by it so the content stays put on screen.
     find_bar_height: f32,
@@ -1197,6 +1198,7 @@ impl Editor {
 
             prev_dimensions: None,
             prev_keyboard_shown: false,
+            prev_editing: false,
             find_bar_height: 0.0,
 
             next_resp: Default::default(),
@@ -1434,16 +1436,17 @@ impl Editor {
 
         // Mirror the opt-in fetch preference onto the renderer each frame.
         self.edit.renderer.contact_linked_sites = self.persistence.get_contact_linked_sites();
-        // On touch, spelling is marked while the keyboard is up, and the
-        // host checks the words again as it comes up.
+        // On touch, spelling is marked while editing, and the host checks
+        // the words again as editing starts.
         let touch = self.edit.renderer.touch_mode;
         self.edit.renderer.spell_check =
-            self.persistence.get_spell_check() && (!touch || self.keyboard_shown());
-        if self.keyboard_shown() && !self.prev_keyboard_shown {
+            self.persistence.get_spell_check() && (!touch || self.editing);
+        if touch && self.editing && !self.prev_editing {
             if let Some(spelling) = crate::spelling::get(ui.ctx()) {
                 spelling.recheck();
             }
         }
+        self.prev_editing = self.editing;
 
         let start = web_time::Instant::now();
 
