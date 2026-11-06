@@ -201,15 +201,15 @@ fn paint_shared_row(
         if let Some(cmd) = context_menu::show(&resp, t, |e| {
             if !row.is_folder {
                 e.item(phosphor::ARROW_SQUARE_OUT, "Open", FileCmd::Open);
-                e.item(phosphor::APP_WINDOW, "Open in new tab", FileCmd::OpenNewTab);
+                e.item(phosphor::APP_WINDOW, "Open in New Tab", FileCmd::OpenNewTab);
                 e.separator();
             }
             if row.is_folder && !kids_empty {
-                e.item(phosphor::CARET_DOWN, "Expand all", FileCmd::ExpandAll);
-                e.item(phosphor::CARET_LEFT, "Collapse all", FileCmd::CollapseAll);
+                e.item(phosphor::CARET_DOWN, "Expand All", FileCmd::ExpandAll);
+                e.item(phosphor::CARET_LEFT, "Collapse All", FileCmd::CollapseAll);
                 e.separator();
             }
-            e.item(phosphor::FOLDER_PLUS, "Save to your files…", FileCmd::OrganizeShare);
+            e.item(phosphor::FOLDER_PLUS, "Save to Your Files…", FileCmd::OrganizeShare);
             e.separator();
             e.item_danger(phosphor::TRASH, "Decline…", FileCmd::DeclineShare);
         }) {
@@ -246,10 +246,10 @@ fn paint_shared_row(
         if let Some(cmd) = context_menu::show(&resp, t, |e| {
             if !row.is_folder {
                 e.item(phosphor::ARROW_SQUARE_OUT, "Open", FileCmd::Open);
-                e.item(phosphor::APP_WINDOW, "Open in new tab", FileCmd::OpenNewTab);
+                e.item(phosphor::APP_WINDOW, "Open in New Tab", FileCmd::OpenNewTab);
             } else if !kids_empty {
-                e.item(phosphor::CARET_DOWN, "Expand all", FileCmd::ExpandAll);
-                e.item(phosphor::CARET_LEFT, "Collapse all", FileCmd::CollapseAll);
+                e.item(phosphor::CARET_DOWN, "Expand All", FileCmd::ExpandAll);
+                e.item(phosphor::CARET_LEFT, "Collapse All", FileCmd::CollapseAll);
             }
         }) {
             match cmd {

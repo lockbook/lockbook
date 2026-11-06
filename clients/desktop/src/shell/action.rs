@@ -388,6 +388,8 @@ pub enum Action {
     Export(Vec<Uuid>),
     /// Copy lb:// or https file link to OS clipboard.
     CopyLink(Uuid),
+    /// Show the Files pane with the file selected and scrolled into view.
+    RevealInFiles(Uuid),
     Import,
     ImportPaths {
         paths: Vec<PathBuf>,
@@ -519,6 +521,7 @@ impl Action {
             Self::Duplicate(_) => "Duplicate",
             Self::Export(_) => "Export",
             Self::CopyLink(_) => "CopyLink",
+            Self::RevealInFiles(_) => "RevealInFiles",
             Self::Import => "Import",
             Self::ImportPaths { .. } => "ImportPaths",
             Self::OpenImportParent { .. } => "OpenImportParent",

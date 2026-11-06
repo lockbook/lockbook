@@ -433,7 +433,7 @@ pub struct MdEdit {
     /// A word the person taught the system, under the menu's click.
     pub context_menu_learned: Option<String>,
 
-    /// When "Paste as table" was last chosen: the paste it requested from
+    /// When "Paste as Table" was last chosen: the paste it requested from
     /// the platform, which arrives as any other does, is to be a table.
     pub paste_as_table: std::cell::Cell<Option<f64>>,
 
@@ -2566,7 +2566,9 @@ impl Editor {
         } else {
             "No headings yet. Start a line with # to add one."
         };
-        let rows_shown = widget::outline::Headings { rows: &rows, empty };
+        let linkable = self.edit.renderer.kind == Syntax::Markdown;
+        let rows_shown =
+            widget::outline::Headings { note: self.edit.file_id, rows: &rows, empty, linkable };
         let (chosen, popup) = if self.edit.renderer.touch_mode {
             self.outline
                 .show(ui.ctx(), id.with("sheet"), rows_shown, current, &linked)
@@ -2586,9 +2588,9 @@ impl Editor {
         };
         self.linked = Some((version, linked));
         let chosen_row = match &chosen {
-            Some(widget::outline::Choice::Heading(i)) => {
-                rows.get(*i).map(|row| (row.slug.clone(), row.span))
-            }
+            Some(
+                widget::outline::Choice::Heading(i) | widget::outline::Choice::CopyHeadingLink(i),
+            ) => rows.get(*i).map(|row| (row.slug.clone(), row.span)),
             _ => None,
         };
         self.outline_rows = Some((seq, rows));
@@ -2611,13 +2613,20 @@ impl Editor {
                     self.focus(ui.ctx());
                 }
             }
-            Some(widget::outline::Choice::Note { id, span }) => {
+            Some(widget::outline::Choice::Note { id, span, new_tab }) => {
                 use crate::tab::ExtendedOutput as _;
-                let new_tab = ui.input(|i| i.modifiers.command);
+                let new_tab = new_tab || ui.input(|i| i.modifiers.command);
                 match span {
                     Some(span) => ui.ctx().open_link_at(id, span, new_tab),
                     None => ui.ctx().open_link(id, None, new_tab),
                 }
+            }
+            Some(widget::outline::Choice::CopyHeadingLink(_)) => {
+                let Some((slug, _)) = chosen_row else { return };
+                ui.ctx().copy_text(self.edit.heading_link(&slug));
+            }
+            Some(widget::outline::Choice::CopyLink(id)) => {
+                ui.ctx().copy_text(self.edit.renderer.external_url(id));
             }
             None => {}
         }

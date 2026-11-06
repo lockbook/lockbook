@@ -374,7 +374,7 @@ impl ImageViewer {
 
         let t = ui.ctx().get_lb_theme();
         let cmd = context_menu::show(&response, &t, |e| {
-            e.item(phosphor::COPY, "Copy image", ImageCmd::Copy);
+            e.item(phosphor::COPY, "Copy Image", ImageCmd::Copy);
         });
         if let Some(ImageCmd::Copy) = cmd {
             self.copy_image(ui.ctx());
