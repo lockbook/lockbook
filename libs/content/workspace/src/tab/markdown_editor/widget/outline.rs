@@ -198,6 +198,9 @@ impl Outline {
                 ui.allocate_rect(sheet, Sense::hover());
                 paint_surface(ui, sheet, None);
                 paint_title(ui, "Outline", sheet.left() + pad, sheet.top() + pad);
+                let title =
+                    Rect::from_min_size(sheet.min + vec2(pad, pad), vec2(inner_w - header, header));
+                chosen = title_menu(ui, id.with("title"), title, rows.note);
                 let close = Rect::from_min_size(
                     pos2(sheet.right() - pad - header, sheet.top() + pad),
                     vec2(header, header),
@@ -217,9 +220,12 @@ impl Outline {
                 }
                 let (left, mut top) = (sheet.left() + pad, sheet.top() + pad + header);
                 let view = Rect::from_min_size(pos2(left, top), vec2(inner_w, heads_h));
-                chosen = self
+                if let Some(c) = self
                     .headings
-                    .list(ui, id, view, &measured, ground, false, true);
+                    .list(ui, id, view, &measured, ground, false, true)
+                {
+                    chosen = Some(c);
+                }
                 top += heads_h + gap;
                 paint_title(ui, "Backlinks", left, top);
                 top += header;
@@ -287,6 +293,8 @@ impl Outline {
                 ui.painter().rect_filled(card, radius, ground);
                 let (left, mut top) = (card.left() + pad, card.top() + pad);
                 paint_title(ui, "Outline", left, top);
+                let title = Rect::from_min_size(pos2(left, top), vec2(inner_w, header));
+                chosen = title_menu(ui, id.with("title"), title, rows.note);
                 top += header;
                 let view = Rect::from_min_size(pos2(left, top), vec2(inner_w, heads_h));
                 if let Some(c) = self
@@ -472,21 +480,44 @@ struct MeasuredRow {
 /// separates.
 type MenuItem = Option<(&'static str, &'static str, Choice)>;
 
-fn copy_link(note: Uuid) -> Vec<MenuItem> {
+/// The menu of the note's outline as a whole: its header, or its empty list.
+fn note_menu(note: Uuid) -> Vec<MenuItem> {
     vec![Some((phosphor::LINK, "Copy Link", Choice::CopyLink(note)))]
 }
 
-/// A linking note's menu: open it at `span`, here or in a new tab, or copy
-/// its link.
-fn open_or_copy(id: Uuid, span: Option<Range<usize>>) -> Vec<MenuItem> {
+/// The menu of heading `i` of `headings`: its own link, then the note's. A
+/// heading no link lands on has none.
+fn heading_menu(headings: Headings, i: usize) -> Vec<MenuItem> {
+    let row = &headings.rows[i];
+    if !headings.linkable || row.slug.is_empty() {
+        return vec![];
+    }
+    vec![
+        Some((phosphor::LINK, "Copy Link", Choice::CopyHeadingLink(i))),
+        Some((phosphor::FILE_TEXT, "Copy Note Link", Choice::CopyLink(headings.note))),
+    ]
+}
+
+/// The menu of a linking note's row, or with `span`, of one of its links.
+fn linked_menu(id: Uuid, span: Option<Range<usize>>) -> Vec<MenuItem> {
+    let is_note = span.is_none();
     let open = |new_tab| Choice::Note { id, span: span.clone(), new_tab };
     let mut menu = vec![
         Some((phosphor::ARROW_SQUARE_OUT, "Open", open(false))),
         Some((phosphor::APP_WINDOW, "Open in New Tab", open(true))),
-        None,
     ];
-    menu.extend(copy_link(id));
+    if is_note {
+        menu.push(None);
+        menu.extend(note_menu(id));
+    }
     menu
+}
+
+/// A section header at `rect` that stands for the note `note`, and what was
+/// chosen in its menu.
+fn title_menu(ui: &mut Ui, id: Id, rect: Rect, note: Uuid) -> Option<Choice> {
+    let resp = ui.interact(rect, id, Sense::click());
+    row_menu(&resp, &ui.ctx().get_lb_theme(), &note_menu(note))
 }
 
 /// The context menu of a row, or of an empty list, and what was chosen in it.
@@ -560,11 +591,7 @@ fn measure_headings(
             let min_h = if touch { TOUCH_ROW_H } else { control_height() };
             let height = min_h.max(galley.size().y + 2.0 * Space::Xs.pts());
             let tip = row.text.clone();
-            let mut menu = vec![];
-            if headings.linkable && !row.slug.is_empty() {
-                menu.push(Some((phosphor::HASH, "Copy Heading Link", Choice::CopyHeadingLink(i))));
-            }
-            menu.extend(copy_link(headings.note));
+            let menu = heading_menu(headings, i);
             MeasuredRow { galley, height, indent, tip, choice: Choice::Heading(i), menu }
         })
         .collect();
@@ -572,7 +599,7 @@ fn measure_headings(
         .is_empty()
         .then(|| quiet_text(ctx, headings.empty, width));
     let mut measured = Measured::new(measured, current, empty);
-    measured.empty_menu = copy_link(headings.note);
+    measured.empty_menu = note_menu(headings.note);
     measured
 }
 
@@ -604,7 +631,7 @@ fn measure_linked(ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch:
             indent: 0.0,
             tip: note.title.clone(),
             choice: Choice::Note { id: note.id, span: None, new_tab: false },
-            menu: open_or_copy(note.id, None),
+            menu: linked_menu(note.id, None),
         });
         let indent = Space::Md.pts();
         for m in &note.links {
@@ -625,7 +652,7 @@ fn measure_linked(ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch:
                 indent,
                 tip: m.context.clone(),
                 choice: Choice::Note { id: note.id, span: Some(m.span.clone()), new_tab: false },
-                menu: open_or_copy(note.id, Some(m.span.clone())),
+                menu: linked_menu(note.id, Some(m.span.clone())),
             });
         }
     }
