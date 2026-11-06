@@ -8,7 +8,7 @@ use crate::tab::markdown_editor::{Syntax, View};
 use comrak::Arena;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt};
 
-use super::super::input::{Advance, Bound, Event, Location, Region};
+use super::super::input::{Advance, Bound, Event, Increment, Location, Region};
 use super::super::widget::utils::wrap_layout::FragmentContent;
 use super::harness::TestEditor;
 use super::render_props::{
@@ -2677,4 +2677,135 @@ fn abandoned_composition_text_commits_after_typing() {
     ws.enter_frame_with_input(vec![Egui::Text("x".into())]);
     ws.enter_frame_with_input(vec![Egui::Ime(ImeEvent::Commit("n".into()))]);
     assert_eq!(ws.get_text(), "xnabn\n");
+}
+
+/// Where a soft wrap ends one row at the offset that starts the next (a long
+/// word, a hidden mark), a click past the row's end and cmd+right leave the
+/// caret at the end of that row, as in Apple Notes; cmd+left from there goes
+/// to the row's start, and down and up keep to the ends of rows.
+#[test]
+fn caret_at_soft_wrap_stays_on_its_row() {
+    let select = |advance, backwards| Event::Select {
+        region: Region::ToAdvance { advance, backwards, extend_selection: false },
+    };
+    let line = Advance::To(Bound::Line);
+    let down = Advance::By(Increment::Lines(1));
+    let seam_rows = |lines: &[(Grapheme, Grapheme)]| {
+        lines
+            .windows(2)
+            .find(|w| w[0].end() == w[1].start())
+            .map(|w| [w[0], w[1]])
+    };
+    // where the marks doc wraps depends on font metrics, so a leading word of
+    // varying length shifts its wraps until one lands at a mark
+    let marks =
+        (0..40).map(|pad| "x".repeat(pad) + &" lorem *ipsum* dolor **sit** amet".repeat(40));
+    for (doc, wraps_at_marks) in
+        std::iter::once(("x".repeat(1000), false)).chain(marks.map(|doc| (doc, true)))
+    {
+        let mut ws = TestEditor::new(&doc);
+        ws.enter_frame_unfocused();
+        let lines = ws.editor.edit.renderer.bounds.wrap_lines.clone();
+        let Some([row, next]) = seam_rows(&lines) else {
+            assert!(wraps_at_marks, "a row sharing its end with the next row's start");
+            continue;
+        };
+        let rect = |row: (Grapheme, Grapheme)| {
+            ws.editor
+                .edit
+                .renderer
+                .fragments
+                .iter()
+                .filter(|f| {
+                    f.source_range.start() > row.start() && f.source_range.end() < row.end()
+                })
+                .fold(egui::Rect::NOTHING, |r, f| r.union(f.rect))
+        };
+        let (row_rect, next_rect) = (rect(row), rect(next));
+        // the selection, and whether its caret is drawn at the right end of `rect`
+        let caret = |ws: &TestEditor, rect: egui::Rect| {
+            let selection = ws.editor.edit.renderer.buffer.current.selection;
+            let [top, bottom] = ws.editor.edit.cursor_line(selection.1).unwrap();
+            let at_end =
+                rect.y_range().contains((top.y + bottom.y) / 2.) && top.x > rect.center().x;
+            (selection, at_end)
+        };
+
+        let past_end = egui::Pos2::new(row_rect.max.x + 20., row_rect.center().y);
+        ws.push(Event::Select { region: Region::Location(Location::Pos(past_end)) });
+        ws.enter_frame_unfocused();
+        let end = (row.end(), row.end());
+        assert_eq!(caret(&ws, row_rect), (end, true), "click past the row's end in {doc:?}");
+
+        ws.push(select(line, true));
+        ws.enter_frame_unfocused();
+        assert_eq!(caret(&ws, row_rect).0, (row.start(), row.start()), "cmd+left in {doc:?}");
+
+        ws.push(select(line, false));
+        ws.enter_frame_unfocused();
+        assert_eq!(caret(&ws, row_rect), (end, true), "cmd+right in {doc:?}");
+
+        ws.push(select(down, false));
+        ws.enter_frame_unfocused();
+        assert!(caret(&ws, next_rect).1, "down in {doc:?}");
+
+        ws.push(select(down, true));
+        ws.enter_frame_unfocused();
+        assert!(caret(&ws, row_rect).1, "up in {doc:?}");
+        if wraps_at_marks {
+            return;
+        }
+    }
+    panic!("no leading word makes the marks doc wrap at a mark");
+}
+
+/// From the end of a row that shares its end with the next row's start, a
+/// two-line move keeps the right-hand column, and so does a line move for a
+/// platform text system, whose positions carry no affinity.
+#[test]
+fn line_moves_from_a_soft_wrapped_row_end_keep_the_column() {
+    let mut ws = TestEditor::new(&"x".repeat(400));
+    ws.enter_frame_unfocused();
+    let lines = ws.editor.edit.renderer.bounds.wrap_lines.clone();
+    assert!(lines[..3].windows(2).all(|w| w[0].end() == w[1].start()));
+    let row_rect = |ws: &TestEditor, row: (Grapheme, Grapheme)| {
+        ws.editor
+            .edit
+            .renderer
+            .fragments
+            .iter()
+            .filter(|f| f.source_range.start() > row.start() && f.source_range.end() < row.end())
+            .fold(egui::Rect::NOTHING, |r, f| r.union(f.rect))
+    };
+    let drawn_at_end = |ws: &TestEditor, offset: Grapheme, row| {
+        let rect = row_rect(ws, row);
+        let [top, bottom] = ws.editor.edit.cursor_line(offset).unwrap();
+        rect.y_range().contains((top.y + bottom.y) / 2.) && top.x > rect.center().x
+    };
+    let click_past_end = |ws: &mut TestEditor, row| {
+        let rect = row_rect(ws, row);
+        let pos = egui::Pos2::new(rect.max.x + 20., rect.center().y);
+        ws.push(Event::Select { region: Region::Location(Location::Pos(pos)) });
+        ws.enter_frame_unfocused();
+    };
+
+    click_past_end(&mut ws, lines[0]);
+    ws.push(Event::Select {
+        region: Region::ToAdvance {
+            advance: Advance::By(Increment::Lines(2)),
+            backwards: false,
+            extend_selection: false,
+        },
+    });
+    ws.enter_frame_unfocused();
+    let caret = ws.editor.edit.renderer.buffer.current.selection.1;
+    assert!(drawn_at_end(&ws, caret, lines[2]), "two lines down landed at {caret:?}");
+
+    click_past_end(&mut ws, lines[1]);
+    // the way the iOS host moves the caret: by offset alone
+    let up = ws.editor.edit.lines_from(lines[1].end(), 1, true);
+    let at = Location::Grapheme(up);
+    ws.push(Event::Select { region: Region::BetweenLocations { start: at, end: at } });
+    ws.enter_frame_unfocused();
+    assert!(drawn_at_end(&ws, up, lines[0]), "a platform line up landed at {up:?}");
 }
