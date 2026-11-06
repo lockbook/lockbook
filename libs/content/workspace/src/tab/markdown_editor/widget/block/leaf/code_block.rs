@@ -532,7 +532,7 @@ impl<'ast> MdRender {
                 parent_item_padding + 4
             };
             let text = &self.buffer[node_line];
-            let strip_graphemes = consume_indent_columns(text, target_cols);
+            let strip_graphemes = consume_indent_columns(text, 0, target_cols);
             let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
             (chunk_start, node_line.end())
         }

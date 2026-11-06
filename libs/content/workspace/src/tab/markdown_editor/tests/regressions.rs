@@ -588,6 +588,14 @@ fn icon_glyphs_skip_emoji_font() {
     assert!(!shape_as_emoji(&FontFamily::Sans, "a"));
 }
 
+/// A tab in a quote's indent spans to the next 4-column stop from where it
+/// sits, not from where the item's indent ends. Measured from the wrong
+/// column, the `>` of this alert was missed and its title line panicked.
+#[test]
+fn alert_after_mid_stop_tab_opens() {
+    TestEditor::new("1. x\n   \t > [!NOTE]\n");
+}
+
 // ── editor ──
 
 /// Regression for #4662: arrowing up off a folded heading must walk the

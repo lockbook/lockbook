@@ -262,7 +262,7 @@ impl<'ast> MdRender {
                 } else {
                     // Deepest gutter item — take the rest so content
                     // isn't over-indented.
-                    result += consume_indent_columns(text, usize::MAX);
+                    result += consume_indent_columns(text, 0, usize::MAX);
                 }
             }
         }
