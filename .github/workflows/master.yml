@@ -83,7 +83,7 @@ jobs:
       runner: windows-11-arm
 
   build-windows-installer:
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v4
       - name: Build winstaller

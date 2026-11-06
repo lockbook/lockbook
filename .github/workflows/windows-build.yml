@@ -11,7 +11,7 @@ on:
         type: string
       runner:
         type: string
-        default: windows-latest
+        default: windows-2025-vs2026
 
 jobs:
   build:

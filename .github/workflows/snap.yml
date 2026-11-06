@@ -7,7 +7,7 @@ on:
 jobs:
   deploy-snap:
     if: github.repository == 'lockbook/lockbook'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
     steps:

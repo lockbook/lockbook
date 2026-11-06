@@ -7,7 +7,8 @@ on:
 jobs:
   upload-linux:
     if: github.repository == 'lockbook/lockbook'
-    runs-on: ubuntu-latest
+    # Built on 24.04 so the binaries need at most glibc 2.39; on 26.04 they need 2.43, which Debian 13 lacks.
+    runs-on: ubuntu-24.04
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:

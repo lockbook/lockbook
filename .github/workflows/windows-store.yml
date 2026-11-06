@@ -17,7 +17,7 @@ on:
 jobs:
   pack-x64:
     if: github.repository == 'lockbook/lockbook'
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v4
       - name: Pack x64 MSIX
@@ -44,7 +44,7 @@ jobs:
   bundle:
     if: github.repository == 'lockbook/lockbook'
     needs: [pack-x64, pack-arm64]
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v4
       - name: Download MSIX packages
@@ -64,7 +64,7 @@ jobs:
   submit:
     if: github.repository == 'lockbook/lockbook' && inputs.submit
     needs: bundle
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
     steps:
       - name: Download msixbundle
         uses: actions/download-artifact@v4

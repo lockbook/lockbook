@@ -11,7 +11,7 @@ on:
         type: string
       runner:
         type: string
-        default: ubuntu-latest
+        default: ubuntu-24.04
 
 jobs:
   build:
