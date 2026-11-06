@@ -72,6 +72,9 @@ pub struct LinkCompletions {
     open_origin: Option<String>,
     /// This note's headings, for `[[#`, with the text they were read from.
     own_headings: Option<(String, Arc<Vec<Heading>>)>,
+    /// Where the closed wikilink the caret was in last frame starts, and its
+    /// query: typing in one opens the popup, moving the caret into one doesn't.
+    closed_wikilink: Option<(Grapheme, String)>,
 }
 
 impl LinkCompletions {
@@ -80,6 +83,8 @@ impl LinkCompletions {
         file_id: Uuid,
     ) {
         let note = &buffer.current.text;
+        let was_active = self.active;
+        let last_wikilink = self.closed_wikilink.take();
         self.active = false;
         self.search_term_range = None;
 
@@ -95,6 +100,14 @@ impl LinkCompletions {
         let dest = matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest);
         let qr = query_range(buffer, range, mode);
         let query = &buffer[qr];
+        let closed_wikilink = matches!(mode, CompletionMode::WikiLink | CompletionMode::WikiEmbed)
+            && buffer[range].ends_with("]]");
+        let typed = closed_wikilink
+            && last_wikilink
+                .is_some_and(|(start, q)| start == range.0 && (was_active || q != query));
+        if closed_wikilink {
+            self.closed_wikilink = Some((range.0, query.to_string()));
+        }
         if self.is_suppressed(buffer, query) {
             return;
         }
@@ -140,7 +153,7 @@ impl LinkCompletions {
             // being inside complete syntax is the destination context
             CompletionMode::LinkDest | CompletionMode::ImageLinkDest => false,
         };
-        if complete && !fresh {
+        if complete && !fresh && !typed {
             // cursor navigated into existing syntax
             return;
         }
