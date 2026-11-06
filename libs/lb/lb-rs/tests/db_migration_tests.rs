@@ -1,3 +1,6 @@
+// Migrates an on-disk database.
+#![cfg(not(feature = "in-process-tests"))]
+
 use db_rs::View;
 use db_rs_old::{Config as OldConfig, Db};
 use lb_rs::Lb;

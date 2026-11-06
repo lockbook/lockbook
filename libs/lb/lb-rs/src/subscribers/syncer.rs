@@ -1,3 +1,4 @@
+use crate::io::server::Server;
 use std::{
     collections::{HashMap, HashSet},
     num::NonZeroUsize,
@@ -7,10 +8,7 @@ use std::{
 };
 
 #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
-use std::{
-    fs::{File, TryLockError},
-    path::Path,
-};
+use std::fs::{File, TryLockError};
 
 use futures::{StreamExt, stream};
 use tokio::sync::{Mutex, broadcast::error::TryRecvError};
@@ -73,7 +71,7 @@ pub struct SyncState {
 // should_fetch is going to be a tree fn that will return true if:
 //     is md or svg that descends from
 
-impl Lb {
+impl<S: Server> Lb<S> {
     /// Outside iOS and WASM, returns `AlreadySyncing` if another instance is syncing this data directory.
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn sync(&self) -> LbResult<()> {
@@ -108,15 +106,18 @@ impl Lb {
     }
 
     #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
-    fn lock_sync(&self) -> LbResult<File> {
+    fn lock_sync(&self) -> LbResult<Option<File>> {
+        let Some(path) = &self.sync_lock else {
+            return Ok(None);
+        };
         let file = File::options()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
-            .open(Path::new(&self.config.writeable_path).join("sync.lock"))?;
+            .open(path)?;
         match file.try_lock() {
-            Ok(()) => Ok(file),
+            Ok(()) => Ok(Some(file)),
             Err(TryLockError::WouldBlock) => Err(LbErrKind::AlreadySyncing.into()),
             Err(TryLockError::Error(err)) => Err(err.into()),
         }
@@ -161,7 +162,7 @@ impl Lb {
     pub(crate) async fn process_deletions(&self) -> LbResult<()> {
         let server_ids = self
             .client
-            .request(self.get_account()?, GetFileIdsRequest {})
+            .get_file_ids(self.get_account()?, GetFileIdsRequest {})
             .await?
             .ids;
 
@@ -207,7 +208,7 @@ impl Lb {
     async fn fetch_meta(&self, state: &mut SyncState) -> LbResult<()> {
         let updates = self
             .client
-            .request(
+            .get_updates_v2(
                 self.get_account()?,
                 GetUpdatesRequestV2 { since_metadata_version: state.last_synced },
             )
@@ -354,7 +355,7 @@ impl Lb {
             .sync_update(SyncIncrement::PullingDocument(id, true));
         let remote_document = self
             .client
-            .request(self.get_account()?, GetDocRequest { id, hmac })
+            .get_document(self.get_account()?, GetDocRequest { id, hmac })
             .await?;
         self.docs
             .insert(id, Some(hmac), &remote_document.content)
@@ -1072,7 +1073,7 @@ impl Lb {
             for owner in missing_owners {
                 let username_result = self
                     .client
-                    .request(self.get_account().unwrap(), GetUsernameRequest { key: owner.0 })
+                    .get_username(self.get_account().unwrap(), GetUsernameRequest { key: owner.0 })
                     .await;
                 new_owners.insert(owner, username_result);
             }
@@ -1130,7 +1131,10 @@ impl Lb {
 
         if !updates.is_empty() {
             self.client
-                .request(self.get_account()?, UpsertRequestV2 { updates: updates.clone() })
+                .upsert_file_metadata_v2(
+                    self.get_account()?,
+                    UpsertRequestV2 { updates: updates.clone() },
+                )
                 .await?;
         }
 
@@ -1238,7 +1242,7 @@ impl Lb {
         let hmac = diff.new.document_hmac();
         let local_document_change = self.docs.get(id, hmac.copied()).await?;
         self.client
-            .request(
+            .change_doc_v2(
                 self.get_account()?,
                 ChangeDocRequestV2 { diff, new_content: local_document_change },
             )
@@ -1286,7 +1290,7 @@ impl Lb {
         let task = async move {
             match bg_self
                 .client
-                .request(&account, UpsertDebugInfoRequest { debug_info })
+                .upsert_debug_info(&account, UpsertDebugInfoRequest { debug_info })
                 .await
             {
                 Ok(_) => {

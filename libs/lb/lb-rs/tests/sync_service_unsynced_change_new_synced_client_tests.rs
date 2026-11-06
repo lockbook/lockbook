@@ -1,4 +1,3 @@
-use lb_rs::Lb;
 use test_utils::*;
 
 /// Tests that setup two synced clients, operate on one client, and sync it without syncing the

@@ -1,4 +1,5 @@
 use lb_rs::io::network::ApiError;
+use lb_rs::io::server::Server;
 use lb_rs::model::api::*;
 use lb_rs::model::crypto::AESEncrypted;
 use lb_rs::model::file_metadata::FileDiff;
@@ -20,10 +21,13 @@ async fn change_document_content() {
         .clone();
 
     // create document
-    core.client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] })
-        .await
-        .unwrap();
+    Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] },
+    )
+    .await
+    .unwrap();
 
     let doc1 = doc;
     let mut doc2 = doc1.clone();
@@ -33,16 +37,16 @@ async fn change_document_content() {
 
     let diff = FileDiff::edit(doc1, doc2);
     // change document content
-    core.client
-        .request(
-            account,
-            ChangeDocRequestV2 {
-                diff,
-                new_content: AESEncrypted { value: vec![], nonce: vec![], _t: Default::default() },
-            },
-        )
-        .await
-        .unwrap();
+    Server::change_doc_v2(
+        &core.client,
+        account,
+        ChangeDocRequestV2 {
+            diff,
+            new_content: AESEncrypted { value: vec![], nonce: vec![], _t: Default::default() },
+        },
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]
@@ -60,10 +64,13 @@ async fn change_document_content_not_found() {
         .clone();
 
     // create document
-    core.client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] })
-        .await
-        .unwrap();
+    Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] },
+    )
+    .await
+    .unwrap();
 
     doc.timestamped_value.value.set_id(Uuid::new_v4());
     let doc1 = doc;
@@ -74,16 +81,15 @@ async fn change_document_content_not_found() {
 
     let diff = FileDiff::edit(doc1, doc2);
     // change document content
-    let res = core
-        .client
-        .request(
-            account,
-            ChangeDocRequestV2 {
-                diff,
-                new_content: AESEncrypted { value: vec![], nonce: vec![], _t: Default::default() },
-            },
-        )
-        .await;
+    let res = Server::change_doc_v2(
+        &core.client,
+        account,
+        ChangeDocRequestV2 {
+            diff,
+            new_content: AESEncrypted { value: vec![], nonce: vec![], _t: Default::default() },
+        },
+    )
+    .await;
     assert_matches!(
         res,
         Err(ApiError::<ChangeDocError>::Endpoint(ChangeDocError::DocumentNotFound))

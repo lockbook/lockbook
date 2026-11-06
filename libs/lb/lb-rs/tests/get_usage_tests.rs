@@ -1,5 +1,3 @@
-use lb_rs::Lb;
-use lb_rs::io::docs::AsyncDocs;
 use lb_rs::model::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
@@ -37,7 +35,7 @@ async fn report_usage() {
         .unwrap()
         .document_hmac()
         .cloned();
-    let docs = AsyncDocs::from(&core.config);
+    let docs = &core.docs;
     let local_encrypted = docs.get(file.id, hmac).await.unwrap().value;
 
     assert_eq!(core.get_usage().await.unwrap().usages.len(), 2);
@@ -129,7 +127,7 @@ async fn usage_go_back_down_after_delete_folder() {
         .document_hmac()
         .cloned();
 
-    let docs = AsyncDocs::from(&core.config);
+    let docs = &core.docs;
     docs.get(file.id, hmac).await.unwrap();
 
     let usage = core
@@ -225,7 +223,7 @@ async fn upsert_meta_over_data_cap() {
             .document_hmac()
             .cloned()
     };
-    let docs = AsyncDocs::from(&core.config);
+    let docs = &core.docs;
     let local_encrypted = docs.get(document.id, hmac).await.unwrap().value;
 
     let file_capacity =

@@ -1,3 +1,4 @@
+use lb_rs::io::server::Server;
 use lb_rs::model::api::*;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileDiff;
@@ -17,10 +18,13 @@ async fn rename_document() {
         .get(&doc)
         .unwrap()
         .clone();
-    core.client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] })
-        .await
-        .unwrap();
+    Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] },
+    )
+    .await
+    .unwrap();
 
     let old = doc.clone();
     core.rename_file(doc.id(), &random_name()).await.unwrap();
@@ -33,8 +37,11 @@ async fn rename_document() {
         .unwrap()
         .clone();
 
-    core.client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(old, new)] })
-        .await
-        .unwrap();
+    Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::edit(old, new)] },
+    )
+    .await
+    .unwrap();
 }

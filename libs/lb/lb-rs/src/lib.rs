@@ -30,19 +30,24 @@ pub mod subscribers;
 pub mod wasm;
 
 #[derive(Clone)]
-pub struct Lb {
+pub struct Lb<S = Network> {
     pub config: Config,
     pub user_last_seen: Arc<RwLock<Instant>>,
     pub user_wake: Arc<Notify>,
     pub keychain: Keychain,
     pub db: LbDb,
     pub docs: AsyncDocs,
-    pub client: Network,
+    pub client: S,
     pub events: EventSubs,
     pub status: StatusUpdater,
     pub syncer: Syncer,
     #[cfg(all(unix, not(target_os = "ios")))]
-    pub(crate) ipc: Arc<Ipc>,
+    /// None for an instance that shares its database with no other process.
+    pub(crate) ipc: Option<Arc<Ipc>>,
+    #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+    /// The file that keeps two instances on one data directory from syncing at once; None for an
+    /// instance with no data directory.
+    pub(crate) sync_lock: Option<std::path::PathBuf>,
 }
 
 impl Lb {
@@ -53,11 +58,56 @@ impl Lb {
         let docs = AsyncDocs::from(&config);
         let db = io::init_with_migration(Path::new(&config.writeable_path))
             .map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
+        #[cfg(all(unix, not(target_os = "ios")))]
+        let ipc = Some(Arc::new(Ipc::new(&db, config.background_work)?));
+        #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+        let sync_lock = Some(Path::new(&config.writeable_path).join("sync.lock"));
+        let client = Network { client_type: config.client_type, ..Network::default() };
+
+        Self::assemble(
+            config,
+            db,
+            docs,
+            client,
+            #[cfg(all(unix, not(target_os = "ios")))]
+            ipc,
+            #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+            sync_lock,
+        )
+        .await
+    }
+}
+
+impl<S: Server> Lb<S> {
+    /// An instance whose database and documents live in memory, shared with no other process,
+    /// that sends every request to `server`. Only logs and panic reports use `config.writeable_path`.
+    pub async fn with_server(config: Config, server: S) -> LbResult<Self> {
+        logging::init(&config)?;
+
+        let db = io::CoreDb::init(&db_rs::config::Config::in_memory())?;
+
+        Self::assemble(
+            config,
+            db,
+            AsyncDocs::in_memory(),
+            server,
+            #[cfg(all(unix, not(target_os = "ios")))]
+            None,
+            #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+            None,
+        )
+        .await
+    }
+
+    async fn assemble(
+        config: Config, db: io::CoreDb, docs: AsyncDocs, client: S,
+        #[cfg(all(unix, not(target_os = "ios")))] ipc: Option<Arc<Ipc>>,
+        #[cfg(not(any(target_family = "wasm", target_os = "ios")))] sync_lock: Option<
+            std::path::PathBuf,
+        >,
+    ) -> LbResult<Self> {
         let keychain = Keychain::from(db.schema.account.as_ref());
         let db = Arc::new(RwLock::new(db));
-        #[cfg(all(unix, not(target_os = "ios")))]
-        let ipc = Arc::new(Ipc::new(&*db.read().await, config.background_work)?);
-        let client = Network { client_type: config.client_type, ..Network::default() };
 
         let status = StatusUpdater::default();
         let syncer = Default::default();
@@ -78,6 +128,8 @@ impl Lb {
             user_wake,
             #[cfg(all(unix, not(target_os = "ios")))]
             ipc,
+            #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+            sync_lock,
         };
 
         #[cfg(all(unix, not(target_os = "ios")))]
@@ -109,9 +161,11 @@ use crate::subscribers::ipc::Ipc;
 use crate::subscribers::syncer::Syncer;
 
 use crate::service::logging;
+use db_rs::View;
 use io::LbDb;
 use io::docs::AsyncDocs;
 use io::network::Network;
+use io::server::Server;
 use model::core_config::Config;
 pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;

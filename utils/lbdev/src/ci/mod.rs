@@ -22,6 +22,12 @@ pub fn clippy() -> CliResult<()> {
     Command::new("cargo")
         .args(["clippy", "--all-targets", "--", "-D", "warnings"])
         .current_dir(root())
+        .assert_success()?;
+
+    Command::new("cargo")
+        .args(["clippy", "-p", "lb-rs", "--tests", "--features", "in-process-tests"])
+        .args(["--", "-D", "warnings"])
+        .current_dir(root())
         .assert_success()
 }
 
@@ -60,6 +66,11 @@ pub fn run_rust_tests() -> CliResult<()> {
 
     Command::new("cargo")
         .args(["test", "--workspace"])
+        .current_dir(root())
+        .assert_success()?;
+
+    Command::new("cargo")
+        .args(["test", "-p", "lb-rs", "--features", "in-process-tests"])
         .current_dir(root())
         .assert_success()
 }

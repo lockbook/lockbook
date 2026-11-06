@@ -1,4 +1,3 @@
-use lb_rs::Lb;
 use test_utils::*;
 
 /// Tests that operate on one device and sync (work should be none, deleted files should be pruned)
