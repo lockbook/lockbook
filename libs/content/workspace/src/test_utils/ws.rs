@@ -91,6 +91,17 @@ impl TestWs {
         out.unwrap()
     }
 
+    /// Frames until no load or save of `id` is pending.
+    pub fn idle(&mut self, id: Uuid) {
+        let start = Instant::now();
+        self.frame();
+        while self.ws.tasks.busy(id) {
+            assert!(start.elapsed() < Duration::from_secs(10), "{id} never went idle");
+            std::thread::sleep(Duration::from_millis(2));
+            self.frame();
+        }
+    }
+
     /// Frames until the current tab is settled.
     pub fn settle(&mut self) {
         let start = Instant::now();

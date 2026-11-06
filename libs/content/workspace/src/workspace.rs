@@ -2595,3 +2595,56 @@ mod fragment_tests {
         assert_eq!(t.ws.tab_strip[0].fragment, None);
     }
 }
+
+#[cfg(test)]
+mod media_tests {
+    use crate::tab::{ContentState, TabFailure};
+    use crate::test_utils::ws::TestWs;
+
+    /// The start of an mp4: an `ftyp` box, then bytes that aren't UTF-8.
+    fn video() -> Vec<u8> {
+        let mut bytes = b"\0\0\0\x20ftypisom\0\0\x02\0isomiso2avc1mp41".to_vec();
+        bytes.extend((0..64 * 1024).map(|i: u32| (i.wrapping_mul(2654435761) >> 24) as u8));
+        bytes
+    }
+
+    /// An import creates an empty file before it writes the video. A tab
+    /// opened in between shows the empty file as text, and the video
+    /// landing later must not enter that editor, where a keystroke would
+    /// save the editor's text over it (#4679).
+    #[test]
+    fn video_landing_in_an_open_empty_file_stays_intact() {
+        let mut t = TestWs::new();
+        let id = t.doc("clip.mp4", "");
+        t.ws.open_file(id, true, false);
+        t.settle();
+        assert!(t.ws.current_tab().unwrap().markdown().is_some());
+
+        let video = video();
+        t.ws.core.write_document(id, &video).unwrap();
+        t.idle(id);
+        t.frame_with(vec![egui::Event::Text("a".into())]);
+        t.ws.save_all_tabs();
+        t.idle(id);
+
+        assert!(t.ws.core.read_document(id, false).unwrap() == video, "video was overwritten");
+        assert!(t.ws.current_tab().unwrap().markdown().is_none());
+    }
+
+    /// A note that grows too large while open is refused, as it would be
+    /// on opening, rather than reloaded into the editor.
+    #[test]
+    fn note_growing_too_large_while_open_is_refused() {
+        let mut t = TestWs::new();
+        let id = t.doc("a.md", "short\n");
+        t.ws.open_file(id, true, false);
+        t.settle();
+
+        let big = "word ".repeat(250_000) + "\n";
+        t.ws.core.write_document(id, big.as_bytes()).unwrap();
+        t.idle(id);
+
+        let content = &t.ws.current_tab().unwrap().content;
+        assert!(matches!(content, ContentState::Failed(TabFailure::Refused(_))));
+    }
+}
