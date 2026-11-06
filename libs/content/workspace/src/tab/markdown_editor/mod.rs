@@ -1916,7 +1916,11 @@ impl Editor {
         self.initialized = true;
         resp.user_scrolled = std::mem::take(&mut self.user_scrolled);
         self.moved_unpainted |= std::mem::take(&mut self.edit.moved_after_paint);
-        // a touch on an embed is the embed's
+        // a touch on an embedded tab's own target (a link) is the tab's
+        let inner = self.edit.renderer.tab_embeds.inner_targets();
+        let inner = inner.into_iter().map(|rect| (rect, TouchTarget::Popup));
+        self.edit.renderer.touch_targets.splice(0..0, inner);
+        // a touch elsewhere on an embed is the embed's
         for rect in self.edit.renderer.tab_embeds.rects() {
             self.edit
                 .renderer
