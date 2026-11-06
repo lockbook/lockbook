@@ -22,6 +22,7 @@ pub struct LbFile {
     pub typ: LbFileType,
     pub lastmod_by: *mut c_char,
     pub lastmod: u64,
+    pub owner: *mut c_char,
     pub shares: LbShareList,
 }
 
@@ -112,6 +113,7 @@ impl From<File> for LbFile {
             typ: value.file_type.into(),
             lastmod_by: cstring(value.last_modified_by),
             lastmod: value.last_modified,
+            owner: cstring(value.owner),
             shares: value.shares.into(),
         }
     }
@@ -126,6 +128,7 @@ impl Default for LbFile {
             typ: Default::default(),
             lastmod_by: ptr::null_mut(),
             lastmod: Default::default(),
+            owner: ptr::null_mut(),
             shares: Default::default(),
         }
     }
