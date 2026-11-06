@@ -1,4 +1,5 @@
 use lb_rs::experiments::{WelcomeDoc, cohort};
+use lb_rs::io::server::Server;
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::model::api::*;
 use lb_rs::model::errors::LbErrKind;
@@ -39,6 +40,7 @@ async fn create_account_success_with_fragmented_archetypes() {
     core.get_by_path("samples/drawing.svg").await.unwrap();
 }
 
+#[cfg(not(feature = "in-process-tests"))] // an in-process server has no URL
 #[tokio::test]
 async fn create_account_invalid_url() {
     let core = test_core().await;
@@ -48,6 +50,7 @@ async fn create_account_invalid_url() {
     assert!(matches!(result.unwrap_err().kind, LbErrKind::ServerUnreachable))
 }
 
+#[cfg(not(feature = "in-process-tests"))] // an in-process server has no URL
 #[tokio::test]
 async fn create_account_invalid_url_with_welcome() {
     let core = test_core().await;
@@ -241,11 +244,13 @@ async fn delete_account_then_request() {
 
     core.delete_account().await.unwrap();
 
-    let result = core
-        .client
-        .request(account, GetUpdatesRequestV2 { since_metadata_version: 0 })
-        .await
-        .unwrap();
+    let result = Server::get_updates_v2(
+        &core.client,
+        account,
+        GetUpdatesRequestV2 { since_metadata_version: 0 },
+    )
+    .await
+    .unwrap();
 
     assert!(result.file_metadata.is_empty());
 }

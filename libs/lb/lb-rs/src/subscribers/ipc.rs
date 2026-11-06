@@ -1,3 +1,4 @@
+use crate::io::server::Server;
 use std::fs::{self, DirBuilder};
 use std::io::{self, ErrorKind};
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt};
@@ -95,12 +96,15 @@ impl Drop for Ipc {
     }
 }
 
-impl Lb {
+impl<S: Server> Lb<S> {
     pub(crate) async fn setup_ipc(&self) -> LbResult<()> {
         if !self.config.background_work {
             return Ok(());
         }
-        let socket = AsyncUnixDatagram::from_std(self.ipc.socket.try_clone()?)?;
+        let Some(ipc) = &self.ipc else {
+            return Ok(());
+        };
+        let socket = AsyncUnixDatagram::from_std(ipc.socket.try_clone()?)?;
 
         // The socket is registered before catching up, so startup cannot miss a commit.
         self.catch_up_from_ipc().await?;

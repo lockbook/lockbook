@@ -1,4 +1,6 @@
 #![cfg(not(target_family = "wasm"))]
+// Shares a data directory between clients, which an in-memory client has none of.
+#![cfg(not(feature = "in-process-tests"))]
 
 use lb_rs::Lb;
 use lb_rs::model::errors::LbErrKind;

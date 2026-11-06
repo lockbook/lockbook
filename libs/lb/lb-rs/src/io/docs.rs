@@ -5,8 +5,9 @@ use crate::model::{
     file_metadata::DocumentHmac,
 };
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 use uuid::Uuid;
 
@@ -23,15 +24,39 @@ use {
 #[derive(Clone)]
 pub struct AsyncDocs {
     location: PathBuf,
+    /// Set for an instance that never touches disk; `location` is unused.
+    memory: Option<Arc<Mutex<MemDocs>>>,
+}
+
+#[derive(Default)]
+#[cfg_attr(target_family = "wasm", allow(dead_code))]
+struct MemDocs {
+    docs: HashMap<(Uuid, DocumentHmac), EncryptedDocument>,
+}
+
+impl AsyncDocs {
+    pub fn in_memory() -> Self {
+        Self { location: PathBuf::new(), memory: Some(Default::default()) }
+    }
+
+    #[cfg_attr(target_family = "wasm", allow(dead_code))]
+    fn mem(&self) -> Option<std::sync::MutexGuard<'_, MemDocs>> {
+        self.memory.as_ref().map(|m| m.lock().unwrap())
+    }
 }
 
 /// A document written beside its final path, made readable by [AsyncDocs::promote_pending].
-/// Each write gets its own pending path, so writers of the same id and hmac never share one.
+/// Each write gets its own pending path, so writers of the same id and hmac never share one;
+/// in memory the handle holds the document itself.
 pub struct PendingDocument {
     #[cfg(not(target_family = "wasm"))]
-    path: String,
-    #[cfg(not(target_family = "wasm"))]
-    final_path: String,
+    pending: Pending,
+}
+
+#[cfg(not(target_family = "wasm"))]
+enum Pending {
+    File { path: String, final_path: String },
+    Memory { key: (Uuid, DocumentHmac), document: EncryptedDocument },
 }
 
 #[cfg(target_family = "wasm")]
@@ -90,6 +115,10 @@ impl AsyncDocs {
     pub async fn insert_pending(
         &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
     ) -> LbResult<PendingDocument> {
+        if self.memory.is_some() {
+            let pending = Pending::Memory { key: (id, hmac), document: document.clone() };
+            return Ok(PendingDocument { pending });
+        }
         let value = &bincode::serialize(document).map_unexpected()?;
         let path_str = pending_path(&self.location, id, hmac);
         let path = Path::new(&path_str);
@@ -102,15 +131,27 @@ impl AsyncDocs {
             .open(path)
             .await?;
         f.write_all(value).await?;
-        Ok(PendingDocument { path: path_str, final_path: key_path(&self.location, id, hmac) })
+        let final_path = key_path(&self.location, id, hmac);
+        Ok(PendingDocument { pending: Pending::File { path: path_str, final_path } })
     }
 
     pub async fn promote_pending(&self, pending: PendingDocument) -> LbResult<()> {
-        Ok(fs::rename(&pending.path, &pending.final_path).await?)
+        match pending.pending {
+            Pending::File { path, final_path } => Ok(fs::rename(&path, &final_path).await?),
+            Pending::Memory { key, document } => {
+                if let Some(mut mem) = self.mem() {
+                    mem.docs.insert(key, document);
+                }
+                Ok(())
+            }
+        }
     }
 
     pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> bool {
         if let Some(hmac) = hmac {
+            if let Some(mem) = self.mem() {
+                return mem.docs.contains_key(&(id, hmac));
+            }
             let path_str = key_path(&self.location, id, hmac);
             let path = Path::new(&path_str);
             path.exists()
@@ -129,6 +170,9 @@ impl AsyncDocs {
         &self, id: Uuid, hmac: Option<DocumentHmac>,
     ) -> LbResult<Option<EncryptedDocument>> {
         if let Some(hmac) = hmac {
+            if let Some(mem) = self.mem() {
+                return Ok(mem.docs.get(&(id, hmac)).cloned());
+            }
             let path_str = key_path(&self.location, id, hmac);
             let path = Path::new(&path_str);
             trace!("read\t{}", &path_str);
@@ -156,6 +200,10 @@ impl AsyncDocs {
     pub async fn maybe_size(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<Option<u64>> {
         match hmac {
             Some(hmac) => {
+                if let Some(mem) = self.mem() {
+                    let doc = mem.docs.get(&(id, hmac));
+                    return Ok(doc.map(|d| bincode::serialized_size(d).unwrap_or_default()));
+                }
                 let path_str = key_path(&self.location, id, hmac);
                 let path = Path::new(&path_str);
                 Ok(path.metadata().ok().map(|meta| meta.len()))
@@ -166,6 +214,10 @@ impl AsyncDocs {
 
     pub async fn delete(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<()> {
         if let Some(hmac) = hmac {
+            if let Some(mut mem) = self.mem() {
+                mem.docs.remove(&(id, hmac));
+                return Ok(());
+            }
             let path_str = key_path(&self.location, id, hmac);
             let path = Path::new(&path_str);
             trace!("delete\t{}", &path_str);
@@ -178,6 +230,10 @@ impl AsyncDocs {
     }
 
     pub(crate) async fn retain(&self, file_hmacs: HashSet<(Uuid, [u8; 32])>) -> LbResult<()> {
+        if let Some(mut mem) = self.mem() {
+            mem.docs.retain(|key, _| file_hmacs.contains(key));
+            return Ok(());
+        }
         let dir_path = namespace_path(&self.location);
         fs::create_dir_all(&dir_path).await?;
         let mut entries = fs::read_dir(&dir_path).await?;
@@ -229,6 +285,6 @@ fn pending_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String 
 
 impl From<&Config> for AsyncDocs {
     fn from(cfg: &Config) -> Self {
-        Self { location: PathBuf::from(&cfg.writeable_path) }
+        Self { location: PathBuf::from(&cfg.writeable_path), memory: None }
     }
 }

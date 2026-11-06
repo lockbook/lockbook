@@ -161,6 +161,7 @@ async fn insert_delete() {
     assert_eq!(result, None);
 }
 
+#[cfg(not(feature = "in-process-tests"))] // writes into the documents directory
 #[tokio::test]
 async fn sync_ignores_foreign_files_in_documents_dir() {
     let core = test_utils::test_core_with_account().await;

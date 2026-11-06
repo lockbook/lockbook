@@ -1,3 +1,6 @@
+// Reads the CLI's own data directory through `Lb::init`.
+#![cfg(not(feature = "in-process-tests"))]
+
 use lb_rs::Lb;
 use lb_rs::model::core_config::Config;
 use lb_rs::service::debug::DebugInfoDisplay;

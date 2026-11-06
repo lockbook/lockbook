@@ -84,7 +84,7 @@ impl EventSubs {
     }
 }
 
-impl Lb {
+impl<S> Lb<S> {
     pub(crate) async fn notify_catch_up(&self, db: &CoreV5, previous_seq: u64) {
         if db.account.last_modified() > previous_seq && self.get_account().is_err() {
             if let Some(account) = db.account.as_ref() {

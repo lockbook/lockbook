@@ -1,4 +1,5 @@
-use lb_rs::io::network::{ApiError, Network};
+use lb_rs::io::network::ApiError;
+use lb_rs::io::server::Server;
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::model::api::*;
 use lb_rs::model::meta::Meta;
@@ -14,9 +15,8 @@ async fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<
         .unwrap()
         .sign_with(account)
         .unwrap();
-    Network::default()
-        .request(account, NewAccountRequestV2::new(account, &root))
-        .await
+    let client = test_core().await.client;
+    Server::new_account_v2(&client, account, NewAccountRequestV2::new(account, &root)).await
 }
 
 #[tokio::test]

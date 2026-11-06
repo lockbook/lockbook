@@ -1,3 +1,4 @@
+use crate::io::server::Server;
 use basic_human_duration::ChronoHumanDuration;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -122,7 +123,7 @@ impl Status {
     }
 }
 
-impl Lb {
+impl<S: Server> Lb<S> {
     pub async fn status(&self) -> Status {
         self.status.current_status.read().await.clone()
     }
