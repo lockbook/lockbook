@@ -1429,9 +1429,10 @@ impl Workspace {
                     drop(files);
                     tab.read_only = read_only || is_preview;
 
-                    // a reload keeps the open editor and its unsaved edits, so it isn't refused
+                    // a reload keeps the open editor and its unsaved edits;
+                    // bytes the open path would refuse reopen the tab instead
                     let reloaded = !tab_created
-                        && content_reloads(&tab.content, &file.name)
+                        && content_reloads(&tab.content, &file.name, &bytes, &res.guard, id)
                         && match &mut tab.content {
                             ContentState::Open(content) => content.reload(hmac, &bytes),
                             _ => false,
@@ -2077,20 +2078,27 @@ fn open_content(
     }
 }
 
-/// Whether `content` takes a newer version of a file now named `name` in
-/// place: it's still the kind that name opens, whatever its extension.
-fn content_reloads(content: &ContentState, name: &str) -> bool {
+/// Whether `content` takes `bytes`, a newer version of file `id` now named
+/// `name`, in place: the same editor would open them, whatever the extension.
+fn content_reloads(
+    content: &ContentState, name: &str, bytes: &[u8], guard: &OpenGuard, id: Uuid,
+) -> bool {
     let doc_type = DocType::from_name(name);
     match content {
         // a drawing shown as source stays text until the choice flips
-        ContentState::Open(TabContent::Markdown(_)) => matches!(
-            doc_type,
-            DocType::PlainText
-                | DocType::Markdown
-                | DocType::Code
-                | DocType::Unknown
-                | DocType::SVG
-        ),
+        ContentState::Open(TabContent::Markdown(_)) => {
+            matches!(
+                doc_type,
+                DocType::PlainText
+                    | DocType::Markdown
+                    | DocType::Code
+                    | DocType::Unknown
+                    | DocType::SVG
+            ) && crate::tab::open::is_text(bytes)
+                && guard
+                    .refusal(id, bytes, Some(doc_type == DocType::Markdown))
+                    .is_none()
+        }
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         #[cfg(not(target_family = "wasm"))]
         ContentState::Open(TabContent::Chat(_)) => doc_type == DocType::Chat,
