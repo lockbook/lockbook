@@ -474,6 +474,7 @@ impl MdEdit {
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
         self.renderer.misspelled.clear();
+        self.renderer.diagram_errors.clear();
         self.renderer.clear_row_scroll_frame();
         self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));

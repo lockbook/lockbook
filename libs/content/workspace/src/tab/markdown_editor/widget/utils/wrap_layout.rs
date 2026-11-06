@@ -1921,8 +1921,14 @@ impl MdRender {
             let [r, g, b, a] = c.to_array();
             glyphon::Color::rgba(r, g, b, a)
         };
-        let misspelled = self.misspelled_words(&layout.prose);
+        let mut misspelled = self.misspelled_words(&layout.prose);
         self.misspelled.extend_from_slice(&misspelled);
+        let unit = layout.source_range;
+        let errors = self
+            .diagram_errors
+            .iter()
+            .filter(|e| e.intersects(&unit, false));
+        misspelled.extend(errors);
 
         for row_idx in 0..layout.rows.len() {
             let row = &layout.rows[row_idx];

@@ -191,6 +191,8 @@ impl<'ast> MdRender {
                 rows.push(CodeRow { line, top: y - layout.height, layout, scrolls: true });
             }
         }
+        self.diagram_errors
+            .extend(self.diagram_error(node, node_code_block));
         self.show_code_rows(ui, node, rect, rows);
         self.show_diagram_preview(ui, node, rect.left_bottom(), node_code_block);
     }

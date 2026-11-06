@@ -150,6 +150,8 @@ pub struct MdRender {
     pub scroll_bounds: Option<(scroll_content::DocRowId, scroll_content::DocRowId)>,
     /// Words marked misspelled this frame, in source order of their units.
     pub misspelled: Vec<(Grapheme, Grapheme)>,
+    /// Where revealed diagrams' errors point this frame, marked as misspellings are.
+    pub diagram_errors: Vec<(Grapheme, Grapheme)>,
     /// Edge fades of scrolled tables, code blocks, and diagrams `(rect,
     /// left color, right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
@@ -729,6 +731,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             misspelled: Default::default(),
+            diagram_errors: Default::default(),
             edge_fades: Default::default(),
             scroll_bounds: None,
             over_text: Default::default(),
@@ -840,6 +843,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             misspelled: Default::default(),
+            diagram_errors: Default::default(),
             edge_fades: Default::default(),
             scroll_bounds: None,
             over_text: Default::default(),
@@ -1063,6 +1067,7 @@ impl Editor {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             misspelled: Default::default(),
+            diagram_errors: Default::default(),
             edge_fades: Default::default(),
             scroll_bounds: None,
             over_text: Default::default(),
@@ -2093,6 +2098,7 @@ impl Editor {
                         self.edit.renderer.text_areas.clear();
                         self.edit.renderer.deco_lines.clear();
                         self.edit.renderer.misspelled.clear();
+                        self.edit.renderer.diagram_errors.clear();
                         self.edit.renderer.clear_row_scroll_frame();
 
                         // Phase 1: drive scroll math + scrollbar, and
