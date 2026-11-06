@@ -11,14 +11,16 @@ use lb_rs::service::documents::compress_encrypt_document;
 use test_utils::*;
 
 mod over_http {
-    use lb_rs::io::network::Network;
+    use lb_rs::io::network::{ApiError, Network};
     use lb_rs::io::server::Server;
-    use lb_rs::model::api::GetDocUpdatesRequest;
+    use lb_rs::model::api::{GetDocUpdatesRequest, GetUpdatesError, GetUpdatesRequestV2};
     use lb_rs::model::clock::{Timestamp, get_time};
+    use test_utils::assert_matches;
     use test_utils::http::{Lb, test_core_from, test_core_with_account};
     use uuid::Uuid;
 
     static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(get_time().0 - 3600000);
+    static OLD_VERSION: fn() -> &'static str = || "26.10.30";
 
     async fn learn_remote_head(core: &Lb, id: Uuid) {
         let account = core.get_account().unwrap();
@@ -85,6 +87,29 @@ mod over_http {
         let merged = b"line a offline\nline b remote\n";
         assert_eq!(c1.read_document(doc.id, false).await.unwrap(), merged);
         assert_eq!(c2.read_document(doc.id, false).await.unwrap(), merged);
+    }
+
+    #[tokio::test]
+    async fn old_clients_are_asked_to_update_once_v3_metadata_exists() {
+        if test_utils::without_server() {
+            return;
+        }
+        let core = test_core_with_account().await;
+        let account = core.get_account().unwrap();
+
+        let old = Network { get_code_version: OLD_VERSION, ..Default::default() };
+        let result = old
+            .request(account, GetUpdatesRequestV2 { since_metadata_version: 0 })
+            .await;
+        assert_matches!(result, Err(ApiError::<GetUpdatesError>::ClientUpdateRequired));
+
+        Server::get_updates_v2(
+            &core.client,
+            account,
+            GetUpdatesRequestV2 { since_metadata_version: 0 },
+        )
+        .await
+        .unwrap();
     }
 }
 

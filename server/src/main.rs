@@ -4,7 +4,7 @@ use app_links::app_link_routes;
 use db_rs::View;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
-use lockbook_server_lib::document_service::OnDiskDocuments;
+use lockbook_server_lib::document_service::{DocumentService, OnDiskDocuments};
 use lockbook_server_lib::router_service::{
     app_store_notification_webhooks, build_info, core_routes, get_metrics,
     google_play_notification_webhooks, stripe_webhooks,
@@ -29,12 +29,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app_store_client = reqwest::Client::new();
     let discord_client = reqwest::Client::new();
 
-    let index_db = schema::init_with_migration(Path::new(&cfg.index_db.db_location))
+    let document_service = OnDiskDocuments::from(&config);
+
+    let mut index_db = schema::init_with_migration(Path::new(&cfg.index_db.db_location))
         .expect("Failed to load index_db");
+    schema::migrate_doc_info(&mut index_db, |key| {
+        std::fs::metadata(document_service.get_path(key))
+            .ok()
+            .map(|meta| meta.len())
+    })
+    .expect("Failed to migrate document info");
     let index_db = Arc::new(Mutex::new(index_db));
     spawn_compacter(&cfg, &index_db);
-
-    let document_service = OnDiskDocuments::from(&config);
 
     let server_state = Arc::new(ServerState {
         config,

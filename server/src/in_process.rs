@@ -97,6 +97,7 @@ fn in_process_config() -> Config {
             ssl_cert_location: None,
             ssl_private_key_location: None,
             min_core_version: semver::VersionReq::STAR,
+            meta_v3_min_core_version: semver::VersionReq::STAR,
         },
         index_db: IndexDbConf { db_location: none(), time_between_compacts: Duration::ZERO },
         files: FilesConfig { path: PathBuf::new() },
@@ -178,12 +179,18 @@ impl DocumentService for InMemDocuments {
 }
 
 fn context<T>(account: &Account, request: T) -> RequestContext<T> {
-    RequestContext { request, public_key: account.public_key(), ip: None }
+    RequestContext {
+        request,
+        public_key: account.public_key(),
+        ip: None,
+        client_version: semver::Version::parse(lb_rs::get_code_version()).ok(),
+    }
 }
 
 fn api_error<E: Debug>(err: ServerError<E>) -> ApiError<E> {
     match err {
         ServerError::ClientError(e) => ApiError::Endpoint(e),
+        ServerError::ClientUpdateRequired => ApiError::ClientUpdateRequired,
         ServerError::InternalError(e) => {
             tracing::error!("internal: {e}");
             ApiError::InternalError

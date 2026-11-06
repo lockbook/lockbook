@@ -11,7 +11,8 @@ use db_rs::views::{
 };
 use db_rs_old::{Config as OldConfig, Db};
 use lb_rs::io::MigrationResult;
-use lb_rs::model::doc_info::{BlobKey, DocInfo};
+use lb_rs::model::doc_info::{BlobKey, DocInfo, DocVersion, Storage, VersionKind};
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{DocumentHmac, Owner};
 use lb_rs::model::server_meta::ServerMeta;
 use lb_rs::service::debug::DebugInfo;
@@ -104,11 +105,69 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<ServerDb> {
     if let Some(bytes) = db.log_mut().take_incomplete_write() {
         tracing::error!(bytes, "discarded an incomplete database write");
     }
+    migrate_server_v5(path, &mut db)?;
+    Ok(db)
+}
+
+pub fn migrate_doc_info(
+    db: &mut ServerDb, blob_size: impl Fn(&BlobKey) -> Option<u64>,
+) -> MigrationResult<()> {
+    let tx = db.write_tx()?;
+    let schema = &mut db.schema;
+
+    let mut infos = Vec::new();
+    for (id, meta) in schema.metas.iter() {
+        if schema.doc_info.contains_key(id) || meta.explicitly_deleted() {
+            continue;
+        }
+        let Some(hmac) = meta.document_hmac() else {
+            continue;
+        };
+        let compressed_size = match meta.doc_size() {
+            Some(size) => Some(size as u64),
+            None => blob_size(&BlobKey::Legacy { id: *id, hmac: *hmac }),
+        };
+        let version = DocVersion {
+            hmac: *hmac,
+            kind: VersionKind::Snapshot,
+            storage: Storage::Legacy,
+            compressed_size: compressed_size.unwrap_or_default(),
+            uncompressed_size: None,
+            content_size: None,
+            author: Owner(meta.file.public_key),
+            timestamp: meta.version,
+        };
+        infos.push((
+            *id,
+            DocInfo { versions: vec![version], retired: vec![], updated_at: meta.version },
+        ));
+    }
+    for (id, info) in infos {
+        schema.doc_info.insert(id, info)?;
+    }
+
+    let scheduled: Vec<((Uuid, DocumentHmac), i64)> = schema
+        .scheduled_file_cleanups
+        .iter()
+        .map(|(key, time)| (*key, *time))
+        .collect();
+    for ((id, hmac), time) in scheduled {
+        schema
+            .scheduled_blob_cleanups
+            .insert(BlobKey::Legacy { id, hmac }, time)?;
+        schema.scheduled_file_cleanups.remove(&(id, hmac))?;
+    }
+
+    tx.end_tx(db)?;
+    Ok(())
+}
+
+fn migrate_server_v5(path: &Path, db: &mut ServerDb) -> MigrationResult<()> {
     let old_path = path.join("ServerV5.db");
 
     if db.schema.accounts.is_empty() {
         if !old_path.try_exists()? && !path.join("ServerV5").try_exists()? {
-            return Ok(db);
+            return Ok(());
         }
         let source = ServerV5::init(OldConfig {
             create_db: false,
@@ -174,9 +233,9 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<ServerDb> {
                 dest.debug_info.insert(*key, *inner_key, value.clone())?;
             }
         }
-        tx.end_tx(&mut db)?;
+        tx.end_tx(db)?;
         drop(source);
         fs::remove_file(old_path)?;
     }
-    Ok(db)
+    Ok(())
 }

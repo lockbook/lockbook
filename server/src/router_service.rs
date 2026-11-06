@@ -138,6 +138,9 @@ macro_rules! core_req {
                             .with_label_values(&[<$Req>::ROUTE])
                             .start_timer();
 
+                        let client_version = version
+                            .as_deref()
+                            .and_then(|version| semver::Version::parse(version).ok());
                         let request: RequestWrapper<$Req> = match deserialize_and_check(
                             &state.config,
                             request,
@@ -200,6 +203,7 @@ macro_rules! core_req {
                             request: request.signed_request.timestamped_value.value,
                             public_key: request.signed_request.public_key,
                             ip,
+                            client_version,
                         };
 
                         async move {
@@ -214,6 +218,11 @@ macro_rules! core_req {
                                     status = warp::http::StatusCode::BAD_REQUEST;
                                     level = tracing::Level::WARN;
                                     Err(ErrorWrapper::Endpoint(e))
+                                }
+                                Err(ServerError::ClientUpdateRequired) => {
+                                    status = warp::http::StatusCode::BAD_REQUEST;
+                                    level = tracing::Level::WARN;
+                                    Err(ErrorWrapper::ClientUpdateRequired)
                                 }
                                 Err(ServerError::InternalError(e)) => {
                                     status = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
@@ -463,7 +472,9 @@ where
                             | ServerError::ClientError(StripeWebhookError::ParseError(_)) => {
                                 StatusCode::BAD_REQUEST
                             }
-                            ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                            ServerError::InternalError(_) | ServerError::ClientUpdateRequired => {
+                                StatusCode::INTERNAL_SERVER_ERROR
+                            }
                         };
 
                         warp::reply::with_status("".to_string(), status_code)
@@ -528,7 +539,10 @@ where
                                 GooglePlayWebhookError::CannotRetrievePublicKey,
                             )
                             | ServerError::ClientError(GooglePlayWebhookError::CannotParseTime)
-                            | ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                            | ServerError::InternalError(_)
+                            | ServerError::ClientUpdateRequired => {
+                                StatusCode::INTERNAL_SERVER_ERROR
+                            }
                         };
 
                         warp::reply::with_status("".to_string(), status_code)
@@ -578,7 +592,9 @@ where
                         ServerError::ClientError(AppStoreNotificationError::InvalidJWS) => {
                             StatusCode::BAD_REQUEST
                         }
-                        ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                        ServerError::InternalError(_) | ServerError::ClientUpdateRequired => {
+                            StatusCode::INTERNAL_SERVER_ERROR
+                        }
                     };
 
                     warp::reply::with_status("".to_string(), status_code)

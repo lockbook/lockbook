@@ -550,15 +550,31 @@ where
         }
         result_ids.extend(tree.tree.reachable(reached));
 
+        let file_metadata: Vec<SignedMeta> = tree
+            .all_files()?
+            .into_iter()
+            .filter(|meta| result_ids.contains(meta.id()))
+            .map(|meta| meta.file.clone())
+            .collect();
+
+        if !self.understands_meta_v3(&context.client_version)
+            && file_metadata
+                .iter()
+                .any(|meta| meta.timestamped_value.value.is_v3())
+        {
+            return Err(ServerError::ClientUpdateRequired);
+        }
+
         Ok(GetUpdatesResponseV2 {
             as_of_metadata_version: self.clock.now().0 as u64,
-            file_metadata: tree
-                .all_files()?
-                .into_iter()
-                .filter(|meta| result_ids.contains(meta.id()))
-                .map(|meta| meta.file.clone())
-                .collect(),
+            file_metadata,
         })
+    }
+
+    pub fn understands_meta_v3(&self, client_version: &Option<semver::Version>) -> bool {
+        client_version
+            .as_ref()
+            .is_some_and(|version| self.config.server.meta_v3_min_core_version.matches(version))
     }
 
     pub async fn admin_disappear_file(
@@ -1038,7 +1054,17 @@ where
             .cloned()
             .collect();
 
-        Ok(AdminFileInfoResponse { file, ancestors, descendants })
+        let response = AdminFileInfoResponse { file, ancestors, descendants };
+        if !self.understands_meta_v3(&context.client_version)
+            && std::iter::once(&response.file)
+                .chain(&response.ancestors)
+                .chain(&response.descendants)
+                .any(|meta| meta.file.timestamped_value.value.is_v3())
+        {
+            return Err(ServerError::ClientUpdateRequired);
+        }
+
+        Ok(response)
     }
 
     pub async fn admin_rebuild_index(

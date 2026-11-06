@@ -214,6 +214,7 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountG
                 ClientError(UpgradeAccountGooglePlayError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
+            ServerError::ClientUpdateRequired => ServerError::ClientUpdateRequired,
         }
     }
 }
@@ -228,6 +229,7 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountA
                 ClientError(UpgradeAccountAppStoreError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
+            ServerError::ClientUpdateRequired => ServerError::ClientUpdateRequired,
         }
     }
 }
@@ -242,6 +244,7 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountS
                 ClientError(UpgradeAccountStripeError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
+            ServerError::ClientUpdateRequired => ServerError::ClientUpdateRequired,
         }
     }
 }
@@ -256,6 +259,7 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<CancelSubscript
                 ClientError(CancelSubscriptionError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
+            ServerError::ClientUpdateRequired => ServerError::ClientUpdateRequired,
         }
     }
 }
@@ -270,6 +274,7 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<AdminSetUserTie
                 ClientError(AdminSetUserTierError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
+            ServerError::ClientUpdateRequired => ServerError::ClientUpdateRequired,
         }
     }
 }
@@ -287,6 +292,7 @@ impl From<ServerError<DeleteAccountHelperError>> for ServerError<DeleteAccountEr
                 ClientError(DeleteAccountError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
+            ServerError::ClientUpdateRequired => ServerError::ClientUpdateRequired,
         }
     }
 }
@@ -298,6 +304,7 @@ impl From<ServerError<DeleteAccountHelperError>> for ServerError<DeleteSubAccoun
                 ClientError(DeleteSubAccountError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
+            ServerError::ClientUpdateRequired => ServerError::ClientUpdateRequired,
         }
     }
 }
@@ -309,6 +316,7 @@ impl From<ServerError<DeleteAccountHelperError>> for ServerError<AdminDisappearA
                 ClientError(AdminDisappearAccountError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
+            ServerError::ClientUpdateRequired => ServerError::ClientUpdateRequired,
         }
     }
 }

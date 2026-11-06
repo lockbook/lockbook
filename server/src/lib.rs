@@ -53,11 +53,13 @@ pub struct RequestContext<TRequest> {
     pub request: TRequest,
     pub public_key: PublicKey,
     pub ip: Option<SocketAddr>,
+    pub client_version: Option<Version>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerError<U: Debug> {
     ClientError(U),
+    ClientUpdateRequired,
     InternalError(String),
 }
 
