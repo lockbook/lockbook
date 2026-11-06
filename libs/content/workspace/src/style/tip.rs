@@ -30,6 +30,13 @@ const OPEN_TIP_HOST: &str = "design_tip_open_host";
 const REACH_EXIT: &str = "design_tip_reach_exit";
 /// The host whose reachable card holds the pointer, and the frame it did.
 const REACH_HELD: &str = "design_tip_reach_held";
+/// Where a reachable card was drawn, and the frame it was.
+const CARD_SHOWN: &str = "design_tip_card_shown";
+/// Where the pointer came to rest, when, and the frame it was last seen there.
+const REST: &str = "design_tip_rest";
+/// A pointer within this many points of where it came to rest is still
+/// resting: a Pencil hovering an upright iPad trembles by several points.
+const REST_SLOP: f32 = 10.0;
 
 /// One-line chrome tip (toolbar, footer).
 pub fn tip_text(ctx: &Context, resp: &Response, text: impl Into<String>) {
@@ -66,7 +73,8 @@ pub fn tip_card_placed(
 /// where the pointer rested so it takes the wheel without standing where
 /// the page scrolls. It stays while the pointer is on the card, inside the
 /// triangle from where it left the host to the card's near edge, or in a
-/// menu the card opened.
+/// menu the card opened, and after a finger lifts from the card, as one does
+/// that comes to tap the card on an iPad.
 pub fn tip_card_reachable(
     ctx: &Context, hit: &Response, place: egui::Rect, max_w: f32, margin: Margin,
     add_contents: impl FnOnce(&mut Ui, f32),
@@ -80,13 +88,23 @@ pub fn tip_card_reachable(
     let open = ctx.data(|d| d.get_temp::<Id>(Id::unique(OPEN_TIP_HOST))) == Some(hit.id);
     let card = ctx.memory(|m| m.area_rect(id));
     let exit = ctx.data(|d| d.get_temp::<Option<Pos2>>(exit_id)).flatten();
+    // where the pointer last was, and whether a finger put it there
+    let last_id = id.with("last");
+    if let Some(p) = pointer {
+        let touch = ctx.input(|i| i.any_touches());
+        ctx.data_mut(|d| d.insert_temp(last_id, (p, touch)));
+    }
+    let last = ctx.data(|d| d.get_temp::<(Pos2, bool)>(last_id));
+    let lifted = pointer.is_none()
+        && last.is_some_and(|(p, touch)| touch && card.is_some_and(|c| c.contains(p)));
     // a scroll on the way to the card puts it away; one on the card scrolls it
     let scrolling = ctx.input(|i| i.smooth_scroll_delta != Vec2::ZERO);
     let held = open
-        && !hit.contains_pointer()
-        && (crate::style::context_menu::is_any_open(ctx)
-            || matches!((pointer, card), (Some(p), Some(c)) if c.contains(p)
-                || !scrolling && exit.is_some_and(|e| in_reach(p, e, c))));
+        && (lifted
+            || !hit.contains_pointer()
+                && (crate::style::context_menu::is_any_open(ctx)
+                    || matches!((pointer, card), (Some(p), Some(c)) if c.contains(p)
+                        || !scrolling && exit.is_some_and(|e| in_reach(p, e, c)))));
     if held {
         let frame = ctx.cumulative_frame_nr();
         ctx.data_mut(|d| d.insert_temp(Id::unique(REACH_HELD), (hit.id, frame)));
@@ -107,6 +125,18 @@ pub fn tip_card_reachable(
     let side = (screen.right() - anchor.x).max(anchor.x - screen.left());
     let width = max_w.min(side - Space::Xs.pts() - margin.sum().x).max(0.0);
     show_area(ctx, hit.id, place, width, margin, Some(anchor), |ui| add_contents(ui, width));
+    if let Some(card) = ctx.memory(|m| m.area_rect(id)) {
+        let frame = ctx.cumulative_frame_nr();
+        ctx.data_mut(|d| d.insert_temp(Id::unique(CARD_SHOWN), (card, frame)));
+    }
+}
+
+/// Where a reachable card is drawn this frame, which takes a touch host's
+/// taps from the page beneath it.
+pub fn card_shown(ctx: &Context) -> Option<egui::Rect> {
+    let now = ctx.cumulative_frame_nr();
+    ctx.data(|d| d.get_temp::<(egui::Rect, u64)>(Id::unique(CARD_SHOWN)))
+        .and_then(|(card, frame)| (frame == now).then_some(card))
 }
 
 /// Puts away whatever tip is open, as a click does.
@@ -163,7 +193,8 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
         end_open_if_host(ctx, resp.id);
         return false;
     }
-    if !ctx.input(|i| i.pointer.has_pointer()) {
+    // a finger or Pencil on the screen is no pointer that hovers
+    if !ctx.input(|i| i.pointer.has_pointer() && !i.any_touches()) {
         end_open_if_host(ctx, resp.id);
         return false;
     }
@@ -172,33 +203,27 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
     let tooltip_delay = style.interaction.tooltip_delay;
     let tooltip_grace_time = style.interaction.tooltip_grace_time;
 
-    let (
-        time_since_last_scroll,
-        time_since_last_click,
-        time_since_last_pointer_movement,
-        pointer_still,
-        smooth_scroll,
-        now,
-        any_click,
-    ) = ctx.input(|i| {
-        (
-            i.time_since_last_scroll(),
-            i.pointer.time_since_last_click(),
-            i.pointer.time_since_last_movement(),
-            i.pointer.is_still(),
-            i.smooth_scroll_delta,
-            i.time,
-            i.pointer.any_click(),
-        )
-    });
+    let (time_since_last_scroll, time_since_last_click, pointer, smooth_scroll, now, any_click) =
+        ctx.input(|i| {
+            (
+                i.time_since_last_scroll(),
+                i.pointer.time_since_last_click(),
+                i.pointer.latest_pos(),
+                i.smooth_scroll_delta,
+                i.time,
+                i.pointer.any_click(),
+            )
+        });
+
+    let time_at_rest = time_at_rest(ctx, pointer, now);
+    let pointer_still = time_at_rest > 0.0;
 
     if any_click || resp.clicked() || resp.secondary_clicked() || resp.middle_clicked() {
         chill_tip_session(ctx);
         return false;
     }
 
-    let clicked_more_recently_than_moved =
-        time_since_last_click < time_since_last_pointer_movement + 0.1;
+    let clicked_more_recently_than_moved = time_since_last_click < time_at_rest + 0.1;
     if clicked_more_recently_than_moved {
         chill_tip_session(ctx);
         return false;
@@ -230,7 +255,7 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
     let in_tip_chain = seconds_since_last_tip < chain_window;
 
     if in_tip_chain {
-        let since_still = time_since_last_pointer_movement.min(time_since_last_scroll);
+        let since_still = time_at_rest.min(time_since_last_scroll);
         let wait = TIP_CHAIN_DWELL_SECS - since_still;
         if wait > 0.0 {
             ctx.request_repaint_after_secs(wait);
@@ -247,7 +272,7 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
     }
 
     let time_since_last_interaction = time_since_last_scroll
-        .min(time_since_last_pointer_movement)
+        .min(time_at_rest)
         .min(time_since_last_click);
     let time_til_tooltip = tooltip_delay - time_since_last_interaction;
     if time_til_tooltip > 0.0 {
@@ -256,6 +281,23 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
     }
 
     true
+}
+
+/// How long the pointer has rested within [`REST_SLOP`] of one point, as
+/// seen over hosts frame after frame.
+fn time_at_rest(ctx: &Context, pointer: Option<Pos2>, now: f64) -> f32 {
+    let Some(pointer) = pointer else { return 0.0 };
+    let frame = ctx.cumulative_frame_nr();
+    let rest = ctx.data(|d| d.get_temp::<(Pos2, f64, u64)>(Id::unique(REST)));
+    let since = match rest {
+        Some((at, since, seen)) if at.distance(pointer) <= REST_SLOP && seen + 1 >= frame => {
+            Some((at, since))
+        }
+        _ => None,
+    };
+    let (at, since) = since.unwrap_or((pointer, now));
+    ctx.data_mut(|d| d.insert_temp(Id::unique(REST), (at, since, frame)));
+    (now - since) as f32
 }
 
 fn end_open_if_host(ctx: &Context, host: Id) {
@@ -411,6 +453,126 @@ mod tests {
         );
         assert!(shown[31..].iter().all(Option::is_some), "{shown:?}");
     }
+    /// One frame of a card on `host` at 0.1 s a frame; whether it showed.
+    fn card_frame(ctx: &Context, frame: usize, host: Rect, events: Vec<Event>) -> bool {
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 400.0))),
+            time: Some(frame as f64 * 0.1),
+            events,
+            ..Default::default()
+        };
+        let mut drawn = false;
+        let mut out = ctx.run_ui(input, |ui| {
+            let resp = ui.interact(host, Id::unique(CARD), Sense::hover());
+            tip_card_reachable(ui.ctx(), &resp, host, 200.0, TIP_MARGIN, |ui, _| {
+                ui.allocate_space(vec2(200.0, 100.0));
+                drawn = true;
+            });
+        });
+        out.textures_delta.clear();
+        drawn
+    }
+
+    fn touch(phase: egui::TouchPhase, pos: Pos2) -> Vec<Event> {
+        let touch = Event::Touch {
+            device_id: egui::TouchDeviceId(0),
+            id: egui::TouchId(0),
+            phase,
+            pos,
+            force: None,
+        };
+        let pressed = phase == egui::TouchPhase::Start;
+        let button = Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        if pressed { vec![touch, button] } else { vec![touch, button, Event::PointerGone] }
+    }
+
+    const CARD: &str = "host";
+
+    fn card_rect(ctx: &Context) -> Rect {
+        ctx.memory(|m| m.area_rect(Id::unique(CARD).with("design_tip")))
+            .unwrap()
+    }
+
+    /// A card stays after a finger taps it, and goes when a finger lands
+    /// elsewhere.
+    #[test]
+    fn card_outlasts_a_tap_on_it() {
+        let ctx = Context::default();
+        ctx.set_lb_theme(Theme::default(Mode::Light));
+        let host = Rect::from_min_size(pos2(150.0, 280.0), vec2(100.0, 20.0));
+        let away = pos2(10.0, 10.0);
+        let mut shown = vec![];
+        for frame in 0..50 {
+            let events = match frame {
+                0 => vec![Event::PointerMoved(host.center())],
+                20 => touch(egui::TouchPhase::Start, card_rect(&ctx).center()),
+                22 => touch(egui::TouchPhase::End, card_rect(&ctx).center()),
+                30 => touch(egui::TouchPhase::Start, away),
+                31 => touch(egui::TouchPhase::End, away),
+                _ => vec![],
+            };
+            shown.push(card_frame(&ctx, frame, host, events));
+        }
+        assert!(shown[15..30].iter().all(|s| *s), "{shown:?}");
+        assert!(!shown[32..].iter().any(|s| *s), "{shown:?}");
+    }
+
+    /// A card goes with a hovering pointer that leaves from on it, as a
+    /// Pencil lifted away does.
+    #[test]
+    fn card_goes_with_a_pointer_that_leaves_it() {
+        let ctx = Context::default();
+        ctx.set_lb_theme(Theme::default(Mode::Light));
+        let host = Rect::from_min_size(pos2(150.0, 280.0), vec2(100.0, 20.0));
+        let mut shown = vec![];
+        for frame in 0..40 {
+            let events = match frame {
+                0 => vec![Event::PointerMoved(host.center())],
+                20 => vec![Event::PointerMoved(card_rect(&ctx).center())],
+                25 => vec![Event::PointerGone],
+                _ => vec![],
+            };
+            shown.push(card_frame(&ctx, frame, host, events));
+        }
+        assert!(shown[15..25].iter().all(|s| *s), "{shown:?}");
+        assert!(!shown[27..].iter().any(|s| *s), "{shown:?}");
+    }
+
+    /// A card opens under a pointer that trembles in place, as a hovering
+    /// Pencil does.
+    #[test]
+    fn card_opens_under_a_trembling_pointer() {
+        let ctx = Context::default();
+        ctx.set_lb_theme(Theme::default(Mode::Light));
+        let host = Rect::from_min_size(pos2(150.0, 280.0), vec2(100.0, 20.0));
+        let shown = (0..30)
+            .map(|frame| {
+                let tremor = vec2([-1.5, 1.5][frame % 2], [1.0, -1.0][frame / 2 % 2]);
+                let events = vec![Event::PointerMoved(host.center() + tremor)];
+                card_frame(&ctx, frame, host, events)
+            })
+            .collect::<Vec<_>>();
+        assert!(shown[20..].iter().all(|s| *s), "{shown:?}");
+    }
+
+    /// A finger held on a host opens no card.
+    #[test]
+    fn touch_opens_no_card() {
+        let ctx = Context::default();
+        ctx.set_lb_theme(Theme::default(Mode::Light));
+        let host = Rect::from_min_size(pos2(150.0, 280.0), vec2(100.0, 20.0));
+        for frame in 0..30 {
+            let events =
+                if frame == 0 { touch(egui::TouchPhase::Start, host.center()) } else { vec![] };
+            assert!(!card_frame(&ctx, frame, host, events), "frame {frame}");
+        }
+    }
+
     /// A card wider than either side of the pointer narrows to stay on the
     /// screen beside it.
     #[test]

@@ -13,6 +13,7 @@ use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
 use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
+use crate::tab::markdown_editor::widget::inline::tab_embed::tab_embed_title;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
@@ -212,11 +213,13 @@ impl<'ast> MdRender {
 
 impl<'ast> MdEdit {
     /// The gesture that *opens* an embed rather than selecting it: a cmd-click
-    /// (desktop). Touch taps always select and pop the context menu, whose
-    /// "Open Link" action opens. Shared by every embed kind.
+    /// (desktop). Touch taps select and pop the context menu, whose "Open
+    /// Link" action opens, except in an editor that never takes focus (an
+    /// embedded note), which has no menu of its own. Shared by every embed kind.
     pub fn embed_tap_opens(&self, ui: &egui::Ui) -> bool {
-        !self.renderer.touch_mode
-            && (self.renderer.readonly || ui.ctx().input(|i| i.modifiers.command))
+        !self.takes_focus
+            || !self.renderer.touch_mode
+                && (self.renderer.readonly || ui.ctx().input(|i| i.modifiers.command))
     }
 
     /// Shared tap handling for one embed fragment (inline image, link card, or
@@ -269,8 +272,9 @@ impl<'ast> MdEdit {
                 true => self.renderer.link_state_for_wikilink(dest),
                 false => self.renderer.link_state_for_url(dest),
             };
-            // a block card already shows everything its preview would
-            let card = !is_image && self.renderer.link_renders_as_card(node);
+            // a block card or a tab embed already shows everything its preview would
+            let card = !is_image
+                && (self.renderer.link_renders_as_card(node) || tab_embed_title(node).is_some());
             let preview = (!is_image && !card).then_some((dest, false, wikilink));
             self.renderer
                 .show_link_tip(ui.ctx(), &response, state, preview);
@@ -372,9 +376,11 @@ impl<'ast> MdEdit {
 
     /// Backspace/forward-delete against a collapsed image selects it rather
     /// than erasing a character of its source; a second press then deletes the
-    /// selection. Mirrors [`Self::delete_at_fold`]'s non-destructive edit. True
-    /// if handled (ops pushed).
-    pub fn delete_at_image(&self, region: Region, operations: &mut Vec<Operation>) -> bool {
+    /// selection. Mirrors [`Self::delete_at_fold`]'s non-destructive edit. A
+    /// note embed showing its tab is such an atom too. True if handled (ops pushed).
+    pub fn delete_at_image(
+        &self, root: &'ast AstNode<'ast>, region: Region, operations: &mut Vec<Operation>,
+    ) -> bool {
         let Region::SelectionOrAdvance {
             advance: Advance::Next(Bound::Word) | Advance::By(Increment::Char),
             backwards,
@@ -393,8 +399,13 @@ impl<'ast> MdEdit {
         let diagrams = r
             .collapsed_diagrams()
             .map(|d| (d, newline(d.end()), d.start() > 0 && newline(d.start() - 1)));
-        let images = r.bounds.images.iter().map(|&img| (img, false, false));
-        for (img, newline_after, newline_before) in images.chain(diagrams) {
+        let images = r.bounds.images.iter().copied();
+        let embeds = root
+            .descendants()
+            .filter(|&node| r.tab_embed_height(node).is_some())
+            .map(|node| r.node_range(node));
+        let inline = images.chain(embeds).map(|img| (img, false, false));
+        for (img, newline_after, newline_before) in inline.chain(diagrams) {
             if r.range_revealed_interior(img) {
                 continue;
             }

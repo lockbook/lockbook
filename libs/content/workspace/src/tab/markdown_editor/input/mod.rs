@@ -121,6 +121,7 @@ pub enum Event {
     EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
     OpenDiagram, // the selected diagram, in the image viewer
     ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
+    ToggleTask { check: Grapheme }, // check or uncheck the task item whose mark is here
     OpenLink { url: String, wikilink: bool }, // navigate, on the platform
     LoadImage { url: String }, // show an image that waited past the note's scope
     Table(TableAction), // a structure edit of the table at the selection, or a new table there

@@ -390,10 +390,11 @@ const LAST_RESORT: &[&str] = &[];
 #[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
 const SCRIPTS: &[(Script, &[&str])] = &[];
 /// The bundled text and emoji faces, ahead of the system's for what a
-/// script's fonts lack, as before the system's were loaded: DejaVu Sans
-/// would take symbols Noto Sans Mono draws, and draw emoji in monochrome.
+/// script's fonts lack: DejaVu Sans would draw emoji in monochrome. Noto Sans
+/// Math draws the arrows and math Noto Sans lacks on its axis; Noto Sans
+/// Mono's sit low.
 #[cfg(all(unix, not(any(target_vendor = "apple", target_os = "android"))))]
-const SYMBOLS: &[&str] = &["Noto Sans", "Noto Sans Mono", "Twemoji Mozilla"];
+const SYMBOLS: &[&str] = &["Noto Sans", "Noto Sans Math", "Noto Sans Mono", "Twemoji Mozilla"];
 #[cfg(not(unix))]
 const SYMBOLS: &[&str] = &[];
 

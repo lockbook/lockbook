@@ -186,9 +186,7 @@ fn detect_query(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
         let g = grapheme_at(buffer, i);
 
         if g == ":" {
-            // Don't trigger when ':' is phrase punctuation after a word, including
-            // a word wrapped in markdown: `**word**:`, `*word*:`, `` `code`: ``.
-            if colon_follows_word(buffer, i) {
+            if !colon_opens_shortcode(buffer, i) {
                 return None;
             }
             colon_idx = i;
@@ -233,8 +231,10 @@ fn is_markup_closer(c: char) -> bool {
     matches!(c, '*' | '_' | '~' | '`' | ')' | ']' | '"' | '\'')
 }
 
-/// True when `:` follows a word (possibly wrapped in emphasis/code/link markup).
-fn colon_follows_word(buffer: &Buffer, colon_idx: usize) -> bool {
+/// True when `:` starts a shortcode: past any markup closers, it sits at the start, after
+/// whitespace, an opener, another `:`, or an emoji. Prose punctuation (`?:`, `e.g.:`) and
+/// words (`word:`, `**word**:`) don't open one.
+fn colon_opens_shortcode(buffer: &Buffer, colon_idx: usize) -> bool {
     let mut k = colon_idx;
     while k > 0 {
         let Some(c) = grapheme_at(buffer, k - 1).chars().next() else {
@@ -244,9 +244,11 @@ fn colon_follows_word(buffer: &Buffer, colon_idx: usize) -> bool {
             k -= 1;
             continue;
         }
-        return c.is_alphanumeric();
+        return c.is_whitespace()
+            || matches!(c, ':' | '(' | '[' | '{' | '|' | '>')
+            || (!c.is_ascii() && !c.is_alphanumeric());
     }
-    false
+    true
 }
 
 fn query_from_range(buffer: &Buffer, range: (Grapheme, Grapheme)) -> Option<String> {
@@ -458,7 +460,7 @@ mod tests {
     }
 
     #[test]
-    fn colon_after_word_does_not_trigger() {
+    fn colon_after_word_or_punctuation_does_not_trigger() {
         assert!(detect_query(&cursor_at_end("word:")).is_none());
         assert!(detect_query(&cursor_at_end("**word**:")).is_none());
         assert!(detect_query(&cursor_at_end("*word*:")).is_none());
@@ -467,14 +469,22 @@ mod tests {
         assert!(detect_query(&cursor_at_end("~~strike~~:")).is_none());
         assert!(detect_query(&cursor_at_end("[label]:")).is_none());
         assert!(detect_query(&cursor_at_end("http://")).is_none());
+        assert!(detect_query(&cursor_at_end("10pm-?:")).is_none());
+        assert!(detect_query(&cursor_at_end("e.g.:")).is_none());
     }
 
     #[test]
-    fn colon_after_space_or_start_does_trigger() {
+    fn colon_after_space_start_or_opener_does_trigger() {
         assert!(detect_query(&cursor_at_end(":")).is_some());
         assert!(detect_query(&cursor_at_end("word :")).is_some());
         assert!(detect_query(&cursor_at_end("**word** :")).is_some());
         assert!(detect_query(&cursor_at_end("word :smi")).is_some());
+        assert!(detect_query(&cursor_at_end(":+1::ta")).is_some());
+        assert!(detect_query(&cursor_at_end("🎉:fi")).is_some());
+        assert!(detect_query(&cursor_at_end("(:smi")).is_some());
+        assert!(detect_query(&cursor_at_end("**:fi")).is_some());
+        assert!(detect_query(&cursor_at_end("|:smi")).is_some());
+        assert!(detect_query(&cursor_at_end("line\n:smi")).is_some());
     }
 
     #[test]

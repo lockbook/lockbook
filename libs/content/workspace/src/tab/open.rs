@@ -163,13 +163,10 @@ impl TabContent {
             .next_back()
             .unwrap_or_default()
             .to_owned();
-        let as_source = doc_type == DocType::SVG && res.persistence.get_source();
-        let is_text = (as_source
-            || matches!(
-                doc_type,
-                DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
-            ))
-            && content_inspector::inspect(&doc.bytes).is_text();
+        let is_text = matches!(
+            doc_type,
+            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+        ) && content_inspector::inspect(&doc.bytes).is_text();
         let text = is_text.then_some(doc_type == DocType::Markdown);
         if let Some(refusal) = res.guard.refusal(id, &doc.bytes, text) {
             tracing::warn!(%id, ?refusal, "refusing to open");
@@ -187,7 +184,7 @@ impl TabContent {
                 pdf.salt = salt;
                 Ok(TabContent::Pdf(pdf))
             }
-            DocType::SVG if !as_source => Ok(TabContent::Svg(SVGEditor::new(
+            DocType::SVG => Ok(TabContent::Svg(SVGEditor::new(
                 &bytes,
                 &res.ctx,
                 res.core.clone(),
