@@ -467,7 +467,13 @@ fn onboard_sync_and_cache(
 
 #[cfg(test)]
 mod tests {
-    use super::{display_server_host, onboard_import_secret, resolved_api_url};
+    use super::super::ShellApp;
+    use super::super::action::{Action, Modal, OnboardLookup, OnboardMode};
+    use super::super::apply::apply;
+    use super::{
+        display_server_host, onboard_form, onboard_import_secret, onboard_poll_uname,
+        onboard_uname_inflight_key, onboard_uname_verify_done_key, resolved_api_url,
+    };
 
     #[test]
     fn empty_url_is_hosted_default() {
@@ -476,6 +482,28 @@ mod tests {
         assert_eq!(resolved_api_url("http://localhost:8000"), "http://localhost:8000");
         assert_eq!(display_server_host(""), "app.lockbook.net");
         assert_eq!(display_server_host("http://localhost:8000"), "localhost:8000");
+    }
+
+    #[test]
+    fn return_during_check_waits_then_submits() {
+        let ctx = egui::Context::default();
+        let mut app = ShellApp::default();
+        app.modal =
+            Some(onboard_form(OnboardMode::Create, "alice".into(), "".into(), "".into(), None));
+        ctx.data_mut(|d| d.insert_temp(onboard_uname_inflight_key(), "alice".to_owned()));
+
+        apply(&mut app, &ctx, Action::OnboardSubmit { show_error: true });
+        ctx.data_mut(|d| {
+            d.insert_temp(
+                onboard_uname_verify_done_key(),
+                ("alice".to_owned(), OnboardLookup::Available),
+            )
+        });
+        onboard_poll_uname(&mut app, &ctx);
+
+        let Some(Modal::Onboard { uname_lookup, err, .. }) = &app.modal else { panic!() };
+        assert_eq!((uname_lookup, err), (&OnboardLookup::Available, &None));
+        assert!(matches!(app.queue[..], [Action::OnboardSubmit { show_error: true }]));
     }
 
     #[test]
