@@ -224,6 +224,7 @@ impl<S: Server> Lb<S> {
         for id in remote.tree.staged.ids() {
             let meta = remote.find(&id)?;
             if remote.maybe_find_parent(meta).is_some()
+                || remote.maybe_find_attached(meta).is_some()
                 || meta
                     .user_access_keys()
                     .iter()
