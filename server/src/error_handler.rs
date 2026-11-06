@@ -392,6 +392,28 @@ impl From<LbErr> for ServerError<GetUpdatesError> {
     }
 }
 
+impl From<LbErr> for ServerError<GetDocUpdatesError> {
+    fn from(err: LbErr) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<LbErr> for ServerError<GetDocErrorV3> {
+    fn from(err: LbErr) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<LbErr> for ServerError<PushDocError> {
+    fn from(err: LbErr) -> Self {
+        use lb_rs::model::api::PushDocError::*;
+        match err.kind {
+            LbErrKind::InsufficientPermission => ClientError(NotPermissioned),
+            _ => internal!("{:?}", err),
+        }
+    }
+}
+
 impl<T: Debug> From<DbError> for ServerError<T> {
     fn from(value: DbError) -> Self {
         internal!("db-rs error {:?}", value)

@@ -4,14 +4,16 @@ use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::defense::SERVER_BANDWIDTH_CAP;
+use crate::doc_info_service::forget_doc;
 use crate::document_service::{DocumentService, stored};
 use crate::guard::ServerTx;
-use crate::schema::ServerV6;
+use crate::schema::{ServerV6, doc_size};
 
 use crate::{RequestContext, ServerState};
 use db_rs::views::hashmap::DbHashMap;
 use lb_rs::model::api::{UpsertError, *};
 use lb_rs::model::clock::get_time;
+use lb_rs::model::doc_info::{BlobKey, DocInfo, DocVersion, Storage, VersionKind};
 use lb_rs::model::errors::{LbErrKind, LbResult};
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{Diff, Owner};
@@ -88,6 +90,8 @@ where
         // Each owner needs their own tree to see all their files
         let mut usages = HashMap::new();
         for &owner in &affected_owners {
+            let doc_info = &db.doc_info;
+            let sizes = |id: &Uuid| doc_size(doc_info, id);
             let mut tree = ServerTree::new(
                 owner,
                 &mut db.owned_files,
@@ -97,9 +101,9 @@ where
             )?
             .to_lazy();
 
-            let old_usage = tree.calculate_usage(owner)?;
+            let old_usage = tree.calculate_usage(owner, sizes)?;
             let mut tree = tree.stage_unvalidated(updates.clone(), self.clock.now().0 as u64);
-            let new_usage = tree.calculate_usage(owner)?;
+            let new_usage = tree.calculate_usage(owner, sizes)?;
 
             usages.insert(owner, (old_usage, new_usage));
         }
@@ -145,16 +149,13 @@ where
         let tree = tree.stage_unvalidated(updates.clone(), self.clock.now().0 as u64);
         let tree = tree.promote()?;
 
+        let mut newly_deleted_docs = vec![];
         for id in tree.ids() {
             if tree.find(&id)?.is_document()
                 && current_deleted.contains(&id)
                 && !prior_deleted.contains(&id)
             {
-                let meta = tree.find(&id)?;
-                if let Some(hmac) = meta.file.timestamped_value.value.document_hmac().copied() {
-                    db.scheduled_file_cleanups
-                        .insert((*meta.id(), hmac), get_time().0)?;
-                }
+                newly_deleted_docs.push((id, tree.find(&id)?.document_hmac().copied()));
             }
         }
 
@@ -171,6 +172,10 @@ where
                     db.file_children.remove(&of.id, id)?;
                 }
             }
+        }
+
+        for (id, legacy_hmac) in newly_deleted_docs {
+            forget_doc(db, id, legacy_hmac)?;
         }
 
         db.last_seen.insert(req_owner, get_time().0 as u64)?;
@@ -211,6 +216,8 @@ where
         let requester = Owner(context.public_key);
         let id = *diff.id();
         let new_meta = diff.new.clone().add_time(self.clock.now().0 as u64);
+        let new_size = new_content.value.len() as u64;
+        let key = BlobKey::Legacy { id, hmac: hmac_bytes };
 
         // phase 1: validate request before io
         let mut lock = self.index_db.lock().await;
@@ -242,6 +249,9 @@ where
             .ok_or(ClientError(NotPermissioned))?
             .file;
 
+        if current_meta.timestamped_value.value.is_v3() {
+            return Err(ClientError(OldVersionIncorrect));
+        }
         if let Some(old) = &diff.old {
             if current_meta != old {
                 return Err(ClientError(OldVersionIncorrect));
@@ -250,7 +260,15 @@ where
 
         let mut tree = tree.stage(vec![new_meta.clone()]);
         tree.validate(requester)?;
+        drop(tree);
 
+        let old_doc_size = db
+            .doc_info
+            .get(&id)
+            .map(DocInfo::stored_size)
+            .unwrap_or_default();
+        let doc_info = &db.doc_info;
+        let sizes = |id: &Uuid| doc_size(doc_info, id);
         let mut tree = ServerTree::new(
             tree_owner,
             &mut db.owned_files,
@@ -260,9 +278,8 @@ where
         )?
         .to_lazy();
 
-        let old_usage = tree.calculate_usage(tree_owner)?;
-        let mut tree = tree.stage(vec![new_meta.clone()]); // todo check if this used to be stage
-        let new_usage = tree.calculate_usage(tree_owner)?;
+        let old_usage = tree.calculate_usage(tree_owner, sizes)?;
+        let new_usage = old_usage.saturating_sub(old_doc_size) + new_size;
         debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
 
         if new_usage + other_usage > usage_cap && new_usage >= old_usage {
@@ -270,12 +287,12 @@ where
             return Err(ClientError(UsageIsOverDataCap));
         }
 
-        db.scheduled_file_cleanups.remove(&(id, hmac_bytes))?;
+        db.scheduled_blob_cleanups.remove(&key)?;
         tx.end()?;
         drop(lock);
 
         self.document_service
-            .insert(id, hmac_bytes, &new_content)
+            .insert(&key, &new_content)
             .await
             .map_err(stored)?;
         debug!(?id, ?hmac, "Inserted document contents");
@@ -285,6 +302,13 @@ where
             let mut tx = ServerTx::begin(&mut lock)?;
             let db = &mut *tx;
 
+            let old_doc_size = db
+                .doc_info
+                .get(&id)
+                .map(DocInfo::stored_size)
+                .unwrap_or_default();
+            let doc_info = &db.doc_info;
+            let sizes = |id: &Uuid| doc_size(doc_info, id);
             let mut tree = ServerTree::new(
                 requester,
                 &mut db.owned_files,
@@ -303,6 +327,9 @@ where
                 .ok_or(ClientError(DocumentNotFound))?
                 .file;
 
+            if current_meta.timestamped_value.value.is_v3() {
+                return Err(ClientError(OldVersionIncorrect));
+            }
             if let Some(old) = &diff.old {
                 if current_meta != old {
                     return Err(ClientError(OldVersionIncorrect));
@@ -311,20 +338,40 @@ where
 
             // every pull answered before this promote has an as_of at or below this version
             let new_meta = new_meta.file.add_time(get_time().0 as u64);
-            let old_usage = tree.calculate_usage(tree_owner)?;
+            let old_usage = tree.calculate_usage(tree_owner, sizes)?;
+            let new_usage = old_usage.saturating_sub(old_doc_size) + new_size;
             let mut tree = tree.stage(vec![new_meta]);
-            let new_usage = tree.calculate_usage(tree_owner)?;
             tree.validate(requester)?;
             if new_usage + other_usage > usage_cap && new_usage >= old_usage {
                 warn!("user over cap");
                 return Err(ClientError(UsageIsOverDataCap));
             }
             tree.promote()?;
-            db.scheduled_file_cleanups.remove(&(id, hmac_bytes))?;
+            db.scheduled_blob_cleanups.remove(&key)?;
 
-            if let Some(old_hmac) = diff.old.and_then(|old| old.document_hmac().copied()) {
-                db.scheduled_file_cleanups
-                    .insert((id, old_hmac), get_time().0)?;
+            let mut info = db.doc_info.get(&id).cloned().unwrap_or_default();
+            let timestamp = info
+                .head()
+                .map(|head| head.timestamp + 1)
+                .unwrap_or_default()
+                .max(self.clock.now().0 as u64);
+            let retired = info.retire(id);
+            info.versions.push(DocVersion {
+                hmac: hmac_bytes,
+                kind: VersionKind::Snapshot,
+                storage: Storage::Legacy,
+                compressed_size: new_size,
+                uncompressed_size: None,
+                content_size: None,
+                author: requester,
+                timestamp,
+            });
+            info.updated_at = timestamp;
+            db.doc_info.insert(id, info)?;
+            for old_key in retired {
+                if old_key != key {
+                    db.scheduled_blob_cleanups.insert(old_key, get_time().0)?;
+                }
             }
 
             tx.end()?;
@@ -341,13 +388,12 @@ where
             let mut lock = self.index_db.lock().await;
             let mut tx = ServerTx::begin(&mut lock)?;
             let db = &mut *tx;
-            let committed_hmac = db
-                .metas
+            let committed = db
+                .doc_info
                 .get(&id)
-                .and_then(|meta| meta.document_hmac().copied());
-            if committed_hmac != Some(hmac_bytes) {
-                db.scheduled_file_cleanups
-                    .insert((id, hmac_bytes), get_time().0)?;
+                .is_some_and(|info| info.references(&key));
+            if !committed {
+                db.scheduled_blob_cleanups.insert(key, get_time().0)?;
                 debug!(
                     ?id,
                     ?hmac,
@@ -400,7 +446,7 @@ where
 
         let Some(content) = self
             .document_service
-            .maybe_get(request.id, request.hmac)
+            .maybe_get(&BlobKey::Legacy { id: request.id, hmac: request.hmac })
             .await
             .map_err(stored)?
         else {
@@ -557,13 +603,21 @@ where
                 metas_to_delete.insert(context.request.id);
                 metas_to_delete
             };
+            let mut owned_docs = vec![];
             for id in metas_to_delete.clone() {
                 if !tree.calculate_deleted(&id)? {
                     let meta = tree.find(&id)?;
                     if meta.is_document() && meta.owner() == owner {
-                        if let Some(hmac) = meta.document_hmac() {
-                            docs_to_delete.push((*meta.id(), *hmac));
-                        }
+                        owned_docs.push((id, meta.document_hmac().copied()));
+                    }
+                }
+            }
+            drop(tree);
+            for (id, legacy_hmac) in owned_docs {
+                match db.doc_info.remove(&id)? {
+                    Some(info) => docs_to_delete.extend(info.blobs(id)),
+                    None => {
+                        docs_to_delete.extend(legacy_hmac.map(|hmac| BlobKey::Legacy { id, hmac }))
                     }
                 }
             }
@@ -622,11 +676,8 @@ where
             tx.end()?;
         }
 
-        for (id, version) in docs_to_delete {
-            self.document_service
-                .delete(id, version)
-                .await
-                .map_err(stored)?;
+        for key in docs_to_delete {
+            self.document_service.delete(&key).await.map_err(stored)?;
         }
 
         Ok(())
@@ -672,14 +723,18 @@ where
         for id in tree.ids() {
             if !tree.calculate_deleted(&id)? {
                 let file = tree.find(&id)?;
-                if file.is_document() && file.document_hmac().is_some() {
-                    if file.file.timestamped_value.value.doc_size().is_none() {
-                        result.documents_missing_size.push(id);
-                    }
-
-                    if !self
-                        .document_service
-                        .exists(id, *file.document_hmac().unwrap())
+                if !file.is_document() {
+                    continue;
+                }
+                if file.document_hmac().is_some()
+                    && file.file.timestamped_value.value.doc_size().is_none()
+                {
+                    result.documents_missing_size.push(id);
+                }
+                if let Some(info) = db.doc_info.get(&id) {
+                    if info
+                        .blobs(id)
+                        .any(|key| !self.document_service.exists(&key))
                     {
                         result.documents_missing_content.push(id);
                     }
@@ -926,16 +981,13 @@ where
         }
 
         // validate presence of documents
-        for (id, meta) in db
-            .metas
-            .iter()
-            .map(|(key, value)| (*key, value.clone()))
-            .collect::<HashMap<_, _>>()
-        {
-            if let Some(hmac) = meta.document_hmac() {
-                if !deleted_ids.contains(&id) && !self.document_service.exists(id, *hmac) {
-                    result.files_with_hmacs_and_no_contents.insert(id);
-                }
+        for (id, info) in db.doc_info.iter() {
+            if !deleted_ids.contains(id)
+                && info
+                    .blobs(*id)
+                    .any(|key| !self.document_service.exists(&key))
+            {
+                result.files_with_hmacs_and_no_contents.insert(*id);
             }
         }
 

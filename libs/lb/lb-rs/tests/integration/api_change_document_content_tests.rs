@@ -20,20 +20,18 @@ async fn change_document_content() {
         .unwrap()
         .clone();
 
+    let doc1 = as_legacy(&doc, None, None, account);
+
     // create document
     Server::upsert_file_metadata_v2(
         &core.client,
         account,
-        UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] },
+        UpsertRequestV2 { updates: vec![FileDiff::new(doc1.clone())] },
     )
     .await
     .unwrap();
 
-    let doc1 = doc;
-    let mut doc2 = doc1.clone();
-    doc2.timestamped_value
-        .value
-        .set_hmac_and_size(Some([0; 32]), Some(0));
+    let doc2 = as_legacy(&doc, Some([0; 32]), Some(0), account);
 
     let diff = FileDiff::edit(doc1, doc2);
     // change document content
@@ -73,11 +71,8 @@ async fn change_document_content_not_found() {
     .unwrap();
 
     doc.timestamped_value.value.set_id(Uuid::new_v4());
-    let doc1 = doc;
-    let mut doc2 = doc1.clone();
-    doc2.timestamped_value
-        .value
-        .set_hmac_and_size(Some([0; 32]), Some(0));
+    let doc1 = as_legacy(&doc, None, None, account);
+    let doc2 = as_legacy(&doc, Some([0; 32]), Some(0), account);
 
     let diff = FileDiff::edit(doc1, doc2);
     // change document content

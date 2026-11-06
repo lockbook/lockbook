@@ -16,6 +16,7 @@ mod cli_data_tests;
 mod core_ops_tests;
 mod db_migration_tests;
 mod delete_and_list_tests;
+mod doc_info_tests;
 #[cfg(not(target_family = "wasm"))]
 mod document_ipc_tests;
 mod document_tests;

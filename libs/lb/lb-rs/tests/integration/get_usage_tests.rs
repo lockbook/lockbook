@@ -3,7 +3,6 @@ use lb_rs::io::server::Server;
 use lb_rs::model::api::{FREE_TIER_USAGE_SIZE, GetUsageRequest, GetUsageResponse, METADATA_FEE};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
-use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::file_metadata::FileType::Folder;
 use std::time::Duration;
@@ -43,11 +42,12 @@ async fn local_doc_size(core: &Lb, id: Uuid) -> u64 {
     core.ro_tx()
         .await
         .db()
-        .local_metadata
+        .doc_info
         .get(&id)
         .unwrap()
-        .doc_size()
-        .unwrap() as u64
+        .local
+        .unwrap()
+        .compressed_size
 }
 
 #[tokio::test]
@@ -78,11 +78,10 @@ async fn report_usage() {
         .begin_tx()
         .await
         .db()
-        .base_metadata
+        .doc_info
         .get(&file.id)
         .unwrap()
-        .document_hmac()
-        .cloned();
+        .base_hmac();
     let docs = &core.docs;
     let local_encrypted = docs.get(file.id, hmac.unwrap()).await.unwrap().value;
 
@@ -179,11 +178,10 @@ async fn usage_go_back_down_after_delete_folder() {
         .begin_tx()
         .await
         .db()
-        .base_metadata
+        .doc_info
         .get(&file.id)
         .unwrap()
-        .document_hmac()
-        .cloned();
+        .base_hmac();
 
     let docs = &core.docs;
     docs.get(file.id, hmac.unwrap()).await.unwrap();
@@ -274,11 +272,10 @@ async fn upsert_meta_over_data_cap() {
         core.ro_tx()
             .await
             .db()
-            .base_metadata
+            .doc_info
             .get(&document.id)
             .unwrap()
-            .document_hmac()
-            .cloned()
+            .base_hmac()
     };
     let docs = &core.docs;
     let local_encrypted = docs.get(document.id, hmac.unwrap()).await.unwrap().value;

@@ -327,6 +327,9 @@ where
         .or(core_req!(GetUsageRequest, ServerState::get_usage, server_state))
         .or(core_req!(GetFileIdsRequest, ServerState::get_file_ids, server_state))
         .or(core_req!(GetUpdatesRequestV2, ServerState::get_updates_v2, server_state))
+        .or(core_req!(GetDocUpdatesRequest, ServerState::get_doc_updates, server_state))
+        .or(core_req!(GetDocRequestV3, ServerState::get_doc_v3, server_state))
+        .or(core_req!(PushDocRequest, ServerState::push_doc, server_state))
         .or(core_req!(
             UpgradeAccountGooglePlayRequest,
             ServerState::upgrade_account_google_play,

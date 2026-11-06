@@ -4,17 +4,16 @@ use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::doc_info::LocalDocInfo;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
-use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
+use crate::model::file_metadata::{FileType, Owner};
 use crate::model::filename::{NameComponents, attachments_folder_name};
 use crate::model::lazy::LazyTree;
 use crate::model::meta::{AttachmentsOf, Meta};
-use crate::model::secret_filename::{HmacSha256, SecretFileName};
+use crate::model::secret_filename::SecretFileName;
 use crate::model::staged::{StagedTree, StagedTreeLike};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::model::{compression_service, symkey, validate};
 use crate::service::keychain::Keychain;
 use db_rs::views::hashmap::DbHashMap;
-use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
 use std::collections::HashSet;
 use tracing::debug;
@@ -382,45 +381,6 @@ where
 
         Ok(doc)
     }
-
-    pub fn update_document_op(
-        &mut self, id: &Uuid, document: &[u8], keychain: &Keychain,
-    ) -> LbResult<(SignedMeta, EncryptedDocument)> {
-        let id = match self.find(id)?.file_type() {
-            FileType::Document | FileType::Folder => *id,
-            FileType::Link { target } => target,
-        };
-        let mut file = self.find(&id)?.timestamped_value.value.clone();
-        validate::is_document(&file)?;
-        let key = self.decrypt_key(&id, keychain)?;
-        let hmac = {
-            let mut mac = HmacSha256::new_from_slice(&key)
-                .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {err:?}")))?;
-            mac.update(document);
-            mac.finalize().into_bytes()
-        }
-        .into();
-        let document = compression_service::compress(document)?;
-        let document = symkey::encrypt(&key, &document)?;
-        file.set_hmac_and_size(Some(hmac), Some(document.value.len()));
-        let file = file.sign(keychain)?;
-
-        Ok((file, document))
-    }
-
-    pub fn overwrite_document_hmac_op(
-        &mut self, id: &Uuid, new_hmac: Option<DocumentHmac>, new_size: Option<usize>,
-        keychain: &Keychain,
-    ) -> LbResult<SignedMeta> {
-        let id = match self.find(id)?.file_type() {
-            FileType::Document | FileType::Folder => *id,
-            FileType::Link { target } => target,
-        };
-        let mut file = self.find(&id)?.timestamped_value.value.clone();
-        validate::is_document(&file)?;
-        file.set_hmac_and_size(new_hmac, new_size);
-        file.sign(keychain)
-    }
 }
 
 impl<Base, Local, Staged> LazyTree<Staged>
@@ -716,40 +676,6 @@ where
         tree.stage_and_promote(unshared)?;
         let (_, op) = tree.unstage();
         self.stage_validate_and_promote(op, me)?;
-        Ok(())
-    }
-
-    pub fn update_document_unvalidated(
-        &mut self, id: &Uuid, document: &[u8], keychain: &Keychain,
-    ) -> LbResult<EncryptedDocument> {
-        let (op, document) = self.update_document_op(id, document, keychain)?;
-        self.stage_and_promote(Some(op))?;
-        Ok(document)
-    }
-
-    pub fn overwrite_document_hmac_unvalidated(
-        &mut self, id: &Uuid, new_hmac: Option<DocumentHmac>, new_size: Option<usize>,
-        keychain: &Keychain,
-    ) -> LbResult<()> {
-        let op = self.overwrite_document_hmac_op(id, new_hmac, new_size, keychain)?;
-        self.stage_and_promote(Some(op))?;
-        Ok(())
-    }
-
-    pub fn update_document(
-        &mut self, id: &Uuid, document: &[u8], keychain: &Keychain,
-    ) -> LbResult<EncryptedDocument> {
-        let (op, document) = self.update_document_op(id, document, keychain)?;
-        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
-        Ok(document)
-    }
-
-    pub fn overwrite_document_hmac(
-        &mut self, id: &Uuid, new_hmac: Option<DocumentHmac>, new_size: Option<usize>,
-        keychain: &Keychain,
-    ) -> LbResult<()> {
-        let op = self.overwrite_document_hmac_op(id, new_hmac, new_size, keychain)?;
-        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
         Ok(())
     }
 }

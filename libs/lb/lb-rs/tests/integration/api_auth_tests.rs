@@ -100,13 +100,8 @@ async fn change_document_content() {
         tx.db().base_metadata.get(&id).unwrap().clone()
     };
 
-    let mut file2 = file1.clone();
-    file2
-        .timestamped_value
-        .value
-        .set_hmac_and_size(Some([0; 32]), Some(1));
-
     let acc2 = &core2.get_account().unwrap();
+    let file2 = as_legacy(&file1, Some([0; 32]), Some(1), acc2);
     let result = Server::change_doc_v2(
         &core2.client,
         acc2,
@@ -136,7 +131,7 @@ async fn get_someone_else_document() {
         tx.db().base_metadata.get(&id).unwrap().clone()
     };
 
-    let req = GetDocRequest { id: *file.id(), hmac: *file.document_hmac().unwrap() };
+    let req = GetDocRequest { id: *file.id(), hmac: [0; 32] };
 
     let acc2 = &core2.get_account().unwrap();
     let result = Server::get_document(&core2.client, acc2, req).await;

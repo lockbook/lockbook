@@ -4,7 +4,7 @@ use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
 use crate::guard::ServerTx;
-use crate::schema::{Account, ServerV6, SubAccount};
+use crate::schema::{Account, ServerV6, SubAccount, doc_size};
 use crate::utils::sub_account_username_is_valid;
 use crate::{RequestContext, ServerError, ServerState};
 use lb_rs::model::api::{
@@ -213,6 +213,7 @@ where
     }
 
     pub fn usage<E: Debug>(db: &mut ServerV6, owner: Owner) -> Result<u64, ServerError<E>> {
+        let doc_info = &db.doc_info;
         ServerTree::new(
             owner,
             &mut db.owned_files,
@@ -220,7 +221,10 @@ where
             &mut db.file_children,
             &mut db.metas,
         )
-        .and_then(|tree| tree.to_lazy().calculate_usage(owner))
+        .and_then(|tree| {
+            tree.to_lazy()
+                .calculate_usage(owner, |id| doc_size(doc_info, id))
+        })
         .map_err(|err| internal!("{:?}", err))
     }
 

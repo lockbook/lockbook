@@ -1,18 +1,36 @@
 use crate::ServerError;
 use crate::config::Config;
-use lb_rs::io::docs::DocumentStore;
 use lb_rs::model::crypto::EncryptedDocument;
+use lb_rs::model::doc_info::BlobKey;
 use lb_rs::model::errors::{LbErr, LbErrKind, LbResult};
-use lb_rs::model::file_metadata::DocumentHmac;
 use std::fmt::Debug;
+use std::future::Future;
 use std::path::PathBuf;
 use tokio::fs::{File, remove_file};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use uuid::Uuid;
 
-/// The server's [DocumentStore], whose documents have paths the garbage worker reports.
-pub trait DocumentService: DocumentStore {
-    fn get_path(&self, id: Uuid, hmac: DocumentHmac) -> PathBuf;
+pub trait DocumentService: Clone + Send + Sync + 'static {
+    fn insert(
+        &self, key: &BlobKey, content: &EncryptedDocument,
+    ) -> impl Future<Output = LbResult<()>> + Send;
+
+    fn maybe_get(
+        &self, key: &BlobKey,
+    ) -> impl Future<Output = LbResult<Option<EncryptedDocument>>> + Send;
+
+    fn get(&self, key: &BlobKey) -> impl Future<Output = LbResult<EncryptedDocument>> + Send {
+        async move {
+            self.maybe_get(key)
+                .await?
+                .ok_or_else(|| LbErrKind::FileNonexistent.into())
+        }
+    }
+
+    fn delete(&self, key: &BlobKey) -> impl Future<Output = LbResult<()>> + Send;
+
+    fn exists(&self, key: &BlobKey) -> bool;
+
+    fn get_path(&self, key: &BlobKey) -> PathBuf;
 }
 
 /// A store failure as an endpoint's internal error.
@@ -35,20 +53,18 @@ fn unexpected(err: impl Debug) -> LbErr {
     LbErrKind::Unexpected(format!("{err:?}")).into()
 }
 
-impl DocumentStore for OnDiskDocuments {
-    async fn insert(
-        &self, id: Uuid, hmac: DocumentHmac, content: &EncryptedDocument,
-    ) -> LbResult<()> {
+impl DocumentService for OnDiskDocuments {
+    async fn insert(&self, key: &BlobKey, content: &EncryptedDocument) -> LbResult<()> {
         let content = bincode::serialize(content).map_err(unexpected)?;
-        let path = self.get_path(id, hmac);
+        let path = self.get_path(key);
         let mut file = File::create(path).await.map_err(unexpected)?;
         file.write_all(&content).await.map_err(unexpected)?;
         file.flush().await.map_err(unexpected)?;
         Ok(())
     }
 
-    async fn maybe_get(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Option<EncryptedDocument>> {
-        let path = self.get_path(id, hmac);
+    async fn maybe_get(&self, key: &BlobKey) -> LbResult<Option<EncryptedDocument>> {
+        let path = self.get_path(key);
         if !path.exists() {
             return Ok(None);
         }
@@ -58,8 +74,8 @@ impl DocumentStore for OnDiskDocuments {
         Ok(Some(bincode::deserialize(&content).map_err(unexpected)?))
     }
 
-    async fn delete(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
-        let path = self.get_path(id, hmac);
+    async fn delete(&self, key: &BlobKey) -> LbResult<()> {
+        let path = self.get_path(key);
         // I'm not sure this check should exist, the two situations it gets utilized is when we re-delete
         // an already deleted file and when we move a file from version 0 -> N. Maybe it would be more
         // efficient for the caller to look at the metadata and make a more informed decision about
@@ -71,17 +87,20 @@ impl DocumentStore for OnDiskDocuments {
         Ok(())
     }
 
-    fn exists(&self, id: Uuid, hmac: DocumentHmac) -> bool {
-        self.get_path(id, hmac).exists()
+    fn exists(&self, key: &BlobKey) -> bool {
+        self.get_path(key).exists()
     }
-}
 
-impl DocumentService for OnDiskDocuments {
-    fn get_path(&self, id: Uuid, hmac: DocumentHmac) -> PathBuf {
+    fn get_path(&self, key: &BlobKey) -> PathBuf {
         let mut path = self.config.files.path.clone();
-        // we may need to truncate this
-        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
-        path.push(format!("{id}-{hmac}"));
+        match key {
+            BlobKey::Legacy { id, hmac } => {
+                // we may need to truncate this
+                let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+                path.push(format!("{id}-{hmac}"));
+            }
+            BlobKey::Version { id, version } => path.push(format!("{id}.{version}")),
+        }
         path
     }
 }

@@ -14,8 +14,7 @@ use lb_rs::io::server::{ApiResult, Server};
 use lb_rs::model::account::Account;
 use lb_rs::model::api::*;
 use lb_rs::model::crypto::EncryptedDocument;
-use lb_rs::model::file_metadata::DocumentHmac;
-use uuid::Uuid;
+use lb_rs::model::doc_info::BlobKey;
 
 use crate::billing::Nop;
 use crate::billing::app_store_client::AppStoreClient;
@@ -29,7 +28,6 @@ use crate::document_service::DocumentService;
 use crate::schema::ServerDb;
 use crate::utils::get_build_info;
 use crate::{RequestContext, ServerError, ServerState};
-use lb_rs::io::docs::DocumentStore;
 use lb_rs::model::errors::LbResult;
 
 /// A server whose index and documents live in memory, with no billing.
@@ -145,7 +143,7 @@ fn in_process_config() -> Config {
 /// Documents held in memory.
 #[derive(Clone, Default)]
 pub struct InMemDocuments {
-    docs: Arc<Mutex<HashMap<(Uuid, DocumentHmac), EncryptedDocument>>>,
+    docs: Arc<Mutex<HashMap<BlobKey, EncryptedDocument>>>,
 }
 
 impl InMemDocuments {
@@ -155,35 +153,27 @@ impl InMemDocuments {
     }
 }
 
-impl DocumentStore for InMemDocuments {
-    async fn insert(
-        &self, id: Uuid, hmac: DocumentHmac, content: &EncryptedDocument,
-    ) -> LbResult<()> {
-        self.docs
-            .lock()
-            .unwrap()
-            .insert((id, hmac), content.clone());
-        Ok(())
-    }
-
-    async fn maybe_get(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Option<EncryptedDocument>> {
-        Ok(self.docs.lock().unwrap().get(&(id, hmac)).cloned())
-    }
-
-    async fn delete(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
-        self.docs.lock().unwrap().remove(&(id, hmac));
-        Ok(())
-    }
-
-    fn exists(&self, id: Uuid, hmac: DocumentHmac) -> bool {
-        self.docs.lock().unwrap().contains_key(&(id, hmac))
-    }
-}
-
 impl DocumentService for InMemDocuments {
-    fn get_path(&self, id: Uuid, hmac: DocumentHmac) -> PathBuf {
-        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
-        PathBuf::from(format!("memory/{id}-{hmac}"))
+    async fn insert(&self, key: &BlobKey, content: &EncryptedDocument) -> LbResult<()> {
+        self.docs.lock().unwrap().insert(*key, content.clone());
+        Ok(())
+    }
+
+    async fn maybe_get(&self, key: &BlobKey) -> LbResult<Option<EncryptedDocument>> {
+        Ok(self.docs.lock().unwrap().get(key).cloned())
+    }
+
+    async fn delete(&self, key: &BlobKey) -> LbResult<()> {
+        self.docs.lock().unwrap().remove(key);
+        Ok(())
+    }
+
+    fn exists(&self, key: &BlobKey) -> bool {
+        self.docs.lock().unwrap().contains_key(key)
+    }
+
+    fn get_path(&self, key: &BlobKey) -> PathBuf {
+        PathBuf::from(format!("memory/{key:?}"))
     }
 }
 
@@ -300,6 +290,30 @@ where
         &self, account: &Account, request: GetUpdatesRequestV2,
     ) -> ApiResult<GetUpdatesRequestV2> {
         ServerState::get_updates_v2(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
+    async fn get_doc_updates(
+        &self, account: &Account, request: GetDocUpdatesRequest,
+    ) -> ApiResult<GetDocUpdatesRequest> {
+        ServerState::get_doc_updates(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
+    async fn get_doc_v3(
+        &self, account: &Account, request: GetDocRequestV3,
+    ) -> ApiResult<GetDocRequestV3> {
+        ServerState::get_doc_v3(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
+    async fn push_doc(
+        &self, account: &Account, request: PushDocRequest,
+    ) -> ApiResult<PushDocRequest> {
+        ServerState::push_doc(self, context(account, request))
             .await
             .map_err(api_error)
     }

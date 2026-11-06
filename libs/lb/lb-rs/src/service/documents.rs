@@ -8,7 +8,7 @@ use crate::model::access_info::UserAccessMode;
 use crate::model::clock::get_time;
 use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::doc_info::LocalVersion;
-use crate::model::errors::{LbErrKind, LbResult};
+use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
 use crate::model::filename::DocumentType;
@@ -41,9 +41,11 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         &self, id: Uuid, user_activity: bool,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
         let mut caught_up = false;
+        let mut pulled = false;
+        let mut pull_error: Option<LbErr> = None;
 
         loop {
-            let (key, info) = {
+            let (key, info, known_to_server) = {
                 let tx = self.ro_tx().await;
                 let db = tx.db();
                 let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
@@ -54,7 +56,11 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     return Err(LbErrKind::FileNonexistent.into());
                 }
 
-                (tree.decrypt_key(&id, &self.keychain)?, db.doc_info.get(&id).copied())
+                (
+                    tree.decrypt_key(&id, &self.keychain)?,
+                    db.doc_info.get(&id).copied(),
+                    db.base_metadata.get(&id).is_some(),
+                )
             };
             let state = info.unwrap_or_default();
             let readable = state.local.map(|local| local.hmac).or(state.base_hmac());
@@ -63,16 +69,35 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 None => None,
             };
 
+            let needs_pull = state.local.is_none()
+                && (state.is_behind()
+                    || (readable.is_some() && blob.is_none())
+                    || (info.is_none() && known_to_server));
+            if needs_pull && !pulled {
+                pulled = true;
+                match self.pull_doc(id).await {
+                    Ok(()) => continue,
+                    Err(err) => pull_error = Some(err),
+                }
+            }
+
             match (readable, blob) {
                 (Some(hmac), Some(blob)) => {
                     return Ok((Some(hmac), decrypt_payload(&key, &blob)?));
                 }
-                (None, _) => return Ok((None, vec![])),
+                (None, _) => match pull_error {
+                    Some(err) if state.remote.is_some() || (info.is_none() && known_to_server) => {
+                        return Err(err);
+                    }
+                    _ => return Ok((None, vec![])),
+                },
                 (Some(_), None) if !caught_up => {
                     caught_up = true;
                     self.begin_tx().await.end();
                 }
-                (Some(_), None) => return Err(LbErrKind::FileNonexistent.into()),
+                (Some(_), None) => {
+                    return Err(pull_error.unwrap_or_else(|| LbErrKind::FileNonexistent.into()));
+                }
             }
         }
     }
@@ -235,13 +260,40 @@ pub(crate) fn encrypt_payload(key: &AESKey, plain: &[u8]) -> LbResult<EncryptedD
     symkey::encrypt(key, &compressed)
 }
 
+pub(crate) fn encrypt_diff_payload(
+    key: &AESKey, diff: &[u8], content: &[u8],
+) -> LbResult<EncryptedDocument> {
+    let level = compression_service::level_for_content(content);
+    let compressed = compression_service::compress_with(diff, level)?;
+    symkey::encrypt(key, &compressed)
+}
+
 pub(crate) fn decrypt_payload(key: &AESKey, encrypted: &EncryptedDocument) -> LbResult<Vec<u8>> {
     let compressed = symkey::decrypt(key, encrypted)?;
     compression_service::decompress(&compressed)
 }
 
-pub(crate) fn compress_encrypt_document(
+pub fn compress_encrypt_document(
     key: &AESKey, content: &[u8],
 ) -> LbResult<(DocumentHmac, EncryptedDocument)> {
     Ok((document_hmac(key, content)?, encrypt_payload(key, content)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::doc_diff::DocDiff;
+
+    #[test]
+    fn text_diffs_are_compressed() {
+        let key = symkey::generate_key();
+        let base = "an existing line of the note\n".repeat(100);
+        let content = format!("{base}{}", "a pasted line of text\n".repeat(1000));
+        let diff = DocDiff::compute(base.as_bytes(), content.as_bytes())
+            .encode()
+            .unwrap();
+        let payload = encrypt_diff_payload(&key, &diff, content.as_bytes()).unwrap();
+        assert!(payload.value.len() < diff.len() / 2);
+        assert_eq!(decrypt_payload(&key, &payload).unwrap(), diff);
+    }
 }

@@ -6,9 +6,12 @@ pub mod shrink;
 
 use lb_rs::io::docs::AsyncDocs;
 use lb_rs::io::server::Server;
+use lb_rs::model::account::Account;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::crypto::EncryptedDocument;
+use lb_rs::model::file_metadata::DocumentHmac;
+use lb_rs::model::signed_meta::SignedMeta;
 use lockbook_server_lib::in_process::InMemoryServer;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -170,6 +173,17 @@ pub async fn another_client(c: &Lb) -> Lb {
         .await
         .unwrap();
     new_core
+}
+
+pub fn as_legacy(
+    meta: &SignedMeta, hmac: Option<DocumentHmac>, size: Option<usize>, account: &Account,
+) -> SignedMeta {
+    meta.timestamped_value
+        .value
+        .clone()
+        .into_v1(hmac, size)
+        .sign_as_is(account)
+        .unwrap()
 }
 
 fn err_to_string<E: Debug>(e: E) -> String {

@@ -42,6 +42,13 @@ pub struct SubAccount {
 
 pub type ServerDb = Composite<ServerV6>;
 
+pub fn doc_size(doc_info: &DbHashMap<Uuid, DocInfo>, id: &Uuid) -> u64 {
+    doc_info
+        .get(id)
+        .map(DocInfo::stored_size)
+        .unwrap_or_default()
+}
+
 #[derive(Default)]
 pub struct ServerV6 {
     pub usernames: DbHashMap<String, Owner>,

@@ -11,6 +11,7 @@ use lb_rs::io::server::{ApiResult, Server};
 use lb_rs::model::account::Account;
 use lb_rs::model::api::*;
 use lb_rs::model::crypto::EncryptedDocument;
+use lb_rs::model::doc_info::BlobKey;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lockbook_server_lib::document_service::DocumentService;
@@ -89,8 +90,32 @@ impl<D: DocumentStore> DocumentStore for GatedDocuments<D> {
 }
 
 impl<D: DocumentService> DocumentService for GatedDocuments<D> {
-    fn get_path(&self, id: Uuid, hmac: DocumentHmac) -> PathBuf {
-        self.docs.get_path(id, hmac)
+    async fn insert(&self, key: &BlobKey, content: &EncryptedDocument) -> LbResult<()> {
+        self.pass(DocOp::Insert, key.id()).await;
+        self.docs.insert(key, content).await
+    }
+
+    async fn get(&self, key: &BlobKey) -> LbResult<EncryptedDocument> {
+        self.pass(DocOp::Get, key.id()).await;
+        self.docs.get(key).await
+    }
+
+    async fn maybe_get(&self, key: &BlobKey) -> LbResult<Option<EncryptedDocument>> {
+        self.pass(DocOp::MaybeGet, key.id()).await;
+        self.docs.maybe_get(key).await
+    }
+
+    async fn delete(&self, key: &BlobKey) -> LbResult<()> {
+        self.pass(DocOp::Delete, key.id()).await;
+        self.docs.delete(key).await
+    }
+
+    fn exists(&self, key: &BlobKey) -> bool {
+        self.docs.exists(key)
+    }
+
+    fn get_path(&self, key: &BlobKey) -> PathBuf {
+        self.docs.get_path(key)
     }
 }
 
@@ -146,6 +171,9 @@ impl<S: Server> Server for GatedServer<S> {
         get_usage: GetUsageRequest,
         get_file_ids: GetFileIdsRequest,
         get_updates_v2: GetUpdatesRequestV2,
+        get_doc_updates: GetDocUpdatesRequest,
+        get_doc_v3: GetDocRequestV3,
+        push_doc: PushDocRequest,
         get_build_info: GetBuildInfoRequest,
         delete_account: DeleteAccountRequest,
         upgrade_account_stripe: UpgradeAccountStripeRequest,

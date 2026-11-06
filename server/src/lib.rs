@@ -108,6 +108,7 @@ pub mod billing;
 pub mod config;
 pub mod debug_info;
 pub mod defense;
+pub mod doc_info_service;
 pub mod document_service;
 pub mod error_handler;
 pub mod file_service;
