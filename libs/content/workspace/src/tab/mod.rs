@@ -1,7 +1,7 @@
-use crate::file_cache::{FileCache, FilesExt};
+use crate::file_cache::{FileCache, FilesExt, link_id, split_fragment};
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
-use crate::search::{Search, SearchState};
+use crate::search::{Search, SearchState, SearchType};
 use crate::space_inspector::show::SpaceInspector;
 #[cfg(not(target_family = "wasm"))]
 use crate::tab::chat::Chat;
@@ -158,6 +158,43 @@ impl Place {
 
     pub fn at(dest: Destination, fragment: Option<Fragment>) -> Self {
         Self { dest, fragment }
+    }
+
+    /// The place a link names: a file by its id link (`lb://<id>#heading`, or
+    /// the external URL), or a page by name: `lb://search?q=…&type=content&scope=/notes`,
+    /// `lb://mindmap`, `lb://space/<folder id>`. A space link without an id is at `root`.
+    pub fn from_url(url: &str, root: Uuid) -> Option<Self> {
+        if let Some(id) = link_id(url) {
+            let fragment = split_fragment(url).1.and_then(Fragment::from_url);
+            return Some(Self::at(Destination::File(id), fragment));
+        }
+        let url = url::Url::parse(url).ok().filter(|u| u.scheme() == "lb")?;
+        let dest =
+            match (url.host_str()?.to_ascii_lowercase().as_str(), url.path().trim_matches('/')) {
+                ("search", "") => {
+                    let mut state = SearchState::default();
+                    for (key, value) in url.query_pairs() {
+                        match &*key {
+                            "q" => state.query = value.into(),
+                            "scope" => state.scope_path = value.into(),
+                            "type" => {
+                                state.search_type = match &*value {
+                                    "path" => SearchType::Path,
+                                    "content" => SearchType::Content,
+                                    _ => return None,
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    Destination::Search(state)
+                }
+                ("mindmap", "") => Destination::MindMap(root),
+                ("space", "") => Destination::SpaceInspector(root),
+                ("space", id) => Destination::SpaceInspector(Uuid::parse_str(id).ok()?),
+                _ => return None,
+            };
+        Some(Self::new(dest))
     }
 }
 
@@ -1654,6 +1691,40 @@ mod nav_tests {
         let mut from_file = Session::new(file(1));
         from_file.navigate(search(""));
         assert!(!session_is_disposable_search(&from_file));
+    }
+
+    #[test]
+    fn places_from_urls() {
+        let (root, id) = (Uuid::from_u128(1), Uuid::from_u128(2));
+        let place = |url: &str| Place::from_url(url, root);
+        let heading = Some(Fragment::Heading("next-steps".into()));
+        assert_eq!(
+            place(&format!("lb://{id}#next-steps")),
+            Some(Place::at(Destination::File(id), heading))
+        );
+        assert_eq!(
+            place(&format!("https://app.lockbook.net/open/{id}#page=3")),
+            Some(Place::at(Destination::File(id), Some(Fragment::Page(2))))
+        );
+        let state = SearchState {
+            search_type: SearchType::Content,
+            scope_path: "/my notes/".into(),
+            query: "q3 plan".into(),
+        };
+        assert_eq!(
+            place("lb://search?q=q3%20plan&type=content&scope=/my%20notes/&utm_source=mail"),
+            Some(Place::new(Destination::Search(state)))
+        );
+        assert_eq!(place("lb://search"), Some(Place::new(search(""))));
+        assert_eq!(place("lb://mindmap"), Some(Place::new(Destination::MindMap(root))));
+        assert_eq!(
+            place(&format!("LB://Space/{id}/")),
+            Some(Place::new(Destination::SpaceInspector(id)))
+        );
+        for bad in ["lb://search?type=fuzzy", "lb://space/notes", "lb://settings", "https://x.com"]
+        {
+            assert_eq!(place(bad), None, "{bad}");
+        }
     }
 
     #[test]
