@@ -164,3 +164,23 @@ fn read_only_pill_opens_on_click() {
     let opened = ws.editor.edit.renderer.ctx.pop_open_files();
     assert_eq!(opened.first().map(|o| o.0), Some(plan));
 }
+
+/// #5109
+#[test]
+fn toggle_link_twice_restores_text() {
+    let link = || Event::ToggleStyle {
+        region: Region::Selection,
+        style: comrak::nodes::NodeValue::Link(Default::default()),
+    };
+    for (md, (start, end)) in [("hello", (0, 0)), ("hello world", (0, 5))] {
+        let mut ws = TestEditor::new(md);
+        ws.enter_frame();
+        ws.push(Event::Select { region: (Grapheme(start), Grapheme(end)).into() });
+        ws.enter_frame();
+        ws.push(link());
+        ws.enter_frame();
+        ws.push(link());
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), md);
+    }
+}
