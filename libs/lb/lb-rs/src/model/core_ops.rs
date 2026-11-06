@@ -1,6 +1,7 @@
 use crate::model::access_info::{UserAccessInfo, UserAccessMode};
 use crate::model::api::METADATA_FEE;
 use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
+use crate::model::doc_info::LocalDocInfo;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
@@ -32,17 +33,35 @@ where
     /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
     pub fn decrypt(
         &mut self, keychain: &Keychain, id: &Uuid, public_key_cache: &DbHashMap<Owner, String>,
+        doc_info: &DbHashMap<Uuid, LocalDocInfo>,
     ) -> LbResult<File> {
         let account = keychain.get_account()?;
         let pk = keychain.get_pk()?;
 
         let meta = self.find(id)?.clone();
         let file_type = meta.file_type();
-        let last_modified = meta.timestamped_value.timestamp as u64;
+        let mut last_modified = meta.timestamped_value.timestamp as u64;
+        let mut last_modifier = Owner(meta.public_key);
+        let mut doc_size = 0;
+        if let Some(info) = doc_info.get(id) {
+            if let Some(local) = info.local {
+                doc_size = local.compressed_size;
+                if local.timestamp >= last_modified {
+                    last_modified = local.timestamp;
+                    last_modifier = Owner(pk);
+                }
+            } else if let Some(head) = info.remote.or(info.base) {
+                doc_size = head.stored_size;
+                if head.timestamp >= last_modified {
+                    last_modified = head.timestamp;
+                    last_modifier = head.author;
+                }
+            }
+        }
         let name = self.name_using_links(id, keychain)?;
         let parent = self.parent_using_links(id)?;
         let last_modified_by = public_key_cache
-            .get(&Owner(meta.public_key))
+            .get(&last_modifier)
             .cloned()
             .unwrap_or_else(|| String::from("<unknown>"));
 
@@ -99,15 +118,14 @@ where
             last_modified_by,
             owner: owner_username,
             shares,
-            size_bytes: meta.timestamped_value.value.doc_size().unwrap_or_default() as u64
-                + METADATA_FEE,
+            size_bytes: doc_size + METADATA_FEE,
         })
     }
 
     /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
     pub fn decrypt_all<I>(
         &mut self, keychain: &Keychain, ids: I, public_key_cache: &DbHashMap<Owner, String>,
-        skip_invisible: bool,
+        doc_info: &DbHashMap<Uuid, LocalDocInfo>, skip_invisible: bool,
     ) -> LbResult<Vec<File>>
     where
         I: Iterator<Item = Uuid>,
@@ -119,7 +137,7 @@ where
                 continue;
             }
 
-            let finalized = self.decrypt(keychain, &id, public_key_cache)?;
+            let finalized = self.decrypt(keychain, &id, public_key_cache, doc_info)?;
             files.push(finalized);
         }
 

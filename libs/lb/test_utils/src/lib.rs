@@ -177,19 +177,7 @@ fn err_to_string<E: Debug>(e: E) -> String {
 }
 
 pub async fn get_dirty_ids(lb: &Lb, server: bool) -> Vec<Uuid> {
-    if server {
-        lb.server_dirty_ids().await.unwrap()
-    } else {
-        lb.db
-            .read()
-            .await
-            .schema
-            .local_metadata
-            .iter()
-            .map(|(key, _)| key)
-            .copied()
-            .collect()
-    }
+    if server { lb.server_dirty_ids().await.unwrap() } else { lb.local_changes().await }
 }
 
 pub async fn dbs_equal(left: &Lb, right: &Lb) -> bool {

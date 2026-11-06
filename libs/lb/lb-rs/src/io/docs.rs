@@ -110,6 +110,14 @@ impl PendingDocument {
             }
         }
     }
+
+    pub async fn discard(self) {
+        if let Self::File { path, .. } = self {
+            if let Err(err) = fs::remove_file(&path).await {
+                warn!(?err, "could not discard a pending document");
+            }
+        }
+    }
 }
 
 #[must_use]
@@ -121,6 +129,8 @@ impl PendingDocument {
     pub async fn promote(self) -> LbResult<()> {
         Ok(())
     }
+
+    pub async fn discard(self) {}
 }
 
 #[cfg(target_family = "wasm")]

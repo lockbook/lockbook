@@ -167,7 +167,13 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             pending_roots = Self::omit_attachments(&tree, pending_roots)?;
         }
 
-        tree.decrypt_all(&self.keychain, pending_roots.into_iter(), &db.pub_key_lookup, false)
+        tree.decrypt_all(
+            &self.keychain,
+            pending_roots.into_iter(),
+            &db.pub_key_lookup,
+            &db.doc_info,
+            false,
+        )
     }
 
     /// returns *all* the files associated with any pending shares (the share as well as it's
@@ -183,7 +189,13 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             pending_files = Self::omit_attachments(&tree, pending_files)?;
         }
 
-        tree.decrypt_all(&self.keychain, pending_files.into_iter(), &db.pub_key_lookup, false)
+        tree.decrypt_all(
+            &self.keychain,
+            pending_files.into_iter(),
+            &db.pub_key_lookup,
+            &db.doc_info,
+            false,
+        )
     }
 
     #[instrument(level = "debug", skip(self))]

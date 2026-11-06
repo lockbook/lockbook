@@ -453,15 +453,6 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         Ok(Some(remote_document.content))
     }
 
-    pub(crate) async fn fetch_doc(
-        &self, id: Uuid, hmac: DocumentHmac,
-    ) -> LbResult<EncryptedDocument> {
-        match self.ensure_doc_available(id, hmac).await? {
-            Some(doc) => Ok(doc),
-            None => self.docs.get(id, hmac).await,
-        }
-    }
-
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
     /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
     async fn merge(&self, state: &mut SyncState) -> LbResult<()> {

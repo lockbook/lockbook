@@ -50,7 +50,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             &self.keychain,
         )?;
 
-        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?;
 
         tx.end();
 
@@ -80,7 +80,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             document,
             &self.keychain,
         )?;
-        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?;
 
         tx.end();
 
@@ -111,7 +111,13 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             }
         }
 
-        let files = tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, false)?;
+        let files = tree.decrypt_all(
+            &self.keychain,
+            ids.into_iter(),
+            &db.pub_key_lookup,
+            &db.doc_info,
+            false,
+        )?;
         Ok(Attachments { files, folders })
     }
 
@@ -126,7 +132,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let Some(id) = tree.attachments_folder(document)? else {
             return Ok(None);
         };
-        Ok(Some(tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?))
+        Ok(Some(tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?))
     }
 
     /// The document `folder` is the attachments folder of, if it is one. Such a folder moves only
@@ -236,7 +242,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let root_id = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
-        let root = tree.decrypt(&self.keychain, root_id, &db.pub_key_lookup)?;
+        let root = tree.decrypt(&self.keychain, root_id, &db.pub_key_lookup, &db.doc_info)?;
 
         Ok(root)
     }
@@ -255,7 +261,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             ids = Self::omit_attachments(&tree, ids)?;
         }
 
-        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
+        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, &db.doc_info, true)
     }
 
     /// Every file, attachments folders and their contents included, for lb's own walks.
@@ -267,7 +273,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let ids = tree.ids();
 
-        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
+        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, &db.doc_info, true)
     }
 
     /// `id`'s children as this client lists them: attachments folders only where the config
@@ -284,7 +290,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             ids = Self::omit_attachments(&tree, ids)?;
         }
 
-        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
+        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, &db.doc_info, true)
     }
 
     /// All of `id`'s children, attachments folders included, for lb's own walks and name checks.
@@ -296,7 +302,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let ids = tree.children_using_links(id)?;
 
-        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
+        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, &db.doc_info, true)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -315,6 +321,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             &self.keychain,
             descendants.into_iter().chain(iter::once(*id)),
             &db.pub_key_lookup,
+            &db.doc_info,
             true,
         )
     }
@@ -333,7 +340,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             return Err(LbErrKind::FileNonexistent.into());
         }
 
-        let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+        let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?;
 
         Ok(file)
     }
@@ -377,10 +384,17 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
     pub async fn local_changes(&self) -> Vec<Uuid> {
         let tx = self.ro_tx().await;
         let db = tx.db();
-        db.local_metadata
+        let mut changes: Vec<Uuid> = db
+            .local_metadata
             .iter()
             .map(|(key, _)| key)
             .copied()
-            .collect()
+            .collect();
+        for (id, info) in db.doc_info.iter() {
+            if info.local.is_some() && !changes.contains(id) {
+                changes.push(*id);
+            }
+        }
+        changes
     }
 }

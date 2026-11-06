@@ -1,7 +1,7 @@
 use crate::Lb;
 use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
-use crate::model::api::GetUsageRequest;
+use crate::model::api::{GetUsageRequest, METADATA_FEE};
 use crate::model::errors::LbResult;
 use crate::model::file_metadata::Owner;
 use crate::model::tree_like::TreeLike;
@@ -82,11 +82,25 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        let synced = (&db.base_metadata).to_lazy().usage_by_file(owner)?;
-        let local = (&db.base_metadata)
+        let mut synced = (&db.base_metadata).to_lazy().usage_by_file(owner)?;
+        let mut local = (&db.base_metadata)
             .to_staged(&db.local_metadata)
             .to_lazy()
             .usage_by_file(owner)?;
+        let doc_size = |id: &Uuid, local: bool| {
+            db.doc_info
+                .get(id)
+                .map_or(0, |info| match info.local.filter(|_| local) {
+                    Some(version) => version.compressed_size,
+                    None => info.remote.or(info.base).map_or(0, |head| head.stored_size),
+                })
+        };
+        for (id, usage) in synced.iter_mut() {
+            *usage = METADATA_FEE + doc_size(id, false);
+        }
+        for (id, usage) in local.iter_mut() {
+            *usage = METADATA_FEE + doc_size(id, true);
+        }
 
         let mut entries: Vec<UsageEntry> = local
             .iter()

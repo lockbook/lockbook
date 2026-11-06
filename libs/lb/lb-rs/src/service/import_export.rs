@@ -6,10 +6,11 @@ use crate::Lb;
 use crate::io::server::Server;
 use crate::model::ValidationFailure;
 use crate::model::api::METADATA_FEE;
+use crate::model::clock::get_time;
 use crate::model::crypto::AESKey;
+use crate::model::doc_info::{LocalDocInfo, LocalVersion};
 use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::File;
-use crate::model::file_like::FileLike;
 use crate::model::file_metadata::FileType;
 use crate::model::symkey;
 use crate::model::tree_like::TreeLike;
@@ -190,9 +191,19 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             }
         }
         if let Some((hmac, size)) = content {
-            tree.overwrite_document_hmac(&id, Some(hmac), Some(size), &self.keychain)?;
+            db.doc_info.insert(
+                id,
+                LocalDocInfo {
+                    local: Some(LocalVersion {
+                        hmac,
+                        compressed_size: size as u64,
+                        timestamp: get_time().0 as u64,
+                    }),
+                    ..Default::default()
+                },
+            )?;
         }
-        let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+        let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?;
         tx.end();
 
         self.events.meta_changed(Actor::User(None));
@@ -208,7 +219,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             let tx = self.ro_tx().await;
             let db = tx.db();
             let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-            let hmac = tree.find(&id)?.document_hmac().copied();
+            tree.find(&id)?;
+            let hmac = db.doc_info.get(&id).and_then(|info| info.current_hmac());
             (hmac, tree.decrypt_key(&id, &self.keychain)?)
         };
         Ok(match hmac {
