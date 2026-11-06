@@ -603,6 +603,15 @@ impl<'ast> MdEdit {
                     self.renderer.apply_fold(node, contents, unapply);
                 }
             }
+            Event::ToggleTask { check } => {
+                let mark = &self.renderer.buffer[(check, check + 1)];
+                let text = if mark == " " { "x" } else { " " };
+                operations.push(Operation::Replace(Replace {
+                    range: (check, check + 1),
+                    text: text.into(),
+                }));
+                self.renderer.task_toggle_pending = Some(check);
+            }
             Event::ToggleSpoiler { node: range } => {
                 let Some(node) = root
                     .descendants()
