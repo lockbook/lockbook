@@ -13,6 +13,7 @@ pub mod server;
 
 use crate::Lb;
 use crate::model::account::Account;
+use crate::model::doc_info::LocalDocInfo;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
@@ -68,11 +69,13 @@ pub struct CoreV5 {
     pub last_extracted_panic: DbOption<i64>,
 
     pub searched_files: DbVec<Uuid>,
+    pub doc_info: DbHashMap<Uuid, LocalDocInfo>,
+    pub last_doc_synced: DbOption<u64>,
 }
 
 impl Schema for CoreV5 {
     fn views_mut(&mut self) -> impl AsMut<[&mut dyn View]> {
-        let views: [&mut dyn View; 11] = [
+        let views: [&mut dyn View; 13] = [
             &mut self.account,
             &mut self.last_synced,
             &mut self.root,
@@ -84,6 +87,8 @@ impl Schema for CoreV5 {
             &mut self.pinned_files,
             &mut self.last_extracted_panic,
             &mut self.searched_files,
+            &mut self.doc_info,
+            &mut self.last_doc_synced,
         ];
         views
     }

@@ -11,6 +11,7 @@ use db_rs::views::{
 };
 use db_rs_old::{Config as OldConfig, Db};
 use lb_rs::io::MigrationResult;
+use lb_rs::model::doc_info::{BlobKey, DocInfo};
 use lb_rs::model::file_metadata::{DocumentHmac, Owner};
 use lb_rs::model::server_meta::ServerMeta;
 use lb_rs::service::debug::DebugInfo;
@@ -59,11 +60,13 @@ pub struct ServerV6 {
     pub debug_info: DbHashMapMap<Owner, LbID, DebugInfo>,
     pub sub_accounts: DbHashMap<Owner, SubAccount>,
     pub sub_accounts_by_parent: DbHashMapSet<Owner, Owner>,
+    pub doc_info: DbHashMap<Uuid, DocInfo>,
+    pub scheduled_blob_cleanups: DbHashMap<BlobKey, i64>,
 }
 
 impl Schema for ServerV6 {
     fn views_mut(&mut self) -> impl AsMut<[&mut dyn View]> {
-        let views: [&mut dyn View; 16] = [
+        let views: [&mut dyn View; 18] = [
             &mut self.usernames,
             &mut self.metas,
             &mut self.google_play_ids,
@@ -80,6 +83,8 @@ impl Schema for ServerV6 {
             &mut self.debug_info,
             &mut self.sub_accounts,
             &mut self.sub_accounts_by_parent,
+            &mut self.doc_info,
+            &mut self.scheduled_blob_cleanups,
         ];
         views
     }
