@@ -2365,7 +2365,7 @@ fn phone_toolbar_never_pushed_off_screen() {
     // favicons/capsules only render with link fetching on; all metadata is
     // seeded above, so no request actually leaves the test
     editor.persistence.set_contact_linked_sites(true);
-    editor.virtual_keyboard_shown = true;
+    editor.editing = true;
 
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(390., 700.));
     let frames_run = std::cell::Cell::new(0u32);
