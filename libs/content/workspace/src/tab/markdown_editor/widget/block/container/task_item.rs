@@ -97,11 +97,8 @@ impl<'ast> MdRender {
             ui.painter().rect(
                 checkbox_space.shrink(2. * how_on), // anticipation for the main animation
                 border_radius,
-                theme
-                    .bg()
-                    .get_color(theme.prefs().primary)
-                    .gamma_multiply(0.1),
-                Stroke::new(0.5_f32, theme.fg().get_color(theme.prefs().primary)),
+                theme.accent_bg().gamma_multiply(0.1),
+                Stroke::new(0.5_f32, theme.accent()),
                 StrokeKind::Inside,
             );
 
@@ -109,7 +106,7 @@ impl<'ast> MdRender {
             ui.painter().rect_filled(
                 checkbox_space.expand2(checkbox_space.size() * how_on - checkbox_space.size()),
                 border_radius,
-                theme.fg().get_color(theme.prefs().primary),
+                theme.accent(),
             );
 
             // draw check

@@ -23,10 +23,7 @@ impl MdRender {
             egui::Align2::RIGHT_TOP,
             debug_text,
             egui::FontId::monospace(14.),
-            self.ctx
-                .get_lb_theme()
-                .fg()
-                .get_color(self.ctx.get_lb_theme().prefs().primary),
+            self.ctx.get_lb_theme().accent(),
         );
     }
 

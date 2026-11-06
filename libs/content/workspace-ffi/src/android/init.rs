@@ -15,9 +15,7 @@ use raw_window_handle::{
 };
 use std::ptr::NonNull;
 use wgpu::SurfaceTargetUnsafe;
-use workspace_rs::theme::palette_v2::{
-    Mode, Palette, Preferences, Theme, ThemeExt as _, ThemeVariant,
-};
+use workspace_rs::theme::palette_v2::{Mode, Palette, Theme, ThemeExt as _, ThemeVariant};
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
 
@@ -30,7 +28,6 @@ pub struct NativeWindow {
 }
 
 const WORKSPACE_THEME_VARIANT_SIG: &str = "Lapp/lockbook/util/WorkspaceThemeVariant;";
-const WORKSPACE_THEME_PREFERENCES_SIG: &str = "Lapp/lockbook/util/WorkspaceThemePreferences;";
 
 impl NativeWindow {
     pub fn new(env: &JNIEnv, surface: jobject) -> Self {
@@ -225,18 +222,12 @@ fn android_material_theme_to_lb_inner(env: &mut JNIEnv<'_>, theme: &JObject<'_>)
     let dim_obj = theme_object_field(env, theme, "dim", WORKSPACE_THEME_VARIANT_SIG)?;
     let dim = theme_variant_to_lb(env, &dim_obj)?;
 
-    let light_prefs_obj =
-        theme_object_field(env, theme, "lightPrefs", WORKSPACE_THEME_PREFERENCES_SIG)?;
-    let light_prefs = theme_preferences_to_lb(env, &light_prefs_obj)?;
-
     let bright_obj = theme_object_field(env, theme, "bright", WORKSPACE_THEME_VARIANT_SIG)?;
     let bright = theme_variant_to_lb(env, &bright_obj)?;
 
-    let dark_prefs_obj =
-        theme_object_field(env, theme, "darkPrefs", WORKSPACE_THEME_PREFERENCES_SIG)?;
-    let dark_prefs = theme_preferences_to_lb(env, &dark_prefs_obj)?;
+    let accent_hue = Palette::try_from(string_field(env, theme, "accent")?.as_str()).ok()?;
 
-    Some(Theme::from_android_material(current, dim, light_prefs, bright, dark_prefs))
+    Some(Theme::from_android_material(current, dim, bright, accent_hue))
 }
 
 fn theme_object_field<'local>(
@@ -256,15 +247,6 @@ fn theme_variant_to_lb(env: &mut JNIEnv, variant: &JObject) -> Option<ThemeVaria
         magenta: color32_from_argb(int_field(env, variant, "magenta")?),
         cyan: color32_from_argb(int_field(env, variant, "cyan")?),
         white: color32_from_argb(int_field(env, variant, "white")?),
-    })
-}
-
-fn theme_preferences_to_lb(env: &mut JNIEnv, prefs: &JObject) -> Option<Preferences> {
-    Some(Preferences {
-        primary: Palette::try_from(string_field(env, prefs, "primary")?.as_str()).ok()?,
-        secondary: Palette::try_from(string_field(env, prefs, "secondary")?.as_str()).ok()?,
-        tertiary: Palette::try_from(string_field(env, prefs, "tertiary")?.as_str()).ok()?,
-        quaternary: Palette::try_from(string_field(env, prefs, "quaternary")?.as_str()).ok()?,
     })
 }
 
@@ -288,26 +270,25 @@ fn lb_theme_to_android_material_theme<'local>(
         .find_class("app/lockbook/util/WorkspaceTheme")
         .expect("find WorkspaceTheme class");
     let dim = theme_variant_to_java(env, theme.dim);
-    let light_prefs = theme_preferences_to_java(env, theme.light_prefs);
     let bright = theme_variant_to_java(env, theme.bright);
-    let dark_prefs = theme_preferences_to_java(env, theme.dark_prefs);
+    let accent = env
+        .new_string(palette_name(theme.accent_hue))
+        .expect("create accent palette string");
 
     env.new_object(
         cls,
         concat!(
             "(Z",
             "Lapp/lockbook/util/WorkspaceThemeVariant;",
-            "Lapp/lockbook/util/WorkspaceThemePreferences;",
             "Lapp/lockbook/util/WorkspaceThemeVariant;",
-            "Lapp/lockbook/util/WorkspaceThemePreferences;",
+            "Ljava/lang/String;",
             ")V"
         ),
         &[
             JValue::Bool(if theme.current == Mode::Dark { 1 } else { 0 }),
             JValue::Object(&dim),
-            JValue::Object(&light_prefs),
             JValue::Object(&bright),
-            JValue::Object(&dark_prefs),
+            JValue::Object(&JObject::from(accent)),
         ],
     )
     .expect("create WorkspaceTheme")
@@ -335,38 +316,6 @@ fn theme_variant_to_java<'local>(
         ],
     )
     .expect("create WorkspaceThemeVariant")
-}
-
-fn theme_preferences_to_java<'local>(
-    env: &mut JNIEnv<'local>, prefs: Preferences,
-) -> JObject<'local> {
-    let cls = env
-        .find_class("app/lockbook/util/WorkspaceThemePreferences")
-        .expect("find WorkspaceThemePreferences class");
-    let primary = env
-        .new_string(palette_name(prefs.primary))
-        .expect("create primary palette string");
-    let secondary = env
-        .new_string(palette_name(prefs.secondary))
-        .expect("create secondary palette string");
-    let tertiary = env
-        .new_string(palette_name(prefs.tertiary))
-        .expect("create tertiary palette string");
-    let quaternary = env
-        .new_string(palette_name(prefs.quaternary))
-        .expect("create quaternary palette string");
-
-    env.new_object(
-        cls,
-        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-        &[
-            JValue::Object(&JObject::from(primary)),
-            JValue::Object(&JObject::from(secondary)),
-            JValue::Object(&JObject::from(tertiary)),
-            JValue::Object(&JObject::from(quaternary)),
-        ],
-    )
-    .expect("create WorkspaceThemePreferences")
 }
 
 fn palette_name(palette: Palette) -> &'static str {

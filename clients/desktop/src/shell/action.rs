@@ -408,6 +408,7 @@ pub enum Action {
     ConfirmCancelSub,
     SetThemeMode(crate::components::ModePreference),
     SetThemeFamily(crate::components::ThemeFamily),
+    SetThemeAccent(workspace_rs::theme::palette_v2::Palette),
     SetPrefLinkPreviews(bool),
     /// Misspelled words are marked, from now on.
     SetPrefSpellCheck(bool),
@@ -532,6 +533,7 @@ impl Action {
             Self::ConfirmCancelSub => "ConfirmCancelSub",
             Self::SetThemeMode(_) => "SetThemeMode",
             Self::SetThemeFamily(_) => "SetThemeFamily",
+            Self::SetThemeAccent(_) => "SetThemeAccent",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
             Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",
             Self::SetPrefColumnWidth(_) => "SetPrefColumnWidth",

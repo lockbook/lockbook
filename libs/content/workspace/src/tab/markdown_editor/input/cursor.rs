@@ -92,7 +92,7 @@ impl MdEdit {
 
     pub fn show_selection_handles(&mut self, ui: &mut Ui) {
         let theme = self.renderer.ctx.get_lb_theme();
-        let color = theme.fg().get_color(theme.prefs().primary);
+        let color = theme.accent();
         let selection = self
             .in_progress_selection
             .unwrap_or(self.renderer.buffer.current.selection);

@@ -2,13 +2,14 @@
 //! Mode preference defaults to system; pin via [`set_mode_preference`].
 
 use egui::{Context, FontDefinitions, Id, Theme as EguiTheme, Vec2};
-use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
+use workspace_rs::theme::palette_v2::{Mode, Palette, Theme, ThemeExt};
 
 use super::chrome::HOVER_ANIM_SECS;
 use super::typography;
 
 const MODE_PREF_ID: &str = "design_mode_preference";
 const THEME_FAMILY_ID: &str = "design_theme_family";
+const THEME_ACCENT_ID: &str = "design_theme_accent";
 const DETECTED_MODE_ID: &str = "design_detected_system_mode";
 const OS_PROBE_TTL_SECS: f64 = 1.0;
 
@@ -122,8 +123,7 @@ pub fn ensure_theme(ctx: &Context) {
     });
     if !has {
         set_mode_preference(ctx, ModePreference::System);
-        let family = theme_family(ctx);
-        ctx.set_lb_theme(family.build(resolved_mode(ctx)));
+        ctx.set_lb_theme(build_theme(ctx, resolved_mode(ctx)));
         return;
     }
     sync_mode_from_preference(ctx);
@@ -136,9 +136,30 @@ pub fn theme_family(ctx: &Context) -> ThemeFamily {
     })
 }
 
+/// Also drops any accent pick, so the family's own accent shows.
 pub fn set_theme_family(ctx: &Context, family: ThemeFamily) {
-    ctx.data_mut(|d| d.insert_temp(Id::unique(THEME_FAMILY_ID), family));
-    ctx.set_lb_theme(family.build(resolved_mode(ctx)));
+    ctx.data_mut(|d| {
+        d.insert_temp(Id::unique(THEME_FAMILY_ID), family);
+        d.insert_temp(Id::unique(THEME_ACCENT_ID), None::<Palette>);
+    });
+    ctx.set_lb_theme(build_theme(ctx, resolved_mode(ctx)));
+}
+
+/// Overrides the family's accent until the family changes.
+pub fn set_theme_accent(ctx: &Context, accent: Palette) {
+    ctx.data_mut(|d| d.insert_temp(Id::unique(THEME_ACCENT_ID), Some(accent)));
+    ctx.set_lb_theme(build_theme(ctx, resolved_mode(ctx)));
+}
+
+fn build_theme(ctx: &Context, mode: Mode) -> Theme {
+    let theme = theme_family(ctx).build(mode);
+    match ctx
+        .data(|d| d.get_temp::<Option<Palette>>(Id::unique(THEME_ACCENT_ID)))
+        .flatten()
+    {
+        Some(accent) => theme.with_accent(accent),
+        None => theme,
+    }
 }
 
 /// Current mode preference (system vs pinned).
@@ -207,7 +228,7 @@ fn sync_mode_from_preference(ctx: &Context) {
             .is_some()
     });
     if !has {
-        ctx.set_lb_theme(theme_family(ctx).build(want));
+        ctx.set_lb_theme(build_theme(ctx, want));
         return;
     }
     let current = ctx.get_lb_theme().current;
@@ -217,6 +238,6 @@ fn sync_mode_from_preference(ctx: &Context) {
 }
 
 fn apply_mode(ctx: &Context, mode: Mode) {
-    ctx.set_lb_theme(theme_family(ctx).build(mode));
+    ctx.set_lb_theme(build_theme(ctx, mode));
     reinstall_style(ctx);
 }

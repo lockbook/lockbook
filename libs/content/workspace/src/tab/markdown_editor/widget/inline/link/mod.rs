@@ -38,7 +38,7 @@ impl<'ast> MdRender {
         let parent_text_format = self.text_format(parent);
         let theme = self.ctx.get_lb_theme();
         let color = match state {
-            LinkState::Normal => theme.fg().blue,
+            LinkState::Normal => theme.accent(),
             LinkState::Warning { .. } => theme.fg().yellow,
             LinkState::Broken { .. } => theme.fg().red,
             LinkState::Placeholder { .. } => theme.fg().cyan,
@@ -490,7 +490,7 @@ impl<'ast> MdRender {
 
             if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
-                let accent = theme.bg().get_color(theme.prefs().primary);
+                let accent = theme.accent_bg();
                 let tint =
                     egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 90);
                 // Merge fragments into one rect per row so the selection reads as

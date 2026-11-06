@@ -27,7 +27,7 @@ use super::action::{
 use super::ops::{is_pinned, note_files_changed, refresh_pinned};
 use super::prefs::AccountPanel;
 use super::session::Ready;
-use crate::components::{set_mode_preference, set_theme_family};
+use crate::components::{set_mode_preference, set_theme_accent, set_theme_family};
 use tracing::instrument;
 
 #[instrument(level = "trace", skip_all, fields(action = action.name()))]
@@ -619,7 +619,13 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::SetThemeFamily(fam) => {
             app.settings.theme_name = fam.name().to_owned();
+            app.settings.theme_accent = None;
             set_theme_family(ctx, fam);
+            let _ = app.settings.to_file();
+        }
+        A::SetThemeAccent(accent) => {
+            app.settings.theme_accent = Some(accent);
+            set_theme_accent(ctx, accent);
             let _ = app.settings.to_file();
         }
         // Workspace prefs: single store on `workspace.cfg`.

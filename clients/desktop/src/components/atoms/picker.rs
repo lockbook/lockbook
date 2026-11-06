@@ -178,6 +178,11 @@ pub fn picker(ui: &mut Ui, t: &Theme, options: &[&str], selected: &mut usize) ->
             click_pick
         })
     {
+        // The menu sits right above its sheet, even when a tap raises both in one frame.
+        let menu_layer = inner.response.layer_id;
+        if menu_layer.order == ui.layer_id().order {
+            ui.ctx().set_sublayer(ui.layer_id(), menu_layer);
+        }
         if let Some(i) = inner.inner {
             pick = Some(i);
         }
