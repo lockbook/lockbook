@@ -267,7 +267,6 @@ impl Lb {
                 if let Some(local_hmac) = local.find(&id)?.document_hmac() {
                     if Some(local_hmac) != base.document_hmac() {
                         files_with_local_edits.push(id);
-                        println!("local edits found");
                     }
                 }
             }
