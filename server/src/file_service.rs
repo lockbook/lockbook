@@ -4,19 +4,22 @@ use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::defense::SERVER_BANDWIDTH_CAP;
+use crate::doc_info_service::forget_doc;
 use crate::document_service::DocumentService;
 use crate::guard::ServerTx;
-use crate::schema::ServerV6;
+use crate::schema::{ServerV6, doc_size};
 
 use crate::{RequestContext, ServerState};
 use db_rs::views::hashmap::DbHashMap;
 use lb_rs::model::api::{UpsertError, *};
 use lb_rs::model::clock::get_time;
+use lb_rs::model::doc_info::{BlobKey, DocInfo, DocVersion, Storage, VersionKind};
 use lb_rs::model::errors::{LbErrKind, LbResult};
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{Diff, Owner};
 use lb_rs::model::server_meta::{IntoServerMeta, ServerMeta};
 use lb_rs::model::server_tree::{ServerTree, indexed_under};
+use lb_rs::model::signed_meta::SignedMeta;
 use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -81,6 +84,8 @@ where
         for &owner in &affected_owners {
             let usage_cap = Self::get_cap(db, &owner.0).map_err(|err| internal!("{:?}", err))?;
 
+            let doc_info = &db.doc_info;
+            let sizes = |id: &Uuid| doc_size(doc_info, id);
             let mut tree = ServerTree::new(
                 owner,
                 &mut db.owned_files,
@@ -90,9 +95,9 @@ where
             )?
             .to_lazy();
 
-            let old_usage = tree.calculate_usage(owner)?;
+            let old_usage = tree.calculate_usage(owner, sizes)?;
             let mut tree = tree.stage_unvalidated(updates.clone());
-            let new_usage = tree.calculate_usage(owner)?;
+            let new_usage = tree.calculate_usage(owner, sizes)?;
 
             debug!(?owner, ?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
 
@@ -114,16 +119,13 @@ where
         let tree = tree.stage_unvalidated(updates.clone());
         let tree = tree.promote()?;
 
+        let mut newly_deleted_docs = vec![];
         for id in tree.ids() {
             if tree.find(&id)?.is_document()
                 && current_deleted.contains(&id)
                 && !prior_deleted.contains(&id)
             {
-                let meta = tree.find(&id)?;
-                if let Some(hmac) = meta.file.timestamped_value.value.document_hmac().copied() {
-                    db.scheduled_file_cleanups
-                        .insert((*meta.id(), hmac), get_time().0)?;
-                }
+                newly_deleted_docs.push((id, tree.find(&id)?.document_hmac().copied()));
             }
         }
 
@@ -140,6 +142,10 @@ where
                     db.file_children.remove(&of.id, id)?;
                 }
             }
+        }
+
+        for (id, legacy_hmac) in newly_deleted_docs {
+            forget_doc(db, id, legacy_hmac)?;
         }
 
         db.last_seen.insert(req_owner, get_time().0 as u64)?;
@@ -180,6 +186,8 @@ where
         let requester = Owner(context.public_key);
         let id = *diff.id();
         let new_meta = diff.new.clone().add_time(get_time().0 as u64);
+        let new_size = new_content.value.len() as u64;
+        let key = BlobKey::Legacy { id, hmac: hmac_bytes };
 
         // phase 1: validate request before io
         let mut lock = self.index_db.lock().await;
@@ -210,6 +218,9 @@ where
             .ok_or(ClientError(NotPermissioned))?
             .file;
 
+        if current_meta.timestamped_value.value.is_v3() {
+            return Err(ClientError(OldVersionIncorrect));
+        }
         if let Some(old) = &diff.old {
             if current_meta != old {
                 return Err(ClientError(OldVersionIncorrect));
@@ -218,7 +229,15 @@ where
 
         let mut tree = tree.stage(vec![new_meta.clone()]);
         tree.validate(requester)?;
+        drop(tree);
 
+        let old_doc_size = db
+            .doc_info
+            .get(&id)
+            .map(DocInfo::stored_size)
+            .unwrap_or_default();
+        let doc_info = &db.doc_info;
+        let sizes = |id: &Uuid| doc_size(doc_info, id);
         let mut tree = ServerTree::new(
             tree_owner,
             &mut db.owned_files,
@@ -228,9 +247,8 @@ where
         )?
         .to_lazy();
 
-        let old_usage = tree.calculate_usage(tree_owner)?;
-        let mut tree = tree.stage(vec![new_meta.clone()]); // todo check if this used to be stage
-        let new_usage = tree.calculate_usage(tree_owner)?;
+        let old_usage = tree.calculate_usage(tree_owner, sizes)?;
+        let new_usage = old_usage - old_doc_size + new_size;
         debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
 
         if new_usage > usage_cap && new_usage >= old_usage {
@@ -238,13 +256,11 @@ where
             return Err(ClientError(UsageIsOverDataCap));
         }
 
-        db.scheduled_file_cleanups.remove(&(id, hmac_bytes))?;
+        db.scheduled_blob_cleanups.remove(&key)?;
         tx.end()?;
         drop(lock);
 
-        self.document_service
-            .insert(&id, &hmac_bytes, &new_content)
-            .await?;
+        self.document_service.insert(&key, &new_content).await?;
         debug!(?id, ?hmac, "Inserted document contents");
 
         let result = async {
@@ -252,6 +268,13 @@ where
             let mut tx = ServerTx::begin(&mut lock)?;
             let db = &mut *tx;
 
+            let old_doc_size = db
+                .doc_info
+                .get(&id)
+                .map(DocInfo::stored_size)
+                .unwrap_or_default();
+            let doc_info = &db.doc_info;
+            let sizes = |id: &Uuid| doc_size(doc_info, id);
             let mut tree = ServerTree::new(
                 requester,
                 &mut db.owned_files,
@@ -270,15 +293,18 @@ where
                 .ok_or(ClientError(DocumentNotFound))?
                 .file;
 
+            if current_meta.timestamped_value.value.is_v3() {
+                return Err(ClientError(OldVersionIncorrect));
+            }
             if let Some(old) = &diff.old {
                 if current_meta != old {
                     return Err(ClientError(OldVersionIncorrect));
                 }
             }
 
-            let old_usage = tree.calculate_usage(tree_owner)?;
+            let old_usage = tree.calculate_usage(tree_owner, sizes)?;
+            let new_usage = old_usage - old_doc_size + new_size;
             let mut tree = tree.stage(vec![new_meta]);
-            let new_usage = tree.calculate_usage(tree_owner)?;
             tree.validate(requester)?;
             if new_usage > usage_cap && new_usage >= old_usage {
                 warn!("user over cap");
@@ -286,9 +312,27 @@ where
             }
             tree.promote()?;
 
-            if let Some(old_hmac) = diff.old.and_then(|old| old.document_hmac().copied()) {
-                db.scheduled_file_cleanups
-                    .insert((id, old_hmac), get_time().0)?;
+            let timestamp = get_time().0 as u64;
+            let version = DocVersion {
+                hmac: hmac_bytes,
+                kind: VersionKind::Snapshot,
+                storage: Storage::Legacy,
+                compressed_size: new_size,
+                uncompressed_size: None,
+                content_size: None,
+                author: requester,
+                timestamp,
+            };
+            let mut info = db.doc_info.get(&id).cloned().unwrap_or_default();
+            let retired = info.retire(id);
+            info.versions.push(version);
+            info.updated_at = timestamp;
+            db.doc_info.insert(id, info)?;
+            for old_key in retired {
+                if old_key != key {
+                    db.scheduled_blob_cleanups
+                        .insert(old_key, timestamp as i64)?;
+                }
             }
 
             tx.end()?;
@@ -300,8 +344,17 @@ where
 
         if result.is_err() {
             // Cleanup the NEW file created if, for some reason, the tx failed
-            self.document_service.delete(&id, &hmac_bytes).await?;
-            debug!(?id, ?hmac, "Cleaned up new document contents after failed metadata update");
+            let referenced = {
+                let lock = self.index_db.lock().await;
+                lock.schema
+                    .doc_info
+                    .get(&id)
+                    .is_some_and(|info| info.references(&key))
+            };
+            if !referenced {
+                self.document_service.delete(&key).await?;
+                debug!(?id, ?hmac, "Cleaned up new document contents after failed metadata update");
+            }
         }
 
         result?;
@@ -347,7 +400,7 @@ where
 
         let Some(content) = self
             .document_service
-            .maybe_get(&request.id, &request.hmac)
+            .maybe_get(&BlobKey::Legacy { id: request.id, hmac: request.hmac })
             .await?
         else {
             return Err(ClientError(GetDocumentError::DocumentNotFound));
@@ -450,15 +503,28 @@ where
             }
         }
 
-        Ok(GetUpdatesResponseV2 {
-            as_of_metadata_version: get_time().0 as u64,
-            file_metadata: tree
-                .all_files()?
-                .into_iter()
-                .filter(|meta| result_ids.contains(meta.id()))
-                .map(|meta| meta.file.clone())
-                .collect(),
-        })
+        let file_metadata: Vec<SignedMeta> = tree
+            .all_files()?
+            .into_iter()
+            .filter(|meta| result_ids.contains(meta.id()))
+            .map(|meta| meta.file.clone())
+            .collect();
+
+        if !self.understands_meta_v3(&context.client_version)
+            && file_metadata
+                .iter()
+                .any(|meta| meta.timestamped_value.value.is_v3())
+        {
+            return Err(ServerError::ClientUpdateRequired);
+        }
+
+        Ok(GetUpdatesResponseV2 { as_of_metadata_version: get_time().0 as u64, file_metadata })
+    }
+
+    pub fn understands_meta_v3(&self, client_version: &Option<semver::Version>) -> bool {
+        client_version
+            .as_ref()
+            .is_some_and(|version| self.config.server.meta_v3_min_core_version.matches(version))
     }
 
     pub async fn admin_disappear_file(
@@ -503,13 +569,21 @@ where
                 metas_to_delete.insert(context.request.id);
                 metas_to_delete
             };
+            let mut owned_docs = vec![];
             for id in metas_to_delete.clone() {
                 if !tree.calculate_deleted(&id)? {
                     let meta = tree.find(&id)?;
                     if meta.is_document() && meta.owner() == owner {
-                        if let Some(hmac) = meta.document_hmac() {
-                            docs_to_delete.push((*meta.id(), *hmac));
-                        }
+                        owned_docs.push((id, meta.document_hmac().copied()));
+                    }
+                }
+            }
+            drop(tree);
+            for (id, legacy_hmac) in owned_docs {
+                match db.doc_info.remove(&id)? {
+                    Some(info) => docs_to_delete.extend(info.blobs(id)),
+                    None => {
+                        docs_to_delete.extend(legacy_hmac.map(|hmac| BlobKey::Legacy { id, hmac }))
                     }
                 }
             }
@@ -565,8 +639,8 @@ where
             tx.end()?;
         }
 
-        for (id, version) in docs_to_delete {
-            self.document_service.delete(&id, &version).await?;
+        for key in docs_to_delete {
+            self.document_service.delete(&key).await?;
         }
 
         Ok(())
@@ -612,14 +686,18 @@ where
         for id in tree.ids() {
             if !tree.calculate_deleted(&id)? {
                 let file = tree.find(&id)?;
-                if file.is_document() && file.document_hmac().is_some() {
-                    if file.file.timestamped_value.value.doc_size().is_none() {
-                        result.documents_missing_size.push(id);
-                    }
-
-                    if !self
-                        .document_service
-                        .exists(&id, file.document_hmac().unwrap())
+                if !file.is_document() {
+                    continue;
+                }
+                if file.document_hmac().is_some()
+                    && file.file.timestamped_value.value.doc_size().is_none()
+                {
+                    result.documents_missing_size.push(id);
+                }
+                if let Some(info) = db.doc_info.get(&id) {
+                    if info
+                        .blobs(id)
+                        .any(|key| !self.document_service.exists(&key))
                     {
                         result.documents_missing_content.push(id);
                     }
@@ -884,16 +962,13 @@ where
         }
 
         // validate presence of documents
-        for (id, meta) in db
-            .metas
-            .iter()
-            .map(|(key, value)| (*key, value.clone()))
-            .collect::<HashMap<_, _>>()
-        {
-            if let Some(hmac) = meta.document_hmac() {
-                if !deleted_ids.contains(&id) && !self.document_service.exists(&id, hmac) {
-                    result.files_with_hmacs_and_no_contents.insert(id);
-                }
+        for (id, info) in db.doc_info.iter() {
+            if !deleted_ids.contains(id)
+                && info
+                    .blobs(*id)
+                    .any(|key| !self.document_service.exists(&key))
+            {
+                result.files_with_hmacs_and_no_contents.insert(*id);
             }
         }
 
@@ -944,7 +1019,17 @@ where
             .cloned()
             .collect();
 
-        Ok(AdminFileInfoResponse { file, ancestors, descendants })
+        let response = AdminFileInfoResponse { file, ancestors, descendants };
+        if !self.understands_meta_v3(&context.client_version)
+            && std::iter::once(&response.file)
+                .chain(&response.ancestors)
+                .chain(&response.descendants)
+                .any(|meta| meta.file.timestamped_value.value.is_v3())
+        {
+            return Err(ServerError::ClientUpdateRequired);
+        }
+
+        Ok(response)
     }
 
     pub async fn admin_rebuild_index(

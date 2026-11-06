@@ -216,6 +216,24 @@ impl Server for Network {
         self.request(account, request).await
     }
 
+    async fn get_doc_updates(
+        &self, account: &Account, request: GetDocUpdatesRequest,
+    ) -> ApiResult<GetDocUpdatesRequest> {
+        self.request(account, request).await
+    }
+
+    async fn get_doc_v3(
+        &self, account: &Account, request: GetDocRequestV3,
+    ) -> ApiResult<GetDocRequestV3> {
+        self.request(account, request).await
+    }
+
+    async fn push_doc(
+        &self, account: &Account, request: PushDocRequest,
+    ) -> ApiResult<PushDocRequest> {
+        self.request(account, request).await
+    }
+
     async fn get_build_info(
         &self, account: &Account, request: GetBuildInfoRequest,
     ) -> ApiResult<GetBuildInfoRequest> {

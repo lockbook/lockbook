@@ -7,11 +7,13 @@ use lb_rs::Lb;
 use lb_rs::io::{self, legacy::CoreV4};
 use lb_rs::model::account::Account;
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::Owner;
+use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::model::meta::Meta;
+use lb_rs::model::symkey;
 use lb_rs::service::activity::DocEvent;
 use lb_rs::service::lb_id::LbID;
 use std::fs;
+use uuid::Uuid;
 
 #[test]
 fn copies_every_core_table_and_reopens_without_reimporting() {
@@ -147,4 +149,101 @@ async fn lb_transaction_flushes_on_drop() {
     }
     let lb = Lb::init(config).await.unwrap();
     assert_eq!(lb.ro_tx().await.db().last_synced.as_ref(), Some(&123));
+}
+
+#[test]
+fn moves_document_versions_out_of_v1_metadata() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path();
+    let account = Account::new("migration".into(), "http://localhost".into());
+    let owner = account.public_key();
+    let root_key = symkey::generate_key();
+    let root = Meta::create_root(&account).unwrap();
+    let root_id = *root.id();
+    let document = |name: &str| {
+        Meta::create(
+            Uuid::new_v4(),
+            symkey::generate_key(),
+            &owner,
+            root_id,
+            &root_key,
+            name,
+            FileType::Document,
+        )
+        .unwrap()
+    };
+    let edited = document("edited.md");
+    let deleted = document("deleted.md");
+    let untouched = document("untouched.md");
+    let v1 = |meta: &Meta, hmac: u8, size: usize| {
+        meta.clone()
+            .into_v1(Some([hmac; 32]), Some(size))
+            .sign_as_is(&account)
+            .unwrap()
+    };
+    let mut deleted_locally = deleted.clone();
+    deleted_locally.set_deleted(true);
+    {
+        let mut db = io::init_with_migration(path).unwrap();
+        let tx = db.write_tx().unwrap();
+        let schema = &mut db.schema;
+        schema.account.replace(account.clone()).unwrap();
+        schema.root.replace(root_id).unwrap();
+        let root = root
+            .clone()
+            .into_v1(None, None)
+            .sign_as_is(&account)
+            .unwrap();
+        schema.base_metadata.insert(root_id, root).unwrap();
+        schema
+            .base_metadata
+            .insert(*edited.id(), v1(&edited, 1, 10))
+            .unwrap();
+        schema
+            .local_metadata
+            .insert(*edited.id(), v1(&edited, 2, 12))
+            .unwrap();
+        schema
+            .base_metadata
+            .insert(*deleted.id(), v1(&deleted, 3, 30))
+            .unwrap();
+        schema
+            .local_metadata
+            .insert(*deleted.id(), v1(&deleted_locally, 4, 40))
+            .unwrap();
+        schema
+            .base_metadata
+            .insert(*untouched.id(), v1(&untouched, 5, 50))
+            .unwrap();
+        tx.end_tx(&mut db).unwrap();
+    }
+
+    let db = io::init_with_migration(path).unwrap();
+    let info = |meta: &Meta| *db.schema.doc_info.get(meta.id()).unwrap();
+
+    let edited_info = info(&edited);
+    assert_eq!(edited_info.base_hmac(), Some([1; 32]));
+    assert_eq!(edited_info.remote_hmac(), Some([1; 32]));
+    assert_eq!(edited_info.base.unwrap().stored_size, 10);
+    assert_eq!(edited_info.local.unwrap().hmac, [2; 32]);
+    assert_eq!(edited_info.local.unwrap().compressed_size, 12);
+    assert!(db.schema.local_metadata.get(edited.id()).is_none());
+
+    let deleted_info = info(&deleted);
+    assert_eq!(deleted_info.base_hmac(), Some([3; 32]));
+    assert_eq!(deleted_info.local.unwrap().hmac, [4; 32]);
+    let deleted_local = db.schema.local_metadata.get(deleted.id()).unwrap();
+    assert!(deleted_local.timestamped_value.value.is_v3());
+    assert!(deleted_local.explicitly_deleted());
+
+    let untouched_info = info(&untouched);
+    assert_eq!(untouched_info.current_hmac(), Some([5; 32]));
+    assert!(untouched_info.local.is_none());
+    assert!(db.schema.doc_info.get(&root_id).is_none());
+    let migrated = db.schema.doc_info.iter().count();
+    drop(db);
+
+    let reopened = io::init_with_migration(path).unwrap();
+    assert_eq!(reopened.schema.doc_info.iter().count(), migrated);
+    assert_eq!(*reopened.schema.doc_info.get(edited.id()).unwrap(), edited_info);
 }

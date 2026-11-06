@@ -20,7 +20,7 @@ impl<S> Lb<S> {
 
         let id = tree.create_link_at_path(path, target_id, root, &self.keychain)?;
 
-        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?;
 
         self.events.meta_changed(Actor::User(None));
 
@@ -40,7 +40,7 @@ impl<S> Lb<S> {
 
         let id = tree.create_at_path(path, root, &self.keychain)?;
 
-        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?;
 
         self.events.meta_changed(Actor::User(None));
 
@@ -58,7 +58,7 @@ impl<S> Lb<S> {
 
         let id = tree.path_to_id(path, root, &self.keychain)?;
 
-        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?;
 
         Ok(ui_file)
     }

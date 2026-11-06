@@ -151,6 +151,7 @@ pub struct ServerConfig {
     pub ssl_cert_location: Option<String>,
     pub ssl_private_key_location: Option<String>,
     pub min_core_version: VersionReq,
+    pub meta_v3_min_core_version: VersionReq,
 }
 
 impl ServerConfig {
@@ -164,6 +165,8 @@ impl ServerConfig {
         let ssl_cert_location = env_or_empty("SSL_CERT_LOCATION");
         let ssl_private_key_location = env_or_empty("SSL_PRIVATE_KEY_LOCATION");
         let min_core_version = VersionReq::parse(&env_or_panic("MIN_CORE_VERSION")).unwrap();
+        let meta_v3_min_core_version =
+            VersionReq::parse(&env_or_panic("META_V3_MIN_CORE_VERSION")).unwrap();
 
         match (&discord_webhook_url, &pd_api_key, &ssl_cert_location, &ssl_private_key_location) {
             (Some(_), Some(_), Some(_), Some(_)) | (None, None, None, None) => {}
@@ -182,6 +185,7 @@ impl ServerConfig {
             ssl_cert_location,
             ssl_private_key_location,
             min_core_version,
+            meta_v3_min_core_version,
         }
     }
 }

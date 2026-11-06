@@ -37,7 +37,7 @@ impl<S: Server> Lb<S> {
             &self.keychain,
         )?;
 
-        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?;
 
         tx.end();
 
@@ -58,7 +58,7 @@ impl<S: Server> Lb<S> {
             .to_lazy();
 
         let id = tree.create_attachments(document, name, &self.keychain)?;
-        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?;
 
         tx.end();
 
@@ -161,7 +161,7 @@ impl<S: Server> Lb<S> {
 
         let root_id = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
-        let root = tree.decrypt(&self.keychain, root_id, &db.pub_key_lookup)?;
+        let root = tree.decrypt(&self.keychain, root_id, &db.pub_key_lookup, &db.doc_info)?;
 
         Ok(root)
     }
@@ -175,7 +175,7 @@ impl<S: Server> Lb<S> {
 
         let ids = tree.ids().into_iter();
 
-        tree.decrypt_all(&self.keychain, ids, &db.pub_key_lookup, true)
+        tree.decrypt_all(&self.keychain, ids, &db.pub_key_lookup, &db.doc_info, true)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -187,7 +187,7 @@ impl<S: Server> Lb<S> {
 
         let ids = tree.children_using_links(id)?.into_iter();
 
-        tree.decrypt_all(&self.keychain, ids, &db.pub_key_lookup, true)
+        tree.decrypt_all(&self.keychain, ids, &db.pub_key_lookup, &db.doc_info, true)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -203,6 +203,7 @@ impl<S: Server> Lb<S> {
             &self.keychain,
             descendants.into_iter().chain(iter::once(*id)),
             &db.pub_key_lookup,
+            &db.doc_info,
             true,
         )
     }
@@ -221,7 +222,7 @@ impl<S: Server> Lb<S> {
             return Err(LbErrKind::FileNonexistent.into());
         }
 
-        let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+        let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup, &db.doc_info)?;
 
         Ok(file)
     }
@@ -249,10 +250,17 @@ impl<S: Server> Lb<S> {
     pub async fn local_changes(&self) -> Vec<Uuid> {
         let tx = self.ro_tx().await;
         let db = tx.db();
-        db.local_metadata
+        let mut changes: Vec<Uuid> = db
+            .local_metadata
             .iter()
             .map(|(key, _)| key)
             .copied()
-            .collect()
+            .collect();
+        for (id, info) in db.doc_info.iter() {
+            if info.local.is_some() && !changes.contains(id) {
+                changes.push(*id);
+            }
+        }
+        changes
     }
 }

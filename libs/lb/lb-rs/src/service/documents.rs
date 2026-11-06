@@ -2,11 +2,14 @@ use crate::io::server::Server;
 use std::collections::HashSet;
 
 use crate::Lb;
+use crate::model::ValidationFailure;
+use crate::model::access_info::UserAccessMode;
 use crate::model::clock::get_time;
 use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
-use crate::model::errors::{LbErrKind, LbResult};
+use crate::model::doc_info::LocalVersion;
+use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
-use crate::model::file_metadata::{DocumentHmac, FileType};
+use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
 use crate::model::secret_filename::HmacSha256;
 use crate::model::tree_like::TreeLike;
 use crate::model::{compression_service, symkey, validate};
@@ -27,40 +30,8 @@ impl<S: Server> Lb<S> {
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub async fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
-        // get info so we can do operations while not holding lock
-        let (id, key) = {
-            let tx = self.ro_tx().await;
-            let db = tx.db();
-            let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-            let id = match tree.find(&id)?.file_type() {
-                FileType::Document | FileType::Folder => id,
-                FileType::Link { target } => target,
-            };
-            validate::is_document(tree.find(&id)?)?;
-            (id, tree.decrypt_key(&id, &self.keychain)?)
-        };
-
-        // do the operations
-        let (hmac, encrypted) = compress_encrypt_document(&key, content)?;
-        let encrypted_size = encrypted.value.len();
-        self.docs.insert_pending(id, hmac, &encrypted).await?;
-
-        // commit the result
-        {
-            let mut tx = self.begin_tx().await;
-            let db = tx.db();
-            let mut tree = (&db.base_metadata)
-                .to_staged(&mut db.local_metadata)
-                .to_lazy();
-            self.docs.promote_pending(id, hmac).await?;
-            tree.overwrite_document_hmac(&id, Some(hmac), Some(encrypted_size), &self.keychain)?;
-            tx.end();
-        }
-
-        self.events.doc_written(id, Actor::User(None));
-        self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
+        self.write_local_version(id, None, content, Actor::User(None))
             .await?;
-
         Ok(())
     }
 
@@ -68,50 +39,65 @@ impl<S: Server> Lb<S> {
     pub async fn read_document_with_hmac(
         &self, id: Uuid, user_activity: bool,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
-        // get info + on-disk bytes so we can decrypt without holding the lock
-        let mut retried = false;
-        let info: Option<(DocumentHmac, AESKey, Option<EncryptedDocument>)> = loop {
-            let tx = self.ro_tx().await;
-            let db = tx.db();
-            let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        let mut caught_up = false;
+        let mut pulled = false;
+        let mut pull_error: Option<LbErr> = None;
 
-            let file = tree.find(&id)?;
-            validate::is_document(file)?;
-            let hmac = file.document_hmac().copied();
+        let result = loop {
+            let (key, info, known_to_server) = {
+                let tx = self.ro_tx().await;
+                let db = tx.db();
+                let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-            if tree.calculate_deleted(&id)? {
-                return Err(LbErrKind::FileNonexistent.into());
-            }
-
-            match hmac {
-                Some(hmac) => {
-                    let key = tree.decrypt_key(&id, &self.keychain)?;
-                    let local_blob = self.docs.maybe_get(id, Some(hmac)).await?;
-                    if local_blob.is_none() && !retried {
-                        drop(tx);
-                        // catch up our local db and try to read again
-                        self.begin_tx().await.end();
-                        retried = true;
-                        continue;
-                    }
-                    break Some((hmac, key, local_blob));
+                let file = tree.find(&id)?;
+                validate::is_document(file)?;
+                if tree.calculate_deleted(&id)? {
+                    return Err(LbErrKind::FileNonexistent.into());
                 }
-                None => break None,
-            }
-        };
 
-        // do decrypt + decompress without holding the lock; fetch from the
-        // server first if the blob wasn't already local.
-        let (hmac, doc) = match info {
-            None => (None, vec![]),
-            Some((hmac, key, local_blob)) => {
-                let encrypted = match local_blob {
-                    Some(blob) => blob,
-                    // todo: if document not found -- need to trigger a pull
-                    None => self.fetch_doc(id, hmac).await?,
-                };
-                let doc = decrypt_decompress_document(&key, &encrypted)?;
-                (Some(hmac), doc)
+                (
+                    tree.decrypt_key(&id, &self.keychain)?,
+                    db.doc_info.get(&id).copied(),
+                    db.base_metadata.get(&id).is_some(),
+                )
+            };
+            let state = info.unwrap_or_default();
+            let readable = state.local.map(|local| local.hmac).or(state.base_hmac());
+            let blob = match readable {
+                Some(hmac) => self.docs.maybe_get(id, Some(hmac)).await?,
+                None => None,
+            };
+
+            let needs_pull = state.local.is_none()
+                && (state.is_behind()
+                    || (readable.is_some() && blob.is_none())
+                    || (info.is_none() && known_to_server));
+            if needs_pull && !pulled {
+                pulled = true;
+                match self.pull_doc(id).await {
+                    Ok(()) => continue,
+                    Err(err) => pull_error = Some(err),
+                }
+            }
+
+            match (readable, blob) {
+                (Some(hmac), Some(blob)) => {
+                    break (Some(hmac), decrypt_payload(&key, &blob)?);
+                }
+                (None, _) => match pull_error {
+                    Some(err) if state.remote.is_some() || (info.is_none() && known_to_server) => {
+                        return Err(err);
+                    }
+                    _ => break (None, vec![]),
+                },
+                (Some(_), None) if !caught_up => {
+                    caught_up = true;
+                    self.begin_tx().await.end();
+                    continue;
+                }
+                (Some(_), None) => {
+                    return Err(pull_error.unwrap_or_else(|| LbErrKind::FileNonexistent.into()));
+                }
             }
         };
 
@@ -120,105 +106,170 @@ impl<S: Server> Lb<S> {
                 .await?;
         }
 
-        Ok((hmac, doc))
+        Ok(result)
     }
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub async fn safe_write(
         &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>, origin: Option<Uuid>,
     ) -> LbResult<DocumentHmac> {
-        // get info so we can do operations while not holding lock
-        let (target_id, key) = {
+        self.write_local_version(id, Some(old_hmac), &content, Actor::User(origin))
+            .await
+    }
+
+    pub async fn document_hmac(&self, id: Uuid) -> LbResult<Option<DocumentHmac>> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+        let tree = db.base_metadata.stage(&db.local_metadata);
+        tree.find(&id)?;
+        Ok(db.doc_info.get(&id).and_then(|info| info.current_hmac()))
+    }
+
+    async fn write_local_version(
+        &self, id: Uuid, expected: Option<Option<DocumentHmac>>, content: &[u8], actor: Actor,
+    ) -> LbResult<DocumentHmac> {
+        let (target, key) = self.writable_document(id).await?;
+        if let Some(expected) = expected {
             let tx = self.ro_tx().await;
-            let db = tx.db();
-            let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-            let file = tree.find(&id)?;
-            if file.document_hmac() != old_hmac.as_ref() {
+            let current = tx
+                .db()
+                .doc_info
+                .get(&target)
+                .and_then(|info| info.current_hmac());
+            if current != expected {
                 return Err(LbErrKind::ReReadRequired.into());
             }
-            let target_id = match file.file_type() {
-                FileType::Document | FileType::Folder => id,
-                FileType::Link { target } => target,
-            };
-            validate::is_document(tree.find(&target_id)?)?;
-            (target_id, tree.decrypt_key(&target_id, &self.keychain)?)
-        };
+        }
 
-        // do the operations
-        let (hmac, encrypted) = compress_encrypt_document(&key, &content)?;
-        let encrypted_size = encrypted.value.len();
-        self.docs
-            .insert_pending(target_id, hmac, &encrypted)
-            .await?;
+        let (hmac, encrypted) = compress_encrypt_document(&key, content)?;
+        let compressed_size = encrypted.value.len() as u64;
+        let mut pending = Some(self.docs.stage(target, hmac, &encrypted).await?);
 
-        // commit the result
         {
             let mut tx = self.begin_tx().await;
             let db = tx.db();
-            let mut tree = (&db.base_metadata)
-                .to_staged(&mut db.local_metadata)
-                .to_lazy();
-            self.docs.promote_pending(target_id, hmac).await?;
-            if tree.find(&id)?.document_hmac() != old_hmac.as_ref() {
-                return Err(LbErrKind::ReReadRequired.into());
+            let mut info = db.doc_info.get(&target).copied().unwrap_or_default();
+            if !expected.is_some_and(|expected| info.current_hmac() != expected) {
+                if info.base.is_none() {
+                    info.base = info.remote;
+                }
+                info.local = if Some(hmac) == info.base_hmac() {
+                    None
+                } else {
+                    Some(LocalVersion { hmac, compressed_size, timestamp: get_time().0 as u64 })
+                };
+                if let Some(pending) = pending.take() {
+                    self.docs.commit(pending).await?;
+                }
+                db.doc_info.insert(target, info)?;
+                tx.end();
             }
-            tree.overwrite_document_hmac(
-                &target_id,
-                Some(hmac),
-                Some(encrypted_size),
-                &self.keychain,
-            )?;
-            tx.end();
+        }
+        if let Some(pending) = pending {
+            self.docs.discard(pending).await;
+            return Err(LbErrKind::ReReadRequired.into());
         }
 
-        self.events.doc_written(target_id, Actor::User(origin));
-        self.add_doc_event(activity::DocEvent::Write(target_id, get_time().0))
+        self.events.doc_written(target, actor);
+        self.add_doc_event(activity::DocEvent::Write(target, get_time().0))
             .await?;
 
         Ok(hmac)
     }
 
-    pub(crate) async fn cleanup(&self) -> LbResult<()> {
+    async fn writable_document(&self, id: Uuid) -> LbResult<(Uuid, AESKey)> {
         let tx = self.ro_tx().await;
         let db = tx.db();
+        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        let target = match tree.find(&id)?.file_type() {
+            FileType::Document | FileType::Folder => id,
+            FileType::Link { target } => target,
+        };
+        validate::is_document(tree.find(&target)?)?;
+        if tree.calculate_deleted(&target)? {
+            return Err(LbErrKind::Validation(ValidationFailure::DeletedFileUpdated(target)).into());
+        }
+        if tree.access_mode(Owner(self.keychain.get_pk()?), &target)? < Some(UserAccessMode::Write)
+        {
+            return Err(LbErrKind::InsufficientPermission.into());
+        }
+        Ok((target, tree.decrypt_key(&target, &self.keychain)?))
+    }
 
-        let tree = db.base_metadata.stage(&db.local_metadata);
+    pub(crate) async fn cleanup(&self) -> LbResult<()> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
 
-        let base_files = tree.base.all_files()?.into_iter();
-        let local_files = tree.staged.all_files()?.into_iter();
+        let stale: Vec<Uuid> = db
+            .doc_info
+            .iter()
+            .filter(|(id, _)| {
+                db.base_metadata.get(*id).is_none() && db.local_metadata.get(*id).is_none()
+            })
+            .map(|(id, _)| *id)
+            .collect();
+        for id in stale {
+            db.doc_info.remove(&id)?;
+        }
 
-        let file_hmacs = base_files
-            .chain(local_files)
-            .filter_map(|f| f.document_hmac().map(|hmac| (*f.id(), *hmac)))
+        let retained = db
+            .doc_info
+            .iter()
+            .flat_map(|(id, info)| info.hmacs().map(move |hmac| (*id, hmac)))
             .collect::<HashSet<_>>();
+        self.docs.retain(retained).await?;
 
-        self.docs.retain(file_hmacs).await?;
-
-        drop(tx);
-
+        tx.end();
         Ok(())
     }
 }
 
-fn compress_encrypt_document(
-    key: &AESKey, content: &[u8],
-) -> LbResult<(DocumentHmac, EncryptedDocument)> {
-    let hmac: DocumentHmac = {
-        let mut mac = HmacSha256::new_from_slice(key)
-            .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {err:?}")))?;
-        mac.update(content);
-        mac.finalize().into_bytes()
-    }
-    .into();
-    let compressed = compression_service::compress(content)?;
-    let encrypted = symkey::encrypt(key, &compressed)?;
-    Ok((hmac, encrypted))
+pub(crate) fn document_hmac(key: &AESKey, content: &[u8]) -> LbResult<DocumentHmac> {
+    let mut mac = HmacSha256::new_from_slice(key)
+        .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {err:?}")))?;
+    mac.update(content);
+    Ok(mac.finalize().into_bytes().into())
 }
 
-fn decrypt_decompress_document(
-    key: &AESKey, encrypted: &EncryptedDocument,
-) -> LbResult<DecryptedDocument> {
+pub(crate) fn encrypt_payload(key: &AESKey, plain: &[u8]) -> LbResult<EncryptedDocument> {
+    let compressed = compression_service::compress(plain)?;
+    symkey::encrypt(key, &compressed)
+}
+
+pub(crate) fn encrypt_diff_payload(
+    key: &AESKey, diff: &[u8], content: &[u8],
+) -> LbResult<EncryptedDocument> {
+    let level = compression_service::level_for_content(content);
+    let compressed = compression_service::compress_with(diff, level)?;
+    symkey::encrypt(key, &compressed)
+}
+
+pub(crate) fn decrypt_payload(key: &AESKey, encrypted: &EncryptedDocument) -> LbResult<Vec<u8>> {
     let compressed = symkey::decrypt(key, encrypted)?;
-    let doc = compression_service::decompress(&compressed)?;
-    Ok(doc)
+    compression_service::decompress(&compressed)
+}
+
+pub fn compress_encrypt_document(
+    key: &AESKey, content: &[u8],
+) -> LbResult<(DocumentHmac, EncryptedDocument)> {
+    Ok((document_hmac(key, content)?, encrypt_payload(key, content)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::doc_diff::DocDiff;
+
+    #[test]
+    fn text_diffs_are_compressed() {
+        let key = symkey::generate_key();
+        let base = "an existing line of the note\n".repeat(100);
+        let content = format!("{base}{}", "a pasted line of text\n".repeat(1000));
+        let diff = DocDiff::compute(base.as_bytes(), content.as_bytes())
+            .encode()
+            .unwrap();
+        let payload = encrypt_diff_payload(&key, &diff, content.as_bytes()).unwrap();
+        assert!(payload.value.len() < diff.len() / 2);
+        assert_eq!(decrypt_payload(&key, &payload).unwrap(), diff);
+    }
 }

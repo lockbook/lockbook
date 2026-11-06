@@ -13,6 +13,36 @@ use lb_rs::service::keychain::Keychain;
 use test_utils::*;
 use uuid::Uuid;
 
+fn to_v2(meta: Meta) -> Meta {
+    let Meta::V3 {
+        id,
+        file_type,
+        parent,
+        name,
+        owner,
+        is_deleted,
+        user_access_keys,
+        folder_access_key,
+        attachments_of,
+    } = meta
+    else {
+        panic!("expected V3");
+    };
+    Meta::V2 {
+        id,
+        file_type,
+        parent,
+        name,
+        owner,
+        is_deleted,
+        doc_size: None,
+        doc_hmac: None,
+        user_access_keys,
+        folder_access_key,
+        attachments_of,
+    }
+}
+
 fn to_v1(meta: Meta) -> Meta {
     let Meta::V2 {
         id,
@@ -26,7 +56,7 @@ fn to_v1(meta: Meta) -> Meta {
         user_access_keys,
         folder_access_key,
         attachments_of: None,
-    } = meta
+    } = to_v2(meta)
     else {
         panic!("expected V2 without attachments");
     };
@@ -123,19 +153,23 @@ fn signed(files: &[&Meta], by: &Account) -> Vec<SignedMeta> {
 #[test]
 fn v1_keeps_its_bincode_tag() {
     let alice = Account::new(random_name(), url());
-    let v2 = Meta::create_root(&alice).unwrap();
-    let v1 = to_v1(v2.clone());
+    let v3 = Meta::create_root(&alice).unwrap();
+    let v2 = to_v2(v3.clone());
+    let v1 = to_v1(v3.clone());
 
     // stored V1 metadata decodes because V1 keeps the first variant tag
     assert_eq!(bincode::serialize(&v1).unwrap()[..4], [0, 0, 0, 0]);
     assert_eq!(bincode::serialize(&v2).unwrap()[..4], [1, 0, 0, 0]);
+    assert_eq!(bincode::serialize(&v3).unwrap()[..4], [2, 0, 0, 0]);
 }
 
 #[test]
 fn a_change_to_a_v2_field_is_a_change() {
     let plan = plan(UserAccessMode::Read);
     let mut changed = plan.folder.clone();
-    let Meta::V2 { attachments_of, .. } = &mut changed else { panic!("expected V2") };
+    let (Meta::V2 { attachments_of, .. } | Meta::V3 { attachments_of, .. }) = &mut changed else {
+        panic!("expected V2 or V3")
+    };
     attachments_of.as_mut().unwrap().id = Uuid::new_v4();
 
     // sync drops remote changes equal to what it has, so this must not be equal

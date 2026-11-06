@@ -31,7 +31,10 @@ pub fn level_for_content(content: &[u8]) -> Compression {
 }
 
 pub fn compress(content: &[u8]) -> LbResult<Vec<u8>> {
-    let level = level_for_content(content);
+    compress_with(content, level_for_content(content))
+}
+
+pub fn compress_with(content: &[u8], level: Compression) -> LbResult<Vec<u8>> {
     let mut encoder = ZlibEncoder::new(Vec::new(), level);
     encoder
         .write_all(content)

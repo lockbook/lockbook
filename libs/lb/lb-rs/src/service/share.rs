@@ -161,7 +161,7 @@ impl<S: Server> Lb<S> {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let pending_roots = tree.pending_roots(&self.keychain)?.into_iter();
 
-        tree.decrypt_all(&self.keychain, pending_roots, &db.pub_key_lookup, false)
+        tree.decrypt_all(&self.keychain, pending_roots, &db.pub_key_lookup, &db.doc_info, false)
     }
 
     /// returns *all* the files associated with any pending shares (the share as well as it's
@@ -174,7 +174,7 @@ impl<S: Server> Lb<S> {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let pending_files = tree.non_deleted_pending_files(&self.keychain)?.into_iter();
 
-        tree.decrypt_all(&self.keychain, pending_files, &db.pub_key_lookup, false)
+        tree.decrypt_all(&self.keychain, pending_files, &db.pub_key_lookup, &db.doc_info, false)
     }
 
     #[instrument(level = "debug", skip(self))]

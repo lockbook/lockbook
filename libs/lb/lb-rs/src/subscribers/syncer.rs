@@ -1,19 +1,15 @@
 use crate::io::server::Server;
 use std::{
     collections::{HashMap, HashSet},
-    num::NonZeroUsize,
     sync::Arc,
-    thread,
     time::{Duration, Instant},
 };
 
 #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
 use std::fs::{File, TryLockError};
 
-use futures::{StreamExt, stream};
 use tokio::sync::{Mutex, broadcast::error::TryRecvError};
 use tokio::time;
-use usvg::Transform;
 use uuid::Uuid;
 
 use crate::{
@@ -24,23 +20,19 @@ use crate::{
         access_info::UserAccessMode,
         account::Account,
         api::{
-            ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
-            GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
+            GetDocUpdatesRequest, GetFileIdsRequest, GetUpdatesRequestV2, GetUsernameError,
+            GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
         },
-        chat,
-        crypto::{AESKey, DecryptedDocument, EncryptedDocument},
-        errors::{LbErr, Unexpected},
+        errors::Unexpected,
         file::ShareMode,
         file_like::FileLike,
-        file_metadata::{DocumentHmac, FileDiff, FileType, Owner},
-        filename::{DocumentType, NameComponents},
+        file_metadata::{FileDiff, FileType, Owner},
+        filename::NameComponents,
         lazy::LazyTree,
         signed_meta::SignedMeta,
         staged::StagedTreeLikeMut,
-        svg::{self, buffer::u_transform_to_bezier, element::Element},
-        symkey, text,
+        symkey,
         tree_like::TreeLike,
-        validate,
     },
     service::events::{Actor, Event, SyncIncrement},
 };
@@ -60,9 +52,6 @@ pub struct SyncState {
 
     /// did we pull a root on this pass?
     new_root: Option<Uuid>,
-
-    /// what docs did we pull as a result of this sync
-    pulled_docs: Vec<Uuid>,
 }
 
 // we are gonna have a fetch metadata fn which will get the docs that it needs to get, the ones
@@ -82,6 +71,7 @@ impl<S: Server> Lb<S> {
 
         let pipeline: LbResult<()> = async {
             self.pull_updates(&mut sync_state).await?;
+            self.pull_doc_updates().await?;
             self.push_local_changes().await?;
             Ok(())
         }
@@ -103,6 +93,23 @@ impl<S: Server> Lb<S> {
         }
 
         Ok(())
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn sync_docs(&self) -> LbResult<()> {
+        let _sync_state = self.syncer.lock().await;
+        #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+        let _sync_lock = self.lock_sync()?;
+
+        let pipeline: LbResult<()> = async {
+            self.pull_doc_updates().await?;
+            self.push_doc_updates().await?;
+            Ok(())
+        }
+        .await;
+
+        self.cleanup().await?;
+        pipeline
     }
 
     #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
@@ -127,8 +134,6 @@ impl<S: Server> Lb<S> {
         self.inital_sync_state(sync_state).await?;
         self.process_deletions().await?;
         self.fetch_meta(sync_state).await?;
-        self.fetch_required_docs(sync_state).await?;
-        // todo: should this inform a re-pull?
         self.merge(sync_state).await?;
         self.commit_last_synced(sync_state).await?;
         self.send_pull_events(sync_state).await?;
@@ -142,7 +147,7 @@ impl<S: Server> Lb<S> {
 
     pub(crate) async fn push_local_changes(&self) -> LbResult<()> {
         self.push_meta().await?;
-        self.push_docs().await?;
+        self.push_doc_updates().await?;
 
         Ok(())
     }
@@ -177,19 +182,6 @@ impl<S: Server> Lb<S> {
         for id in prunable_ids.clone() {
             prunable_ids.extend(local.descendants(&id)?);
         }
-        for id in &prunable_ids {
-            if let Some(base_file) = local.tree.base.maybe_find(id) {
-                self.docs
-                    .delete(*id, base_file.document_hmac().copied())
-                    .await?;
-            }
-            if let Some(local_file) = local.maybe_find(id) {
-                self.docs
-                    .delete(*id, local_file.document_hmac().copied())
-                    .await?;
-            }
-        }
-
         let mut base_staged = (&mut db.base_metadata).to_lazy().stage(None);
         base_staged.tree.removed = prunable_ids.iter().copied().collect();
         base_staged.promote()?;
@@ -197,6 +189,10 @@ impl<S: Server> Lb<S> {
         let mut local_staged = (&mut db.local_metadata).to_lazy().stage(None);
         local_staged.tree.removed = prunable_ids.iter().copied().collect();
         local_staged.promote()?;
+
+        for id in &prunable_ids {
+            db.doc_info.remove(id)?;
+        }
 
         if !prunable_ids.is_empty() {
             self.events.meta_changed(Actor::Sync);
@@ -256,126 +252,6 @@ impl<S: Server> Lb<S> {
         Ok(())
     }
 
-    async fn fetch_required_docs(&self, state: &mut SyncState) -> LbResult<()> {
-        let mut docs_to_pull = vec![];
-
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-
-        let mut files_with_local_edits = vec![];
-        let local = db.base_metadata.stage(&db.local_metadata);
-        for id in local.staged.ids() {
-            if let Some(base) = local.base.maybe_find(&id) {
-                if let Some(local_hmac) = local.find(&id)?.document_hmac() {
-                    if Some(local_hmac) != base.document_hmac() {
-                        files_with_local_edits.push(id);
-                        println!("local edits found");
-                    }
-                }
-            }
-        }
-
-        let mut remote = db
-            .base_metadata
-            .stage(state.remote_changes.clone())
-            .to_lazy();
-
-        for id in remote.tree.staged.ids() {
-            if remote.calculate_deleted(&id)? {
-                continue;
-            }
-            let remote_hmac = remote.find(&id)?.document_hmac().cloned();
-            let base_hmac = remote
-                .tree
-                .base
-                .maybe_find(&id)
-                .and_then(|f| f.document_hmac())
-                .cloned();
-            if base_hmac == remote_hmac {
-                continue;
-            }
-
-            if let Some(remote_hmac) = remote_hmac {
-                // pull a file if we have a prior base, this is our heuristic -- do they have the
-                // ability to edit this file while we release the lock and are pulling all the
-                // files
-                if self.docs.exists(id, base_hmac) && !self.docs.exists(id, Some(remote_hmac)) {
-                    docs_to_pull.push((id, remote_hmac));
-                }
-
-                // this clause captures documents which went from being new -> multiple parties
-                // having updates. We'll still need the updates
-                if files_with_local_edits.contains(&id)
-                    && !docs_to_pull
-                        .iter()
-                        .any(|(already_pulling, _)| already_pulling == &id)
-                {
-                    if let Some(base_hmac) = base_hmac {
-                        if !self.docs.exists(id, Some(base_hmac)) {
-                            // this scenario basically only comes up in tests
-                            // someone modifies a file directly without reading the prior version
-                            docs_to_pull.push((id, base_hmac));
-                        }
-                    }
-                    docs_to_pull.push((id, remote_hmac));
-                }
-            }
-        }
-        drop(tx);
-
-        let futures = docs_to_pull
-            .into_iter()
-            .map(|(id, hmac)| async move { self.ensure_doc_available(id, hmac).await.map(|_| id) });
-
-        let mut stream = stream::iter(futures).buffer_unordered(
-            thread::available_parallelism()
-                .unwrap_or(NonZeroUsize::new(4).unwrap())
-                .into(),
-        );
-
-        while let Some(fut) = stream.next().await {
-            let id = fut?;
-            state.pulled_docs.push(id);
-        }
-
-        Ok(())
-    }
-
-    pub(crate) async fn ensure_doc_available(
-        &self, id: Uuid, hmac: DocumentHmac,
-    ) -> LbResult<Option<EncryptedDocument>> {
-        // todo: in a lot of cases there is a list of ids we're trying to get, it would be better
-        // if the caller managed the event updates, the status would be more meaningful for longer
-
-        // in this world, can we get stuck pushing a doc as well? Probably fine for now
-        if self.docs.exists(id, Some(hmac)) {
-            return Ok(None);
-        }
-
-        self.events
-            .sync_update(SyncIncrement::PullingDocument(id, true));
-        let remote_document = self
-            .client
-            .get_document(self.get_account()?, GetDocRequest { id, hmac })
-            .await?;
-        self.docs
-            .insert(id, Some(hmac), &remote_document.content)
-            .await?;
-        self.events
-            .sync_update(SyncIncrement::PullingDocument(id, false));
-
-        Ok(Some(remote_document.content))
-    }
-
-    pub(crate) async fn fetch_doc(
-        &self, id: Uuid, hmac: DocumentHmac,
-    ) -> LbResult<EncryptedDocument> {
-        match self.ensure_doc_available(id, hmac).await? {
-            Some(doc) => Ok(doc),
-            None => self.docs.get(id, Some(hmac)).await,
-        }
-    }
-
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
     /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
     async fn merge(&self, state: &mut SyncState) -> LbResult<()> {
@@ -403,9 +279,6 @@ impl<S: Server> Lb<S> {
             // a local attachments folder whose document already has one: its files go there
             let mut attachments_to_fold: HashMap<Uuid, Uuid> = HashMap::new();
             let mut rename_increments: HashMap<Uuid, usize> = HashMap::new();
-            // Id and key share one lifetime: the merge, including construction retries.
-            // A new key per attempt encrypts with the key cached by the failed attempt.
-            let mut duplicate_file_ids: HashMap<Uuid, (Uuid, AESKey)> = HashMap::new();
 
             'merge_construction: loop {
                 // process just the edits which allow us to check deletions in the result
@@ -659,172 +532,6 @@ impl<S: Server> Lb<S> {
                                 .to_name();
                             merge.rename_unvalidated(&id, &name, &self.keychain)?;
                         }
-
-                        // edit
-                        let base_hmac = maybe_base_file.and_then(|f| f.document_hmac().cloned());
-                        let remote_hmac =
-                            maybe_remote_file.and_then(|f| f.document_hmac().cloned());
-                        let local_hmac = local_file.document_hmac().cloned();
-                        if merge.access_mode(me, &id)? >= Some(UserAccessMode::Write)
-                            && local_hmac != base_hmac
-                        {
-                            if remote_hmac != base_hmac && remote_hmac != local_hmac {
-                                // merge
-                                let merge_name = merge.name(&id, &self.keychain)?;
-                                let document_type =
-                                    DocumentType::from_file_name_using_extension(&merge_name);
-
-                                // todo these accesses are potentially problematic
-                                // maybe not if service/docs is the persion doing network io
-                                let base_document =
-                                    self.read_document_helper(id, &mut base).await?;
-                                let remote_document =
-                                    self.read_document_helper(id, &mut remote).await?;
-                                let local_document =
-                                    self.read_document_helper(id, &mut local).await?;
-
-                                match document_type {
-                                    DocumentType::Text => {
-                                        // 3-way merge
-                                        // todo: a couple more clones than necessary
-                                        let base_document =
-                                            String::from_utf8_lossy(&base_document).to_string();
-                                        let remote_document =
-                                            String::from_utf8_lossy(&remote_document).to_string();
-                                        let local_document =
-                                            String::from_utf8_lossy(&local_document).to_string();
-                                        let merged_document =
-                                            text::buffer::Buffer::from(base_document.as_str())
-                                                .merge(local_document, remote_document);
-                                        let encrypted_document = merge
-                                            .update_document_unvalidated(
-                                                &id,
-                                                &merged_document.into_bytes(),
-                                                &self.keychain,
-                                            )?;
-                                        let hmac = merge.find(&id)?.document_hmac().copied();
-                                        self.docs.insert(id, hmac, &encrypted_document).await?;
-                                    }
-                                    DocumentType::Drawing => {
-                                        let base_document =
-                                            String::from_utf8_lossy(&base_document).to_string();
-                                        let remote_document =
-                                            String::from_utf8_lossy(&remote_document).to_string();
-                                        let local_document =
-                                            String::from_utf8_lossy(&local_document).to_string();
-
-                                        let base_buffer = svg::buffer::Buffer::new(&base_document);
-                                        let remote_buffer =
-                                            svg::buffer::Buffer::new(&remote_document);
-                                        let mut local_buffer =
-                                            svg::buffer::Buffer::new(&local_document);
-
-                                        for (_, el) in local_buffer.elements.iter_mut() {
-                                            if let Element::Path(path) = el {
-                                                path.data.apply_transform(u_transform_to_bezier(
-                                                    &Transform::from(
-                                                        local_buffer
-                                                            .weak_viewport_settings
-                                                            .master_transform,
-                                                    ),
-                                                ));
-                                            }
-                                        }
-                                        svg::buffer::Buffer::reload(
-                                            &mut local_buffer.elements,
-                                            &mut local_buffer.weak_images,
-                                            &mut local_buffer.weak_path_pressures,
-                                            &mut local_buffer.weak_viewport_settings,
-                                            &base_buffer,
-                                            &remote_buffer,
-                                        );
-
-                                        let merged_document = local_buffer.serialize();
-                                        let encrypted_document = merge
-                                            .update_document_unvalidated(
-                                                &id,
-                                                &merged_document.into_bytes(),
-                                                &self.keychain,
-                                            )?;
-                                        let hmac = merge.find(&id)?.document_hmac().copied();
-                                        self.docs.insert(id, hmac, &encrypted_document).await?;
-                                    }
-                                    DocumentType::Chat => {
-                                        // line-union of append-only JSONL turns
-                                        let merged_document = chat::Buffer::merge(
-                                            &base_document,
-                                            &local_document,
-                                            &remote_document,
-                                        );
-                                        let encrypted_document = merge
-                                            .update_document_unvalidated(
-                                                &id,
-                                                &merged_document,
-                                                &self.keychain,
-                                            )?;
-                                        let hmac = merge.find(&id)?.document_hmac().copied();
-                                        self.docs.insert(id, hmac, &encrypted_document).await?;
-                                    }
-                                    DocumentType::Other => {
-                                        // duplicate file
-                                        let merge_parent = *merge.find(&id)?.parent();
-                                        let (duplicate_id, duplicate_key) =
-                                            if let Some(&tracked) = duplicate_file_ids.get(&id) {
-                                                tracked
-                                            } else {
-                                                let duplicate_id = Uuid::new_v4();
-                                                let duplicate_key = symkey::generate_key();
-                                                duplicate_file_ids
-                                                    .insert(id, (duplicate_id, duplicate_key));
-                                                rename_increments.insert(duplicate_id, 1);
-                                                (duplicate_id, duplicate_key)
-                                            };
-
-                                        let mut merge_name = merge_name;
-                                        merge_name = NameComponents::from(&merge_name)
-                                            .generate_incremented(
-                                                rename_increments
-                                                    .get(&duplicate_id)
-                                                    .copied()
-                                                    .unwrap_or_default(),
-                                            )
-                                            .to_name();
-
-                                        merge.create_unvalidated(
-                                            duplicate_id,
-                                            duplicate_key,
-                                            &merge_parent,
-                                            &merge_name,
-                                            FileType::Document,
-                                            &self.keychain,
-                                        )?;
-                                        let encrypted_document = merge
-                                            .update_document_unvalidated(
-                                                &duplicate_id,
-                                                &local_document,
-                                                &self.keychain,
-                                            )?;
-                                        let duplicate_hmac =
-                                            merge.find(&duplicate_id)?.document_hmac().copied();
-                                        self.docs
-                                            .insert(
-                                                duplicate_id,
-                                                duplicate_hmac,
-                                                &encrypted_document,
-                                            )
-                                            .await?;
-                                    }
-                                }
-                            } else {
-                                let local_file = local.find(&id)?;
-                                merge.overwrite_document_hmac_unvalidated(
-                                    &id,
-                                    local_file.document_hmac().copied(),
-                                    local_file.doc_size(),
-                                    &self.keychain,
-                                )?;
-                            }
-                        }
                     }
 
                     // deletes
@@ -900,19 +607,10 @@ impl<S: Server> Lb<S> {
                                 // pick one local id and generate a non-conflicting filename
                                 let mut progress = false;
                                 for &id in ids {
-                                    if duplicate_file_ids.values().any(|&(dup, _)| dup == id) {
+                                    if db.local_metadata.maybe_find(&id).is_some() {
                                         *rename_increments.entry(id).or_insert(0) += 1;
                                         progress = true;
                                         break;
-                                    }
-                                }
-                                if !progress {
-                                    for &id in ids {
-                                        if db.local_metadata.maybe_find(&id).is_some() {
-                                            *rename_increments.entry(id).or_insert(0) += 1;
-                                            progress = true;
-                                            break;
-                                        }
                                     }
                                 }
                                 if !progress {
@@ -1080,10 +778,6 @@ impl<S: Server> Lb<S> {
             }
         }
 
-        for &doc in &state.pulled_docs {
-            self.events.doc_written(doc, Actor::Sync);
-        }
-
         Ok(())
     }
 
@@ -1156,7 +850,7 @@ impl<S: Server> Lb<S> {
     /// Updates remote and base metadata to local.
     async fn push_meta(&self) -> LbResult<()> {
         let mut updates = vec![];
-        let mut local_changes_no_digests = Vec::new();
+        let mut local_changes = Vec::new();
 
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -1165,19 +859,11 @@ impl<S: Server> Lb<S> {
         let local = db.base_metadata.stage(&db.local_metadata).to_lazy();
 
         for id in local.tree.staged.ids() {
-            let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
+            let local_change = local.tree.staged.find(&id)?.clone();
             let maybe_base_file = local.tree.base.maybe_find(&id);
 
-            // change everything but document hmac and re-sign
-            local_change.set_hmac_and_size(
-                maybe_base_file.and_then(|f| f.document_hmac().copied()),
-                maybe_base_file.and_then(|f| *f.timestamped_value.value.doc_size()),
-            );
-            let local_change = local_change.sign(&self.keychain)?;
-
-            local_changes_no_digests.push(local_change.clone());
-            let file_diff = FileDiff { old: maybe_base_file.cloned(), new: local_change };
-            updates.push(file_diff);
+            local_changes.push(local_change.clone());
+            updates.push(FileDiff { old: maybe_base_file.cloned(), new: local_change });
         }
 
         drop(tx);
@@ -1197,111 +883,13 @@ impl<S: Server> Lb<S> {
         // base = local
         (&mut db.base_metadata)
             .to_lazy()
-            .stage(local_changes_no_digests)
+            .stage(local_changes)
             .promote()?;
         db.base_metadata.stage(&mut db.local_metadata).prune()?;
 
         tx.end();
 
         Ok(())
-    }
-
-    /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
-    // todo: make this so that all document updates are attempted and we don't just return the
-    // first error. Once an attempt is made we can return any or all errors, either would be an
-    // improvement
-    async fn push_docs(&self) -> LbResult<()> {
-        let mut updates = vec![];
-        let mut local_changes_digests_only = vec![];
-
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-        let start = Instant::now();
-
-        let local = db.base_metadata.stage(&db.local_metadata).to_lazy();
-
-        for id in local.tree.staged.ids() {
-            let base_file = local.tree.base.find(&id)?.clone();
-
-            // change only document hmac and re-sign
-            let mut local_change = base_file.timestamped_value.value.clone();
-            local_change.set_hmac_and_size(
-                local.find(&id)?.document_hmac().copied(),
-                *local.find(&id)?.timestamped_value.value.doc_size(),
-            );
-
-            if base_file.document_hmac() == local_change.document_hmac()
-                || local_change.document_hmac().is_none()
-            {
-                continue;
-            }
-
-            let local_change = local_change.sign(&self.keychain)?;
-
-            updates.push(FileDiff { old: Some(base_file), new: local_change.clone() });
-            local_changes_digests_only.push(local_change);
-            self.events
-                .sync_update(SyncIncrement::PushingDocument(id, true));
-        }
-
-        drop(tx);
-        if start.elapsed() > web_time::Duration::from_millis(100) {
-            warn!("sync push_docs held lock for {:?}", start.elapsed());
-        }
-
-        let futures = updates.clone().into_iter().map(|diff| self.push_doc(diff));
-
-        let mut stream = stream::iter(futures).buffer_unordered(
-            thread::available_parallelism()
-                .unwrap_or(NonZeroUsize::new(4).unwrap())
-                .into(),
-        );
-
-        let mut docs_without_errors = vec![];
-        let mut last_error: Option<LbErr> = None;
-
-        while let Some(fut) = stream.next().await {
-            match fut {
-                Ok(id) => {
-                    docs_without_errors.push(id);
-                    self.events
-                        .sync_update(SyncIncrement::PushingDocument(id, false));
-                }
-                Err(err) => {
-                    last_error = Some(err);
-                }
-            }
-        }
-
-        local_changes_digests_only.retain(|f| docs_without_errors.contains(f.id()));
-
-        let mut tx = self.begin_tx().await;
-        let db = tx.db();
-        // base = local (metadata)
-        (&mut db.base_metadata)
-            .to_lazy()
-            .stage(local_changes_digests_only)
-            .promote()?;
-
-        db.base_metadata.stage(&mut db.local_metadata).prune()?;
-
-        tx.end();
-
-        if let Some(err) = last_error { Err(err) } else { Ok(()) }
-    }
-
-    async fn push_doc(&self, diff: FileDiff<SignedMeta>) -> LbResult<Uuid> {
-        let id = *diff.new.id();
-        let hmac = diff.new.document_hmac();
-        let local_document_change = self.docs.get(id, hmac.copied()).await?;
-        self.client
-            .change_doc_v2(
-                self.get_account()?,
-                ChangeDocRequestV2 { diff, new_content: local_document_change },
-            )
-            .await?;
-
-        Ok(id)
     }
 
     #[cfg(not(target_family = "wasm"))]
@@ -1364,31 +952,6 @@ impl<S: Server> Lb<S> {
         }
     }
 
-    async fn read_document_helper<T>(
-        &self, id: Uuid, tree: &mut LazyTree<T>,
-    ) -> LbResult<DecryptedDocument>
-    where
-        T: TreeLike<F = SignedMeta>,
-    {
-        let file = tree.find(&id)?;
-        validate::is_document(file)?;
-        let hmac = file.document_hmac().copied();
-
-        if tree.calculate_deleted(&id)? {
-            return Err(LbErrKind::FileNonexistent.into());
-        }
-
-        let doc = match hmac {
-            Some(hmac) => {
-                let doc = self.docs.get(id, Some(hmac)).await?;
-                tree.decrypt_document(&id, &doc, &self.keychain)?
-            }
-            None => vec![],
-        };
-
-        Ok(doc)
-    }
-
     /// for tests only
     #[doc(hidden)]
     pub async fn server_dirty_ids(&self) -> LbResult<Vec<Uuid>> {
@@ -1399,7 +962,28 @@ impl<S: Server> Lb<S> {
         self.process_deletions().await?;
         self.fetch_meta(&mut state).await?;
 
-        let server_ids = state.remote_changes.iter().map(|f| *f.id()).collect();
+        let mut server_ids: Vec<Uuid> = state.remote_changes.iter().map(|f| *f.id()).collect();
+
+        let since = {
+            let tx = self.ro_tx().await;
+            tx.db()
+                .last_doc_synced
+                .as_ref()
+                .copied()
+                .unwrap_or_default()
+        };
+        let doc_updates = self
+            .client
+            .get_doc_updates(self.get_account()?, GetDocUpdatesRequest { since, ids: vec![] })
+            .await?;
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+        for (id, head) in doc_updates.heads {
+            let known = db.doc_info.get(&id).and_then(|info| info.base_hmac());
+            if known != Some(head.hmac) && !server_ids.contains(&id) {
+                server_ids.push(id);
+            }
+        }
 
         Ok(server_ids)
     }
@@ -1491,7 +1075,10 @@ impl<S: Server> Lb<S> {
             loop {
                 let event = events.recv().await.unwrap();
                 if let Event::Sync(SyncIncrement::SyncFinished(_)) = event {
-                    self.fetcher().await.map_unexpected().log_and_ignore();
+                    self.fetch_doc_contents()
+                        .await
+                        .map_unexpected()
+                        .log_and_ignore();
                     self.populate_pk_cache()
                         .await
                         .map_unexpected()
@@ -1499,60 +1086,6 @@ impl<S: Server> Lb<S> {
                 };
             }
         });
-    }
-
-    async fn fetcher(&self) -> LbResult<()> {
-        let mut files_to_pull = vec![];
-
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-
-        let Some(root) = db.root.as_ref() else {
-            return Ok(());
-        };
-
-        // we can only fetch things we know the server knows about
-        let mut tree = db.base_metadata.stage(None).to_lazy();
-
-        for id in tree.descendants_using_links(root)? {
-            let file = tree.find(&id)?;
-            let hmac = file.document_hmac().copied();
-
-            // skip non-documents
-            if !file.is_document() {
-                continue;
-            }
-
-            // skip deleted files
-            if tree.calculate_deleted(&id)? {
-                continue;
-            }
-
-            if self.docs.exists(id, hmac) {
-                continue;
-            }
-
-            // skip non-first-party files
-            let name = tree.name(&id, &self.keychain)?;
-            if !name.ends_with(".md") && !name.ends_with(".svg") {
-                continue;
-            }
-
-            files_to_pull.push((id, hmac));
-        }
-
-        drop(tx);
-
-        // this could all be done in parallel, but for now going to not do it that way
-        // benefits: less work, but also ensures that a file that needs to be fetched immediately
-        // can be
-        for (id, hmac) in files_to_pull {
-            if let Some(hmac) = hmac {
-                self.ensure_doc_available(id, hmac).await?;
-            }
-        }
-
-        Ok(())
     }
 }
 
