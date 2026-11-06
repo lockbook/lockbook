@@ -1,4 +1,4 @@
-//! A web link's preview card: the hover tip on desktop, and the body a bare
+//! A web link's preview card: the hover tip under a pointer, and the body a bare
 //! link alone on its line shows as a block. Its picture runs edge to edge;
 //! then where it stands, the site, the title, who, labels and description.
 
@@ -36,9 +36,6 @@ impl MdRender {
     pub(super) fn show_link_preview(
         &self, ctx: &egui::Context, response: &Response, url: &str, shows_url: bool, wikilink: bool,
     ) -> bool {
-        if self.touch_mode {
-            return false;
-        }
         if let Some(place) = self.link_place(url, wikilink) {
             return self.show_tab_card(ctx, response, url, place);
         }

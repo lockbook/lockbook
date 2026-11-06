@@ -109,6 +109,15 @@ pub struct ImeMarked {
     pub seq: usize,
 }
 
+/// Which side of an offset the caret belongs to. Where a soft wrap ends one
+/// row at the offset that starts the next, upstream is the end of the first.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Affinity {
+    Upstream,
+    #[default]
+    Downstream,
+}
+
 pub struct MdRender {
     // context
     pub ctx: Context,
@@ -136,6 +145,9 @@ pub struct MdRender {
 
     // document
     pub buffer: Buffer,
+    /// The row the caret at this offset draws on where a soft wrap ends one
+    /// row and starts the next; downstream at any other offset.
+    pub caret_affinity: (Grapheme, Affinity),
     pub text_seq: u64, // buffer.seq includes selection changes
 
     pub bounds: Bounds,
@@ -206,6 +218,12 @@ pub struct MdRender {
     /// cleared by `bump_text_seq` whenever the doc text changes so a
     /// fresh edit re-hides every spoiler.
     pub revealed_spoilers: std::collections::HashSet<egui::Id>,
+    /// The mark of a task item [`Event::ToggleTask`] is toggling, until its
+    /// edit lands.
+    pub task_toggle_pending: Option<Grapheme>,
+    /// The mark the latest text edit toggled, and when. Only that box
+    /// animates, so a box that takes over another's position never does.
+    pub task_toggled: Option<(Grapheme, f64)>,
 
     // render input
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
@@ -558,8 +576,8 @@ pub struct Editor {
     // change detection
     pub unprocessed_scroll: Option<Instant>,
     prev_dimensions: Option<Vec2>,
-    prev_virtual_keyboard_shown: bool,
-    prev_keyboard_visible: bool,
+    prev_keyboard_shown: bool,
+    prev_editing: bool,
     /// The find bar's height while open; opening and closing scroll the
     /// page by it so the content stays put on screen.
     find_bar_height: f32,
@@ -576,13 +594,9 @@ pub struct Editor {
     /// Where the phone toolbar was allocated this frame — the layout-level
     /// signal that embed painting hasn't dragged it off screen (#4892).
     pub mobile_toolbar_rect: Option<egui::Rect>,
-    pub virtual_keyboard_shown: bool,
-    /// Real platform IME visibility, pushed by the client (Android inset
-    /// listener, iOS keyboard callbacks). Unlike `virtual_keyboard_shown`
-    /// — the editor's *request* — this is whether the keyboard is actually
-    /// on screen. Touch long-press uses it: keyboard down → drag-reorder,
-    /// keyboard up → text selection.
-    pub keyboard_visible: bool,
+    /// The host's text input has focus: on iOS the first responder of an
+    /// editable note with either keyboard, on Android the keyboard being up.
+    pub editing: bool,
 
     // outputs from drawing a frame need an additional frame to process before reporting
     next_resp: Response,
@@ -712,6 +726,7 @@ impl MdRender {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            caret_affinity: Default::default(),
             typing: false,
             buffer: "".into(),
             bounds: Default::default(),
@@ -742,6 +757,8 @@ impl MdRender {
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
+            task_toggle_pending: None,
+            task_toggled: None,
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
@@ -825,6 +842,7 @@ impl MdRender {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            caret_affinity: Default::default(),
             typing: false,
             bounds: Default::default(),
             buffer: md.into(),
@@ -854,6 +872,8 @@ impl MdRender {
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
+            task_toggle_pending: None,
+            task_toggled: None,
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
@@ -912,6 +932,9 @@ impl MdRender {
             .ws_seq
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.revealed_spoilers.clear();
+        let now = self.ctx.input(|i| i.time);
+        self.task_toggled = self.task_toggle_pending.take().map(|check| (check, now));
+        self.caret_affinity = Default::default();
     }
 
     /// Re-parse the buffer into a fresh AST and rebuild all text-derived
@@ -1047,6 +1070,7 @@ impl Editor {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            caret_affinity: Default::default(),
             typing: false,
 
             bounds: Default::default(),
@@ -1078,6 +1102,8 @@ impl Editor {
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
+            task_toggle_pending: None,
+            task_toggled: None,
 
             in_progress_selection: None,
             in_progress_block_drag: None,
@@ -1202,13 +1228,12 @@ impl Editor {
 
             // this is used to toggle the mobile toolbar
             mobile_toolbar_rect: None,
-            virtual_keyboard_shown: false,
-            keyboard_visible: false,
+            editing: false,
             unprocessed_scroll: Default::default(),
 
             prev_dimensions: None,
-            prev_virtual_keyboard_shown: false,
-            prev_keyboard_visible: false,
+            prev_keyboard_shown: false,
+            prev_editing: false,
             find_bar_height: 0.0,
 
             next_resp: Default::default(),
@@ -1446,17 +1471,17 @@ impl Editor {
 
         // Mirror the opt-in fetch preference onto the renderer each frame.
         self.edit.renderer.contact_linked_sites = self.persistence.get_contact_linked_sites();
-        // On touch, spelling is marked while the keyboard is up, and the
-        // host checks the words again as it comes up.
+        // On touch, spelling is marked while editing, and the host checks
+        // the words again as editing starts.
         let touch = self.edit.renderer.touch_mode;
         self.edit.renderer.spell_check =
-            self.persistence.get_spell_check() && (!touch || self.keyboard_visible);
-        if touch && self.keyboard_visible && !self.prev_keyboard_visible {
+            self.persistence.get_spell_check() && (!touch || self.editing);
+        if touch && self.editing && !self.prev_editing {
             if let Some(spelling) = crate::spelling::get(ui.ctx()) {
                 spelling.recheck();
             }
         }
-        self.prev_keyboard_visible = self.keyboard_visible;
+        self.prev_editing = self.editing;
 
         let start = web_time::Instant::now();
 
@@ -1579,7 +1604,7 @@ impl Editor {
                             .unwrap_or(0.)
                     } else if !self.edit.renderer.readonly
                         && self.edit.renderer.kind == Syntax::Markdown
-                        && (self.virtual_keyboard_shown || self.toolbar.menu_open)
+                        && (self.keyboard_shown() || self.toolbar.menu_open)
                     {
                         MOBILE_TOOL_BAR_SIZE
                     } else {
@@ -1627,7 +1652,7 @@ impl Editor {
                     if !cfg!(target_os = "android")
                         && !self.edit.renderer.readonly
                         && self.edit.renderer.kind == Syntax::Markdown
-                        && (self.virtual_keyboard_shown || self.toolbar.menu_open)
+                        && (self.keyboard_shown() || self.toolbar.menu_open)
                     {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
@@ -1799,13 +1824,13 @@ impl Editor {
         // Pull the cursor out from behind the virtual keyboard: scroll on
         // its rising edge, and keep re-asserting while the viewport shrinks
         // across the show animation. A growing viewport hides nothing.
-        let keyboard_just_shown = self.virtual_keyboard_shown && !self.prev_virtual_keyboard_shown;
-        self.prev_virtual_keyboard_shown = self.virtual_keyboard_shown;
+        let keyboard_just_shown = self.keyboard_shown() && !self.prev_keyboard_shown;
+        self.prev_keyboard_shown = self.keyboard_shown();
         // A viewport of no height is a transition (rotation); nothing to reveal.
         if self.initialized
             && self.edit.renderer.touch_mode
             && dimensions.y > 0.0
-            && (keyboard_just_shown || (height_shrunk && self.virtual_keyboard_shown))
+            && (keyboard_just_shown || (height_shrunk && self.keyboard_shown()))
         {
             // Under find, the keyboard is the field's: keep the match in view.
             self.edit.pending_scroll = Some(if self.find.focused(ui.ctx()) {
@@ -1926,6 +1951,13 @@ impl Editor {
                 .renderer
                 .touch_targets
                 .push((rect, TouchTarget::Popup));
+        }
+        // and on a hover card, which is above all of them, the card's
+        if let Some(rect) = crate::style::card_shown(ui.ctx()) {
+            self.edit
+                .renderer
+                .touch_targets
+                .insert(0, (rect, TouchTarget::Popup));
         }
         self.edit.renderer.tab_embeds.end_frame();
         self.loads_pending = self.edit.renderer.embeds.take_pending()
@@ -2328,7 +2360,7 @@ impl Editor {
                         // long-press, then consume the handle action and
                         // commit on release (visuals are drawn after
                         // post_render so they composite on top).
-                        self.edit.detect_touch_reorder(ui, self.keyboard_visible);
+                        self.edit.detect_touch_reorder(ui, self.keyboard_shown());
                         self.edit.handle_block_drag(ui);
                         pre
                     })
@@ -2414,7 +2446,7 @@ impl Editor {
             self.find.show(
                 &self.edit.renderer.buffer,
                 self.edit.renderer.text_seq,
-                self.virtual_keyboard_shown,
+                self.keyboard_shown(),
                 ui,
             )
         });
@@ -2504,14 +2536,14 @@ impl Editor {
             !f.far && f.rect.bottom() > canvas.top() && f.rect.top() < canvas.bottom()
         });
         let mut typing = if r.touch_mode {
-            self.keyboard_visible
+            self.keyboard_shown()
         } else {
             self.outline_follows_caret && caret_shown
         };
         if self.outline.is_opening() {
             self.outline_from_typing = typing;
             // the sheet stands where the keyboard is
-            if r.touch_mode && self.keyboard_visible {
+            if r.touch_mode && self.keyboard_shown() {
                 crate::tab::ExtendedOutput::set_virtual_keyboard_shown(ui.ctx(), false);
             }
         }
@@ -2575,7 +2607,7 @@ impl Editor {
                     self.open_at_heading(&slug);
                 }
                 // a reader who jumped didn't ask for the keyboard
-                if !self.edit.renderer.touch_mode || self.keyboard_visible {
+                if !self.edit.renderer.touch_mode || self.keyboard_shown() {
                     self.focus(ui.ctx());
                 }
             }
@@ -2652,7 +2684,7 @@ impl Editor {
             .clamp(0.into(), last);
         let arena = Arena::new();
         self.edit.pending_scroll = Some(ScrollTarget::Heading);
-        let reading = self.edit.renderer.touch_mode && !self.keyboard_visible;
+        let reading = self.edit.renderer.touch_mode && !self.keyboard_shown();
         let prior = self.edit.renderer.buffer.current.selection;
         self.select_from_outside((start, end));
         if self.edit.renderer.view == View::Rendered {
@@ -2666,10 +2698,16 @@ impl Editor {
         self.heading_flash = Some((range, web_time::Instant::now()));
     }
 
+    /// The software keyboard is on screen: editing on touch, with no
+    /// hardware keyboard keeping it away.
+    fn keyboard_shown(&self) -> bool {
+        self.editing && self.edit.phone_mode
+    }
+
     /// Lands on a definition a code file's outline lists, `span` its name.
     fn open_at_definition(&mut self, span: (Grapheme, Grapheme)) {
         self.edit.pending_scroll = Some(ScrollTarget::Heading);
-        if !(self.edit.renderer.touch_mode && !self.keyboard_visible) {
+        if !(self.edit.renderer.touch_mode && !self.keyboard_shown()) {
             self.select_from_outside((span.0, span.0));
         }
         self.landing = Some(Landing::Heading(span));
@@ -2688,7 +2726,7 @@ impl Editor {
             self.landing = Some(Landing::Top);
             return;
         };
-        let reading = self.edit.renderer.touch_mode && !self.keyboard_visible;
+        let reading = self.edit.renderer.touch_mode && !self.keyboard_shown();
         let prior = self.edit.renderer.buffer.current.selection;
         self.select_from_outside((caret, caret));
         if self.edit.renderer.view == View::Rendered

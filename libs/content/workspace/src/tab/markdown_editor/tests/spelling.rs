@@ -61,6 +61,25 @@ fn source_marks_what_rendered_marks() {
     assert_eq!(marked_in(md, md.len(), true), words, "source");
 }
 
+/// On touch, words are marked while editing, with either keyboard, and
+/// not while reading.
+#[test]
+fn touch_marks_while_editing() {
+    for (editing, phone_mode, marks) in [(false, true, 0), (true, true, 1), (true, false, 1)] {
+        let mut ws = TestEditor::new("teh\n");
+        install(&ws.editor.edit.renderer.ctx, Some(Spelling::new(Box::new(Teh))));
+        ws.editor.edit.renderer.touch_mode = true;
+        ws.editor.edit.phone_mode = phone_mode;
+        ws.editor.editing = editing;
+        let end = Location::Grapheme(Grapheme(4));
+        ws.push(Event::Select { region: Region::BetweenLocations { start: end, end } });
+        ws.enter_frame();
+        ws.enter_frame();
+        let marked = ws.editor.edit.renderer.misspelled.len();
+        assert_eq!(marked, marks, "editing {editing}, software keyboard {phone_mode}");
+    }
+}
+
 #[test]
 fn typed_word_waits() {
     let mut ws = TestEditor::new("te");

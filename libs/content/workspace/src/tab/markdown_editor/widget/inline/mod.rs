@@ -39,11 +39,14 @@ impl<'ast> MdRender {
 
     /// Returns the range of the leading syntax characters that define this node
     pub fn head_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
-        if matches!(node.data.borrow().value, NodeValue::Code(_)) {
-            let range = self.node_range(node);
-            Some((range.start(), range.start() + 1)) // code has no children; contains text directly
-        } else {
-            self.prefix_range(node)
+        let start = self.node_range(node).start();
+        let empty = node.first_child().is_none();
+        match node.data.borrow().value {
+            NodeValue::Code(_) => Some((start, start + 1)), // code has no children; contains text directly
+            // an empty label has no child to end the head at
+            NodeValue::Link(_) if empty => Some((start, start + 1)),
+            NodeValue::Image(_) if empty => Some((start, start + 2)),
+            _ => self.prefix_range(node),
         }
     }
 
@@ -58,11 +61,13 @@ impl<'ast> MdRender {
 
     /// Returns the range of the trailing syntax characters that define this node
     pub fn tail_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
-        if matches!(node.data.borrow().value, NodeValue::Code(_)) {
-            let range = self.node_range(node);
-            Some((range.end() - 1, range.end())) // code has no children; contains text directly
-        } else {
-            self.postfix_range(node)
+        let end = self.node_range(node).end();
+        match node.data.borrow().value {
+            NodeValue::Code(_) => Some((end - 1, end)), // code has no children; contains text directly
+            NodeValue::Link(_) | NodeValue::Image(_) if node.first_child().is_none() => {
+                Some((self.head_range(node)?.end(), end))
+            }
+            _ => self.postfix_range(node),
         }
     }
 

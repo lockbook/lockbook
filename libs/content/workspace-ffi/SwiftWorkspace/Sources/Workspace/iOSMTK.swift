@@ -15,9 +15,6 @@
             mtkView.wsHandle
         }
 
-        /// pointer
-        var pointerInteraction: UIPointerInteraction?
-
         // pencil
         var pencilDelegate: SvgPencilDelegate?
         var pencilInteraction: UIPencilInteraction?
@@ -41,13 +38,6 @@
             super.init(frame: .infinite)
 
             isMultipleTouchEnabled = true
-
-            // pointer
-            let pointerInteraction = UIPointerInteraction(delegate: mtkView.pointerDelegate)
-
-            addInteraction(pointerInteraction)
-
-            self.pointerInteraction = pointerInteraction
 
             // pencil
             let pencilDelegate = SvgPencilDelegate(mtkView: mtkView)
@@ -620,48 +610,6 @@
         }
     }
 
-    // MARK: - iOSPointerDelegate
-
-    public class iOSPointerDelegate: NSObject, UIPointerInteractionDelegate {
-        weak var mtkView: iOSMTK?
-
-        init(mtkView: iOSMTK) {
-            self.mtkView = mtkView
-        }
-
-        public func pointerInteraction(
-            _ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest,
-            defaultRegion: UIPointerRegion
-        ) -> UIPointerRegion? {
-            guard let mtkView else { return defaultRegion }
-            let wsHandle = mtkView.wsHandle
-
-            let location = interaction.view?.convert(request.location, to: mtkView)
-                ?? request.location
-            mouse_moved(wsHandle, Float(location.x), Float(location.y))
-            return defaultRegion
-        }
-
-        public func pointerInteraction(
-            _: UIPointerInteraction, willEnter _: UIPointerRegion,
-            animator _: any UIPointerInteractionAnimating
-        ) {
-            guard let mtkView else { return }
-
-            mtkView.cursorTracked = true
-        }
-
-        public func pointerInteraction(
-            _: UIPointerInteraction, willExit _: UIPointerRegion,
-            animator _: any UIPointerInteractionAnimating
-        ) {
-            guard let mtkView else { return }
-
-            mtkView.cursorTracked = false
-            mouse_gone(mtkView.wsHandle)
-        }
-    }
-
     // MARK: - iOSMTK
 
     public class iOSMTK: MTKView {
@@ -671,9 +619,8 @@
         var claimedPersistence = false
         weak var currentWrapper: UIView?
 
-        // pointer
-        var pointerInteraction: UIPointerInteraction?
-        var pointerDelegate: UIPointerInteractionDelegate?
+        /// A trackpad, mouse, or Pencil hovers the workspace.
+        var pointerHovering = false
 
         // touch ids
         private var touchMap = [ObjectIdentifier: UInt64]()
@@ -699,22 +646,12 @@
         var tabSwitchTask: (() -> Void)? // facilitates switching wrapper views in response to tab change
 
         // kinetic scroll
-        var cursorTracked = false
         var scrollSensitivity = 50.0
         var scrollId = 0
         var kineticTimer: Timer?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
-
-            // pointer
-            let pointerDelegate = iOSPointerDelegate(mtkView: self)
-            let pointer = UIPointerInteraction(delegate: pointerDelegate)
-
-            addInteraction(pointer)
-
-            self.pointerDelegate = pointerDelegate
-            pointerInteraction = pointer
 
             // gestures
             let pan = UIPanGestureRecognizer(
@@ -781,6 +718,35 @@
             fatalError("init(coder:) has not been implemented")
         }
 
+        /// The pointer for the whole workspace, from the input manager, whose
+        /// subviews would each see only their part of the screen.
+        @objc func handleHover(_ hover: UIHoverGestureRecognizer) {
+            switch hover.state {
+            case .began, .changed:
+                pointerHovering = true
+                let p = hover.location(in: self)
+                mouse_moved(wsHandle, Float(p.x), Float(p.y))
+            default:
+                pointerHovering = false
+                // a finger landing ends the hover; the touch has the pointer until it lifts
+                if touchMap.isEmpty {
+                    mouse_gone(wsHandle)
+                }
+            }
+            requestFrame()
+        }
+
+        /// A trackpad or mouse click is a pointer button, as on the Mac;
+        /// fingers and Pencil are touches.
+        private func pointerButton(_ touch: UITouch, _ event: UIEvent?, pressed: Bool) {
+            let p = touch.location(in: self)
+            let flags = event?.modifierFlags ?? []
+            mouse_button(
+                wsHandle, Float(p.x), Float(p.y), pressed, true, flags.contains(.shift),
+                flags.contains(.control), flags.contains(.alternate), flags.contains(.command)
+            )
+        }
+
         @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
             guard let event = sender, event.state != .failed else {
                 return
@@ -818,21 +784,21 @@
                         return
                     }
 
-                    if !cursorTracked {
+                    if !pointerHovering {
                         mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                     }
                     scroll_wheel(
                         wsHandle, Float(velocity.x), Float(velocity.y), 0, 4, precise, false, false,
                         false, false
                     )
-                    if !cursorTracked {
+                    if !pointerHovering {
                         mouse_gone(wsHandle)
                     }
 
                     setNeedsDisplay()
                 }
             } else {
-                if !cursorTracked {
+                if !pointerHovering {
                     mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                 }
                 let phase: UInt64 = event.state == .began ? 1 : 4
@@ -840,7 +806,7 @@
                     wsHandle, Float(velocity.x), Float(velocity.y), phase, 0, precise, false, false,
                     false, false
                 )
-                if !cursorTracked {
+                if !pointerHovering {
                     mouse_gone(wsHandle)
                 }
             }
@@ -1024,6 +990,10 @@
 
         override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
+                if touch.type == .indirectPointer {
+                    pointerButton(touch, event, pressed: true)
+                    continue
+                }
                 let value = getTouchID(for: touch, createIfMissing: true)
 
                 for touch in event!.coalescedTouches(for: touch)! {
@@ -1054,6 +1024,11 @@
 
         override public func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
+                if touch.type == .indirectPointer {
+                    let p = touch.location(in: self)
+                    mouse_moved(wsHandle, Float(p.x), Float(p.y))
+                    continue
+                }
                 let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
@@ -1073,8 +1048,12 @@
             setNeedsDisplay(frame)
         }
 
-        override public func touchesEnded(_ touches: Set<UITouch>, with _: UIEvent?) {
+        override public func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
+                if touch.type == .indirectPointer {
+                    pointerButton(touch, event, pressed: false)
+                    continue
+                }
                 let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
@@ -1087,8 +1066,13 @@
             setNeedsDisplay(frame)
         }
 
-        override public func touchesCancelled(_ touches: Set<UITouch>, with _: UIEvent?) {
+        override public func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
+                // a cancelled press is no click, as in egui-winit
+                if touch.type == .indirectPointer {
+                    mouse_gone(wsHandle)
+                    continue
+                }
                 let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
@@ -1097,6 +1081,8 @@
                 touches_cancelled(
                     wsHandle, value, Float(location.x), Float(location.y), Float(force)
                 )
+
+                touchMap.removeValue(forKey: ObjectIdentifier(touch))
             }
 
             setNeedsDisplay(frame)

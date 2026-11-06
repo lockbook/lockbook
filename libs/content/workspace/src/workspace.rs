@@ -123,7 +123,6 @@ pub struct Workspace {
     // Transient state (consider removing)
     pub landing_page_first_frame: bool,
     pub current_tab_changed: bool, // used to scroll to current tab when it changes
-    pub last_touch_event: Option<Instant>, // used to disable tooltips on touch devices
     pub last_set_title: Option<String>, // used to avoid re-setting the window title every frame
 
     // Transient rename state for the landing page file table
@@ -208,7 +207,6 @@ impl Workspace {
 
             landing_page_first_frame: true,
             current_tab_changed: Default::default(),
-            last_touch_event: Default::default(),
             last_set_title: Default::default(),
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
@@ -1802,11 +1800,10 @@ impl Workspace {
             .filter(|s| s.dest.id() == id)
             .map(|s| s.id)
             .collect();
-        let source = self.cfg.get_source();
         let ext = new_name.split('.').next_back().unwrap_or_default();
         for tab_id in tab_ids {
             let Some(tab) = self.tabs.get_mut(&tab_id) else { continue };
-            if !content_fits_name(&tab.content, &new_name, source) {
+            if !content_fits_name(&tab.content, &new_name) {
                 self.tabs.remove(&tab_id);
                 self.open_dest(tab_id, &dest);
             } else if let Some(md) = tab.markdown_mut() {
@@ -1839,76 +1836,7 @@ impl Workspace {
         let source = !self.cfg.get_source();
         self.cfg.set_source(source);
 
-        // a drawing refused as text opens again under the new choice
-        let refused: Vec<(SessionId, Uuid)> = {
-            let files = self.files.read().unwrap();
-            self.tabs
-                .iter()
-                .filter(|(_, t)| matches!(t.content, ContentState::Failed(TabFailure::Refused(_))))
-                .filter_map(|(sid, t)| Some((*sid, file_dest(&t.destination)?)))
-                .filter(|(_, id)| {
-                    files
-                        .get_by_id(*id)
-                        .is_some_and(|f| DocType::from_name(&f.name) == DocType::SVG)
-                })
-                .collect()
-        };
-        for (sid, id) in refused {
-            self.tasks.queue_load(LoadRequest {
-                id,
-                tab_created: true,
-                make_current: false,
-                is_preview: false,
-                target: Some(sid),
-            });
-        }
         self.ctx.request_repaint();
-    }
-
-    /// Reopens each open drawing in the drawing editor or the text editor to
-    /// match the source choice. A drawing reopens from its saved bytes, so
-    /// unsaved edits save first and nothing in flight is overtaken. Notes
-    /// switch on their own.
-    pub(crate) fn refit_source_views(&mut self) {
-        let source = self.cfg.get_source();
-        let refits: Vec<(SessionId, Uuid)> = {
-            let files = self.files.read().unwrap();
-            self.tabs
-                .iter()
-                .filter_map(|(sid, tab)| {
-                    let id = file_dest(&tab.destination)?;
-                    let drawing = DocType::from_name(&files.get_by_id(id)?.name) == DocType::SVG;
-                    let wrong = match &tab.content {
-                        ContentState::Open(TabContent::Svg(_)) => source,
-                        ContentState::Open(TabContent::Markdown(_)) => !source,
-                        _ => false,
-                    };
-                    (drawing && wrong).then_some((*sid, id))
-                })
-                .collect()
-        };
-        for (sid, id) in refits {
-            if self.tasks.busy(id) {
-                continue;
-            }
-            let dirty = self.tabs.get(&sid).is_some_and(|t| t.is_dirty(&self.tasks));
-            if dirty {
-                self.queue_save_for_session(sid);
-            } else {
-                // nothing to edit until the other editor has the file
-                if let Some(tab) = self.tabs.get_mut(&sid) {
-                    tab.content = ContentState::Loading(id);
-                }
-                self.tasks.queue_load(LoadRequest {
-                    id,
-                    tab_created: true,
-                    make_current: false,
-                    is_preview: false,
-                    target: Some(sid),
-                });
-            }
-            self.ctx.request_repaint();
-        }
     }
 
     pub fn move_file(&mut self, req: (Uuid, Uuid)) -> bool {
@@ -2082,14 +2010,9 @@ fn open_content(
 fn content_reloads(content: &ContentState, name: &str) -> bool {
     let doc_type = DocType::from_name(name);
     match content {
-        // a drawing shown as source stays text until the choice flips
         ContentState::Open(TabContent::Markdown(_)) => matches!(
             doc_type,
-            DocType::PlainText
-                | DocType::Markdown
-                | DocType::Code
-                | DocType::Unknown
-                | DocType::SVG
+            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
         ),
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         #[cfg(not(target_family = "wasm"))]
@@ -2100,15 +2023,14 @@ fn content_reloads(content: &ContentState, name: &str) -> bool {
 
 /// Whether `content` was built for a file named `name`. Loading content picks
 /// its editor from core's current name when the load lands.
-fn content_fits_name(content: &ContentState, name: &str, source: bool) -> bool {
+fn content_fits_name(content: &ContentState, name: &str) -> bool {
     let doc_type = DocType::from_name(name);
     match content {
-        ContentState::Open(TabContent::Markdown(_)) => match doc_type {
-            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown => true,
-            DocType::SVG => source,
-            _ => false,
-        },
-        ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG && !source,
+        ContentState::Open(TabContent::Markdown(_)) => matches!(
+            doc_type,
+            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+        ),
+        ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         ContentState::Open(TabContent::Image(_)) => doc_type == DocType::Image,
         ContentState::Open(TabContent::Pdf(_)) => doc_type == DocType::PDF,
         #[cfg(not(target_family = "wasm"))]
