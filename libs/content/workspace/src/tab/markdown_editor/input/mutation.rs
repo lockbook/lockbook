@@ -5,7 +5,7 @@ use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
     NodeValueExt as _, leading_indent_cols, leading_indent_range, wrap_layout,
 };
-use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Affinity, MdEdit, MdRender};
 use crate::tab::{CopiedRendered, ExtendedOutput as _};
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
@@ -83,12 +83,15 @@ impl<'ast> MdEdit {
                 if self.table_select_edits(region, operations) {
                     return response;
                 }
-                let range = self
-                    .extend_table_selection(region)
-                    .unwrap_or_else(|| self.region_to_range(region));
-                let range = self.renderer.snap_selection_out_of_fold_tags(range);
-                let range = self.renderer.snap_selection_into_table_cells(range);
-                operations.push(Operation::Select(range));
+                let (range, affinity) = match self.extend_table_selection(region) {
+                    Some(range) => (range, Affinity::Downstream),
+                    None => self.region_to_selection(region),
+                };
+                let snapped = self.renderer.snap_selection_out_of_fold_tags(range);
+                let snapped = self.renderer.snap_selection_into_table_cells(snapped);
+                let affinity = if snapped.1 == range.1 { affinity } else { Affinity::Downstream };
+                self.renderer.caret_affinity = (snapped.1, affinity);
+                operations.push(Operation::Select(snapped));
             }
             Event::Replace { region, text, advance_cursor } => {
                 let mut range = self.region_to_range(region);
@@ -1165,6 +1168,11 @@ impl<'ast> MdEdit {
 
     // todo: self by shared reference
     pub fn region_to_range(&mut self, region: Region) -> (Grapheme, Grapheme) {
+        self.region_to_selection(region).0
+    }
+
+    /// [`Self::region_to_range`], with the affinity of the caret at its end.
+    pub fn region_to_selection(&mut self, region: Region) -> ((Grapheme, Grapheme), Affinity) {
         // Pointer click ends an up/down chain — the next arrow must
         // start from the click x, not the stale column.
         let has_pos = |loc: &Location| matches!(loc, Location::Pos(_));
@@ -1178,20 +1186,31 @@ impl<'ast> MdEdit {
             self.cursor.x_target = None;
         }
         let mut current_selection = self.renderer.buffer.current.selection;
+        let at = |edit: &Self, location: Location, caret: Grapheme| match location {
+            Location::Pos(pos) => edit.pos_affinity(pos, caret),
+            _ => Affinity::Downstream,
+        };
         match region {
-            Region::Location(location) => self.location_to_range(location),
+            Region::Location(location) => {
+                let range = self.location_to_range(location);
+                (range, at(self, location, range.1))
+            }
             Region::ToLocation(location) => {
-                (current_selection.0, self.location_to_char_offset(location))
+                let caret = self.location_to_char_offset(location);
+                ((current_selection.0, caret), at(self, location, caret))
             }
             Region::BetweenLocations { start, end } => {
-                (self.location_to_char_offset(start), self.location_to_char_offset(end))
+                let caret = self.location_to_char_offset(end);
+                ((self.location_to_char_offset(start), caret), at(self, end, caret))
             }
-            Region::Selection | Region::Syntax { .. } => current_selection,
+            Region::Selection | Region::Syntax { .. } => {
+                (current_selection, self.renderer.caret_affinity_at(current_selection.1))
+            }
             Region::SelectionOrAdvance { advance: offset, backwards } => {
                 if current_selection.is_empty() {
-                    current_selection.0 = self.advance(current_selection.0, offset, backwards);
+                    current_selection.0 = self.advance(current_selection.0, offset, backwards).0;
                 }
-                current_selection
+                (current_selection, self.renderer.caret_affinity_at(current_selection.1))
             }
             Region::ToAdvance { advance, backwards, extend_selection } => {
                 if extend_selection
@@ -1199,31 +1218,48 @@ impl<'ast> MdEdit {
                     || matches!(advance, Advance::To(..))
                 {
                     let mut selection = current_selection;
-                    selection.1 = self.advance(selection.1, advance, backwards);
+                    let affinity;
+                    (selection.1, affinity) = self.advance(selection.1, advance, backwards);
                     if extend_selection {
                         selection.0 = current_selection.0;
                     } else {
                         selection.0 = selection.1;
                     }
-                    selection
+                    (selection, affinity)
                 } else if backwards {
-                    current_selection.start().to_range()
+                    (current_selection.start().to_range(), Affinity::Downstream)
                 } else {
-                    current_selection.end().to_range()
+                    (current_selection.end().to_range(), Affinity::Downstream)
                 }
             }
             Region::Bound { bound, backwards } => {
                 let offset = current_selection.1;
-                offset
+                let range = offset
                     .range_bound(bound, backwards, false, &self.renderer.bounds)
-                    .unwrap_or((offset, offset))
+                    .unwrap_or((offset, offset));
+                (range, Affinity::Downstream)
             }
             Region::BoundAt { bound, location, backwards } => {
                 let offset = self.location_to_char_offset(location);
-                offset
+                let range = offset
                     .range_bound(bound, backwards, true, &self.renderer.bounds)
-                    .unwrap_or((offset, offset))
+                    .unwrap_or((offset, offset));
+                (range, Affinity::Downstream)
             }
+        }
+    }
+
+    /// Upstream when a click at `pos` on a row resolves to `caret`, the offset
+    /// that also starts the next row.
+    fn pos_affinity(&self, pos: Pos2, caret: Grapheme) -> Affinity {
+        let r = &self.renderer;
+        let hit = r.closest_fragment_at_pos(pos);
+        let downstream = r.fragment_idx_at_offset(caret, Affinity::Downstream);
+        match hit.zip(downstream) {
+            Some((hit, down)) if r.fragments[hit].rect.bottom() <= r.fragments[down].rect.top() => {
+                Affinity::Upstream
+            }
+            _ => Affinity::Downstream,
         }
     }
 

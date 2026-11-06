@@ -109,6 +109,15 @@ pub struct ImeMarked {
     pub seq: usize,
 }
 
+/// Which side of an offset the caret belongs to. Where a soft wrap ends one
+/// row at the offset that starts the next, upstream is the end of the first.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Affinity {
+    Upstream,
+    #[default]
+    Downstream,
+}
+
 pub struct MdRender {
     // context
     pub ctx: Context,
@@ -136,6 +145,9 @@ pub struct MdRender {
 
     // document
     pub buffer: Buffer,
+    /// The row the caret at this offset draws on where a soft wrap ends one
+    /// row and starts the next; downstream at any other offset.
+    pub caret_affinity: (Grapheme, Affinity),
     pub text_seq: u64, // buffer.seq includes selection changes
 
     pub bounds: Bounds,
@@ -716,6 +728,7 @@ impl MdRender {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            caret_affinity: Default::default(),
             typing: false,
             buffer: "".into(),
             bounds: Default::default(),
@@ -830,6 +843,7 @@ impl MdRender {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            caret_affinity: Default::default(),
             typing: false,
             bounds: Default::default(),
             buffer: md.into(),
@@ -920,6 +934,7 @@ impl MdRender {
         self.revealed_spoilers.clear();
         let now = self.ctx.input(|i| i.time);
         self.task_toggled = self.task_toggle_pending.take().map(|check| (check, now));
+        self.caret_affinity = Default::default();
     }
 
     /// Re-parse the buffer into a fresh AST and rebuild all text-derived
@@ -1055,6 +1070,7 @@ impl Editor {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            caret_affinity: Default::default(),
             typing: false,
 
             bounds: Default::default(),
