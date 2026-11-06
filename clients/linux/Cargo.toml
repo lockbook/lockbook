@@ -3,5 +3,5 @@ name = "lockbook-linux"
 version = "26.11.4"
 edition = "2021"
 
-[target.'cfg(target_os = "linux")'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 lockbook-desktop = { path = "../desktop" }
