@@ -1,5 +1,7 @@
 use std::fs::{self, DirBuilder};
 use std::io::{self, ErrorKind};
+#[cfg(target_vendor = "apple")]
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt};
 use std::os::unix::net::UnixDatagram;
 use std::path::PathBuf;
@@ -34,7 +36,17 @@ impl Ipc {
                 .as_millis();
             loop {
                 let path = directory.join(index.to_string());
-                match UnixDatagram::bind(&path) {
+                #[cfg(target_vendor = "apple")]
+                let bound = {
+                    let socket = UnixDatagram::unbound()?;
+                    with_address(&path, |address, len| unsafe {
+                        libc::bind(socket.as_raw_fd(), address, len) as isize
+                    })
+                    .map(|_| socket)
+                };
+                #[cfg(not(target_vendor = "apple"))]
+                let bound = UnixDatagram::bind(&path);
+                match bound {
                     Ok(bound) => break (Some(path), bound),
                     Err(error)
                         if matches!(
@@ -72,7 +84,13 @@ impl Ipc {
             {
                 continue;
             }
-            match self.socket.send_to(&[1], &path) {
+            #[cfg(target_vendor = "apple")]
+            let sent = with_address(&path, |address, len| unsafe {
+                libc::sendto(self.socket.as_raw_fd(), [1u8].as_ptr().cast(), 1, 0, address, len)
+            });
+            #[cfg(not(target_vendor = "apple"))]
+            let sent = self.socket.send_to(&[1], &path);
+            match sent {
                 Ok(_) => {}
                 // A queued wake already tells a slow peer to read everything it has missed.
                 Err(error) if error.kind() == ErrorKind::WouldBlock => {}
@@ -85,6 +103,23 @@ impl Ipc {
         }
         Ok(())
     }
+}
+
+// Darwin accepts addresses up to SOCK_MAXADDRLEN, beyond sockaddr_un's fixed buffer.
+// App-group paths (especially in the simulator) need that extra space.
+#[cfg(target_vendor = "apple")]
+fn with_address(
+    path: &std::path::Path, operation: impl FnOnce(*const libc::sockaddr, libc::socklen_t) -> isize,
+) -> io::Result<usize> {
+    let path = std::ffi::CString::new(path.as_os_str().as_encoded_bytes())?;
+    let len = path.as_bytes_with_nul().len() + 2;
+    if len > libc::SOCK_MAXADDRLEN as usize {
+        return Err(io::Error::from_raw_os_error(libc::ENAMETOOLONG));
+    }
+    let mut address = vec![len as u8, libc::AF_UNIX as u8];
+    address.extend_from_slice(path.as_bytes_with_nul());
+    let result = operation(address.as_ptr().cast(), len as libc::socklen_t);
+    if result < 0 { Err(io::Error::last_os_error()) } else { Ok(result as usize) }
 }
 
 impl Drop for Ipc {
@@ -139,6 +174,21 @@ mod tests {
     use super::*;
     use db_rs::config::Config;
     use tempfile::tempdir_in;
+
+    #[cfg(target_vendor = "apple")]
+    #[test]
+    fn notifies_peers_with_long_app_group_paths() {
+        let temporary = tempdir_in("/tmp").unwrap();
+        let directory = temporary.path().join("a".repeat(150));
+        fs::create_dir(&directory).unwrap();
+        let db = CoreDb::init(&Config::default().log_location(&directory)).unwrap();
+        let first = Ipc::new(&db, true).unwrap();
+        let second = Ipc::new(&db, true).unwrap();
+        first.send().unwrap();
+        assert_eq!(second.socket.recv(&mut [0]).unwrap(), 1);
+        second.send().unwrap();
+        assert_eq!(first.socket.recv(&mut [0]).unwrap(), 1);
+    }
 
     #[test]
     fn sends_to_peers_skips_self_and_cleans_up_dead_sockets() {

@@ -29,7 +29,13 @@ final class FileProviderItem: NSObject, NSFileProviderItem, Codable {
     var filename: String { name }
     var contentType: UTType { folder ? .folder : UTType(filenameExtension: (name as NSString).pathExtension) ?? .data }
     var documentSize: NSNumber? { size.map(NSNumber.init(value:)) }
-    var contentPolicy: NSFileProviderContentPolicy { .downloadLazily }
+    var contentPolicy: NSFileProviderContentPolicy {
+        #if os(macOS)
+        .downloadLazily
+        #else
+        .downloadLazilyAndEvictOnRemoteUpdate
+        #endif
+    }
     var contentModificationDate: Date? { modifiedDate ?? Date(timeIntervalSince1970: Double(modified) / 1000) }
     var itemVersion: NSFileProviderItemVersion {
         let metadata = Data("\(parent)\u{0}\(name)\u{0}\(contentModificationDate!.timeIntervalSince1970)\u{0}\(writable)\u{0}\(size ?? 0)\u{0}\(contentPolicy.rawValue)".utf8)

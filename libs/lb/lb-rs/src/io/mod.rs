@@ -15,7 +15,7 @@ use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
 use crate::service::lb_id::LbID;
-#[cfg(all(unix, not(target_os = "ios")))]
+#[cfg(unix)]
 use crate::subscribers::ipc::Ipc;
 use db_rs::View;
 use db_rs::config::Config;
@@ -149,7 +149,7 @@ impl LbRO<'_> {
 pub struct LbTx<'a> {
     guard: RwLockWriteGuard<'a, CoreDb>,
     tx: Option<WriteTx>,
-    #[cfg(all(unix, not(target_os = "ios")))]
+    #[cfg(unix)]
     ipc: &'a Ipc,
 }
 
@@ -168,7 +168,7 @@ impl LbTx<'_> {
         let committed_seq = tx.end_tx(&mut *self.guard)?;
         // Empty transactions retain the previous sequence, including after catch-up.
         if committed_seq == seq_no {
-            #[cfg(all(unix, not(target_os = "ios")))]
+            #[cfg(unix)]
             self.ipc.notify_peers();
         }
         Ok(())
@@ -227,7 +227,7 @@ impl Lb {
         LbTx {
             guard,
             tx: Some(tx),
-            #[cfg(all(unix, not(target_os = "ios")))]
+            #[cfg(unix)]
             ipc: &self.ipc,
         }
     }

@@ -3,6 +3,7 @@ import SwiftWorkspace
 
 #if os(iOS)
     struct SettingsView: View {
+        @State private var finder = FinderIntegration.shared
         @State private var model = SettingsModel()
 
         @State private var showAccountKeys = false
@@ -23,6 +24,17 @@ import SwiftWorkspace
                     }
 
                     LogoutButton()
+                }
+
+                Section {
+                    Toggle("Show Lockbook in Files", isOn: Binding(
+                        get: { finder.enabled }, set: { finder.setEnabled($0) }
+                    ))
+                    .disabled(finder.busy)
+                } header: {
+                    Text("Files")
+                } footer: {
+                    Text("Access Lockbook from Browse → Locations in the Files app. Files you open are downloaded as regular, unencrypted files on this device.")
                 }
 
                 Section("Usage") {
@@ -76,6 +88,7 @@ import SwiftWorkspace
             .navigationBarTitleDisplayMode(.large)
             .onAppear {
                 model.load()
+                finder.refresh()
             }
         }
     }
@@ -326,11 +339,7 @@ struct LogoutButton: View {
             titleVisibility: .visible
         ) {
             Button("Logout", role: .destructive) {
-                #if os(macOS)
                 FinderIntegration.shared.setEnabled(false) { AppState.lb.logoutAndExit() }
-                #else
-                AppState.lb.logoutAndExit()
-                #endif
             }
         }
     }

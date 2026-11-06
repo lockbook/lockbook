@@ -56,11 +56,7 @@ import SwiftWorkspace
     }
 
     func deleteAccountAndExit() {
-        #if os(macOS)
         FinderIntegration.shared.setEnabled(false) { self.deleteAccount() }
-        #else
-        deleteAccount()
-        #endif
     }
 
     private func deleteAccount() {
