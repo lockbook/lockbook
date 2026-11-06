@@ -480,9 +480,10 @@ struct MeasuredRow {
 /// separates.
 type MenuItem = Option<(&'static str, &'static str, Choice)>;
 
-/// The menu of the note's outline as a whole: its header, or its empty list.
+/// Copying the link to note `note`: the outline's header, its empty list, a
+/// linking note, or with a heading's own link.
 fn note_menu(note: Uuid) -> Vec<MenuItem> {
-    vec![Some((phosphor::LINK, "Copy Link", Choice::CopyLink(note)))]
+    vec![Some((phosphor::LINK, "Copy Note Link", Choice::CopyLink(note)))]
 }
 
 /// The menu of heading `i` of `headings`: its own link, then the note's. A
@@ -492,10 +493,9 @@ fn heading_menu(headings: Headings, i: usize) -> Vec<MenuItem> {
     if !headings.linkable || row.slug.is_empty() {
         return vec![];
     }
-    vec![
-        Some((phosphor::LINK, "Copy Link", Choice::CopyHeadingLink(i))),
-        Some((phosphor::FILE_TEXT, "Copy Note Link", Choice::CopyLink(headings.note))),
-    ]
+    let mut menu = vec![Some((phosphor::HASH, "Copy Heading Link", Choice::CopyHeadingLink(i)))];
+    menu.extend(note_menu(headings.note));
+    menu
 }
 
 /// The menu of a linking note's row, or with `span`, of one of its links.
