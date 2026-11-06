@@ -58,7 +58,7 @@ impl Meta {
         let key = symkey::generate_key();
         let pub_key = account.public_key();
 
-        Ok(Meta::V1 {
+        Ok(Meta::V2 {
             id,
             file_type: FileType::Folder,
             parent: id,
@@ -75,6 +75,7 @@ impl Meta {
                 UserAccessMode::Write,
             )?],
             folder_access_key: symkey::encrypt(&key, &key)?,
+            attachments_of: None,
         })
     }
 
@@ -82,7 +83,7 @@ impl Meta {
         id: Uuid, key: AESKey, owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str,
         file_type: FileType,
     ) -> LbResult<Self> {
-        Ok(Meta::V1 {
+        Ok(Meta::V2 {
             id,
             file_type,
             parent,
@@ -93,6 +94,7 @@ impl Meta {
             doc_size: None,
             user_access_keys: Default::default(),
             folder_access_key: symkey::encrypt(parent_key, &key)?,
+            attachments_of: None,
         })
     }
 
@@ -166,11 +168,50 @@ impl Meta {
         }
     }
 
-    pub fn sign(self, keychain: &Keychain) -> LbResult<SignedMeta> {
+    pub fn set_attachments_of(&mut self, new_attachments_of: Option<AttachmentsOf>) {
+        let Meta::V2 { attachments_of, .. } = self.upgrade() else { unreachable!() };
+        *attachments_of = new_attachments_of;
+    }
+
+    fn upgrade(&mut self) -> &mut Self {
+        if let Meta::V1 {
+            id,
+            file_type,
+            parent,
+            name,
+            owner,
+            is_deleted,
+            doc_size,
+            doc_hmac,
+            user_access_keys,
+            folder_access_key,
+        } = self.clone()
+        {
+            *self = Meta::V2 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                doc_size,
+                doc_hmac,
+                user_access_keys,
+                folder_access_key,
+                attachments_of: None,
+            };
+        }
+        self
+    }
+
+    // every change a client signs is written as V2
+    pub fn sign(mut self, keychain: &Keychain) -> LbResult<SignedMeta> {
+        self.upgrade();
         pubkey::sign(&keychain.get_account()?.private_key, &keychain.get_pk()?, self, get_time)
     }
 
-    pub fn sign_with(self, account: &Account) -> LbResult<SignedMeta> {
+    pub fn sign_with(mut self, account: &Account) -> LbResult<SignedMeta> {
+        self.upgrade();
         pubkey::sign(&account.private_key, &account.public_key(), self, get_time)
     }
 }

@@ -45,6 +45,27 @@ impl<S: Server> Lb<S> {
         Ok(ui_file)
     }
 
+    /// Creates the folder that holds `document`'s attachments, beside it.
+    pub async fn create_attachments_folder(&self, document: &Uuid, name: &str) -> LbResult<File> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+
+        if name.len() > MAX_FILENAME_LENGTH {
+            return Err(LbErrKind::FileNameTooLong.into());
+        }
+        let mut tree = (&db.base_metadata)
+            .to_staged(&mut db.local_metadata)
+            .to_lazy();
+
+        let id = tree.create_attachments(document, name, &self.keychain)?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+
+        tx.end();
+
+        self.events.meta_changed(Actor::User(None));
+        Ok(ui_file)
+    }
+
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn rename_file(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
         let mut tx = self.begin_tx().await;

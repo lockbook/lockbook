@@ -1,12 +1,9 @@
-use lb_rs::io::network::ApiError;
-use lb_rs::io::server::Server;
 use lb_rs::model::access_info::{UserAccessInfo, UserAccessMode};
 use lb_rs::model::account::Account;
-use lb_rs::model::api::{UpsertError, UpsertRequestV2};
 use lb_rs::model::crypto::AESKey;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::{FileDiff, FileType, Owner};
+use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::model::meta::{AttachmentsOf, Meta};
 use lb_rs::model::secret_filename::SecretFileName;
 use lb_rs::model::signed_meta::SignedMeta;
@@ -16,8 +13,8 @@ use lb_rs::service::keychain::Keychain;
 use test_utils::*;
 use uuid::Uuid;
 
-fn to_v2(meta: Meta, attachments_of: Option<AttachmentsOf>) -> Meta {
-    let Meta::V1 {
+fn to_v1(meta: Meta) -> Meta {
+    let Meta::V2 {
         id,
         file_type,
         parent,
@@ -28,11 +25,12 @@ fn to_v2(meta: Meta, attachments_of: Option<AttachmentsOf>) -> Meta {
         doc_hmac,
         user_access_keys,
         folder_access_key,
+        attachments_of: None,
     } = meta
     else {
-        panic!("expected V1");
+        panic!("expected V2 without attachments");
     };
-    Meta::V2 {
+    Meta::V1 {
         id,
         file_type,
         parent,
@@ -43,7 +41,6 @@ fn to_v2(meta: Meta, attachments_of: Option<AttachmentsOf>) -> Meta {
         doc_hmac,
         user_access_keys,
         folder_access_key,
-        attachments_of,
     }
 }
 
@@ -73,9 +70,10 @@ fn root(account: &Account) -> (Meta, AESKey) {
     (root, key)
 }
 
-fn attachments(doc: &Meta, doc_key: &AESKey, folder: Meta, folder_key: &AESKey) -> Meta {
+fn attachments(doc: &Meta, doc_key: &AESKey, mut folder: Meta, folder_key: &AESKey) -> Meta {
     let key = symkey::encrypt(doc_key, folder_key).unwrap();
-    to_v2(folder, Some(AttachmentsOf { id: *doc.id(), key }))
+    folder.set_attachments_of(Some(AttachmentsOf { id: *doc.id(), key }));
+    folder
 }
 
 fn share(meta: &mut Meta, key: &AESKey, by: &Account, with: &Account, mode: UserAccessMode) {
@@ -125,8 +123,8 @@ fn signed(files: &[&Meta], by: &Account) -> Vec<SignedMeta> {
 #[test]
 fn v1_keeps_its_bincode_tag() {
     let alice = Account::new(random_name(), url());
-    let v1 = Meta::create_root(&alice).unwrap();
-    let v2 = to_v2(v1.clone(), None);
+    let v2 = Meta::create_root(&alice).unwrap();
+    let v1 = to_v1(v2.clone());
 
     // stored V1 metadata decodes because V1 keeps the first variant tag
     assert_eq!(bincode::serialize(&v1).unwrap()[..4], [0, 0, 0, 0]);
@@ -216,8 +214,16 @@ fn a_reader_of_a_document_cannot_change_its_attachments() {
         .stage(vec![]);
 
     let rename = tree.rename(plan.image.id(), "chart-2.png", &bob);
+    let mut rekeyed = plan.folder.clone();
+    let key = symkey::encrypt(&symkey::generate_key(), &symkey::generate_key()).unwrap();
+    rekeyed.set_attachments_of(Some(AttachmentsOf { id: *plan.doc.id(), key }));
+    let rekey = work(&plan, UserAccessMode::Read, None)
+        .to_lazy()
+        .stage(vec![rekeyed.sign_with(&plan.bob).unwrap()])
+        .validate(Owner(plan.bob.public_key()));
 
     assert_eq!(rename.map_err(|err| err.kind), Err(LbErrKind::InsufficientPermission));
+    assert_eq!(rekey.map_err(|err| err.kind), Err(LbErrKind::InsufficientPermission));
 }
 
 #[test]
@@ -260,31 +266,4 @@ fn a_recipient_sees_attachments_deleted_with_their_document() {
         assert!(tree.calculate_deleted(plan.folder.id()).unwrap());
         assert!(tree.calculate_deleted(plan.image.id()).unwrap());
     }
-}
-
-#[tokio::test]
-async fn the_server_refuses_v2_until_the_forced_upgrade() {
-    let core = test_core_with_account().await;
-    let account = core.get_account().unwrap();
-    let id = core.create_at_path("test.md").await.unwrap().id;
-    core.sync().await.unwrap();
-    let old = core
-        .begin_tx()
-        .await
-        .db()
-        .base_metadata
-        .get(&id)
-        .unwrap()
-        .clone();
-    let new = to_v2(old.timestamped_value.value.clone(), None)
-        .sign_with(account)
-        .unwrap();
-
-    let result = Server::upsert_file_metadata_v2(
-        &core.client,
-        account,
-        UpsertRequestV2 { updates: vec![FileDiff::edit(old, new)] },
-    )
-    .await;
-    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::DiffMalformed)));
 }
