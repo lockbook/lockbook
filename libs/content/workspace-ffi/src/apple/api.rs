@@ -528,6 +528,24 @@ pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
 
 /// # Safety
 #[no_mangle]
+pub unsafe extern "C" fn mouse_button(
+    obj: *mut c_void, x: f32, y: f32, pressed: bool, primary: bool, shift: bool, ctrl: bool,
+    option: bool, command: bool,
+) {
+    let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
+
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let pos = obj.renderer.pos_from_points(x, y);
+    obj.renderer.raw_input.events.push(Event::PointerButton {
+        pos,
+        button: if primary { egui::PointerButton::Primary } else { egui::PointerButton::Secondary },
+        pressed,
+        modifiers,
+    })
+}
+
+/// # Safety
+#[no_mangle]
 pub unsafe extern "C" fn mouse_gone(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.renderer.raw_input.events.push(egui::Event::PointerGone);

@@ -1943,6 +1943,13 @@ impl Editor {
                 .touch_targets
                 .push((rect, TouchTarget::Popup));
         }
+        // and on a hover card, which is above all of them, the card's
+        if let Some(rect) = crate::style::card_shown(ui.ctx()) {
+            self.edit
+                .renderer
+                .touch_targets
+                .insert(0, (rect, TouchTarget::Popup));
+        }
         self.edit.renderer.tab_embeds.end_frame();
         self.loads_pending = self.edit.renderer.embeds.take_pending()
             | self.edit.renderer.previews_pending.take()
