@@ -446,7 +446,7 @@ impl<'ast> MdRender {
         }
 
         let copy = Event::CopyCode { node: range };
-        let resp = ui.interact(button, ui.scope_id().with(("code_copy", range)), Sense::click());
+        let resp = ui.interact(button, ui.scope_id().with("code_copy"), Sense::click());
         if resp.clicked() {
             self.render_events.push(copy.clone());
         }
