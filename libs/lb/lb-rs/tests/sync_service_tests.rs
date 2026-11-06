@@ -403,3 +403,47 @@ async fn concurrent_chat_appends_union_cleanly() {
     }
     assert::cores_equal(&c1, &c2).await;
 }
+
+#[tokio::test]
+async fn concurrent_json_edits_merge_by_key() {
+    let c1 = test_core_with_account().await;
+    let doc = c1.create_at_path("panels.json").await.unwrap();
+    c1.sync().await.unwrap();
+
+    let c2 = test_core_from(&c1).await;
+    c1.write_document(doc.id, br#"{"a":2}"#).await.unwrap();
+    c2.write_document(doc.id, br#"{"b":2}"#).await.unwrap();
+
+    c1.sync().await.unwrap();
+    c2.sync().await.unwrap();
+    c1.sync().await.unwrap();
+
+    for c in [&c1, &c2] {
+        let files = c.list_metadatas().await.unwrap();
+        assert_eq!(files.iter().filter(|f| f.name.ends_with(".json")).count(), 1);
+        let merged: serde_json::Value =
+            serde_json::from_slice(&c.read_document(doc.id, false).await.unwrap()).unwrap();
+        assert_eq!(merged, serde_json::json!({"a": 2, "b": 2}));
+    }
+    assert::cores_equal(&c1, &c2).await;
+}
+
+#[tokio::test]
+async fn concurrent_json_edits_one_not_json_leave_a_copy() {
+    let c1 = test_core_with_account().await;
+    let doc = c1.create_at_path("panels.json").await.unwrap();
+    c1.write_document(doc.id, br#"{"a":1}"#).await.unwrap();
+    c1.sync().await.unwrap();
+
+    let c2 = test_core_from(&c1).await;
+    c1.write_document(doc.id, br#"{"a":2}"#).await.unwrap();
+    c2.write_document(doc.id, b"not json").await.unwrap();
+
+    c1.sync().await.unwrap();
+    c2.sync().await.unwrap();
+    c1.sync().await.unwrap();
+
+    let files = c1.list_metadatas().await.unwrap();
+    assert_eq!(files.iter().filter(|f| f.name.contains("panels")).count(), 2);
+    assert::cores_equal(&c1, &c2).await;
+}

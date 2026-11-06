@@ -21,6 +21,7 @@ pub mod file;
 pub mod file_like;
 pub mod file_metadata;
 pub mod filename;
+pub mod json;
 pub mod lazy;
 pub mod meta;
 pub mod meta_conversions;
