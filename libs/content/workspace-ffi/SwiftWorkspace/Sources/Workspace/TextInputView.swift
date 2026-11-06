@@ -389,7 +389,8 @@
 
         /// Each key has one owner. UIKit's text system takes text keys:
         /// characters, arrows, deletes, Return, Tab, and the standard edit
-        /// chords. The editor takes its own shortcuts.
+        /// chords. The editor takes its own shortcuts and the keys UIKit
+        /// ignores, like Home and End.
         private var editorKeys = Set<UIKeyboardHIDUsage>()
 
         override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -486,6 +487,9 @@
             case .keyboardLeftArrow, .keyboardRightArrow:
                 // Control-Command-Shift grows or shrinks a selection in code, as on the Mac.
                 return chord == [.shift, .control, .command] && marked == nil
+            case .keyboardHome, .keyboardEnd, .keyboardPageUp, .keyboardPageDown:
+                // UIKit ignores these, except during a composition.
+                return marked == nil
             case .keyboardUpArrow, .keyboardDownArrow,
                  .keyboardDeleteOrBackspace, .keyboardDeleteForward,
                  .keyboardLeftShift, .keyboardRightShift, .keyboardLeftControl, .keyboardRightControl,
