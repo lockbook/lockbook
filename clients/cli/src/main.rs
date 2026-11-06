@@ -1,3 +1,13 @@
+// Shadow std's print macros for every module below: a closed stdout (`lockbook list | head`) ends the CLI quietly
+// instead of panicking.
+macro_rules! print {
+    ($($arg:tt)*) => { $crate::print_out(format_args!($($arg)*)) };
+}
+macro_rules! println {
+    () => { print!("\n") };
+    ($($arg:tt)*) => { print!("{}\n", format_args!($($arg)*)) };
+}
+
 mod account;
 mod debug;
 mod edit;
@@ -243,6 +253,18 @@ fn run() -> CliResult<()> {
         )
         .with_completions()
         .parse()
+}
+
+fn print_out(args: std::fmt::Arguments) {
+    use std::io::Write;
+
+    let mut stdout = std::io::stdout().lock();
+    if let Err(err) = stdout.write_fmt(args).and_then(|()| stdout.flush()) {
+        if err.kind() == std::io::ErrorKind::BrokenPipe {
+            std::process::exit(0);
+        }
+        panic!("failed printing to stdout: {err}");
+    }
 }
 
 fn main() {

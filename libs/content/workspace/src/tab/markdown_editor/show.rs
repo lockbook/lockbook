@@ -31,6 +31,7 @@ use super::input::{Bound, Event, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, DragUnit, TouchReorder};
 use super::widget::block::leaf::diagram::Picture;
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
+use super::widget::inline::tab_embed::EmbedClick;
 use super::{ImeMarked, MdEdit, MdRender};
 
 #[derive(Clone)]
@@ -474,6 +475,7 @@ impl MdEdit {
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
         self.renderer.misspelled.clear();
+        self.renderer.diagram_errors.clear();
         self.renderer.clear_row_scroll_frame();
         self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
@@ -808,11 +810,13 @@ impl MdEdit {
 
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));
-        let response = ui.interact(
-            rect,
-            id,
-            if self.renderer.touch_mode { Sense::click() } else { Sense::click_and_drag() },
-        );
+        // an embedded editor leaves touches to its host, which hands them on
+        let sense = match (self.takes_focus, self.renderer.touch_mode) {
+            (false, true) => Sense::hover(),
+            (true, true) => Sense::click(),
+            (_, false) => Sense::click_and_drag(),
+        };
+        let response = ui.interact(rect, id, sense);
         // interact surrenders focus if anything was clicked, even a child —
         // restore if we thought we were focused at entry
         if prev_focused && !ui.memory(|m| m.has_focus(id)) {
@@ -824,6 +828,12 @@ impl MdEdit {
         }
 
         let response_properly_clicked = response.clicked_by(egui::PointerButton::Primary);
+        // a click nothing in it took is its host's, which selects the embed
+        if !self.takes_focus && response_properly_clicked {
+            if let Some(pos) = response.interact_pointer_pos() {
+                EmbedClick::hand_on(ui.ctx(), pos);
+            }
+        }
         if response.hovered() || response_properly_clicked {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
         }
@@ -842,6 +852,7 @@ impl MdEdit {
         self.escape_diagram_source(root, ui, id, &mut ops);
         self.handle_diagram_interactions(root, ui, id, &mut ops);
         self.handle_card_interactions(root, ui, id, &mut ops);
+        self.handle_tab_embed_interactions(root, ui, id, &mut ops);
         self.handle_link_capsule_interactions(root, ui, id, &mut ops);
         self.handle_link_menu_taps(root, ui, id, &mut ops);
 

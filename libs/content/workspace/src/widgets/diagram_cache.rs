@@ -7,6 +7,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::ops::Range;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -35,7 +36,27 @@ use crate::theme::palette_v2::{Theme, ThemeExt as _};
 pub enum DiagramSize {
     Pending,
     Ready(Vec2),
-    Failed(String),
+    Failed(DiagramError),
+}
+
+/// Why a diagram didn't draw, and the bytes of its source the parser points
+/// at: empty where something is missing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DiagramError {
+    pub message: String,
+    pub span: Option<Range<usize>>,
+}
+
+impl From<String> for DiagramError {
+    fn from(message: String) -> Self {
+        Self { message, span: None }
+    }
+}
+
+impl From<&str> for DiagramError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
 }
 
 #[derive(Clone)]
@@ -78,7 +99,7 @@ enum State {
         textures: Vec<(u32, TextureHandle, bool)>,
         rastering: bool,
     },
-    Failed(String),
+    Failed(DiagramError),
 }
 
 /// A render to run, and the width to raster it at, if one is waiting.
@@ -455,7 +476,7 @@ fn hash(value: &impl Hash) -> u64 {
 /// Parsed SVG and its natural size in points.
 fn render(
     source: &str, theme: &DiagramTheme, control: OperationControl,
-) -> Result<(Arc<usvg::Tree>, Vec2), String> {
+) -> Result<(Arc<usvg::Tree>, Vec2), DiagramError> {
     let _span = tracing::trace_span!("Diagram::render", len = source.len()).entered();
     let merman_span = tracing::trace_span!("Diagram::merman").entered();
     let resolved = Presentation::new()
@@ -483,7 +504,14 @@ fn render(
     let svg = match renderer.render(RenderRequest::svg(source, control, request)) {
         Ok(RenderOutput::Svg(Some(svg))) => svg.into_parts().0,
         Ok(_) => return Err("Not a Mermaid diagram".into()),
-        Err(e) => return Err(e.to_string()),
+        Err(e) => {
+            let span = match &e {
+                merman::RenderError::Parse(parse) => parse.terminal_diagnostic_details().span,
+                _ => None,
+            };
+            let span = span.map(|span| span.start..span.end);
+            return Err(DiagramError { message: e.to_string(), span });
+        }
     };
     drop(merman_span);
 

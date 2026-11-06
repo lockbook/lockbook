@@ -629,15 +629,14 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, showing: bool) {
+pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, editing: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
 
-    markdown.virtual_keyboard_shown = showing;
-    markdown.keyboard_visible = showing;
+    markdown.editing = editing;
 }
 
 /// # Safety

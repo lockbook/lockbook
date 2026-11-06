@@ -31,18 +31,15 @@ pub struct Windows {
 
 impl Windows {
     pub fn new() -> Option<Self> {
-        // SAFETY: plain COM calls; each language outlives its use.
-        let checker = unsafe {
-            // the UI thread is usually initialized already, which is fine
-            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-            let factory: ISpellCheckerFactory =
-                CoCreateInstance(&SpellCheckerFactory, None, CLSCTX_INPROC_SERVER).ok()?;
-            let language = languages().into_iter().find(|l| {
-                factory
-                    .IsSupported(&HSTRING::from(l.as_str()))
-                    .is_ok_and(|s| s.as_bool())
-            })?;
-            factory.CreateSpellChecker(&HSTRING::from(language)).ok()?
+        let checker = match checker() {
+            Ok((checker, language)) => {
+                tracing::info!("spell check on: language {language}");
+                checker
+            }
+            Err(why) => {
+                tracing::warn!("spell check off: {why}");
+                return None;
+            }
         };
         let file = learned_file();
         let learned = file
@@ -54,12 +51,7 @@ impl Windows {
             .filter(|w| !w.is_empty())
             .map(str::to_string)
             .collect();
-        Some(Self {
-            checker: AgileReference::new(&checker).ok()?,
-            file,
-            learned: Mutex::new(learned),
-            unlearned: Default::default(),
-        })
+        Some(Self { checker, file, learned: Mutex::new(learned), unlearned: Default::default() })
     }
 
     fn save(&self, learned: &BTreeSet<String>) {
@@ -69,6 +61,33 @@ impl Windows {
         let _ = std::fs::create_dir_all(file.parent().unwrap_or(file))
             .and_then(|_| std::fs::write(&temp, text))
             .and_then(|_| std::fs::rename(&temp, file));
+    }
+}
+
+/// The system's checker for the best language it supports, and that language.
+fn checker() -> Result<(AgileReference<ISpellChecker>, String), String> {
+    // SAFETY: plain COM calls; each language outlives its use.
+    unsafe {
+        // the UI thread is usually initialized already, which is fine
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let factory: ISpellCheckerFactory =
+            CoCreateInstance(&SpellCheckerFactory, None, CLSCTX_INPROC_SERVER)
+                .map_err(|e| format!("no spell checker factory: {e}"))?;
+        let languages = languages();
+        let language = languages
+            .iter()
+            .find(|l| {
+                factory
+                    .IsSupported(&HSTRING::from(l.as_str()))
+                    .is_ok_and(|s| s.as_bool())
+            })
+            .ok_or_else(|| format!("no supported language in {languages:?}"))?;
+        let checker = factory
+            .CreateSpellChecker(&HSTRING::from(language.as_str()))
+            .map_err(|e| format!("can't create a checker for {language}: {e}"))?;
+        let checker = AgileReference::new(&checker)
+            .map_err(|e| format!("can't share the checker for {language}: {e}"))?;
+        Ok((checker, language.clone()))
     }
 }
 

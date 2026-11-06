@@ -1324,7 +1324,7 @@ fn opened_heading_is_scrolled_to_check(buf: &[u8]) -> Result<(), String> {
     // reading on touch, the caret stays where it was
     if touch {
         ws.editor.edit.renderer.touch_mode = true;
-        ws.editor.keyboard_visible = false;
+        ws.editor.editing = false;
     }
     ws.editor.persistence.set_source(src.draw(2) == 1);
     ws.enter_frame_at(size);

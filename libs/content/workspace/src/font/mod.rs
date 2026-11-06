@@ -234,6 +234,47 @@ mod tests {
             .collect()
     }
 
+    #[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
+    struct NoPath;
+    #[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
+    impl ttf_parser::OutlineBuilder for NoPath {
+        fn move_to(&mut self, _: f32, _: f32) {}
+        fn line_to(&mut self, _: f32, _: f32) {}
+        fn quad_to(&mut self, _: f32, _: f32, _: f32, _: f32) {}
+        fn curve_to(&mut self, _: f32, _: f32, _: f32, _: f32, _: f32, _: f32) {}
+        fn close(&mut self) {}
+    }
+
+    /// Arrows in prose sit on the math axis the `=` beside them marks.
+    #[cfg(not(any(target_vendor = "apple", target_os = "android", target_os = "windows")))]
+    #[test]
+    fn arrows_sit_on_the_text_axis() {
+        let mut fs = crate::widgets::glyphon_render::new_font_system();
+        let mut buf = Buffer::new(&mut fs, Metrics::new(16., 20.));
+        let attrs = Attrs::new().family(Family::SansSerif);
+        buf.set_text("=→", &attrs, Shaping::Advanced, None);
+        buf.shape_until_scroll(&mut fs, false);
+        let run = buf.layout_runs().next().unwrap();
+        // vertical center of each glyph, in ems
+        let centers: Vec<f32> = run
+            .glyphs
+            .iter()
+            .map(|g| {
+                fs.db()
+                    .with_face_data(g.font_id, |data, index| {
+                        let face = ttf_parser::Face::parse(data, index).unwrap();
+                        let bbox = face
+                            .outline_glyph(ttf_parser::GlyphId(g.glyph_id), &mut NoPath)
+                            .unwrap();
+                        (bbox.y_min + bbox.y_max) as f32 / 2. / face.units_per_em() as f32
+                    })
+                    .unwrap()
+            })
+            .collect();
+        // Noto Sans Math's arrow sits 0.01 em under Noto Sans's `=`; Noto Sans Mono's, 0.19
+        assert!((centers[0] - centers[1]).abs() < 0.1, "`=` and `→` centers: {centers:?}");
+    }
+
     /// Scripts and symbols the bundled fonts lack, which Windows ships fonts for.
     #[cfg(target_os = "windows")]
     const WINDOWS_DRAWS: &str = "ភាសាខ្មែរ ລາວ ქართული Հայերեն አማርኛ සිංහල བོད་ཡིག \

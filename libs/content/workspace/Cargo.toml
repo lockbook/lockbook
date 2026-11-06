@@ -178,5 +178,5 @@ windows = { version = "0.62", features = [
     "Win32_System_Com",
 ] }
 
-[target.'cfg(target_os = "linux")'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 spellbook = "0.4"

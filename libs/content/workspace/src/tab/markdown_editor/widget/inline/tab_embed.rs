@@ -14,19 +14,22 @@ use comrak::nodes::{AstNode, NodeValue};
 use egui::{CornerRadius, Rect, Sense, UiBuilder, Vec2, pos2, vec2};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
+use lb_rs::model::text::operation_types::Operation;
 
 use super::link::LinkMenuAction;
 use super::link::hover::{CARD_PAD, CARD_RADIUS, FILE_CARD, ink_secondary};
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
+use crate::resolvers::image_embed::wiki_embed_key;
 use crate::show::ElapsedHumanString as _;
 use crate::style::button::icon_button;
 use crate::style::phosphor::ARROW_SQUARE_OUT;
 use crate::style::tree_metrics::INDENT_BASE;
 use crate::style::{FileRow, ROW_H, Space, TypeRole, file_row_icon, parent_crumbs};
-use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
+use crate::tab::markdown_editor::{MdEdit, MdRender, TouchTarget};
 use crate::tab::{
     ContentState, Destination, Doc, ExtendedOutput as _, Fragment, Place, Presentation, Reveal,
     Tab, TabContent, TabFailure, TabResources,
@@ -167,6 +170,25 @@ impl TabEmbeds {
             .collect()
     }
 
+    /// Where shown tabs' own tap targets lie, such as their links: a touch
+    /// there is the tab's, not the slot's.
+    pub fn inner_targets(&self) -> Vec<Rect> {
+        let slots = self.slots.borrow();
+        let mut targets = vec![];
+        for (key, slot) in slots.iter() {
+            let SlotState::Open(tab) = &slot.state else { continue };
+            let Some(md) = tab.markdown() else { continue };
+            if key.card || !slot.touched || !slot.shown {
+                continue;
+            }
+            let inner = md.edit.renderer.touch_targets.iter();
+            let taps = inner.filter(|(_, target)| matches!(target, TouchTarget::Tap(_)));
+            targets.extend(taps.map(|(rect, _)| rect.intersect(slot.rect)));
+        }
+        targets.retain(|rect| rect.is_positive());
+        targets
+    }
+
     /// Closes the tabs whose slots didn't paint, near the view or not.
     pub fn end_frame(&self) {
         self.slots.borrow_mut().retain(|_, slot| slot.touched);
@@ -229,6 +251,11 @@ impl TabEmbeds {
         let t = ui.ctx().get_lb_theme();
         // a card's frame pads it; a slot pads itself
         let inner = if key.card { rect } else { rect.shrink(CARD_PAD.pts()) };
+        // the page's ground, so the selection slot behind hides as it does behind an image
+        if !key.card {
+            let ground = egui::Frame::canvas(ui.style()).fill;
+            ui.painter().rect_filled(rect, CARD_RADIUS.corner(), ground);
+        }
         match &mut slot.state {
             SlotState::Open(tab) => {
                 // the pad takes what hangs past the content: a list's numbers, a last line's descent
@@ -299,6 +326,73 @@ impl TabEmbeds {
             crate::style::paint_doc_border(ui.painter(), rect, CARD_RADIUS.corner(), &t);
             open_button(ui, rect, &place);
         }
+    }
+}
+
+impl<'ast> MdEdit {
+    /// A click on a tab embed, wherever its tab has no widget of its own,
+    /// does what one on an image does ([`MdEdit::handle_embed_tap`]).
+    pub fn handle_tab_embed_interactions(
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
+    ) {
+        let open = self.embed_tap_opens(ui);
+        let click = EmbedClick::take(ui.ctx());
+        for node in root.descendants() {
+            let Some(title) = tab_embed_title(node) else { continue };
+            let range = self.renderer.node_range(node);
+            let salt = MdRender::tab_embed_interaction_id_salt(range);
+            self.handle_embed_tap(root, node, ui, id, ops, &wiki_embed_key(&title), salt, open);
+            // a click on the tab's body, which its editor handed on
+            let rects = self
+                .renderer
+                .interaction_rects
+                .get(&ui.scope_id().with(salt));
+            let Some(click) =
+                click.filter(|c| rects.is_some_and(|r| r.iter().any(|r| r.contains(c.pos))))
+            else {
+                continue;
+            };
+            EmbedClick::clear(ui.ctx());
+            if self.renderer.readonly || click.command {
+                self.renderer.open_dest(&title, true, ui.ctx());
+            } else {
+                ui.memory_mut(|m| m.request_focus(id));
+                let select = Event::Select { region: range.into() };
+                self.calc_operations(ui.ctx(), root, select, ops);
+            }
+        }
+    }
+}
+
+/// A click on an embedded editor that nothing in it took, handed to the
+/// editor whose embed is under it (on the next frame: hosts act before
+/// their embeds paint). Kept in the context, which every pass shares.
+#[derive(Clone, Copy)]
+pub struct EmbedClick {
+    pub pos: egui::Pos2,
+    pub command: bool,
+    pass: u64,
+}
+
+impl EmbedClick {
+    fn id() -> egui::Id {
+        egui::Id::unique("md_embed_click")
+    }
+
+    pub fn hand_on(ctx: &egui::Context, pos: egui::Pos2) {
+        let command = ctx.input(|i| i.modifiers.command);
+        let click = EmbedClick { pos, command, pass: ctx.cumulative_pass_nr() };
+        ctx.data_mut(|d| d.insert_temp(Self::id(), click));
+    }
+
+    /// Last frame's click, if there is one.
+    fn take(ctx: &egui::Context) -> Option<Self> {
+        let click = ctx.data(|d| d.get_temp::<Self>(Self::id()))?;
+        (click.pass + 1 == ctx.cumulative_pass_nr()).then_some(click)
+    }
+
+    fn clear(ctx: &egui::Context) {
+        ctx.data_mut(|d| d.remove::<Self>(Self::id()));
     }
 }
 
@@ -405,15 +499,22 @@ impl<'ast> MdRender {
     ) -> bool {
         let Some((_, size)) = self.tab_embed_slot(node, range) else { return false };
         let Some(url) = tab_embed_title(node) else { return false };
+        let node_range = self.node_range(node);
+        layout.interaction_open(Self::tab_embed_interaction_id_salt(node_range), Sense::click());
         layout.push_embed(EmbedSpec {
             advance: size.x,
             ascent: size.y,
             descent: 0.0,
-            source_range: self.node_range(node),
+            source_range: node_range,
             url,
             kind: EmbedKind::Tab,
         });
+        layout.interaction_close();
         true
+    }
+
+    pub fn tab_embed_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
+        egui::Id::unique(("md_tab_embed", node_range))
     }
 
     /// Paints the tab an embed slot holds; `at` is where its source starts,
@@ -660,6 +761,173 @@ mod tests {
             t.frame();
             std::thread::sleep(Duration::from_millis(2));
         }
+    }
+
+    fn click(t: &mut TestWs, pos: egui::Pos2) {
+        let button = |pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        t.frame_with(vec![egui::Event::PointerMoved(pos), button(true), button(false)]);
+        t.frame();
+    }
+
+    /// A note embedding `Plan`, which links to `Other`, once the embed shows.
+    fn embed_of_a_link(t: &mut TestWs) -> (Uuid, Uuid) {
+        let other = t.doc("Other.md", "elsewhere\n");
+        let plan = t.doc("Plan.md", "# Goals\n\nShip it, then [[Other]].\n");
+        let note = t.doc("note.md", "above\n\n![[Plan]]\n\nbelow\n");
+        t.ws.open_file(note, true, true);
+        frames_until(t, |t| shown(t).is_some());
+        t.frame();
+        (plan, other)
+    }
+
+    /// The shown slot's rect and its tab's fragments of text, in screen space.
+    fn shown(t: &mut TestWs) -> Option<(Rect, Vec<(String, Rect)>)> {
+        let md = t.ws.current_tab_mut()?.markdown_mut()?;
+        let slots = md.edit.renderer.tab_embeds.slots.borrow();
+        let slot = slots.values().find(|slot| slot.shown)?;
+        let SlotState::Open(tab) = &slot.state else { return None };
+        let ContentState::Open(TabContent::Markdown(inner)) = &tab.content else { return None };
+        let r = &inner.edit.renderer;
+        let texts = r
+            .fragments
+            .iter()
+            .map(|f| (r.buffer[f.source_range].to_string(), f.rect));
+        Some((slot.rect, texts.collect()))
+    }
+
+    /// A click on a note embed's body, away from its links, selects the embed.
+    #[test]
+    fn click_on_an_embed_selects_it() {
+        let mut t = TestWs::new();
+        embed_of_a_link(&mut t);
+        let (rect, _) = shown(&mut t).unwrap();
+        click(&mut t, rect.center_bottom() - vec2(0.0, 20.0));
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.selection, (Grapheme(7), Grapheme(16)));
+    }
+
+    /// Backspace after an embed selects it, as after an image; a second deletes it.
+    #[test]
+    fn backspace_after_an_embed_selects_it() {
+        use crate::tab::ExtendedInput;
+        use crate::tab::markdown_editor::input::{Advance, Event, Increment, Region};
+        let mut t = TestWs::new();
+        embed_of_a_link(&mut t);
+        let backspace = || Event::Delete {
+            region: Region::SelectionOrAdvance {
+                advance: Advance::By(Increment::Char),
+                backwards: true,
+            },
+        };
+        t.ctx
+            .push_markdown_event(Event::Select { region: (Grapheme(16), Grapheme(16)).into() });
+        t.frame();
+        t.ctx.push_markdown_event(backspace());
+        t.frame();
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.selection, (Grapheme(7), Grapheme(16)));
+        t.ctx.push_markdown_event(backspace());
+        t.frame();
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.text, "above\n\n\n\nbelow\n");
+    }
+
+    /// A drag across an embed's text selects it there, for Copy, and leaves the
+    /// note's own selection alone.
+    #[test]
+    fn drag_in_an_embed_selects_its_text() {
+        let mut t = TestWs::new();
+        embed_of_a_link(&mut t);
+        let before = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        let outer = before.edit.renderer.buffer.current.selection;
+        let (_, texts) = shown(&mut t).unwrap();
+        let (_, words) = texts
+            .iter()
+            .find(|(text, _)| text.contains("Ship"))
+            .unwrap();
+        let (from, to) = (words.left_center() + vec2(2.0, 0.0), words.right_center());
+        let button = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        t.frame_with(vec![egui::Event::PointerMoved(from), button(from, true)]);
+        for i in 1..=4 {
+            t.frame_with(vec![egui::Event::PointerMoved(from.lerp(to, i as f32 / 4.0))]);
+        }
+        t.frame_with(vec![button(to, false)]);
+        t.frame();
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.selection, outer);
+        assert!(
+            md.edit
+                .renderer
+                .tab_embeds
+                .copy()
+                .is_some_and(|text| text.contains("Ship"))
+        );
+    }
+
+    /// A link in an embed still opens: the embed's click sits beneath it.
+    #[test]
+    fn link_in_an_embed_opens() {
+        let mut t = TestWs::new();
+        let (_, other) = embed_of_a_link(&mut t);
+        let (_, texts) = shown(&mut t).unwrap();
+        let (_, link) = texts
+            .iter()
+            .find(|(text, _)| text.contains("Other"))
+            .unwrap();
+        click(&mut t, link.center());
+        frames_until(&mut t, |t| {
+            t.ws.current_tab()
+                .and_then(|tab| tab.destination.backing_file())
+                == Some(other)
+        });
+    }
+
+    /// On touch too, where the embedded note has no menu of its own.
+    #[test]
+    fn link_in_an_embed_opens_on_touch() {
+        let mut t = TestWs::new();
+        t.ctx.set_os(egui::os::OperatingSystem::Android);
+        let (_, other) = embed_of_a_link(&mut t);
+        let (_, texts) = shown(&mut t).unwrap();
+        let (_, link) = texts
+            .iter()
+            .find(|(text, _)| text.contains("Other"))
+            .unwrap();
+        click(&mut t, link.center());
+        frames_until(&mut t, |t| {
+            t.ws.current_tab()
+                .and_then(|tab| tab.destination.backing_file())
+                == Some(other)
+        });
+    }
+
+    /// On iOS a tap goes where the touch targets say: on an embed's link it is
+    /// egui's, which opens it; elsewhere on the embed it selects it.
+    #[test]
+    fn touch_targets_on_an_embed() {
+        let mut t = TestWs::new();
+        t.ctx.set_os(egui::os::OperatingSystem::IOS);
+        embed_of_a_link(&mut t);
+        let (rect, texts) = shown(&mut t).unwrap();
+        let (_, link) = texts
+            .iter()
+            .find(|(text, _)| text.contains("Other"))
+            .unwrap();
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        let on_link = md.edit.touch_target_at(link.center());
+        assert!(matches!(on_link, Some(TouchTarget::Popup)), "{on_link:?}");
+        let on_body = md.edit.touch_target_at(rect.left_top() + vec2(20.0, 20.0));
+        assert!(matches!(on_body, Some(TouchTarget::Tap(_))), "{on_body:?}");
     }
 
     /// An embed stays on the page it names while the note is edited above it.

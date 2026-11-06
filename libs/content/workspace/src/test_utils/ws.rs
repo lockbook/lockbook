@@ -17,7 +17,17 @@ pub struct TestWs {
 }
 
 pub fn test_lb() -> Lb {
-    let core = Lb::init(Config {
+    let core = blank_lb();
+    let name = format!("ws{}", Uuid::new_v4().simple())
+        .chars()
+        .take(30)
+        .collect::<String>();
+    core.create_account(&name, &api_url(), false).unwrap();
+    core
+}
+
+fn blank_lb() -> Lb {
+    Lb::init(Config {
         writeable_path: format!("/tmp/lb-ws-test/{}", Uuid::new_v4()),
         logs: false,
         stdout_logs: false,
@@ -28,14 +38,11 @@ pub fn test_lb() -> Lb {
         client_type: lb_rs::model::core_config::ClientType::Unknown,
         ..Default::default()
     })
-    .unwrap();
-    let url = std::env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".into());
-    let name = format!("ws{}", Uuid::new_v4().simple())
-        .chars()
-        .take(30)
-        .collect::<String>();
-    core.create_account(&name, &url, false).unwrap();
-    core
+    .unwrap()
+}
+
+fn api_url() -> String {
+    std::env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".into())
 }
 
 pub fn test_ctx() -> Context {
@@ -53,6 +60,15 @@ impl TestWs {
         let ctx = test_ctx();
         let ws = Workspace::new(&test_lb(), &ctx, false, None);
         Self { ws, ctx, size: vec2(800.0, 600.0) }
+    }
+
+    /// Another device on this workspace's account, synced.
+    pub fn other_device(&self) -> Lb {
+        let other = blank_lb();
+        let key = self.ws.core.export_account_private_key().unwrap();
+        other.import_account(&key, Some(&api_url())).unwrap();
+        other.sync().unwrap();
+        other
     }
 
     /// A document at the root with `text`.
