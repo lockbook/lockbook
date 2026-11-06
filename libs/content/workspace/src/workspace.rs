@@ -1427,9 +1427,10 @@ impl Workspace {
                     drop(files);
                     tab.read_only = read_only || is_preview;
 
-                    // a reload keeps the open editor and its unsaved edits, so it isn't refused
+                    // a reload keeps the open editor and its unsaved edits;
+                    // bytes the open path would refuse reopen the tab instead
                     let reloaded = !tab_created
-                        && content_reloads(&tab.content, &file.name)
+                        && content_reloads(&tab.content, &file.name, &bytes, &res.guard, id)
                         && match &mut tab.content {
                             ContentState::Open(content) => content.reload(hmac, &bytes),
                             _ => false,
@@ -2061,15 +2062,22 @@ fn open_content(
     }
 }
 
-/// Whether `content` takes a newer version of a file now named `name` in
-/// place: it's still the kind that name opens, whatever its extension.
-fn content_reloads(content: &ContentState, name: &str) -> bool {
+/// Whether `content` takes `bytes`, a newer version of file `id` now named
+/// `name`, in place: the same editor would open them, whatever the extension.
+fn content_reloads(
+    content: &ContentState, name: &str, bytes: &[u8], guard: &OpenGuard, id: Uuid,
+) -> bool {
     let doc_type = DocType::from_name(name);
     match content {
-        ContentState::Open(TabContent::Markdown(_)) => matches!(
-            doc_type,
-            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
-        ),
+        ContentState::Open(TabContent::Markdown(_)) => {
+            matches!(
+                doc_type,
+                DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+            ) && crate::tab::open::is_text(bytes)
+                && guard
+                    .refusal(id, bytes, Some(doc_type == DocType::Markdown))
+                    .is_none()
+        }
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         #[cfg(not(target_family = "wasm"))]
         ContentState::Open(TabContent::Chat(_)) => doc_type == DocType::Chat,
@@ -2627,5 +2635,58 @@ mod rename_tests {
         until_editor(&mut t, "markdown");
         let md = t.ws.current_tab().unwrap().markdown().unwrap();
         assert_eq!(md.edit.renderer.buffer.current.text, text);
+    }
+}
+
+#[cfg(test)]
+mod media_tests {
+    use crate::tab::{ContentState, TabFailure};
+    use crate::test_utils::ws::TestWs;
+
+    /// The start of an mp4: an `ftyp` box, then bytes that aren't UTF-8.
+    fn video() -> Vec<u8> {
+        let mut bytes = b"\0\0\0\x20ftypisom\0\0\x02\0isomiso2avc1mp41".to_vec();
+        bytes.extend((0..64 * 1024).map(|i: u32| (i.wrapping_mul(2654435761) >> 24) as u8));
+        bytes
+    }
+
+    /// An import creates an empty file before it writes the video. A tab
+    /// opened in between shows the empty file as text, and the video
+    /// landing later must not enter that editor, where a keystroke would
+    /// save the editor's text over it (#4679).
+    #[test]
+    fn video_landing_in_an_open_empty_file_stays_intact() {
+        let mut t = TestWs::new();
+        let id = t.doc("clip.mp4", "");
+        t.ws.open_file(id, true, false);
+        t.settle();
+        assert!(t.ws.current_tab().unwrap().markdown().is_some());
+
+        let video = video();
+        t.ws.core.write_document(id, &video).unwrap();
+        t.idle(id);
+        t.frame_with(vec![egui::Event::Text("a".into())]);
+        t.ws.save_all_tabs();
+        t.idle(id);
+
+        assert!(t.ws.core.read_document(id, false).unwrap() == video, "video was overwritten");
+        assert!(t.ws.current_tab().unwrap().markdown().is_none());
+    }
+
+    /// A note that grows too large while open is refused, as it would be
+    /// on opening, rather than reloaded into the editor.
+    #[test]
+    fn note_growing_too_large_while_open_is_refused() {
+        let mut t = TestWs::new();
+        let id = t.doc("a.md", "short\n");
+        t.ws.open_file(id, true, false);
+        t.settle();
+
+        let big = "word ".repeat(250_000) + "\n";
+        t.ws.core.write_document(id, big.as_bytes()).unwrap();
+        t.idle(id);
+
+        let content = &t.ws.current_tab().unwrap().content;
+        assert!(matches!(content, ContentState::Failed(TabFailure::Refused(_))));
     }
 }
