@@ -11,7 +11,7 @@ use egui::{
     scroll_area::ScrollBarVisibility, vec2,
 };
 use lb::Uuid;
-use workspace_rs::file_cache::FilesExt;
+use workspace_rs::file_cache::{FileCache, FilesExt};
 use workspace_rs::tab::Destination;
 
 use crate::components::{
@@ -67,7 +67,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 .iter()
                 .enumerate()
                 .map(|(i, slot)| {
-                    let title = tab_label(ready, &slot.dest);
+                    let title = tab_label(&files, &slot.dest);
                     let active = current == Some(slot.id);
                     let file_id = match &slot.dest {
                         Destination::File(id) => Some(*id),
@@ -219,13 +219,11 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     true
 }
 
-fn tab_label(ready: &crate::shell::session::Ready, dest: &Destination) -> String {
+/// Takes the files `show` already holds: a second read of the lock deadlocks
+/// once a writer queues between the two.
+fn tab_label(files: &FileCache, dest: &Destination) -> String {
     match dest {
-        Destination::File(id) | Destination::MindMap(id) | Destination::SpaceInspector(id) => ready
-            .workspace
-            .files
-            .read()
-            .unwrap()
+        Destination::File(id) | Destination::MindMap(id) | Destination::SpaceInspector(id) => files
             .get_by_id(*id)
             .map(|f| f.name.clone())
             .unwrap_or_else(|| "Unknown".into()),
