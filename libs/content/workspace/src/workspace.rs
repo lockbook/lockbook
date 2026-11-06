@@ -2595,3 +2595,55 @@ mod fragment_tests {
         assert_eq!(t.ws.tab_strip[0].fragment, None);
     }
 }
+
+#[cfg(test)]
+mod rename_tests {
+    use web_time::{Duration, Instant};
+
+    use crate::test_utils::ws::TestWs;
+
+    /// Frames until the current tab's editor is the kind `want` names.
+    fn until_editor(t: &mut TestWs, want: &str) {
+        let start = Instant::now();
+        loop {
+            t.settle();
+            let tab = t.ws.current_tab().unwrap();
+            let kind = if tab.markdown().is_some() {
+                "markdown"
+            } else if tab.svg().is_some() {
+                "drawing"
+            } else {
+                "other"
+            };
+            if kind == want {
+                return;
+            }
+            assert!(start.elapsed() < Duration::from_secs(10), "tab stayed a {kind} editor");
+        }
+    }
+
+    /// A rename that arrives by sync switches an open tab's editor as an
+    /// in-app rename does, so the tab never saves one format over another.
+    #[test]
+    fn synced_rename_switches_the_editor() {
+        let mut t = TestWs::new();
+        let text = "# Welcome\n\nmarkdown body\n";
+        let id = t.doc("welcome.md", text);
+        t.ws.core.sync().unwrap();
+        let other = t.other_device();
+        t.ws.open_file(id, true, false);
+        until_editor(&mut t, "markdown");
+
+        other.rename_file(&id, "welcome.svg").unwrap();
+        other.sync().unwrap();
+        t.ws.core.sync().unwrap();
+        until_editor(&mut t, "drawing");
+
+        other.rename_file(&id, "welcome.md").unwrap();
+        other.sync().unwrap();
+        t.ws.core.sync().unwrap();
+        until_editor(&mut t, "markdown");
+        let md = t.ws.current_tab().unwrap().markdown().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.text, text);
+    }
+}
