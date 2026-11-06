@@ -151,13 +151,7 @@ fn paint_segments(
                 wash,
             );
         }
-        // Distinct id scope per segment: the old and new snippets are
-        // near-identical, so their widgets' `ui.id().with(node_range)` ids
-        // would otherwise collide and cross-wire checkbox animations
-        // (a checked and an unchecked box fighting over one lerp).
-        let a = ui
-            .push_id(salt.with(k), |ui| label.paint_at(ui, &seg.text, pos2(pos.x, y), width).0)
-            .inner;
+        let (a, _) = label.paint_at(ui, salt.with(k), &seg.text, pos2(pos.x, y), width);
         areas.extend(a);
         y += h;
     }
@@ -1106,6 +1100,7 @@ impl Chat {
                                 let entry = &mut self.entries[i];
                                 let (areas, _) = entry.label.paint_at(
                                     ui,
+                                    i,
                                     &entry.msg.content,
                                     content_top,
                                     max_bubble_content_w,
@@ -1124,6 +1119,7 @@ impl Chat {
                                 let entry = &mut self.entries[i];
                                 let (areas, _) = entry.label.paint_at(
                                     ui,
+                                    i,
                                     &entry.msg.content,
                                     pos2(pos.x, text_y),
                                     note_wrap_w,
@@ -1441,6 +1437,7 @@ impl Chat {
                         ui.painter().galley(pos, name, secondary_color);
                         let (areas, _) = self.streaming_label.paint_at(
                             ui,
+                            "streaming",
                             &agent_streaming,
                             pos2(pos.x, pos.y + name_h),
                             note_wrap_w,

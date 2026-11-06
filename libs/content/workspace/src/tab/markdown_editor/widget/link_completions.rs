@@ -12,7 +12,7 @@ use crate::file_cache::{
     FileCache, FilesExt as _, link_id, relative_path, split_fragment, strip_ext, web_link,
     wiki_fragment, wiki_title,
 };
-use crate::style::tree_metrics::{INDENT_BASE, INDENT_STEP};
+use crate::style::tree_metrics::INDENT_BASE;
 use crate::style::{FileRow, Space, ThemeExt as _, TypeRole, file_row_icon, parent_crumbs};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
@@ -72,6 +72,9 @@ pub struct LinkCompletions {
     open_origin: Option<String>,
     /// This note's headings, for `[[#`, with the text they were read from.
     own_headings: Option<(String, Arc<Vec<Heading>>)>,
+    /// Where the closed wikilink the caret was in last frame starts, and its
+    /// query: typing in one opens the popup, moving the caret into one doesn't.
+    closed_wikilink: Option<(Grapheme, String)>,
 }
 
 impl LinkCompletions {
@@ -80,6 +83,8 @@ impl LinkCompletions {
         file_id: Uuid,
     ) {
         let note = &buffer.current.text;
+        let was_active = self.active;
+        let last_wikilink = self.closed_wikilink.take();
         self.active = false;
         self.search_term_range = None;
 
@@ -95,6 +100,14 @@ impl LinkCompletions {
         let dest = matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest);
         let qr = query_range(buffer, range, mode);
         let query = &buffer[qr];
+        let closed_wikilink = matches!(mode, CompletionMode::WikiLink | CompletionMode::WikiEmbed)
+            && buffer[range].ends_with("]]");
+        let typed = closed_wikilink
+            && last_wikilink
+                .is_some_and(|(start, q)| start == range.0 && (was_active || q != query));
+        if closed_wikilink {
+            self.closed_wikilink = Some((range.0, query.to_string()));
+        }
         if self.is_suppressed(buffer, query) {
             return;
         }
@@ -140,7 +153,7 @@ impl LinkCompletions {
             // being inside complete syntax is the destination context
             CompletionMode::LinkDest | CompletionMode::ImageLinkDest => false,
         };
-        if complete && !fresh {
+        if complete && !fresh && !typed {
             // cursor navigated into existing syntax
             return;
         }
@@ -1008,17 +1021,6 @@ impl LinkCompletions {
     }
 }
 
-/// A faint dot in each step of a heading row's indent, as an editor marks
-/// whitespace, so its depth reads without a level label.
-fn paint_indent_dots(ui: &Ui, row: Rect, depth: usize, theme: &crate::style::Theme) {
-    let ink = theme.neutral_fg_secondary().gamma_multiply(0.45);
-    for step in 0..depth {
-        let x = row.left() + INDENT_BASE + (step as f32 + 0.5) * INDENT_STEP;
-        ui.painter()
-            .circle_filled(Pos2::new(x, row.center().y), 1.0, ink);
-    }
-}
-
 impl MdEdit {
     pub fn show_link_completions(&mut self, ui: &mut Ui) {
         if self.renderer.readonly || !self.link_completions.active {
@@ -1132,13 +1134,11 @@ impl MdEdit {
             let selected = i == self.link_completions.selected;
             let resp = if r.group.is_some() {
                 let depth = r.level.saturating_sub(top_level(r.group.as_deref())) as usize;
-                let resp = FileRow::new(&theme, &r.name)
+                FileRow::new(&theme, &r.name)
                     .icon("")
                     .depth(depth)
                     .highlighted(selected)
-                    .paint_at_hit(ui, rect, rect, id);
-                paint_indent_dots(ui, rect, depth, &theme);
-                resp
+                    .paint_at_hit(ui, rect, rect, id)
             } else {
                 let file = r.path.rsplit('/').next().unwrap_or(&r.name);
                 FileRow::new(&theme, &r.name)

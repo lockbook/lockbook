@@ -9,17 +9,18 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Align2, Area, Color32, Galley, Id, Order, Rect, Sense, Ui, pos2, vec2};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::Grapheme;
 
+use crate::GlyphonRendererCallback;
 use crate::style::sheet::sheet_dim;
 use crate::style::{
     CHROME_BAND_GLYPH, EDGE_FADE, FG_HOVER, Radius, Space, ThemeExt as _, TypeRole, context_menu,
     control_height, icon_button_glyph, overlay_scroll, paint_fade, phosphor, pin_shadow, tip_text,
 };
 use crate::theme::palette_v2::Theme;
+use crate::widgets::{GlyphonLabel, ShapedLabel, TextOverflow};
 
 /// How long the card takes to fade and the text to slide beside it.
 pub const MOTION_SECS: f32 = 0.2;
@@ -178,8 +179,8 @@ impl Outline {
         let max_list = screen.height() * 0.6;
 
         let gap = Space::Md.pts();
-        let measured = measure_headings(ctx, rows, current, inner_w, true);
-        let mentions = measure_linked(ctx, linked, inner_w, true);
+        let measured = measure_headings(ctx, rows, current, inner_w, true, 1.0);
+        let mentions = measure_linked(ctx, linked, inner_w, true, 1.0);
         let room = (max_list - header - gap).max(0.0);
         let (heads_h, links_h) = split(room, measured.height(), mentions.height());
         let size = vec2(width, 2.0 * header + gap + heads_h + links_h + 2.0 * pad);
@@ -275,8 +276,8 @@ impl Outline {
             .show(ctx, |ui| {
                 ui.multiply_opacity(shown);
                 let inner_w = area.width() - 2.0 * pad;
-                let headings = measure_headings(ctx, rows, current, inner_w, false);
-                let mentions = measure_linked(ctx, linked, inner_w, false);
+                let headings = measure_headings(ctx, rows, current, inner_w, false, shown);
+                let mentions = measure_linked(ctx, linked, inner_w, false, shown);
                 let room = (area.height() - 2.0 * header - gap - 2.0 * pad).max(0.0);
                 let (heads_h, links_h) = split(room, headings.height(), mentions.height());
                 card = Rect::from_min_size(
@@ -409,6 +410,7 @@ impl Scroll {
 
         let painter = ui.painter_at(view);
         let mut chosen = None;
+        let mut texts = vec![];
         for (i, m) in measured.rows.iter().enumerate() {
             let top = view.top() + measured.tops[i] - self.at;
             let rect = Rect::from_min_size(pos2(view.left(), top), vec2(view.width(), m.height));
@@ -431,11 +433,10 @@ impl Scroll {
                 pos2(rect.left() + Space::Sm.pts() + m.indent, rect.top()),
                 pos2(rect.right() - Space::Sm.pts(), rect.bottom()),
             );
-            let at = Align2::LEFT_CENTER
-                .align_size_within_rect(m.galley.size(), text_rect)
-                .min;
-            painter.galley(at, m.galley.clone(), Color32::PLACEHOLDER);
-            if m.galley.elided {
+            let at = Align2::LEFT_CENTER.align_size_within_rect(m.label.size, text_rect);
+            let clip = rect.intersect(view);
+            texts.push(m.label.clone().text_area(at, ui.ctx(), clip));
+            if m.label.elided {
                 tip_text(ui.ctx(), &resp, m.tip.clone());
             }
             if resp.clicked() {
@@ -444,6 +445,15 @@ impl Scroll {
             if let Some(c) = row_menu(&resp, &t, &m.menu) {
                 chosen = Some(c);
             }
+        }
+
+        // glyphon shapes emoji, which egui's fonts leave out
+        let visible = view.intersect(ui.clip_rect());
+        if !texts.is_empty() && visible.is_positive() {
+            painter.add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                visible,
+                GlyphonRendererCallback::new(texts),
+            ));
         }
 
         let clear = Color32::TRANSPARENT;
@@ -467,7 +477,7 @@ impl Scroll {
 /// A row laid out: its text, its height, how far it indents, what it says
 /// when cut short, and what a click on it asks for.
 struct MeasuredRow {
-    galley: Arc<Galley>,
+    label: ShapedLabel,
     height: f32,
     indent: f32,
     tip: String,
@@ -570,10 +580,12 @@ impl Measured {
     }
 }
 
-/// Lays out heading `rows` at `width`. Touch rows are a thumb tall and wrap a
-/// long title to two lines; mouse rows are a control tall and truncate.
+/// Lays out heading `rows` at `width`, `shown` faded. Touch rows are a thumb
+/// tall and wrap a long title to two lines; mouse rows are a control tall and
+/// truncate.
 fn measure_headings(
     ctx: &egui::Context, headings: Headings, current: Option<usize>, width: f32, touch: bool,
+    shown: f32,
 ) -> Measured {
     let rows = headings.rows;
     let t = ctx.get_lb_theme();
@@ -584,15 +596,13 @@ fn measure_headings(
             let indent = row.level.saturating_sub(1).min(5) as f32 * Space::Md.pts();
             let text_w = (width - indent - 2.0 * Space::Sm.pts()).max(1.0);
             let color = if current == Some(i) { t.accent() } else { t.neutral_fg() };
-            let mut job =
-                LayoutJob::simple(row.text.clone(), TypeRole::Body.font_id(), color, text_w);
-            job.wrap = wrap(text_w, if touch { 2 } else { 1 });
-            let galley = ctx.fonts_mut(|f| f.layout_job(job));
+            let label = GlyphonLabel::new(&row.text, color.gamma_multiply(shown));
+            let label = shape(ctx, label, text_w, if touch { 2 } else { 1 });
             let min_h = if touch { TOUCH_ROW_H } else { control_height() };
-            let height = min_h.max(galley.size().y + 2.0 * Space::Xs.pts());
+            let height = min_h.max(label.size.y + 2.0 * Space::Xs.pts());
             let tip = row.text.clone();
             let menu = heading_menu(headings, i);
-            MeasuredRow { galley, height, indent, tip, choice: Choice::Heading(i), menu }
+            MeasuredRow { label, height, indent, tip, choice: Choice::Heading(i), menu }
         })
         .collect();
     let empty = rows
@@ -608,26 +618,23 @@ const MENTION_LINES: usize = 3;
 /// Characters kept before a link's own words, so they show in the lines.
 const MENTION_LEAD: usize = 48;
 
-/// Lays out the notes `linked` here at `width`: each note's title, then its
-/// links with the words around them, the link's own in the text color.
-/// Touch rows are at least a thumb tall, and a long title wraps to two lines.
-fn measure_linked(ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch: bool) -> Measured {
+/// Lays out the notes `linked` here at `width`, `shown` faded: each note's
+/// title, then its links with the words around them, the link's own in the
+/// text color. Touch rows are at least a thumb tall, and a long title wraps to
+/// two lines.
+fn measure_linked(
+    ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch: bool, shown: f32,
+) -> Measured {
     let min_h = if touch { TOUCH_ROW_H } else { control_height() };
     let t = ctx.get_lb_theme();
     let text_w = |indent: f32| (width - indent - 2.0 * Space::Sm.pts()).max(1.0);
     let mut rows = vec![];
     for note in linked {
-        let mut job = LayoutJob::simple(
-            note.title.clone(),
-            TypeRole::Body.font_id(),
-            t.neutral_fg(),
-            text_w(0.0),
-        );
-        job.wrap = wrap(text_w(0.0), if touch { 2 } else { 1 });
-        let galley = ctx.fonts_mut(|f| f.layout_job(job));
+        let label = GlyphonLabel::new(&note.title, t.neutral_fg().gamma_multiply(shown));
+        let label = shape(ctx, label, text_w(0.0), if touch { 2 } else { 1 });
         rows.push(MeasuredRow {
-            height: min_h.max(galley.size().y + 2.0 * Space::Xs.pts()),
-            galley,
+            height: min_h.max(label.size.y + 2.0 * Space::Xs.pts()),
+            label,
             indent: 0.0,
             tip: note.title.clone(),
             choice: Choice::Note { id: note.id, span: None, new_tab: false },
@@ -635,20 +642,19 @@ fn measure_linked(ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch:
         });
         let indent = Space::Md.pts();
         for m in &note.links {
-            let (text, label) = lead_trimmed(&m.context, m.label.clone());
-            let font = TypeRole::Body.font_id();
-            let quiet = TextFormat::simple(font.clone(), t.neutral_fg_secondary());
-            let loud = TextFormat::simple(font, t.neutral_fg());
-            let mut job = LayoutJob::default();
-            job.append(&text[..label.start], 0.0, quiet.clone());
-            job.append(&text[label.clone()], 0.0, loud);
-            job.append(&text[label.end..], 0.0, quiet);
-            job.wrap = wrap(text_w(indent), MENTION_LINES);
-            let galley = ctx.fonts_mut(|f| f.layout_job(job));
+            let (text, own) = lead_trimmed(&m.context, m.label.clone());
+            let quiet = Some(t.neutral_fg_secondary().gamma_multiply(shown));
+            let spans = vec![
+                (&text[..own.start], quiet),
+                (&text[own.clone()], None),
+                (&text[own.end..], quiet),
+            ];
+            let label = GlyphonLabel::new_colored(spans, t.neutral_fg().gamma_multiply(shown));
+            let label = shape(ctx, label, text_w(indent), MENTION_LINES);
             let least = if touch { TOUCH_ROW_H } else { 0.0 };
             rows.push(MeasuredRow {
-                height: least.max(galley.size().y + 2.0 * Space::Xs.pts()),
-                galley,
+                height: least.max(label.size.y + 2.0 * Space::Xs.pts()),
+                label,
                 indent,
                 tip: m.context.clone(),
                 choice: Choice::Note { id: note.id, span: Some(m.span.clone()), new_tab: false },
@@ -680,8 +686,16 @@ fn lead_trimmed(context: &str, label: Range<usize>) -> (String, Range<usize>) {
     (text, moved(label.start)..moved(label.end))
 }
 
-fn wrap(max_width: f32, max_rows: usize) -> TextWrapping {
-    TextWrapping { max_width, max_rows, break_anywhere: false, overflow_character: Some('…') }
+/// `label` in body text at `max_width`, cut short after `max_lines`.
+fn shape(
+    ctx: &egui::Context, label: GlyphonLabel, max_width: f32, max_lines: usize,
+) -> ShapedLabel {
+    label
+        .role(TypeRole::Body)
+        .max_width(max_width)
+        .text_overflow(TextOverflow::EndEllipsis)
+        .max_lines(max_lines)
+        .build(ctx)
 }
 
 /// A list's empty state, laid out at `width`.

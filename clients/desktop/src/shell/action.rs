@@ -83,7 +83,10 @@ pub enum ShareLookup {
 pub enum OnboardLookup {
     #[default]
     Idle,
-    Checking,
+    /// Request in flight. `then_submit`: Create was pressed; submit once it lands available.
+    Checking {
+        then_submit: bool,
+    },
     Available,
     Taken,
     Error(String),

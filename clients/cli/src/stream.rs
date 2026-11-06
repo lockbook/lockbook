@@ -3,7 +3,7 @@ use crate::{core, ensure_account_and_root};
 use cli_rs::cli_error::{CliError, CliResult};
 use lb_rs::{Lb, Uuid};
 use std::io;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::str::FromStr;
 
 #[tokio::main]
@@ -45,6 +45,5 @@ pub async fn stdout(target: String) -> CliResult<()> {
     let id = find_file(lb, &target).await?.id;
     let content = lb.read_document(id, true).await?;
     print!("{}", String::from_utf8_lossy(&content));
-    io::stdout().flush()?;
     Ok(())
 }

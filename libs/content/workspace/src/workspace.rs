@@ -123,7 +123,6 @@ pub struct Workspace {
     // Transient state (consider removing)
     pub landing_page_first_frame: bool,
     pub current_tab_changed: bool, // used to scroll to current tab when it changes
-    pub last_touch_event: Option<Instant>, // used to disable tooltips on touch devices
     pub last_set_title: Option<String>, // used to avoid re-setting the window title every frame
 
     // Transient rename state for the landing page file table
@@ -208,7 +207,6 @@ impl Workspace {
 
             landing_page_first_frame: true,
             current_tab_changed: Default::default(),
-            last_touch_event: Default::default(),
             last_set_title: Default::default(),
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
@@ -1429,9 +1427,10 @@ impl Workspace {
                     drop(files);
                     tab.read_only = read_only || is_preview;
 
-                    // a reload keeps the open editor and its unsaved edits, so it isn't refused
+                    // a reload keeps the open editor and its unsaved edits;
+                    // bytes the open path would refuse reopen the tab instead
                     let reloaded = !tab_created
-                        && content_reloads(&tab.content, &file.name)
+                        && content_reloads(&tab.content, &file.name, &bytes, &res.guard, id)
                         && match &mut tab.content {
                             ContentState::Open(content) => content.reload(hmac, &bytes),
                             _ => false,
@@ -1802,15 +1801,13 @@ impl Workspace {
             .filter(|s| s.dest.id() == id)
             .map(|s| s.id)
             .collect();
-        let source = self.cfg.get_source();
-        let ext = new_name.split('.').next_back().unwrap_or_default();
         for tab_id in tab_ids {
             let Some(tab) = self.tabs.get_mut(&tab_id) else { continue };
-            if !content_fits_name(&tab.content, &new_name, source) {
+            if !content_fits_name(&tab.content, &new_name) {
                 self.tabs.remove(&tab_id);
                 self.open_dest(tab_id, &dest);
             } else if let Some(md) = tab.markdown_mut() {
-                md.set_ext(ext);
+                md.set_ext(ext(&new_name));
             }
         }
 
@@ -1839,54 +1836,42 @@ impl Workspace {
         let source = !self.cfg.get_source();
         self.cfg.set_source(source);
 
-        // a drawing refused as text opens again under the new choice
-        let refused: Vec<(SessionId, Uuid)> = {
-            let files = self.files.read().unwrap();
-            self.tabs
-                .iter()
-                .filter(|(_, t)| matches!(t.content, ContentState::Failed(TabFailure::Refused(_))))
-                .filter_map(|(sid, t)| Some((*sid, file_dest(&t.destination)?)))
-                .filter(|(_, id)| {
-                    files
-                        .get_by_id(*id)
-                        .is_some_and(|f| DocType::from_name(&f.name) == DocType::SVG)
-                })
-                .collect()
-        };
-        for (sid, id) in refused {
-            self.tasks.queue_load(LoadRequest {
-                id,
-                tab_created: true,
-                make_current: false,
-                is_preview: false,
-                target: Some(sid),
-            });
-        }
         self.ctx.request_repaint();
     }
 
-    /// Reopens each open drawing in the drawing editor or the text editor to
-    /// match the source choice. A drawing reopens from its saved bytes, so
-    /// unsaved edits save first and nothing in flight is overtaken. Notes
-    /// switch on their own.
-    pub(crate) fn refit_source_views(&mut self) {
-        let source = self.cfg.get_source();
-        let refits: Vec<(SessionId, Uuid)> = {
-            let files = self.files.read().unwrap();
-            self.tabs
-                .iter()
-                .filter_map(|(sid, tab)| {
-                    let id = file_dest(&tab.destination)?;
-                    let drawing = DocType::from_name(&files.get_by_id(id)?.name) == DocType::SVG;
-                    let wrong = match &tab.content {
-                        ContentState::Open(TabContent::Svg(_)) => source,
-                        ContentState::Open(TabContent::Markdown(_)) => !source,
-                        _ => false,
-                    };
-                    (drawing && wrong).then_some((*sid, id))
-                })
-                .collect()
+    /// Reopens each open file in the editor its current name calls for,
+    /// whoever renamed it: this workspace, another process, or another device
+    /// by sync. A tab reopens from its saved bytes, so unsaved edits save
+    /// first and nothing in flight is overtaken. A note that stays a note
+    /// takes its new extension in place.
+    pub(crate) fn refit_to_names(&mut self) {
+        let fits = |tab: &Tab, name: &str| {
+            content_fits_name(&tab.content, name)
+                && tab
+                    .markdown()
+                    .is_none_or(|md| md.edit.renderer.kind == Syntax::from_ext(ext(name)))
         };
+        let mut refits: Vec<(SessionId, Uuid)> = vec![];
+        let files = self.files.read().unwrap();
+        for (sid, tab) in self.tabs.iter_mut() {
+            // a failed tab retries on a reopen, not every frame
+            if !matches!(tab.content, ContentState::Open(_)) {
+                continue;
+            }
+            let Some(id) = file_dest(&tab.destination) else { continue };
+            // the cache can trail core, which names what loads, so it only
+            // points out the tabs to check
+            if files.get_by_id(id).is_none_or(|f| fits(tab, &f.name)) {
+                continue;
+            }
+            let Ok(file) = self.core.get_file_by_id(id) else { continue };
+            if !content_fits_name(&tab.content, &file.name) {
+                refits.push((*sid, id));
+            } else if let Some(md) = tab.markdown_mut() {
+                md.set_ext(ext(&file.name));
+            }
+        }
+        drop(files);
         for (sid, id) in refits {
             if self.tasks.busy(id) {
                 continue;
@@ -2077,20 +2062,22 @@ fn open_content(
     }
 }
 
-/// Whether `content` takes a newer version of a file now named `name` in
-/// place: it's still the kind that name opens, whatever its extension.
-fn content_reloads(content: &ContentState, name: &str) -> bool {
+/// Whether `content` takes `bytes`, a newer version of file `id` now named
+/// `name`, in place: the same editor would open them, whatever the extension.
+fn content_reloads(
+    content: &ContentState, name: &str, bytes: &[u8], guard: &OpenGuard, id: Uuid,
+) -> bool {
     let doc_type = DocType::from_name(name);
     match content {
-        // a drawing shown as source stays text until the choice flips
-        ContentState::Open(TabContent::Markdown(_)) => matches!(
-            doc_type,
-            DocType::PlainText
-                | DocType::Markdown
-                | DocType::Code
-                | DocType::Unknown
-                | DocType::SVG
-        ),
+        ContentState::Open(TabContent::Markdown(_)) => {
+            matches!(
+                doc_type,
+                DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+            ) && crate::tab::open::is_text(bytes)
+                && guard
+                    .refusal(id, bytes, Some(doc_type == DocType::Markdown))
+                    .is_none()
+        }
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         #[cfg(not(target_family = "wasm"))]
         ContentState::Open(TabContent::Chat(_)) => doc_type == DocType::Chat,
@@ -2100,15 +2087,14 @@ fn content_reloads(content: &ContentState, name: &str) -> bool {
 
 /// Whether `content` was built for a file named `name`. Loading content picks
 /// its editor from core's current name when the load lands.
-fn content_fits_name(content: &ContentState, name: &str, source: bool) -> bool {
+fn content_fits_name(content: &ContentState, name: &str) -> bool {
     let doc_type = DocType::from_name(name);
     match content {
-        ContentState::Open(TabContent::Markdown(_)) => match doc_type {
-            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown => true,
-            DocType::SVG => source,
-            _ => false,
-        },
-        ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG && !source,
+        ContentState::Open(TabContent::Markdown(_)) => matches!(
+            doc_type,
+            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+        ),
+        ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         ContentState::Open(TabContent::Image(_)) => doc_type == DocType::Image,
         ContentState::Open(TabContent::Pdf(_)) => doc_type == DocType::PDF,
         #[cfg(not(target_family = "wasm"))]
@@ -2116,6 +2102,10 @@ fn content_fits_name(content: &ContentState, name: &str, source: bool) -> bool {
         ContentState::Failed(_) => false,
         _ => true,
     }
+}
+
+fn ext(name: &str) -> &str {
+    name.split('.').next_back().unwrap_or_default()
 }
 
 fn file_dest(dest: &Destination) -> Option<Uuid> {
@@ -2593,5 +2583,110 @@ mod fragment_tests {
         t.frame_with(vec![button(false)]);
         t.settle();
         assert_eq!(t.ws.tab_strip[0].fragment, None);
+    }
+}
+
+#[cfg(test)]
+mod rename_tests {
+    use web_time::{Duration, Instant};
+
+    use crate::test_utils::ws::TestWs;
+
+    /// Frames until the current tab's editor is the kind `want` names.
+    fn until_editor(t: &mut TestWs, want: &str) {
+        let start = Instant::now();
+        loop {
+            t.settle();
+            let tab = t.ws.current_tab().unwrap();
+            let kind = if tab.markdown().is_some() {
+                "markdown"
+            } else if tab.svg().is_some() {
+                "drawing"
+            } else {
+                "other"
+            };
+            if kind == want {
+                return;
+            }
+            assert!(start.elapsed() < Duration::from_secs(10), "tab stayed a {kind} editor");
+        }
+    }
+
+    /// A rename that arrives by sync switches an open tab's editor as an
+    /// in-app rename does, so the tab never saves one format over another.
+    #[test]
+    fn synced_rename_switches_the_editor() {
+        let mut t = TestWs::new();
+        let text = "# Welcome\n\nmarkdown body\n";
+        let id = t.doc("welcome.md", text);
+        t.ws.core.sync().unwrap();
+        let other = t.other_device();
+        t.ws.open_file(id, true, false);
+        until_editor(&mut t, "markdown");
+
+        other.rename_file(&id, "welcome.svg").unwrap();
+        other.sync().unwrap();
+        t.ws.core.sync().unwrap();
+        until_editor(&mut t, "drawing");
+
+        other.rename_file(&id, "welcome.md").unwrap();
+        other.sync().unwrap();
+        t.ws.core.sync().unwrap();
+        until_editor(&mut t, "markdown");
+        let md = t.ws.current_tab().unwrap().markdown().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.text, text);
+    }
+}
+
+#[cfg(test)]
+mod media_tests {
+    use crate::tab::{ContentState, TabFailure};
+    use crate::test_utils::ws::TestWs;
+
+    /// The start of an mp4: an `ftyp` box, then bytes that aren't UTF-8.
+    fn video() -> Vec<u8> {
+        let mut bytes = b"\0\0\0\x20ftypisom\0\0\x02\0isomiso2avc1mp41".to_vec();
+        bytes.extend((0..64 * 1024).map(|i: u32| (i.wrapping_mul(2654435761) >> 24) as u8));
+        bytes
+    }
+
+    /// An import creates an empty file before it writes the video. A tab
+    /// opened in between shows the empty file as text, and the video
+    /// landing later must not enter that editor, where a keystroke would
+    /// save the editor's text over it (#4679).
+    #[test]
+    fn video_landing_in_an_open_empty_file_stays_intact() {
+        let mut t = TestWs::new();
+        let id = t.doc("clip.mp4", "");
+        t.ws.open_file(id, true, false);
+        t.settle();
+        assert!(t.ws.current_tab().unwrap().markdown().is_some());
+
+        let video = video();
+        t.ws.core.write_document(id, &video).unwrap();
+        t.idle(id);
+        t.frame_with(vec![egui::Event::Text("a".into())]);
+        t.ws.save_all_tabs();
+        t.idle(id);
+
+        assert!(t.ws.core.read_document(id, false).unwrap() == video, "video was overwritten");
+        assert!(t.ws.current_tab().unwrap().markdown().is_none());
+    }
+
+    /// A note that grows too large while open is refused, as it would be
+    /// on opening, rather than reloaded into the editor.
+    #[test]
+    fn note_growing_too_large_while_open_is_refused() {
+        let mut t = TestWs::new();
+        let id = t.doc("a.md", "short\n");
+        t.ws.open_file(id, true, false);
+        t.settle();
+
+        let big = "word ".repeat(250_000) + "\n";
+        t.ws.core.write_document(id, big.as_bytes()).unwrap();
+        t.idle(id);
+
+        let content = &t.ws.current_tab().unwrap().content;
+        assert!(matches!(content, ContentState::Failed(TabFailure::Refused(_))));
     }
 }
