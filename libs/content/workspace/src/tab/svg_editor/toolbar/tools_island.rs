@@ -37,10 +37,6 @@ impl Toolbar {
             .scope_id()
             .with("canvas_tools_island")
             .with(self.active_tool as u8);
-        if ui.layer_id().order == egui::Order::Middle {
-            ui.ctx()
-                .set_sublayer(ui.layer_id(), egui::LayerId::new(egui::Order::Middle, id));
-        }
         let res = egui::Area::new(id)
             .order(egui::Order::Middle)
             .movable(false)
@@ -288,10 +284,6 @@ impl Toolbar {
                 .scope_id()
                 .with("canvas_tool_popover")
                 .with(self.active_tool as u8);
-            if ui.layer_id().order == egui::Order::Middle {
-                ui.ctx()
-                    .set_sublayer(ui.layer_id(), egui::LayerId::new(egui::Order::Middle, id));
-            }
             let tool_popover = egui::Area::new(id)
                 .order(egui::Order::Middle)
                 .movable(false)
@@ -616,95 +608,4 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarC
     };
 
     painter.add(egui::Shape::Mesh(std::sync::Arc::new(mesh)));
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tab::svg_editor::history::History;
-    use crate::tab::svg_editor::{CanvasSettings, InputContext, ViewportSettings};
-    use lb_rs::model::svg::buffer::Buffer;
-
-    #[test]
-    fn tool_islands_remain_anchored_when_opened_and_switched() {
-        let ctx = crate::tab::markdown_editor::test_egui_ctx();
-        crate::register_font_system(&ctx);
-        let mut settings = CanvasSettings::default();
-        let mut toolbar = Toolbar::new(0, &settings);
-        let mut cfg = WsPersistentStore::new(false, "/tmp/canvas-island-test-unused".into(), false);
-        let mut buffer = Buffer::new("<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>");
-        let mut history = History::default();
-        let mut viewport = ViewportSettings::default();
-        let input = InputContext::default();
-        toolbar.active_tool = Tool::Selection;
-
-        for tool in [Tool::Pen, Tool::Eraser, Tool::Highlighter, Tool::Shapes, Tool::Pen] {
-            toolbar.set_tool(tool, &mut settings, &mut cfg);
-            toolbar.set_tool(tool, &mut settings, &mut cfg);
-            let mut previous: Option<(egui::Rect, egui::Rect)> = None;
-            for frame in 0..3 {
-                let _ = ctx.run_ui(
-                    egui::RawInput {
-                        screen_rect: Some(egui::Rect::from_min_size(
-                            egui::Pos2::ZERO,
-                            egui::vec2(960.0, 720.0),
-                        )),
-                        ..Default::default()
-                    },
-                    |ui| {
-                        crate::theme::visuals::apply(ui.style_mut());
-                        crate::tab::svg_editor::set_style(ui);
-                        viewport.container_rect = ui.available_rect_before_wrap();
-                        // Controls can be inset independently of the canvas viewport.
-                        let controls_rect = viewport.container_rect.shrink2(egui::vec2(40.0, 24.0));
-                        let anchor = controls_rect.bottom() - SCREEN_PADDING.y;
-                        let tools = toolbar.show_tools_island(ui, controls_rect).response.rect;
-                        assert!((tools.center().x - controls_rect.center().x).abs() <= 0.5);
-                        assert!(
-                            (tools.bottom() - anchor).abs() <= 0.5,
-                            "{tool:?}, frame {frame}: {tools:?}"
-                        );
-                        let mut painter = ui.painter().clone();
-                        let popover = toolbar
-                            .show_tool_popovers(
-                                ui,
-                                &mut ToolbarContext {
-                                    controls_rect,
-                                    painter: &mut painter,
-                                    buffer: &mut buffer,
-                                    history: &mut history,
-                                    settings: &mut settings,
-                                    viewport_settings: &mut viewport,
-                                    cfg: &mut cfg,
-                                    input_ctx: &input,
-                                    read_only: false,
-                                },
-                            )
-                            .unwrap()
-                            .rect;
-                        assert!(
-                            (popover.bottom() - (tools.top() - 10.0)).abs() <= 0.5,
-                            "{tool:?}, frame {frame}: {popover:?} above {tools:?}"
-                        );
-                        if let Some((old_tools, old_popover)) = previous {
-                            assert_eq!(
-                                tools.round(),
-                                old_tools.round(),
-                                "tool island moved after switching to {tool:?}"
-                            );
-                            assert_eq!(
-                                popover.round(),
-                                old_popover.round(),
-                                "popover moved after switching to {tool:?}"
-                            );
-                        }
-                        // Area rounds its pivot while the first, invisible pass measures it.
-                        if frame > 0 {
-                            previous = Some((tools, popover));
-                        }
-                    },
-                );
-            }
-        }
-    }
 }

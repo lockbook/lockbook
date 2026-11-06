@@ -305,9 +305,6 @@ impl SVGEditor {
 
         let overlay_layer =
             egui::LayerId::new(egui::Order::Middle, egui::Id::unique("canvas_ui_overlay"));
-        // Register the overlay alongside its anchored child Areas so canvas
-        // painting cannot be ordered above the rest of the toolbar.
-        ui.ctx().move_to_top(overlay_layer);
         ui.scope_builder(UiBuilder::new().layer_id(overlay_layer), |ui| {
             let mut ui = ui.new_child(
                 UiBuilder::new()
