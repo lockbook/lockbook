@@ -25,6 +25,8 @@ public protocol LbAPI {
     func moveFile(id: UUID, newParent: UUID) -> Result<Void, LbError>
     func shareFile(id: UUID, username: String, mode: ShareMode) -> Result<Void, LbError>
     func unshareFile(id: UUID, username: String) -> Result<Void, LbError>
+    func knownUsernames() -> Result<[String], LbError>
+    func usernameExists(username: String) -> Result<Bool, LbError>
     func getPendingShares() -> Result<[File], LbError>
     func getPendingShareFiles() -> Result<[File], LbError>
     func deletePendingShare(id: UUID) -> Result<Void, LbError>
@@ -287,6 +289,28 @@ public class Lb: LbAPI {
         return .success(())
     }
 
+    public func knownUsernames() -> Result<[String], LbError> {
+        let res = lb_known_usernames(lb)
+        defer { lb_free_usernames_res(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(UnsafeBufferPointer(start: res.usernames, count: Int(res.len)).compactMap { $0.map { String(cString: $0) } })
+    }
+
+    public func usernameExists(username: String) -> Result<Bool, LbError> {
+        let res = lb_username_exists(lb, username)
+        defer { lb_free_err(res.err) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(res.exists)
+    }
+
     public func getPendingShares() -> Result<[File], LbError> {
         let res = lb_get_pending_shares(lb)
         defer { lb_free_file_list_res(res) }
@@ -538,12 +562,12 @@ public class MockLb: LbAPI {
     public init() {
         rootId = UUID()
 
-        file0 = File(id: rootId, parent: rootId, name: "smail", type: .folder, lastModifiedBy: "smail", lastModified: 1_735_857_212, shares: [])
-        file1 = File(id: UUID(), parent: rootId, name: "welcome.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_212, shares: [Share(by: "smail", with: "parth", mode: .write), Share(by: "smail", with: "adam", mode: .write), Share(by: "smail", with: "travis", mode: .write), Share(by: "smail", with: "rando", mode: .read)])
-        file2 = File(id: UUID(), parent: rootId, name: "about.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_215, shares: [])
-        file3 = File(id: UUID(), parent: rootId, name: "projects.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_220, shares: [])
-        file4 = File(id: UUID(), parent: rootId, name: "contact.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_225, shares: [])
-        file5 = File(id: UUID(), parent: rootId, name: "notes.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_230, shares: [])
+        file0 = File(id: rootId, parent: rootId, name: "smail", type: .folder, lastModifiedBy: "smail", lastModified: 1_735_857_212, owner: "smail", shares: [])
+        file1 = File(id: UUID(), parent: rootId, name: "welcome.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_212, owner: "smail", shares: [Share(by: "smail", with: "parth", mode: .write), Share(by: "smail", with: "adam", mode: .write), Share(by: "smail", with: "travis", mode: .write), Share(by: "smail", with: "rando", mode: .read)])
+        file2 = File(id: UUID(), parent: rootId, name: "about.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_215, owner: "smail", shares: [])
+        file3 = File(id: UUID(), parent: rootId, name: "projects.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_220, owner: "smail", shares: [])
+        file4 = File(id: UUID(), parent: rootId, name: "contact.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_225, owner: "smail", shares: [])
+        file5 = File(id: UUID(), parent: rootId, name: "notes.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_230, owner: "smail", shares: [])
     }
 
     public func createAccount(username _: String, apiUrl _: String?, welcomeDoc _: Bool) -> Result<Account, LbError> {
@@ -566,7 +590,7 @@ public class MockLb: LbAPI {
     public func exportAccountPrivateKey() -> Result<String, LbError> { .success(accountPK) }
     public func exportAccountPhrase() -> Result<String, LbError> { .success(accountPhrase) }
     public func createFile(name: String, parent: UUID, fileType: FileType) -> Result<File, LbError> { .success(file1) }
-    public func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError> { .success(File(id: UUID(), parent: UUID(), name: "about-link.md", type: .link(file2.id), lastModifiedBy: "smail", lastModified: 1735857215, shares: [])) }
+    public func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError> { .success(File(id: UUID(), parent: UUID(), name: "about-link.md", type: .link(file2.id), lastModifiedBy: "smail", lastModified: 1735857215, owner: "smail", shares: [])) }
     public func nextName(parent: UUID, desired: String) -> Result<String, LbError> { .success(desired) }
     public func getFile(id: UUID) -> Result<File, LbError> { .success(file1) }
     public func deleteFile(id: UUID) -> Result<Void, LbError> { .success(()) }
@@ -582,6 +606,8 @@ public class MockLb: LbAPI {
         }
         return .success(())
     }
+    public func knownUsernames() -> Result<[String], LbError> { .success(["smail", "parth", "adam", "travis", "rando"]) }
+    public func usernameExists(username: String) -> Result<Bool, LbError> { .success(["smail", "parth", "adam", "travis", "rando"].contains(username.lowercased())) }
     public func getPendingShares() -> Result<[File], LbError> { .success([file1, file1, file1, file1, file1]) }
     public func getPendingShareFiles() -> Result<[File], LbError> { .success([file1, file1, file1, file1, file1]) }
     public func deletePendingShare(id: UUID) -> Result<Void, LbError> { .success(()) }
