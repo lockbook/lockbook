@@ -529,6 +529,42 @@ impl From<ApiError<api::ChangeDocError>> for LbErr {
     }
 }
 
+impl From<ApiError<api::GetDocUpdatesError>> for LbErr {
+    fn from(e: ApiError<api::GetDocUpdatesError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+            ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
+            e => core_err_unexpected(e),
+        }
+        .into()
+    }
+}
+
+impl From<ApiError<api::GetDocErrorV3>> for LbErr {
+    fn from(e: ApiError<api::GetDocErrorV3>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+            ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
+            e => core_err_unexpected(e),
+        }
+        .into()
+    }
+}
+
+impl From<ApiError<api::PushDocError>> for LbErr {
+    fn from(e: ApiError<api::PushDocError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+            ApiError::Endpoint(api::PushDocError::UsageIsOverDataCap) => {
+                LbErrKind::UsageIsOverDataCap
+            }
+            ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
+            e => core_err_unexpected(e),
+        }
+        .into()
+    }
+}
+
 impl From<ApiError<api::GetUsageError>> for LbErr {
     fn from(e: ApiError<api::GetUsageError>) -> Self {
         match e {

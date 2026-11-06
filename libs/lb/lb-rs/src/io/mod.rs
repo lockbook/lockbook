@@ -12,6 +12,8 @@ pub mod server;
 
 use crate::Lb;
 use crate::model::account::Account;
+use crate::model::doc_info::{DocHead, LocalDocInfo, LocalVersion};
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
@@ -31,6 +33,7 @@ use db_rs::views::{
 use db_rs_old::hasher::UuidIdentityHasherBuilder;
 use db_rs_old::{Config as OldConfig, Db};
 use legacy::CoreV4;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
@@ -63,11 +66,14 @@ pub struct CoreV5 {
     /// most recent panic file we've already uploaded. `None` means we have never
     /// sent debug info; `Some(0)` means we've sent before but no panic file existed.
     pub last_extracted_panic: DbOption<i64>,
+
+    pub doc_info: DbHashMap<Uuid, LocalDocInfo>,
+    pub last_doc_synced: DbOption<u64>,
 }
 
 impl Schema for CoreV5 {
     fn views_mut(&mut self) -> impl AsMut<[&mut dyn View]> {
-        let views: [&mut dyn View; 10] = [
+        let views: [&mut dyn View; 12] = [
             &mut self.account,
             &mut self.last_synced,
             &mut self.root,
@@ -78,6 +84,8 @@ impl Schema for CoreV5 {
             &mut self.id,
             &mut self.pinned_files,
             &mut self.last_extracted_panic,
+            &mut self.doc_info,
+            &mut self.last_doc_synced,
         ];
         views
     }
@@ -87,11 +95,17 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<CoreDb> {
     let directory = path.join("CoreV5");
     fs::create_dir_all(&directory)?;
     let mut db = CoreDb::init(&Config::default().log_location(directory))?;
+    migrate_core_v4(path, &mut db)?;
+    migrate_doc_info(&mut db)?;
+    Ok(db)
+}
+
+fn migrate_core_v4(path: &Path, db: &mut CoreDb) -> MigrationResult<()> {
     let old_path = path.join("CoreV4.db");
 
     if db.schema.account.is_none() {
         if !old_path.try_exists()? && !path.join("CoreV4").try_exists()? {
-            return Ok(db);
+            return Ok(());
         }
         let source = CoreV4::init(OldConfig {
             create_db: false,
@@ -130,11 +144,79 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<CoreDb> {
         if let Some(value) = source.last_extracted_panic.get() {
             dest.last_extracted_panic.replace(*value)?;
         }
-        tx.end_tx(&mut db)?;
+        tx.end_tx(db)?;
         drop(source);
         fs::remove_file(old_path)?;
     }
-    Ok(db)
+    Ok(())
+}
+
+fn migrate_doc_info(db: &mut CoreDb) -> MigrationResult<()> {
+    let tx = db.write_tx()?;
+    let schema = &mut db.schema;
+
+    let mut infos: HashMap<Uuid, LocalDocInfo> = HashMap::new();
+    for (id, base) in schema.base_metadata.iter() {
+        if schema.doc_info.contains_key(id) {
+            continue;
+        }
+        if let Some(hmac) = base.document_hmac() {
+            let head = DocHead {
+                hmac: *hmac,
+                stored_size: base.doc_size().unwrap_or_default() as u64,
+                content_size: None,
+                author: Owner(base.public_key),
+                timestamp: 0,
+            };
+            let info = infos.entry(*id).or_default();
+            info.base = Some(head);
+            info.remote = Some(head);
+        }
+    }
+
+    let mut upgraded = Vec::new();
+    for (id, local) in schema.local_metadata.iter() {
+        if local.timestamped_value.value.is_v3() {
+            continue;
+        }
+        let base_hmac = schema
+            .base_metadata
+            .get(id)
+            .and_then(|base| base.document_hmac().copied());
+        if let Some(hmac) = local.document_hmac() {
+            if Some(*hmac) != base_hmac && !schema.doc_info.contains_key(id) {
+                infos.entry(*id).or_default().local = Some(LocalVersion {
+                    hmac: *hmac,
+                    compressed_size: local.doc_size().unwrap_or_default() as u64,
+                    timestamp: local.timestamped_value.timestamp as u64,
+                });
+            }
+        }
+        let mut local = local.clone();
+        local.timestamped_value.value = local.timestamped_value.value.into_v3();
+        upgraded.push((*id, local));
+    }
+
+    for (id, info) in infos {
+        schema.doc_info.insert(id, info)?;
+    }
+    for (id, local) in upgraded {
+        let unchanged = schema.base_metadata.get(&id).is_some_and(|base| {
+            base.public_key == local.public_key
+                && base
+                    .timestamped_value
+                    .value
+                    .same_file_state(&local.timestamped_value.value)
+        });
+        if unchanged {
+            schema.local_metadata.remove(&id)?;
+        } else {
+            schema.local_metadata.insert(id, local)?;
+        }
+    }
+
+    tx.end_tx(db)?;
+    Ok(())
 }
 
 pub struct LbRO<'a> {

@@ -11,6 +11,8 @@ use db_rs::views::{
 };
 use db_rs_old::{Config as OldConfig, Db};
 use lb_rs::io::MigrationResult;
+use lb_rs::model::doc_info::{BlobKey, DocInfo, DocVersion, Storage, VersionKind};
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{DocumentHmac, Owner};
 use lb_rs::model::server_meta::ServerMeta;
 use lb_rs::service::debug::DebugInfo;
@@ -34,6 +36,13 @@ pub struct Account {
 
 pub type ServerDb = Composite<ServerV6>;
 
+pub fn doc_size(doc_info: &DbHashMap<Uuid, DocInfo>, id: &Uuid) -> u64 {
+    doc_info
+        .get(id)
+        .map(DocInfo::stored_size)
+        .unwrap_or_default()
+}
+
 #[derive(Default)]
 pub struct ServerV6 {
     pub usernames: DbHashMap<String, Owner>,
@@ -50,11 +59,13 @@ pub struct ServerV6 {
     pub egress_by_owner: DbHashMap<Owner, BandwidthReport>,
     pub scheduled_file_cleanups: DbHashMap<(Uuid, DocumentHmac), i64>,
     pub debug_info: DbHashMapMap<Owner, LbID, DebugInfo>,
+    pub doc_info: DbHashMap<Uuid, DocInfo>,
+    pub scheduled_blob_cleanups: DbHashMap<BlobKey, i64>,
 }
 
 impl Schema for ServerV6 {
     fn views_mut(&mut self) -> impl AsMut<[&mut dyn View]> {
-        let views: [&mut dyn View; 14] = [
+        let views: [&mut dyn View; 16] = [
             &mut self.usernames,
             &mut self.metas,
             &mut self.google_play_ids,
@@ -69,6 +80,8 @@ impl Schema for ServerV6 {
             &mut self.egress_by_owner,
             &mut self.scheduled_file_cleanups,
             &mut self.debug_info,
+            &mut self.doc_info,
+            &mut self.scheduled_blob_cleanups,
         ];
         views
     }
@@ -78,11 +91,69 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<ServerDb> {
     let directory = path.join("ServerV6");
     fs::create_dir_all(&directory)?;
     let mut db = ServerDb::init(&Config::default().log_location(directory))?;
+    migrate_server_v5(path, &mut db)?;
+    Ok(db)
+}
+
+pub fn migrate_doc_info(
+    db: &mut ServerDb, blob_size: impl Fn(&BlobKey) -> Option<u64>,
+) -> MigrationResult<()> {
+    let tx = db.write_tx()?;
+    let schema = &mut db.schema;
+
+    let mut infos = Vec::new();
+    for (id, meta) in schema.metas.iter() {
+        if schema.doc_info.contains_key(id) || meta.explicitly_deleted() {
+            continue;
+        }
+        let Some(hmac) = meta.document_hmac() else {
+            continue;
+        };
+        let compressed_size = match meta.doc_size() {
+            Some(size) => Some(size as u64),
+            None => blob_size(&BlobKey::Legacy { id: *id, hmac: *hmac }),
+        };
+        let version = DocVersion {
+            hmac: *hmac,
+            kind: VersionKind::Snapshot,
+            storage: Storage::Legacy,
+            compressed_size: compressed_size.unwrap_or_default(),
+            uncompressed_size: None,
+            content_size: None,
+            author: Owner(meta.file.public_key),
+            timestamp: meta.version,
+        };
+        infos.push((
+            *id,
+            DocInfo { versions: vec![version], retired: vec![], updated_at: meta.version },
+        ));
+    }
+    for (id, info) in infos {
+        schema.doc_info.insert(id, info)?;
+    }
+
+    let scheduled: Vec<((Uuid, DocumentHmac), i64)> = schema
+        .scheduled_file_cleanups
+        .iter()
+        .map(|(key, time)| (*key, *time))
+        .collect();
+    for ((id, hmac), time) in scheduled {
+        schema
+            .scheduled_blob_cleanups
+            .insert(BlobKey::Legacy { id, hmac }, time)?;
+        schema.scheduled_file_cleanups.remove(&(id, hmac))?;
+    }
+
+    tx.end_tx(db)?;
+    Ok(())
+}
+
+fn migrate_server_v5(path: &Path, db: &mut ServerDb) -> MigrationResult<()> {
     let old_path = path.join("ServerV5.db");
 
     if db.schema.accounts.is_empty() {
         if !old_path.try_exists()? && !path.join("ServerV5").try_exists()? {
-            return Ok(db);
+            return Ok(());
         }
         let source = ServerV5::init(OldConfig {
             create_db: false,
@@ -148,9 +219,9 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<ServerDb> {
                 dest.debug_info.insert(*key, *inner_key, value.clone())?;
             }
         }
-        tx.end_tx(&mut db)?;
+        tx.end_tx(db)?;
         drop(source);
         fs::remove_file(old_path)?;
     }
-    Ok(db)
+    Ok(())
 }

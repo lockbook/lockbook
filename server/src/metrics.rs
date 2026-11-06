@@ -4,7 +4,7 @@ use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
 use crate::guard::ServerTx;
-use crate::schema::ServerV6;
+use crate::schema::{ServerV6, doc_size};
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 use lb_rs::model::clock::get_time;
@@ -17,6 +17,7 @@ use prometheus_static_metric::make_static_metric;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use tracing::*;
+use uuid::Uuid;
 
 pub struct UserInfo {
     account_age: i64,
@@ -281,6 +282,8 @@ where
             return Ok(None);
         }
 
+        let doc_info = &db.doc_info;
+        let sizes = |id: &Uuid| doc_size(doc_info, id);
         let mut tree = ServerTree::new(
             owner,
             &mut db.owned_files,
@@ -332,7 +335,7 @@ where
         let time_one_hour_ago = get_time().0 as u64 - TWO_HOURS_IN_MILLIS as u64;
         let is_user_active_v2 = not_the_welcome_doc && last_seen > time_one_hour_ago;
 
-        let total_bytes = tree.calculate_usage(owner).unwrap_or_default();
+        let total_bytes = tree.calculate_usage(owner, sizes).unwrap_or_default();
 
         let total_documents = if let Some(owned_files) = db.owned_files.get(&owner) {
             owned_files.len() as i64

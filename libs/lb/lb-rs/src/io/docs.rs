@@ -32,7 +32,15 @@ pub struct AsyncDocs {
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
 struct MemDocs {
     docs: HashMap<(Uuid, DocumentHmac), EncryptedDocument>,
-    pending: HashMap<(Uuid, DocumentHmac), EncryptedDocument>,
+    pending: HashMap<Uuid, EncryptedDocument>,
+}
+
+#[must_use]
+#[cfg_attr(target_family = "wasm", allow(dead_code))]
+pub struct PendingDoc {
+    id: Uuid,
+    hmac: DocumentHmac,
+    token: Uuid,
 }
 
 impl AsyncDocs {
@@ -54,15 +62,17 @@ impl AsyncDocs {
         Ok(())
     }
 
-    pub async fn insert_pending(
-        &self, _id: Uuid, _hmac: DocumentHmac, _document: &EncryptedDocument,
-    ) -> LbResult<()> {
+    pub async fn stage(
+        &self, id: Uuid, hmac: DocumentHmac, _document: &EncryptedDocument,
+    ) -> LbResult<PendingDoc> {
+        Ok(PendingDoc { id, hmac, token: Uuid::new_v4() })
+    }
+
+    pub async fn commit(&self, _pending: PendingDoc) -> LbResult<()> {
         Ok(())
     }
 
-    pub async fn promote_pending(&self, _id: Uuid, _hmac: DocumentHmac) -> LbResult<()> {
-        Ok(())
-    }
+    pub async fn discard(&self, _pending: PendingDoc) {}
 
     pub async fn get(&self, _id: Uuid, _hmac: Option<DocumentHmac>) -> LbResult<EncryptedDocument> {
         Err(LbErrKind::FileNonexistent.into())
@@ -78,8 +88,8 @@ impl AsyncDocs {
         Ok(())
     }
 
-    pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> bool {
-        true
+    pub fn exists(&self, _id: Uuid, _hmac: Option<DocumentHmac>) -> bool {
+        false
     }
 
     pub(crate) async fn retain(&self, _file_hmacs: HashSet<(Uuid, [u8; 32])>) -> LbResult<()> {
@@ -93,21 +103,22 @@ impl AsyncDocs {
         &self, id: Uuid, hmac: Option<DocumentHmac>, document: &EncryptedDocument,
     ) -> LbResult<()> {
         if let Some(hmac) = hmac {
-            self.insert_pending(id, hmac, document).await?;
-            self.promote_pending(id, hmac).await?;
+            let pending = self.stage(id, hmac, document).await?;
+            self.commit(pending).await?;
         }
         Ok(())
     }
 
-    pub async fn insert_pending(
+    pub async fn stage(
         &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
-    ) -> LbResult<()> {
+    ) -> LbResult<PendingDoc> {
+        let pending = PendingDoc { id, hmac, token: Uuid::new_v4() };
         if let Some(mut mem) = self.mem() {
-            mem.pending.insert((id, hmac), document.clone());
-            return Ok(());
+            mem.pending.insert(pending.token, document.clone());
+            return Ok(pending);
         }
         let value = &bincode::serialize(document).map_unexpected()?;
-        let path_str = pending_path(&self.location, id, hmac);
+        let path_str = pending_path(&self.location, &pending);
         let path = Path::new(&path_str);
         trace!("write pending\t{} {:?} bytes", &path_str, value.len());
         fs::create_dir_all(path.parent().unwrap()).await?;
@@ -118,21 +129,31 @@ impl AsyncDocs {
             .open(path)
             .await?;
         f.write_all(value).await?;
-        Ok(())
+        Ok(pending)
     }
 
-    pub async fn promote_pending(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
+    pub async fn commit(&self, pending: PendingDoc) -> LbResult<()> {
         if let Some(mut mem) = self.mem() {
             let doc = mem
                 .pending
-                .remove(&(id, hmac))
+                .remove(&pending.token)
                 .ok_or(LbErrKind::FileNonexistent)?;
-            mem.docs.insert((id, hmac), doc);
+            mem.docs.insert((pending.id, pending.hmac), doc);
             return Ok(());
         }
-        let pending = pending_path(&self.location, id, hmac);
-        let final_path = key_path(&self.location, id, hmac);
-        Ok(fs::rename(&pending, &final_path).await?)
+        let staged = pending_path(&self.location, &pending);
+        let final_path = key_path(&self.location, pending.id, pending.hmac);
+        Ok(fs::rename(&staged, &final_path).await?)
+    }
+
+    pub async fn discard(&self, pending: PendingDoc) {
+        if let Some(mut mem) = self.mem() {
+            mem.pending.remove(&pending.token);
+            return;
+        }
+        if let Err(err) = fs::remove_file(pending_path(&self.location, &pending)).await {
+            warn!(?err, "could not discard a pending document");
+        }
     }
 
     pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> bool {
@@ -267,8 +288,9 @@ pub fn key_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String 
     format!("{}/{}-{}", namespace_path(writeable_path), key, hmac)
 }
 
-fn pending_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String {
-    key_path(writeable_path, key, hmac) + ".pending"
+#[cfg_attr(target_family = "wasm", allow(dead_code))]
+fn pending_path(writeable_path: &Path, pending: &PendingDoc) -> String {
+    format!("{}.{}.pending", key_path(writeable_path, pending.id, pending.hmac), pending.token)
 }
 
 impl From<&Config> for AsyncDocs {

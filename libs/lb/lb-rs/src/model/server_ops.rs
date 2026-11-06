@@ -25,8 +25,15 @@ impl<'a> LazyTree<ServerTree<'a>> {
 
         // Check for changes to digest
         for change in &changes {
+            if change.new.timestamped_value.value.is_v3() {
+                continue;
+            }
             match &change.old {
                 Some(old) => {
+                    if old.timestamped_value.value.is_v3() {
+                        Err(LbErrKind::Diff(DiffError::OldVersionIncorrect))?;
+                    }
+
                     if old.timestamped_value.value.document_hmac()
                         != change.new.timestamped_value.value.document_hmac()
                     {
@@ -59,7 +66,16 @@ impl<'a> LazyTree<ServerTree<'a>> {
                         .ok_or(LbErrKind::Diff(DiffError::OldFileNotFound))?
                         .file;
 
-                    if current != old {
+                    let up_to_date = if change.new.timestamped_value.value.is_v3() {
+                        current.public_key == old.public_key
+                            && current
+                                .timestamped_value
+                                .value
+                                .same_file_state(&old.timestamped_value.value)
+                    } else {
+                        current == old
+                    };
+                    if !up_to_date {
                         Err(LbErrKind::Diff(DiffError::OldVersionIncorrect))?;
                     }
                 }
