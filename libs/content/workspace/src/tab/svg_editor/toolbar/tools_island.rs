@@ -152,7 +152,6 @@ impl Toolbar {
                     })
                 })
             });
-        ui.advance_cursor_after_rect(res.response.rect);
         self.layout.tools_island = Some(res.response.rect);
         res
     }
@@ -316,7 +315,6 @@ impl Toolbar {
                     })
                 });
 
-            ui.advance_cursor_after_rect(tool_popover.response.rect);
             self.layout.tool_popover = Some(tool_popover.response.rect);
             Some(tool_popover.response)
         } else {
