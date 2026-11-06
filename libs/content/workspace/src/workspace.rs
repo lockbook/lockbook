@@ -2213,6 +2213,15 @@ impl Default for WsPresistentData {
 }
 
 impl WsPersistentStore {
+    /// Defaults kept in memory: nothing read from or written to disk.
+    pub fn in_memory() -> Self {
+        WsPersistentStore {
+            path: PathBuf::new(),
+            data: Arc::new(RwLock::new(WsPresistentData::default())),
+            enabled: false,
+        }
+    }
+
     #[instrument(name = "WsPersistentStore::new", level = "trace", skip_all)]
     pub fn new(recent_crash: bool, path: PathBuf, enabled: bool) -> Self {
         let default = WsPresistentData::default();

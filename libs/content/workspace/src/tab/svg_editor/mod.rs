@@ -3,6 +3,8 @@ mod clip;
 mod element;
 mod history;
 pub(super) mod keyboard_shortcuts;
+#[cfg(test)]
+mod tests;
 mod viewport;
 
 mod renderer;
@@ -24,10 +26,10 @@ use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
 
 use colors_transform::Color;
+pub use element::CanvasImages;
 use element::PromoteBufferWeakImages;
 pub use history::{DeleteElement, Event, InsertElement};
 use lb_rs::Uuid;
-use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
@@ -54,7 +56,7 @@ pub struct SVGEditor {
     pub toolbar: Toolbar,
 
     input_controller: InputController,
-    lb: Lb,
+    images: Box<dyn CanvasImages>,
     pub open_file: Uuid,
     last_render: Instant,
     renderer: Renderer,
@@ -151,7 +153,7 @@ enum BackgroundOverlay {
 
 impl SVGEditor {
     pub fn new(
-        bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
+        bytes: &[u8], ctx: &egui::Context, images: Box<dyn CanvasImages>, open_file: Uuid,
         hmac: Option<DocumentHmac>, cfg: &WsPersistentStore, read_only: bool,
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
@@ -193,7 +195,7 @@ impl SVGEditor {
             open_file_hmac: hmac,
             history: History::default(),
             toolbar,
-            lb,
+            images,
             open_file,
             last_render: Instant::now(),
             painter: egui::Painter::new(
@@ -224,7 +226,7 @@ impl SVGEditor {
 
         let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
         self.buffer
-            .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
+            .promote_weak_images(self.viewport_settings.master_transform, &*self.images);
 
         let request_diff_change = !self.embedded && self.show_toolbar(ui);
 
@@ -361,14 +363,8 @@ impl SVGEditor {
             .show_tool_ui(ui, &mut tool_context);
         let mut selection_seen_tool_run = false;
         for event in self.input_controller.process(ui, &layout_ctx) {
-            if let InputControllerEvent::KeyboardAction(action) = event {
-                execute_keyboard_action(
-                    ui,
-                    action,
-                    &mut self.toolbar,
-                    &mut tool_context,
-                    &mut self.cfg,
-                );
+            if let InputControllerEvent::Action(action) = event {
+                execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
                 continue;
             }
             let active_tool = self.toolbar.active_tool;
@@ -450,7 +446,7 @@ impl SVGEditor {
     }
 }
 
-fn execute_keyboard_action(
+fn execute_action(
     ui: &mut egui::Ui, action: keyboard_shortcuts::CanvasAction, toolbar: &mut Toolbar,
     ctx: &mut ToolContext, cfg: &mut WsPersistentStore,
 ) {
@@ -478,6 +474,13 @@ fn execute_keyboard_action(
                 .selection
                 .handle_tool_event(ui, SelectionEvent::SelectAll, ctx);
         }
+        A::SetSelectionColor(color) => toolbar.selection.set_color(ctx, color),
+        A::SetSelectionWidth(width) => toolbar.selection.set_width(ctx, width),
+        A::SetSelectionOpacity(opacity) => toolbar.selection.set_opacity(ctx, opacity),
+        A::MoveSelectionLayer(layer) => toolbar.selection.move_layer(ctx, layer),
+        A::SetPenColor(color) => toolbar.active_pen().change_color(color),
+        A::SetPenWidth(width) => toolbar.active_pen().active_stroke_width = width,
+        A::SetPenOpacity(opacity) => toolbar.active_pen().active_opacity = opacity,
     }
 }
 
