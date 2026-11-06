@@ -246,9 +246,7 @@ impl<'ast> MdRender {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, trailing: Pos2,
     ) {
         let range = self.node_range(node);
-        let id = ui
-            .scope_id()
-            .with(("md_heading_link", range.start().0, range.end().0));
+        let id = ui.scope_id().with("md_heading_link");
         let size = self.layout.indent * 0.8;
         let space = Rect::from_center_size(
             Pos2::new(trailing.x + self.layout.inline_padding * 2.0 + size / 2.0, trailing.y),
@@ -534,10 +532,7 @@ impl<'ast> MdRender {
 
         // Interact on the gutter rect — do not allocate in the parent ui
         // (off-screen neighbor rows would displace the mobile toolbar, #4892).
-        let range = self.node_range(node);
-        let id = ui
-            .scope_id()
-            .with(("md_fold_btn", range.start().0, range.end().0));
+        let id = ui.scope_id().with("md_fold_btn");
         let resp = ui.interact(space, id, sense_click());
 
         let t = self.ctx.get_lb_theme();

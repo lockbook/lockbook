@@ -446,7 +446,7 @@ impl<'ast> MdRender {
         }
 
         let copy = Event::CopyCode { node: range };
-        let resp = ui.interact(button, ui.scope_id().with(("code_copy", range)), Sense::click());
+        let resp = ui.interact(button, ui.scope_id().with("code_copy"), Sense::click());
         if resp.clicked() {
             self.render_events.push(copy.clone());
         }
@@ -532,7 +532,7 @@ impl<'ast> MdRender {
                 parent_item_padding + 4
             };
             let text = &self.buffer[node_line];
-            let strip_graphemes = consume_indent_columns(text, target_cols);
+            let strip_graphemes = consume_indent_columns(text, 0, target_cols);
             let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
             (chunk_start, node_line.end())
         }

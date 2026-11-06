@@ -588,6 +588,14 @@ fn icon_glyphs_skip_emoji_font() {
     assert!(!shape_as_emoji(&FontFamily::Sans, "a"));
 }
 
+/// A tab in a quote's indent spans to the next 4-column stop from where it
+/// sits, not from where the item's indent ends. Measured from the wrong
+/// column, the `>` of this alert was missed and its title line panicked.
+#[test]
+fn alert_after_mid_stop_tab_opens() {
+    TestEditor::new("1. x\n   \t > [!NOTE]\n");
+}
+
 // ── editor ──
 
 /// Regression for #4662: arrowing up off a folded heading must walk the
@@ -2677,6 +2685,47 @@ fn abandoned_composition_text_commits_after_typing() {
     ws.enter_frame_with_input(vec![Egui::Text("x".into())]);
     ws.enter_frame_with_input(vec![Egui::Ime(ImeEvent::Commit("n".into()))]);
     assert_eq!(ws.get_text(), "xnabn\n");
+}
+
+/// Typing under a task item keeps its checkbox's id, so a pointer resting on
+/// the box keeps it hovered and its animation state through every keystroke.
+#[test]
+fn task_checkbox_id_survives_typing_in_its_children() {
+    let doc = "- [x] done\n  - a\n";
+    let at = Grapheme(doc.len() - 1);
+    let mut ws = TestEditor::new(doc);
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(at),
+            end: Location::Grapheme(at),
+        },
+    });
+    ws.enter_frame();
+
+    // the checkbox's click target on the first row
+    let pointer = egui::pos2(66.0, 71.0);
+    let clickable_under_pointer = |ws: &TestEditor| {
+        ws.editor.edit.renderer.ctx.viewport(|v| {
+            let widgets = &v.this_pass.widgets;
+            let mut ids: Vec<_> = widgets
+                .layers()
+                .flat_map(|(_, rects)| rects)
+                .filter(|w| w.sense.senses_click() && w.interact_rect.contains(pointer))
+                .map(|w| w.id)
+                .collect();
+            ids.sort_by_key(|id| id.value());
+            ids
+        })
+    };
+    ws.enter_frame_with_input(vec![egui::Event::PointerMoved(pointer)]);
+    let before = clickable_under_pointer(&ws);
+    assert!(!before.is_empty());
+
+    for typed in ["b", "c"] {
+        ws.enter_frame_with_input(vec![egui::Event::Text(typed.into())]);
+        assert_eq!(clickable_under_pointer(&ws), before, "after typing {typed:?}");
+    }
+    assert_eq!(ws.get_text(), "- [x] done\n  - abc\n");
 }
 
 /// Where a soft wrap ends one row at the offset that starts the next (a long

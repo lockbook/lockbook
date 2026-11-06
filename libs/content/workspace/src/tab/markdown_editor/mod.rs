@@ -216,6 +216,12 @@ pub struct MdRender {
     /// cleared by `bump_text_seq` whenever the doc text changes so a
     /// fresh edit re-hides every spoiler.
     pub revealed_spoilers: std::collections::HashSet<egui::Id>,
+    /// The mark of a task item [`Event::ToggleTask`] is toggling, until its
+    /// edit lands.
+    pub task_toggle_pending: Option<Grapheme>,
+    /// The mark the latest text edit toggled, and when. Only that box
+    /// animates, so a box that takes over another's position never does.
+    pub task_toggled: Option<(Grapheme, f64)>,
 
     // render input
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
@@ -752,6 +758,8 @@ impl MdRender {
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
+            task_toggle_pending: None,
+            task_toggled: None,
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
@@ -864,6 +872,8 @@ impl MdRender {
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
+            task_toggle_pending: None,
+            task_toggled: None,
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
@@ -922,6 +932,8 @@ impl MdRender {
             .ws_seq
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.revealed_spoilers.clear();
+        let now = self.ctx.input(|i| i.time);
+        self.task_toggled = self.task_toggle_pending.take().map(|check| (check, now));
         self.caret_affinity = Default::default();
     }
 
@@ -1089,6 +1101,8 @@ impl Editor {
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
+            task_toggle_pending: None,
+            task_toggled: None,
 
             in_progress_selection: None,
             in_progress_block_drag: None,
