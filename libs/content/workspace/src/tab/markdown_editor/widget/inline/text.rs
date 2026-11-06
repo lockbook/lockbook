@@ -87,7 +87,7 @@ impl<'ast> MdRender {
         } else {
             self.search_range.map(|r| {
                 let theme = self.ctx.get_lb_theme();
-                let accent = theme.fg().get_color(theme.prefs().primary);
+                let accent = theme.accent();
                 (r, Format { color: accent, ..format.clone() }, false)
             })
         };

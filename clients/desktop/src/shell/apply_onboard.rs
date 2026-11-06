@@ -9,7 +9,7 @@ use lb::model::api::SubscriptionInfo;
 use workspace_rs::file_cache::FileCache;
 
 use super::ShellApp;
-use super::action::{Modal, OnboardLookup, OnboardMode};
+use super::action::{Action, Modal, OnboardLookup, OnboardMode};
 use super::apply_share::spawn_username_exists;
 use super::session::{self, CoreLoad, OnboardFail, Session};
 
@@ -85,10 +85,6 @@ fn onboard_uname_verify_done_key() -> egui::Id {
     egui::Id::unique("shell_onboard_uname_verify_done")
 }
 
-fn onboard_uname_inflight_key() -> egui::Id {
-    egui::Id::unique("shell_onboard_uname_verify_inflight")
-}
-
 /// Local format rules (mirrors server `username_is_valid`).
 fn onboard_uname_format_ok(username: &str) -> bool {
     use lb::model::account::MAX_USERNAME_LENGTH;
@@ -112,10 +108,19 @@ pub(crate) fn onboard_poll_uname(app: &mut ShellApp, ctx: &Context) {
     let Some((name, lookup)) = done else {
         return;
     };
-    if let Some(Modal::Onboard { uname, uname_lookup, uname_lookup_for, .. }) = &mut app.modal {
-        if uname.trim().eq_ignore_ascii_case(&name) {
+    if let Some(Modal::Onboard { mode, uname, uname_lookup, uname_lookup_for, .. }) = &mut app.modal
+    {
+        // Settle the check that's pending even if the field moved on; the sheet shows it as stale.
+        if uname_lookup_for.eq_ignore_ascii_case(&name) {
+            let submit = *mode == OnboardMode::Create
+                && lookup == OnboardLookup::Available
+                && matches!(uname_lookup, OnboardLookup::Checking { then_submit: true })
+                && uname.trim().eq_ignore_ascii_case(&name);
             *uname_lookup = lookup;
-            *uname_lookup_for = name;
+            if submit {
+                app.queue.push(Action::OnboardSubmit { show_error: true });
+                ctx.request_repaint();
+            }
         }
     }
 }
@@ -135,10 +140,7 @@ pub(crate) fn onboard_verify_uname(app: &mut ShellApp, ctx: &Context) {
             let q = uname.trim().to_owned();
             if !q.is_empty()
                 && q.eq_ignore_ascii_case(uname_lookup_for)
-                && matches!(
-                    uname_lookup,
-                    OnboardLookup::Available | OnboardLookup::Taken | OnboardLookup::Error(_)
-                )
+                && *uname_lookup != OnboardLookup::Idle
             {
                 return;
             }
@@ -180,11 +182,10 @@ pub(crate) fn onboard_verify_uname(app: &mut ShellApp, ctx: &Context) {
         }
     };
 
-    let inflight = ctx.data(|d| d.get_temp::<String>(onboard_uname_inflight_key()));
-    if inflight.as_deref() == Some(q.as_str()) {
-        return;
+    if let Some(Modal::Onboard { uname_lookup, uname_lookup_for, .. }) = &mut app.modal {
+        *uname_lookup = OnboardLookup::Checking { then_submit: false };
+        *uname_lookup_for = q.clone();
     }
-    ctx.data_mut(|d| d.insert_temp(onboard_uname_inflight_key(), q.clone()));
 
     spawn_username_exists(ctx, core, q, move |ctx, q_net, result| {
         let lookup = match result {
@@ -192,17 +193,7 @@ pub(crate) fn onboard_verify_uname(app: &mut ShellApp, ctx: &Context) {
             Ok(false) => OnboardLookup::Available,
             Err(e) => OnboardLookup::Error(e),
         };
-        let done_name = q_net.clone();
-        ctx.data_mut(|d| {
-            d.insert_temp(onboard_uname_verify_done_key(), (q_net, lookup));
-            let clear = d
-                .get_temp::<String>(onboard_uname_inflight_key())
-                .as_deref()
-                == Some(done_name.as_str());
-            if clear {
-                d.remove::<String>(onboard_uname_inflight_key());
-            }
-        });
+        ctx.data_mut(|d| d.insert_temp(onboard_uname_verify_done_key(), (q_net, lookup)));
     });
 }
 
@@ -257,6 +248,11 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
     if app.onboard_auto_rx.is_some() {
         return;
     }
+    let create = matches!(&app.modal, Some(Modal::Onboard { mode: OnboardMode::Create, .. }));
+    if create && show_error {
+        // Skip the debounce: start (or settle) the check for what's typed now.
+        onboard_verify_uname(app, ctx);
+    }
     let (mode, uname, account_key, import_secret, lookup_ok, api, api_url) = match &app.modal {
         Some(Modal::Onboard {
             mode,
@@ -293,7 +289,14 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
             if u.is_empty() {
                 Some("Username required".into())
             } else if !lookup_ok {
-                Some("Pick an available username".into())
+                // The status row already explains taken / invalid; a check in flight submits when it lands.
+                if let Some(Modal::Onboard { uname_lookup, err, .. }) = &mut app.modal {
+                    if let OnboardLookup::Checking { then_submit } = uname_lookup {
+                        *then_submit = show_error;
+                    }
+                    *err = None;
+                }
+                return;
             } else {
                 None
             }
@@ -467,7 +470,13 @@ fn onboard_sync_and_cache(
 
 #[cfg(test)]
 mod tests {
-    use super::{display_server_host, onboard_import_secret, resolved_api_url};
+    use super::super::ShellApp;
+    use super::super::action::{Action, Modal, OnboardLookup, OnboardMode};
+    use super::super::apply::apply;
+    use super::{
+        display_server_host, onboard_form, onboard_import_secret, onboard_poll_uname,
+        onboard_uname_verify_done_key, resolved_api_url,
+    };
 
     #[test]
     fn empty_url_is_hosted_default() {
@@ -476,6 +485,57 @@ mod tests {
         assert_eq!(resolved_api_url("http://localhost:8000"), "http://localhost:8000");
         assert_eq!(display_server_host(""), "app.lockbook.net");
         assert_eq!(display_server_host("http://localhost:8000"), "localhost:8000");
+    }
+
+    #[test]
+    fn return_during_check_waits_then_submits() {
+        let ctx = egui::Context::default();
+        let mut app = ShellApp::default();
+        let mut form =
+            onboard_form(OnboardMode::Create, "alice".into(), "".into(), "".into(), None);
+        if let Modal::Onboard { uname_lookup, uname_lookup_for, .. } = &mut form {
+            *uname_lookup = OnboardLookup::Checking { then_submit: false };
+            *uname_lookup_for = "alice".into();
+        }
+        app.modal = Some(form);
+
+        apply(&mut app, &ctx, Action::OnboardSubmit { show_error: true });
+        ctx.data_mut(|d| {
+            d.insert_temp(
+                onboard_uname_verify_done_key(),
+                ("alice".to_owned(), OnboardLookup::Available),
+            )
+        });
+        onboard_poll_uname(&mut app, &ctx);
+
+        let Some(Modal::Onboard { uname_lookup, err, .. }) = &app.modal else { panic!() };
+        assert_eq!((uname_lookup, err), (&OnboardLookup::Available, &None));
+        assert!(matches!(app.queue[..], [Action::OnboardSubmit { show_error: true }]));
+    }
+
+    #[test]
+    fn check_settles_while_field_differs() {
+        let ctx = egui::Context::default();
+        let mut app = ShellApp::default();
+        let mut form =
+            onboard_form(OnboardMode::Create, "alicex".into(), "".into(), "".into(), None);
+        if let Modal::Onboard { uname_lookup, uname_lookup_for, .. } = &mut form {
+            *uname_lookup = OnboardLookup::Checking { then_submit: true };
+            *uname_lookup_for = "alice".into();
+        }
+        app.modal = Some(form);
+
+        ctx.data_mut(|d| {
+            d.insert_temp(
+                onboard_uname_verify_done_key(),
+                ("alice".to_owned(), OnboardLookup::Available),
+            )
+        });
+        onboard_poll_uname(&mut app, &ctx);
+
+        let Some(Modal::Onboard { uname_lookup, .. }) = &app.modal else { panic!() };
+        assert_eq!(uname_lookup, &OnboardLookup::Available);
+        assert!(app.queue.is_empty());
     }
 
     #[test]

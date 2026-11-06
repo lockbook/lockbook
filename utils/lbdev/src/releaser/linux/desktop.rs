@@ -26,9 +26,44 @@ pub fn update_snap() -> CliResult<()> {
 name: lockbook-desktop
 base: core26
 version: '{version}'
-summary: The linux gui version of Lockbook
+title: Lockbook
+summary: Write, sketch, and share privately
 description: |
-  The private, polished note-taking platform.
+  Lockbook is an open-source notebook for **Markdown** notes and drawings, encrypted on your device and shared only by invitation.
+
+  Notes are `.md` files and drawings are `.svg` files, kept in ordinary folders. Open them in any other app and you'll find nothing missing.
+
+  **What's inside**
+
+  * **Markdown editor:** Type punctuation and watch plain text turn into headings, lists, tables, and `code`. The toolbar knows every style so you don't have to.
+  * **Drawing:** Sketch, handwrite, and diagram on an infinite canvas with pen, highlighter, and shapes. Drawings are SVG and look sharp at any size, in any app.
+  * **Links and backlinks:** Mention one note in another and see which notes mention it back. Start typing a title and pick the note. Links stay intact when notes are renamed or moved.
+  * **Search:** Find a note by its name or by what's in it. Search runs on your device: quickly, privately, and offline.
+  * **Images, PDFs, and everything else:** One app for everything worth keeping. Photos and PDFs open in the app. Everything else is still private and synced to every device.
+  * **Sharing:** Share any note or folder with read or write access. Work in the same note at the same time. Shared files are private to the people you invite and count only toward the owner's storage.
+  * **Offline:** Your notes are always on your device. Read, write, draw, and organize wherever you are, without worrying about whether you're connected.
+  * **Sync:** Edits to your notes are never dropped, duplicated, or clobbered. You'd think that would go without saying, but it doesn't. Sync is unreasonably hard, so we took it seriously and built it first.
+  * **Every device:** Linux, Windows, Mac, iPhone, iPad, and Android, each built for its platform so Lockbook opens fast and works like the other apps on your device.
+  * **Command line:** Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. The Lockbook CLI fits right into your favorite chain of piped-together Unix commands: https://snapcraft.io/lockbook
+
+  **Private by design**
+
+  Your notes are encrypted on your device, so no one else can read them, not even us. Sign up with just a username and Lockbook generates your account key. Keep it secret and don't lose it: anyone with the key can read your notes, and anyone without it can't. We never ask for an email, a phone number, or a name.
+
+  **Open source**
+
+  You don't have to trust us. Lockbook's code is public and has been since 2020. Check our work or trust the people who have: https://github.com/lockbook/lockbook
+
+  **Free to start**
+
+  The free tier includes every feature and holds years of plain notes. For room to add images and PDFs, upgrade to premium for $2.99 a month.
+
+  We built Lockbook for everyday use because we use Lockbook every day. In our Discord community you can ask us anything or just see what people are saying: https://discord.gg/lockbook
+website: https://lockbook.net
+contact: https://discord.gg/lockbook
+issues: https://github.com/lockbook/lockbook/issues
+source-code: https://github.com/lockbook/lockbook
+license: Unlicense
 grade: stable
 confinement: strict
 
@@ -296,7 +331,7 @@ pub fn overwrite_flatpak_manifest(
         r#"{{
     "app-id": "net.lockbook.Lockbook",
     "runtime": "org.freedesktop.Platform",
-    "runtime-version": "25.08",
+    "runtime-version": "26.08",
     "sdk": "org.freedesktop.Sdk",
     "sdk-extensions": [
         "org.freedesktop.Sdk.Extension.rust-stable"
@@ -324,9 +359,9 @@ pub fn overwrite_flatpak_manifest(
             "build-commands": [
                 "cargo build --release --offline -p lockbook-linux",
                 "install -Dm755 target/release/lockbook-linux /app/bin/lockbook-desktop",
-                "install -Dm644 docs/graphics/logo.svg /app/share/icons/hicolor/scalable/apps/net.lockbook.Lockbook.svg",
+                "install -Dm644 docs/graphics/store-tile.svg /app/share/icons/hicolor/scalable/apps/net.lockbook.Lockbook.svg",
                 "install -Dm644 utils/dev/flatpak-package/lockbook-desktop.desktop /app/share/applications/net.lockbook.Lockbook.desktop",
-                "install -Dm644 utils/dev/flatpak-package/net.lockbook.Lockbook.appdata.xml /app/share/appdata/net.lockbook.Lockbook.appdata.xml",
+                "install -Dm644 utils/dev/flatpak-package/net.lockbook.Lockbook.metainfo.xml /app/share/metainfo/net.lockbook.Lockbook.metainfo.xml",
                 "install -Dm0644 UNLICENSE -t /app/share/licenses/net.lockbook.Lockbook/"
             ],
             "sources": [

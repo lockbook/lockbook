@@ -32,7 +32,6 @@ pub struct AsyncDocs {
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
 struct MemDocs {
     docs: HashMap<(Uuid, DocumentHmac), EncryptedDocument>,
-    pending: HashMap<(Uuid, DocumentHmac), EncryptedDocument>,
 }
 
 impl AsyncDocs {
@@ -46,6 +45,20 @@ impl AsyncDocs {
     }
 }
 
+/// A document written beside its final path, made readable by [AsyncDocs::promote_pending].
+/// Each write gets its own pending path, so writers of the same id and hmac never share one;
+/// in memory the handle holds the document itself.
+pub struct PendingDocument {
+    #[cfg(not(target_family = "wasm"))]
+    pending: Pending,
+}
+
+#[cfg(not(target_family = "wasm"))]
+enum Pending {
+    File { path: String, final_path: String },
+    Memory { key: (Uuid, DocumentHmac), document: EncryptedDocument },
+}
+
 #[cfg(target_family = "wasm")]
 impl AsyncDocs {
     pub async fn insert(
@@ -56,11 +69,11 @@ impl AsyncDocs {
 
     pub async fn insert_pending(
         &self, _id: Uuid, _hmac: DocumentHmac, _document: &EncryptedDocument,
-    ) -> LbResult<()> {
-        Ok(())
+    ) -> LbResult<PendingDocument> {
+        Ok(PendingDocument {})
     }
 
-    pub async fn promote_pending(&self, _id: Uuid, _hmac: DocumentHmac) -> LbResult<()> {
+    pub async fn promote_pending(&self, _pending: PendingDocument) -> LbResult<()> {
         Ok(())
     }
 
@@ -93,18 +106,18 @@ impl AsyncDocs {
         &self, id: Uuid, hmac: Option<DocumentHmac>, document: &EncryptedDocument,
     ) -> LbResult<()> {
         if let Some(hmac) = hmac {
-            self.insert_pending(id, hmac, document).await?;
-            self.promote_pending(id, hmac).await?;
+            let pending = self.insert_pending(id, hmac, document).await?;
+            self.promote_pending(pending).await?;
         }
         Ok(())
     }
 
     pub async fn insert_pending(
         &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
-    ) -> LbResult<()> {
-        if let Some(mut mem) = self.mem() {
-            mem.pending.insert((id, hmac), document.clone());
-            return Ok(());
+    ) -> LbResult<PendingDocument> {
+        if self.memory.is_some() {
+            let pending = Pending::Memory { key: (id, hmac), document: document.clone() };
+            return Ok(PendingDocument { pending });
         }
         let value = &bincode::serialize(document).map_unexpected()?;
         let path_str = pending_path(&self.location, id, hmac);
@@ -118,21 +131,20 @@ impl AsyncDocs {
             .open(path)
             .await?;
         f.write_all(value).await?;
-        Ok(())
+        let final_path = key_path(&self.location, id, hmac);
+        Ok(PendingDocument { pending: Pending::File { path: path_str, final_path } })
     }
 
-    pub async fn promote_pending(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
-        if let Some(mut mem) = self.mem() {
-            let doc = mem
-                .pending
-                .remove(&(id, hmac))
-                .ok_or(LbErrKind::FileNonexistent)?;
-            mem.docs.insert((id, hmac), doc);
-            return Ok(());
+    pub async fn promote_pending(&self, pending: PendingDocument) -> LbResult<()> {
+        match pending.pending {
+            Pending::File { path, final_path } => Ok(fs::rename(&path, &final_path).await?),
+            Pending::Memory { key, document } => {
+                if let Some(mut mem) = self.mem() {
+                    mem.docs.insert(key, document);
+                }
+                Ok(())
+            }
         }
-        let pending = pending_path(&self.location, id, hmac);
-        let final_path = key_path(&self.location, id, hmac);
-        Ok(fs::rename(&pending, &final_path).await?)
     }
 
     pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> bool {
@@ -268,7 +280,7 @@ pub fn key_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String 
 }
 
 fn pending_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String {
-    key_path(writeable_path, key, hmac) + ".pending"
+    format!("{}.{}.pending", key_path(writeable_path, key, hmac), Uuid::new_v4())
 }
 
 impl From<&Config> for AsyncDocs {

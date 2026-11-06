@@ -43,7 +43,7 @@ impl<S: Server> Lb<S> {
         // do the operations
         let (hmac, encrypted) = compress_encrypt_document(&key, content)?;
         let encrypted_size = encrypted.value.len();
-        self.docs.insert_pending(id, hmac, &encrypted).await?;
+        let pending = self.docs.insert_pending(id, hmac, &encrypted).await?;
 
         // commit the result
         {
@@ -52,7 +52,7 @@ impl<S: Server> Lb<S> {
             let mut tree = (&db.base_metadata)
                 .to_staged(&mut db.local_metadata)
                 .to_lazy();
-            self.docs.promote_pending(id, hmac).await?;
+            self.docs.promote_pending(pending).await?;
             tree.overwrite_document_hmac(&id, Some(hmac), Some(encrypted_size), &self.keychain)?;
             tx.end();
         }
@@ -147,7 +147,8 @@ impl<S: Server> Lb<S> {
         // do the operations
         let (hmac, encrypted) = compress_encrypt_document(&key, &content)?;
         let encrypted_size = encrypted.value.len();
-        self.docs
+        let pending = self
+            .docs
             .insert_pending(target_id, hmac, &encrypted)
             .await?;
 
@@ -158,7 +159,7 @@ impl<S: Server> Lb<S> {
             let mut tree = (&db.base_metadata)
                 .to_staged(&mut db.local_metadata)
                 .to_lazy();
-            self.docs.promote_pending(target_id, hmac).await?;
+            self.docs.promote_pending(pending).await?;
             if tree.find(&id)?.document_hmac() != old_hmac.as_ref() {
                 return Err(LbErrKind::ReReadRequired.into());
             }

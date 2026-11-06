@@ -24,6 +24,7 @@ pub mod sheet;
 pub mod space;
 pub mod spacer;
 pub mod sticky;
+pub mod swatches;
 pub mod tip;
 pub mod tree_metrics;
 pub mod typography;
@@ -79,4 +80,4 @@ pub use sticky::{
     FlatRow, RowGeom, Stuck, TreeRowChrome, ancestor_at_depth, flatten, folder_has_flat_child,
     paint_sticky_viewport, paint_tree_file_row, row_type_icon, sticky_band_above, sticky_layout,
 };
-pub use tip::{TIP_MARGIN, dismiss_tip, tip_card_placed, tip_card_reachable, tip_text};
+pub use tip::{TIP_MARGIN, card_shown, dismiss_tip, tip_card_placed, tip_card_reachable, tip_text};

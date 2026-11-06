@@ -7,6 +7,8 @@ use crate::tab::markdown_editor::widget::utils::consume_indent_columns_ceil;
 use crate::tab::markdown_editor::{Event, MdRender};
 use crate::theme::palette_v2::ThemeExt;
 
+const TOGGLE_SECS: f64 = 0.2;
+
 impl<'ast> MdRender {
     pub fn height_task_item(&self, node: &'ast AstNode<'ast>) -> f32 {
         self.height_item(node)
@@ -38,7 +40,7 @@ impl<'ast> MdRender {
             );
             let border_radius = 2.0;
 
-            let checkbox_id = ui.scope_id().with(self.node_range(node));
+            let checkbox_id = ui.scope_id().with("task_checkbox");
 
             // allocate a slightly larger clickable space that makes the checkbox
             // easier to tap without overflowing the annotation space horizontally
@@ -56,16 +58,10 @@ impl<'ast> MdRender {
             } else {
                 Sense::click_and_drag()
             };
-            let checkbox_response =
-            // ui.scope_id().with() instead of Id::unique() so two views of the same document
-            // get distinct checkbox IDs
-            ui.interact(clickable_space, checkbox_id, sense);
+            // scope_id carries the view, so two views of one note get distinct ids
+            let checkbox_response = ui.interact(clickable_space, checkbox_id, sense);
             let check_offset = self.check_offset(node);
-            let toggle = Event::Replace {
-                region: (check_offset, check_offset + 1).into(),
-                text: (if checked { " " } else { "x" }).into(),
-                advance_cursor: false,
-            };
+            let toggle = Event::ToggleTask { check: check_offset };
             if checkbox_response.clicked() {
                 self.render_events.push(toggle.clone());
             }
@@ -85,21 +81,24 @@ impl<'ast> MdRender {
             // above distinguishes the two).
             self.handle_item_drag_resp(ui, node, &checkbox_response);
 
-            let how_on = ui.ctx().animate_value_with_time(
-                checkbox_id.with("animation"),
-                if checked { 1.0 } else { 0.0 },
-                0.2,
-            );
+            let progress = match self.task_toggled {
+                Some((check, at)) if check == check_offset => {
+                    let t = ((ui.input(|i| i.time) - at) / TOGGLE_SECS) as f32;
+                    if t < 1.0 {
+                        ui.ctx().request_repaint();
+                    }
+                    t.clamp(0.0, 1.0)
+                }
+                _ => 1.0,
+            };
+            let how_on = if checked { progress } else { 1.0 - progress };
 
             // draw rect background for checkbox
             ui.painter().rect(
                 checkbox_space.shrink(2. * how_on), // anticipation for the main animation
                 border_radius,
-                theme
-                    .bg()
-                    .get_color(theme.prefs().primary)
-                    .gamma_multiply(0.1),
-                Stroke::new(0.5_f32, theme.fg().get_color(theme.prefs().primary)),
+                theme.accent_bg().gamma_multiply(0.1),
+                Stroke::new(0.5_f32, theme.accent()),
                 StrokeKind::Inside,
             );
 
@@ -107,7 +106,7 @@ impl<'ast> MdRender {
             ui.painter().rect_filled(
                 checkbox_space.expand2(checkbox_space.size() * how_on - checkbox_space.size()),
                 border_radius,
-                theme.fg().get_color(theme.prefs().primary),
+                theme.accent(),
             );
 
             // draw check

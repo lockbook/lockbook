@@ -124,7 +124,7 @@ const MANIFEST_TEMPLATE: &str = r##"<?xml version="1.0" encoding="utf-8"?>
   <Properties>
     <DisplayName>Lockbook</DisplayName>
     <PublisherDisplayName>Lockbook LLC</PublisherDisplayName>
-    <Description>The private, polished note-taking platform.</Description>
+    <Description>Lockbook is an open-source notebook for Markdown notes and drawings, encrypted on your device and shared only by invitation.</Description>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
@@ -148,8 +148,8 @@ const MANIFEST_TEMPLATE: &str = r##"<?xml version="1.0" encoding="utf-8"?>
       uap10:TrustLevel="mediumIL">
       <uap:VisualElements
         DisplayName="Lockbook"
-        Description="Write notes, sketch ideas, and store files in one secure place. Share seamlessly, keep data synced, and access it on any platform-even offline."
-        BackgroundColor="#207FDF"
+        Description="Lockbook is an open-source notebook for Markdown notes and drawings, encrypted on your device and shared only by invitation."
+        BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:DefaultTile Square71x71Logo="Assets\Square71x71Logo.png" />

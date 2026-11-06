@@ -46,7 +46,7 @@ use workspace_rs::search::SearchType;
 
 use crate::components::{
     self, Space, Spacer, Theme, ThemeExt, ThemeFamily, TypeRole, handle_toggle_shortcut,
-    set_mode_preference, set_theme_family, sheet_panel_fit,
+    set_mode_preference, set_theme_accent, set_theme_family, sheet_panel_fit,
 };
 use crate::settings::Settings;
 
@@ -569,6 +569,9 @@ impl ShellApp {
             .copied()
             .unwrap_or_default();
         set_theme_family(ctx, fam);
+        if let Some(accent) = self.settings.theme_accent {
+            set_theme_accent(ctx, accent);
+        }
     }
 
     fn drain_events(&mut self) {
@@ -745,18 +748,24 @@ impl ShellApp {
                     self.queue.push(A::ShareStageField);
                 }
             } else {
-                // Pay (upgrade confirm): ⌘⏎ only. Other primaries: ⏎ or ⌘⏎.
+                // Pay (upgrade confirm) and onboard create / import: ⌘⏎ only. Other primaries: ⏎ or ⌘⏎.
                 let cmd_enter = ctx.input_mut(|i| i.consume_key(CMD, egui::Key::Enter));
                 let plain_enter =
                     ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
-                let pay_commit = matches!(
+                let cmd_only = matches!(
                     (&modal, &self.account_panel),
                     (
                         Modal::Settings { .. },
                         AccountPanel::Upgrade { stage: action::UpgradeStage::Confirm, .. }
+                    ) | (
+                        Modal::Onboard {
+                            mode: action::OnboardMode::Create | action::OnboardMode::Import,
+                            ..
+                        },
+                        _
                     )
                 );
-                let commit = if pay_commit { cmd_enter } else { cmd_enter || plain_enter };
+                let commit = if cmd_only { cmd_enter } else { cmd_enter || plain_enter };
                 if commit {
                     match modal {
                         Modal::Delete { .. } => self.queue.push(A::ConfirmDelete),

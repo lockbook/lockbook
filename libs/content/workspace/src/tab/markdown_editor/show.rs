@@ -31,6 +31,7 @@ use super::input::{Bound, Event, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, DragUnit, TouchReorder};
 use super::widget::block::leaf::diagram::Picture;
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
+use super::widget::inline::tab_embed::EmbedClick;
 use super::{ImeMarked, MdEdit, MdRender};
 
 #[derive(Clone)]
@@ -474,6 +475,7 @@ impl MdEdit {
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
         self.renderer.misspelled.clear();
+        self.renderer.diagram_errors.clear();
         self.renderer.clear_row_scroll_frame();
         self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
@@ -656,7 +658,7 @@ impl MdEdit {
             return self.draw_dragged_column(ui, root, drag, column, p);
         }
         let theme = self.renderer.ctx.get_lb_theme();
-        let primary = theme.bg().get_color(theme.prefs().primary);
+        let primary = theme.accent_bg();
         // a table's rows touch: nothing of one reaches past its rect
         let is_row = drag.unit == DragUnit::Row;
 
@@ -808,11 +810,13 @@ impl MdEdit {
 
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));
-        let response = ui.interact(
-            rect,
-            id,
-            if self.renderer.touch_mode { Sense::click() } else { Sense::click_and_drag() },
-        );
+        // an embedded editor leaves touches to its host, which hands them on
+        let sense = match (self.takes_focus, self.renderer.touch_mode) {
+            (false, true) => Sense::hover(),
+            (true, true) => Sense::click(),
+            (_, false) => Sense::click_and_drag(),
+        };
+        let response = ui.interact(rect, id, sense);
         // interact surrenders focus if anything was clicked, even a child —
         // restore if we thought we were focused at entry
         if prev_focused && !ui.memory(|m| m.has_focus(id)) {
@@ -824,6 +828,12 @@ impl MdEdit {
         }
 
         let response_properly_clicked = response.clicked_by(egui::PointerButton::Primary);
+        // a click nothing in it took is its host's, which selects the embed
+        if !self.takes_focus && response_properly_clicked {
+            if let Some(pos) = response.interact_pointer_pos() {
+                EmbedClick::hand_on(ui.ctx(), pos);
+            }
+        }
         if response.hovered() || response_properly_clicked {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
         }
@@ -842,6 +852,7 @@ impl MdEdit {
         self.escape_diagram_source(root, ui, id, &mut ops);
         self.handle_diagram_interactions(root, ui, id, &mut ops);
         self.handle_card_interactions(root, ui, id, &mut ops);
+        self.handle_tab_embed_interactions(root, ui, id, &mut ops);
         self.handle_link_capsule_interactions(root, ui, id, &mut ops);
         self.handle_link_menu_taps(root, ui, id, &mut ops);
 
@@ -908,7 +919,7 @@ impl MdEdit {
                     e.separator();
                 }
                 if heading.is_some() {
-                    e.item(phosphor::LINK, "Copy Heading Link", EditorMenuCmd::HeadingLink);
+                    e.item(phosphor::HASH, "Copy Heading Link", EditorMenuCmd::HeadingLink);
                     e.separator();
                 }
                 if !readonly {
@@ -920,7 +931,7 @@ impl MdEdit {
                     e.item(phosphor::CLIPBOARD_TEXT, "Paste", EditorMenuCmd::Paste);
                 }
                 if !readonly && markdown {
-                    e.item(phosphor::TABLE, "Paste as table", EditorMenuCmd::PasteTable);
+                    e.item(phosphor::TABLE, "Paste as Table", EditorMenuCmd::PasteTable);
                 }
             });
             let mut menu_events: Vec<Event> = Vec::new();
@@ -1214,7 +1225,7 @@ impl MdEdit {
                 .in_progress_selection
                 .unwrap_or(self.renderer.buffer.current.selection);
             let theme = self.renderer.ctx.get_lb_theme();
-            let color = theme.bg().get_color(theme.prefs().primary);
+            let color = theme.accent_bg();
 
             // Fill the reserved slot so the highlight paints behind the
             // markers (drawn during block render); the cursor stays on top.
@@ -1244,9 +1255,9 @@ impl MdEdit {
             // Android Material You: `fg()` is colorPrimary in both modes.
             // `bright` is the washed primaryContainer in light.
             let caret = if ui.ctx().os() == OperatingSystem::Android {
-                theme.fg().get_color(theme.prefs().primary)
+                theme.accent()
             } else {
-                theme.bright.get_color(theme.prefs().primary)
+                theme.bright.get_color(theme.accent_hue)
             };
             if focused {
                 let blink = now - self.cursor_last_interact.unwrap_or(now);

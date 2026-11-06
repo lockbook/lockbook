@@ -39,18 +39,19 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
         }
     }
 
+    private val fileIds by lazy { requireArguments().getStringArray(FILES_ID_KEY)!!.toList() }
+
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val files by lazy { requireArguments().getStringArray(FILES_ID_KEY)!!.map { FileMetadataStore.requireFile(it) } }
+        val files by lazy { fileIds.map(FileMetadataStore::requireFile) }
 
         return MaterialAlertDialogBuilder(requireContext())
-            .setMessage(R.string.metadata_loading)
+            .setMessage(R.string.reject_files_confirmation)
             .setNegativeButton(R.string.cancel, null)
             .setPositiveButton(R.string.delete_shared_reject, null)
             .create()
             .apply {
                 setOnShowListener {
-                    getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
-                    getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive(files) }
+                    getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
                 }
                 withFileMetadata {
                     setMessage(
@@ -62,17 +63,16 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
                             getString(R.string.delete_shared_message, files.size)
                         },
                     )
-                    getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
                 }
             }
     }
 
-    private fun onButtonPositive(files: List<File>) {
+    private fun onButtonPositive() {
         lifecycleScope.launch {
-            for (file in files) {
+            for (fileId in fileIds) {
                 try {
                     withContext(Dispatchers.IO) {
-                        Lb.deletePendingShare(file.id)
+                        Lb.deletePendingShare(fileId)
                     }
                 } catch (err: LbError) {
                     alertModel.notifyError(err)

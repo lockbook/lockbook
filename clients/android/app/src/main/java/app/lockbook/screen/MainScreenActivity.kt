@@ -276,14 +276,14 @@ class MainScreenActivity : AppCompatActivity() {
                 }
 
                 is TransientScreen.Info -> {
-                    FileInfoDialogFragment.newInstance(screen.file.id).show(
+                    FileInfoDialogFragment.newInstance(screen.file).show(
                         supportFragmentManager,
                         FileInfoDialogFragment.TAG,
                     )
                 }
 
                 is TransientScreen.Share -> {
-                    ShareFileBottomSheetFragment.newInstance(screen.file.id).show(
+                    ShareFileBottomSheetFragment.newInstance(screen.file).show(
                         supportFragmentManager,
                         ShareFileBottomSheetFragment.TAG,
                     )
@@ -297,14 +297,14 @@ class MainScreenActivity : AppCompatActivity() {
                 }
 
                 is TransientScreen.Rename -> {
-                    RenameFileDialogFragment.newInstance(screen.file.id).show(
+                    RenameFileDialogFragment.newInstance(screen.file).show(
                         supportFragmentManager,
                         RenameFileDialogFragment.TAG,
                     )
                 }
 
                 is TransientScreen.Delete -> {
-                    DeleteFilesDialogFragment.newInstance(screen.files.map { it.id }).show(
+                    DeleteFilesDialogFragment.newInstance(screen.files).show(
                         supportFragmentManager,
                         DeleteFilesDialogFragment.DELETE_FILES_DIALOG_FRAGMENT,
                     )

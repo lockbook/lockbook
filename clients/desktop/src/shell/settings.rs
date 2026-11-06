@@ -28,6 +28,9 @@ use egui::{
     TextWrapMode, Ui, UiBuilder, vec2,
 };
 
+use workspace_rs::style::swatches::swatches;
+use workspace_rs::theme::palette_v2::Palette;
+
 use super::ShellApp;
 use super::action::Action as A;
 use super::action::{Action, Modal, SettingsCat};
@@ -343,6 +346,23 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         if form_picker(ui, t, "Theme", &names, &mut fam).changed() {
             queue.push(A::SetThemeFamily(ThemeFamily::ALL[fam]));
         }
+        const HUES: [Palette; 6] = [
+            Palette::Red,
+            Palette::Yellow,
+            Palette::Green,
+            Palette::Cyan,
+            Palette::Blue,
+            Palette::Magenta,
+        ];
+        let colors = HUES.map(|p| t.fg().get_color(p));
+        let mut hue = HUES.iter().position(|&p| p == t.accent_hue);
+        form_row(ui, t, "Accent", |ui| {
+            if swatches(ui, t, &colors, &mut hue).changed() {
+                if let Some(i) = hue {
+                    queue.push(A::SetThemeAccent(HUES[i]));
+                }
+            }
+        });
     });
 
     ui.add(Spacer::new(Space::Lg));
@@ -434,7 +454,7 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
             .session
             .ready()
             .map(|r| r.workspace.cfg.get_column_width())
-            .unwrap_or(COLUMN_WIDTHS[0]);
+            .unwrap_or(COLUMN_WIDTHS[1]);
         let mut pick = COLUMN_WIDTHS.iter().position(|w| *w == width).unwrap_or(0);
         if form_segmented(ui, t, "Text width", &["Narrow", "Medium", "Wide"], &mut pick).changed() {
             queue.push(A::SetPrefColumnWidth(COLUMN_WIDTHS[pick]));

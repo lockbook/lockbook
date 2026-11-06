@@ -16,7 +16,11 @@ async fn catch_up_emits_an_ipc_event_for_document_changes() {
     writer.write_document(id, b"new").await.unwrap();
     reader.begin_tx().await.end();
 
-    assert!(matches!(events.try_recv().unwrap(), Event::IpcChangesApplied));
+    let mut catch_ups = 0;
+    while let Ok(event) = events.try_recv() {
+        catch_ups += matches!(event, Event::IpcChangesApplied) as usize;
+    }
+    assert_eq!(catch_ups, 1);
     assert_eq!(reader.read_document(id, false).await.unwrap(), b"new");
 
     reader.begin_tx().await.end();

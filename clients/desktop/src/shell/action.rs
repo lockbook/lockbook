@@ -83,7 +83,10 @@ pub enum ShareLookup {
 pub enum OnboardLookup {
     #[default]
     Idle,
-    Checking,
+    /// Request in flight. `then_submit`: Create was pressed; submit once it lands available.
+    Checking {
+        then_submit: bool,
+    },
     Available,
     Taken,
     Error(String),
@@ -385,6 +388,8 @@ pub enum Action {
     Export(Vec<Uuid>),
     /// Copy lb:// or https file link to OS clipboard.
     CopyLink(Uuid),
+    /// Show the Files pane with the file selected and scrolled into view.
+    RevealInFiles(Uuid),
     Import,
     ImportPaths {
         paths: Vec<PathBuf>,
@@ -403,6 +408,7 @@ pub enum Action {
     ConfirmCancelSub,
     SetThemeMode(crate::components::ModePreference),
     SetThemeFamily(crate::components::ThemeFamily),
+    SetThemeAccent(workspace_rs::theme::palette_v2::Palette),
     SetPrefLinkPreviews(bool),
     /// Misspelled words are marked, from now on.
     SetPrefSpellCheck(bool),
@@ -516,6 +522,7 @@ impl Action {
             Self::Duplicate(_) => "Duplicate",
             Self::Export(_) => "Export",
             Self::CopyLink(_) => "CopyLink",
+            Self::RevealInFiles(_) => "RevealInFiles",
             Self::Import => "Import",
             Self::ImportPaths { .. } => "ImportPaths",
             Self::OpenImportParent { .. } => "OpenImportParent",
@@ -526,6 +533,7 @@ impl Action {
             Self::ConfirmCancelSub => "ConfirmCancelSub",
             Self::SetThemeMode(_) => "SetThemeMode",
             Self::SetThemeFamily(_) => "SetThemeFamily",
+            Self::SetThemeAccent(_) => "SetThemeAccent",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
             Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",
             Self::SetPrefColumnWidth(_) => "SetPrefColumnWidth",

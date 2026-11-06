@@ -142,7 +142,7 @@ impl<'ast> MdRender {
         range
     }
 
-    /// Creates a UI that assigns ids using the node range.
+    /// Creates a UI that assigns ids using the node's start.
     // By default, egui ids are assigned to ui's and widgets based on the parent
     // ui's id and incremented with each addition to a given parent. Because
     // editor text may be clickable, text allocates ids and affects future ids.
@@ -153,12 +153,13 @@ impl<'ast> MdRender {
     // widget being tapped may have had its id changed and will not register as
     // clicked. This function creates a consistently idenified ui based on the
     // node range to prevent ids from changing mid tap and therefore prevents
-    // taps from failing. Note that this range does not and need not survive
-    // edits to the document itself.
+    // taps from failing. Keyed on the start alone: siblings never share one,
+    // and it holds through edits inside or after the node, so typing doesn't
+    // re-key a block's widgets and drop their hover and animation state.
     pub fn node_ui(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>) -> Ui {
         ui.new_child(
             UiBuilder::new()
-                .id_salt(self.node_range(node)) // <- the magic
+                .id_salt(self.node_range(node).start()) // <- the magic
                 .layer_id(ui.layer_id())
                 .max_rect(ui.max_rect()),
         )

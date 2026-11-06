@@ -66,6 +66,11 @@ pub fn region_key(dest: &Destination, fragment: Option<&Fragment>, width: f32) -
     Some(format!("{dest}|{}|{}", fragment.unwrap_or_default(), width.round() as i32))
 }
 
+/// Whether `bytes` are text the editor can show and save back.
+pub fn is_text(bytes: &[u8]) -> bool {
+    content_inspector::inspect(bytes).is_text()
+}
+
 impl TabResources {
     /// The height `fragment`'s region had at `width` when last measured
     /// settled, so a slot lays out right before its tab loads.
@@ -163,13 +168,10 @@ impl TabContent {
             .next_back()
             .unwrap_or_default()
             .to_owned();
-        let as_source = doc_type == DocType::SVG && res.persistence.get_source();
-        let is_text = (as_source
-            || matches!(
-                doc_type,
-                DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
-            ))
-            && content_inspector::inspect(&doc.bytes).is_text();
+        let is_text = matches!(
+            doc_type,
+            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+        ) && is_text(&doc.bytes);
         let text = is_text.then_some(doc_type == DocType::Markdown);
         if let Some(refusal) = res.guard.refusal(id, &doc.bytes, text) {
             tracing::warn!(%id, ?refusal, "refusing to open");
@@ -187,7 +189,7 @@ impl TabContent {
                 pdf.salt = salt;
                 Ok(TabContent::Pdf(pdf))
             }
-            DocType::SVG if !as_source => Ok(TabContent::Svg(SVGEditor::new(
+            DocType::SVG => Ok(TabContent::Svg(SVGEditor::new(
                 &bytes,
                 &res.ctx,
                 res.core.clone(),

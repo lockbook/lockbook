@@ -4,8 +4,8 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::TextBufferArea;
-use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::{Affinity, MdRender};
 use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
 
 pub trait BufferExt {
@@ -1921,8 +1921,14 @@ impl MdRender {
             let [r, g, b, a] = c.to_array();
             glyphon::Color::rgba(r, g, b, a)
         };
-        let misspelled = self.misspelled_words(&layout.prose);
+        let mut misspelled = self.misspelled_words(&layout.prose);
         self.misspelled.extend_from_slice(&misspelled);
+        let unit = layout.source_range;
+        let errors = self
+            .diagram_errors
+            .iter()
+            .filter(|e| e.intersects(&unit, false));
+        misspelled.extend(errors);
 
         for row_idx in 0..layout.rows.len() {
             let row = &layout.rows[row_idx];
@@ -2055,7 +2061,7 @@ impl MdRender {
                         let sr = frag.source_range;
                         if !sel.is_empty() && sel.contains_range(&sr, true, true) {
                             let theme = self.ctx.get_lb_theme();
-                            let accent = theme.bg().get_color(theme.prefs().primary);
+                            let accent = theme.accent_bg();
                             let tint = egui::Color32::from_rgba_unmultiplied(
                                 accent.r(),
                                 accent.g(),
@@ -2140,26 +2146,52 @@ impl MdRender {
     /// Find the fragment whose `source_range` contains `offset`,
     /// inclusive of both endpoints (so cursor positions at line-
     /// trailing `\n` bytes — excluded from any source line by
-    /// `range_split_newlines` — still resolve). Reverse search:
-    /// at a shared boundary `(a, b)`/`(b, c)`, the *later* fragment
-    /// wins (cursor-affinity matches paint).
+    /// `range_split_newlines` — still resolve). At a shared boundary
+    /// `(a, b)`/`(b, c)` the *later* fragment wins, unless the caret sits
+    /// there upstream of a soft wrap: then the row it ends wins.
     pub fn fragment_at_offset(&self, offset: Grapheme) -> Option<&Fragment> {
+        let affinity = self.caret_affinity_at(offset);
+        self.fragment_idx_at_offset(offset, affinity)
+            .map(|i| &self.fragments[i])
+    }
+
+    /// The affinity of a caret at `offset`.
+    pub fn caret_affinity_at(&self, offset: Grapheme) -> Affinity {
+        match self.caret_affinity {
+            (caret, affinity) if caret == offset => affinity,
+            _ => Affinity::Downstream,
+        }
+    }
+
+    /// [`Self::fragment_at_offset`]'s index into `fragments`, for a caret
+    /// with `affinity`.
+    pub fn fragment_idx_at_offset(&self, offset: Grapheme, affinity: Affinity) -> Option<usize> {
+        let contains =
+            |f: &Fragment| f.source_range.start() <= offset && offset <= f.source_range.end();
+        let downstream = self.fragments.iter().rposition(contains)?;
+        let row_top = self.fragments[downstream].rect.top();
+        let upstream = match affinity {
+            Affinity::Upstream => self
+                .fragments
+                .iter()
+                .rposition(|f| contains(f) && f.rect.bottom() <= row_top),
+            Affinity::Downstream => None,
+        };
+        let row = self.fragments[upstream.unwrap_or(downstream)]
+            .rect
+            .y_range();
         // A caret at a chip's edge sits at the pill edge, not inside its padding
         // or favicon slot: prefer the chip's boundary anchor (a zero-width Spacer
         // at exactly `offset`, which `fragment_x` resolves to the pill edge) over
-        // the wider glyph fragments that also span the offset.
-        let anchor = self.fragments.iter().find(|f| {
+        // the wider glyph fragments on the same row that also span the offset.
+        let anchor = self.fragments.iter().position(|f| {
             f.source_range == (offset, offset)
                 && matches!(f.content, FragmentContent::Spacer)
                 && f.style_stack.last().is_some_and(|s| s.chip)
+                && f.rect.top() < row.max
+                && row.min < f.rect.bottom()
         });
-        if anchor.is_some() {
-            return anchor;
-        }
-        self.fragments.iter().rev().find(|f| {
-            let (s, e) = f.source_range;
-            s <= offset && offset <= e
-        })
+        Some(anchor.or(upstream).unwrap_or(downstream))
     }
 
     /// Find the fragment whose rect contains `pos` (clip-aware
