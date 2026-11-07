@@ -29,6 +29,8 @@ pub mod subscribers;
 #[cfg(target_family = "wasm")]
 pub mod wasm;
 
+// C headers name only `blocking::Lb`; cbindgen keys types by bare name, so this one stays out.
+/// cbindgen:ignore
 #[derive(Clone)]
 pub struct Lb<S = Network> {
     pub config: Config,

@@ -550,7 +550,7 @@ const SCRIPTS: &[(Script, &[&str])] = &[];
 /// Mono's sit low.
 #[cfg(all(unix, not(any(target_vendor = "apple", target_os = "android"))))]
 const SYMBOLS: &[&str] = &["Noto Sans", "Noto Sans Math", "Noto Sans Mono", "Twemoji Mozilla"];
-#[cfg(any(target_vendor = "apple", windows))]
+#[cfg(any(target_vendor = "apple", not(unix)))]
 const SYMBOLS: &[&str] = &[];
 
 #[cfg(target_os = "macos")]
