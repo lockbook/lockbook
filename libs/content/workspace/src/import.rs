@@ -478,10 +478,8 @@ pub fn plan_in_background(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
-    /// Writing into the local account: create, encrypt, store.
+    /// Writing into the local account: create, encrypt, store. Sync uploads after.
     Importing,
-    /// Waiting for sync to push what the import wrote.
-    Uploading,
     Done,
 }
 
@@ -491,7 +489,7 @@ pub struct Progress {
     pub phase: Phase,
     pub done_files: usize,
     pub done_bytes: u64,
-    /// The file being written or pushed, for the card's second line.
+    /// The file being written, for the card's second line.
     pub current: Option<String>,
     pub failed: Vec<(String, String)>,
     /// The top-level folder this import made, once it exists.
@@ -503,11 +501,7 @@ pub struct Progress {
 pub struct ImportJob {
     pub plan: ImportPlan,
     pub progress: Arc<Mutex<Progress>>,
-    phase_started: Instant,
-    /// Sizes of what the import wrote, to count bytes as they leave.
-    written: Arc<Mutex<HashMap<Uuid, u64>>>,
-    names: Arc<Mutex<HashMap<Uuid, String>>>,
-    uploading: bool,
+    started: Instant,
 }
 
 /// What the sidebar card draws this frame.
@@ -530,7 +524,7 @@ pub struct JobView {
     pub root: Option<Uuid>,
 }
 
-/// Before this much of a phase has passed, the card says it's estimating.
+/// Before this much time has passed, the card says it's estimating.
 const ETA_WARMUP_SECS: f64 = 3.0;
 
 impl ImportJob {
@@ -548,16 +542,7 @@ impl ImportJob {
             root: plan.root,
             refused: false,
         }));
-        let written = Arc::new(Mutex::new(HashMap::new()));
-        let names = Arc::new(Mutex::new(HashMap::new()));
-        let job = Self {
-            plan,
-            progress: progress.clone(),
-            phase_started: Instant::now(),
-            written: written.clone(),
-            names: names.clone(),
-            uploading: false,
-        };
+        let job = Self { plan, progress: progress.clone(), started: Instant::now() };
         let (dest, leave) = (job.plan.dest, job.plan.leave.clone());
         std::thread::spawn(move || {
             let w = walk(&core, &paths, dest, leave, Room::measure(&core, &status));
@@ -569,42 +554,14 @@ impl ImportJob {
                 ctx.request_repaint();
                 return;
             }
-            run(&core, w.writes, &progress, &written, &names, &ctx);
+            run(&core, w.writes, &progress, &ctx);
             let mut p = progress.lock().unwrap();
-            p.phase = Phase::Uploading;
+            p.phase = Phase::Done;
             p.current = None;
             drop(p);
             ctx.request_repaint();
         });
         job
-    }
-
-    /// Follows sync once the local writes are in.
-    pub fn tick(&mut self, status: &Status) {
-        if self.progress.lock().unwrap().phase != Phase::Uploading {
-            return;
-        }
-        if !self.uploading {
-            self.uploading = true;
-            self.phase_started = Instant::now();
-        }
-        let written = self.written.lock().unwrap();
-        let dirty: HashSet<Uuid> = status.dirty_locally.iter().copied().collect();
-        let left: Vec<&Uuid> = written.keys().filter(|id| dirty.contains(id)).collect();
-        let mut p = self.progress.lock().unwrap();
-        p.done_files = written.len() - left.len();
-        p.done_bytes = written
-            .iter()
-            .filter(|(id, _)| !dirty.contains(id))
-            .map(|(_, b)| b)
-            .sum();
-        p.current = status
-            .pushing_files
-            .iter()
-            .find_map(|id| self.names.lock().unwrap().get(id).cloned());
-        if left.is_empty() {
-            p.phase = Phase::Done;
-        }
     }
 
     pub fn view(&self) -> JobView {
@@ -613,16 +570,13 @@ impl ImportJob {
         let total_bytes = self.plan.bytes.max(1);
         let fraction = if total == 0 {
             1.0
-        } else if p.phase == Phase::Importing {
+        } else {
             // Weighted by the measured file and byte costs of writing.
             let (a, b) = (MS_PER_FILE, MS_PER_MB / 1e6);
             let all = a * total as f64 + b * total_bytes as f64;
             ((a * p.done_files as f64 + b * p.done_bytes as f64) / all).min(1.0) as f32
-        } else {
-            // Uploads cost per file; bytes barely register.
-            (p.done_files as f32 / total as f32).min(1.0)
         };
-        let elapsed = self.phase_started.elapsed().as_secs_f64();
+        let elapsed = self.started.elapsed().as_secs_f64();
         let eta = (p.phase != Phase::Done && elapsed >= ETA_WARMUP_SECS && fraction > 0.01)
             .then(|| elapsed * (1.0 - fraction as f64) / fraction as f64);
         JobView {
@@ -647,10 +601,7 @@ impl ImportJob {
 const MS_PER_FILE: f64 = 19.0;
 const MS_PER_MB: f64 = 10.0;
 
-fn run(
-    core: &Lb, writes: Vec<Write>, progress: &Mutex<Progress>, written: &Mutex<HashMap<Uuid, u64>>,
-    names: &Mutex<HashMap<Uuid, String>>, ctx: &egui::Context,
-) {
+fn run(core: &Lb, writes: Vec<Write>, progress: &Mutex<Progress>, ctx: &egui::Context) {
     let mut made: Vec<Option<Uuid>> = Vec::new();
     let resolve = |made: &Vec<Option<Uuid>>, p: Parent| match p {
         Parent::Existing(id) => Some(id),
@@ -683,7 +634,7 @@ fn run(
                         let data = fs::read(&disk).map_err(|e| e.to_string())?;
                         core.write_document(f.id, &data)
                             .map_err(|e| e.to_string())?;
-                        Ok((f.id, bytes))
+                        Ok(bytes)
                     });
                 (name, r)
             }
@@ -696,17 +647,15 @@ fn run(
                 let r = fs::read(&disk)
                     .map_err(|e| e.to_string())
                     .and_then(|d| core.write_document(id, &d).map_err(|e| e.to_string()))
-                    .map(|_| (id, bytes));
+                    .map(|_| bytes);
                 (name, r)
             }
         };
         let mut p = progress.lock().unwrap();
         match result {
-            Ok((id, bytes)) => {
+            Ok(bytes) => {
                 p.done_files += 1;
                 p.done_bytes += bytes;
-                written.lock().unwrap().insert(id, bytes);
-                names.lock().unwrap().insert(id, label);
             }
             Err(e) => p.failed.push((label, e)),
         }

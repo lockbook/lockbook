@@ -39,7 +39,6 @@ impl ImportCard<'_> {
     fn icon(&self) -> &'static str {
         match self.view.phase {
             Phase::Importing => phosphor::DOWNLOAD_SIMPLE,
-            Phase::Uploading => phosphor::CLOUD_ARROW_UP,
             Phase::Done if self.view.failed > 0 || self.view.refused => phosphor::WARNING_CIRCLE,
             Phase::Done => phosphor::CHECK_CIRCLE,
         }
@@ -49,7 +48,6 @@ impl ImportCard<'_> {
         let s = &self.view.subject;
         match self.view.phase {
             Phase::Importing => format!("Importing **{s}**"),
-            Phase::Uploading => format!("Importing **{s}**"),
             Phase::Done if self.view.refused => format!("**{s}** didn't import."),
             Phase::Done if self.view.failed > 0 => {
                 let n = self.view.failed;
