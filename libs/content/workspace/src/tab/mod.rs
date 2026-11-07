@@ -1,7 +1,7 @@
-use crate::file_cache::{FileCache, FilesExt};
+use crate::file_cache::{FileCache, FilesExt, link_id, split_fragment};
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
-use crate::search::{Search, SearchState};
+use crate::search::{Search, SearchState, SearchType};
 use crate::space_inspector::show::SpaceInspector;
 #[cfg(not(target_family = "wasm"))]
 use crate::tab::chat::Chat;
@@ -158,6 +158,36 @@ impl Place {
 
     pub fn at(dest: Destination, fragment: Option<Fragment>) -> Self {
         Self { dest, fragment }
+    }
+
+    /// The place a link names: a file by its id link (`lb://<id>#heading`, or
+    /// the external URL), or a search: `lb://search?q=…&type=content&scope=/notes`.
+    pub fn from_url(url: &str) -> Option<Self> {
+        if let Some(id) = link_id(url) {
+            let fragment = split_fragment(url).1.and_then(Fragment::from_url);
+            return Some(Self::at(Destination::File(id), fragment));
+        }
+        let url = url::Url::parse(url).ok().filter(|u| u.scheme() == "lb")?;
+        let is_search = url.host_str()?.eq_ignore_ascii_case("search");
+        if !is_search || !url.path().trim_matches('/').is_empty() {
+            return None;
+        }
+        let mut state = SearchState::default();
+        for (key, value) in url.query_pairs() {
+            match &*key {
+                "q" => state.query = value.into(),
+                "scope" => state.scope_path = value.into(),
+                "type" => {
+                    state.search_type = match &*value {
+                        "path" => SearchType::Path,
+                        "content" => SearchType::Content,
+                        _ => return None,
+                    }
+                }
+                _ => {}
+            }
+        }
+        Some(Self::new(Destination::Search(state)))
     }
 }
 
@@ -1654,6 +1684,35 @@ mod nav_tests {
         let mut from_file = Session::new(file(1));
         from_file.navigate(search(""));
         assert!(!session_is_disposable_search(&from_file));
+    }
+
+    #[test]
+    fn places_from_urls() {
+        let id = Uuid::from_u128(2);
+        let heading = Some(Fragment::Heading("next-steps".into()));
+        assert_eq!(
+            Place::from_url(&format!("lb://{id}#next-steps")),
+            Some(Place::at(Destination::File(id), heading))
+        );
+        assert_eq!(
+            Place::from_url(&format!("https://app.lockbook.net/open/{id}#page=3")),
+            Some(Place::at(Destination::File(id), Some(Fragment::Page(2))))
+        );
+        let state = SearchState {
+            search_type: SearchType::Content,
+            scope_path: "/my notes/".into(),
+            query: "q3 plan".into(),
+        };
+        assert_eq!(
+            Place::from_url(
+                "LB://Search?q=q3%20plan&type=content&scope=/my%20notes/&utm_source=mail"
+            ),
+            Some(Place::new(Destination::Search(state)))
+        );
+        assert_eq!(Place::from_url("lb://search"), Some(Place::new(search(""))));
+        for bad in ["lb://search?type=fuzzy", "lb://search/plan", "lb://mindmap", "https://x.com"] {
+            assert_eq!(Place::from_url(bad), None, "{bad}");
+        }
     }
 
     #[test]
