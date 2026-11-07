@@ -36,21 +36,25 @@ impl<T: TreeLike> LazyTree<T> {
 
 impl<T: TreeLike> LazyTree<T> {
     pub fn access_mode(&self, owner: Owner, id: &Uuid) -> LbResult<Option<UserAccessMode>> {
-        let mut file = self.find(id)?;
         let mut max_access_mode = None;
         let mut visited_ids = vec![];
-        while !visited_ids.contains(file.id()) {
-            visited_ids.push(*file.id());
+        let mut to_visit = vec![*id];
+        while let Some(id) = to_visit.pop() {
+            if visited_ids.contains(&id) {
+                continue;
+            }
+            visited_ids.push(id);
+            let file = self.find(&id)?;
             let access_mode = file.access_mode(&owner);
             if access_mode > max_access_mode {
                 max_access_mode = access_mode;
             }
-            if file.parent() == file.id() {
-                break; // root
-            } else if let Some(parent) = self.maybe_find(file.parent()) {
-                file = parent
-            } else {
-                break; // share root
+            if let Some(parent) = self.maybe_find_parent(file) {
+                to_visit.push(*parent.id());
+            }
+            // an attachments folder grants what its document grants
+            if let Some(document) = self.maybe_find_attached(file) {
+                to_visit.push(*document.id());
             }
         }
         Ok(max_access_mode)
@@ -90,44 +94,45 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(&self.children)
     }
 
+    /// A file is deleted when it, a folder above it, or the document an attachments folder
+    /// belongs to is explicitly deleted.
     pub fn calculate_deleted(&mut self, id: &Uuid) -> LbResult<bool> {
-        let (visited_ids, deleted) = {
-            let mut file = self.find(id)?;
-            let mut visited_ids = vec![];
-            let mut deleted = false;
-
-            while !file.is_root()
-                && self.maybe_find(file.parent()).is_some()
-                && !visited_ids.contains(file.id())
-            {
-                visited_ids.push(*file.id());
-                if let Some(&implicit) = self.implicit_deleted.get(file.id()) {
-                    deleted = implicit;
-                    break;
-                }
-
-                if file.explicitly_deleted() {
+        if let Some(&deleted) = self.implicit_deleted.get(id) {
+            return Ok(deleted);
+        }
+        let mut visited_ids = vec![];
+        let mut to_visit = vec![*id];
+        let mut deleted = false;
+        while let Some(id) = to_visit.pop() {
+            match self.implicit_deleted.get(&id) {
+                Some(true) => {
                     deleted = true;
                     break;
                 }
-
-                file = match self.maybe_find_parent(file) {
-                    Some(file) => file,
-                    None => {
-                        if !file.user_access_keys().is_empty() {
-                            break;
-                        } else {
-                            return Err(LbErrKind::FileParentNonexistent)?;
-                        }
-                    }
-                }
+                Some(false) => continue,
+                None if visited_ids.contains(&id) => continue,
+                None => visited_ids.push(id),
             }
+            let file = self.find(&id)?;
+            if file.explicitly_deleted() {
+                deleted = true;
+                break;
+            }
+            if let Some(parent) = self.maybe_find_parent(file) {
+                to_visit.push(*parent.id());
+            }
+            if let Some(document) = self.maybe_find_attached(file) {
+                to_visit.push(*document.id());
+            }
+        }
 
-            (visited_ids, deleted)
-        };
-
-        for id in visited_ids {
-            self.implicit_deleted.insert(id, deleted);
+        // everything a live file leads to is live too
+        if deleted {
+            self.implicit_deleted.insert(*id, true);
+        } else {
+            for id in visited_ids {
+                self.implicit_deleted.insert(id, false);
+            }
         }
 
         Ok(deleted)
@@ -180,22 +185,35 @@ impl<T: TreeLike> LazyTree<T> {
                 break;
             }
 
+            // an attachments folder whose parent we can't see takes its key from its document
+            let file = self.find(&file_id)?;
+            let next = match self.maybe_find_parent(file) {
+                Some(parent) => *parent.id(),
+                None => *self
+                    .maybe_find_attached(file)
+                    .ok_or(LbErrKind::FileParentNonexistent)?
+                    .id(),
+            };
             visited_ids.push(file_id);
-            file_id = *self.find_parent(self.find(&file_id)?)?.id();
+            file_id = next;
         }
 
         for id in visited_ids.iter().rev() {
             let decrypted_key = {
                 let file = self.find(id)?;
-                let parent = self.find_parent(file)?;
-                let parent_key =
-                    keychain
-                        .get_aes_key(parent.id())?
-                        .ok_or(LbErrKind::Unexpected(
-                            "parent key should have been populated by prior routine".to_string(),
-                        ))?;
-                let encrypted_key = file.folder_access_key();
-                symkey::decrypt(&parent_key, encrypted_key)?
+                let (source, encrypted_key) = match self.maybe_find_parent(file) {
+                    Some(parent) => (*parent.id(), file.folder_access_key()),
+                    None => {
+                        let attachments_of = file
+                            .attachments_of()
+                            .ok_or(LbErrKind::FileParentNonexistent)?;
+                        (attachments_of.id, &attachments_of.key)
+                    }
+                };
+                let source_key = keychain.get_aes_key(&source)?.ok_or(LbErrKind::Unexpected(
+                    "parent key should have been populated by prior routine".to_string(),
+                ))?;
+                symkey::decrypt(&source_key, encrypted_key)?
             };
             keychain.insert_aes_key(*id, decrypted_key)?;
         }

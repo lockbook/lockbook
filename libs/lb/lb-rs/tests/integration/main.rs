@@ -30,6 +30,7 @@ mod ipc_event_tests;
 mod ipc_notification_tests;
 mod lazy_tests;
 mod link_tests;
+mod meta_v2_tests;
 mod path_service_tests;
 mod path_tests;
 mod pin_service_tests;
