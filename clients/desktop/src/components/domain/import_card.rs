@@ -39,7 +39,7 @@ impl ImportCard<'_> {
     fn icon(&self) -> &'static str {
         match self.view.phase {
             Phase::Importing => phosphor::DOWNLOAD_SIMPLE,
-            Phase::Done if self.view.failed > 0 => phosphor::WARNING_CIRCLE,
+            Phase::Done if self.view.failed > 0 || self.view.refused => phosphor::WARNING_CIRCLE,
             Phase::Done => phosphor::CHECK_CIRCLE,
         }
     }
@@ -48,6 +48,7 @@ impl ImportCard<'_> {
         let s = &self.view.subject;
         match self.view.phase {
             Phase::Importing => format!("Importing **{s}**"),
+            Phase::Done if self.view.refused => format!("**{s}** didn't import."),
             Phase::Done if self.view.failed > 0 => {
                 let n = self.view.failed;
                 format!("**{}** {} didn't import.", count(n), if n == 1 { "file" } else { "files" })
@@ -68,6 +69,9 @@ impl ImportCard<'_> {
             out.extend(v.current.clone());
             return out;
         }
+        if v.refused {
+            return vec!["It no longer fits your account.".into()];
+        }
         if v.failed > 0 {
             let mut names = v.failed_names.join(", ");
             if v.failed > v.failed_names.len() {
@@ -79,6 +83,14 @@ impl ImportCard<'_> {
         let mut parts = vec![format!("{} {files}", count(v.total))];
         if v.same > 0 {
             parts.push(format!("{} already here", count(v.same)));
+        }
+        if v.chosen > 0 {
+            let noun = match (v.chosen_kind, v.chosen) {
+                (Some(kind), n) => workspace_rs::import::noun(kind, n),
+                (None, 1) => "file",
+                (None, _) => "files",
+            };
+            parts.push(format!("{} {noun} skipped", count(v.chosen)));
         }
         if v.unreadable > 0 {
             parts.push(format!("{} couldn’t be read", count(v.unreadable)));
@@ -138,8 +150,11 @@ impl PadContent for ImportCard<'_> {
             phosphor_ui_font_id(),
             Color32::PLACEHOLDER,
         );
-        let icon_ink =
-            if self.view.failed > 0 && !self.running() { t.danger() } else { t.accent() };
+        let icon_ink = if (self.view.failed > 0 || self.view.refused) && !self.running() {
+            t.danger()
+        } else {
+            t.accent()
+        };
         let icon_at =
             pos2(left + (m.mark - icon.size().x) / 2.0, top + (m.mark - icon.size().y) / 2.0);
         ui.painter().galley(icon_at, icon, icon_ink);

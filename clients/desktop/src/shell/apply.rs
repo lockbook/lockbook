@@ -601,18 +601,33 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
             replan_import(app, ctx);
         }
+        A::ImportSkipKind(kind) => {
+            if let Some(Modal::ImportParent { plan: Some(plan), .. }) = &mut app.modal {
+                plan.toggle_kind(kind);
+            }
+        }
         A::ConfirmImportParent => {
-            // Only a settled plan that writes something confirms.
+            // Only a settled plan that writes something and fits the account confirms.
             let ready = matches!(
                 &app.modal,
                 Some(Modal::ImportParent { plan: Some(plan), planning: None, .. })
-                    if plan.writes() > 0
+                    if plan.writes() > 0 && plan.over_cap().is_none()
             );
             if ready {
                 if let Some(Modal::ImportParent { plan: Some(plan), .. }) = app.modal.take() {
                     import_plan(app, ctx, plan);
                 }
             }
+        }
+        A::ImportUpgrade => {
+            // Held until the account is premium, then offered again with nothing left out.
+            if let Some(Modal::ImportParent { paths, dest: Some(dest), plan, .. }) =
+                app.modal.take()
+            {
+                let cap = plan.and_then(|p| p.room).map_or(0, |r| r.cap);
+                app.import_after_upgrade = Some((paths, dest, cap));
+            }
+            apply(app, ctx, A::OpenUpgrade);
         }
         A::ImportShow(id) => {
             if let Some(r) = app.session.ready_mut() {
@@ -623,8 +638,12 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             app.import_job = None;
         }
         A::ImportDismiss => app.import_job = None,
-        A::ImportPlanned(Ok(p)) => {
+        A::ImportPlanned(Ok(mut p)) => {
             if let Some(Modal::ImportParent { plan, planning, .. }) = &mut app.modal {
+                // A new destination keeps what the person chose to skip.
+                if let Some(old) = plan.take() {
+                    p.skipping(old.skip);
+                }
                 *plan = Some(p);
                 *planning = None;
             }
@@ -635,6 +654,17 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
             eprintln!("import plan: {e}");
             app.toasts.error("The import couldn’t be read.");
+        }
+        A::ImportResume => {
+            if let Some((paths, dest, _)) = app.import_after_upgrade.take() {
+                app.modal = Some(Modal::ImportParent {
+                    paths,
+                    dest: Some(dest),
+                    plan: None,
+                    planning: None,
+                });
+                replan_import(app, ctx);
+            }
         }
         A::OpenSearch(search_type) => {
             if let Some(r) = app.session.ready_mut() {
@@ -1534,27 +1564,46 @@ fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBu
         )));
         d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_import_parent"));
     });
+    app.import_after_upgrade = None;
     app.modal = Some(Modal::ImportParent { paths, dest, plan: None, planning: None });
     replan_import(app, ctx);
 }
 
 /// Plan the open import again off the UI thread.
 fn replan_import(app: &mut ShellApp, ctx: &Context) {
-    let Some(core) = app.session.ready().map(|r| r.workspace.core.clone()) else {
+    let Some((core, status)) = app
+        .session
+        .ready()
+        .map(|r| (r.workspace.core.clone(), r.status.clone()))
+    else {
         return;
     };
     if let Some(Modal::ImportParent { paths, dest: Some(dest), planning, .. }) = &mut app.modal {
-        *planning =
-            Some(workspace_rs::import::plan_in_background(core, paths.clone(), *dest, ctx.clone()));
+        *planning = Some(workspace_rs::import::plan_in_background(
+            core,
+            paths.clone(),
+            *dest,
+            status,
+            ctx.clone(),
+        ));
     }
 }
 
-/// A finished plan for the open sheet.
+/// A finished plan for the open sheet, or a held import the account now has room for.
 pub(crate) fn import_event(app: &ShellApp) -> Option<A> {
-    let Some(Modal::ImportParent { planning: Some(rx), .. }) = &app.modal else {
-        return None;
-    };
-    rx.try_recv().ok().map(A::ImportPlanned)
+    if let Some(Modal::ImportParent { planning: Some(rx), .. }) = &app.modal {
+        return rx.try_recv().ok().map(A::ImportPlanned);
+    }
+    let (_, _, waiting_on) = app.import_after_upgrade.as_ref()?;
+    let cap = app
+        .session
+        .ready()?
+        .status
+        .space_used
+        .as_ref()?
+        .data_cap
+        .exact;
+    (cap > *waiting_on && app.modal.is_none()).then_some(A::ImportResume)
 }
 
 fn import_plan(app: &mut ShellApp, ctx: &Context, plan: workspace_rs::import::ImportPlan) {
@@ -1562,8 +1611,8 @@ fn import_plan(app: &mut ShellApp, ctx: &Context, plan: workspace_rs::import::Im
         return;
     };
     r.expanded.insert(plan.dest());
-    let core = r.workspace.core.clone();
-    app.import_job = Some(workspace_rs::import::ImportJob::start(core, plan, ctx.clone()));
+    let (core, status) = (r.workspace.core.clone(), r.status.clone());
+    app.import_job = Some(workspace_rs::import::ImportJob::start(core, plan, status, ctx.clone()));
 }
 
 fn request_sync(app: &mut ShellApp, ctx: &Context) {

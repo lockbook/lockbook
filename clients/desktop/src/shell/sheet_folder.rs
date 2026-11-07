@@ -533,7 +533,7 @@ fn folder_picker_sheet(
                             dest_action_summary(ui, t, app, subject, "will be saved to", dest)
                         }
                         FolderPickKind::ImportParent => match plan {
-                            Some(plan) => import_plan_block(ui, t, app, plan),
+                            Some(plan) => import_plan_block(ui, t, app, queue, plan),
                             None => {
                                 let name = display_file_name(subject);
                                 sentence(ui, t, &format!("Counting the files in **{name}**…"))
@@ -551,7 +551,10 @@ fn folder_picker_sheet(
                         .primary_enabled(
                             dest.is_some()
                                 && (!kind_is_import(kind)
-                                    || (!planning && plan.is_some_and(|p| p.writes() > 0))),
+                                    || (!planning
+                                        && plan.is_some_and(|p| {
+                                            p.writes() > 0 && p.over_cap().is_none()
+                                        }))),
                         )
                         .primary_shortcut(shortcut_enter()),
                 );
@@ -598,11 +601,14 @@ fn dest_action_summary(
     );
 }
 
-/// What an import will do: what comes in and where, then what's skipped.
+/// What an import will do: what comes in and where, then what's skipped, then
+/// how it sits against the account's cap with ways to make it fit.
 fn import_plan_block(
-    ui: &mut egui::Ui, t: &Theme, app: &ShellApp, plan: &workspace_rs::import::ImportPlan,
+    ui: &mut egui::Ui, t: &Theme, app: &ShellApp, queue: &mut Vec<Action>,
+    plan: &workspace_rs::import::ImportPlan,
 ) {
     use crate::components::domain::import_card::count;
+    use crate::components::{Button, form_group, form_row_detail, form_toggle_detail};
     use workspace_rs::import;
 
     let path = match folder_path_slash(app, Some(plan.dest())).as_str() {
@@ -610,6 +616,7 @@ fn import_plan_block(
         p => p.to_owned(),
     };
     let subject = display_file_name(&plan.subject).to_owned();
+    let premium = plan.room.is_some_and(|r| r.premium());
 
     let sum = plan.summary();
     let writes = plan.writes();
@@ -620,6 +627,14 @@ fn import_plan_block(
     let mut skips: Vec<String> = Vec::new();
     if sum.same > 0 {
         skips.push(format!("**{}** existing {}", count(sum.same), plural(sum.same, "file")));
+    }
+    for k in &plan.skip.kinds {
+        let n = plan
+            .kinds
+            .iter()
+            .find(|(x, _)| x == k)
+            .map_or(0, |(_, s)| s.files);
+        skips.push(format!("**{}** {}", count(n), import::noun(*k, n)));
     }
     let hidden = plan.ignored_names(import::IgnoreReason::Hidden);
     match hidden.len() {
@@ -675,6 +690,55 @@ fn import_plan_block(
         n => text.push_str(&format!(" **{}** links can’t be imported.", count(n))),
     }
     sentence(ui, t, text.trim_start());
+    if let Some((after, cap)) = plan.over_cap() {
+        let over_text = if premium {
+            let (after, cap) = (si_bytes(after), si_bytes(cap));
+            format!(
+                "This import brings your account to **{after}**, over its **{cap}** limit. Reduce the size of the import."
+            )
+        } else {
+            // How far over, since the total and the cap can round to the same size.
+            let (over, cap) = (si_bytes(after - cap), si_bytes(cap));
+            format!(
+                "This import goes over the **{cap}** free tier limit by **{over}**. Reduce the size of the import or upgrade to premium."
+            )
+        };
+        ui.add(Spacer::new(Space::Sm));
+        sentence(ui, t, &over_text);
+    }
+
+    if !plan.whole_over_cap() {
+        return;
+    }
+    // Ways to fit: each kind there is, or Premium.
+    ui.add(Spacer::new(Space::Md));
+    form_group(ui, t, |ui| {
+        for (i, (kind, total)) in plan.kinds.iter().enumerate() {
+            if i > 0 {
+                ui.add(Spacer::new(Space::Sm));
+            }
+            let mut on = plan.skip.kinds.contains(kind);
+            let label = format!("Skip all {}", import::plural(*kind));
+            let detail = format!(
+                "{} {}, {}",
+                count(total.files),
+                plural(total.files, "file"),
+                si_bytes(total.added_bytes)
+            );
+            if form_toggle_detail(ui, t, &label, &detail, &mut on).changed() {
+                queue.push(A::ImportSkipKind(*kind));
+            }
+        }
+        if premium {
+            return;
+        }
+        ui.add(Spacer::new(Space::Sm));
+        form_row_detail(ui, t, "Bring everything", "Premium holds 30 GB", |ui| {
+            if Button::secondary(t, "Upgrade").show(ui).clicked() {
+                queue.push(A::ImportUpgrade);
+            }
+        });
+    });
 }
 
 fn plural(n: usize, one: &str) -> String {

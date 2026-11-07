@@ -120,6 +120,8 @@ pub struct ShellApp {
     pub nudges: Option<nudge::Nudges>,
     /// The import running or just finished, drawn above the sync footer.
     pub import_job: Option<workspace_rs::import::ImportJob>,
+    /// An import waiting on an upgrade: its paths, its folder, and the cap it must outgrow.
+    pub(crate) import_after_upgrade: Option<(Vec<std::path::PathBuf>, Uuid, u64)>,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -189,6 +191,7 @@ impl Default for ShellApp {
             incoming_link: None,
             nudges: None,
             import_job: None,
+            import_after_upgrade: None,
         }
     }
 }

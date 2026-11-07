@@ -406,8 +406,14 @@ pub enum Action {
     },
     ImportParentSelect(Uuid),
     ConfirmImportParent,
+    /// Leave a kind of file out of the import (or bring it back).
+    ImportSkipKind(workspace_rs::import::Kind),
+    /// Hold the open import, upgrade, and offer it again with room for everything.
+    ImportUpgrade,
     /// A plan for the open import finished.
     ImportPlanned(Result<workspace_rs::import::ImportPlan, String>),
+    /// The account's cap grew past the one a held import was waiting on.
+    ImportResume,
     /// Reveal the folder an import made.
     ImportShow(Uuid),
     ImportDismiss,
@@ -546,7 +552,10 @@ impl Action {
             Self::OpenImportParent { .. } => "OpenImportParent",
             Self::ImportParentSelect(_) => "ImportParentSelect",
             Self::ConfirmImportParent => "ConfirmImportParent",
+            Self::ImportSkipKind(_) => "ImportSkipKind",
+            Self::ImportUpgrade => "ImportUpgrade",
             Self::ImportPlanned(_) => "ImportPlanned",
+            Self::ImportResume => "ImportResume",
             Self::ImportShow(_) => "ImportShow",
             Self::ImportDismiss => "ImportDismiss",
             Self::OpenSearch(_) => "OpenSearch",
