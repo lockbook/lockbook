@@ -655,6 +655,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::ImportShow(id) => {
             if let Some(r) = app.session.ready_mut() {
+                r.expanded.insert(id);
                 super::reveal_and_scroll(r, id);
                 r.select_only(id);
             }

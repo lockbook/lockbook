@@ -84,7 +84,8 @@ impl ImportCard<'_> {
             parts.push(format!("{} already here", count(v.same)));
         }
         if v.skipped > 0 {
-            parts.push(format!("{} app files skipped", count(v.skipped)));
+            let noun = if v.skipped == 1 { "app file" } else { "app files" };
+            parts.push(format!("{} {noun} skipped", count(v.skipped)));
         }
         vec![parts.join(" · ")]
     }
