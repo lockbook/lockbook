@@ -16,6 +16,7 @@ pub mod import_export;
 pub mod integrity;
 pub mod keychain;
 pub mod lb_id;
+pub(crate) mod lock_shame;
 pub mod logging;
 pub mod path;
 pub mod perf;
