@@ -51,6 +51,7 @@ mod sync_service_tests;
 mod sync_service_unsynced_change_new_synced_client_tests;
 mod sync_service_unsynced_change_synced_client_tests;
 mod sync_service_unsynced_client_tests;
+mod sync_worker_tests;
 #[cfg(not(target_family = "wasm"))]
 mod transaction_tests;
 mod tree_composition_tests;
