@@ -1,35 +1,14 @@
 //! CJK fonts come from the OS: they are tens of megabytes each, and every
 //! platform but Linux ships them. Missing ones leave CJK as tofu, as before.
 
-use super::system;
 use glyphon::fontdb::{Database, FaceInfo, Language, Style, Weight};
 use std::sync::OnceLock;
 
-const SC: &[&str] = &[
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Noto Sans CJK SC",
-    "Noto Sans SC",
-    "Source Han Sans SC",
-    "Microsoft YaHei",
-];
-const TC: &[&str] = &[
-    "PingFang TC",
-    "Noto Sans CJK TC",
-    "Noto Sans TC",
-    "Source Han Sans TC",
-    "Microsoft JhengHei",
-];
-const HK: &[&str] = &["PingFang HK", "Noto Sans CJK HK", "Noto Sans HK", "Source Han Sans HC"];
-const JA: &[&str] =
-    &["Hiragino Sans", "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans", "Yu Gothic"];
-const KO: &[&str] = &[
-    "Apple SD Gothic Neo",
-    "Noto Sans CJK KR",
-    "Noto Sans KR",
-    "Source Han Sans K",
-    "Malgun Gothic",
-];
+const SC: &[&str] = &["Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC"];
+const TC: &[&str] = &["Noto Sans CJK TC", "Noto Sans TC", "Source Han Sans TC"];
+const HK: &[&str] = &["Noto Sans CJK HK", "Noto Sans HK", "Source Han Sans HC"];
+const JA: &[&str] = &["Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans"];
+const KO: &[&str] = &["Noto Sans CJK KR", "Noto Sans KR", "Source Han Sans K"];
 const OTHER: &[&str] = &["WenQuanYi Micro Hei", "WenQuanYi Zen Hei", "Droid Sans Fallback"];
 
 const GROUPS: [&[&str]; 5] = [SC, TC, HK, JA, KO];
@@ -40,18 +19,35 @@ const JA_I: usize = 3;
 const KO_I: usize = 4;
 
 /// Han and kana's fallback families, in the user's preferred forms.
-pub(super) fn han_order() -> Vec<&'static str> {
-    order(han_group())
+pub(super) fn han_order() -> &'static [&'static str] {
+    static ORDER: OnceLock<Vec<&'static str>> = OnceLock::new();
+    ORDER.get_or_init(|| order(han_group()))
 }
 
 /// Bopomofo's fallback families, Traditional forms first.
-pub(super) fn bopomofo_order() -> Vec<&'static str> {
-    order(TC_I)
+#[cfg(not(any(target_vendor = "apple", windows)))]
+pub(super) fn bopomofo_order() -> &'static [&'static str] {
+    static ORDER: OnceLock<Vec<&'static str>> = OnceLock::new();
+    ORDER.get_or_init(|| order(TC_I))
 }
 
 /// Hangul's fallback families, Korean forms first.
-pub(super) fn hangul_order() -> Vec<&'static str> {
-    order(KO_I)
+#[cfg(not(any(target_vendor = "apple", windows)))]
+pub(super) fn hangul_order() -> &'static [&'static str] {
+    static ORDER: OnceLock<Vec<&'static str>> = OnceLock::new();
+    ORDER.get_or_init(|| order(KO_I))
+}
+
+/// The language whose forms Han and kana are asked in: the first CJK one the
+/// user prefers.
+pub(super) fn han_language() -> &'static str {
+    match han_group() {
+        TC_I => "zh-Hant",
+        HK_I => "zh-HK",
+        JA_I => "ja",
+        KO_I => "ko",
+        _ => "zh-Hans",
+    }
 }
 
 /// Family names to try, the given group first and its nearest forms next.
@@ -83,11 +79,18 @@ pub fn set_preferred_languages(languages: Vec<String>) {
 /// Han is unified across languages, so its glyph forms follow the first
 /// CJK language the user prefers (Simplified Chinese when there is none).
 fn han_group() -> usize {
-    let group = match PREFERRED_LANGUAGES.get() {
-        Some(languages) => languages.iter().find_map(|l| locale_group(l)),
-        None => sys_locale::get_locales().find_map(|l| locale_group(&l)),
-    };
-    group.unwrap_or(SC_I)
+    languages()
+        .iter()
+        .find_map(|l| locale_group(l))
+        .unwrap_or(SC_I)
+}
+
+/// The languages the user reads, most preferred first.
+pub(super) fn languages() -> Vec<String> {
+    match PREFERRED_LANGUAGES.get() {
+        Some(languages) => languages.clone(),
+        None => sys_locale::get_locales().collect(),
+    }
 }
 
 fn locale_group(locale: &str) -> Option<usize> {
@@ -108,31 +111,33 @@ fn locale_group(locale: &str) -> Option<usize> {
     }
 }
 
-/// Each family found, in fallback order, with its faces nearest regular and bold.
-fn families() -> impl Iterator<Item = (&'static FaceInfo, &'static FaceInfo)> {
-    order(han_group()).into_iter().filter_map(|family| {
-        let faces: Vec<&FaceInfo> = system::faces(family)
-            .filter(|f| f.style == Style::Normal)
-            .collect();
-        let nearest = |w: u16| faces.iter().min_by_key(|f| f.weight.0.abs_diff(w)).copied();
-        Some((nearest(400)?, nearest(700)?))
-    })
+/// Whether `family` is one of the CJK fallback families.
+pub(super) fn is_cjk(family: &str) -> bool {
+    GROUPS
+        .iter()
+        .chain([&OTHER])
+        .any(|group| group.contains(&family))
 }
 
-/// Appends the system's CJK faces after everything already in `db`: a
-/// regular and a bold per family, as script fallback only takes exact
-/// weights of static faces.
-pub fn load(db: &mut Database) {
-    for (regular, bold) in families() {
-        for (face, weight) in [(regular, Weight::NORMAL), (bold, Weight::BOLD)] {
-            let mut info = system::shared(face);
-            info.weight = weight;
-            if weight == Weight::BOLD {
-                info.families
-                    .push((BOLD_ALIAS.into(), Language::English_UnitedStates));
-            }
-            db.push_face_info(info);
+/// Appends a CJK family's `faces` to `db`: a regular and a bold, as script
+/// fallback only takes exact weights of static faces.
+pub(super) fn add(db: &mut Database, faces: &[FaceInfo]) {
+    let upright: Vec<&FaceInfo> = faces.iter().filter(|f| f.style == Style::Normal).collect();
+    let nearest = |w: u16| {
+        upright
+            .iter()
+            .min_by_key(|f| f.weight.0.abs_diff(w))
+            .copied()
+    };
+    let (Some(regular), Some(bold)) = (nearest(400), nearest(700)) else { return };
+    for (face, weight) in [(regular, Weight::NORMAL), (bold, Weight::BOLD)] {
+        let mut info = face.clone();
+        info.weight = weight;
+        if weight == Weight::BOLD {
+            info.families
+                .push((BOLD_ALIAS.into(), Language::English_UnitedStates));
         }
+        db.push_face_info(info);
     }
 }
 
@@ -140,27 +145,6 @@ pub fn load(db: &mut Database) {
 /// they'd outrank the other fonts for bold symbols. Bold CJK text reaches
 /// them by family name.
 pub(super) const BOLD_ALIAS: &str = ".lockbook CJK bold";
-
-/// Each family's regular face as a fallback for every egui text family.
-pub fn register_egui(fonts: &mut epaint::text::FontDefinitions, scale: f32) {
-    use epaint::text::{FontData, FontFamily, FontTweak};
-
-    let regulars: Vec<_> = families()
-        .filter_map(|(face, _)| {
-            Some((face.post_script_name.clone(), system::face_data(face)?, face.index))
-        })
-        .collect();
-    for (name, data, index) in &regulars {
-        let data = FontData::from_blob(data.clone(), *index)
-            .tweak(FontTweak { scale, ..Default::default() });
-        fonts.font_data.insert(name.clone(), data.into());
-    }
-    for (family, list) in fonts.families.iter_mut() {
-        if !matches!(family, FontFamily::Name(n) if &**n == "phosphor" || &**n == "Icons") {
-            list.extend(regulars.iter().map(|(name, ..)| name.clone()));
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

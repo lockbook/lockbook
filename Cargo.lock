@@ -10683,7 +10683,10 @@ dependencies = [
  "merman",
  "ndk-sys 0.4.1+23.1.7779620",
  "num_cpus",
+ "objc2 0.6.4",
  "objc2-app-kit 0.3.2",
+ "objc2-core-foundation",
+ "objc2-core-text",
  "objc2-foundation 0.3.2",
  "pollster 0.2.5",
  "rand 0.8.7",
@@ -10753,6 +10756,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-time",
  "windows",
+ "windows-core",
 ]
 
 [[package]]

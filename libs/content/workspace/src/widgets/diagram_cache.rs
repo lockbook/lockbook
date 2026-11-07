@@ -10,7 +10,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::ops::Range;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 
 use egui::{Color32, ColorImage, Context, Id, TextureHandle, TextureId, TextureOptions, Vec2};
 use glyphon::cosmic_text::{
@@ -180,7 +180,7 @@ impl DiagramTheme {
 
 impl Inner {
     fn key(&self, source: &str) -> u64 {
-        hash(&(source, self.theme_key))
+        hash(&(source, self.theme_key, crate::font::chosen_seq()))
     }
 
     fn theme(&self) -> &DiagramTheme {
@@ -325,10 +325,12 @@ impl DiagramCache {
         let tree = match cached {
             Some(tree) => tree,
             None => {
-                catch_unwind(AssertUnwindSafe(|| render(source, &theme, OperationControl::new())))
-                    .ok()?
-                    .ok()?
-                    .0
+                catch_unwind(AssertUnwindSafe(|| {
+                    render(source, &theme, OperationControl::new(), true)
+                }))
+                .ok()?
+                .ok()?
+                .0
             }
         };
         const MARGIN: f32 = 16.0;
@@ -399,7 +401,7 @@ impl DiagramCache {
     fn run_job(&self, Job { key, source, theme, width_px }: Job, control: OperationControl) {
         // a panic fails its diagram, not the render thread
         let rendered = catch_unwind(AssertUnwindSafe(|| {
-            let (tree, size) = render(&source, &theme, control.clone())?;
+            let (tree, size) = render(&source, &theme, control.clone(), false)?;
             let texture = width_px.and_then(|w| Some((w, self.upload(key, &tree, w)?, true)));
             Ok((tree, size, texture))
         }))
@@ -474,10 +476,12 @@ fn hash(value: &impl Hash) -> u64 {
 }
 
 /// Parsed SVG and its natural size in points.
+/// `stale` renders in the fonts last built rather than building new ones.
 fn render(
-    source: &str, theme: &DiagramTheme, control: OperationControl,
+    source: &str, theme: &DiagramTheme, control: OperationControl, stale: bool,
 ) -> Result<(Arc<usvg::Tree>, Vec2), DiagramError> {
     let _span = tracing::trace_span!("Diagram::render", len = source.len()).entered();
+    let fonts = fonts(stale).ok_or("diagram fonts aren't loaded yet")?;
     let merman_span = tracing::trace_span!("Diagram::merman").entered();
     let resolved = Presentation::new()
         .with_profile(PresentationProfile::MermanModern)
@@ -492,7 +496,7 @@ fn render(
     };
     let request = SvgRequest {
         environment: SvgEnvironment::deterministic()
-            .with_text_measurement_policy(fonts().measurement.clone()),
+            .with_text_measurement_policy(fonts.measurement.clone()),
         pipeline: Some(output.pipeline()),
         presentation: resolved.render_policy(),
         options: merman::svg::SvgRenderOptions {
@@ -515,7 +519,6 @@ fn render(
     };
     drop(merman_span);
 
-    let fonts = fonts();
     let svg = {
         let _span = tracing::trace_span!("Diagram::outline_labels").entered();
         fonts.shaper.lock().unwrap().outline_labels(&svg, &fonts.db)
@@ -589,36 +592,52 @@ struct Fonts {
     measurement: TextMeasurementPolicy,
 }
 
-fn fonts() -> &'static Fonts {
-    static FONTS: OnceLock<Fonts> = OnceLock::new();
-    FONTS.get_or_init(|| {
-        let mut db = usvg::fontdb::Database::new();
-        crate::font::load(&mut db);
-        // labels left as text fall back to serif
-        let sans = db.family_name(&usvg::fontdb::Family::SansSerif).to_string();
-        db.set_serif_family(sans);
-        // a clone keeps the face ids, so the shaper's picks name faces in `db`
-        let fallback = crate::font::Fallback::default();
-        let shaper = Arc::new(Mutex::new(Shaper {
-            fonts: FontSystem::new_with_locale_and_db_and_fallback(
-                "en-US".into(),
-                db.clone(),
-                fallback,
-            ),
-            ems: HashMap::new(),
-            swash: SwashCache::new(),
-        }));
-        let measure = shaper.clone();
-        let measurer = DeterministicTextMeasurer::default()
-            .with_width_callback(move |text, style| measure.lock().unwrap().width(text, style));
-        let id = TextMeasurementProfileIdentity::new(
-            MeasurementProfileId::new("lockbook.app-fonts").expect("valid id"),
-            "1".to_string(),
-        )
-        .expect("valid identity");
-        let measurement = TextMeasurementPolicy::uniform(TextMeasurementProfile::new(id, measurer));
-        Fonts { db: Arc::new(db), shaper, measurement }
-    })
+/// The fonts for the families last chosen, built outside the lock so a
+/// caller only ever waits for the swap. `stale` takes the last built
+/// instead, and none before any were: the UI thread never builds them.
+fn fonts(stale: bool) -> Option<Arc<Fonts>> {
+    static FONTS: Mutex<Option<(u64, Arc<Fonts>)>> = Mutex::new(None);
+    let seq = crate::font::chosen_seq();
+    match &*FONTS.lock().unwrap() {
+        Some((at, current)) if *at == seq || stale => return Some(current.clone()),
+        None if stale => return None,
+        _ => {}
+    }
+    let current = Arc::new(new_fonts());
+    let mut fonts = FONTS.lock().unwrap();
+    if fonts.as_ref().is_none_or(|(at, _)| *at < seq) {
+        *fonts = Some((seq, current.clone()));
+    }
+    Some(current)
+}
+
+fn new_fonts() -> Fonts {
+    let mut db = usvg::fontdb::Database::new();
+    crate::font::load(&mut db);
+    // labels left as text fall back to serif
+    let sans = db.family_name(&usvg::fontdb::Family::SansSerif).to_string();
+    db.set_serif_family(sans);
+    // a clone keeps the face ids, so the shaper's picks name faces in `db`
+    let fallback = crate::font::Fallback::default();
+    let shaper = Arc::new(Mutex::new(Shaper {
+        fonts: FontSystem::new_with_locale_and_db_and_fallback(
+            "en-US".into(),
+            db.clone(),
+            fallback,
+        ),
+        ems: HashMap::new(),
+        swash: SwashCache::new(),
+    }));
+    let measure = shaper.clone();
+    let measurer = DeterministicTextMeasurer::default()
+        .with_width_callback(move |text, style| measure.lock().unwrap().width(text, style));
+    let id = TextMeasurementProfileIdentity::new(
+        MeasurementProfileId::new("lockbook.app-fonts").expect("valid id"),
+        "1".to_string(),
+    )
+    .expect("valid identity");
+    let measurement = TextMeasurementPolicy::uniform(TextMeasurementProfile::new(id, measurer));
+    Fonts { db: Arc::new(db), shaper, measurement }
 }
 
 /// How [`Shaper::outline_labels`] marks labels, numbered.

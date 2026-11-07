@@ -33,6 +33,7 @@ impl Workspace {
         {
             cache.lock().unwrap().begin_frame();
         }
+        crate::font::poll(ui.ctx());
         self.images.begin_frame();
         crate::widgets::diagram_cache::DiagramCache::of(ui.ctx()).begin_frame();
         self.tabs.begin_frame();
