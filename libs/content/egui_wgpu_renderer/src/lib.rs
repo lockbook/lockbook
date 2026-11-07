@@ -140,8 +140,8 @@ impl<'w> RendererState<'w> {
         }
     }
 
-    /// When set, frames that exceed `frame_budget` will panic with a
-    /// developer-shaming message at the end of `end_frame`.
+    /// When set, frames that exceed `frame_budget` write a developer-shaming
+    /// panic report and exit the process.
     pub fn set_frame_budget(&mut self, frame_budget: Option<Duration>) {
         self.frame_budget = frame_budget;
     }
@@ -239,7 +239,9 @@ impl<'w> RendererState<'w> {
             return;
         }
 
-        frame_shame::frame_budget_destroyed(elapsed, budget);
+        // The panic hook writes the report; exiting keeps the app from running on without its UI thread.
+        let _ = std::panic::catch_unwind(|| frame_shame::frame_budget_destroyed(elapsed, budget));
+        std::process::exit(101);
     }
 
     /// inspired by egui_wgpu::RenderState
