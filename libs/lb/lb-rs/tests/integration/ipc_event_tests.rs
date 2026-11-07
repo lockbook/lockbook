@@ -1,5 +1,3 @@
-#![cfg(not(target_family = "wasm"))]
-
 use lb_rs::Lb;
 use lb_rs::service::events::{Actor, Event};
 use test_utils::{random_name, test_core, test_core_with_account, url};

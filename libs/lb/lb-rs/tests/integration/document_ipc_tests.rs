@@ -1,5 +1,3 @@
-#![cfg(not(target_family = "wasm"))]
-
 use lb_rs::Lb;
 use lb_rs::model::errors::LbErrKind;
 use test_utils::test_core_with_account;

@@ -1,5 +1,3 @@
-#![cfg(all(unix, not(target_os = "ios")))]
-
 use std::env;
 use std::io::{self, Read};
 use std::process::{self, Stdio};
@@ -59,7 +57,7 @@ async fn a_writer_process_notifies_before_closing_its_log_and_before_exit() {
     let _sync = reader.syncer.lock().await;
     let mut events = reader.subscribe();
     let mut writer = Command::new(env::current_exe().unwrap())
-        .args(["--exact", "ipc_writer_process", "--ignored"])
+        .args(["--exact", "ipc_notification_tests::ipc_writer_process", "--ignored"])
         .env("LB_IPC_TEST_PATH", &config.writeable_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
