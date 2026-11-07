@@ -2,6 +2,7 @@ use std::backtrace::Backtrace;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 use std::panic::Location;
+use std::path::PathBuf;
 use std::sync::PoisonError;
 
 use aes_gcm::aead;
@@ -123,6 +124,17 @@ impl Display for LbErrKind {
             LbErrKind::UsernameNotFound => write!(f, "That username is not found"),
             LbErrKind::UsernamePublicKeyMismatch => {
                 write!(f, "That username doesn't match that public key")
+            }
+            LbErrKind::ImportFailed { paths, total } => {
+                let name = paths
+                    .first()
+                    .and_then(|p| p.file_name())
+                    .unwrap_or_default()
+                    .to_string_lossy();
+                match paths.len() {
+                    1 => write!(f, "{name} couldn't be imported"),
+                    n => write!(f, "{n} of {total} files couldn't be imported, including {name}"),
+                }
             }
             LbErrKind::UsernameTaken => write!(f, "That username is not available"),
             LbErrKind::Unexpected(msg) => write!(f, "Unexpected error: {msg}"),
@@ -310,6 +322,11 @@ pub enum LbErrKind {
     FileNonexistent,
     FileNotDocument,
     FileParentNonexistent,
+    /// These of the `total` files an import meant to write weren't written.
+    ImportFailed {
+        paths: Vec<PathBuf>,
+        total: usize,
+    },
     InsufficientPermission,
     InvalidPurchaseToken,
     InvalidAuthDetails,
