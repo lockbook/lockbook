@@ -197,6 +197,8 @@ pub struct MdRender {
     /// Per-frame: each line of a scrolled code block, as the rect it shows
     /// in and its source.
     pub code_line_clips: Vec<(Rect, (Grapheme, Grapheme))>,
+    /// [`crate::font::chosen_seq`] the layout cache was measured at
+    font_seq: u64,
     /// A code block whose code was copied, by its range, and until when its
     /// button says so.
     pub code_copied: Option<((Grapheme, Grapheme), f64)>,
@@ -705,6 +707,18 @@ pub type HttpClient = reqwest::Client;
 pub type HttpClient = reqwest::blocking::Client;
 
 impl MdRender {
+    /// Drops what was laid out in fonts since replaced; whether it did.
+    pub fn follow_fonts(&mut self) -> bool {
+        let seq = crate::font::chosen_seq();
+        if self.font_seq == seq {
+            return false;
+        }
+        self.font_seq = seq;
+        self.layout_cache.clear();
+        self.layout_cache.table_cells.borrow_mut().clear();
+        true
+    }
+
     /// Minimal renderer with no resolvers, empty file cache, and `md`
     /// extension. Used by [`MdLabel`] and tests. Touch-mode and layout are
     /// derived from `ctx`.
@@ -739,6 +753,7 @@ impl MdRender {
             row_scrollers: Default::default(),
             wheel: Default::default(),
             code_line_clips: Default::default(),
+            font_seq: crate::font::chosen_seq(),
             code_copied: None,
             diagrams,
             diagram_previews: Default::default(),
@@ -854,6 +869,7 @@ impl MdRender {
             row_scrollers: Default::default(),
             wheel: Default::default(),
             code_line_clips: Default::default(),
+            font_seq: crate::font::chosen_seq(),
             code_copied: None,
             diagrams,
             diagram_previews: Default::default(),
@@ -1084,6 +1100,7 @@ impl Editor {
             row_scrollers: Default::default(),
             wheel: Default::default(),
             code_line_clips: Default::default(),
+            font_seq: crate::font::chosen_seq(),
             code_copied: None,
             diagrams,
             diagram_previews: Default::default(),
@@ -1488,6 +1505,7 @@ impl Editor {
         if height_updated {
             self.edit.renderer.layout_cache.clear();
         }
+        let fonts_updated = self.edit.renderer.follow_fonts();
 
         // both stamp the workspace counter, so the larger moves when either does
         let embeds_seq = (
@@ -1813,7 +1831,7 @@ impl Editor {
         }
 
         // post-frame bookkeeping
-        if embeds_updated || height_updated || width_updated {
+        if embeds_updated || height_updated || width_updated || fonts_updated {
             if embeds_updated {
                 self.unprocessed_scroll = Some(Instant::now());
             }
@@ -3635,8 +3653,6 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .unwrap()
             .push("phosphor".to_owned());
     }
-
-    crate::font::cjk::register_egui(fonts, base_scale);
 }
 
 /// Headless `Context` with the same fonts as production, including Phosphor.

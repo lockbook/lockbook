@@ -748,6 +748,10 @@ pub struct LayoutCache {
     /// heights, AST re-parse shifts sourcepos keys), so per-entry
     /// stamping wouldn't help.
     pub text_seq: std::cell::Cell<u64>,
+
+    /// Where body text's baseline falls in a row, as a fraction of its
+    /// height, and the [`crate::font::chosen_seq`] it was measured at.
+    pub body_baseline: std::cell::Cell<Option<(u64, f32)>>,
 }
 
 impl LayoutCache {
@@ -883,7 +887,8 @@ impl MdRender {
                 .family(format.family.glyphon_family())
                 .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
                 .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
-            let metrics = glyphon::Metrics::new(font_size, line_height);
+            let metrics =
+                glyphon::Metrics::new(font_size * format.family.size_adjust(), line_height);
             let mut fs = fs.lock().unwrap();
             let mut b = glyphon::Buffer::new(&mut fs, metrics);
             b.set_size(Some(width), None);

@@ -529,6 +529,11 @@ fn init_app(window: Arc<Window>) -> WgpuLockbook<'static> {
 }
 
 fn init_with_renderer(mut renderer: RendererState<'static>) -> WgpuLockbook<'static> {
+    let app = ShellApp::default();
+    workspace_rs::font::choose(
+        app.settings.text_font.as_deref(),
+        app.settings.code_font.as_deref(),
+    );
     let mut fonts = egui::FontDefinitions::default();
     workspace_rs::register_fonts(&mut fonts);
     renderer.context.set_fonts(fonts);
@@ -552,7 +557,7 @@ fn init_with_renderer(mut renderer: RendererState<'static>) -> WgpuLockbook<'sta
         renderer,
         queued_events: Default::default(),
         double_queued_events: Default::default(),
-        app: ShellApp::default(),
+        app,
     };
 
     lb.frame();

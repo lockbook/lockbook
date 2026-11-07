@@ -63,17 +63,27 @@ pub enum FontFamily {
 impl FontFamily {
     pub(crate) fn glyphon_cache_family(self) -> GlyphonFontFamily {
         match self {
-            FontFamily::Sans => GlyphonFontFamily::SansSerif,
-            FontFamily::Mono => GlyphonFontFamily::Monospace,
-            FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols".into()),
-            FontFamily::Phosphor => GlyphonFontFamily::Named("Phosphor".into()),
+            FontFamily::Sans => GlyphonFontFamily::Named(crate::font::note_family(false)),
+            FontFamily::Mono => GlyphonFontFamily::Named(crate::font::note_family(true)),
+            FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols"),
+            FontFamily::Phosphor => GlyphonFontFamily::Named("Phosphor"),
+        }
+    }
+
+    /// How much larger than asked this family draws, so a chosen family's
+    /// lowercase stands as tall as the platform's.
+    pub(crate) fn size_adjust(self) -> f32 {
+        match self {
+            FontFamily::Sans => crate::font::size_adjust(false),
+            FontFamily::Mono => crate::font::size_adjust(true),
+            FontFamily::Icons | FontFamily::Phosphor => 1.,
         }
     }
 
     pub(crate) fn glyphon_family(self) -> glyphon::Family<'static> {
         match self {
-            FontFamily::Sans => glyphon::Family::SansSerif,
-            FontFamily::Mono => glyphon::Family::Monospace,
+            FontFamily::Sans => glyphon::Family::Name(crate::font::note_family(false)),
+            FontFamily::Mono => glyphon::Family::Name(crate::font::note_family(true)),
             FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
             FontFamily::Phosphor => glyphon::Family::Name("Phosphor"),
         }
@@ -574,6 +584,46 @@ fn push_sanitised(out: &mut String, tabs: &mut Vec<usize>, text: &str) {
 }
 
 impl MdRender {
+    /// Where body text's baseline falls in a row, as a fraction of the row
+    /// height down from its top; the same at every size.
+    fn body_baseline(&self, row_height: f32) -> f32 {
+        let seq = crate::font::chosen_seq();
+        if let Some((at, baseline)) = self.layout_cache.body_baseline.get() {
+            if at == seq {
+                return baseline;
+            }
+        }
+        let baseline = self.measure_body_baseline(row_height);
+        self.layout_cache.body_baseline.set(Some((seq, baseline)));
+        baseline
+    }
+
+    fn measure_body_baseline(&self, row_height: f32) -> f32 {
+        let fs = self.ctx.data(|d| {
+            d.get_temp::<std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>>(egui::Id::NULL)
+        });
+        let cache = self
+            .ctx
+            .data(|d| d.get_temp::<std::sync::Arc<std::sync::Mutex<GlyphonCache>>>(egui::Id::NULL));
+        let (Some(fs), Some(cache)) = (fs, cache) else { return BASELINE };
+        let body = Format {
+            family: FontFamily::Sans,
+            bold: false,
+            italic: false,
+            color: egui::Color32::PLACEHOLDER,
+            underline: false,
+            strikethrough: false,
+            background: egui::Color32::TRANSPARENT,
+            spoiler: false,
+            superscript: false,
+            subscript: false,
+        };
+        let ppi = self.ctx.pixels_per_point();
+        let (buffer, _) = shape_chunk(&fs, &cache, "x", &body, row_height, f32::MAX / 4.0, ppi);
+        let baseline = baseline_of(&buffer.read().unwrap());
+        baseline.unwrap_or(BASELINE)
+    }
+
     /// `text`'s width in `format` at `row_height`, shaped as the layout
     /// shapes it.
     pub fn text_advance(&self, text: &str, format: &Format, row_height: f32) -> f32 {
@@ -627,7 +677,8 @@ impl MdRender {
             vec![Row { y_top: 0.0, ascent, descent, source_range, fragments: Vec::new(), anchors }]
         } else {
             let breaks = greedy_break(&items, width, inline_pad);
-            build_rows(&breaks, &items, &layout, row_height, row_spacing, inline_pad)
+            let text_baseline = self.body_baseline(row_height);
+            build_rows(&breaks, &items, &layout, row_height, row_spacing, inline_pad, text_baseline)
         };
         // Wrap unit height = stacked row glyph rects, no extra padding
         // for bg-styled rows. Per design, inline backgrounds contribute
@@ -1070,7 +1121,7 @@ fn shape_chunk(
             );
             let text = text.to_string();
             let points =
-                row_height * if format.superscript || format.subscript { 0.75 } else { 1. };
+                row_height * if format.superscript || format.subscript { SCRIPT_SCALE } else { 1. };
             let spans = text.graphemes(true).map(|g| {
                 if shape_as_emoji(&format.family, g) {
                     (g, emoji_attrs.as_attrs())
@@ -1106,12 +1157,13 @@ fn shape_chunk(
 }
 
 /// Build the `GlyphonCache` key for a single-span shape. Super/sub
-/// scales the per-span metric to 0.75×, so we mirror that into the
+/// scales the per-span metric by [`SCRIPT_SCALE`], so we mirror that into the
 /// key's `font_size_bits` to keep cache entries separate from same-
 /// text non-super/sub shapes. `width_bits ^ 1` matches the
 /// `Wrap::None` marker convention from `block::height_buffer`.
 fn shape_cache_key(text: &str, format: &Format, metric: f32, width_px: f32) -> GlyphonCacheKey {
-    let key_metric = if format.superscript || format.subscript { metric * 0.75 } else { metric };
+    let key_metric =
+        if format.superscript || format.subscript { metric * SCRIPT_SCALE } else { metric };
     GlyphonCacheKey::single(
         text,
         format.family.glyphon_cache_family(),
@@ -1363,9 +1415,12 @@ fn format_to_attrs(format: &Format, base_row_height: f32) -> glyphon::AttrsOwned
         .family(family)
         .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
         .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
+    let adjust = format.family.size_adjust();
     if format.superscript || format.subscript {
-        let size = base_row_height * 0.75;
-        attrs = attrs.metrics(glyphon::Metrics::new(size, size));
+        let size = base_row_height * SCRIPT_SCALE;
+        attrs = attrs.metrics(glyphon::Metrics::new(size * adjust, size));
+    } else if adjust != 1. {
+        attrs = attrs.metrics(glyphon::Metrics::new(base_row_height * adjust, base_row_height));
     }
     glyphon::AttrsOwned::new(&attrs)
 }
@@ -1545,15 +1600,31 @@ fn active_interaction(stack: &[(egui::Id, egui::Sense)]) -> Option<(egui::Id, eg
         .copied()
 }
 
+/// Where a shaped line's baseline falls, as a fraction of its buffer's line
+/// height down from its top: each font centers its own ascent and descent
+/// there.
+fn baseline_of(buffer: &glyphon::Buffer) -> Option<f32> {
+    let run = buffer.layout_runs().next()?;
+    Some(run.line_y / buffer.metrics().line_height)
+}
+
+/// How large superscripts and subscripts draw against the text they sit in.
+const SCRIPT_SCALE: f32 = 0.75;
+
+/// The baseline of a row with no shaped body text to measure.
+const BASELINE: f32 = 0.8;
+
 /// Walk the broken stream, emitting one `Row` per break window with
 /// one fragment per Box/Glue/Pad (no coalescing). Style scope events
 /// update the running stack between fragments. The wrap-break-glue
 /// (last item of a row when a next row follows, if it's a Glue)
 /// renders as a zero-width fragment and is excluded from the row's
 /// `source_range`.
+/// Text sits on `text_baseline`, a fraction of the row height down from its
+/// top, whatever font draws it.
 pub fn build_rows(
     breaks: &[usize], items: &[InlineItem], layout: &Layout, row_height: f32, row_spacing: f32,
-    inline_pad: f32,
+    inline_pad: f32, text_baseline: f32,
 ) -> Vec<Row> {
     let mut rows: Vec<Row> = Vec::with_capacity(breaks.len().saturating_sub(1));
     let default_ascent = row_height * 0.8;
@@ -1636,7 +1707,7 @@ pub fn build_rows(
             let (item_y_min, item_y_max) = {
                 let f = style_stack.last().map(|s| &s.format);
                 let text_height = default_ascent + default_descent;
-                let small = text_height * 0.75;
+                let small = text_height * SCRIPT_SCALE;
                 match f {
                     Some(f) if f.superscript => (text_top, text_top + small),
                     Some(f) if f.subscript => (text_bottom - small, text_bottom),
@@ -1666,9 +1737,19 @@ pub fn build_rows(
                         row_visible_lo
                             .map_or(visible_byte_range.start, |v| v.min(visible_byte_range.start)),
                     );
+                    // raised a third of the text size or lowered a fifth, as WebKit
+                    let offset = match style_stack.last().map(|s| &s.format) {
+                        Some(f) if f.superscript => -row_height / 3.0,
+                        Some(f) if f.subscript => row_height / 5.0,
+                        _ => 0.0,
+                    };
+                    let own = baseline_of(&buffer.read().unwrap()).unwrap_or(text_baseline);
+                    let top = text_top + text_baseline * row_height + offset
+                        - item_y_min
+                        - own * row_height;
                     row_fragments.push(Fragment {
                         rect,
-                        content_inset: FragmentInset::default(),
+                        content_inset: FragmentInset { top, ..Default::default() },
                         source_range: *source_range,
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Glyphs {
@@ -1965,9 +2046,23 @@ impl MdRender {
                 // backgrounds stop short of the row spacing so ones on
                 // adjacent rows stay apart
                 let pad = inline_pad - BG_ROW_GAP / 2.0;
+                // centered on its text from baseline to ascender, not the
+                // row: fonts place their baseline differently
+                let family = row.fragments[chain_start]
+                    .style_stack
+                    .last()
+                    .map(|s| s.format.family);
+                let mono = family == Some(FontFamily::Mono);
+                let shift = match crate::font::ascender_height(mono) {
+                    Some(ascender) if chip.is_none() => {
+                        let baseline = self.body_baseline(row_height) * row_height;
+                        baseline - ascender * row_height / 2.0 - row_height / 2.0
+                    }
+                    _ => 0.0,
+                };
                 let bg_rect = Rect::from_min_max(
-                    egui::Pos2::new(chain_left, row_top - pad),
-                    egui::Pos2::new(chain_right, row_bottom + pad),
+                    egui::Pos2::new(chain_left, row_top - pad + shift),
+                    egui::Pos2::new(chain_right, row_bottom + pad + shift),
                 );
                 // a chip is one row, so a whole capsule
                 let radius = if chip.is_some() { bg_rect.height() / 2.0 } else { 2.0 };

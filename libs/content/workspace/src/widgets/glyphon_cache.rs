@@ -22,7 +22,7 @@ pub struct GlyphonCacheSpan {
 pub enum GlyphonFontFamily {
     SansSerif,
     Monospace,
-    Named(String),
+    Named(&'static str),
 }
 
 impl GlyphonCacheKey {
@@ -79,7 +79,16 @@ impl GlyphonCache {
             self.current.insert(key, buf.clone());
             return buf;
         }
-        let buf = Arc::new(RwLock::new(shape_fn()));
+        let shaped = shape_fn();
+        // characters no loaded font draws, which the system may have a font for
+        let missing = shaped.layout_runs().flat_map(|run| {
+            run.glyphs
+                .iter()
+                .filter(|g| g.glyph_id == 0)
+                .flat_map(|g| run.text[g.start..g.end].chars())
+        });
+        crate::font::missing(missing.filter(|c| !c.is_whitespace() && !c.is_control()));
+        let buf = Arc::new(RwLock::new(shaped));
         self.current.insert(key, buf.clone());
         buf
     }

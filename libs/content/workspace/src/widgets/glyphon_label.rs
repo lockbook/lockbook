@@ -23,6 +23,8 @@ pub struct SpanStyle {
     pub bold: bool,
     pub color: Option<egui::Color32>,
     pub mono: bool,
+    /// An installed family to draw in instead of the interface's sans.
+    pub family: Option<&'static str>,
 }
 
 /// A text label rendered through glyphon so that emoji, non-Latin scripts, and
@@ -79,6 +81,13 @@ struct ShapedBuffer {
 const HINT_GAP: f32 = 8.0;
 
 impl ShapedLabel {
+    /// The main text's first baseline, from its top, in logical pixels.
+    pub fn baseline(&self, ctx: &egui::Context) -> Option<f32> {
+        let buffer = self.main.buffer.read().unwrap();
+        let run = buffer.layout_runs().next()?;
+        Some(run.line_y / ctx.pixels_per_point())
+    }
+
     /// Size of the hint text, if any.
     pub fn hint_size(&self) -> Option<egui::Vec2> {
         self.hint.as_ref().map(|h| h.size)
@@ -124,7 +133,7 @@ impl<'a> GlyphonLabel<'a> {
     /// Plain text label.
     pub fn new(text: &'a str, color: egui::Color32) -> Self {
         Self {
-            spans: vec![(text, SpanStyle { bold: false, color: None, mono: false })],
+            spans: vec![(text, SpanStyle { bold: false, color: None, mono: false, family: None })],
             color,
             hint: None,
             font_size: 14.0,
@@ -142,7 +151,7 @@ impl<'a> GlyphonLabel<'a> {
         Self {
             spans: spans
                 .into_iter()
-                .map(|(t, bold)| (t, SpanStyle { bold, color: None, mono: false }))
+                .map(|(t, bold)| (t, SpanStyle { bold, color: None, mono: false, family: None }))
                 .collect(),
             color,
             hint: None,
@@ -161,7 +170,7 @@ impl<'a> GlyphonLabel<'a> {
         Self {
             spans: spans
                 .into_iter()
-                .map(|(t, c)| (t, SpanStyle { bold: false, color: c, mono: false }))
+                .map(|(t, c)| (t, SpanStyle { bold: false, color: c, mono: false, family: None }))
                 .collect(),
             color,
             hint: None,
@@ -189,6 +198,15 @@ impl<'a> GlyphonLabel<'a> {
     pub fn role(self, role: TypeRole) -> Self {
         let label = self.font_size(role.size()).line_height(role.line_height());
         if role == TypeRole::Mono { label.mono() } else { label }
+    }
+
+    /// Sets every span in `family`, which [`crate::font::load_family`] must
+    /// have added to the font system.
+    pub fn family(mut self, family: &'static str) -> Self {
+        self.spans
+            .iter_mut()
+            .for_each(|(_, style)| style.family = Some(family));
+        self
     }
 
     /// Sets every span in the monospace face.
@@ -253,7 +271,7 @@ impl<'a> GlyphonLabel<'a> {
             Self::shape_buffer(
                 ctx,
                 ppi,
-                &[(text, SpanStyle { bold: false, color: None, mono: false })],
+                &[(text, SpanStyle { bold: false, color: None, mono: false, family: None })],
                 color,
                 hint_font_size,
                 line_height,
@@ -428,10 +446,10 @@ impl<'a> GlyphonLabel<'a> {
                 .iter()
                 .map(|&(text, style)| GlyphonCacheSpan {
                     text: text.to_string(),
-                    family: if style.mono {
-                        GlyphonFontFamily::Monospace
-                    } else {
-                        GlyphonFontFamily::SansSerif
+                    family: match (style.mono, style.family) {
+                        (true, _) => GlyphonFontFamily::Monospace,
+                        (false, Some(family)) => GlyphonFontFamily::Named(family),
+                        (false, None) => GlyphonFontFamily::SansSerif,
                     },
                     bold: style.bold,
                     italic: false,
@@ -464,10 +482,10 @@ impl<'a> GlyphonLabel<'a> {
                 // span's own attrs. Mirrors the editor's `shape_chunk`.
                 buf.set_rich_text(
                     spans.iter().flat_map(|&(text, style)| {
-                        let mut attrs = if style.mono {
-                            base.clone().family(Family::Monospace)
-                        } else {
-                            base.clone()
+                        let mut attrs = match (style.mono, style.family) {
+                            (true, _) => base.clone().family(Family::Monospace),
+                            (false, Some(family)) => base.clone().family(Family::Name(family)),
+                            (false, None) => base.clone(),
                         };
                         if style.bold {
                             attrs = attrs.weight(Weight::BOLD);
@@ -479,6 +497,8 @@ impl<'a> GlyphonLabel<'a> {
                         text.graphemes(true).map(move |g| {
                             if is_emoji_grapheme(g) {
                                 (g, emoji.clone())
+                            } else if style.family.is_some() {
+                                (g, attrs.clone())
                             } else {
                                 (g, crate::font::track(attrs.clone(), g, font_size))
                             }

@@ -163,6 +163,7 @@ impl Headless {
             .or_default()
             .native_pixels_per_point = Some(self.pixels_per_point / self.ctx.zoom_factor());
 
+        crate::font::poll(&self.ctx);
         let glyphon = self.glyphon_cache();
         if let Some(cache) = &glyphon {
             cache.lock().unwrap().begin_frame();

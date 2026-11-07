@@ -409,6 +409,10 @@ pub enum Action {
     SetThemeMode(crate::components::ModePreference),
     SetThemeFamily(crate::components::ThemeFamily),
     SetThemeAccent(workspace_rs::theme::palette_v2::Palette),
+    /// An installed family for notes' text; `None` is the platform's.
+    SetTextFont(Option<String>),
+    /// An installed family for notes' code; `None` is the platform's.
+    SetCodeFont(Option<String>),
     SetPrefLinkPreviews(bool),
     /// Misspelled words are marked, from now on.
     SetPrefSpellCheck(bool),
@@ -534,6 +538,8 @@ impl Action {
             Self::SetThemeMode(_) => "SetThemeMode",
             Self::SetThemeFamily(_) => "SetThemeFamily",
             Self::SetThemeAccent(_) => "SetThemeAccent",
+            Self::SetTextFont(_) => "SetTextFont",
+            Self::SetCodeFont(_) => "SetCodeFont",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
             Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",
             Self::SetPrefColumnWidth(_) => "SetPrefColumnWidth",

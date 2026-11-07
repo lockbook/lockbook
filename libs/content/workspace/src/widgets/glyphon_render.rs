@@ -29,6 +29,17 @@ pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
     font_system
 }
 
+/// Points the registered font system at the chosen families and drops the
+/// text shaped in the old ones.
+pub fn reload_font_system(ctx: &egui::Context) {
+    if let Some(font_system) = ctx.data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL)) {
+        crate::font::refresh(font_system.lock().unwrap().db_mut());
+    }
+    if let Some(cache) = ctx.data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL)) {
+        *cache.lock().unwrap() = GlyphonCache::new();
+    }
+}
+
 /// Bundled fonts, then the system's.
 pub fn new_font_system() -> FontSystem {
     let mut db = fontdb::Database::new();

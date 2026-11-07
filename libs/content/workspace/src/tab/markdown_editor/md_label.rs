@@ -96,6 +96,9 @@ impl MdLabel {
     }
 
     fn prepare(&mut self, md: &str, width: f32) {
+        if self.renderer.follow_fonts() {
+            self.last_prepared = None;
+        }
         // Content whose rendered size resolves asynchronously (an image
         // loading from its placeholder) must re-lay-out every frame to pick
         // up the change; only static content is safe to memoize.
