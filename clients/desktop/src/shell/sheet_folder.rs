@@ -624,8 +624,8 @@ fn import_plan_block(
 
     // Owned pieces first; the label borrows them.
     let (files, noun) = (count(plan.files), plural(plan.files, "file"));
-    // What the account counts (contents plus a fee per file), so both sizes agree.
-    let size = si_bytes(plan.added_usage);
+    // Stored the way the account counts it: compressed, encrypted, a fee per new file.
+    let size = si_bytes(plan.size);
     let mut skips: Vec<String> = Vec::new();
     if plan.same > 0 {
         skips.push(format!("**{}** existing {}", count(plan.same), plural(plan.same, "file")));

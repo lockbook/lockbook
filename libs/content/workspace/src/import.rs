@@ -108,6 +108,8 @@ pub struct ImportPlan {
     pub same: usize,
     /// Bytes the server will be asked to hold beyond today (writes plus fees).
     pub added_usage: u64,
+    /// What the writes take up once stored, fees included: an edit counts whole.
+    pub size: u64,
     /// What each kind and each folder would add, whether or not it's left out.
     pub kinds: Vec<(Kind, Share)>,
     pub folders: Vec<(String, Share)>,
@@ -311,6 +313,7 @@ impl Walk<'_> {
                     let slot = self.folders;
                     self.folders += 1;
                     self.plan.added_usage += METADATA_FEE;
+                    self.plan.size += METADATA_FEE;
                     let top = inside.is_none();
                     self.writes.push(Write::Folder { name, parent, slot, top });
                     Parent::Created(slot)
@@ -376,6 +379,7 @@ impl Walk<'_> {
         self.plan.files += 1;
         self.plan.bytes += bytes;
         self.plan.added_usage += usage;
+        self.plan.size += stored + if update.is_some() { 0 } else { METADATA_FEE };
         match update {
             Some(f) => {
                 self.plan.changed += 1;
