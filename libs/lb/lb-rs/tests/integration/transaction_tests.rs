@@ -1,5 +1,3 @@
-#![cfg(not(target_family = "wasm"))]
-
 use db_rs::View;
 use lb_rs::Lb;
 use std::{sync::mpsc, thread, time::Duration};

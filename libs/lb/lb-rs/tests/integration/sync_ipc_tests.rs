@@ -1,5 +1,3 @@
-#![cfg(not(any(target_family = "wasm", target_os = "ios")))]
-
 use lb_rs::{Lb, LbErrKind};
 use std::{fs::File, path::Path};
 use test_utils::test_core;
