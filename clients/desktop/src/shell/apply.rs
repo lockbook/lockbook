@@ -17,7 +17,8 @@ use lb::Uuid;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use rfd::FileDialog;
-use workspace_rs::file_cache::{Change, FileCache, FilesExt, link_id, split_fragment};
+use workspace_rs::file_cache::{Change, FileCache, FilesExt};
+use workspace_rs::tab::{Destination, Place};
 
 use super::ShellApp;
 use super::action::{
@@ -93,15 +94,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::CollapseSubtree(id) => expand_or_collapse(app, id, false),
         A::OpenFile(id) => open_documents(app, &[id], false),
         A::OpenFileNewTab(id) => open_documents(app, &[id], true),
-        A::OpenLink(url) => match link_id(&url) {
-            Some(id) => {
-                let heading = split_fragment(&url).1.map(String::from);
-                app.incoming_link = Some(IncomingLink::Waiting { id, heading });
-                // actions apply after the editor draws, so the next frame opens it
-                ctx.request_repaint();
-            }
-            None => app.toasts.error("This link doesn't name a note."),
-        },
+        A::OpenLink(url) => {
+            app.incoming_link = Some(IncomingLink::Waiting(url));
+            // actions apply after the editor draws, so the next frame opens it
+            ctx.request_repaint();
+        }
         A::NavBack => nav_history(app, true),
         A::ToggleSidecar => {
             if let Some(md) = app
@@ -1305,38 +1302,44 @@ pub(crate) fn native_file_dialog_open() -> bool {
 
 pub(crate) enum IncomingLink {
     /// Waits for the account to load.
-    Waiting { id: Uuid, heading: Option<String> },
+    Waiting(String),
     /// Syncs to find a file this device hasn't seen.
     Syncing(mpsc::Receiver<LinkSynced>),
 }
 
 pub(crate) struct LinkSynced {
-    id: Uuid,
-    heading: Option<String>,
+    place: Place,
     synced: Result<(), String>,
 }
 
-/// Opens the incoming link's file once the account is ready and the file is
-/// known here.
+/// Opens the place the incoming link names once the account is ready and
+/// the file it's in, if any, is known here.
 pub(crate) fn poll_incoming_link(app: &mut ShellApp, ctx: &Context) {
     let Some(r) = app.session.ready_mut() else {
         return;
     };
+    let known = |r: &Ready, place: &Place| {
+        place
+            .dest
+            .backing_file()
+            .is_none_or(|id| r.workspace.files.read().unwrap().get_by_id(id).is_some())
+    };
     match app.incoming_link.take() {
         None => {}
-        Some(IncomingLink::Waiting { id, heading }) => {
-            if r.workspace.files.read().unwrap().get_by_id(id).is_some() {
-                open_incoming_link(r, id, heading);
-            } else {
-                app.incoming_link = Some(IncomingLink::Syncing(sync_for_link(r, ctx, id, heading)));
+        Some(IncomingLink::Waiting(url)) => match Place::from_url(&url) {
+            Some(place) if known(r, &place) => open_incoming_link(r, place),
+            Some(place) => {
+                app.incoming_link = Some(IncomingLink::Syncing(sync_for_link(r, ctx, place)))
             }
-        }
+            None => app
+                .toasts
+                .error("This link doesn't name a note or a search."),
+        },
         Some(IncomingLink::Syncing(rx)) => match rx.try_recv() {
-            Ok(LinkSynced { id, heading, synced }) => {
+            Ok(LinkSynced { place, synced }) => {
                 note_files_changed(r);
-                let known = r.workspace.files.read().unwrap().get_by_id(id).is_some();
-                match (known, synced) {
-                    (true, _) => open_incoming_link(r, id, heading),
+                match (known(r, &place), synced) {
+                    (true, _) => open_incoming_link(r, place),
                     (false, Ok(())) => app
                         .toasts
                         .error("This note was deleted or isn't shared with you."),
@@ -1351,9 +1354,7 @@ pub(crate) fn poll_incoming_link(app: &mut ShellApp, ctx: &Context) {
     }
 }
 
-fn sync_for_link(
-    r: &Ready, ctx: &Context, id: Uuid, heading: Option<String>,
-) -> mpsc::Receiver<LinkSynced> {
+fn sync_for_link(r: &Ready, ctx: &Context, place: Place) -> mpsc::Receiver<LinkSynced> {
     let (tx, rx) = mpsc::channel();
     let (core, files, ctx) = (r.workspace.core.clone(), r.workspace.files.clone(), ctx.clone());
     thread::spawn(move || {
@@ -1362,13 +1363,19 @@ fn sync_for_link(
         if let Ok(cache) = FileCache::new(&core) {
             files.write().unwrap().replace(cache);
         }
-        let _ = tx.send(LinkSynced { id, heading, synced });
+        let _ = tx.send(LinkSynced { place, synced });
         ctx.request_repaint();
     });
     rx
 }
 
-fn open_incoming_link(r: &mut Ready, id: Uuid, heading: Option<String>) {
+/// Opens `place`. A note link also selects and reveals the note in the tree;
+/// a folder link only selects and reveals the folder.
+fn open_incoming_link(r: &mut Ready, place: Place) {
+    let Destination::File(id) = place.dest else {
+        r.workspace.open_place(place, true, false);
+        return;
+    };
     let is_document = r
         .workspace
         .files
@@ -1377,8 +1384,7 @@ fn open_incoming_link(r: &mut Ready, id: Uuid, heading: Option<String>) {
         .get_by_id(id)
         .is_some_and(|f| f.is_document());
     if is_document {
-        r.workspace
-            .open_file_at_heading(id, heading.unwrap_or_default(), false);
+        r.workspace.open_place(place, true, false);
     }
     r.select_only(id);
     super::reveal_and_scroll(r, id);
