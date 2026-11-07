@@ -15,6 +15,7 @@ pub mod core_config;
 pub mod core_ops;
 pub mod core_tree;
 pub mod crypto;
+pub mod doc_diff;
 pub mod doc_info;
 pub mod entropy;
 pub mod errors;
