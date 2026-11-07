@@ -5,7 +5,8 @@ use lb_rs::io::network::{ApiError, Network};
 use lb_rs::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
 use lb_rs::model::clock::{Timestamp, get_time};
 use lb_rs::model::core_config::ClientType;
-use test_utils::{assert_matches, test_core_with_account};
+use test_utils::assert_matches;
+use test_utils::http::test_core_with_account;
 
 static CODE_VERSION: fn() -> &'static str = || "0.0.0";
 

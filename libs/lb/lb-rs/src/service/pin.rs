@@ -5,7 +5,7 @@ use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
 use uuid::Uuid;
 
-impl Lb {
+impl<S> Lb<S> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn pin_file(&self, id: Uuid) -> LbResult<()> {
         let mut tx = self.begin_tx().await;

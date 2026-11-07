@@ -1,3 +1,4 @@
+use crate::io::server::Server;
 use std::collections::HashSet;
 
 use crate::Lb;
@@ -15,7 +16,7 @@ use uuid::Uuid;
 use super::activity;
 use super::events::Actor;
 
-impl Lb {
+impl<S: Server> Lb<S> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn read_document(
         &self, id: Uuid, user_activity: bool,
@@ -51,7 +52,7 @@ impl Lb {
             let mut tree = (&db.base_metadata)
                 .to_staged(&mut db.local_metadata)
                 .to_lazy();
-            self.docs.promote_pending(pending).await?;
+            pending.promote().await?;
             tree.overwrite_document_hmac(&id, Some(hmac), Some(encrypted_size), &self.keychain)?;
             tx.end();
         }
@@ -158,7 +159,7 @@ impl Lb {
             let mut tree = (&db.base_metadata)
                 .to_staged(&mut db.local_metadata)
                 .to_lazy();
-            self.docs.promote_pending(pending).await?;
+            pending.promote().await?;
             if tree.find(&id)?.document_hmac() != old_hmac.as_ref() {
                 return Err(LbErrKind::ReReadRequired.into());
             }

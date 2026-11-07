@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 lb-rs = { path = "../lb-rs" }
+lockbook-server = { path = "../../../server", features = ["in-process"] }
 bincode = "1.3.3"
 time = "0.3.20"
 uuid = { version = "1.2.2", features = ["v4", "serde"] }

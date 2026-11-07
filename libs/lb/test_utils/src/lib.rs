@@ -1,13 +1,15 @@
 pub mod assert;
 
-use lb_rs::Lb;
+use lb_rs::io::server::Server;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::crypto::EncryptedDocument;
+use lockbook_server_lib::in_process::InMemoryServer;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use std::{env, fs};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -26,22 +28,50 @@ pub fn test_config() -> Config {
     }
 }
 
+/// The client most tests drive: in this process, against one server shared by every test.
+pub type Lb = lb_rs::Lb<InMemoryServer>;
+
 pub async fn test_core() -> Lb {
-    Lb::init(test_config()).await.unwrap()
+    static SERVER: LazyLock<InMemoryServer> = LazyLock::new(InMemoryServer::in_memory);
+    Lb::in_memory(test_config(), SERVER.clone()).await.unwrap()
 }
 
 pub async fn test_core_from(core: &Lb) -> Lb {
-    let account_string = core.export_account_private_key().unwrap();
-    let core = test_core().await;
-    core.import_account(&account_string, Some(&url()))
-        .await
-        .unwrap();
-    core.sync().await.unwrap();
-    core
+    import_into(core, test_core().await).await
 }
 
 pub async fn test_core_with_account() -> Lb {
-    let core = test_core().await;
+    with_account(test_core().await).await
+}
+
+/// Clients over HTTP to the server at [url], with their data on disk: for tests of the network
+/// client, IPC between processes, and the files a client keeps.
+pub mod http {
+    pub use lb_rs::Lb;
+
+    pub async fn test_core() -> Lb {
+        Lb::init(super::test_config()).await.unwrap()
+    }
+
+    pub async fn test_core_from(core: &Lb) -> Lb {
+        super::import_into(core, test_core().await).await
+    }
+
+    pub async fn test_core_with_account() -> Lb {
+        super::with_account(test_core().await).await
+    }
+}
+
+async fn import_into<S: Server>(from: &lb_rs::Lb<S>, into: lb_rs::Lb<S>) -> lb_rs::Lb<S> {
+    let account_string = from.export_account_private_key().unwrap();
+    into.import_account(&account_string, Some(&url()))
+        .await
+        .unwrap();
+    into.sync().await.unwrap();
+    into
+}
+
+async fn with_account<S: Server>(core: lb_rs::Lb<S>) -> lb_rs::Lb<S> {
     core.create_account(&random_name(), &url(), false)
         .await
         .unwrap();

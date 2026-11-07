@@ -1,4 +1,3 @@
-use lb_rs::Lb;
 use test_utils::*;
 
 /// Tests that operate on one client, sync it, then create and sync a new client (work should be

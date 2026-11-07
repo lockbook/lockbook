@@ -1,4 +1,5 @@
 use lb_rs::io::network::ApiError;
+use lb_rs::io::server::Server;
 use lb_rs::model::ValidationFailure;
 use lb_rs::model::api::*;
 use lb_rs::model::file_metadata::FileDiff;
@@ -19,10 +20,13 @@ async fn create_document() {
         .unwrap()
         .clone();
 
-    core.client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc)] })
-        .await
-        .unwrap();
+    Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::new(doc)] },
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test]
@@ -42,10 +46,12 @@ async fn create_document_duplicate_id() {
     core.sync().await.unwrap();
 
     // create document with same id and key
-    let result = core
-        .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc)] })
-        .await;
+    let result = Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::new(doc)] },
+    )
+    .await;
     assert_matches!(
         result,
         Err(ApiError::<UpsertError>::Endpoint(UpsertError::OldVersionRequired))
@@ -71,10 +77,12 @@ async fn create_document_duplicate_path() {
 
     // create document with same path
     doc.timestamped_value.value.set_id(Uuid::new_v4());
-    let result = core
-        .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc)] })
-        .await;
+    let result = Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::new(doc)] },
+    )
+    .await;
     assert_matches!(
         result,
         Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(
@@ -99,10 +107,12 @@ async fn create_document_parent_not_found() {
         .unwrap()
         .clone();
 
-    let result = core
-        .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc)] })
-        .await;
+    let result = Server::upsert_file_metadata_v2(
+        &core.client,
+        account,
+        UpsertRequestV2 { updates: vec![FileDiff::new(doc)] },
+    )
+    .await;
     assert_matches!(
         result,
         Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(ValidationFailure::Orphan(
