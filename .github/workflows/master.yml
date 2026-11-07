@@ -4,6 +4,10 @@ on:
   push:
     branches: [ master ]
 
+concurrency:
+  group: master-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy-site:
     uses: ./.github/workflows/public-site.yml
