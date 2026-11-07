@@ -675,6 +675,10 @@ impl<'ast> MdEdit {
 
         match style {
             NodeValue::Document | NodeValue::Paragraph => {}
+            NodeValue::CodeBlock(_) => self.toggle_code_block(root, current_selection, operations),
+            NodeValue::ThematicBreak => {
+                self.insert_thematic_break(root, current_selection, operations)
+            }
             _ if style.is_inline() => {
                 let unapply = self.unapply_inline(root, range, &style);
 
@@ -941,6 +945,144 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(current_selection));
             }
             _ => {}
+        }
+    }
+
+    /// Unfences the selected fenced code blocks; else fences the selected
+    /// blocks, or opens an empty fence at a caret between blocks.
+    fn toggle_code_block(
+        &mut self, root: &'ast AstNode<'ast>, current_selection: (Grapheme, Grapheme),
+        operations: &mut Vec<Operation>,
+    ) {
+        // a container holding the whole selection was picked for a blank line in it
+        let selected: Vec<_> = root
+            .descendants()
+            .filter(|&node| self.renderer.table_styled_whole(node))
+            .filter(|&node| {
+                node.is_leaf_block()
+                    || matches!(node.data.borrow().value, NodeValue::Table(_))
+                    || !self.renderer.node_contains_selection(node)
+            })
+            .collect();
+
+        let code_blocks: Vec<_> = selected
+            .iter()
+            .filter(|node| matches!(node.data.borrow().value, NodeValue::CodeBlock(_)))
+            .collect();
+        if !code_blocks.is_empty() {
+            for &&node in &code_blocks {
+                let NodeValue::CodeBlock(code_block) = &node.data.borrow().value else {
+                    unreachable!()
+                };
+                if !code_block.fenced {
+                    continue;
+                }
+                let lines = &self.renderer.bounds.source_lines;
+                let (first_idx, last_idx) = (
+                    self.renderer.node_first_line_idx(node),
+                    self.renderer.node_last_line_idx(node),
+                );
+                let first = lines[first_idx];
+
+                // the opening fence line, through the next line's container prefixes
+                let mut range = (self.renderer.node_line(node, first).start(), first.end());
+                if let Some(&next) = lines.get(first_idx + 1) {
+                    range.1 = self.renderer.node_line(node, next).start();
+                }
+                let last = lines[last_idx];
+                if last_idx > first_idx && self.renderer.is_closing_fence(node, code_block, last) {
+                    let close = (lines[last_idx - 1].end(), last.end());
+                    if close.start() < range.end() {
+                        range.1 = close.end();
+                    } else {
+                        operations
+                            .push(Operation::Replace(Replace { range: close, text: "".into() }));
+                    }
+                }
+                operations.push(Operation::Replace(Replace { range, text: "".into() }));
+            }
+            return;
+        }
+
+        let (Some(&first), Some(&last)) = (selected.first(), selected.last()) else {
+            let container = self
+                .renderer
+                .deepest_container_block_at_offset(root, current_selection.start());
+            let Some(prefix) = self.renderer.extension_prefix(container) else { return };
+            let line = self.renderer.line_at_offset(current_selection.start());
+            let blank = (self.renderer.line_prefix(container, line).end(), line.end());
+            if !self.renderer.buffer[blank].trim().is_empty() {
+                return;
+            }
+            let at = blank.start().into_range();
+            operations
+                .push(Operation::Replace(Replace { range: at, text: format!("```\n{prefix}") }));
+            operations.push(Operation::Select(at));
+            operations
+                .push(Operation::Replace(Replace { range: at, text: format!("\n{prefix}```") }));
+            operations.push(Operation::Replace(Replace { range: blank, text: "".into() }));
+            return;
+        };
+        // a task's checkbox only stands before text
+        if first.parent().is_some_and(|parent| {
+            matches!(parent.data.borrow().value, NodeValue::TaskItem(_))
+                && parent
+                    .first_child()
+                    .is_some_and(|child| child.same_node(first))
+        }) {
+            return;
+        }
+        let parent_prefix = |node: &'ast AstNode<'ast>| {
+            node.parent()
+                .and_then(|parent| self.renderer.extension_prefix(parent))
+        };
+        let (Some(first_prefix), Some(last_prefix)) = (parent_prefix(first), parent_prefix(last))
+        else {
+            return;
+        };
+        let (start, end) =
+            (self.renderer.node_range(first).start(), self.renderer.node_range(last).end());
+        // longer than any backtick run inside, so none of them closes it
+        let longest_run = self.renderer.buffer[(start, end)]
+            .split(|c| c != '`')
+            .map(str::len)
+            .max()
+            .unwrap_or_default();
+        let fence = "`".repeat(longest_run.max(2) + 1);
+        operations.push(Operation::Replace(Replace {
+            range: start.into_range(),
+            text: format!("{fence}\n{first_prefix}"),
+        }));
+        operations.push(Operation::Replace(Replace {
+            range: end.into_range(),
+            text: format!("\n{last_prefix}{fence}"),
+        }));
+    }
+
+    /// Inserts a `---` after the top-level block holding the selection's
+    /// end, or at that end between blocks.
+    fn insert_thematic_break(
+        &mut self, root: &'ast AstNode<'ast>, current_selection: (Grapheme, Grapheme),
+        operations: &mut Vec<Operation>,
+    ) {
+        let end = current_selection.end();
+        let block = root
+            .children()
+            .find(|&node| self.renderer.node_range(node).contains_inclusive(end));
+        let (at, text) = match block {
+            Some(block) => (self.renderer.node_range(block).end(), "\n\n---"),
+            None => {
+                let lines = &self.renderer.bounds.source_lines;
+                let (line_idx, _) = lines.find_containing(end, true, true);
+                // a `---` right under text would underline it into a heading
+                let under_text =
+                    line_idx > 0 && !self.renderer.buffer[lines[line_idx - 1]].trim().is_empty();
+                (end, if under_text { "\n---" } else { "---" })
+            }
+        };
+        operations.push(Operation::Replace(Replace { range: at.into_range(), text: text.into() }));
+        if block.is_none() {
+            operations.push(Operation::Select(at.into_range()));
         }
     }
 
