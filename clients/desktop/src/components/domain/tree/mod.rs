@@ -541,7 +541,7 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
     };
 
     if flat.is_empty() {
-        empty_state(ui, t, "No files");
+        empty_files(ui, t);
         return;
     }
 
@@ -953,6 +953,18 @@ fn paint_row(
             FileCmd::OrganizeShare | FileCmd::DeclineShare => {}
         }
     }
+}
+
+/// An empty Files tree points at the way in.
+fn empty_files(ui: &mut Ui, t: &Theme) {
+    ui.add(Spacer::new(Space::Lg));
+    ui.vertical_centered(|ui| {
+        ui.label(
+            TypeRole::Body
+                .rich("No files yet. Create or import to get started.")
+                .color(t.neutral_fg_secondary()),
+        );
+    });
 }
 
 pub(crate) fn empty_state(ui: &mut Ui, t: &Theme, msg: &str) {

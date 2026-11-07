@@ -6,9 +6,10 @@
 use egui::{Align, Frame, Id, Layout, Rect, Sense, Ui, UiBuilder, pos2, vec2};
 
 use crate::components::domain::chips;
+use crate::components::domain::import_card::ImportCard;
 use crate::components::{
     FixedPadContent, Space, Spacer, Theme, control_height, show_recents, show_shared,
-    show_sync_footer, show_tree, ui_width, with_h_pad_in,
+    show_sync_footer, show_tree, ui_width, with_h_pad, with_h_pad_in,
 };
 
 use super::ShellApp;
@@ -143,6 +144,10 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         )
         .show(ui, |ui| {
             ui.set_min_width(ui_width(ui));
+            if let Some(view) = app.import_job.as_ref().map(|j| j.view()) {
+                ui.add(Spacer::new(Space::Sm));
+                with_h_pad(ui, Space::Sm, &mut ImportCard { view, t, queue });
+            }
             show_sync_footer(app, ui, t, queue);
         });
 
