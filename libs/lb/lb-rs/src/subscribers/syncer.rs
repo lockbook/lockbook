@@ -249,13 +249,15 @@ impl<S: Server> Lb<S> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        // this loop implicitly prunes remote orphans
+        // this loop implicitly prunes remote orphans; like validation, a deleted file whose
+        // parent left the tree is not one
         let mut without_orphans = Vec::new();
         let me = Owner(self.keychain.get_pk()?);
         let remote = db.base_metadata.stage(updates.file_metadata).to_lazy();
         for id in remote.tree.staged.ids() {
             let meta = remote.find(&id)?;
             if remote.maybe_find_parent(meta).is_some()
+                || meta.explicitly_deleted()
                 || meta
                     .user_access_keys()
                     .iter()
