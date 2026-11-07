@@ -43,3 +43,8 @@ opt-level = 3
 # opt-level 0 makes about 3x slower; dev builds keep their fast rebuilds
 [profile.test]
 opt-level = 1
+
+# winit 0.30.13 grows a window dragged between monitors of different scale on
+# Windows 11 (rust-windowing/winit#4600); this is the open 0.30 backport of the fix.
+[patch.crates-io]
+winit = { git = "https://github.com/rust-windowing/winit", rev = "39c4009c41e5977d779cf8a365792c8153ca77c5" }
