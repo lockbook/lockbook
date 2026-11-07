@@ -1,9 +1,11 @@
 use lb_rs::model::account::Account;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{FileMetadata, FileType};
+use lb_rs::model::lazy::LazyTree;
 use lb_rs::model::symkey;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::service::keychain::Keychain;
+use std::cell::Cell;
 use test_utils::*;
 use uuid::Uuid;
 
@@ -210,4 +212,49 @@ async fn deleted_2dirs2() {
 
     assert!(!files.calculate_deleted(child.id()).unwrap());
     assert!(files.calculate_deleted(child_of_child.id()).unwrap());
+}
+
+struct CountingTree {
+    files: Vec<FileMetadata>,
+    scans: Cell<usize>,
+}
+
+impl TreeLike for CountingTree {
+    type F = FileMetadata;
+
+    fn ids(&self) -> Vec<Uuid> {
+        self.scans.set(self.scans.get() + 1);
+        self.files.ids()
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&FileMetadata> {
+        self.files.maybe_find(id)
+    }
+}
+
+#[tokio::test]
+async fn linked_by_scans_once_without_links() {
+    let account = Account::new(random_name(), url());
+    let keychain = Keychain::from(Some(&account));
+    let root = FileMetadata::create_root(&account).unwrap();
+    let key = vec![root.clone()]
+        .to_lazy()
+        .decrypt_key(root.id(), &keychain)
+        .unwrap();
+    let child = FileMetadata::create(
+        Uuid::new_v4(),
+        symkey::generate_key(),
+        &keychain.get_pk().unwrap(),
+        root.id,
+        &key,
+        "test",
+        FileType::Document,
+    )
+    .unwrap();
+    let tree = CountingTree { files: vec![root.clone(), child.clone()], scans: Cell::new(0) };
+    let mut files = LazyTree::new(&tree);
+
+    assert_eq!(files.linked_by(root.id()).unwrap(), None);
+    assert_eq!(files.linked_by(child.id()).unwrap(), None);
+    assert_eq!(tree.scans.get(), 1);
 }
