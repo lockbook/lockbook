@@ -647,19 +647,25 @@ fn import_plan_block(
         _ => skips.push(format!("**{}** app files", count(plan.skipped))),
     }
 
+    // Once some of the folder is already here, the count and size are only what changes.
+    let (added, replaced) = (plan.new, plan.changed);
     let mut text = if plan.files == 0 {
         format!("**{subject}** in **{path}** is up to date.")
-    } else {
+    } else if plan.same == 0 && replaced == 0 {
         format!("**{subject}** (**{files}** {noun}, **{size}**) will be imported into **{path}**.")
+    } else {
+        let mut parts = Vec::new();
+        if added > 0 {
+            parts.push(format!("adding **{}** {}", count(added), plural(added, "file")));
+        }
+        if replaced > 0 {
+            parts.push(format!("replacing **{}** {}", count(replaced), plural(replaced, "file")));
+        }
+        format!(
+            "**{subject}** will be imported into **{path}**, {} (**{size}**).",
+            parts.join(" and ")
+        )
     };
-    if plan.changed > 0 {
-        let n = plan.changed;
-        text.push_str(&format!(
-            " **{}** {} already in Lockbook will be replaced.",
-            count(n),
-            plural(n, "file")
-        ));
-    }
     if !skips.is_empty() {
         text.push_str(&format!(" {} will be skipped.", series(&skips)));
     }
