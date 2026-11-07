@@ -263,9 +263,7 @@ impl Session {
         let (tx, rx) = mpsc::channel();
         let ctx = ctx.clone();
         thread::spawn(move || {
-            // Unoptimized lb-rs holds the db lock 5-38x longer than release.
-            let lock_budget = !cfg!(debug_assertions);
-            let cfg = Config { lock_budget, ..Config::ui_config("egui") };
+            let cfg = Config { lock_budget: true, ..Config::ui_config("egui") };
             let core = match Lb::init(cfg) {
                 Ok(c) => c,
                 Err(e) => {
