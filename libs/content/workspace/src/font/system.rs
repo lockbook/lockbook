@@ -7,7 +7,7 @@ use epaint::text::Blob;
 use glyphon::fontdb::{Database, FaceInfo, Source, Style};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, Once, OnceLock};
 use unicode_script::Script;
 
 /// The faces the interface's text draws in, found once at startup: the
@@ -34,15 +34,18 @@ pub fn found() -> &'static Database {
     })
 }
 
-/// Every installed drawable face, read the first time a family is asked for
-/// by name where no system service names its files.
-#[cfg(not(any(target_vendor = "apple", windows)))]
+/// Every installed drawable face, read the first time the full font list
+/// is asked for.
 fn everything() -> &'static Database {
     EVERYTHING.get_or_init(|| {
         let mut everything = Database::new();
+        #[cfg(any(target_vendor = "apple", windows))]
+        for path in super::os::all_files() {
+            let _ = everything.load_font_file(&path);
+        }
         #[cfg(target_os = "android")]
         everything.load_fonts_dir("/system/fonts");
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_vendor = "apple", windows, target_os = "android")))]
         {
             everything.load_system_fonts();
             // A snap's fontconfig names the user's fonts under the snap's own
@@ -193,6 +196,41 @@ fn first_present(families: &[&'static str]) -> Option<&'static str> {
         .find(|family| faces(family).next().is_some())
 }
 
+/// Every installed family that can be chosen, by name, with whether it's
+/// monospaced; `None` until the scan the first call starts has finished. A
+/// family can be chosen when it draws printable ASCII, as the app's own text
+/// is, and writes one of the user's languages.
+pub fn families() -> Option<&'static [(&'static str, bool)]> {
+    static FAMILIES: OnceLock<Vec<(&'static str, bool)>> = OnceLock::new();
+    static SCAN: Once = Once::new();
+    SCAN.call_once(|| {
+        std::thread::spawn(|| {
+            FAMILIES.get_or_init(|| {
+                let languages = super::cjk::languages();
+                let mut families: Vec<(&'static str, bool)> = vec![];
+                let db = everything();
+                for face in db.faces() {
+                    let name = face.families[0].0.as_str();
+                    // Apple's own UI faces, which it hides from font menus
+                    let listed = |data: &[u8], index| {
+                        draws_ascii(data, index) && writes_any(data, index, &languages)
+                    };
+                    if name.starts_with('.') || db.with_face_data(face.id, listed) != Some(true) {
+                        continue;
+                    }
+                    match families.iter_mut().find(|(n, _)| *n == name) {
+                        Some((_, mono)) => *mono |= face.monospaced,
+                        None => families.push((name, face.monospaced)),
+                    }
+                }
+                families.sort_by_key(|(n, _)| n.to_lowercase());
+                families
+            });
+        });
+    });
+    FAMILIES.get().map(Vec::as_slice)
+}
+
 /// Whether a face draws printable ASCII as letters. Symbol fonts map ASCII
 /// too, to glyphs they name for what they draw (`alpha`, `a10`).
 fn draws_ascii(data: &[u8], index: u32) -> bool {
@@ -204,6 +242,114 @@ fn draws_ascii(data: &[u8], index: u32) -> bool {
         (' '..='~').all(|c| face.glyph_index(c).is_some())
             && ['A', 'a'].into_iter().all(|c| named_as(&face, c))
     })
+}
+
+/// Whether a face writes one of `languages`: it draws its letters, a font
+/// declaring the scripts it was designed for names its script, and a CJK font
+/// is one made for that language, as its code pages declare.
+fn writes_any(data: &[u8], index: u32, languages: &[String]) -> bool {
+    let Ok(face) = ttf_parser::Face::parse(data, index) else { return false };
+    const CJK: u32 = 0b11111 << 17;
+    let declared = face
+        .raw_face()
+        .table(ttf_parser::Tag::from_bytes(b"OS/2"))
+        .filter(|t| t.len() >= 82)
+        .map_or(0, |t| u32::from_be_bytes([t[78], t[79], t[80], t[81]]));
+    let designed = design_languages(&face);
+    let writes = |language: &str| {
+        let cjk = declared & CJK == 0 || declared & super::cjk::code_pages(language) != 0;
+        let design = designed
+            .as_ref()
+            .is_none_or(|tags| designed_for(tags, language));
+        cjk && design
+            && letters(language)
+                .iter()
+                .all(|&c| face.glyph_index(c).is_some())
+    };
+    languages.iter().any(|l| writes(l)) || (languages.is_empty() && writes("en"))
+}
+
+/// The `dlng` entries of a face's `meta` table: the scripts (or languages)
+/// it was designed for, like `Latn`, `el`, or `zh-Hans`.
+fn design_languages(face: &ttf_parser::Face) -> Option<Vec<String>> {
+    let t = face
+        .raw_face()
+        .table(ttf_parser::Tag::from_bytes(b"meta"))?;
+    let u32_at = |at: usize| Some(u32::from_be_bytes(t.get(at..at + 4)?.try_into().ok()?) as usize);
+    for map in 0..u32_at(12)? {
+        let at = 16 + map * 12;
+        if t.get(at..at + 4)? == b"dlng" {
+            let (off, len) = (u32_at(at + 4)?, u32_at(at + 8)?);
+            let tags = std::str::from_utf8(t.get(off..off + len)?).ok()?;
+            return Some(tags.split(',').map(|s| s.trim().to_owned()).collect());
+        }
+    }
+    None
+}
+
+/// Whether one of `tags` names `language` or a script it's written in.
+fn designed_for(tags: &[String], language: &str) -> bool {
+    let primary = language
+        .split(['-', '_'])
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let scripts = scripts(&primary);
+    tags.iter().any(|tag| {
+        tag.split('-').any(|sub| {
+            sub.eq_ignore_ascii_case(&primary)
+                || scripts.iter().any(|s| sub.eq_ignore_ascii_case(s))
+        })
+    })
+}
+
+/// The ISO 15924 scripts `language` (a primary subtag) is written in.
+fn scripts(language: &str) -> &'static [&'static str] {
+    match language {
+        "ru" | "uk" | "be" | "bg" | "sr" | "mk" | "kk" => &["Cyrl"],
+        "el" => &["Grek"],
+        "he" | "yi" => &["Hebr"],
+        "ar" | "fa" | "ur" => &["Arab"],
+        "hi" | "mr" | "ne" => &["Deva"],
+        "th" => &["Thai"],
+        "ja" => &["Jpan", "Hira", "Kana", "Hani"],
+        "zh" | "yue" => &["Hans", "Hant", "Hani"],
+        "ko" => &["Kore", "Hang"],
+        _ => &["Latn"],
+    }
+}
+
+/// A few letters text in `language` can't do without, beyond ASCII.
+fn letters(language: &str) -> &'static [char] {
+    let primary = language.split(['-', '_']).next().unwrap_or("");
+    match primary.to_ascii_lowercase().as_str() {
+        "ru" | "uk" | "be" | "bg" | "sr" | "mk" | "kk" => &['ж', 'я'],
+        "el" => &['λ', 'ω'],
+        "he" | "yi" => &['א', 'ש'],
+        "ar" | "fa" | "ur" => &['ب', 'ع'],
+        "hi" | "mr" | "ne" => &['क', 'ष'],
+        "th" => &['ก', 'ษ'],
+        "ja" => &['あ', 'ア'],
+        "zh" | "yue" => &['中', '国'],
+        "ko" => &['한', '글'],
+        "pl" => &['ł', 'ś', 'ż'],
+        "cs" => &['ř', 'ě'],
+        "hu" => &['ő', 'ű'],
+        "tr" | "az" => &['ğ', 'ş', 'ı'],
+        "ro" => &['ș', 'ț'],
+        "vi" => &['ơ', 'ư', 'ạ'],
+        // the Latin-1 letters western European languages share
+        _ => &['é', 'ñ', 'ü'],
+    }
+}
+
+/// `family` as people know it: Apple's own fonts install under hidden names.
+pub fn shown_name(family: &str) -> &str {
+    match family {
+        ".SF NS Mono" | ".SF UI Mono" => "SF Mono",
+        ".SF NS" | ".SF UI" => "SF Pro",
+        family => family,
+    }
 }
 
 /// The system's text family, where it supplies one.
@@ -218,14 +364,16 @@ pub fn platform_mono() -> Option<&'static str> {
     *MONO_FAMILY.get_or_init(|| first_present(MONO))
 }
 
-/// The family text draws in, where the system supplies one.
+/// The chosen text family where it's installed, else the system's, where it
+/// supplies one.
 pub fn sans_family() -> Option<&'static str> {
-    platform_sans()
+    super::drawn_name(false).or_else(platform_sans)
 }
 
-/// The family code draws in, where the system supplies one.
+/// The chosen monospace family where it's installed, else the system's,
+/// where it supplies one.
 pub fn mono_family() -> Option<&'static str> {
-    platform_mono()
+    super::drawn_name(true).or_else(platform_mono)
 }
 
 /// Appends the system's text and monospace faces after everything in `db`,

@@ -628,6 +628,14 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             set_theme_accent(ctx, accent);
             let _ = app.settings.to_file();
         }
+        A::SetTextFont(family) => {
+            app.settings.text_font = family;
+            apply_fonts(app, ctx);
+        }
+        A::SetCodeFont(family) => {
+            app.settings.code_font = family;
+            apply_fonts(app, ctx);
+        }
         // Workspace prefs: single store on `workspace.cfg`.
         A::SetPrefUpdateLinks(v) => {
             if let Some(r) = app.session.ready_mut() {
@@ -1622,4 +1630,11 @@ mod import_dest_tests {
         let (root, _, _) = ids();
         assert_eq!(import_dest_id(root, None, None), root);
     }
+}
+
+fn apply_fonts(app: &mut ShellApp, ctx: &Context) {
+    let settings = &app.settings;
+    workspace_rs::font::choose(settings.text_font.as_deref(), settings.code_font.as_deref());
+    ctx.request_repaint();
+    let _ = settings.to_file();
 }

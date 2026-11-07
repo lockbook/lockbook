@@ -614,8 +614,9 @@ fn fonts(stale: bool) -> Option<Arc<Fonts>> {
 fn new_fonts() -> Fonts {
     let mut db = usvg::fontdb::Database::new();
     crate::font::load(&mut db);
-    // labels left as text fall back to serif
-    let sans = db.family_name(&usvg::fontdb::Family::SansSerif).to_string();
+    // diagrams draw in the note's family; labels left as text fall back to serif
+    let sans = crate::font::note_family(false);
+    db.set_sans_serif_family(sans);
     db.set_serif_family(sans);
     // a clone keeps the face ids, so the shaper's picks name faces in `db`
     let fallback = crate::font::Fallback::default();

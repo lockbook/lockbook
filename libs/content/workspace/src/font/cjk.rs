@@ -93,6 +93,18 @@ pub(super) fn languages() -> Vec<String> {
     }
 }
 
+/// The OS/2 code page bits of the CJK fonts made for `language`, if it's
+/// Chinese, Japanese, or Korean.
+pub(super) fn code_pages(language: &str) -> u32 {
+    match locale_group(language) {
+        Some(JA_I) => 1 << 17,
+        Some(SC_I) => 1 << 18,
+        Some(KO_I) => (1 << 19) | (1 << 21),
+        Some(TC_I | HK_I) => 1 << 20,
+        _ => 0,
+    }
+}
+
 fn locale_group(locale: &str) -> Option<usize> {
     let locale = locale.to_ascii_lowercase().replace('_', "-");
     let mut subtags = locale.split('-');

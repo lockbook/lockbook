@@ -13,6 +13,9 @@ pub struct Settings {
     pub theme_accent: Option<Palette>,
     pub sidebar_usage: bool,
     pub zen_mode: bool, // hide side panel and maximize the content workspace
+    /// installed family names; unset draws in the platform's
+    pub text_font: Option<String>,
+    pub code_font: Option<String>,
     #[cfg(target_os = "linux")]
     pub allow_wayland: bool,
     #[serde(skip_serializing, skip_deserializing)]
@@ -80,6 +83,8 @@ impl Default for Settings {
             sidebar_usage: true,
             path: "".to_string(),
             zen_mode: false,
+            text_font: None,
+            code_font: None,
             #[cfg(target_os = "linux")]
             allow_wayland: false,
         }

@@ -2,6 +2,7 @@ pub mod cjk;
 pub mod loader;
 #[cfg(any(target_vendor = "apple", windows))]
 pub mod os;
+pub mod slot;
 pub mod system;
 
 use epaint::text::FontData;
@@ -9,24 +10,77 @@ use glyphon::cosmic_text::{self, PlatformFallback};
 use glyphon::fontdb::{Database, FaceInfo, Source};
 use loader::{Family, Kind, Load};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use unicode_script::Script;
 
+/// What text (index 0) and code (1) were asked to draw in, and what they
+/// draw in: the asked family where it's installed, else the platform's.
+struct Chosen {
+    asked: [Option<String>; 2],
+    /// `asked` as of the last [`poll`] that put it into effect.
+    settled: Option<[Option<String>; 2]>,
+    drawn: [Option<Family>; 2],
+    platform: [Option<Family>; 2],
+}
+
+static CHOSEN: RwLock<Chosen> = RwLock::new(Chosen {
+    asked: [None, None],
+    settled: None,
+    drawn: [None, None],
+    platform: [None, None],
+});
 static CHOSEN_SEQ: AtomicU64 = AtomicU64::new(0);
 
-/// Adds the fallback families text asked for once they're read off the UI
-/// thread, redrawing `ctx`'s notes; until then text draws as before. Called
-/// each frame.
+/// Asks for text and code to draw in these families; one unset or not
+/// installed is the platform's. [`poll`] puts it into effect once they're read.
+pub fn choose(sans: Option<&str>, mono: Option<&str>) {
+    CHOSEN.write().unwrap().asked = [sans.map(str::to_owned), mono.map(str::to_owned)];
+}
+
+/// Puts what [`choose`] asked into effect, and adds the fallback families
+/// text asked for, once they're read off the UI thread, redrawing `ctx`'s
+/// notes; until then text draws as before. Called each frame.
 pub fn poll(ctx: &egui::Context) {
     settle_interface(ctx);
+    let chose = settle_choice();
     let added = settle_fallbacks();
     if loader::busy() {
         ctx.request_repaint_after(std::time::Duration::from_millis(50));
     }
-    if added {
+    if chose || added {
         CHOSEN_SEQ.fetch_add(1, Ordering::Release);
         crate::widgets::glyphon_render::reload_font_system(ctx);
     }
+}
+
+/// Whether what [`choose`] asked was just put into effect; not while its
+/// families are still being read.
+fn settle_choice() -> bool {
+    let asked = {
+        let chosen = CHOSEN.read().unwrap();
+        if chosen.settled.as_ref() == Some(&chosen.asked) {
+            return false;
+        }
+        chosen.asked.clone()
+    };
+    let resolve = |name: Option<&str>| match name.map(|name| loader::get(name, Kind::Text)) {
+        None | Some(Load::Missing) => Some(None),
+        Some(Load::Ready(family)) => Some(Some(family)),
+        Some(Load::Loading) => None,
+    };
+    let (Some(sans), Some(mono), Some(platform_sans), Some(platform_mono)) = (
+        resolve(asked[0].as_deref()),
+        resolve(asked[1].as_deref()),
+        resolve(system::platform_sans()),
+        resolve(system::platform_mono()),
+    ) else {
+        return false;
+    };
+    let mut chosen = CHOSEN.write().unwrap();
+    chosen.drawn = [sans, mono];
+    chosen.platform = [platform_sans, platform_mono];
+    chosen.settled = Some(asked);
+    true
 }
 
 /// How much smaller than its size the interface draws its text, which egui
@@ -224,6 +278,40 @@ fn egui_font(
     Some(FontInsert::new(&face.post_script_name, data, families))
 }
 
+/// The family text (or, for `mono`, code) was chosen to draw in, where it's
+/// installed and read.
+pub(crate) fn drawn_name(mono: bool) -> Option<&'static str> {
+    CHOSEN.read().unwrap().drawn[mono as usize]
+        .as_ref()
+        .map(|f| f.name)
+}
+
+/// The platform's lowercase height for text (or code), in em, once read.
+fn platform_x_height(chosen: &Chosen, mono: bool) -> Option<f32> {
+    match &chosen.platform[mono as usize] {
+        Some(family) => family.x_height,
+        None => bundled_letter_height(mono, 'x'),
+    }
+}
+
+/// How much larger than asked `x_height` draws so its lowercase stands as
+/// tall as the platform's text (or code).
+fn match_size(chosen: &Chosen, x_height: Option<f32>, mono: bool) -> f32 {
+    x_height
+        .zip(platform_x_height(chosen, mono))
+        .map_or(1., |(own, platform)| platform / own)
+}
+
+/// How much larger than asked the chosen text (or, for `mono`, code) family
+/// draws, so its lowercase stands as tall as the platform family's.
+pub fn size_adjust(mono: bool) -> f32 {
+    let chosen = CHOSEN.read().unwrap();
+    match &chosen.drawn[mono as usize] {
+        Some(family) => match_size(&chosen, family.x_height, mono),
+        None => 1.,
+    }
+}
+
 /// The height of `letter` (`x`, or `d` for its ascenders) in a family's
 /// regular face among `faces`, in em, else its declared lowercase (or
 /// capital) height. Reads the font file, so only [`loader`] calls it.
@@ -246,17 +334,91 @@ fn face_letter_height(data: &[u8], index: u32, letter: char) -> Option<f32> {
     Some(height as f32 / face.units_per_em() as f32)
 }
 
+/// How tall the bundled text (or code) family draws `letter` (`x` or `d`),
+/// where one is bundled; measured once.
+fn bundled_letter_height(mono: bool, letter: char) -> Option<f32> {
+    static HEIGHTS: std::sync::OnceLock<[[Option<f32>; 2]; 2]> = std::sync::OnceLock::new();
+    let heights = HEIGHTS.get_or_init(|| {
+        #[cfg(not(any(target_vendor = "apple", target_os = "android")))]
+        let measure = |mono: bool, letter| {
+            let bundled =
+                if mono { lb_fonts::NOTO_SANS_MONO_REGULAR } else { lb_fonts::NOTO_SANS_REGULAR };
+            face_letter_height(bundled, 0, letter)
+        };
+        #[cfg(any(target_vendor = "apple", target_os = "android"))]
+        let measure = |_: bool, _: char| None;
+        [false, true].map(|mono| [measure(mono, 'x'), measure(mono, 'd')])
+    });
+    heights[mono as usize][(letter == 'd') as usize]
+}
+
+/// How tall text (or, for `mono`, code) stands from baseline to ascender
+/// (its `d`), in em of the size asked for: what a background centers on.
+pub fn ascender_height(mono: bool) -> Option<f32> {
+    let chosen = CHOSEN.read().unwrap();
+    let i = mono as usize;
+    let em = match (&chosen.drawn[i], &chosen.platform[i]) {
+        (Some(family), _) | (None, Some(family)) => family.ascender,
+        (None, None) => bundled_letter_height(mono, 'd'),
+    };
+    let adjust = match &chosen.drawn[i] {
+        Some(family) => match_size(&chosen, family.x_height, mono),
+        None => 1.,
+    };
+    em.map(|em| em * adjust)
+}
+
 /// Changes with each [`poll`] that redraws in new families, so text measured
 /// before it can be told apart.
 pub fn chosen_seq() -> u64 {
     CHOSEN_SEQ.load(Ordering::Acquire)
 }
 
-/// Adds the fallback families read so far to `db`.
+/// The family notes draw text (or, for `mono`, code) in: the chosen one,
+/// else the platform's.
+pub fn note_family(mono: bool) -> &'static str {
+    match mono {
+        false => system::sans_family().unwrap_or("Noto Sans"),
+        true => system::mono_family().unwrap_or("Noto Sans Mono"),
+    }
+}
+
+/// Adds the faces `db` lacks for the note families, which notes name, and
+/// points its generic sans and monospace at the platform's, which the
+/// interface's text draws in.
 pub fn refresh(db: &mut Database) {
+    let sans = system::platform_sans().unwrap_or("Noto Sans");
+    let mono = system::platform_mono().unwrap_or("Noto Sans Mono");
+    let drawn = CHOSEN.read().unwrap().drawn.clone();
+    // the UI's font system has them from its first load, so only a
+    // background one built later reads them here
+    for family in [sans, mono] {
+        if !has_family(db, family) {
+            for face in system::text_faces(family) {
+                db.push_face_info(system::shared(face));
+            }
+        }
+        stand_in_styles(db, family);
+    }
+    for family in drawn.iter().flatten() {
+        add_family(db, family.name, &family.faces);
+    }
     for family in read_fallbacks() {
         add_fallback(db, &family);
     }
+    db.set_sans_serif_family(sans);
+    db.set_monospace_family(mono);
+}
+
+/// Adds `family`'s `faces` to `db` where it lacks them, with stand-ins for
+/// the styles it lacks.
+fn add_family(db: &mut Database, family: &str, faces: &[FaceInfo]) {
+    if !has_family(db, family) {
+        for face in faces {
+            db.push_face_info(face.clone());
+        }
+    }
+    stand_in_styles(db, family);
 }
 
 /// Adds a fallback `family`'s faces to `db` where it lacks them.
@@ -284,6 +446,29 @@ fn has_family(db: &Database, family: &str) -> bool {
         .any(|f| f.families.iter().any(|(n, _)| n == family))
 }
 
+/// Makes `family` drawable by name in `ctx`'s text once it's read, and how
+/// much larger than asked it draws to match the platform's text; none while
+/// it's read, off the UI thread. A font list shows each name in its own family.
+pub fn load_family(ctx: &egui::Context, family: &'static str) -> Option<f32> {
+    static ADDED: Mutex<Vec<(usize, &'static str)>> = Mutex::new(Vec::new());
+    let fs = ctx.data(|d| d.get_temp::<Arc<Mutex<glyphon::FontSystem>>>(egui::Id::NULL))?;
+    let read = match loader::get(family, Kind::Text) {
+        Load::Ready(read) => read,
+        Load::Loading => {
+            ctx.request_repaint_after(std::time::Duration::from_millis(50));
+            return None;
+        }
+        Load::Missing => return None,
+    };
+    let key = (Arc::as_ptr(&fs) as usize, family);
+    let mut added = ADDED.lock().unwrap();
+    if !added.contains(&key) {
+        added.push(key);
+        add_family(fs.lock().unwrap().db_mut(), family, &read.faces);
+    }
+    Some(match_size(&CHOSEN.read().unwrap(), read.x_height, false))
+}
+
 /// Loads the editor's fonts: the bundled symbols, then text and script faces
 /// from the system where it has them, else bundled, then the system's CJK.
 pub fn load(db: &mut Database) {
@@ -300,6 +485,35 @@ pub fn load(db: &mut Database) {
     }
     system::load(db);
     refresh(db);
+}
+
+/// Text asks for regular, bold, and their italics, and the font system takes
+/// only a face of that exact weight and style, else another family's: each
+/// one `family` lacks gets a copy of its nearest face.
+fn stand_in_styles(db: &mut Database, family: &str) {
+    use glyphon::fontdb::{Style, Weight};
+    let named = |f: &&glyphon::fontdb::FaceInfo| f.families.iter().any(|(n, _)| n == family);
+    for weight in [Weight::NORMAL, Weight::BOLD] {
+        for style in [Style::Normal, Style::Italic] {
+            if db
+                .faces()
+                .filter(named)
+                .any(|f| f.weight == weight && f.style == style)
+            {
+                continue;
+            }
+            let nearest = db
+                .faces()
+                .filter(named)
+                .min_by_key(|f| (f.style != style, f.weight.0.abs_diff(weight.0)))
+                .cloned();
+            if let Some(mut face) = nearest {
+                face.weight = weight;
+                face.style = style;
+                db.push_face_info(face);
+            }
+        }
+    }
 }
 
 /// The fonts egui draws text with and the scale that matches them to the
@@ -373,7 +587,12 @@ fn system_font(family: &str, weight: u16, style: glyphon::fontdb::Style) -> Opti
 /// tracking, so it gets SF's display cut, which is tighter.
 pub fn track<'a>(attrs: glyphon::Attrs<'a>, grapheme: &str, points: f32) -> glyphon::Attrs<'a> {
     use unicode_script::UnicodeScript as _;
-    if !cfg!(target_vendor = "apple") || attrs.family != glyphon::Family::SansSerif {
+    let sf = match attrs.family {
+        glyphon::Family::SansSerif => true,
+        glyphon::Family::Name(name) => Some(name) == system::platform_sans(),
+        _ => false,
+    };
+    if !cfg!(target_vendor = "apple") || !sf {
         return attrs;
     }
     let drawn_by_sans = grapheme.chars().all(|c| {
@@ -677,6 +896,8 @@ mod tests {
             ("sans", Attrs::new().family(Family::SansSerif)),
             ("bold", Attrs::new().family(Family::SansSerif).weight(Weight::BOLD)),
             ("mono", Attrs::new().family(Family::Monospace)),
+            ("note", Attrs::new().family(Family::Name(super::note_family(false)))),
+            ("note mono", Attrs::new().family(Family::Name(super::note_family(true)))),
         ] {
             let new: String = tofu(&mut fs, &text, attrs).difference(&allowed).collect();
             assert!(new.is_empty(), "{name} renders tofu for {new}");

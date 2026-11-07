@@ -22,7 +22,7 @@ pub struct GlyphonCacheSpan {
 pub enum GlyphonFontFamily {
     SansSerif,
     Monospace,
-    Named(String),
+    Named(&'static str),
 }
 
 impl GlyphonCacheKey {
