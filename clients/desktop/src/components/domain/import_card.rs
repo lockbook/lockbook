@@ -100,7 +100,7 @@ impl ImportCard<'_> {
         let lines: Vec<_> = self
             .lines()
             .iter()
-            .map(|l| ui.fonts_mut(|f| f.layout_job(rich(l, text_w, t.neutral_fg_secondary(), 1))))
+            .map(|l| ui.fonts_mut(|f| f.layout_job(rich(l, text_w, t.neutral_fg_secondary(), 3))))
             .collect();
         let mut h = p + title.size().y.max(mark);
         if self.running() {
@@ -224,7 +224,7 @@ fn rich(text: &str, width: f32, color: Color32, rows: usize) -> LayoutJob {
         wrap: TextWrapping {
             max_width: width,
             max_rows: if rows == 0 { usize::MAX } else { rows },
-            break_anywhere: rows != 0,
+            break_anywhere: false,
             overflow_character: (rows != 0).then_some('…'),
         },
         ..Default::default()
