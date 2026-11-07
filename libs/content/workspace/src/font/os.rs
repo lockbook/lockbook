@@ -7,12 +7,17 @@ use std::path::PathBuf;
 /// The files of `family`'s faces.
 #[cfg(target_vendor = "apple")]
 pub fn family_files(family: &str) -> Vec<PathBuf> {
-    use objc2_core_foundation::CFString;
-    use objc2_core_text::CTFontCollection;
-    let collection = unsafe { CTFontCollection::from_available_fonts(None) };
-    let found = unsafe {
-        collection.matching_font_descriptors_for_family(&CFString::from_str(family), None)
-    };
+    use objc2_core_foundation::{CFArray, CFDictionary, CFString, CFType};
+    use objc2_core_text::{CTFontCollection, CTFontDescriptor, kCTFontFamilyNameAttribute};
+    let key: &CFString = unsafe { kCTFontFamilyNameAttribute };
+    let family = CFString::from_str(family);
+    let value: &CFType = family.as_ref();
+    let attributes = CFDictionary::<CFString, CFType>::from_slices(&[key], &[value]);
+    let query = unsafe { CTFontDescriptor::with_attributes(attributes.as_opaque()) };
+    let queries = CFArray::from_retained_objects(&[query]);
+    let collection =
+        unsafe { CTFontCollection::with_font_descriptors(Some(queries.as_opaque()), None) };
+    let found = unsafe { collection.matching_font_descriptors() };
     found.map(descriptor_files).unwrap_or_default()
 }
 
@@ -76,7 +81,7 @@ fn source(font: &objc2_core_text::CTFont) -> Option<glyphon::fontdb::Source> {
 
 /// The family the system draws `c` in when the interface font lacks it, for
 /// text in `language`; none where the interface font draws it.
-#[cfg(target_os = "macos")]
+#[cfg(target_vendor = "apple")]
 pub fn fallback_family(c: char, language: &str) -> Option<String> {
     let (base, font) = fallback_font(c, language, false)?;
     let family = unsafe { font.family_name() }.to_string();
@@ -94,7 +99,7 @@ pub fn fallback_source(c: char, language: &str) -> Option<(String, glyphon::font
 /// The font Core Text draws `c` in, else the next it would cascade to that
 /// Swash can draw; `thorough` also searches every installed font made for
 /// `language`, which takes tens of milliseconds, so only off the UI thread.
-#[cfg(target_os = "macos")]
+#[cfg(target_vendor = "apple")]
 fn fallback_font(
     c: char, language: &str, thorough: bool,
 ) -> Option<(
@@ -143,7 +148,7 @@ fn fallback_font(
 }
 
 /// The installed fonts made for `language`.
-#[cfg(target_os = "macos")]
+#[cfg(target_vendor = "apple")]
 fn made_for(
     language: &objc2_core_foundation::CFString,
 ) -> Option<
@@ -166,7 +171,7 @@ fn made_for(
 }
 
 /// Whether Swash can't draw `font`: it has no outlines, or Apple's `hvgl` ones.
-#[cfg(target_os = "macos")]
+#[cfg(target_vendor = "apple")]
 fn hvgl(font: &objc2_core_text::CTFont) -> bool {
     let has = |tag: &[u8; 4]| unsafe { font.has_table(u32::from_be_bytes(*tag)) };
     has(b"hvgl") || ![b"glyf", b"CFF ", b"CFF2"].iter().any(|tag| has(tag))
@@ -174,13 +179,13 @@ fn hvgl(font: &objc2_core_text::CTFont) -> bool {
 
 /// Whether `font` is the one that claims every character to draw a
 /// placeholder for it.
-#[cfg(target_os = "macos")]
+#[cfg(target_vendor = "apple")]
 fn last_resort(font: &objc2_core_text::CTFont) -> bool {
     unsafe { font.post_script_name() }.to_string() == "LastResort"
 }
 
 /// Whether `font` was made for `language`.
-#[cfg(target_os = "macos")]
+#[cfg(target_vendor = "apple")]
 fn supports(font: &objc2_core_text::CTFont, language: &str) -> bool {
     use objc2_core_foundation::{CFArray, CFRetained, CFString};
     let languages: CFRetained<CFArray<CFString>> =
@@ -189,7 +194,7 @@ fn supports(font: &objc2_core_text::CTFont, language: &str) -> bool {
 }
 
 /// Whether `font` has a glyph for `c`.
-#[cfg(target_os = "macos")]
+#[cfg(target_vendor = "apple")]
 fn draws(font: &objc2_core_text::CTFont, c: char) -> bool {
     unsafe { font.character_set() }.is_long_character_member(c as u32)
 }
@@ -249,7 +254,7 @@ fn sfnt(version: u32, mut tables: Vec<(u32, Vec<u8>)>) -> Vec<u8> {
     out
 }
 
-#[cfg(target_vendor = "apple")]
+#[cfg(target_os = "macos")]
 fn font_file(font: &objc2_core_text::CTFont) -> Option<PathBuf> {
     use objc2_core_foundation::CFURL;
     use objc2_core_text::kCTFontURLAttribute;
