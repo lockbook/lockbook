@@ -11,6 +11,7 @@ mod apply_account;
 mod apply_onboard;
 mod apply_share;
 mod editor;
+pub mod nudge;
 pub mod ops;
 pub mod prefs;
 pub mod session;
@@ -115,6 +116,8 @@ pub struct ShellApp {
     pub(crate) onboard_backup_pending: bool,
     /// The file a link from outside the app names, until it opens.
     pub(crate) incoming_link: Option<apply::IncomingLink>,
+    /// Loaded once the account is ready.
+    pub nudges: Option<nudge::Nudges>,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -182,6 +185,7 @@ impl Default for ShellApp {
             onboard_auto_rx: None,
             onboard_backup_pending: false,
             incoming_link: None,
+            nudges: None,
         }
     }
 }
@@ -314,9 +318,15 @@ impl ShellApp {
                 apply_onboard::onboard_import_focus(ctx);
             }
         }
+        if let Some(r) = self.session.ready() {
+            self.nudges.get_or_insert_with(|| nudge::Nudges::load(r));
+        }
         if self.onboard_backup_pending && matches!(self.session, Session::Ready(_)) {
             self.onboard_backup_pending = false;
             if let Some(r) = self.session.ready() {
+                if let Some(nudges) = &mut self.nudges {
+                    nudges.created(r);
+                }
                 if let Ok(p) = r.workspace.core.export_account_phrase() {
                     self.phrase_cache = Some(p);
                 }
@@ -348,6 +358,10 @@ impl ShellApp {
             if let Some(r) = self.session.ready_mut() {
                 r.workspace.save_all_tabs();
             }
+        }
+
+        if let Some(nudges) = &self.nudges {
+            nudges.tick(ctx);
         }
 
         let t = ctx.get_lb_theme();

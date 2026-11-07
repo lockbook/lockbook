@@ -332,6 +332,8 @@ pub mod phosphor {
     pub const PHONE_DISCONNECT: &str = "\u{e3bc}";
     /// `ph-phone-slash`.
     pub const PHONE_SLASH: &str = "\u{e3c2}";
+    /// `ph-qr-code`.
+    pub const QR_CODE: &str = "\u{e3e6}";
     /// `ph-microphone`. U+E328 is `microphone-slash`.
     pub const MICROPHONE: &str = "\u{e326}";
     /// `ph-microphone-slash`.
