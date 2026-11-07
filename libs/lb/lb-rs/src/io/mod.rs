@@ -158,12 +158,14 @@ pub struct LbTx<'a> {
 }
 
 /// Called while the guard is still held, so the panic report is written before any waiter,
-/// such as a UI thread about to blow its frame budget, can proceed.
+/// such as a UI thread about to blow its frame budget, can proceed. The process then exits,
+/// whichever thread held the lock, as a frame overrun on the UI thread does.
 fn check_hold(lock: &str, budget_start: Option<Instant>) {
     let Some(start) = budget_start else { return };
     let held = start.elapsed();
     if held > LOCK_BUDGET && !std::thread::panicking() {
-        lock_budget_destroyed(lock, held, LOCK_BUDGET);
+        let _ = std::panic::catch_unwind(|| lock_budget_destroyed(lock, held, LOCK_BUDGET));
+        std::process::exit(101);
     }
 }
 
@@ -221,7 +223,7 @@ impl<S> Lb<S> {
         LbRO { guard, budget_start: self.budget_start() }
     }
 
-    /// With [crate::model::core_config::Config::lock_budget], dev accounts panic when they release a lock held past
+    /// With [crate::model::core_config::Config::lock_budget], dev accounts exit when they release a lock held past
     /// [LOCK_BUDGET].
     fn budget_start(&self) -> Option<Instant> {
         let enforced = self.config.lock_budget && self.get_account().is_ok_and(Account::is_dev);

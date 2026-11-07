@@ -1,4 +1,4 @@
-//! Time budgets that dev builds enforce by panicking, so an overrun names its culprit.
+//! Time budgets that dev builds enforce by panicking and exiting, so an overrun names its culprit.
 
 use std::time::Duration;
 
