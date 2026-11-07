@@ -154,6 +154,9 @@ impl Display for LbErrKind {
                 ValidationFailure::SharedLink { .. } => {
                     write!(f, "you cannot place a link inside a shared folder!")
                 }
+                ValidationFailure::SelfShare(_) => {
+                    write!(f, "you cannot share a file with its owner or yourself")
+                }
                 _ => write!(f, "unexpected validation failure: {validation_failure:?}"),
             },
             LbErrKind::Diff(diff_error) => {
@@ -483,6 +486,12 @@ impl From<ApiError<api::GetDocumentError>> for LbErr {
     fn from(e: ApiError<api::GetDocumentError>) -> Self {
         match e {
             ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+            ApiError::Endpoint(api::GetDocumentError::DocumentNotFound) => {
+                LbErrKind::FileNonexistent
+            }
+            ApiError::Endpoint(api::GetDocumentError::NotPermissioned) => {
+                LbErrKind::InsufficientPermission
+            }
             ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }

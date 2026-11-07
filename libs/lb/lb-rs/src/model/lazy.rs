@@ -293,7 +293,7 @@ impl<T: TreeLike> LazyTree<T> {
             let new_descendents = self
                 .children(&to_process[i])?
                 .into_iter()
-                .filter(|f| !result.contains(f))
+                .filter(|f| f != id && !result.contains(f))
                 .collect::<Vec<Uuid>>();
             // TODO could consider optimizing by not exploring documents
             to_process.extend(new_descendents.iter());
@@ -312,7 +312,7 @@ impl<T: TreeLike> LazyTree<T> {
             let new_descendents = self
                 .children_using_links(&to_process[i])?
                 .into_iter()
-                .filter(|f| !result.contains(f))
+                .filter(|f| f != id && !result.contains(f))
                 .collect::<Vec<Uuid>>();
             // TODO could consider optimizing by not exploring documents
             to_process.extend(new_descendents.iter());
@@ -461,6 +461,9 @@ pub enum ValidationFailure {
     FileWithDifferentOwnerParent(Uuid),
     NonDecryptableFileName(Uuid),
     DeletedFileUpdated(Uuid),
+
+    /// You cannot share a file with its owner or with yourself
+    SelfShare(Uuid),
 }
 
 impl<T> LazyTree<T>

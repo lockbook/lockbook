@@ -174,10 +174,33 @@ impl<S: Server> Lb<S> {
         let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
         let base_ids = local.tree.base.ids();
 
-        let mut prunable_ids = base_ids;
-        prunable_ids.retain(|id| !server_ids.contains(id));
-        for id in prunable_ids.clone() {
-            prunable_ids.extend(local.descendants(&id)?);
+        // files the server stopped listing, and this device's files under them it never had
+        let mut prunable_ids: HashSet<Uuid> = base_ids
+            .into_iter()
+            .filter(|id| !server_ids.contains(id))
+            .collect();
+        let mut to_visit: Vec<Uuid> = prunable_ids.iter().copied().collect();
+        while let Some(id) = to_visit.pop() {
+            for child in local.children(&id)? {
+                if !server_ids.contains(&child) && prunable_ids.insert(child) {
+                    to_visit.push(child);
+                }
+            }
+        }
+
+        // a file the server still has keeps its other changes: a pending move into a pruned
+        // folder is undone
+        let mut moved_in = Vec::new();
+        for id in db.local_metadata.ids() {
+            let parent = *local.find(&id)?.parent();
+            if let Some(base_file) = local.tree.base.maybe_find(&id) {
+                if prunable_ids.contains(&parent)
+                    && !prunable_ids.contains(&id)
+                    && !prunable_ids.contains(base_file.parent())
+                {
+                    moved_in.push((id, *base_file.parent()));
+                }
+            }
         }
         for id in &prunable_ids {
             if let Some(base_file) = local.tree.base.maybe_find(id) {
@@ -190,6 +213,13 @@ impl<S: Server> Lb<S> {
                     .delete(*id, local_file.document_hmac().copied())
                     .await?;
             }
+        }
+
+        let mut tree = (&db.base_metadata)
+            .to_staged(&mut db.local_metadata)
+            .to_lazy();
+        for (id, parent) in moved_in {
+            tree.move_unvalidated(&id, &parent, &self.keychain)?;
         }
 
         let mut base_staged = (&mut db.base_metadata).to_lazy().stage(None);
@@ -459,6 +489,14 @@ impl<S: Server> Lb<S> {
                                 && local_file.parent() != base_file.parent()
                                 && !files_to_unmove.contains(&id)
                             {
+                                // a move this device may no longer make is undone
+                                let from = *remote.find(&id)?.parent();
+                                if !may_write_in(&local, &remote, me, &from)?
+                                    || !may_write_in(&local, &remote, me, local_file.parent())?
+                                {
+                                    files_to_unmove.insert(id);
+                                    continue;
+                                }
                                 // move
                                 deletions.move_unvalidated(
                                     &id,
@@ -472,7 +510,11 @@ impl<S: Server> Lb<S> {
                     // deletions (moves happen first in case a file is moved into a deleted folder)
                     for id in db.local_metadata.ids() {
                         let local_file = local.find(&id)?.clone();
-                        if local_file.explicitly_deleted() && !lost_access(&local, me, &id)? {
+                        let parent = *remote.maybe_find(&id).unwrap_or(&local_file).parent();
+                        if local_file.explicitly_deleted()
+                            && !lost_access(&local, me, &id)?
+                            && may_write_in(&local, &remote, me, &parent)?
+                        {
                             // delete
                             deletions.delete_unvalidated(&id, &self.keychain)?;
                         }
@@ -492,6 +534,7 @@ impl<S: Server> Lb<S> {
                             && remote.maybe_find(&id).is_none()
                             && !links_to_delete.contains(&id)
                             && !lost_access(&local, me, &id)?
+                            && may_write_in(&local, &remote, me, local.find(&id)?.parent())?
                         {
                             creations.insert(id);
                         }
@@ -533,9 +576,10 @@ impl<S: Server> Lb<S> {
                     // moves, renames, edits, and shares
                     // creations happen first in case a file is moved into a new folder
                     for id in db.local_metadata.ids() {
-                        // skip files that are already deleted, will be deleted, or are no
-                        // longer reachable from this device
-                        if deletions.maybe_find(&id).is_none()
+                        // skip files that are already deleted, will be deleted, were not
+                        // created, or are no longer reachable from this device
+                        if merge.maybe_find(&id).is_none()
+                            || deletions.maybe_find(&id).is_none()
                             || deletions.calculate_deleted(&id)?
                             || (remote.maybe_find(&id).is_some()
                                 && remote.calculate_deleted(&id)?)
@@ -563,74 +607,50 @@ impl<S: Server> Lb<S> {
                             }
 
                             // rename
-                            if local_name != base_name && remote_name == base_name {
+                            if local_name != base_name
+                                && remote_name == base_name
+                                && may_write_in(&local, &remote, me, merge.find(&id)?.parent())?
+                            {
                                 merge.rename_unvalidated(&id, &local_name, &self.keychain)?;
                             }
                         }
 
-                        // share
-                        let mut base_keys = HashMap::new();
-                        if let Some(ref base_file) = maybe_base_file {
-                            for key in base_file.user_access_keys() {
-                                base_keys.insert(
-                                    (Owner(key.encrypted_by), Owner(key.encrypted_for)),
-                                    (key.mode, key.deleted),
-                                );
+                        // share: replay what this device changed about each recipient's share;
+                        // when the server changed it too, this device wins if either side unshared,
+                        // otherwise the higher mode
+                        let writable = may_write_in(&local, &remote, me, &id)?;
+                        let base_keys = shares_by_recipient(maybe_base_file.as_ref());
+                        let remote_keys = shares_by_recipient(maybe_remote_file.as_ref());
+                        for (for_, local) in shares_by_recipient(Some(&local_file)) {
+                            let base = base_keys.get(&for_).copied();
+                            if Some(local) == base {
+                                continue;
                             }
-                        }
-                        let mut remote_keys = HashMap::new();
-                        if let Some(ref remote_file) = maybe_remote_file {
-                            for key in remote_file.user_access_keys() {
-                                remote_keys.insert(
-                                    (Owner(key.encrypted_by), Owner(key.encrypted_for)),
-                                    (key.mode, key.deleted),
-                                );
-                            }
-                        }
-                        for key in local_file.user_access_keys() {
-                            let (by, for_) = (Owner(key.encrypted_by), Owner(key.encrypted_for));
-                            if let Some(&(remote_mode, remote_deleted)) =
-                                remote_keys.get(&(by, for_))
-                            {
-                                // upgrade/downgrade/undelete share: replay what changed on this
-                                // device; a key with no base is a concurrent add and the higher
-                                // mode wins
-                                let base_key = base_keys.get(&(by, for_)).copied();
-                                let upgraded = key.mode > remote_mode
-                                    && base_key.is_none_or(|(base_mode, _)| key.mode > base_mode);
-                                let downgraded = !key.deleted
-                                    && key.mode < remote_mode
-                                    && base_key.is_some_and(|(base_mode, _)| key.mode < base_mode);
-                                let undeleted = !key.deleted
-                                    && remote_deleted
-                                    && base_key.is_some_and(|(_, base_deleted)| base_deleted);
-                                if upgraded || downgraded || undeleted {
-                                    let mode = match key.mode {
-                                        UserAccessMode::Read => ShareMode::Read,
-                                        UserAccessMode::Write => ShareMode::Write,
-                                        UserAccessMode::Owner => continue,
-                                    };
-                                    merge.add_share_unvalidated(id, for_, mode, &self.keychain)?;
-                                }
-                                // delete share
-                                if key.deleted && !remote_deleted {
+                            let remote = remote_keys.get(&for_).copied();
+                            let remote_live = remote.filter(|&(_, deleted)| !deleted);
+                            let (mode, deleted) = local;
+                            if deleted {
+                                let mine = for_ == me;
+                                if remote_live.is_some() && (mine || writable) {
                                     merge.delete_share_unvalidated(
                                         &id,
                                         Some(for_.0),
                                         &self.keychain,
                                     )?;
                                 }
-                            } else {
-                                // add share
-                                let mode = match key.mode {
-                                    UserAccessMode::Read => ShareMode::Read,
-                                    UserAccessMode::Write => ShareMode::Write,
-                                    UserAccessMode::Owner => continue,
-                                };
+                                continue;
+                            }
+                            let wins = remote == base
+                                || remote_live.is_none_or(|(remote_mode, _)| mode > remote_mode);
+                            let mode = match mode {
+                                UserAccessMode::Read => ShareMode::Read,
+                                UserAccessMode::Write => ShareMode::Write,
+                                UserAccessMode::Owner => continue,
+                            };
+                            if wins && writable {
                                 merge.add_share_unvalidated(id, for_, mode, &self.keychain)?;
                             }
                         }
-
                         // share deletion due to conflicts
                         if files_to_unshare.contains(&id) {
                             merge.delete_share_unvalidated(&id, None, &self.keychain)?;
@@ -649,9 +669,7 @@ impl<S: Server> Lb<S> {
                         let remote_hmac =
                             maybe_remote_file.and_then(|f| f.document_hmac().cloned());
                         let local_hmac = local_file.document_hmac().cloned();
-                        if merge.access_mode(me, &id)? >= Some(UserAccessMode::Write)
-                            && local_hmac != base_hmac
-                        {
+                        if may_write_in(&local, &remote, me, &id)? && local_hmac != base_hmac {
                             if remote_hmac != base_hmac && remote_hmac != local_hmac {
                                 // merge
                                 let merge_name = merge.name(&id, &self.keychain)?;
@@ -750,53 +768,67 @@ impl<S: Server> Lb<S> {
                                         self.docs.insert(id, hmac, &encrypted_document).await?;
                                     }
                                     DocumentType::Other => {
-                                        // duplicate file
-                                        let merge_parent = *merge.find(&id)?.parent();
-                                        let (duplicate_id, duplicate_key) =
-                                            if let Some(&tracked) = duplicate_file_ids.get(&id) {
-                                                tracked
-                                            } else {
-                                                let duplicate_id = Uuid::new_v4();
-                                                let duplicate_key = symkey::generate_key();
-                                                duplicate_file_ids
-                                                    .insert(id, (duplicate_id, duplicate_key));
-                                                rename_increments.insert(duplicate_id, 1);
-                                                (duplicate_id, duplicate_key)
-                                            };
+                                        // duplicate file, in the document's folder if this device
+                                        // may write there, otherwise beside its link; with no
+                                        // link there's nowhere to put it
+                                        let parent = *merge.find(&id)?.parent();
+                                        let writable = merge.maybe_find(&parent).is_some()
+                                            && may_write_in(&local, &remote, me, &parent)?;
+                                        let copy_parent = if writable {
+                                            Some(parent)
+                                        } else if let Some(link) = merge.linked_by(&id)? {
+                                            Some(*merge.find(&link)?.parent())
+                                        } else {
+                                            None
+                                        };
+                                        if let Some(merge_parent) = copy_parent {
+                                            let (duplicate_id, duplicate_key) =
+                                                if let Some(&tracked) = duplicate_file_ids.get(&id)
+                                                {
+                                                    tracked
+                                                } else {
+                                                    let duplicate_id = Uuid::new_v4();
+                                                    let duplicate_key = symkey::generate_key();
+                                                    duplicate_file_ids
+                                                        .insert(id, (duplicate_id, duplicate_key));
+                                                    rename_increments.insert(duplicate_id, 1);
+                                                    (duplicate_id, duplicate_key)
+                                                };
 
-                                        let mut merge_name = merge_name;
-                                        merge_name = NameComponents::from(&merge_name)
-                                            .generate_incremented(
-                                                rename_increments
-                                                    .get(&duplicate_id)
-                                                    .copied()
-                                                    .unwrap_or_default(),
-                                            )
-                                            .to_name();
+                                            let mut merge_name = merge_name;
+                                            merge_name = NameComponents::from(&merge_name)
+                                                .generate_incremented(
+                                                    rename_increments
+                                                        .get(&duplicate_id)
+                                                        .copied()
+                                                        .unwrap_or_default(),
+                                                )
+                                                .to_name();
 
-                                        merge.create_unvalidated(
-                                            duplicate_id,
-                                            duplicate_key,
-                                            &merge_parent,
-                                            &merge_name,
-                                            FileType::Document,
-                                            &self.keychain,
-                                        )?;
-                                        let encrypted_document = merge
-                                            .update_document_unvalidated(
-                                                &duplicate_id,
-                                                &local_document,
+                                            merge.create_unvalidated(
+                                                duplicate_id,
+                                                duplicate_key,
+                                                &merge_parent,
+                                                &merge_name,
+                                                FileType::Document,
                                                 &self.keychain,
                                             )?;
-                                        let duplicate_hmac =
-                                            merge.find(&duplicate_id)?.document_hmac().copied();
-                                        self.docs
-                                            .insert(
-                                                duplicate_id,
-                                                duplicate_hmac,
-                                                &encrypted_document,
-                                            )
-                                            .await?;
+                                            let encrypted_document = merge
+                                                .update_document_unvalidated(
+                                                    &duplicate_id,
+                                                    &local_document,
+                                                    &self.keychain,
+                                                )?;
+                                            let duplicate_hmac =
+                                                merge.find(&duplicate_id)?.document_hmac().copied();
+                                            self.docs
+                                                .insert(
+                                                    duplicate_id,
+                                                    duplicate_hmac,
+                                                    &encrypted_document,
+                                                )
+                                                .await?;
+                                        }
                                     }
                                 }
                             } else {
@@ -979,7 +1011,8 @@ impl<S: Server> Lb<S> {
                             | ValidationFailure::FileWithDifferentOwnerParent(_)
                             | ValidationFailure::FileNameTooLong(_)
                             | ValidationFailure::DeletedFileUpdated(_)
-                            | ValidationFailure::NonDecryptableFileName(_) => {
+                            | ValidationFailure::NonDecryptableFileName(_)
+                            | ValidationFailure::SelfShare(_) => {
                                 validate_result?;
                             }
                         },
@@ -1510,6 +1543,29 @@ impl<S: Server> Lb<S> {
     }
 }
 
+/// Whether this device may still change `id` or what's in it: write is granted at the nearest file
+/// the server has, at or above `id` in this device's tree, and in this device's own tree, where it
+/// may have rejected a share. The merge's tree can hold a cycle while moves apply, so access is
+/// never read from it.
+fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
+    local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
+) -> LbResult<bool> {
+    if local.maybe_find(id).is_some() && local.access_mode(me, id)? < Some(UserAccessMode::Write) {
+        return Ok(false);
+    }
+    let mut id = *id;
+    while remote.maybe_find(&id).is_none() {
+        let Some(file) = local.maybe_find(&id) else {
+            return Ok(false);
+        };
+        if file.parent() == file.id() {
+            return Ok(false);
+        }
+        id = *file.parent();
+    }
+    Ok(remote.access_mode(me, &id)? >= Some(UserAccessMode::Write))
+}
+
 /// A file this device has no access to, e.g. inside a share it declined. A share root carrying
 /// this device's own (possibly tombstoned) key is not lost: that tombstone is what gets pushed.
 fn lost_access<T: TreeLike>(tree: &LazyTree<T>, me: Owner, id: &Uuid) -> LbResult<bool> {
@@ -1520,4 +1576,12 @@ fn lost_access<T: TreeLike>(tree: &LazyTree<T>, me: Owner, id: &Uuid) -> LbResul
         .any(|k| k.encrypted_for == me.0);
     let reachable = tree.access_mode(me, id)?.is_some();
     Ok(!is_my_share_root && !reachable)
+}
+
+/// Each recipient's share of a file as (mode, deleted); a file keeps one share per recipient.
+fn shares_by_recipient(file: Option<&SignedMeta>) -> HashMap<Owner, (UserAccessMode, bool)> {
+    file.into_iter()
+        .flat_map(|file| file.user_access_keys())
+        .map(|key| (Owner(key.encrypted_for), (key.mode, key.deleted)))
+        .collect()
 }

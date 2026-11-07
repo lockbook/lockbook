@@ -1,4 +1,7 @@
 pub mod assert;
+pub mod byte_source;
+pub mod prop;
+pub mod shrink;
 
 use lb_rs::io::server::Server;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
@@ -27,6 +30,8 @@ pub fn test_config() -> Config {
         ..Default::default()
     }
 }
+
+pub use lockbook_server_lib;
 
 /// The client most tests drive: in this process, against one server shared by every test.
 pub type Lb = lb_rs::Lb<InMemoryServer>;
