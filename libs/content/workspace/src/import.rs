@@ -192,16 +192,6 @@ impl ImportPlan {
             .min_by_key(|(_, s)| s.usage)
             .cloned()
     }
-
-    /// Kinds that, left out alone, bring the whole import under the cap.
-    pub fn fitting_kinds(&self) -> Vec<(Kind, Share)> {
-        let Some(excess) = self.whole_excess() else { return Vec::new() };
-        self.kinds
-            .iter()
-            .filter(|(_, s)| s.usage >= excess)
-            .copied()
-            .collect()
-    }
 }
 
 /// One document the job writes, kept for the walk that executes the plan.
@@ -434,42 +424,15 @@ pub fn plan(
     walk(core, paths, dest, leave, room).plan
 }
 
-/// The plan for `dest`, leaving out the smallest thing that makes it fit
-/// when the whole import won't.
-pub fn plan_to_fit(core: &Lb, paths: &[PathBuf], dest: Uuid, room: Option<Room>) -> ImportPlan {
-    let whole = plan(core, paths, dest, Leave::default(), room);
-    if whole.over_cap().is_none() {
-        return whole;
-    }
-    let kind = whole
-        .fitting_kinds()
-        .into_iter()
-        .min_by_key(|(_, s)| s.usage);
-    let folder = whole.fitting_folder();
-    let leave = match (kind, folder) {
-        (Some((k, ks)), Some((_, fs))) if ks.usage <= fs.usage => {
-            Leave { kinds: vec![k], folder: None }
-        }
-        (_, Some((f, _))) => Leave { kinds: vec![], folder: Some(f) },
-        (Some((k, _)), None) => Leave { kinds: vec![k], folder: None },
-        (None, None) => return whole,
-    };
-    plan(core, paths, dest, leave, room)
-}
-
 /// Plans on another thread: listing and comparing a big folder takes about a
-/// second per 5,000 files. `leave: None` picks what to leave out so it fits.
+/// second per 5,000 files.
 pub fn plan_in_background(
-    core: Lb, paths: Vec<PathBuf>, dest: Uuid, leave: Option<Leave>, status: Status,
-    ctx: egui::Context,
+    core: Lb, paths: Vec<PathBuf>, dest: Uuid, leave: Leave, status: Status, ctx: egui::Context,
 ) -> std::sync::mpsc::Receiver<ImportPlan> {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let room = Room::measure(&core, &status);
-        let plan = match leave {
-            Some(leave) => plan(&core, &paths, dest, leave, room),
-            None => plan_to_fit(&core, &paths, dest, room),
-        };
+        let plan = plan(&core, &paths, dest, leave, room);
         let _ = tx.send(plan);
         ctx.request_repaint();
     });

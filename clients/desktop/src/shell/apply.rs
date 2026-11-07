@@ -596,26 +596,25 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::OpenImportParent { paths } => open_import_parent_sheet(app, ctx, paths),
         A::ImportParentSelect(id) => {
-            if let Some(Modal::ImportParent { dest, leave, .. }) = &mut app.modal {
+            if let Some(Modal::ImportParent { dest, .. }) = &mut app.modal {
                 *dest = Some(id);
-                *leave = None;
             }
-            replan_import(app, ctx, None);
+            replan_import(app, ctx);
         }
         A::ImportLeaveKind(kind) => {
-            if let Some(mut leave) = import_leave(app) {
+            if let Some(Modal::ImportParent { leave, .. }) = &mut app.modal {
                 match leave.kinds.iter().position(|k| *k == kind) {
                     Some(i) => _ = leave.kinds.remove(i),
                     None => leave.kinds.push(kind),
                 }
-                replan_import(app, ctx, Some(leave));
+                replan_import(app, ctx);
             }
         }
         A::ImportLeaveFolder(folder) => {
-            if let Some(mut leave) = import_leave(app) {
+            if let Some(Modal::ImportParent { leave, .. }) = &mut app.modal {
                 leave.folder =
                     if leave.folder.as_ref() == Some(&folder) { None } else { Some(folder) };
-                replan_import(app, ctx, Some(leave));
+                replan_import(app, ctx);
             }
         }
         A::ConfirmImportParent => {
@@ -663,8 +662,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::ImportDismiss => app.import_job = None,
         A::ImportPlanned(p) => {
-            if let Some(Modal::ImportParent { plan, planning, leave, .. }) = &mut app.modal {
-                *leave = Some(p.leave.clone());
+            if let Some(Modal::ImportParent { plan, planning, .. }) = &mut app.modal {
                 *plan = Some(p);
                 *planning = None;
             }
@@ -676,9 +674,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                     dest: Some(dest),
                     plan: None,
                     planning: None,
-                    leave: Some(Default::default()),
+                    leave: Default::default(),
                 });
-                replan_import(app, ctx, Some(Default::default()));
+                replan_import(app, ctx);
             }
         }
         A::OpenSearch(search_type) => {
@@ -1566,21 +1564,18 @@ fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBu
         d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_import_parent"));
     });
     app.import_after_upgrade = None;
-    app.modal = Some(Modal::ImportParent { paths, dest, plan: None, planning: None, leave: None });
-    replan_import(app, ctx, None);
+    app.modal = Some(Modal::ImportParent {
+        paths,
+        dest,
+        plan: None,
+        planning: None,
+        leave: Default::default(),
+    });
+    replan_import(app, ctx);
 }
 
-/// What the open import leaves out now.
-fn import_leave(app: &ShellApp) -> Option<workspace_rs::import::Leave> {
-    match &app.modal {
-        Some(Modal::ImportParent { leave: Some(leave), .. }) => Some(leave.clone()),
-        _ => None,
-    }
-}
-
-/// Plan the open import again off the UI thread. `None` leaves out whatever
-/// makes it fit.
-fn replan_import(app: &mut ShellApp, ctx: &Context, leave: Option<workspace_rs::import::Leave>) {
+/// Plan the open import again off the UI thread.
+fn replan_import(app: &mut ShellApp, ctx: &Context) {
     let Some((core, status)) = app
         .session
         .ready()
@@ -1588,18 +1583,14 @@ fn replan_import(app: &mut ShellApp, ctx: &Context, leave: Option<workspace_rs::
     else {
         return;
     };
-    if let Some(Modal::ImportParent {
-        paths, dest: Some(dest), planning, leave: requested, ..
-    }) = &mut app.modal
+    if let Some(Modal::ImportParent { paths, dest: Some(dest), planning, leave, .. }) =
+        &mut app.modal
     {
-        if leave.is_some() {
-            *requested = leave.clone();
-        }
         *planning = Some(workspace_rs::import::plan_in_background(
             core,
             paths.clone(),
             *dest,
-            leave,
+            leave.clone(),
             status,
             ctx.clone(),
         ));

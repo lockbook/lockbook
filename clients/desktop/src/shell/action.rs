@@ -174,8 +174,8 @@ pub enum Modal {
         plan: Option<workspace_rs::import::ImportPlan>,
         /// A plan being worked out; it replaces `plan` when it arrives.
         planning: Option<std::sync::mpsc::Receiver<workspace_rs::import::ImportPlan>>,
-        /// What the latest request leaves out; `None` until the fitting choice arrives.
-        leave: Option<workspace_rs::import::Leave>,
+        /// What the person chose to leave out; nothing until they do.
+        leave: workspace_rs::import::Leave,
     },
     Help,
     Onboard {
