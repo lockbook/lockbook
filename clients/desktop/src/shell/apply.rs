@@ -1550,7 +1550,11 @@ fn finish_export(app: &mut ShellApp, files: Vec<File>, dest: PathBuf) {
 fn import_pick(app: &mut ShellApp, ctx: &Context) {
     // Off-thread: blocking NSOpenPanel inside the egui/wgpu frame crashes/quits
     // on cancel (spurious window-close). Same pattern as the old linux client.
-    spawn_native_dialog(app, ctx, || NativeDialogResult::Import(FileDialog::new().pick_files()));
+    #[cfg(target_os = "macos")]
+    let pick = super::macos_window::pick_files_and_folders;
+    #[cfg(not(target_os = "macos"))]
+    let pick = || FileDialog::new().pick_files();
+    spawn_native_dialog(app, ctx, move || NativeDialogResult::Import(pick()));
 }
 
 /// Open the Import folder-picker sheet. Seeds `dest` from tree selection
