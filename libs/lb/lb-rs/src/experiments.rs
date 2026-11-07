@@ -26,3 +26,19 @@ pub fn cohort<E: VariantArray + Copy>(username: &str) -> E {
 
     E::VARIANTS[variant_id]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Cohorts are recomputed from usernames long after signup, so the hash
+    /// must never change: a new Rust release or a code change here would
+    /// reshuffle every experiment's arms.
+    #[test]
+    fn assignments_are_stable() {
+        let arms: String = (0..32)
+            .map(|i| (cohort::<WelcomeDoc>(&format!("user{i}")) as usize).to_string())
+            .collect();
+        assert_eq!(arms, "23202200310101001212012201201111");
+    }
+}
