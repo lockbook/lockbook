@@ -338,6 +338,11 @@ impl Walk<'_> {
             return;
         }
 
+        // Pipes, sockets and devices can block a read forever.
+        if !meta.is_file() {
+            self.plan.unreadable += 1;
+            return;
+        }
         let bytes = meta.len();
         let Ok(data) = fs::read(disk) else {
             self.plan.unreadable += 1;
@@ -595,10 +600,10 @@ fn run(core: &Lb, writes: Vec<Write>, progress: &Mutex<Progress>, ctx: &egui::Co
                 let r = resolve(&made, parent)
                     .ok_or_else(|| "its folder wasn't created".to_owned())
                     .and_then(|p| {
+                        let data = fs::read(&disk).map_err(|e| e.to_string())?;
                         let f = core
                             .create_file(&name, &p, FileType::Document)
                             .map_err(|e| e.to_string())?;
-                        let data = fs::read(&disk).map_err(|e| e.to_string())?;
                         core.write_document(f.id, &data)
                             .map_err(|e| e.to_string())?;
                         Ok(bytes)
