@@ -652,6 +652,14 @@ fn import_plan_block(
     } else {
         format!("**{subject}** (**{files}** {noun}, **{size}**) will be imported into **{path}**.")
     };
+    if plan.changed > 0 {
+        let n = plan.changed;
+        text.push_str(&format!(
+            " **{}** {} already in Lockbook will be replaced.",
+            count(n),
+            plural(n, "file")
+        ));
+    }
     if !skips.is_empty() {
         text.push_str(&format!(" {} will be skipped.", series(&skips)));
     }
