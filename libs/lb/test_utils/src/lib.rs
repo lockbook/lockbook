@@ -31,9 +31,15 @@ pub fn test_config() -> Config {
 /// The client most tests drive: in this process, against one server shared by every test.
 pub type Lb = lb_rs::Lb<InMemoryServer>;
 
+static SERVER: LazyLock<InMemoryServer> = LazyLock::new(InMemoryServer::in_memory);
+
 pub async fn test_core() -> Lb {
-    static SERVER: LazyLock<InMemoryServer> = LazyLock::new(InMemoryServer::in_memory);
-    Lb::in_memory(test_config(), SERVER.clone()).await.unwrap()
+    test_core_with(test_config()).await
+}
+
+/// A client on the server every test shares, configured by the caller (background work, logs).
+pub async fn test_core_with(config: Config) -> Lb {
+    Lb::in_memory(config, SERVER.clone()).await.unwrap()
 }
 
 pub async fn test_core_from(core: &Lb) -> Lb {

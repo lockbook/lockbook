@@ -11,7 +11,9 @@ use std::{
 use std::fs::{File, TryLockError};
 
 use futures::{StreamExt, stream};
-use tokio::sync::{Mutex, broadcast::error::TryRecvError};
+use tokio::sync::Mutex;
+#[cfg(not(target_family = "wasm"))]
+use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 use tokio::time;
 use usvg::Transform;
 use uuid::Uuid;
@@ -1377,34 +1379,35 @@ impl<S: Server> Lb<S> {
 
                 // drain the current channel, so we don't sync for each keystroke if they pile up
                 loop {
-                    let event = events.try_recv();
-                    match event {
-                        Ok(event) => {
-                            if sync_criteria(event) {
-                                should_sync = true;
-                            }
-                        }
+                    match events.try_recv() {
+                        Ok(event) => should_sync |= sync_criteria(event),
                         Err(TryRecvError::Empty) => break,
-                        _ => {
-                            panic!(
-                                "unexpected broadcast receive error, returning local_change_worker"
-                            );
-                        }
+                        Err(TryRecvError::Lagged(_)) => should_sync |= self.has_local_work().await,
+                        Err(TryRecvError::Closed) => return,
                     }
                 }
 
                 // empty channel + nothing interesting has happened, sit and wait for something
                 // interesting
                 if !should_sync {
-                    let event = events.recv().await.unwrap();
-                    if sync_criteria(event) {
-                        self.sync().await.map_unexpected().log_and_ignore();
-                    } else {
-                        continue;
-                    }
+                    should_sync = match events.recv().await {
+                        Ok(event) => sync_criteria(event),
+                        Err(RecvError::Lagged(_)) => self.has_local_work().await,
+                        Err(RecvError::Closed) => return,
+                    };
+                }
+
+                if should_sync {
+                    self.sync().await.map_unexpected().log_and_ignore();
                 }
             }
         });
+    }
+
+    /// Whether a sync would push anything: what a missed event changed is still unsynced.
+    #[cfg(not(target_family = "wasm"))]
+    async fn has_local_work(&self) -> bool {
+        !self.local_changes().await.is_empty()
     }
 
     fn periodic_sync_worker(self) {
@@ -1435,14 +1438,19 @@ impl<S: Server> Lb<S> {
             let mut events = self.subscribe();
 
             loop {
-                let event = events.recv().await.unwrap();
-                if let Event::Sync(SyncIncrement::SyncFinished(_)) = event {
-                    self.fetcher().await.map_unexpected().log_and_ignore();
-                    self.populate_pk_cache()
-                        .await
-                        .map_unexpected()
-                        .log_and_ignore();
-                };
+                // A receiver that lagged missed a sync's worth of events, a `SyncFinished`
+                // possibly among them; the work after a sync is idempotent, so it runs again.
+                match events.recv().await {
+                    Ok(Event::Sync(SyncIncrement::SyncFinished(_))) | Err(RecvError::Lagged(_)) => {
+                        self.fetcher().await.map_unexpected().log_and_ignore();
+                        self.populate_pk_cache()
+                            .await
+                            .map_unexpected()
+                            .log_and_ignore();
+                    }
+                    Ok(_) => {}
+                    Err(RecvError::Closed) => return,
+                }
             }
         });
     }
