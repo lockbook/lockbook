@@ -18,7 +18,7 @@ pub struct LazyTree<T: TreeLike> {
     pub tree: T,
     pub name: HashMap<Uuid, String, UuidIdentityHasherBuilder>,
     pub implicit_deleted: HashMap<Uuid, bool, UuidIdentityHasherBuilder>,
-    pub linked_by: HashMap<Uuid, Uuid, UuidIdentityHasherBuilder>,
+    pub linked_by: Option<HashMap<Uuid, Uuid, UuidIdentityHasherBuilder>>,
     pub children: HashMap<Uuid, Vec<Uuid>, UuidIdentityHasherBuilder>,
 }
 
@@ -28,7 +28,7 @@ impl<T: TreeLike> LazyTree<T> {
             name: uuid_map(),
             implicit_deleted: uuid_map(),
             children: uuid_map(),
-            linked_by: uuid_map(),
+            linked_by: None,
             tree,
         }
     }
@@ -226,17 +226,22 @@ impl<T: TreeLike> LazyTree<T> {
     }
 
     pub fn linked_by(&mut self, id: &Uuid) -> LbResult<Option<Uuid>> {
-        if self.linked_by.is_empty() {
+        if self.linked_by.is_none() {
+            let mut linked_by = uuid_map();
             for link_id in self.ids() {
                 if let FileType::Link { target } = self.find(&link_id)?.file_type() {
                     if !self.calculate_deleted(&link_id)? {
-                        self.linked_by.insert(target, link_id);
+                        linked_by.insert(target, link_id);
                     }
                 }
             }
+            self.linked_by = Some(linked_by);
         }
 
-        Ok(self.linked_by.get(id).copied())
+        Ok(self
+            .linked_by
+            .as_ref()
+            .and_then(|linked_by| linked_by.get(id).copied()))
     }
 
     /// Returns ids of files whose parent is the argument. Does not include the argument.
@@ -393,7 +398,7 @@ impl<T: TreeLike> LazyTree<T> {
             name: uuid_map(),
             implicit_deleted: uuid_map(),
             children: uuid_map(),
-            linked_by: uuid_map(),
+            linked_by: None,
         }
     }
 
@@ -405,7 +410,7 @@ impl<T: TreeLike> LazyTree<T> {
     //         name: uuid_map(),
     //         implicit_deleted: uuid_map(),
     //         children: uuid_map(),
-    //         linked_by: uuid_map(),
+    //         linked_by: None,
     //     }
     // }
 
@@ -480,7 +485,7 @@ where
         self.name = uuid_map();
         self.implicit_deleted = uuid_map();
         self.children = uuid_map();
-        self.linked_by = uuid_map();
+        self.linked_by = None;
         Ok(())
     }
 
@@ -503,7 +508,7 @@ where
         self.name = uuid_map();
         self.implicit_deleted = uuid_map();
         self.children = uuid_map();
-        self.linked_by = uuid_map();
+        self.linked_by = None;
         Ok(())
     }
 }
@@ -531,7 +536,7 @@ where
             name: uuid_map(),
             implicit_deleted: uuid_map(),
             children: uuid_map(),
-            linked_by: uuid_map(),
+            linked_by: None,
         })
     }
 }
@@ -549,7 +554,7 @@ where
                 name: uuid_map(),
                 implicit_deleted: uuid_map(),
                 children: uuid_map(),
-                linked_by: uuid_map(),
+                linked_by: None,
             },
             self.tree.staged,
         )
