@@ -7,6 +7,7 @@ pub mod account;
 pub mod activity;
 pub mod admin;
 pub mod billing;
+pub mod budget;
 pub mod debug;
 pub mod documents;
 pub mod events;

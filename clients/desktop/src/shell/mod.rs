@@ -196,12 +196,11 @@ impl ShellApp {
         self.account_panel = AccountPanel::Closed;
     }
 
-    /// Dev-gated renderer extras (`DEV_USERS`).
+    /// Dev-gated renderer extras.
     pub fn is_dev(&self) -> bool {
         self.session
             .ready()
-            .map(|r| crate::DEV_USERS.contains(&r.workspace.account.username.as_str()))
-            .unwrap_or(false)
+            .is_some_and(|r| r.workspace.account.is_dev())
     }
 
     fn showing_backup(&self) -> bool {

@@ -263,7 +263,7 @@ impl Session {
         let (tx, rx) = mpsc::channel();
         let ctx = ctx.clone();
         thread::spawn(move || {
-            let cfg = Config::ui_config("egui");
+            let cfg = Config { lock_budget: true, ..Config::ui_config("egui") };
             let core = match Lb::init(cfg) {
                 Ok(c) => c,
                 Err(e) => {

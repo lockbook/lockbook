@@ -58,6 +58,11 @@ pub struct Config {
 
     #[serde(default)]
     pub client_type: ClientType,
+
+    /// Should dev accounts exit when a db lock is held past its budget? Set by hosts that enforce
+    /// the frame budget.
+    #[serde(default)]
+    pub lock_budget: bool,
 }
 
 impl Default for Config {
@@ -74,6 +79,7 @@ impl Default for Config {
             stdout_logs: false,
             colored_logs: false,
             client_type: ClientType::Unknown,
+            lock_budget: false,
         }
     }
 }
