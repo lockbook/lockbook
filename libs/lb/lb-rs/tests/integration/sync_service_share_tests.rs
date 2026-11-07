@@ -759,6 +759,46 @@ async fn collaborator_moves_out_folder_holding_owners_deleted_folder() {
     owner.sync().await.unwrap();
 }
 
+/// Same, seen from another owner device that last synced before the file inside the deleted folder
+/// changed.
+#[tokio::test]
+async fn collaborator_moves_out_folder_holding_owners_edited_deleted_folder() {
+    let owner = test_core_with_account().await;
+    let collaborator = test_core_with_account().await;
+    let collaborator_name = collaborator.get_account().unwrap().username.clone();
+
+    let project = owner.create_at_path("/project/").await.unwrap();
+    let design = owner.create_at_path("/project/design/").await.unwrap();
+    let old = owner.create_at_path("/project/design/old/").await.unwrap();
+    let mockup = owner
+        .create_at_path("/project/design/old/mockup.png")
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    let other_device = another_client(&owner).await;
+    other_device.sync().await.unwrap();
+
+    owner.write_document(mockup.id, b"mockup").await.unwrap();
+    owner.sync().await.unwrap();
+    owner.delete(&old.id).await.unwrap();
+    owner
+        .share_file(project.id, &collaborator_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+
+    collaborator.sync().await.unwrap();
+    let collaborator_root = collaborator.root().await.unwrap().id;
+    collaborator
+        .move_file(&design.id, &collaborator_root)
+        .await
+        .unwrap();
+    collaborator.sync().await.unwrap();
+
+    other_device.sync().await.unwrap();
+    assert::all_paths(&other_device, &["/", "/project/"]).await;
+}
+
 /// Declining a share with an unsynced edit inside it drops the edit rather than wedging sync.
 #[tokio::test]
 async fn reject_share_with_unsynced_create_inside_it() {
