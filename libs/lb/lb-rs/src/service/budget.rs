@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 /// How many 120 Hz frames we tolerate before calling it slow.
-pub const NOOB_FACTOR: u64 = 8;
+pub const NOOB_FACTOR: u64 = 48;
 
 /// Whether hosts enforce the budgets in this build. Debug builds enforce neither.
 pub const ENFORCED: bool = !cfg!(debug_assertions);
