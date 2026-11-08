@@ -78,6 +78,7 @@ impl From<crate::Response> for MacOSResponse {
                     text_interaction_rect: _,
                     mobile_toolbar_shown: _,
                     caret_covered: _,
+                    lifted: _,
                     tabs_changed,
                     failure_messages: _,
                     selected_folder_changed,

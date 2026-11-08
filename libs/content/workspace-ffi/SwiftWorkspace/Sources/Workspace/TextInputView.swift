@@ -21,6 +21,8 @@
         private let textInteraction = UITextInteraction(for: .editable)
         private let history = EditorUndoManager()
         private let reorderPress = ReorderPressRecognizer()
+        /// Buzzes as a hold lifts something to drag, from where the finger is.
+        private lazy var liftHaptic = UIImpactFeedbackGenerator(style: .medium, view: self)
         private lazy var editMenu = UIEditMenuInteraction(delegate: self)
         private var menuForAtom = false
         /// A UIKit tap, loupe drag, or handle drag is writing the selection.
@@ -75,36 +77,38 @@
                 object: nil
             )
 
-            // A hold on a list item with the keyboard down lifts the item. It
-            // fails at touch-down anywhere else, so no text gesture waits.
-            reorderPress.canStart = { [weak self] point in
+            // A hold on a list item or an image with the keyboard down lifts
+            // it. It fails at touch-down anywhere else, so no text gesture
+            // waits. It sits on the page, so it sees the holds on images that
+            // the tap layer takes.
+            // it measures where egui's own touches do, the editor's view
+            reorderPress.space = mtkView
+            reorderPress.canStart = { [weak self] p in
                 guard let self, let wsHandle = self.wsHandle, !self.isSoftwareKeyboardUp else {
                     return false
                 }
-                let p = self.convert(point, to: self.mtkView)
                 return ios_reorder_can_start(wsHandle, Float(p.x), Float(p.y))
             }
-            reorderPress.start = { [weak self] point in
+            reorderPress.start = { [weak self] p in
                 guard let self, let wsHandle = self.wsHandle else { return false }
-                let p = self.convert(point, to: self.mtkView)
                 let lifted = ios_reorder_start(wsHandle, Float(p.x), Float(p.y))
                 self.mtkView.requestFrame()
                 return lifted
             }
-            reorderPress.move = { [weak self] point in
+            reorderPress.move = { [weak self] p in
                 guard let self, let wsHandle = self.wsHandle else { return }
-                let p = self.convert(point, to: self.mtkView)
                 ios_reorder_move(wsHandle, Float(p.x), Float(p.y))
                 self.mtkView.requestFrame()
             }
-            reorderPress.end = { [weak self] point, cancelled in
+            reorderPress.end = { [weak self] p, cancelled in
                 guard let self, let wsHandle = self.wsHandle else { return }
-                let p = self.convert(point, to: self.mtkView)
                 ios_reorder_end(wsHandle, Float(p.x), Float(p.y), cancelled)
                 self.mtkView.requestFrame()
             }
             reorderPress.delegate = self
-            addGestureRecognizer(reorderPress)
+            page.addGestureRecognizer(reorderPress)
+            // a hold that lifts an image doesn't also tap it
+            page.taps.tap.require(toFail: reorderPress)
             for gesture in textInteraction.gesturesForFailureRequirements {
                 gesture.require(toFail: reorderPress)
             }
@@ -136,6 +140,7 @@
                 !handle.isHidden && handle.convert(handle.bounds, to: self).insetBy(dx: -22, dy: -22).contains(point)
             }
         }
+
 
         /// The software keyboard is up: first responder, and no hardware keyboard keeps it away.
         var isSoftwareKeyboardUp: Bool {
@@ -223,6 +228,10 @@
             if output.caret_covered != caretCovered {
                 caretCovered = output.caret_covered
                 selectionDisplay?.isActivated = !chromeFocused && !caretCovered
+            }
+            // whichever long press lifted it, the frame says so
+            if output.lifted {
+                liftHaptic.impactOccurred()
             }
             if output.text_updated {
                 marked = nil
@@ -1353,7 +1362,7 @@
     }
 
     extension TextInputView: UIGestureRecognizerDelegate {
-        /// The list-item hold runs beside the page pan (the editor ignores the
+        /// The list-item or image hold runs beside the page pan (the editor ignores the
         /// pan while an item is lifted) and the touch watch.
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
@@ -1670,6 +1679,8 @@
         var start: (CGPoint) -> Bool = { _ in false }
         var move: (CGPoint) -> Void = { _ in }
         var end: (CGPoint, Bool) -> Void = { _, _ in }
+        /// The view its points are measured in, its own when unset.
+        weak var space: UIView?
 
         private var origin: CGPoint?
         private var hold: DispatchWorkItem?
@@ -1689,7 +1700,7 @@
                 state = .failed
                 return
             }
-            let point = touch.location(in: view)
+            let point = touch.location(in: space ?? view)
             guard canStart(point) else {
                 state = .failed
                 return
@@ -1707,7 +1718,7 @@
 
         override func touchesMoved(_ touches: Set<UITouch>, with _: UIEvent) {
             guard let origin, let touch = touches.first else { return }
-            let point = touch.location(in: view)
+            let point = touch.location(in: space ?? view)
             switch state {
             case .possible:
                 if hypot(point.x - origin.x, point.y - origin.y) > 12 {
@@ -1733,7 +1744,7 @@
         private func finish(_ touches: Set<UITouch>, cancelled: Bool) {
             hold?.cancel()
             if state == .began || state == .changed {
-                let point = touches.first?.location(in: view) ?? origin ?? .zero
+                let point = touches.first?.location(in: space ?? view) ?? origin ?? .zero
                 end(point, cancelled)
                 state = cancelled ? .cancelled : .ended
             } else {

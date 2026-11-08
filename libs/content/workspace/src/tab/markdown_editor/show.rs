@@ -510,6 +510,7 @@ impl MdEdit {
         // Favicon + selection tint, over the opaque capsule pills.
         self.renderer.show_capsule_overlays(ui, root, rect, 0);
 
+        self.track_drag_travel(ui);
         self.handle_block_drag(ui);
         self.handle_image_drag(ui, root);
         self.post_render(ui, rect, id, pre);
@@ -618,7 +619,8 @@ impl MdEdit {
             Some(BlockDragAction::Dragged(_)) => {}
             Some(BlockDragAction::Released(pointer)) => {
                 if let Some(drag) = self.in_progress_block_drag.take() {
-                    if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
+                    let aim = self.block_drop_pointer(&drag, pointer);
+                    if let Some(gap) = self.renderer.drop_gap_for(&drag, aim) {
                         // deferred move (applied next frame in `handle_input`),
                         // floating where it lands until then
                         self.pending_block_move = Some((drag, gap, pointer));
@@ -687,7 +689,8 @@ impl MdEdit {
         let is_row = drag.unit == DragUnit::Row;
 
         // Drop-gap indicator: soft capsule with a hollow leading dot.
-        if let Some(gap) = self.renderer.drop_gap_for(&drag, p) {
+        let aim = self.block_drop_pointer(&drag, p);
+        if let Some(gap) = self.renderer.drop_gap_for(&drag, aim) {
             let (x0, x1) = self
                 .renderer
                 .block_boxes

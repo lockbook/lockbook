@@ -45,6 +45,7 @@ data class AndroidResponse(
     val hasMagnifier: Boolean,
     val magnifierX: Float,
     val magnifierY: Float,
+    val lifted: Boolean,
 )
 
 @Serializable

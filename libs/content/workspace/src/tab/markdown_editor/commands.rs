@@ -7,7 +7,7 @@ use egui::Pos2;
 use lb_rs::model::text::offset_types::Grapheme;
 
 use super::input::{Event, Gesture};
-use super::widget::block::drag::{BlockDragAction, TouchReorder};
+use super::widget::block::drag::{BlockDrag, BlockDragAction, DragUnit, TouchReorder};
 use super::{MdEdit, TouchTarget};
 
 impl MdEdit {
@@ -80,17 +80,20 @@ impl MdEdit {
         }
     }
 
-    /// Whether a long press at `pos` can lift a list item. The platform
-    /// checks the keyboard: with it up, a long press is text selection.
+    /// Whether a long press at `pos` can lift something (see
+    /// [`MdRender::can_lift`]). The platform checks the keyboard: with it up,
+    /// a long press is text selection.
     pub fn reorder_can_start(&self, pos: Pos2) -> bool {
         let r = &self.renderer;
-        r.touch_mode && !r.readonly && r.interactive && r.touch_reorder_target(pos).is_some()
+        r.touch_mode && !r.readonly && r.interactive && r.can_lift(pos)
     }
 
-    /// Lift the list item under `pos`; the platform then drives the drag.
+    /// Lift the image or list item under `pos`; the platform then drives
+    /// the drag.
     pub fn reorder_start(&mut self, pos: Pos2) -> bool {
-        let Some(drag) = self.renderer.touch_reorder_target(pos) else { return false };
-        self.renderer.block_drag_action = Some(BlockDragAction::Started(drag));
+        if !self.lift(pos) {
+            return false;
+        }
         self.touch_reorder = TouchReorder::Armed { last: pos };
         self.touch_reorder_driven = true;
         self.renderer.ctx.request_repaint();
@@ -104,16 +107,20 @@ impl MdEdit {
         }
     }
 
-    /// Drop at `pos`, or put the item back if `cancelled`.
+    /// Drop at `pos`, or put the image or item back if `cancelled`.
     pub fn reorder_end(&mut self, pos: Pos2, cancelled: bool) {
         if !self.touch_reorder_driven {
             return;
         }
         if cancelled {
             self.in_progress_block_drag = None;
+            self.in_progress_image_drag = None;
             self.renderer.block_drag_action = None;
         } else {
             self.renderer.block_drag_action = Some(BlockDragAction::Released(pos));
+            if let Some(drag) = &mut self.in_progress_image_drag {
+                drag.pointer = pos;
+            }
         }
         self.touch_reorder = TouchReorder::Idle;
         self.touch_reorder_driven = false;
@@ -152,6 +159,48 @@ impl MdEdit {
     pub fn overflow_scroll_by(&mut self, precise_pixels: f32) {
         if precise_pixels.is_finite() {
             self.overflow_scroll = (self.overflow_scroll + precise_pixels).max(0.0);
+        }
+    }
+
+    /// Follows a drag's finger or pointer down: its downward travel adds up,
+    /// whichever way it moves between, and starts over with the next drag.
+    pub(crate) fn track_drag_travel(&mut self, ui: &egui::Ui) {
+        // armed, a lift's first frame counts before its drag is taken up
+        let armed = matches!(self.touch_reorder, TouchReorder::Armed { .. });
+        let dragging =
+            armed || self.in_progress_block_drag.is_some() || self.in_progress_image_drag.is_some();
+        if !dragging {
+            self.drag_travel = (0.0, None);
+            return;
+        }
+        let Some(y) = self.drag_pointer(ui).map(|pointer| pointer.y) else { return };
+        let (travel, last) = self.drag_travel;
+        let down = last.map_or(0.0, |last| (y - last).max(0.0));
+        self.drag_travel = (travel + down, Some(y));
+    }
+
+    /// How far above the finger or pointer a drop aims, holding something
+    /// grabbed `grab` below its top: nothing at the pickup, then as much as it
+    /// has traveled down, up to just above what it carries, as iOS's loupe
+    /// lags, so the floating copy never hides where it lands. A drop where
+    /// the thing was picked up lands there.
+    pub(crate) fn drag_lift(&self, grab: f32) -> f32 {
+        self.drag_travel.0.min(grab + self.renderer.drop_lift())
+    }
+
+    /// Where a block drag's pointer counts as, for its drop: where it puts
+    /// the floating card's top [`Self::drag_lift`] above the finger. A
+    /// column drops along its row.
+    pub(crate) fn block_drop_pointer(&self, drag: &BlockDrag, pointer: Pos2) -> Pos2 {
+        let lifts = match drag.unit {
+            DragUnit::Item | DragUnit::Row => self.renderer.touch_mode,
+            DragUnit::Column(_) => false,
+        };
+        match lifts {
+            true => {
+                pointer + egui::vec2(0.0, drag.grab_offset.y - self.drag_lift(drag.grab_offset.y))
+            }
+            false => pointer,
         }
     }
 

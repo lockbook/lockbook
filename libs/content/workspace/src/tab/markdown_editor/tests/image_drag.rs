@@ -39,6 +39,9 @@ fn after(ws: &TestEditor, needle: &str) -> Pos2 {
     Pos2::new(top.x - 1.0, (top.y + bot.y) / 2.0)
 }
 
+/// A mouse drag from `from` to `to`, then down until the drop aims its
+/// farthest above the pointer, just above the image, so at `to`, and let go
+/// there.
 fn drag(ws: &mut TestEditor, from: Pos2, to: Pos2) {
     let button = |pos, pressed| Egui::PointerButton {
         pos,
@@ -49,8 +52,16 @@ fn drag(ws: &mut TestEditor, from: Pos2, to: Pos2) {
     ws.enter_frame_with_input(vec![Egui::PointerMoved(from)]);
     ws.enter_frame_with_input(vec![button(from, true)]);
     ws.enter_frame_with_input(vec![Egui::PointerMoved(from + egui::vec2(20.0, 20.0))]);
+    let edit = &ws.editor.edit;
+    let grab = edit
+        .in_progress_image_drag
+        .as_ref()
+        .expect("it lifted")
+        .grab_offset;
+    let lift = egui::vec2(0.0, grab.y + edit.renderer.drop_lift());
     ws.enter_frame_with_input(vec![Egui::PointerMoved(to)]);
-    ws.enter_frame_with_input(vec![button(to, false)]);
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(to + lift)]);
+    ws.enter_frame_with_input(vec![button(to + lift, false)]);
     ws.enter_frame();
 }
 
@@ -82,6 +93,60 @@ fn sized_image_drags_into_a_cell_escaped() {
     let moved = format!("\n\n| b![a\\|20]({IMAGE}) | c |\n| - | - |\n");
     assert_eq!(ws.get_text(), moved);
     assert_eq!(table_ranges_check_md(&moved), Ok(1));
+}
+
+/// Where a finger holding the lifted image goes for the drop to aim at
+/// `to`, having first moved down far enough that the drop aims its farthest
+/// above the finger, just above the image, which covers what's under it.
+fn aimed_at(ws: &mut TestEditor, from: Pos2, to: Pos2) -> Pos2 {
+    let edit = &ws.editor.edit;
+    let grab = edit
+        .in_progress_image_drag
+        .as_ref()
+        .expect("it lifted")
+        .grab_offset;
+    let lift = egui::vec2(0.0, grab.y + edit.renderer.drop_lift());
+    ws.editor.edit.reorder_move(from + lift);
+    ws.enter_frame();
+    to + lift
+}
+
+#[test]
+fn touch_long_press_drags_image_to_another_cell() {
+    let md = format!("| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
+    let mut ws = editor(&md);
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+
+    let (from, to) = (image_center(&ws), after(&ws, "| d"));
+    assert!(ws.editor.edit.reorder_can_start(from), "a long press on the image lifts it");
+    assert!(ws.editor.edit.reorder_start(from));
+    ws.enter_frame();
+    let to = aimed_at(&mut ws, from, to);
+    ws.editor.edit.reorder_move(to);
+    ws.enter_frame();
+    ws.editor.edit.reorder_end(to, false);
+    ws.enter_frame();
+    ws.enter_frame();
+
+    assert_eq!(ws.get_text(), format!("|  | b |\n| - | - |\n| c | d![a]({IMAGE}) |\n"));
+}
+
+#[test]
+fn a_touch_drag_that_never_went_down_drops_under_the_finger() {
+    let md = format!("| b | c |\n| - | - |\n| ![a]({IMAGE}) | d |\n");
+    let mut ws = editor(&md);
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+    let (from, to) = (image_center(&ws), after(&ws, "| b"));
+    assert!(ws.editor.edit.reorder_start(from));
+    ws.enter_frame();
+    ws.editor.edit.reorder_move(to);
+    ws.enter_frame();
+    ws.editor.edit.reorder_end(to, false);
+    ws.enter_frame();
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), format!("| b![a]({IMAGE}) | c |\n| - | - |\n|  | d |\n"));
 }
 
 #[test]
@@ -121,10 +186,21 @@ fn drop_frames(ws: &mut TestEditor, from: Pos2, to: Pos2, md: &str) {
     for _ in 0..3 {
         ws.enter_frame();
         let edit = &ws.editor.edit;
-        let floating = edit.in_progress_block_drag.is_some();
+        let floating =
+            edit.in_progress_image_drag.is_some() || edit.in_progress_block_drag.is_some();
         assert!(ws.get_text() != md || floating, "a frame drew it back where it was");
     }
     assert_ne!(ws.get_text(), md, "the drop moved it");
+}
+
+#[test]
+fn a_dropped_image_never_draws_back_where_it_was() {
+    let md = format!("| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
+    let mut ws = editor(&md);
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+    let (from, to) = (image_center(&ws), after(&ws, "| d"));
+    drop_frames(&mut ws, from, to, &md);
 }
 
 #[test]

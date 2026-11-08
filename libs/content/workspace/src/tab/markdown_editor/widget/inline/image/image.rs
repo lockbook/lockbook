@@ -11,6 +11,7 @@ use crate::style::ThemeExt;
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
+use crate::tab::markdown_editor::widget::block::drag::TouchReorder;
 use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
 use crate::tab::markdown_editor::widget::inline::link::hover::CARD_RADIUS;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
@@ -624,8 +625,14 @@ impl<'ast> MdEdit {
         if let Some(pointer) = self.drag_pointer(ui) {
             drag.pointer = pointer;
         }
-        let live = ui.input(|i| i.pointer.primary_down());
-        drag.target = self.image_drop_offset(root, drag.image, drag.pointer, ui.clip_rect());
+        let live = if self.renderer.touch_mode {
+            matches!(self.touch_reorder, TouchReorder::Armed { .. })
+        } else {
+            ui.input(|i| i.pointer.primary_down())
+        };
+        // rising above the finger or pointer as it moves down (`drag_lift`)
+        let aim = drag.pointer - egui::vec2(0.0, self.drag_lift(drag.grab_offset.y));
+        drag.target = self.image_drop_offset(root, drag.image, aim, ui.clip_rect());
         if live {
             self.in_progress_image_drag = Some(drag);
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);

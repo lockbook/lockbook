@@ -199,7 +199,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFF)V",
+        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFFZ)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -228,6 +228,7 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.has_magnifier { 1 } else { 0 }),
             JValue::Float(response.magnifier_x),
             JValue::Float(response.magnifier_y),
+            JValue::Bool(if response.lifted { 1 } else { 0 }),
         ],
     )
     .expect("create AndroidResponse")

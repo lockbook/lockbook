@@ -86,6 +86,8 @@ pub struct Response {
     /// A popup is painted over the caret: a platform that draws its own
     /// caret above the editor hides it.
     pub caret_covered: bool,
+    /// A long press lifted something to drag this frame: the platform buzzes.
+    pub lifted: bool,
 }
 
 /// A region painted this frame that a platform deciding touches itself
@@ -347,6 +349,10 @@ pub struct MdEdit {
 
     pub in_progress_image_drag: Option<widget::inline::image::image::ImageDrag>,
 
+    /// A drag's downward travel so far, and where its pointer last was: see
+    /// [`MdEdit::drag_lift`].
+    pub drag_travel: (f32, Option<f32>),
+
     /// Touch long-press → reorder gesture state (touch only; desktop drags
     /// the marker handle directly). See [`MdEdit::detect_touch_reorder`].
     pub touch_reorder: widget::block::drag::TouchReorder,
@@ -354,6 +360,9 @@ pub struct MdEdit {
     /// The platform's own recognizer drives the reorder (see [`commands`]),
     /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
     pub touch_reorder_driven: bool,
+    /// Something lifted to drag since the last frame, by whichever long press:
+    /// the frame reports it so the platform buzzes.
+    pub lifted: bool,
 
     /// A committed reorder `(drag, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
@@ -479,8 +488,10 @@ impl MdEdit {
             insertion_handle_visible: false,
             in_progress_block_drag: None,
             in_progress_image_drag: None,
+            drag_travel: (0.0, None),
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
+            lifted: false,
             pending_block_move: None,
             syntax_grown: Vec::new(),
             bracket_pair_at: None,
@@ -1190,8 +1201,10 @@ impl Editor {
                 insertion_handle_visible: false,
                 in_progress_block_drag: None,
                 in_progress_image_drag: None,
+                drag_travel: (0.0, None),
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
+                lifted: false,
                 pending_block_move: None,
                 syntax_grown: Vec::new(),
                 bracket_pair_at: None,
@@ -2393,6 +2406,8 @@ impl Editor {
                         // commit on release (visuals are drawn after
                         // post_render so they composite on top).
                         self.edit.detect_touch_reorder(ui, self.keyboard_shown());
+                        self.next_resp.lifted = std::mem::take(&mut self.edit.lifted);
+                        self.edit.track_drag_travel(ui);
                         self.edit.handle_block_drag(ui);
                         self.edit.handle_image_drag(ui, root);
                         pre
