@@ -47,6 +47,7 @@ windows-sys = { version = "0.52", features = [
 x11rb = "0.13"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+dispatch2 = "0.3.1"
 objc2 = "0.5.2"
 objc2-app-kit = { version = "0.2.2", default-features = false, features = [
     "std",
@@ -56,13 +57,19 @@ objc2-app-kit = { version = "0.2.2", default-features = false, features = [
     "NSEvent",
     "NSImage",
     "NSBitmapImageRep",
+    "NSOpenPanel",
+    "NSPanel",
+    "NSResponder",
+    "NSSavePanel",
     "NSGraphics",
     "NSView",
     "NSWindow",
 ] }
 objc2-foundation = { version = "0.2.2", default-features = false, features = [
     "std",
+    "NSArray",
     "NSString",
+    "NSURL",
     "NSUserDefaults",
 ] }
 raw-window-handle = "0.6"

@@ -590,16 +590,80 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             persist_zen(app);
         }
         A::Import => import_pick(app, ctx),
-        A::ImportPaths { paths, parent } => import_paths(app, ctx, paths, parent),
+        A::ImportPaths { paths, parent } => {
+            open_import_parent_sheet(app, ctx, paths);
+            apply(app, ctx, A::ImportParentSelect(parent));
+        }
         A::OpenImportParent { paths } => open_import_parent_sheet(app, ctx, paths),
         A::ImportParentSelect(id) => {
             if let Some(Modal::ImportParent { dest, .. }) = &mut app.modal {
                 *dest = Some(id);
             }
+            replan_import(app, ctx);
+        }
+        A::ImportSkipKind(kind) => {
+            if let Some(Modal::ImportParent { plan: Some(plan), .. }) = &mut app.modal {
+                plan.toggle_kind(kind);
+            }
         }
         A::ConfirmImportParent => {
-            if let Some(Modal::ImportParent { paths, dest: Some(parent) }) = app.modal.take() {
-                import_paths(app, ctx, paths, parent);
+            // Only a settled plan that writes something and fits the account confirms.
+            let ready = matches!(
+                &app.modal,
+                Some(Modal::ImportParent { plan: Some(plan), planning: None, .. })
+                    if plan.writes() > 0 && plan.over_cap().is_none()
+            );
+            if ready {
+                if let Some(Modal::ImportParent { plan: Some(plan), .. }) = app.modal.take() {
+                    import_plan(app, ctx, plan);
+                }
+            }
+        }
+        A::ImportUpgrade => {
+            // Held until the account is premium, then offered again with nothing left out.
+            if let Some(Modal::ImportParent { paths, dest: Some(dest), plan, .. }) =
+                app.modal.take()
+            {
+                let cap = plan.and_then(|p| p.room).map_or(0, |r| r.cap);
+                app.import_after_upgrade = Some((paths, dest, cap));
+            }
+            apply(app, ctx, A::OpenUpgrade);
+        }
+        A::ImportShow(id) => {
+            if let Some(r) = app.session.ready_mut() {
+                r.expanded.insert(id);
+                super::reveal_and_scroll(r, id);
+                r.select_only(id);
+            }
+            app.import_job = None;
+        }
+        A::ImportDismiss => app.import_job = None,
+        A::ImportPlanned(Ok(mut p)) => {
+            if let Some(Modal::ImportParent { plan, planning, .. }) = &mut app.modal {
+                // A new destination keeps what the person chose to skip.
+                if let Some(old) = plan.take() {
+                    p.skipping(old.skip);
+                }
+                *plan = Some(p);
+                *planning = None;
+            }
+        }
+        A::ImportPlanned(Err(e)) => {
+            if matches!(app.modal, Some(Modal::ImportParent { .. })) {
+                app.modal = None;
+            }
+            eprintln!("import plan: {e}");
+            app.toasts.error("The import couldn’t be read.");
+        }
+        A::ImportResume => {
+            if let Some((paths, dest, _)) = app.import_after_upgrade.take() {
+                app.modal = Some(Modal::ImportParent {
+                    paths,
+                    dest: Some(dest),
+                    plan: None,
+                    planning: None,
+                });
+                replan_import(app, ctx);
             }
         }
         A::OpenSearch(search_type) => {
@@ -1482,7 +1546,11 @@ fn finish_export(app: &mut ShellApp, files: Vec<File>, dest: PathBuf) {
 fn import_pick(app: &mut ShellApp, ctx: &Context) {
     // Off-thread: blocking NSOpenPanel inside the egui/wgpu frame crashes/quits
     // on cancel (spurious window-close). Same pattern as the old linux client.
-    spawn_native_dialog(app, ctx, || NativeDialogResult::Import(FileDialog::new().pick_files()));
+    #[cfg(target_os = "macos")]
+    let pick = super::macos_window::pick_files_and_folders;
+    #[cfg(not(target_os = "macos"))]
+    let pick = || FileDialog::new().pick_files();
+    spawn_native_dialog(app, ctx, move || NativeDialogResult::Import(pick()));
 }
 
 /// Open the Import folder-picker sheet. Seeds `dest` from tree selection
@@ -1496,29 +1564,55 @@ fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBu
         )));
         d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_import_parent"));
     });
-    app.modal = Some(Modal::ImportParent { paths, dest });
+    app.import_after_upgrade = None;
+    app.modal = Some(Modal::ImportParent { paths, dest, plan: None, planning: None });
+    replan_import(app, ctx);
 }
 
-fn import_paths(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBuf>, parent: Uuid) {
-    let Some(r) = app.session.ready() else {
+/// Plan the open import again off the UI thread.
+fn replan_import(app: &mut ShellApp, ctx: &Context) {
+    let Some((core, status)) = app
+        .session
+        .ready()
+        .map(|r| (r.workspace.core.clone(), r.status.clone()))
+    else {
         return;
     };
-    let core = r.workspace.core.clone();
-    let ctx = ctx.clone();
-    let n = paths.len();
-    let toast_inbox = app.toasts.inbox.clone();
-    if let Some(r) = app.session.ready_mut() {
-        r.expanded.insert(parent);
-        r.status_msg = format!("Importing {n}…");
+    if let Some(Modal::ImportParent { paths, dest: Some(dest), planning, .. }) = &mut app.modal {
+        *planning = Some(workspace_rs::import::plan_in_background(
+            core,
+            paths.clone(),
+            *dest,
+            status,
+            ctx.clone(),
+        ));
     }
-    thread::spawn(move || {
-        if let Err(e) = core.import_files(&paths, parent, &|_| {}) {
-            eprintln!("import failed: {e:?}");
-            toast_inbox.error(format!("Import failed: {e}"));
-        }
-        let _ = n;
-        ctx.request_repaint();
-    });
+}
+
+/// A finished plan for the open sheet, or a held import the account now has room for.
+pub(crate) fn import_event(app: &ShellApp) -> Option<A> {
+    if let Some(Modal::ImportParent { planning: Some(rx), .. }) = &app.modal {
+        return rx.try_recv().ok().map(A::ImportPlanned);
+    }
+    let (_, _, waiting_on) = app.import_after_upgrade.as_ref()?;
+    let cap = app
+        .session
+        .ready()?
+        .status
+        .space_used
+        .as_ref()?
+        .data_cap
+        .exact;
+    (cap > *waiting_on && app.modal.is_none()).then_some(A::ImportResume)
+}
+
+fn import_plan(app: &mut ShellApp, ctx: &Context, plan: workspace_rs::import::ImportPlan) {
+    let Some(r) = app.session.ready_mut() else {
+        return;
+    };
+    r.expanded.insert(plan.dest());
+    let (core, status) = (r.workspace.core.clone(), r.status.clone());
+    app.import_job = Some(workspace_rs::import::ImportJob::start(core, plan, status, ctx.clone()));
 }
 
 fn request_sync(app: &mut ShellApp, ctx: &Context) {

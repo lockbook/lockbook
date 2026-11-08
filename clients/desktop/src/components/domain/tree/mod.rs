@@ -541,7 +541,7 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
     };
 
     if flat.is_empty() {
-        empty_state(ui, t, "No files");
+        empty_files(ui, t);
         return;
     }
 
@@ -953,6 +953,21 @@ fn paint_row(
             FileCmd::OrganizeShare | FileCmd::DeclineShare => {}
         }
     }
+}
+
+/// An empty Files tree points at the way in, starting where a row's icon would.
+fn empty_files(ui: &mut Ui, t: &Theme) {
+    ui.add(Spacer::new(Space::Lg));
+    let inset = LIST_PAD.pts() + workspace_rs::style::tree_metrics::INDENT_BASE;
+    let ink = t.neutral_fg_secondary();
+    let msg = "No files yet. Create or import to get started.";
+    let w = crate::components::ui_width(ui);
+    let galley = ui.fonts_mut(|f| {
+        f.layout(msg.into(), TypeRole::Body.font_id(), ink, (w - 2.0 * inset).max(1.0))
+    });
+    let (rect, _) = ui.allocate_exact_size(vec2(w, galley.size().y), egui::Sense::hover());
+    ui.painter()
+        .galley(rect.min + vec2(inset, 0.0), galley, ink);
 }
 
 pub(crate) fn empty_state(ui: &mut Ui, t: &Theme, msg: &str) {

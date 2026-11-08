@@ -170,6 +170,11 @@ pub enum Modal {
     ImportParent {
         paths: Vec<PathBuf>,
         dest: Option<Uuid>,
+        /// What importing into `dest` would do, recomputed when `dest` changes.
+        plan: Option<workspace_rs::import::ImportPlan>,
+        /// A plan being worked out; it replaces `plan` when it arrives.
+        planning:
+            Option<std::sync::mpsc::Receiver<Result<workspace_rs::import::ImportPlan, String>>>,
     },
     Help,
     Onboard {
@@ -401,6 +406,17 @@ pub enum Action {
     },
     ImportParentSelect(Uuid),
     ConfirmImportParent,
+    /// Leave a kind of file out of the import (or bring it back).
+    ImportSkipKind(workspace_rs::import::Kind),
+    /// Hold the open import, upgrade, and offer it again with room for everything.
+    ImportUpgrade,
+    /// A plan for the open import finished.
+    ImportPlanned(Result<workspace_rs::import::ImportPlan, String>),
+    /// The account's cap grew past the one a held import was waiting on.
+    ImportResume,
+    /// Reveal the folder an import made.
+    ImportShow(Uuid),
+    ImportDismiss,
     /// `None` keeps the last search's mode.
     OpenSearch(Option<workspace_rs::search::SearchType>),
     /// Open cancel-subscription confirm.
@@ -536,6 +552,12 @@ impl Action {
             Self::OpenImportParent { .. } => "OpenImportParent",
             Self::ImportParentSelect(_) => "ImportParentSelect",
             Self::ConfirmImportParent => "ConfirmImportParent",
+            Self::ImportSkipKind(_) => "ImportSkipKind",
+            Self::ImportUpgrade => "ImportUpgrade",
+            Self::ImportPlanned(_) => "ImportPlanned",
+            Self::ImportResume => "ImportResume",
+            Self::ImportShow(_) => "ImportShow",
+            Self::ImportDismiss => "ImportDismiss",
             Self::OpenSearch(_) => "OpenSearch",
             Self::CancelSubscription => "CancelSubscription",
             Self::ConfirmCancelSub => "ConfirmCancelSub",

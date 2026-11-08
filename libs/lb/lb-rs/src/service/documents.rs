@@ -201,16 +201,18 @@ impl<S: Server> Lb<S> {
     }
 }
 
-fn compress_encrypt_document(
+/// What a document's metadata records for `content` under its key.
+pub(crate) fn document_hmac(key: &AESKey, content: &[u8]) -> LbResult<DocumentHmac> {
+    let mut mac = HmacSha256::new_from_slice(key)
+        .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {err:?}")))?;
+    mac.update(content);
+    Ok(mac.finalize().into_bytes().into())
+}
+
+pub(crate) fn compress_encrypt_document(
     key: &AESKey, content: &[u8],
 ) -> LbResult<(DocumentHmac, EncryptedDocument)> {
-    let hmac: DocumentHmac = {
-        let mut mac = HmacSha256::new_from_slice(key)
-            .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {err:?}")))?;
-        mac.update(content);
-        mac.finalize().into_bytes()
-    }
-    .into();
+    let hmac = document_hmac(key, content)?;
     let compressed = compression_service::compress(content)?;
     let encrypted = symkey::encrypt(key, &compressed)?;
     Ok((hmac, encrypted))

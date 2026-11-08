@@ -17,7 +17,7 @@ use crate::model::path_ops::Filter;
 use crate::service::activity::RankingWeights;
 
 use crate::service::events::Event;
-use crate::service::import_export::{ExportFileInfo, ImportStatus};
+use crate::service::import_export::{Existing, ExportFileInfo, ImportPlan, ImportStatus};
 use crate::service::usage::UsageMetrics;
 use crate::subscribers::status::Status;
 
@@ -287,6 +287,18 @@ impl Lb {
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> LbResult<()> {
         self.block_on(self.lb.import_files(sources, dest, update_status))
+    }
+
+    pub fn plan_import(
+        &self, sources: &[PathBuf], dest: Uuid, existing: Existing,
+    ) -> LbResult<ImportPlan> {
+        self.block_on(self.lb.plan_import(sources, dest, existing))
+    }
+
+    pub fn import_planned<F: Fn(ImportStatus)>(
+        &self, plan: &ImportPlan, update_status: &F,
+    ) -> LbResult<()> {
+        self.block_on(self.lb.import_planned(plan, update_status))
     }
 
     pub fn export_files(

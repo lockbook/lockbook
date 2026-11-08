@@ -4621,6 +4621,7 @@ dependencies = [
  "arboard",
  "chrono",
  "dark-light",
+ "dispatch2",
  "egui",
  "egui-winit",
  "egui_extras",
