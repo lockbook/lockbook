@@ -939,6 +939,7 @@ impl<'ast> MdRender {
             return None;
         }
         let leaf_row_height = self.row_height(leaf);
+        let baseline = self.body_baseline(leaf_row_height);
         // the row's metric in `wrap_layout`, with each image placed by `small_image_metrics`
         let (ascent, descent) = leaf
             .descendants()
@@ -948,10 +949,11 @@ impl<'ast> MdRender {
             // stays tall but the row doesn't inflate, shifting the marker.
             .filter(|d| !self.range_revealed_interior(self.node_range(d)))
             .filter_map(|d| self.image_logical_size(d))
-            .map(|size| small_image_metrics(size.y, leaf_row_height))
-            .fold((leaf_row_height * 0.8, leaf_row_height * 0.2), |(a, d), (ia, id)| {
-                (a.max(ia), d.max(id))
-            });
+            .map(|size| small_image_metrics(size.y, leaf_row_height, baseline))
+            .fold(
+                (leaf_row_height * baseline, leaf_row_height * (1.0 - baseline)),
+                |(a, d), (ia, id)| (a.max(ia), d.max(id)),
+            );
         let height = ascent + descent;
         (height > leaf_row_height).then_some(height)
     }

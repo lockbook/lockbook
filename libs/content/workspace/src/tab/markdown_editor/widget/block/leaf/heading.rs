@@ -13,7 +13,9 @@ use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::View;
 use crate::tab::markdown_editor::fragment;
 use crate::tab::markdown_editor::input::Event;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Layout, WrapUnitLayout};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{
+    FragmentContent, Layout, WrapUnitLayout,
+};
 
 /// How long a copied heading link shows its check.
 const COPIED_SECS: f32 = 1.5;
@@ -210,9 +212,19 @@ impl<'ast> MdRender {
         // todo: proper hit-testing (this ignores anything covering the space)
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
+        // beside the first line's text, which an image makes its row tall above
+        let text_top = self
+            .fragments
+            .iter()
+            .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
+            .filter(|f| first_line.contains_range(&f.source_range, true, true))
+            .map(|f| f.rect.top())
+            .reduce(f32::min);
+        let text_top_left =
+            Pos2::new(top_left.x, text_top.map_or(top_left.y, |top| top_left.y.max(top)));
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
-            Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
+            Self::fold_button_size_icon_size_space(text_top_left, row_height, self.layout.indent);
         let show_fold_button = self.interactive
             && (self.touch_mode
                 || hovered

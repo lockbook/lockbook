@@ -588,7 +588,7 @@ fn push_sanitised(out: &mut String, tabs: &mut Vec<usize>, text: &str) {
 impl MdRender {
     /// Where body text's baseline falls in a row, as a fraction of the row
     /// height down from its top; the same at every size.
-    fn body_baseline(&self, row_height: f32) -> f32 {
+    pub(crate) fn body_baseline(&self, row_height: f32) -> f32 {
         self.body_metrics(row_height).0
     }
 
@@ -719,8 +719,9 @@ impl MdRender {
     /// How wide a wrap unit can usefully be made: at least its longest run
     /// with nowhere to break, and at most all of it on one row. An embed
     /// shrinks to fit what holds it, so it counts for no more than
-    /// `embed_min` of a run. Mirrors [`greedy_break`], which leaves room
-    /// for a background's padding around what it holds.
+    /// `embed_min`, and rows break on either side of it. Mirrors
+    /// [`greedy_break`], which leaves room for a background's padding
+    /// around what it holds.
     pub fn measure_layout(&self, layout: Layout, row_height: f32, embed_min: f32) -> (f32, f32) {
         const UNBOUNDED: f32 = 100_000.0;
         let inline_pad = self.layout.inline_padding;
@@ -728,22 +729,27 @@ impl MdRender {
             shape_to_items(self, &layout, row_height, UNBOUNDED, inline_pad).unwrap_or_default();
         let (mut run, mut widest_run, mut row, mut widest_row) = (0f32, 0f32, 0f32, 0f32);
         let mut backgrounds: Vec<bool> = Vec::new();
+        let mut after_embed = false;
         for item in &items {
             let room = if backgrounds.contains(&true) { 2.0 * inline_pad } else { 0.0 };
             match item {
                 InlineItem::Box { advance, .. } | InlineItem::Pad { advance, .. } => {
+                    if std::mem::take(&mut after_embed) {
+                        run = 0.0;
+                    }
                     run += advance;
                     row += advance;
                 }
                 InlineItem::Embed(spec) => {
-                    run += spec.advance.min(embed_min);
+                    run = spec.advance.min(embed_min);
                     row += spec.advance;
+                    after_embed = true;
                 }
                 InlineItem::Glue { natural, .. } => {
                     run = 0.0;
                     row += natural;
                 }
-                InlineItem::Break { .. } => (run, row) = (0.0, 0.0),
+                InlineItem::Break { .. } => (run, row, after_embed) = (0.0, 0.0, false),
                 InlineItem::StyleOpen(style) => {
                     backgrounds.push(style.format.background != egui::Color32::TRANSPARENT)
                 }
@@ -1480,14 +1486,26 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
             });
             if ws_fits { whitespace } else { any.or(whitespace) }
         };
+    // whether the last thing drawn on the row is an image
+    let mut after_embed = false;
     let mut i = 0;
     while i < items.len() {
         let effective_width =
             if bg_open(&scope_bg_stack) { width - 2.0 * inline_pad } else { width };
         match &items[i] {
+            InlineItem::Embed(_) => after_embed = true,
+            InlineItem::Box { .. } | InlineItem::Pad { .. } | InlineItem::Break { .. } => {
+                after_embed = false
+            }
+            _ => {}
+        }
+        match &items[i] {
             InlineItem::Box { advance, .. } | InlineItem::Embed(EmbedSpec { advance, .. }) => {
                 let overflow = cur_width + advance > effective_width;
-                let lg = if overflow {
+                // either side of an embed is a place to break, as a space
+                // is: text touching it doesn't come along to its row
+                let embed = matches!(items[i], InlineItem::Embed(_));
+                let lg = if overflow && !(embed && cur_width > 0.0) {
                     pick_wrap_point(last_whitespace_glue, last_any_glue, i, effective_width)
                 } else {
                     None
@@ -1504,8 +1522,13 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                     // Overflow with no glue to break at — adjacent inline images
                     // emit no separating whitespace. Break before this item so an
                     // unbreakable box/embed starts a fresh row instead of running
-                    // past the width into the scrollbar gutter.
-                    breaks.push(i);
+                    // past the width into the scrollbar gutter. An embed's
+                    // row starts at its interaction, which opens just before it.
+                    let mut start = i;
+                    while matches!(items[start - 1], InlineItem::InteractionOpen(..)) {
+                        start -= 1;
+                    }
+                    breaks.push(start);
                     cur_width = *advance;
                     if bg_open(&scope_bg_stack) {
                         cur_width += inline_pad;
@@ -1515,6 +1538,9 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                 } else {
                     cur_width += advance;
                 }
+                if embed {
+                    (last_whitespace_glue, last_any_glue) = (Some(i), Some(i));
+                }
                 i += 1;
             }
             InlineItem::Glue { natural, .. } => {
@@ -1522,7 +1548,8 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                 // Glues. Without this overflow check they'd silently
                 // accumulate past `width` (the Box-only check needs a
                 // following Box to fire).
-                let lg = if cur_width + natural > effective_width {
+                // after an embed, spaces hang off the row's end
+                let lg = if cur_width + natural > effective_width && !after_embed {
                     pick_wrap_point(last_whitespace_glue, last_any_glue, i, effective_width)
                 } else {
                     None
@@ -1534,10 +1561,11 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                         cur_width += inline_pad;
                     }
                     last_whitespace_glue = None;
-                } else if cur_width + natural > effective_width && cur_width > 0.0 {
+                } else if cur_width + natural > effective_width && cur_width > 0.0 && !after_embed {
                     // nowhere earlier on the row to wrap (it holds one
                     // unbreakable run, as a chip): the space starts the next
-                    // row, as an overflowing box does
+                    // row, as an overflowing box does; after an image, which
+                    // shrinks to fill its row, it hangs off the row's end
                     breaks.push(i);
                     cur_width = *natural;
                     if bg_open(&scope_bg_stack) {
@@ -1649,17 +1677,17 @@ pub fn build_rows(
     inline_pad: f32, text_baseline: f32,
 ) -> Vec<Row> {
     let mut rows: Vec<Row> = Vec::with_capacity(breaks.len().saturating_sub(1));
-    let default_ascent = row_height * 0.8;
-    let default_descent = row_height * 0.2;
+    let default_ascent = row_height * text_baseline;
+    let default_descent = row_height - default_ascent;
     let mut style_stack: Vec<StyleInfo> = Vec::new();
     let mut interaction_stack: Vec<(egui::Id, egui::Sense)> = Vec::new();
     let mut y_top = 0.0f32;
 
     for win in breaks.windows(2) {
         let (start, end) = (win[0], win[1]);
-        // Row baseline = `y_top + ascent`. Text fragments span the
-        // text band (`baseline ± default_*`); image fragments hang
-        // above the baseline so `image_bottom == baseline`.
+        // Row baseline = `y_top + ascent`, where the glyphs sit. Text
+        // fragments span the text band (`baseline ± default_*`); embeds
+        // hang about it by their own ascent and descent.
         let (ascent, descent) = items[start..end]
             .iter()
             .filter_map(item_metrics)
@@ -2641,6 +2669,17 @@ mod tests {
         let items = vec![word(100.0), space(10.0), word(100.0), embed(100.0), word(250.0)];
         let breaks = greedy_break(&items, 500.0, 0.0);
         assert_eq!(breaks, vec![0, 4, 5]);
+    }
+
+    /// A space before an embed too wide to join it ends its row, and the
+    /// embed's interaction goes with it to the next.
+    #[test]
+    fn a_space_before_a_wrapped_embed_ends_its_row() {
+        let interaction = InlineItem::InteractionOpen(egui::Id::NULL, egui::Sense::click());
+        let items =
+            vec![word(100.0), space(10.0), interaction, embed(450.0), InlineItem::InteractionClose];
+        let breaks = greedy_break(&items, 500.0, 0.0);
+        assert_eq!(breaks, vec![0, 2, 5]);
     }
 
     /// A single embed wider than the row is the first item on its row —
