@@ -868,16 +868,34 @@ fn gen_container_block_f(src: &mut ByteSource, f: &Features, depth: usize) -> Op
         }
         2 => {
             let n = 1 + src.draw(3);
+            // Numbered task items (`1. [ ]`, `10) [x]`) put a wider marker
+            // before the brackets than `- `.
+            let style = if b.ordered_list { src.bias(&[3, 2, 1]) } else { 0 };
+            let start = if style > 0 && b.ordered_nonstandard_start {
+                match src.bias(&[3, 1]) {
+                    0 => 1,
+                    _ => 9 + src.draw(2), // multi-digit by the 2nd item
+                }
+            } else {
+                1
+            };
             let mut out = String::new();
-            for _ in 0..n {
+            for i in 0..n {
+                let marker = match style {
+                    0 => "- ".to_string(),
+                    1 => format!("{}. ", start + i),
+                    _ => format!("{}) ", start + i),
+                };
                 let mark = if src.bias(&[1, 1]) == 0 { ' ' } else { 'x' };
                 let first_inline = gen_inline_tree_f(src, f, MAX_INLINE_DEPTH);
                 if inner_depth > 0 && src.bias(&[5, 1]) == 1 {
+                    // content column is the list marker's, short of the `]`
+                    let indent = encode_indent(marker.len(), f, src);
                     let inner = gen_block_seq_f(src, f, inner_depth);
-                    let body = indent_continuation(&inner, "  ");
-                    out.push_str(&format!("- [{mark}] {first_inline}\n\n  {body}\n"));
+                    let body = indent_continuation(&inner, &indent);
+                    out.push_str(&format!("{marker}[{mark}] {first_inline}\n\n{indent}{body}\n"));
                 } else {
-                    out.push_str(&format!("- [{mark}] {first_inline}\n"));
+                    out.push_str(&format!("{marker}[{mark}] {first_inline}\n"));
                 }
             }
             out
