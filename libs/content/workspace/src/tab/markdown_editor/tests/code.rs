@@ -202,3 +202,122 @@ fn close_bracket_in_a_string_is_typed_as_is() {
     let want = "```python\nf(\"\"\"\n    )|\n\"\"\")\n```";
     assert_eq!(run(doc, None, vec![typed(")")]), want);
 }
+
+fn chord(doc: &str, key: egui::Key) -> String {
+    let mut ws = editor(doc, None);
+    ws.enter_frame_with_input(super::harness::key_press(
+        key,
+        egui::Modifiers::COMMAND | egui::Modifiers::ALT,
+    ));
+    shown(&ws)
+}
+
+#[test]
+fn code_block_chord_fences_the_paragraph() {
+    let doc = "a\n\nhel|lo\n\nb";
+    let want = "a\n\n```\nhel|lo\n```\n\nb";
+    assert_eq!(chord(doc, egui::Key::E), want);
+}
+
+#[test]
+fn code_block_chord_unfences_a_code_block() {
+    let doc = "```rust\nfn |f|() {}\n```\n\nb";
+    let want = "fn |f|() {}\n\nb";
+    assert_eq!(chord(doc, egui::Key::E), want);
+}
+
+#[test]
+fn rule_chord_puts_a_rule_after_the_paragraph() {
+    let doc = "hel|lo\n\nb";
+    let want = "hel|lo\n\n---\n\nb";
+    assert_eq!(chord(doc, egui::Key::R), want);
+}
+
+#[test]
+fn rule_chord_puts_a_rule_after_the_code_block() {
+    let doc = "```\nfn |f|()\n```\n\nb";
+    let want = "```\nfn |f|()\n```\n---\n\nb";
+    assert_eq!(chord(doc, egui::Key::R), want);
+}
+
+#[test]
+fn code_block_chord_opens_an_empty_fence_on_a_blank_line() {
+    let doc = "a\n\n|";
+    let want = "a\n\n```\n|\n```";
+    assert_eq!(chord(doc, egui::Key::E), want);
+}
+
+#[test]
+fn rule_chord_puts_a_rule_right_under_a_heading() {
+    assert_eq!(chord("# h|i\n\nb", egui::Key::R), "# h|i\n---\n\nb");
+    assert_eq!(chord("# hi\n|", egui::Key::R), "# hi\n---|");
+}
+
+#[test]
+fn rule_chord_on_a_blank_line_keeps_the_paragraph_above() {
+    let doc = "a\n|";
+    let want = "a\n\n---|";
+    assert_eq!(chord(doc, egui::Key::R), want);
+}
+
+#[test]
+fn rule_chord_after_a_selection_into_a_blank_line_leaves_the_text_whole() {
+    let doc = "h|ello\n\n|";
+    let want = "hello\n\n---|";
+    assert_eq!(chord(doc, egui::Key::R), want);
+}
+
+#[test]
+fn code_block_chord_fence_outlasts_a_fence_inside() {
+    let doc = "x|y\n\n- b\n  ```\n  c\n  ```|";
+    let want = "````\nx|y\n\n- b\n  ```\n  c\n  ```|\n````";
+    assert_eq!(chord(doc, egui::Key::E), want);
+}
+
+#[test]
+fn code_block_chord_on_a_blank_line_in_an_item_opens_a_fence_there() {
+    let doc = "1. a\n\n   |\n2. b";
+    let want = "1. a\n\n   ```\n   |\n   ```\n2. b";
+    assert_eq!(chord(doc, egui::Key::E), want);
+}
+
+#[test]
+fn code_block_chord_leaves_lines_outside_blocks_alone() {
+    let doc = "---\ntitle: a|\n---\n\nbody";
+    assert_eq!(chord(doc, egui::Key::E), doc);
+}
+
+#[test]
+fn code_block_chord_fences_a_task_under_its_checkbox() {
+    let doc = "- [ ] |task";
+    let want = "- [ ]\n  ```\n  |task\n  ```";
+    assert_eq!(chord(doc, egui::Key::E), want);
+    let mut ws = editor(doc, None);
+    for _ in 0..2 {
+        ws.enter_frame_with_input(super::harness::key_press(
+            egui::Key::E,
+            egui::Modifiers::COMMAND | egui::Modifiers::ALT,
+        ));
+    }
+    assert_eq!(shown(&ws), doc);
+}
+
+#[test]
+fn code_block_button_lights_inside_a_code_block() {
+    let lit = |doc: &str| {
+        let mut ws = editor(doc, None);
+        let arena = comrak::Arena::new();
+        let root = ws.editor.edit.renderer.reparse(&arena);
+        let style = comrak::nodes::NodeValue::CodeBlock(Default::default());
+        ws.editor.edit.unapply_block(root, &style)
+    };
+    assert!(lit("a\n\n```\nco|de\n```"));
+    assert!(!lit("a|\n\n```\ncode\n```"));
+}
+
+#[test]
+fn enter_in_a_task_fence_keeps_the_task_indent() {
+    let mut ws = editor("- [ ]\n  ```\n  roller|\n  ```\n- [ ] trim", None);
+    ws.enter_frame_with_input(super::harness::key_press(egui::Key::Enter, Default::default()));
+    assert_eq!(shown(&ws), "- [ ]\n  ```\n  roller\n  |\n  ```\n- [ ] trim");
+}

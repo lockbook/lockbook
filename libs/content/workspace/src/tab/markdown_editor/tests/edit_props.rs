@@ -5,9 +5,12 @@
 use super::super::input::{Advance, Bound, Event, Increment, Location, Region};
 use super::super::table::{RowBounds, TableAction, TableSelection};
 use super::super::widget::toolbar::MarkdownToolbarAction as ToolbarAction;
+use super::super::widget::utils::NodeValueExt as _;
 use super::doc_gen::{self, Features, ScriptFeatures, WhitespaceFeatures, gen_doc};
 use super::harness::TestEditor;
+use crate::tab::markdown_editor::MdRender;
 use crate::test_utils::byte_source::ByteSource;
+use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 
 // ── runners (one per corpus) ──
@@ -338,6 +341,16 @@ fn shift_tab_strips_one_bq() {
     run_quotes(shift_tab_strips_one_bq_check, 1000);
 }
 
+// code block / divider
+#[test]
+fn code_block_toggle_round_trip() {
+    run_all(code_block_toggle_round_trip_check, 1000);
+}
+#[test]
+fn divider_adds_one_rule() {
+    run_all(divider_adds_one_rule_check, 1000);
+}
+
 // IME composition
 #[test]
 fn ime_composition_matches_replace() {
@@ -345,6 +358,98 @@ fn ime_composition_matches_replace() {
 }
 
 // ═══════════════════════════ implementations ═══════════════════════════
+
+/// A generated doc with a caret or a selection somewhere in it.
+fn doc_with_selection(src: &mut ByteSource) -> TestEditor {
+    let mut ws = TestEditor::new(&gen_doc(src, &Features::all()));
+    ws.enter_frame();
+    let (_, len) = cursor_and_len(&ws);
+    let region = if src.bias(&[1, 1]) == 0 {
+        let at = Location::Grapheme(offset(src, len));
+        Region::BetweenLocations { start: at, end: at }
+    } else {
+        region(src, len)
+    };
+    ws.push(Event::Select { region });
+    ws.enter_frame();
+    ws
+}
+
+/// How many of the parsed doc's nodes `f` holds for.
+fn count_nodes(
+    ws: &mut TestEditor, f: impl for<'a> Fn(&MdRender, &'a AstNode<'a>) -> bool,
+) -> usize {
+    let arena = comrak::Arena::new();
+    let root = ws.editor.edit.renderer.reparse(&arena);
+    root.descendants()
+        .filter(|&node| f(&ws.editor.edit.renderer, node))
+        .count()
+}
+
+fn toggled(ws: &mut TestEditor, style: NodeValue) {
+    ws.push(Event::ToggleStyle { region: Region::Selection, style });
+    ws.enter_frame();
+}
+
+/// Property: from a selection that touches no code block, toggling code
+/// block twice puts the text back, but for whitespace on blank lines (an
+/// empty fence takes the place of its line's).
+fn code_block_toggle_round_trip_check(buf: &[u8]) -> Result<(), String> {
+    let mut ws = doc_with_selection(&mut ByteSource::new(buf));
+    let in_code = count_nodes(&mut ws, |r, node| {
+        matches!(node.data.borrow().value, NodeValue::CodeBlock(_)) && r.selected_block(node)
+    });
+    if in_code > 0 {
+        return Ok(());
+    }
+    let before = ws.get_text().to_string();
+    let selection = ws.editor.edit.renderer.buffer.current.selection;
+    toggled(&mut ws, code_block());
+    let once = ws.get_text().to_string();
+    toggled(&mut ws, code_block());
+    let twice = ws.get_text().to_string();
+    let blanked = |text: &str| {
+        let lines = text.split('\n');
+        lines
+            .map(|l| if l.trim().is_empty() { "" } else { l })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    if blanked(&before) != blanked(&twice) {
+        return Err(format!(
+            "selection {selection:?}\nbefore: {before:?}\nonce:   {once:?}\ntwice:  {twice:?}"
+        ));
+    }
+    Ok(())
+}
+
+/// Property: a divider adds exactly one thematic break and leaves the
+/// doc's other blocks as they were.
+fn divider_adds_one_rule_check(buf: &[u8]) -> Result<(), String> {
+    let mut ws = doc_with_selection(&mut ByteSource::new(buf));
+    let counts = |ws: &mut TestEditor| {
+        let rules =
+            count_nodes(ws, |_, node| matches!(node.data.borrow().value, NodeValue::ThematicBreak));
+        let others = count_nodes(ws, |_, node| {
+            (node.is_leaf_block() || node.is_container_block())
+                && !matches!(node.data.borrow().value, NodeValue::ThematicBreak)
+        });
+        (rules, others)
+    };
+    let (rules, others) = counts(&mut ws);
+    let before = ws.get_text().to_string();
+    let selection = ws.editor.edit.renderer.buffer.current.selection;
+    toggled(&mut ws, NodeValue::ThematicBreak);
+    if counts(&mut ws) != (rules + 1, others) {
+        return Err(format!(
+            "selection {selection:?}: {:?} rules and other blocks, was {:?}\nbefore: {before:?}\nafter:  {:?}",
+            counts(&mut ws),
+            (rules, others),
+            ws.get_text()
+        ));
+    }
+    Ok(())
+}
 
 /// What an IME shows while composing: romanization, syllables, and
 /// candidates, always whole graphemes.
@@ -586,6 +691,7 @@ fn event_with(
         2,  // big-range select
         2,  // undo
         2,  // redo
+        2,  // code block or divider (⌘⌥E / ⌘⌥R, toolbar)
     ];
     let cursor_idx = cursor.0;
     let max = doc_len_chars;
@@ -671,8 +777,17 @@ fn event_with(
         9 => Event::Delete { region: region(src, doc_len_chars) },
         10 => Event::Select { region: region(src, doc_len_chars) },
         11 => Event::Undo,
-        _ => Event::Redo,
+        12 => Event::Redo,
+        _ => {
+            let style =
+                if src.bias(&[1, 1]) == 0 { code_block() } else { NodeValue::ThematicBreak };
+            Event::ToggleStyle { region: Region::Selection, style }
+        }
     }
+}
+
+fn code_block() -> NodeValue {
+    NodeValue::CodeBlock(Default::default())
 }
 
 /// One "typed" character. Mostly ASCII; rare picks include complex-
