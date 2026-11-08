@@ -1289,7 +1289,7 @@ impl Workspace {
                     break;
                 }
                 Err(e) => {
-                    eprintln!("cannot recv events from lb-rs {e:?}");
+                    tracing::warn!("cannot recv events from lb-rs {e:?}");
                     break;
                 }
             }
