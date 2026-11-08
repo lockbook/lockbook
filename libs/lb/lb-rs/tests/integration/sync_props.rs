@@ -1,5 +1,5 @@
 //! Byte-stream properties of sync: devices on accounts take random steps against one in-memory
-//! server, and each property holds at the widest tier whose steps it survives.
+//! server, and each property holds at the widest tier whose steps it survives, from every start.
 
 use std::collections::BTreeMap;
 use std::fmt::Write;
@@ -82,6 +82,28 @@ const SHARES: Tier = Tier { accounts: 3, devices: 2 };
 impl Tier {
     fn all_devices(self) -> usize {
         self.accounts * self.devices
+    }
+}
+
+/// What every device holds before the steps.
+#[derive(Clone, Copy, Debug)]
+enum Start {
+    Empty,
+    /// Each account has a folder `a.md` holding a document and a folder `c`, shared with the
+    /// next account, which links it as `b.md`. Every device has synced all of it, and steps'
+    /// names collide with it.
+    Shared,
+}
+
+const STARTS: [Start; 2] = [Start::Empty, Start::Shared];
+
+impl Start {
+    /// Whether starting here at `tier` differs from starting empty.
+    fn fits(self, tier: Tier) -> bool {
+        match self {
+            Start::Empty => true,
+            Start::Shared => tier.accounts > 1,
+        }
     }
 }
 
@@ -202,7 +224,7 @@ struct World {
 }
 
 impl World {
-    async fn new(tier: Tier) -> Self {
+    async fn new(tier: Tier, start: Start) -> Self {
         let mut server = InMemoryServer::in_memory();
         let admin_name = random_name();
         server.config.admin.admins.insert(admin_name.clone());
@@ -225,7 +247,49 @@ impl World {
             }
             names.push(name);
         }
-        Self { server, admin, names, devices, per_account: tier.devices }
+        let world = Self { server, admin, names, devices, per_account: tier.devices };
+        if let Start::Shared = start {
+            world.start_shared().await;
+        }
+        world
+    }
+
+    /// The [`Start::Shared`] files, with every device synced past them.
+    async fn start_shared(&self) {
+        let accounts = self.names.len();
+        for account in 0..accounts {
+            let device = &self.account_devices(account)[0];
+            let root = device.root().await.unwrap().id;
+            let folder = device
+                .create_file(NAMES[0], &root, FileType::Folder)
+                .await
+                .unwrap();
+            device
+                .create_file(NAMES[1], &folder.id, FileType::Document)
+                .await
+                .unwrap();
+            let shared = device
+                .create_file(NAMES[2], &root, FileType::Folder)
+                .await
+                .unwrap();
+            let next = &self.names[(account + 1) % accounts];
+            device
+                .share_file(shared.id, next, ShareMode::Read)
+                .await
+                .unwrap();
+            device.sync().await.unwrap();
+        }
+        for account in 0..accounts {
+            let device = &self.account_devices(account)[0];
+            device.sync().await.unwrap();
+            for pending in device.get_pending_shares().await.unwrap() {
+                device
+                    .create_link_at_path(NAMES[1], pending.id)
+                    .await
+                    .unwrap();
+            }
+        }
+        self.settle().await.unwrap();
     }
 
     fn account_devices(&self, account: usize) -> &[Lb] {
@@ -464,14 +528,21 @@ async fn pick_pending(device: &Lb, index: usize) -> Option<Uuid> {
 // runner
 // ---------------------------------------------------------------------------------------------
 
-type Check = fn(Tier, &[u8]) -> Result<(), String>;
+type Check = fn(Tier, Start, &[u8]) -> Result<(), String>;
 
+/// Runs `check` at `tier` from every [`Start`] that fits it.
 fn run(tier: Tier, seeds: u64, check: Check) {
+    for start in STARTS.into_iter().filter(|start| start.fits(tier)) {
+        run_from(tier, start, seeds, check);
+    }
+}
+
+fn run_from(tier: Tier, start: Start, seeds: u64, check: Check) {
     prop::run(
         seeds,
         160,
         |bytes| {
-            std::panic::catch_unwind(|| check(tier, bytes)).unwrap_or_else(|panic| {
+            std::panic::catch_unwind(|| check(tier, start, bytes)).unwrap_or_else(|panic| {
                 let message = panic
                     .downcast_ref::<String>()
                     .cloned()
@@ -479,7 +550,7 @@ fn run(tier: Tier, seeds: u64, check: Check) {
                 Err(format!("panicked: {}", message.unwrap_or_default()))
             })
         },
-        |bytes| format!("{:#?}", steps(tier, bytes)),
+        |bytes| format!("from {start:?}\n{:#?}", steps(tier, bytes)),
     );
 }
 
@@ -496,9 +567,11 @@ fn block_on<F: std::future::Future>(future: F) -> F::Output {
 // ---------------------------------------------------------------------------------------------
 
 /// With nothing new on the server, a sync leaves the device as it was.
-fn syncing_alone_changes_nothing_check(tier: Tier, bytes: &[u8]) -> Result<(), String> {
+fn syncing_alone_changes_nothing_check(
+    tier: Tier, start: Start, bytes: &[u8],
+) -> Result<(), String> {
     block_on(async {
-        let world = World::new(tier).await;
+        let world = World::new(tier, start).await;
         for (n, step) in steps(tier, bytes).iter().enumerate() {
             let before = tree(&world.devices[0]).await;
             let accepted = world.take(step, 0, Reach::Shared).await;
@@ -518,11 +591,13 @@ fn syncing_alone_changes_nothing_check(tier: Tier, bytes: &[u8]) -> Result<(), S
 
 /// Devices that each touch only their own files end where one device taking all their steps,
 /// device by device, ends.
-fn disjoint_changes_equal_sequential_check(tier: Tier, bytes: &[u8]) -> Result<(), String> {
+fn disjoint_changes_equal_sequential_check(
+    tier: Tier, start: Start, bytes: &[u8],
+) -> Result<(), String> {
     block_on(async {
         let steps = steps(tier, bytes);
 
-        let concurrent = World::new(tier).await;
+        let concurrent = World::new(tier, start).await;
         for step in &steps {
             concurrent
                 .take(step, step.device(), Reach::Own(step.device()))
@@ -530,7 +605,7 @@ fn disjoint_changes_equal_sequential_check(tier: Tier, bytes: &[u8]) -> Result<(
         }
         concurrent.settle().await?;
 
-        let sequential = World::new(SOLO).await;
+        let sequential = World::new(SOLO, start).await;
         for device in 0..tier.all_devices() {
             for step in steps.iter().filter(|s| {
                 s.device() == device && !matches!(s, Step::Sync { .. } | Step::SyncAll { .. })
@@ -548,34 +623,42 @@ fn disjoint_changes_equal_sequential_check(tier: Tier, bytes: &[u8]) -> Result<(
     })
 }
 
-/// A device imported after a sync shows exactly what the syncing device shows.
-fn a_new_device_sees_what_was_synced_check(tier: Tier, bytes: &[u8]) -> Result<(), String> {
+/// A device imported after a sync shows exactly what each account's syncing device shows.
+fn a_new_device_sees_what_was_synced_check(
+    tier: Tier, start: Start, bytes: &[u8],
+) -> Result<(), String> {
     block_on(async {
-        let world = World::new(tier).await;
+        let world = World::new(tier, start).await;
         world.take_all(&steps(tier, bytes)).await;
         world.settle().await?;
-        let key = world.devices[0].export_account_private_key().unwrap();
-        let fresh = device(&world.server).await;
-        fresh.import_account(&key, None).await.unwrap();
-        fresh
-            .sync()
-            .await
-            .map_err(|err| format!("new device failed to sync: {err:?}"))?;
-        let synced = tree(&world.devices[0]).await;
-        let seen = tree(&fresh).await;
-        if seen != synced {
-            return Err(format!(
-                "new device shows\n{seen:#?}\nbut the synced one shows\n{synced:#?}"
-            ));
+        for account in 0..tier.accounts {
+            let synced = &world.account_devices(account)[0];
+            let key = synced.export_account_private_key().unwrap();
+            let fresh = device(&world.server).await;
+            fresh.import_account(&key, None).await.unwrap();
+            fresh
+                .sync()
+                .await
+                .map_err(|err| format!("account {account}'s new device failed to sync: {err:?}"))?;
+            let synced = tree(synced).await;
+            let seen = tree(&fresh).await;
+            if seen != synced {
+                return Err(format!(
+                    "account {account}'s new device shows\n{seen:#?}\nbut its synced one \
+                     shows\n{synced:#?}"
+                ));
+            }
         }
         Ok(())
     })
 }
 
 /// A step a device refuses leaves that device as it was.
-fn a_refused_step_changes_nothing_check(tier: Tier, bytes: &[u8]) -> Result<(), String> {
+fn a_refused_step_changes_nothing_check(
+    tier: Tier, start: Start, bytes: &[u8],
+) -> Result<(), String> {
     block_on(async {
-        let world = World::new(tier).await;
+        let world = World::new(tier, start).await;
         for (n, step) in steps(tier, bytes).iter().enumerate() {
             let on = step.device();
             let before = tree(&world.devices[on]).await;
@@ -595,9 +678,11 @@ fn a_refused_step_changes_nothing_check(tier: Tier, bytes: &[u8]) -> Result<(), 
 }
 
 /// Once every device has synced, another sync leaves each device as it was.
-fn a_second_sync_changes_nothing_check(tier: Tier, bytes: &[u8]) -> Result<(), String> {
+fn a_second_sync_changes_nothing_check(
+    tier: Tier, start: Start, bytes: &[u8],
+) -> Result<(), String> {
     block_on(async {
-        let world = World::new(tier).await;
+        let world = World::new(tier, start).await;
         world.take_all(&steps(tier, bytes)).await;
         world.settle().await?;
         for (i, device) in world.devices.iter().enumerate() {
@@ -621,9 +706,9 @@ fn a_second_sync_changes_nothing_check(tier: Tier, bytes: &[u8]) -> Result<(), S
 }
 
 /// Once every device has synced, each account's devices show the same files.
-fn devices_converge_check(tier: Tier, bytes: &[u8]) -> Result<(), String> {
+fn devices_converge_check(tier: Tier, start: Start, bytes: &[u8]) -> Result<(), String> {
     block_on(async {
-        let world = World::new(tier).await;
+        let world = World::new(tier, start).await;
         world.take_all(&steps(tier, bytes)).await;
         world.settle().await?;
         for account in 0..tier.accounts {
@@ -645,9 +730,11 @@ fn devices_converge_check(tier: Tier, bytes: &[u8]) -> Result<(), String> {
 
 /// Once every device has synced, a document two accounts both list has the same content for
 /// both.
-fn accounts_agree_on_what_they_share_check(tier: Tier, bytes: &[u8]) -> Result<(), String> {
+fn accounts_agree_on_what_they_share_check(
+    tier: Tier, start: Start, bytes: &[u8],
+) -> Result<(), String> {
     block_on(async {
-        let world = World::new(tier).await;
+        let world = World::new(tier, start).await;
         world.take_all(&steps(tier, bytes)).await;
         world.settle().await?;
         let mut seen: Vec<BTreeMap<Uuid, String>> = Vec::new();
@@ -672,9 +759,9 @@ fn accounts_agree_on_what_they_share_check(tier: Tier, bytes: &[u8]) -> Result<(
 }
 
 /// Once every device has synced, the server's own consistency check finds nothing.
-fn the_server_stays_valid_check(tier: Tier, bytes: &[u8]) -> Result<(), String> {
+fn the_server_stays_valid_check(tier: Tier, start: Start, bytes: &[u8]) -> Result<(), String> {
     block_on(async {
-        let world = World::new(tier).await;
+        let world = World::new(tier, start).await;
         world.take_all(&steps(tier, bytes)).await;
         world.settle().await?;
         world.validate_server().await
