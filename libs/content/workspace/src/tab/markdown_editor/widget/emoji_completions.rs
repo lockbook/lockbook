@@ -126,24 +126,23 @@ impl EmojiCompletions {
             i.consume_key(Modifiers::NONE, Key::Enter) || i.consume_key(Modifiers::NONE, Key::Tab)
         });
         if accept {
-            let shortcode = matching_shortcode(results[self.selected], &query);
-            self.apply_completion(events, colon_offset, replace_end, shortcode);
+            self.apply_completion(events, colon_offset, replace_end, results[self.selected]);
         }
     }
 
-    /// Push a replacement event for the current query and reset popup state.
+    /// Replace the query with the emoji character and reset popup state.
     /// Shared between `handle_input` (Enter / Tab) and the click path
     /// in `show_emoji_completions`.
     pub fn apply_completion(
         &mut self, events: &mut Vec<Event>, colon_offset: Grapheme, replace_end: Grapheme,
-        shortcode: &str,
+        emoji: &emojis::Emoji,
     ) {
         events.push(Event::Replace {
             region: Region::BetweenLocations {
                 start: Location::Grapheme(colon_offset),
                 end: Location::Grapheme(replace_end),
             },
-            text: format!(":{}:", shortcode),
+            text: emoji.as_str().into(),
             advance_cursor: true,
         });
         self.selected = 0;
@@ -436,12 +435,11 @@ impl MdEdit {
         }
 
         if let Some(i) = clicked {
-            let shortcode = matching_shortcode(results[i], &query);
             self.emoji_completions.apply_completion(
                 &mut self.event.internal_events,
                 colon_offset,
                 replace_end,
-                shortcode,
+                results[i],
             );
         }
     }
