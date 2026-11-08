@@ -447,38 +447,18 @@ impl<S: Server> Lb<S> {
                             deletion_creations.insert(id);
                         }
                     }
-                    'drain_creations: while !deletion_creations.is_empty() {
-                        'choose_a_creation: for id in &deletion_creations {
-                            // create
-                            let id = *id;
-                            let local_file = local.find(&id)?.clone();
-                            let result = deletions.create_unvalidated(
+                    for id in parents_first(&local, &deletion_creations)? {
+                        let local_file = local.find(&id)?.clone();
+                        deletions
+                            .create_unvalidated(
                                 id,
                                 symkey::generate_key(),
                                 local_file.parent(),
                                 &local.name(&id, &self.keychain)?,
                                 local_file.file_type(),
                                 &self.keychain,
-                            );
-                            match result {
-                                Ok(_) => {
-                                    deletion_creations.remove(&id);
-                                    continue 'drain_creations;
-                                }
-                                Err(ref err) => match err.kind {
-                                    LbErrKind::FileParentNonexistent => {
-                                        continue 'choose_a_creation;
-                                    }
-                                    _ => {
-                                        result?;
-                                    }
-                                },
-                            }
-                        }
-                        return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topomodelal order for file creations: {deletion_creations:?}"
-                        ))
-                        .into());
+                            )
+                            .map_err(orphaned_creation(id))?;
                     }
 
                     // moves (creations happen first in case a file is moved into a new folder)
@@ -539,38 +519,18 @@ impl<S: Server> Lb<S> {
                             creations.insert(id);
                         }
                     }
-                    'drain_creations: while !creations.is_empty() {
-                        'choose_a_creation: for id in &creations {
-                            // create
-                            let id = *id;
-                            let local_file = local.find(&id)?.clone();
-                            let result = merge.create_unvalidated(
+                    for id in parents_first(&local, &creations)? {
+                        let local_file = local.find(&id)?.clone();
+                        merge
+                            .create_unvalidated(
                                 id,
                                 local.decrypt_key(&id, &self.keychain)?,
                                 local_file.parent(),
                                 &local.name(&id, &self.keychain)?,
                                 local_file.file_type(),
                                 &self.keychain,
-                            );
-                            match result {
-                                Ok(_) => {
-                                    creations.remove(&id);
-                                    continue 'drain_creations;
-                                }
-                                Err(ref err) => match err.kind {
-                                    LbErrKind::FileParentNonexistent => {
-                                        continue 'choose_a_creation;
-                                    }
-                                    _ => {
-                                        result?;
-                                    }
-                                },
-                            }
-                        }
-                        return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topomodelal order for file creations: {creations:?}"
-                        ))
-                        .into());
+                            )
+                            .map_err(orphaned_creation(id))?;
                     }
 
                     // moves, renames, edits, and shares
@@ -1564,6 +1524,36 @@ fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
         id = *file.parent();
     }
     Ok(remote.access_mode(me, &id)? >= Some(UserAccessMode::Write))
+}
+
+/// `ids` ordered so each file comes after its parent when that parent is also in `ids`.
+fn parents_first<T: TreeLike>(tree: &LazyTree<T>, ids: &HashSet<Uuid>) -> LbResult<Vec<Uuid>> {
+    let mut order = Vec::with_capacity(ids.len());
+    let mut placed = HashSet::with_capacity(ids.len());
+    for &id in ids {
+        let mut unplaced_ancestry = Vec::new();
+        let mut id = id;
+        while ids.contains(&id) && !placed.contains(&id) && !unplaced_ancestry.contains(&id) {
+            unplaced_ancestry.push(id);
+            id = *tree.find(&id)?.parent();
+        }
+        for id in unplaced_ancestry.into_iter().rev() {
+            placed.insert(id);
+            order.push(id);
+        }
+    }
+    Ok(order)
+}
+
+/// A creation whose parent is in neither the tree nor the creations before it.
+fn orphaned_creation(id: Uuid) -> impl FnOnce(LbErr) -> LbErr {
+    move |err| match err.kind {
+        LbErrKind::FileParentNonexistent => LbErrKind::Unexpected(format!(
+            "sync failed to find a topological order for file creation {id}"
+        ))
+        .into(),
+        _ => err,
+    }
 }
 
 /// A file this device has no access to, e.g. inside a share it declined. A share root carrying
