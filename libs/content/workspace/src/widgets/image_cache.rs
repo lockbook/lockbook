@@ -673,7 +673,7 @@ impl Loader {
 
 /// A decoded source, ready for rasterization or texture upload.
 enum Decoded {
-    Drawing(Drawing),
+    Drawing(Box<Drawing>),
     Still(Arc<ColorImage>),
     Animated(Frame, Rest),
 }
@@ -683,7 +683,7 @@ fn decode_source(
     pixels_per_point: f32,
 ) -> Result<Decoded, String> {
     if is_svg && is_file && Drawing::is_lockbook_drawing(&bytes) {
-        return Ok(Decoded::Drawing(Drawing::load(&bytes, core)?));
+        return Ok(Decoded::Drawing(Box::new(Drawing::load(&bytes, core)?)));
     }
     let bytes = if is_svg {
         rasterize_svg(&bytes, is_file, viewport_width, pixels_per_point)?
