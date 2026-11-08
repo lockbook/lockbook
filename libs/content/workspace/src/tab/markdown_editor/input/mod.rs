@@ -105,6 +105,7 @@ pub enum Event {
     ToggleStyle { region: Region, style: NodeValue }, // supports toolbar and inline tyle keyboard shortcuts
     Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
+    Move { range: (Grapheme, Grapheme), to: Grapheme }, // the text of `range`, cut and pasted at `to`: a dragged image
     Indent { deindent: bool }, // distinct from replace because it's a no-op for first list item, etc
     Undo,
     Redo,

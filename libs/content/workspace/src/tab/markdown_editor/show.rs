@@ -145,9 +145,11 @@ impl MdEdit {
         // triggering selection); the fold check below stands down for the
         // frame so undo isn't immediately re-undone.
         let mut undo_redo = false;
+        let mut moved = false;
 
         for event in std::mem::take(&mut self.event.internal_events) {
             undo_redo |= matches!(event, Event::Undo | Event::Redo);
+            moved |= matches!(event, Event::Move { .. });
             direct_resp |= self.calc_operations(ctx, root, event, &mut ops);
         }
 
@@ -203,6 +205,11 @@ impl MdEdit {
         let mut buf_resp = direct_resp;
         buf_resp |= self.renderer.buffer.update();
         buf_resp |= move_resp; // a deferred reorder reports its text/selection edit
+        // a drop puts the caret back where it was: the drag placed the view,
+        // so nothing scrolls to the caret
+        if moved {
+            buf_resp.selection_user_moved = false;
+        }
 
         if buf_resp.text_updated {
             self.renderer.bump_text_seq();
