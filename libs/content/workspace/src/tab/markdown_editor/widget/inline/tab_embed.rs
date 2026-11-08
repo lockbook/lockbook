@@ -475,7 +475,12 @@ impl<'ast> MdRender {
             .ancestors()
             .skip(1)
             .find(|a| a.data.borrow().value.is_leaf_block())?;
-        let width = self.width(block);
+        // a width after the pipe, as an image takes one, within its block's
+        let room = self.embed_room(block);
+        let width = self
+            .image_dims(node)
+            .width
+            .map_or(room, |width| width.min(room));
         let pad = 2.0 * CARD_PAD.pts();
         if width <= pad {
             return None;
@@ -798,6 +803,18 @@ mod tests {
             .iter()
             .map(|f| (r.buffer[f.source_range].to_string(), f.rect));
         Some((slot.rect, texts.collect()))
+    }
+
+    /// A width after the pipe sizes a note embed, as it does an image.
+    #[test]
+    fn a_width_after_the_pipe_sizes_an_embed() {
+        let mut t = TestWs::new();
+        t.doc("Plan.md", "# Goals\n\nShip it.\n");
+        let note = t.doc("note.md", "above\n\n![[Plan|200]]\n\nbelow\n");
+        t.ws.open_file(note, true, true);
+        frames_until(&mut t, |t| shown(t).is_some());
+        let (rect, _) = shown(&mut t).unwrap();
+        assert_eq!(rect.width(), 200.0);
     }
 
     /// A click on a note embed's body, away from its links, selects the embed.

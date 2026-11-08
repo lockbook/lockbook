@@ -319,7 +319,8 @@ impl<'ast> MdRender {
             return (title.into(), false);
         };
         let em = self.row_height(block);
-        let room = CHIP_MAX.min(self.width(block)) - 2.0 * em * CHIP_SIDE_PAD;
+        // no wider than its block either, which in a table cell is a column's widest
+        let room = CHIP_MAX.min(self.embed_room(block)) - 2.0 * em * CHIP_SIDE_PAD;
         let fits = |t: &str| self.text_advance(&format!("{lead}{t}"), fmt, em) <= room;
         if fits(title) {
             return (title.into(), false);

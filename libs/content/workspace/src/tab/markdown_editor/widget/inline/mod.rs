@@ -104,7 +104,7 @@ impl<'ast> MdRender {
     /// What reveals the syntax it touches. Nothing does while a table's
     /// columns are measured: placing the caret does not move them.
     pub fn reveal_ranges(&self) -> impl Iterator<Item = (Grapheme, Grapheme)> + '_ {
-        let measuring = self.layout_cache.table_cell_measure.get().is_some();
+        let measuring = self.layout_cache.table_cell_measuring.get();
         self.reveal_selection
             .into_iter()
             .chain(self.find_current_match)
@@ -124,7 +124,7 @@ impl<'ast> MdRender {
     /// interior. Exception: `range` is the atom entered via `Event::EnterAtom`,
     /// whose whole-URL selection has no interior endpoint to offer.
     pub fn range_revealed_interior(&self, range: (Grapheme, Grapheme)) -> bool {
-        let measuring = self.layout_cache.table_cell_measure.get().is_some();
+        let measuring = self.layout_cache.table_cell_measuring.get();
         (self.entered_atom == Some(range) && !measuring)
             || self.reveal_ranges().any(|rr| {
                 range.contains(rr.start(), false, false) || range.contains(rr.end(), false, false)

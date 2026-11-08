@@ -139,11 +139,8 @@ impl<'ast> MdRender {
             .ancestors()
             .skip(1)
             .find(|a| a.data.borrow().value.is_leaf_block())?;
-        let mut width = self.width(block_ancestor);
+        let width = self.embed_room(block_ancestor);
         let in_cell = matches!(block_ancestor.data.borrow().value, NodeValue::TableCell);
-        if in_cell {
-            width = (width - 2.0 * self.layout.block_padding).max(0.0);
-        }
         let texture_size = self.embeds.size(&url);
         let mut size = self.image_size(texture_size, width, self.image_dims(node));
         // a size asked for by name fits the viewport; in a cell it fits the cell
@@ -192,6 +189,17 @@ impl<'ast> MdRender {
             kind: EmbedKind::Image,
         });
         layout.interaction_close();
+    }
+
+    /// How wide an embed in `block`, its leaf block, can be: the block's
+    /// width, or in a table cell a column's widest, its padding aside,
+    /// which the cell's width can't set while it comes from what the cell
+    /// holds.
+    pub fn embed_room(&self, block: &'ast AstNode<'ast>) -> f32 {
+        match block.data.borrow().value {
+            NodeValue::TableCell => self.layout.table_column_max - 2.0 * self.layout.block_padding,
+            _ => self.width(block),
+        }
     }
 
     /// Interaction-response salt for a rendered image; distinct from

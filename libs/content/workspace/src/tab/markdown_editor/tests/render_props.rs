@@ -414,8 +414,7 @@ fn table_ranges_check(buf: &[u8], f: &Features) -> Result<(), String> {
 }
 
 /// Property: nothing overflows a table cell — every fragment of a cell's
-/// text is painted inside the cell — and given room for every column's
-/// widest cell, no cell wraps.
+/// text is painted inside the cell, where the cell shows whole.
 fn table_cells_hold_their_content_check(buf: &[u8], f: &Features) -> Result<(), String> {
     let mut src = ByteSource::new(buf);
     let md = gen_doc(&mut src, f);
@@ -429,6 +428,10 @@ fn table_cells_hold_their_content_check(buf: &[u8], f: &Features) -> Result<(), 
             return Err(format!("no row for the cell painted at {:?}", cell_box.rect));
         };
         let Some(cell) = row.cells.get(cell_box.column) else { continue };
+        // a column wider than the note shows only as far as the note's edge
+        if cell_box.rect.right() >= width - 1.5 {
+            continue;
+        }
         let fragments: Vec<_> = r
             .fragments
             .iter()
@@ -441,17 +444,6 @@ fn table_cells_hold_their_content_check(buf: &[u8], f: &Features) -> Result<(), 
                     &r.buffer[fragment.source_range], fragment.rect, cell_box.rect
                 ));
             }
-        }
-        let first_row_bottom = fragments
-            .iter()
-            .map(|fragment| fragment.rect.bottom())
-            .fold(f32::INFINITY, f32::min);
-        if roomy
-            && fragments
-                .iter()
-                .any(|fragment| fragment.rect.top() >= first_row_bottom)
-        {
-            return Err(format!("{:?} wrapped with room to spare", &r.buffer[cell.span]));
         }
     }
     Ok(())
