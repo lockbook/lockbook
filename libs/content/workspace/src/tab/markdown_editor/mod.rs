@@ -357,7 +357,8 @@ pub struct MdEdit {
     /// start of the next `handle_input` so the move lands pre-render — the
     /// new layout is then current before the platform refetches selection
     /// geometry. Set on drag release (which runs post-render).
-    pub pending_block_move: Option<(widget::block::drag::BlockDrag, Grapheme)>,
+    pub pending_block_move:
+        Option<(widget::block::drag::BlockDrag, widget::block::drag::DropGap, Pos2)>,
 
     /// Selections expand selection grew, each `(from, to)`: shrink selection
     /// goes back while the selection is the last `to`.

@@ -75,11 +75,18 @@ impl MdEdit {
         let focused = ctx.memory(|m| m.has_focus(id));
         let prior_entered_atom = self.renderer.entered_atom;
 
+        // a drag let go last frame stops floating as its move applies
+        if self.pending_block_move.is_some() {
+            self.in_progress_block_drag = None;
+        }
+
         // Deferred block reorder
         let move_resp = match self.pending_block_move.take() {
-            Some((drag, insert_offset)) => match drag.unit {
-                DragUnit::Item => self.move_block(drag.section_range, insert_offset),
-                DragUnit::Row | DragUnit::Column(_) => self.move_table_part(drag, insert_offset),
+            Some((drag, gap, _)) => match drag.unit {
+                DragUnit::Item => self.move_block(drag.section_range, gap.insert_offset),
+                DragUnit::Row | DragUnit::Column(_) => {
+                    self.move_table_part(drag, gap.insert_offset)
+                }
             },
             None => buffer::Response::default(),
         };
@@ -606,8 +613,10 @@ impl MdEdit {
             Some(BlockDragAction::Released(pointer)) => {
                 if let Some(drag) = self.in_progress_block_drag.take() {
                     if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
-                        // deferred move (applied next frame in `handle_input`)
-                        self.pending_block_move = Some((drag, gap.insert_offset));
+                        // deferred move (applied next frame in `handle_input`),
+                        // floating where it lands until then
+                        self.pending_block_move = Some((drag, gap, pointer));
+                        self.in_progress_block_drag = Some(drag);
                         ui.ctx().request_repaint();
                     }
                 }
@@ -661,7 +670,9 @@ impl MdEdit {
         &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>,
     ) {
         let Some(drag) = self.in_progress_block_drag else { return };
-        let Some(p) = self.drag_pointer(ui) else { return };
+        // let go, a touch leaves no pointer: it floats where it was let go
+        let released = self.pending_block_move.map(|(_, _, released)| released);
+        let Some(p) = released.or_else(|| self.drag_pointer(ui)) else { return };
         if let DragUnit::Column(column) = drag.unit {
             return self.draw_dragged_column(ui, root, drag, column, p);
         }
