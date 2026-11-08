@@ -2858,3 +2858,40 @@ fn line_moves_from_a_soft_wrapped_row_end_keep_the_column() {
     ws.enter_frame_unfocused();
     assert!(drawn_at_end(&ws, up, lines[0]), "a platform line up landed at {up:?}");
 }
+
+/// The first image's rect and the baseline of the first text beside it.
+fn image_and_baseline(md: &str) -> (egui::Rect, f32) {
+    let (mut ws, embeds) = TestEditor::with_test_embeds(super::harness::build_lb(), md);
+    embeds.complete("https://x.test/a.png", egui::vec2(60.0, 60.0));
+    ws.enter_frame();
+    let fragments = &ws.editor.edit.renderer.fragments;
+    let image = fragments
+        .iter()
+        .find(|f| matches!(f.content, FragmentContent::Embed { .. }))
+        .expect("the image draws")
+        .rect;
+    let baseline = fragments
+        .iter()
+        .find_map(|f| match &f.content {
+            FragmentContent::Glyphs { buffer, .. } => {
+                let line_y = buffer.read().unwrap().layout_runs().next()?.line_y;
+                Some(f.rect.top() + f.content_inset.top + line_y)
+            }
+            _ => None,
+        })
+        .expect("the text draws");
+    (image, baseline)
+}
+
+#[test]
+fn a_tall_image_stands_on_its_texts_baseline() {
+    let (image, baseline) = image_and_baseline("before ![a](https://x.test/a.png) after\n");
+    assert!((image.bottom() - baseline).abs() < 0.5, "{image:?} on {baseline}");
+}
+
+#[test]
+fn an_image_in_a_heading_measures_against_the_headings_text() {
+    // 60 tall: past two body rows, within two heading rows, so it centers
+    let (image, baseline) = image_and_baseline("# before ![a](https://x.test/a.png) after\n");
+    assert!(image.bottom() > baseline + 1.0, "{image:?} centers on the text about {baseline}");
+}

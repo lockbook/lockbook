@@ -2602,6 +2602,47 @@ mod tests {
         assert_eq!(breaks, vec![0, 2, 3]);
     }
 
+    fn buffer() -> std::sync::Arc<std::sync::RwLock<glyphon::Buffer>> {
+        let metrics = glyphon::Metrics::new(14.0, 16.0);
+        std::sync::Arc::new(std::sync::RwLock::new(glyphon::Buffer::new_empty(metrics)))
+    }
+
+    fn word(advance: f32) -> InlineItem {
+        InlineItem::Box {
+            advance,
+            source_range: (Grapheme(0), Grapheme(0)),
+            visible_byte_range: 0..0,
+            buffer: buffer(),
+            cluster_advances: Vec::new(),
+            atomic: false,
+        }
+    }
+
+    fn space(natural: f32) -> InlineItem {
+        InlineItem::Glue {
+            natural,
+            source_range: (Grapheme(0), Grapheme(0)),
+            visible_byte_range: 0..0,
+            buffer: buffer(),
+            cluster_advances: Vec::new(),
+        }
+    }
+
+    /// Words touching a full-width embed, with no spaces between them, stay
+    /// on rows of their own: the embed is never pulled onto a row with them,
+    /// past the width.
+    #[test]
+    fn words_touching_an_embed_break_around_it() {
+        let items = vec![word(100.0), space(10.0), word(100.0), embed(500.0), word(100.0)];
+        let breaks = greedy_break(&items, 500.0, 0.0);
+        assert_eq!(breaks, vec![0, 3, 4, 5]);
+
+        // as a space is, the embed's far edge is the latest place to break
+        let items = vec![word(100.0), space(10.0), word(100.0), embed(100.0), word(250.0)];
+        let breaks = greedy_break(&items, 500.0, 0.0);
+        assert_eq!(breaks, vec![0, 4, 5]);
+    }
+
     /// A single embed wider than the row is the first item on its row —
     /// don't break before it (that would loop / emit an empty row).
     #[test]
