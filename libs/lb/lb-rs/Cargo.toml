@@ -91,6 +91,7 @@ tracing-perfetto-file = "=0.1.1"
 tracing-appender = "0.2"
 
 [dev-dependencies]
+async-trait = "0.1.68"
 criterion = { version = "0.5.1", features = ["async_tokio"] }
 itertools = "0.10.1"
 rand = "0.8.4"
