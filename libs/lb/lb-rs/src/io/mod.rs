@@ -89,6 +89,9 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<CoreDb> {
     let directory = path.join("CoreV5");
     fs::create_dir_all(&directory)?;
     let mut db = CoreDb::init(&Config::default().log_location(directory))?;
+    if let Some(bytes) = db.log_mut().take_incomplete_write() {
+        error!(bytes, "discarded an incomplete database write");
+    }
     let old_path = path.join("CoreV4.db");
 
     if db.schema.account.is_none() {
@@ -256,6 +259,9 @@ impl<S> Lb<S> {
 
         let previous_seq = guard.last_modified();
         let tx = guard.write_tx().unwrap();
+        if let Some(bytes) = guard.log_mut().take_incomplete_write() {
+            error!(bytes, "discarded an incomplete database write");
+        }
         self.notify_catch_up(&guard.schema, previous_seq).await;
 
         LbTx {
