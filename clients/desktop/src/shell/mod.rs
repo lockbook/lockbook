@@ -422,6 +422,7 @@ impl ShellApp {
             Session::Ready(_) => {}
         }
 
+        settings::end_hidden_theme_preview(self, ctx, &mut queue);
         if self.modal.is_some() {
             sheets::show_modals(self, ctx, &t, &mut queue);
         }
@@ -590,6 +591,11 @@ impl ShellApp {
         }
         self.theme_applied = true;
         set_mode_preference(ctx, self.settings.theme_mode);
+        self.show_saved_theme(ctx);
+    }
+
+    /// Installs the saved family and accent.
+    fn show_saved_theme(&self, ctx: &egui::Context) {
         set_theme_family(ctx, self.settings.theme_family);
         if let Some(accent) = self.settings.theme_accent {
             set_theme_accent(ctx, accent);
@@ -623,7 +629,11 @@ impl ShellApp {
     fn process_keys(&mut self, ctx: &egui::Context) {
         const CMD: egui::Modifiers = egui::Modifiers::COMMAND;
 
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && self.modal.is_some() {
+        // An open menu takes Escape first; egui closes it.
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape))
+            && self.modal.is_some()
+            && !egui::Popup::is_any_open(ctx)
+        {
             let revert_server = matches!(
                 &self.modal,
                 Some(Modal::Onboard { mode: action::OnboardMode::Choice, .. })

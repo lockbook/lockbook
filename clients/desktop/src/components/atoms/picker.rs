@@ -3,8 +3,11 @@
 //! Trigger is a **canvas plate** quiet control ([`quiet_canvas_fills`] +
 //! [`interact_fill`]). Menu is a canvas plate too. Keyboard: focus the
 //! trigger, Space/Enter open, arrows move highlight, Enter commits, Esc closes.
+//! The pointer moves the same highlight as the arrows.
 
-use egui::{Color32, Key, Modifiers, Popup, PopupCloseBehavior, Response, Stroke, Ui, pos2, vec2};
+use egui::{
+    Color32, InnerResponse, Key, Modifiers, Popup, PopupCloseBehavior, Stroke, Ui, pos2, vec2,
+};
 
 use crate::components::foundation::chrome::{
     Radius, STROKE_HAIRLINE, canvas_overlay_frame, control_height, phosphor, phosphor_ui_font_id,
@@ -20,8 +23,11 @@ use crate::components::foundation::typography::TypeRole;
 /// Compact picker (form trailing slot or standalone).
 ///
 /// Shows `options[*selected]` with a caret; click or Space/Enter opens a menu.
-/// Marks the response `.changed()` when the selection updates.
-pub fn picker(ui: &mut Ui, t: &Theme, options: &[&str], selected: &mut usize) -> Response {
+/// Marks the response `.changed()` when the selection updates. The inner
+/// value is the highlighted option while the menu is open.
+pub fn picker(
+    ui: &mut Ui, t: &Theme, options: &[&str], selected: &mut usize,
+) -> InnerResponse<Option<usize>> {
     let fonts = vec![OptionFont::Ui(TypeRole::Body.font_id()); options.len()];
     picker_fonts(ui, t, options, &fonts, None, selected)
 }
@@ -42,7 +48,7 @@ pub enum OptionFont {
 pub fn picker_fonts(
     ui: &mut Ui, t: &Theme, options: &[&str], fonts: &[OptionFont], divider_after: Option<usize>,
     selected: &mut usize,
-) -> Response {
+) -> InnerResponse<Option<usize>> {
     let n = options.len().max(1);
     *selected = (*selected).min(n - 1);
     let label = options.get(*selected).copied().unwrap_or("—");
@@ -264,6 +270,7 @@ pub fn picker_fonts(
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
             let rows = |ui: &mut Ui| {
                 let mut click_pick = None;
+                let mut pointed = None;
                 if shown.is_empty() {
                     let (rect, _) = ui.allocate_exact_size(
                         vec2(crate::components::ui_width(ui).max(1.0), row_h),
@@ -282,10 +289,13 @@ pub fn picker_fonts(
                     );
                 }
                 for &i in &shown {
-                    let (clicked, row) =
+                    let (clicked, row, over) =
                         menu_row(ui, t, options[i], option_font(i), i == *selected, i == highlight);
                     if clicked {
                         click_pick = Some(i);
+                    }
+                    if over {
+                        pointed = Some(i);
                     }
                     if i == highlight && (moved || resp.clicked() || fresh) {
                         ui.scroll_to_rect(row, None);
@@ -302,7 +312,7 @@ pub fn picker_fonts(
                         );
                     }
                 }
-                click_pick
+                (click_pick, pointed)
             };
             if !long {
                 return rows(ui);
@@ -341,8 +351,14 @@ pub fn picker_fonts(
         if menu_layer.order == ui.layer_id().order {
             ui.ctx().set_sublayer(ui.layer_id(), menu_layer);
         }
-        if let Some(i) = inner.inner {
+        let (click_pick, pointed) = inner.inner;
+        if let Some(i) = click_pick {
             pick = Some(i);
+        }
+        let pointer_moved = ui.input(|i| i.pointer.delta() != egui::Vec2::ZERO);
+        if let Some(i) = pointed.filter(|&i| pointer_moved && i != highlight) {
+            ui.ctx().data_mut(|d| d.insert_temp(highlight_key, i));
+            ui.ctx().request_repaint();
         }
     }
 
@@ -355,36 +371,41 @@ pub fn picker_fonts(
         ui.ctx().data_mut(|d| d.remove_temp::<usize>(highlight_key));
     }
 
-    if !Popup::is_id_open(ui.ctx(), popup_id) {
+    let highlighted = if Popup::is_id_open(ui.ctx(), popup_id) {
+        ui.ctx().data(|d| d.get_temp::<usize>(highlight_key))
+    } else {
         ui.ctx().data_mut(|d| {
             d.remove_temp::<usize>(highlight_key);
             d.remove_temp::<String>(query_key);
         });
-    }
+        None
+    };
 
     if changed {
         resp.mark_changed();
     }
-    resp
+    InnerResponse::new(highlighted, resp)
 }
 
 /// Menu option on canvas. Idle `fg` (available). `selected` = value wash;
-/// `highlighted` = keyboard cursor (hover wash if not selected).
+/// `highlighted` = the menu's cursor (hover wash if not selected). Returns
+/// whether it was clicked, its rect, and whether the pointer is over it.
 fn menu_row(
     ui: &mut Ui, t: &Theme, label: &str, font: OptionFont, selected: bool, highlighted: bool,
-) -> (bool, egui::Rect) {
+) -> (bool, egui::Rect, bool) {
     let h = control_height();
     let (rect, resp) = ui.allocate_exact_size(
         vec2(crate::components::ui_width(ui).max(1.0), h),
         crate::components::sense_click(),
     );
-    let over = ui.ctx().rect_contains_pointer(ui.layer_id(), rect) || highlighted;
+    // clipped, so a row scrolled out of view never claims the pointer
+    let pointer_over = ui.rect_contains_pointer(rect);
 
     let fills = if selected { canvas_selected_fills(t) } else { quiet_canvas_fills(t) };
     let fill = interact_fill(
         ui.ctx(),
         resp.id,
-        over,
+        highlighted,
         resp.is_pointer_button_down_on(),
         resp.clicked(),
         fills,
@@ -403,7 +424,7 @@ fn menu_row(
         );
     }
 
-    (resp.clicked(), rect)
+    (resp.clicked(), rect, pointer_over)
 }
 
 /// An option's label shaped in its font, ready to place.

@@ -20,8 +20,8 @@
 use crate::components::{
     Button, FixedPadContent, NavItem, Radius, STROKE_HAIRLINE, Space, Spacer, Theme, ThemeFamily,
     TypeRole, control_height, form_group, form_picker, form_row, form_segmented, form_toggle,
-    form_toggle_detail, form_value, icon_button, phosphor, section_label, sheet_dim, ui_width,
-    with_h_pad, with_overlay_scroll,
+    form_toggle_detail, form_value, icon_button, phosphor, section_label, sheet_dim, theme_family,
+    ui_width, with_h_pad, with_overlay_scroll,
 };
 use egui::{
     Align, Area, CornerRadius, Id, Label, Layout, Order, Pos2, Rect, ScrollArea, Sense, Stroke,
@@ -89,6 +89,14 @@ fn header_row_h() -> f32 {
 /// Title bar: `Spacer Sm` · row · `Spacer Sm` (all F2-visible; not Align-center air).
 fn header_band_h() -> f32 {
     Space::Sm.pts() * 2.0 + header_row_h()
+}
+
+/// A theme preview lives only while the theme picker is on screen.
+pub fn end_hidden_theme_preview(app: &ShellApp, ctx: &egui::Context, queue: &mut Vec<Action>) {
+    let app_page = matches!(app.modal, Some(Modal::Settings { cat: SettingsCat::App }));
+    if !app_page && theme_family(ctx) != app.settings.theme_family {
+        queue.push(A::PreviewThemeFamily(None));
+    }
 }
 
 pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
@@ -338,12 +346,19 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
             queue.push(A::SetThemeMode(pref));
         }
         let names: Vec<&str> = ThemeFamily::ALL.iter().map(|f| f.label()).collect();
+        let saved = app.settings.theme_family;
         let mut fam = ThemeFamily::ALL
             .iter()
-            .position(|&f| f == app.settings.theme_family)
+            .position(|&f| f == saved)
             .unwrap_or(0);
-        if form_picker(ui, t, "Theme", &names, &mut fam).changed() {
+        let picked = form_picker(ui, t, "Theme", &names, &mut fam);
+        if picked.response.changed() {
             queue.push(A::SetThemeFamily(ThemeFamily::ALL[fam]));
+        } else {
+            let want = picked.inner.map_or(saved, |i| ThemeFamily::ALL[i]);
+            if want != theme_family(ui.ctx()) {
+                queue.push(A::PreviewThemeFamily((want != saved).then_some(want)));
+            }
         }
         const HUES: [Palette; 6] = [
             Palette::Red,
@@ -511,7 +526,8 @@ fn font_picker(
     let mut out = None;
     form_row(ui, t, label, |ui| {
         let resp =
-            crate::components::atoms::picker::picker_fonts(ui, t, &names, &fonts, divider, &mut at);
+            crate::components::atoms::picker::picker_fonts(ui, t, &names, &fonts, divider, &mut at)
+                .response;
         let popup = egui::Popup::default_response_id(&resp);
         let pick = rows[at].2;
         if resp.changed() && pick.is_none() {
