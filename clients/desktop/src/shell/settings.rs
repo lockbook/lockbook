@@ -337,12 +337,11 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
             };
             queue.push(A::SetThemeMode(pref));
         }
-        let names: Vec<&str> = ThemeFamily::ALL.iter().map(|f| f.name()).collect();
+        let names: Vec<&str> = ThemeFamily::ALL.iter().map(|f| f.label()).collect();
         let mut fam = ThemeFamily::ALL
             .iter()
-            .position(|f| f.name() == app.settings.theme_name)
-            .unwrap_or(0)
-            .min(names.len().saturating_sub(1));
+            .position(|&f| f == app.settings.theme_family)
+            .unwrap_or(0);
         if form_picker(ui, t, "Theme", &names, &mut fam).changed() {
             queue.push(A::SetThemeFamily(ThemeFamily::ALL[fam]));
         }

@@ -320,7 +320,7 @@ impl TryFrom<&str> for Palette {
 
 impl Theme {
     pub fn default(current: Mode) -> Self {
-        Self::default_theme(current)
+        Self::mnemonic(current)
     }
 
     pub fn from_android_material(
@@ -356,8 +356,8 @@ impl Theme {
         self
     }
 
-    /// The default theme is mnemonic by travis
-    pub fn default_theme(current: Mode) -> Self {
+    /// Lockbook's own theme, and the default.
+    pub fn mnemonic(current: Mode) -> Self {
         Self {
             current,
             dim: ThemeVariant {

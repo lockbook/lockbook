@@ -46,8 +46,8 @@ use workspace_rs::file_cache::FilesExt;
 use workspace_rs::search::SearchType;
 
 use crate::components::{
-    self, Space, Spacer, Theme, ThemeExt, ThemeFamily, TypeRole, handle_toggle_shortcut,
-    set_mode_preference, set_theme_accent, set_theme_family, sheet_panel_fit,
+    self, Space, Spacer, Theme, ThemeExt, TypeRole, handle_toggle_shortcut, set_mode_preference,
+    set_theme_accent, set_theme_family, sheet_panel_fit,
 };
 use crate::settings::Settings;
 
@@ -590,12 +590,7 @@ impl ShellApp {
         }
         self.theme_applied = true;
         set_mode_preference(ctx, self.settings.theme_mode);
-        let fam = ThemeFamily::ALL
-            .iter()
-            .find(|f| f.name() == self.settings.theme_name)
-            .copied()
-            .unwrap_or_default();
-        set_theme_family(ctx, fam);
+        set_theme_family(ctx, self.settings.theme_family);
         if let Some(accent) = self.settings.theme_accent {
             set_theme_accent(ctx, accent);
         }
