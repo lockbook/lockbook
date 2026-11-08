@@ -659,7 +659,6 @@ impl MdEdit {
             return self.draw_dragged_column(ui, root, drag, column, p);
         }
         let theme = self.renderer.ctx.get_lb_theme();
-        let primary = theme.accent_bg();
         // a table's rows touch: nothing of one reaches past its rect
         let is_row = drag.unit == DragUnit::Row;
 
@@ -677,24 +676,12 @@ impl MdEdit {
                 // Start in the gutter so the dot isn't hidden by markers.
                 let x0 = x0 - self.renderer.layout.indent;
                 let y = gap.at as f32;
-                let dot = 4.0;
-                let half = 1.25;
-                let painter = ui.painter();
-                painter.rect_filled(
-                    egui::Rect::from_min_max(Pos2::new(x0, y - 3.0), Pos2::new(x1, y + 3.0)),
-                    egui::CornerRadius::same(3),
-                    primary.gamma_multiply(0.18),
+                crate::style::paint_drop_line(
+                    ui.painter(),
+                    Pos2::new(x0, y),
+                    Pos2::new(x1, y),
+                    &theme,
                 );
-                painter.rect_filled(
-                    egui::Rect::from_min_max(
-                        Pos2::new(x0 + dot, y - half),
-                        Pos2::new(x1, y + half),
-                    ),
-                    egui::CornerRadius::same(1),
-                    primary,
-                );
-                painter.circle_filled(Pos2::new(x0 + dot, y), dot, primary);
-                painter.circle_filled(Pos2::new(x0 + dot, y), dot - 1.5, theme.neutral_bg());
             }
         }
 
