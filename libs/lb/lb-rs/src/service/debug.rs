@@ -1,5 +1,7 @@
 use crate::Lb;
+use crate::io::server::Server;
 use crate::model::clock;
+use crate::model::core_config::Config;
 use crate::model::errors::LbResult;
 use crate::service::lb_id::LbID;
 use basic_human_duration::ChronoHumanDuration;
@@ -16,9 +18,6 @@ use std::env;
 
 #[cfg(not(target_family = "wasm"))]
 use chrono::{DateTime, Local, TimeZone};
-
-#[cfg(not(target_family = "wasm"))]
-use crate::get_code_version;
 
 #[cfg(not(target_family = "wasm"))]
 use tokio::fs::{self, OpenOptions};
@@ -56,7 +55,7 @@ impl DebugInfoDisplay for LbResult<DebugInfo> {
     }
 }
 
-impl Lb {
+impl<S: Server> Lb<S> {
     async fn human_last_synced(&self) -> String {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -120,7 +119,7 @@ impl Lb {
     #[cfg(not(target_family = "wasm"))]
     pub async fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {
         let file_name = generate_panic_filename(&self.config.writeable_path);
-        let content = generate_panic_content(&error_header, &bt);
+        let content = generate_panic_content(&self.config, &error_header, &bt);
 
         let mut file = OpenOptions::new()
             .create(true)
@@ -135,7 +134,7 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     #[cfg(not(target_family = "wasm"))]
-    pub async fn debug_info(&self, os_info: String, check_docs: bool) -> LbResult<DebugInfo> {
+    pub async fn debug_info(&self, check_docs: bool) -> LbResult<DebugInfo> {
         let account = self.get_account()?;
 
         let arch = env::consts::ARCH;
@@ -154,12 +153,12 @@ impl Lb {
         let mut status = self.status().await;
         status.space_used = None;
         let status = format!("{status:?}");
-        let is_syncing = self.syncer.try_lock().is_ok();
+        let is_syncing = self.syncer.try_lock().is_err();
 
         Ok(DebugInfo {
             time: self.now(),
             name: account.username.clone(),
-            lb_version: get_code_version().into(),
+            lb_version: self.config.lb_version.clone(),
             lb_id: lb_id?,
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
@@ -169,7 +168,7 @@ impl Lb {
             ),
             lb_dir: self.config.writeable_path.clone(),
             last_synced,
-            os_info,
+            os_info: self.config.os_version.clone().unwrap_or_default(),
             status,
             is_syncing,
             panics,
@@ -222,8 +221,7 @@ impl PanicFiles {
 #[cfg(not(target_family = "wasm"))]
 impl PanicFile {
     pub async fn content(&self) -> LbResult<String> {
-        let contents = fs::read_to_string(&self.file_path).await?;
-        Ok(format!("time: {}: contents: {}", self.time, contents))
+        Ok(fs::read_to_string(&self.file_path).await?)
     }
 }
 
@@ -258,6 +256,9 @@ pub fn generate_panic_filename(path: &str) -> String {
     format!("{path}/panic---{timestamp}.log")
 }
 
-pub fn generate_panic_content(panic_info: &str, bt: &str) -> String {
-    format!("INFO: {panic_info}\nBT: {bt}")
+pub fn generate_panic_content(config: &Config, panic_info: &str, bt: &str) -> String {
+    let version = &config.lb_version;
+    let time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S %Z");
+    let config = serde_json::to_string_pretty(config).unwrap_or_default();
+    format!("{version} panicked at {panic_info}\n\ntime: {time}\n\n{}\n\n{config}\n", bt.trim_end())
 }

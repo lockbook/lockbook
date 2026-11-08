@@ -1,3 +1,4 @@
+use crate::io::server::Server;
 use std::collections::HashSet;
 
 use crate::Lb;
@@ -15,7 +16,7 @@ use uuid::Uuid;
 use super::activity;
 use super::events::Actor;
 
-impl Lb {
+impl<S: Server> Lb<S> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn read_document(
         &self, id: Uuid, user_activity: bool,
@@ -42,7 +43,7 @@ impl Lb {
         // do the operations
         let (hmac, encrypted) = compress_encrypt_document(&key, content)?;
         let encrypted_size = encrypted.value.len();
-        self.docs.insert_pending(id, hmac, &encrypted).await?;
+        let pending = self.docs.insert_pending(id, hmac, &encrypted).await?;
 
         // commit the result
         {
@@ -51,7 +52,7 @@ impl Lb {
             let mut tree = (&db.base_metadata)
                 .to_staged(&mut db.local_metadata)
                 .to_lazy();
-            self.docs.promote_pending(id, hmac).await?;
+            pending.promote().await?;
             tree.overwrite_document_hmac(&id, Some(hmac), Some(encrypted_size), &self.keychain)?;
             tx.end();
         }
@@ -146,7 +147,8 @@ impl Lb {
         // do the operations
         let (hmac, encrypted) = compress_encrypt_document(&key, &content)?;
         let encrypted_size = encrypted.value.len();
-        self.docs
+        let pending = self
+            .docs
             .insert_pending(target_id, hmac, &encrypted)
             .await?;
 
@@ -157,7 +159,7 @@ impl Lb {
             let mut tree = (&db.base_metadata)
                 .to_staged(&mut db.local_metadata)
                 .to_lazy();
-            self.docs.promote_pending(target_id, hmac).await?;
+            pending.promote().await?;
             if tree.find(&id)?.document_hmac() != old_hmac.as_ref() {
                 return Err(LbErrKind::ReReadRequired.into());
             }
@@ -199,16 +201,18 @@ impl Lb {
     }
 }
 
-fn compress_encrypt_document(
+/// What a document's metadata records for `content` under its key.
+pub(crate) fn document_hmac(key: &AESKey, content: &[u8]) -> LbResult<DocumentHmac> {
+    let mut mac = HmacSha256::new_from_slice(key)
+        .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {err:?}")))?;
+    mac.update(content);
+    Ok(mac.finalize().into_bytes().into())
+}
+
+pub(crate) fn compress_encrypt_document(
     key: &AESKey, content: &[u8],
 ) -> LbResult<(DocumentHmac, EncryptedDocument)> {
-    let hmac: DocumentHmac = {
-        let mut mac = HmacSha256::new_from_slice(key)
-            .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {err:?}")))?;
-        mac.update(content);
-        mac.finalize().into_bytes()
-    }
-    .into();
+    let hmac = document_hmac(key, content)?;
     let compressed = compression_service::compress(content)?;
     let encrypted = symkey::encrypt(key, &compressed)?;
     Ok((hmac, encrypted))

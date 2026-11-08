@@ -4,7 +4,7 @@
 //! undo unit — that rewrites only what it moves, pads a ragged row to the
 //! table's width, and leaves the caret in the cell it was in.
 
-use comrak::nodes::{AstNode, TableAlignment};
+use comrak::nodes::{AstNode, NodeValue, TableAlignment};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
@@ -358,6 +358,61 @@ impl<'ast> MdEdit {
                 r.rewrite(cell, &aligned, None, operations);
             }
         }
+    }
+
+    /// Return at the end of a paragraph's first line made only of cells,
+    /// `| a | b |`, makes that line a table's header, as Typora does: the
+    /// delimiter row and a blank row follow, with the caret in its first cell.
+    pub fn newline_after_header_row(
+        &self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>,
+    ) -> bool {
+        let r = &self.renderer;
+        let selection = r.buffer.current.selection;
+        if r.readonly || r.kind != crate::tab::markdown_editor::Syntax::Markdown {
+            return false;
+        }
+        let offset = selection.1;
+        let line = r.line_at_offset(offset);
+        if selection.0 != offset || offset != line.end() || r.bounds.table_at(offset).is_some() {
+            return false;
+        }
+        let paragraph = root.descendants().find(|node| {
+            matches!(node.data.borrow().value, NodeValue::Paragraph)
+                && r.node_range(node).contains_inclusive(offset)
+        });
+        let Some(paragraph) = paragraph else { return false };
+        if r.bounds.source_lines[r.node_first_line_idx(paragraph)] != line {
+            return false;
+        }
+        let container = r.deepest_container_block_at_offset(root, offset);
+        let text = r.buffer[r.line_content(container, line)].trim_end();
+        let Some(inner) = text.strip_prefix('|').and_then(|t| t.strip_suffix('|')) else {
+            return false;
+        };
+        if inner.is_empty() || inner.ends_with('\\') {
+            return false;
+        }
+        let mut columns = 1;
+        let mut escaped = false;
+        for c in inner.chars() {
+            columns += usize::from(c == '|' && !escaped);
+            escaped = c == '\\' && !escaped;
+        }
+
+        let prefix = r.extension_prefix(container).unwrap_or_default();
+        let blank_row = row_text(&vec![BLANK.to_string(); columns], true, true);
+        let delimiter = row_text(&vec![" --- ".to_string(); columns], true, true);
+        let before = format!("\n{prefix}{delimiter}\n{prefix}| ");
+        let mut after = format!(" {}", &blank_row[3..]);
+        // the paragraph's next line would become a row, so a blank line ends the table
+        if r.node_last_line(paragraph) != line {
+            after += &format!("\n{prefix}");
+        }
+        let at = line.end().into_range();
+        operations.push(replace(at, &before));
+        operations.push(Operation::Select(at));
+        operations.push(replace(at, &after));
+        true
     }
 
     /// Writes a header, a delimiter row, and one row of three columns on

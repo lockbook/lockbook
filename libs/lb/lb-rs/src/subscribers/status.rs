@@ -1,8 +1,10 @@
+use crate::io::server::Server;
 use basic_human_duration::ChronoHumanDuration;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use time::Duration;
 
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 use web_time::Instant;
@@ -122,7 +124,7 @@ impl Status {
     }
 }
 
-impl Lb {
+impl<S: Server> Lb<S> {
     pub async fn status(&self) -> Status {
         self.status.current_status.read().await.clone()
     }
@@ -150,10 +152,11 @@ impl Lb {
             loop {
                 let evt = match rx.recv().await {
                     Ok(evt) => evt,
-                    Err(err) => {
-                        error!("failed to receive from a channel {err}");
-                        return;
+                    Err(RecvError::Lagged(_)) => {
+                        bg.catch_up().await.log_and_ignore();
+                        continue;
                     }
+                    Err(RecvError::Closed) => return,
                 };
                 bg.process_event(evt).await.log_and_ignore();
             }
@@ -181,6 +184,15 @@ impl Lb {
         } else {
             "never".to_string()
         }
+    }
+
+    /// After missed events: what is in flight from the sync lock, the rest from the database.
+    async fn catch_up(&self) -> LbResult<()> {
+        if self.syncer.try_lock().is_ok() {
+            let mut status = self.status.current_status.write().await;
+            self.reset_in_flight_sync(&mut status);
+        }
+        self.process_event(Event::IpcChangesApplied).await
     }
 
     async fn process_event(&self, e: Event) -> LbResult<()> {

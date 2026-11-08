@@ -29,15 +29,18 @@ import android.widget.OverScroller
 import android.widget.Toast
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.content.FileProvider
+import androidx.core.graphics.Insets
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.model.OpenFileRequest
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
+import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import app.lockbook.workspace.toModelTab
@@ -58,7 +61,8 @@ class WorkspaceView(
     private var surface: Surface? = null
 
     // The fragment may request a file before SurfaceView creates its native workspace.
-    private var deferredOpenDoc: Triple<String, Boolean, String?>? = null
+    private var deferredOpenDoc: OpenFileRequest? = null
+    private var safeInsets = Insets.NONE
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
@@ -75,6 +79,8 @@ class WorkspaceView(
 
     private val prefs by lazy { PreferenceManager.getDefaultSharedPreferences(context) }
     private val contactLinkedSitesKey by lazy { context.getString(R.string.contact_linked_sites_key) }
+    private val spellCheckKey by lazy { context.getString(R.string.spell_check_key) }
+    private val spelling by lazy { WorkspaceSpelling(context) { invalidate() } }
 
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -273,6 +279,7 @@ class WorkspaceView(
                 Lb.lb,
                 workspaceTheme,
             ) { delayMs -> post { requestRedraw(delayMs) } }
+        publishSafeInsets()
         setWillNotDraw(false)
 
         isFocusable = true
@@ -280,10 +287,8 @@ class WorkspaceView(
 
         requestFocus()
 
-        deferredOpenDoc?.let { (id, newFile, heading) ->
-            deferredOpenDoc = null
-            openDoc(id, newFile, heading)
-        }
+        deferredOpenDoc?.let(::openDoc)
+        publishOpenTabCount()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -316,6 +321,7 @@ class WorkspaceView(
             holder.surface,
             context.resources.displayMetrics.scaledDensity,
         )
+        publishSafeInsets()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -328,6 +334,19 @@ class WorkspaceView(
         cancelRedraw()
         ioScope.cancel()
         super.onDetachedFromWindow()
+    }
+
+    fun setSafeInsets(insets: Insets) {
+        if (safeInsets == insets) return
+        safeInsets = insets
+        publishSafeInsets()
+        invalidate()
+    }
+
+    private fun publishSafeInsets() {
+        if (wgpuObj != Long.MAX_VALUE && surface != null) {
+            Workspace.setSafeInsets(wgpuObj, safeInsets.top, safeInsets.right, safeInsets.bottom, safeInsets.left)
+        }
     }
 
     fun setBottomInset(inset: Int) {
@@ -365,6 +384,7 @@ class WorkspaceView(
         pendingFocusY = 0f
 
         Workspace.setContactLinkedSites(wgpuObj, prefs.getBoolean(contactLinkedSitesKey, false))
+        Workspace.setSpellCheck(wgpuObj, prefs.getBoolean(spellCheckKey, true))
 
         model.nextAttachment()?.let { attachment ->
             when (Workspace.currentTab(wgpuObj).toModelTab().type) {
@@ -399,10 +419,6 @@ class WorkspaceView(
             Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
         }
 
-        val outline = Workspace.outlineAvailable(wgpuObj)
-        if (outline != model.outlineAvailable.value) {
-            model._outlineAvailable.value = outline
-        }
         val outlineOpen = Workspace.outlineOpen(wgpuObj)
         if (outlineOpen != model.outlineOpen.value) {
             model._outlineOpen.value = outlineOpen
@@ -437,6 +453,7 @@ class WorkspaceView(
 
         val currentTab =
             if (response.tabsChanged || !response.selectedFile.isNullUUID()) {
+                publishOpenTabCount()
                 Workspace.currentTab(wgpuObj).toModelTab()
             } else {
                 null
@@ -512,6 +529,8 @@ class WorkspaceView(
             onMarkdownToolbarStateChanged?.invoke()
         }
 
+        spelling.check(wgpuObj)
+
         requestRedraw(response.redrawIn)
     }
 
@@ -546,10 +565,12 @@ class WorkspaceView(
         drawWorkspace()
     }
 
-    private fun copyImageToClipboard(png: ByteArray) {
+    private fun copyImageToClipboard(image: ByteArray) {
         val shareDirectory = File(context.cacheDir, "share/clipboard").apply { mkdirs() }
-        val imageFile = File(shareDirectory, "image.png")
-        imageFile.writeBytes(png)
+        // a gif copies as itself, else the bytes are a png
+        val gif = image.size >= 4 && String(image, 0, 4, Charsets.US_ASCII) == "GIF8"
+        val imageFile = File(shareDirectory, if (gif) "image.gif" else "image.png")
+        imageFile.writeBytes(image)
 
         val uri = FileProvider.getUriForFile(context, "app.lockbook.fileprovider", imageFile)
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -618,25 +639,31 @@ class WorkspaceView(
         drawImmediately()
     }
 
-    fun openDoc(
-        id: String,
-        newFile: Boolean,
-        heading: String? = null,
-    ) {
+    fun openDoc(request: OpenFileRequest) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
-            deferredOpenDoc = Triple(id, newFile, heading)
+            deferredOpenDoc = request
             return
         }
 
         deferredOpenDoc = null
+        val heading = request.heading
         if (heading.isNullOrEmpty()) {
-            Workspace.openDoc(wgpuObj, id, newFile)
+            Workspace.openDoc(wgpuObj, request.id, request.newFile)
         } else {
-            Workspace.openDocAtHeading(wgpuObj, id, heading)
+            Workspace.openDocAtHeading(wgpuObj, request.id, heading)
         }
+        model.recordTabCloseBehavior(Workspace.currentTab(wgpuObj).toModelTab().sessionId, request.closeDetailOnBack)
+        publishOpenTabCount()
         invalidate()
+    }
 
-        return
+    fun toggleSource() {
+        if (wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        Workspace.toggleSource(wgpuObj)
+        invalidate()
     }
 
     fun toggleOutline() {
@@ -654,7 +681,17 @@ class WorkspaceView(
         }
 
         Workspace.activateDoc(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
+    }
+
+    fun closeCurrentTabToWelcome(): Boolean {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) return false
+        if (!Workspace.closeCurrentTabToWelcome(wgpuObj)) return false
+        publishOpenTabCount()
+        model._currentTab.value = Workspace.currentTab(wgpuObj).toModelTab()
+        invalidate()
+        return true
     }
 
     fun back(): Boolean {
@@ -711,12 +748,17 @@ class WorkspaceView(
         return Workspace.getTabs(wgpuObj)
     }
 
+    private fun publishOpenTabCount() {
+        model.updateOpenTabCount(getTabs().size)
+    }
+
     fun closeDoc(id: String) {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return
         }
 
         Workspace.closeDoc(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
     }
 
@@ -726,6 +768,7 @@ class WorkspaceView(
         }
 
         Workspace.closeSession(wgpuObj, id)
+        publishOpenTabCount()
         invalidate()
     }
 
@@ -735,6 +778,7 @@ class WorkspaceView(
         }
 
         Workspace.closeAllTabs(wgpuObj)
+        publishOpenTabCount()
     }
 
     fun fileRenamed(
@@ -761,6 +805,11 @@ class WorkspaceView(
         const val REFRESH_PREVIEW_MENU_ID = 0x00E0170D
         const val COPY_HEADING_LINK_MENU_ID = 0x00E0170F
         const val COPY_RENDERED_MENU_ID = 0x00E0170E
+        const val ADD_TO_DICTIONARY_MENU_ID = 0x00E01710
+        const val IGNORE_SPELLING_MENU_ID = 0x00E01711
+        const val SPELLING_GUESS_GROUP_ID = 0x00E01712
+        const val COPY_IMAGE_MENU_ID = 0x00E01718
+        const val OPEN_DIAGRAM_MENU_ID = 0x00E01719
     }
 
     inner class FloatingTextEditorContextMenu(
@@ -868,6 +917,10 @@ class WorkspaceView(
         private var openTarget: String? = null
         private var headingLink: String? = null
 
+        // the misspelled word under the selection
+        private var misspelling: JTextRange? = null
+        private var misspelled: String? = null
+
         override fun onCreateActionMode(
             mode: ActionMode?,
             menu: Menu?,
@@ -885,7 +938,31 @@ class WorkspaceView(
             return true
         }
 
+        private fun populateSpellingItems(menu: Menu) {
+            val range = Workspace.selectionMisspelling(wgpuObj)
+            if (range.none) {
+                misspelling = null
+                return
+            }
+            val word = Workspace.getTextInRange(wgpuObj, range.start, range.end)
+            misspelling = range
+            misspelled = word
+            spelling.guesses(word).forEachIndexed { i, guess ->
+                menu
+                    .add(SPELLING_GUESS_GROUP_ID, SPELLING_GUESS_GROUP_ID + 1 + i, 0, guess)
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+            menu
+                .add(Menu.NONE, ADD_TO_DICTIONARY_MENU_ID, 0, "Add to dictionary")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+            menu
+                .add(Menu.NONE, IGNORE_SPELLING_MENU_ID, 0, "Ignore")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+        }
+
         private fun populateMenuWithItems(menu: Menu) {
+            populateSpellingItems(menu)
+
             // link (or wikilink/image) in the selection → offer open + copy
             openTarget = Workspace.selectionOpenTarget(wgpuObj)
             if (openTarget != null) {
@@ -906,12 +983,24 @@ class WorkspaceView(
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
 
+            if (forAtom && Workspace.selectionHasDiagram(wgpuObj)) {
+                menu
+                    .add(Menu.NONE, OPEN_DIAGRAM_MENU_ID, 0, "Open")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+
             if (forAtom) {
                 // select the URL inside the atom, revealing its source —
                 // the only touch path in, since mobile has no arrow keys
                 menu
                     .add(Menu.NONE, EDIT_ATOM_MENU_ID, 0, "Edit")
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+
+                if (Workspace.selectionHasPicture(wgpuObj)) {
+                    menu
+                        .add(Menu.NONE, COPY_IMAGE_MENU_ID, 0, "Copy Image")
+                        .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+                }
 
                 if (openTarget != null) {
                     menu
@@ -959,7 +1048,38 @@ class WorkspaceView(
             item: MenuItem?,
         ): Boolean {
             if (item != null) {
+                val range = misspelling
+                val word = misspelled
                 when (item.itemId) {
+                    in (SPELLING_GUESS_GROUP_ID + 1)..(SPELLING_GUESS_GROUP_ID + WorkspaceSpelling.MAX_GUESSES) -> {
+                        // the word may have moved while the menu was open
+                        if (range != null && Workspace.getTextInRange(wgpuObj, range.start, range.end) == word) {
+                            textInputWrapper.wsInputConnection.wsEditable
+                                .replace(range.start, range.end, item.title)
+                            invalidate()
+                        }
+                    }
+
+                    ADD_TO_DICTIONARY_MENU_ID -> {
+                        if (word != null) {
+                            Workspace.spellingAnswer(wgpuObj, word, true)
+                            context.startActivity(
+                                android.content
+                                    .Intent("com.android.settings.USER_DICTIONARY_INSERT")
+                                    .putExtra("word", word)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                            invalidate()
+                        }
+                    }
+
+                    IGNORE_SPELLING_MENU_ID -> {
+                        if (word != null) {
+                            Workspace.spellingIgnore(wgpuObj, word)
+                            invalidate()
+                        }
+                    }
+
                     EDIT_ATOM_MENU_ID -> {
                         Workspace.enterSelectedAtom(wgpuObj)
                         // schedule the frame that processes the event, whose selection
@@ -986,6 +1106,17 @@ class WorkspaceView(
                                     as ClipboardManager
                             ).setPrimaryClip(ClipData.newPlainText("", it))
                         }
+                    }
+
+                    OPEN_DIAGRAM_MENU_ID -> {
+                        Workspace.openSelectedDiagram(wgpuObj)
+                        invalidate()
+                    }
+
+                    COPY_IMAGE_MENU_ID -> {
+                        Workspace.copyImage(wgpuObj)
+                        // the frame that processes the copy fills `response.copiedImage`
+                        invalidate()
                     }
 
                     COPY_RENDERED_MENU_ID -> {

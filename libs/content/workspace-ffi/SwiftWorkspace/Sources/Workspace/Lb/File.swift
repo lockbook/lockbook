@@ -10,15 +10,17 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     public var type: FileType
     public var lastModifiedBy: String
     public var lastModified: UInt64
+    public var owner: String
     public var shares: [Share]
 
-    init(id: UUID, parent: UUID, name: String, type: FileType, lastModifiedBy: String, lastModified: UInt64, shares: [Share]) {
+    init(id: UUID, parent: UUID, name: String, type: FileType, lastModifiedBy: String, lastModified: UInt64, owner: String, shares: [Share]) {
         self.id = id
         self.parent = parent
         self.name = name
         self.type = type
         self.lastModifiedBy = lastModifiedBy
         self.lastModified = lastModified
+        self.owner = owner
         self.shares = shares
     }
 
@@ -29,6 +31,7 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
         type = FileType(file.typ)
         lastModifiedBy = String(cString: file.lastmod_by)
         lastModified = file.lastmod
+        owner = String(cString: file.owner)
         shares = Array(UnsafeBufferPointer(start: file.shares.list, count: Int(file.shares.count))).toShares()
     }
 
@@ -47,6 +50,7 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
             lhs.parent == rhs.parent &&
             lhs.lastModifiedBy == rhs.lastModifiedBy &&
             lhs.lastModified == rhs.lastModified &&
+            lhs.owner == rhs.owner &&
             lhs.name == rhs.name
     }
 

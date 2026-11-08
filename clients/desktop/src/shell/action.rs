@@ -83,7 +83,10 @@ pub enum ShareLookup {
 pub enum OnboardLookup {
     #[default]
     Idle,
-    Checking,
+    /// Request in flight. `then_submit`: Create was pressed; submit once it lands available.
+    Checking {
+        then_submit: bool,
+    },
     Available,
     Taken,
     Error(String),
@@ -167,6 +170,11 @@ pub enum Modal {
     ImportParent {
         paths: Vec<PathBuf>,
         dest: Option<Uuid>,
+        /// What importing into `dest` would do, recomputed when `dest` changes.
+        plan: Option<workspace_rs::import::ImportPlan>,
+        /// A plan being worked out; it replaces `plan` when it arrives.
+        planning:
+            Option<std::sync::mpsc::Receiver<Result<workspace_rs::import::ImportPlan, String>>>,
     },
     Help,
     Onboard {
@@ -277,11 +285,16 @@ pub enum Action {
     OpenFile(Uuid),
     /// Open document in a new tab.
     OpenFileNewTab(Uuid),
+    /// Open the file an `lb://` link from outside the app names, once the
+    /// account loads, syncing first if this device hasn't seen it.
+    OpenLink(String),
     /// Per-tab workspace history (same as mobile `nav_back` / `nav_forward`).
     NavBack,
     NavForward,
     /// Show or hide the sidecar beside the current note.
     ToggleSidecar,
+    /// Show files with a rendered form as source, or rendered again.
+    ToggleSource,
     /// Open documents (filters folders). Multi: first reuses tab path unless
     /// `new_tab`; further docs always open as new tabs.
     OpenDocuments {
@@ -380,6 +393,8 @@ pub enum Action {
     Export(Vec<Uuid>),
     /// Copy lb:// or https file link to OS clipboard.
     CopyLink(Uuid),
+    /// Show the Files pane with the file selected and scrolled into view.
+    RevealInFiles(Uuid),
     Import,
     ImportPaths {
         paths: Vec<PathBuf>,
@@ -391,6 +406,17 @@ pub enum Action {
     },
     ImportParentSelect(Uuid),
     ConfirmImportParent,
+    /// Leave a kind of file out of the import (or bring it back).
+    ImportSkipKind(workspace_rs::import::Kind),
+    /// Hold the open import, upgrade, and offer it again with room for everything.
+    ImportUpgrade,
+    /// A plan for the open import finished.
+    ImportPlanned(Result<workspace_rs::import::ImportPlan, String>),
+    /// The account's cap grew past the one a held import was waiting on.
+    ImportResume,
+    /// Reveal the folder an import made.
+    ImportShow(Uuid),
+    ImportDismiss,
     /// `None` keeps the last search's mode.
     OpenSearch(Option<workspace_rs::search::SearchType>),
     /// Open cancel-subscription confirm.
@@ -398,7 +424,17 @@ pub enum Action {
     ConfirmCancelSub,
     SetThemeMode(crate::components::ModePreference),
     SetThemeFamily(crate::components::ThemeFamily),
+    /// Shows a family without saving it; `None` shows the saved theme again.
+    PreviewThemeFamily(Option<crate::components::ThemeFamily>),
+    SetThemeAccent(workspace_rs::theme::palette_v2::Palette),
+    /// An installed family for notes' text; `None` is the platform's.
+    SetTextFont(Option<String>),
+    /// An installed family for notes' code; `None` is the platform's.
+    SetCodeFont(Option<String>),
     SetPrefLinkPreviews(bool),
+    /// Misspelled words are marked, from now on.
+    SetPrefSpellCheck(bool),
+    SetPrefColumnWidth(f32),
     /// Renames and moves update the links they'd break, from now on.
     SetPrefUpdateLinks(bool),
     SetPrefOpenInNewTab(bool),
@@ -406,6 +442,10 @@ pub enum Action {
 
     /// Linux only — persisted; takes effect after restart.
     SetPrefAllowWayland(bool),
+    /// The nudge card's button: it's done, and the sign-in QR code shows.
+    NudgeAccept,
+    /// The nudge card's X: it doesn't come back.
+    NudgeDismiss,
     /// Settings → Account: show 24-word phrase in-content.
     RevealPhrase,
     /// Settings → Account: show account key QR in-content.
@@ -453,9 +493,11 @@ impl Action {
             Self::CollapseSubtree(_) => "CollapseSubtree",
             Self::OpenFile(_) => "OpenFile",
             Self::OpenFileNewTab(_) => "OpenFileNewTab",
+            Self::OpenLink(_) => "OpenLink",
             Self::NavBack => "NavBack",
             Self::NavForward => "NavForward",
             Self::ToggleSidecar => "ToggleSidecar",
+            Self::ToggleSource => "ToggleSource",
             Self::OpenDocuments { .. } => "OpenDocuments",
             Self::SelectTab(_) => "SelectTab",
             Self::CloseTab(_) => "CloseTab",
@@ -506,21 +548,36 @@ impl Action {
             Self::Duplicate(_) => "Duplicate",
             Self::Export(_) => "Export",
             Self::CopyLink(_) => "CopyLink",
+            Self::RevealInFiles(_) => "RevealInFiles",
             Self::Import => "Import",
             Self::ImportPaths { .. } => "ImportPaths",
             Self::OpenImportParent { .. } => "OpenImportParent",
             Self::ImportParentSelect(_) => "ImportParentSelect",
             Self::ConfirmImportParent => "ConfirmImportParent",
+            Self::ImportSkipKind(_) => "ImportSkipKind",
+            Self::ImportUpgrade => "ImportUpgrade",
+            Self::ImportPlanned(_) => "ImportPlanned",
+            Self::ImportResume => "ImportResume",
+            Self::ImportShow(_) => "ImportShow",
+            Self::ImportDismiss => "ImportDismiss",
             Self::OpenSearch(_) => "OpenSearch",
             Self::CancelSubscription => "CancelSubscription",
             Self::ConfirmCancelSub => "ConfirmCancelSub",
             Self::SetThemeMode(_) => "SetThemeMode",
             Self::SetThemeFamily(_) => "SetThemeFamily",
+            Self::PreviewThemeFamily(_) => "PreviewThemeFamily",
+            Self::SetThemeAccent(_) => "SetThemeAccent",
+            Self::SetTextFont(_) => "SetTextFont",
+            Self::SetCodeFont(_) => "SetCodeFont",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
+            Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",
+            Self::SetPrefColumnWidth(_) => "SetPrefColumnWidth",
             Self::SetPrefUpdateLinks(_) => "SetPrefUpdateLinks",
             Self::SetPrefOpenInNewTab(_) => "SetPrefOpenInNewTab",
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",
             Self::SetPrefAllowWayland(_) => "SetPrefAllowWayland",
+            Self::NudgeAccept => "NudgeAccept",
+            Self::NudgeDismiss => "NudgeDismiss",
             Self::RevealPhrase => "RevealPhrase",
             Self::OpenAccountQr => "OpenAccountQr",
             Self::HideAccountKey => "HideAccountKey",

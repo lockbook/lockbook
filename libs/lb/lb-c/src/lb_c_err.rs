@@ -72,6 +72,7 @@ pub enum LbEC {
     UsernameNotFound,
     UsernamePublicKeyMismatch,
     UsernameTaken,
+    ImportFailed,
 }
 
 impl From<LbErr> for LbFfiErr {
@@ -141,6 +142,7 @@ impl From<&LbErrKind> for LbEC {
             LbErrKind::UsernameNotFound => Self::UsernameNotFound,
             LbErrKind::UsernamePublicKeyMismatch => Self::UsernamePublicKeyMismatch,
             LbErrKind::UsernameTaken => Self::UsernameTaken,
+            LbErrKind::ImportFailed { .. } => Self::ImportFailed,
             LbErrKind::ReReadRequired => Self::ReReadRequired,
             LbErrKind::Validation(vf) => match vf {
                 ValidationFailure::Orphan(_) => todo!(),

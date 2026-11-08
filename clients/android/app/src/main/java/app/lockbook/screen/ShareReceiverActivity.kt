@@ -59,7 +59,7 @@ class ShareReceiverActivity : AppCompatActivity() {
                     if (modelClass.isAssignableFrom(MoveFileViewModel::class.java)) {
                         return MoveFileViewModel(
                             application,
-                            Lb.getRoot().id,
+                            null,
                         ) as T
                     }
                     throw IllegalArgumentException("Unknown ViewModel class")
@@ -85,6 +85,13 @@ class ShareReceiverActivity : AppCompatActivity() {
         _binding = ActivityShareReceiverBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setUpView()
+        binding.importButton.isEnabled = false
+        binding.importProgress.visibility = View.VISIBLE
+        model.ready.observe(this) { ready ->
+            binding.importButton.isEnabled = ready
+            binding.importProgress.visibility = if (ready) View.INVISIBLE else View.VISIBLE
+        }
+        model.notifyError.observe(this) { error -> alertModel.notifyError(error) { finish() } }
 
         when (intent?.action) {
             Intent.ACTION_SEND_MULTIPLE -> {
@@ -128,6 +135,7 @@ class ShareReceiverActivity : AppCompatActivity() {
         )
 
         binding.toolbar.setOnMenuItemClickListener {
+            if (model.ready.value != true) return@setOnMenuItemClickListener false
             CreateFileDialogFragment.newInstance(model.currentParent.id).show(
                 supportFragmentManager,
                 CreateFileDialogFragment.TAG,

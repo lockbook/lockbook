@@ -33,9 +33,24 @@ pub fn update_snap() -> CliResult<()> {
 name: lockbook
 base: core26
 version: '{version}'
-summary: The CLI version of Lockbook
+title: Lockbook CLI
+summary: Your Lockbook notes from the terminal.
 description: |
-  The private, polished note-taking platform.
+  Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. The Lockbook CLI fits right into your favorite chain of piped-together Unix commands.
+
+  Lockbook is an open-source notebook for **Markdown** notes and drawings, encrypted on your device and shared only by invitation. The CLI works on the same account as every other Lockbook app:
+
+  * `lockbook search` finds notes by name or by what's in them
+  * `lockbook cat` and `lockbook write` pipe notes in and out
+  * `lockbook share new` invites someone to a note or folder
+  * `lockbook sync` brings everything up to date
+
+  Prefer a window? Install the Lockbook snap: https://snapcraft.io/lockbook-desktop
+website: https://lockbook.net
+contact: https://discord.gg/lockbook
+issues: https://github.com/lockbook/lockbook/issues
+source-code: https://github.com/lockbook/lockbook
+license: Unlicense
 grade: stable
 confinement: strict
 

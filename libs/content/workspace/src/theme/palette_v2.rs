@@ -5,45 +5,18 @@ use egui::{
 use epaint::hex_color;
 use serde::{Deserialize, Serialize};
 
+use crate::style::color::{oklch_to_srgb, srgb_to_oklch};
+
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Theme {
     #[serde(skip)]
     pub current: Mode,
 
     pub dim: ThemeVariant,
-    pub light_prefs: Preferences,
-
     pub bright: ThemeVariant,
-    pub dark_prefs: Preferences,
 
-    #[serde(default)]
-    pub code: Option<CodeTheme>,
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct CodeTheme {
-    pub light: CodeVariant,
-    pub dark: CodeVariant,
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct CodeVariant {
-    #[serde(with = "color32_hex")]
-    pub background: Color32,
-    #[serde(with = "color32_hex")]
-    pub text: Color32,
-    #[serde(with = "color32_hex")]
-    pub comment: Color32,
-    #[serde(with = "color32_hex")]
-    pub class: Color32,
-    #[serde(with = "color32_hex")]
-    pub function: Color32,
-    #[serde(with = "color32_hex")]
-    pub keyword: Color32,
-    #[serde(with = "color32_hex")]
-    pub string: Color32,
-    #[serde(with = "color32_hex")]
-    pub number: Color32,
+    /// The hue behind selection, the cursor, links, and checked boxes.
+    pub accent_hue: Palette,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -66,14 +39,6 @@ pub struct ThemeVariant {
     pub cyan: Color32,
     #[serde(with = "color32_hex")]
     pub white: Color32,
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct Preferences {
-    pub primary: Palette,
-    pub secondary: Palette,
-    pub tertiary: Palette,
-    pub quaternary: Palette,
 }
 
 mod color32_hex {
@@ -105,13 +70,6 @@ mod color32_hex {
 }
 
 impl Theme {
-    pub fn prefs(&self) -> Preferences {
-        match self.current {
-            Mode::Light => self.light_prefs,
-            Mode::Dark => self.dark_prefs,
-        }
-    }
-
     pub fn fg(&self) -> ThemeVariant {
         match self.current {
             Mode::Light => self.dim,
@@ -119,9 +77,14 @@ impl Theme {
         }
     }
 
-    /// Theme primary hue (selection, folders).
+    /// Accent ink (selection, folders, links).
     pub fn accent(&self) -> Color32 {
-        self.fg().get_color(self.prefs().primary)
+        self.fg().get_color(self.accent_hue)
+    }
+
+    /// Accent from the background pole, for washes and tints under content.
+    pub fn accent_bg(&self) -> Color32 {
+        self.bg().get_color(self.accent_hue)
     }
 
     /// Destructive ink — theme red.
@@ -145,13 +108,6 @@ impl Theme {
 
     pub fn dark(&self) -> bool {
         !self.light()
-    }
-
-    pub fn code_variant(&self) -> Option<CodeVariant> {
-        self.code.map(|code| match self.current {
-            Mode::Light => code.light,
-            Mode::Dark => code.dark,
-        })
     }
 
     /// Returns the foreground neutral color i.e. black in light mode, white in
@@ -262,6 +218,16 @@ pub fn apca(text: Color32, background: Color32) -> f32 {
     if c.abs() < 0.1 { 0.0 } else { (c.abs() - 0.027) * 100.0 }
 }
 
+/// Accents keep at most this OKLCH chroma; a tint made for a filled
+/// control is too saturated for text.
+pub const MAX_TEXT_CHROMA: f32 = 0.20;
+
+/// `color` with its OKLCH chroma capped at `max`, hue and lightness kept.
+pub fn capped_chroma(color: Color32, max: f32) -> Color32 {
+    let (l, c, h) = srgb_to_oklch(color);
+    if c <= max { color } else { oklch_to_srgb(l, max, h) }
+}
+
 /// `color`, moved toward black or white (whichever reads better on
 /// `background`) just far enough to read as text on it.
 pub fn readable_on(color: Color32, background: Color32) -> Color32 {
@@ -319,6 +285,19 @@ impl ThemeVariant {
             Palette::White => self.white,
         }
     }
+
+    pub fn get_color_mut(&mut self, p: Palette) -> &mut Color32 {
+        match p {
+            Palette::Black => &mut self.black,
+            Palette::Red => &mut self.red,
+            Palette::Green => &mut self.green,
+            Palette::Yellow => &mut self.yellow,
+            Palette::Blue => &mut self.blue,
+            Palette::Magenta => &mut self.magenta,
+            Palette::Cyan => &mut self.cyan,
+            Palette::White => &mut self.white,
+        }
+    }
 }
 
 impl TryFrom<&str> for Palette {
@@ -341,14 +320,13 @@ impl TryFrom<&str> for Palette {
 
 impl Theme {
     pub fn default(current: Mode) -> Self {
-        Self::default_theme(current)
+        Self::mnemonic(current)
     }
 
     pub fn from_android_material(
-        current: Mode, dim: ThemeVariant, light_prefs: Preferences, bright: ThemeVariant,
-        dark_prefs: Preferences,
+        current: Mode, dim: ThemeVariant, bright: ThemeVariant, accent_hue: Palette,
     ) -> Self {
-        Self { current, dim, light_prefs, bright, dark_prefs, code: None }.readable()
+        Self { current, dim, bright, accent_hue }.readable()
     }
 
     /// The theme with each accent moved just far enough to read as text on
@@ -359,7 +337,7 @@ impl Theme {
             for c in
                 [&mut v.red, &mut v.green, &mut v.yellow, &mut v.blue, &mut v.magenta, &mut v.cyan]
             {
-                *c = readable_on(*c, ground);
+                *c = readable_on(capped_chroma(*c, MAX_TEXT_CHROMA), ground);
             }
         };
         let (light_page, dark_page) = (self.bright.white, self.dim.black);
@@ -373,8 +351,13 @@ impl Theme {
         self
     }
 
-    /// The default theme is mnemonic by travis
-    pub fn default_theme(current: Mode) -> Self {
+    pub fn with_accent(mut self, accent_hue: Palette) -> Self {
+        self.accent_hue = accent_hue;
+        self
+    }
+
+    /// Lockbook's own theme, and the default.
+    pub fn mnemonic(current: Mode) -> Self {
         Self {
             current,
             dim: ThemeVariant {
@@ -388,12 +371,7 @@ impl Theme {
                 white: hex_color!("#FFFFFF"),
                 grey: hex_color!("#1D1D1D"),
             },
-            light_prefs: Preferences {
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Magenta,
-                quaternary: Palette::Cyan,
-            },
+            accent_hue: Palette::Blue,
             bright: ThemeVariant {
                 black: hex_color!("#101010"),
                 grey: hex_color!("#F6F6F6"),
@@ -405,13 +383,6 @@ impl Theme {
                 cyan: hex_color!("#6EECF7"),
                 white: hex_color!("#FFFFFF"),
             },
-            dark_prefs: Preferences {
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Magenta,
-                quaternary: Palette::Cyan,
-            },
-            code: None,
         }
         .readable()
     }
@@ -430,12 +401,7 @@ impl Theme {
                 magenta: hex_color!("#CB30E0"),
                 cyan: hex_color!("#00C0E8"),
             },
-            light_prefs: Preferences {
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Magenta,
-                quaternary: Palette::Cyan,
-            },
+            accent_hue: Palette::Blue,
             bright: ThemeVariant {
                 black: hex_color!("#000000"),
                 grey: hex_color!("#F6F6F6"),
@@ -447,34 +413,6 @@ impl Theme {
                 magenta: hex_color!("#DB34F2"),
                 cyan: hex_color!("#3CD3FE"),
             },
-            dark_prefs: Preferences {
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Magenta,
-                quaternary: Palette::Cyan,
-            },
-            code: Some(CodeTheme {
-                light: CodeVariant {
-                    background: hex_color!("#FFFFFF"),
-                    text: hex_color!("#000000"),
-                    comment: hex_color!("#5D6C79"),
-                    class: hex_color!("#1C464A"),
-                    function: hex_color!("#326D74"),
-                    keyword: hex_color!("#9B2393"),
-                    string: hex_color!("#C41A16"),
-                    number: hex_color!("#1C00CF"),
-                },
-                dark: CodeVariant {
-                    background: hex_color!("#25252A"),
-                    text: hex_color!("#FFFFFF"),
-                    comment: hex_color!("#6C7986"),
-                    class: hex_color!("#9EF1DD"),
-                    function: hex_color!("#67B7A4"),
-                    keyword: hex_color!("#FC5FA3"),
-                    string: hex_color!("#FC6A5D"),
-                    number: hex_color!("#D0BF69"),
-                },
-            }),
         }
         .readable()
     }
@@ -499,12 +437,6 @@ impl Theme {
                 magenta: hex_color!("#A3144D"),
                 cyan: hex_color!("#036A96"),
             },
-            dark_prefs: Preferences {
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Yellow,
-                quaternary: Palette::Cyan,
-            },
             bright: ThemeVariant {
                 black: hex_color!("#1F1F1F"),
                 white: hex_color!("#FFFBEB"),
@@ -516,13 +448,7 @@ impl Theme {
                 magenta: hex_color!("#FF79C6"),
                 cyan: hex_color!("#8BE9FD"),
             },
-            light_prefs: Preferences {
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Yellow,
-                quaternary: Palette::Cyan,
-            },
-            code: None,
+            accent_hue: Palette::Blue,
         }
         .readable()
     }
@@ -541,12 +467,6 @@ impl Theme {
                 magenta: hex_color!("#871094"),
                 cyan: hex_color!("#00627A"),
             },
-            dark_prefs: Preferences {
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Yellow,
-                quaternary: Palette::Cyan,
-            },
             bright: ThemeVariant {
                 black: hex_color!("#27282E"),
                 grey: hex_color!("#EBECF0"),
@@ -558,13 +478,7 @@ impl Theme {
                 magenta: hex_color!("#9876AA"),
                 cyan: hex_color!("#A9B7C6"),
             },
-            light_prefs: Preferences {
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Yellow,
-                quaternary: Palette::Cyan,
-            },
-            code: None,
+            accent_hue: Palette::Blue,
         }
         .readable()
     }
@@ -583,12 +497,6 @@ impl Theme {
                 magenta: hex_color!("#96261F"),
                 cyan: hex_color!("#3478C6"),
             },
-            dark_prefs: Preferences {
-                primary: Palette::Cyan,
-                secondary: Palette::Blue,
-                tertiary: Palette::Green,
-                quaternary: Palette::Magenta,
-            },
             bright: ThemeVariant {
                 black: hex_color!("#000000"),
                 grey: hex_color!("#F3F3F3"),
@@ -600,13 +508,7 @@ impl Theme {
                 magenta: hex_color!("#C5947C"),
                 cyan: hex_color!("#3478C6"),
             },
-            light_prefs: Preferences {
-                primary: Palette::Cyan,
-                secondary: Palette::Blue,
-                tertiary: Palette::Green,
-                quaternary: Palette::Magenta,
-            },
-            code: None,
+            accent_hue: Palette::Cyan,
         }
         .readable()
     }
@@ -625,12 +527,6 @@ impl Theme {
                 magenta: hex_color!("#eba0ac"),
                 cyan: hex_color!("#94e2d5"),
             },
-            dark_prefs: Preferences {
-                primary: Palette::Red,
-                secondary: Palette::Blue,
-                tertiary: Palette::Green,
-                quaternary: Palette::Yellow,
-            },
             dim: ThemeVariant {
                 black: hex_color!("#11111b"),
                 grey: hex_color!("#1e1e2e"),
@@ -642,13 +538,7 @@ impl Theme {
                 magenta: hex_color!("#e64553"),
                 cyan: hex_color!("#179299"),
             },
-            light_prefs: Preferences {
-                primary: Palette::Red,
-                secondary: Palette::Blue,
-                tertiary: Palette::Green,
-                quaternary: Palette::Yellow,
-            },
-            code: None,
+            accent_hue: Palette::Red,
         }
         .readable()
     }
@@ -679,14 +569,14 @@ impl Theme {
             window_fill: self.neutral_bg_secondary(),
             extreme_bg_color: self.neutral_bg(),
             selection: {
-                let accent = self.fg().get_color(self.prefs().primary);
+                let accent = self.accent();
                 let paper = self.neutral_bg();
                 style::Selection {
                     bg_fill: paper.lerp_to_gamma(accent, 0.18),
                     stroke: Stroke::new(1.0_f32, paper.lerp_to_gamma(accent, 0.45)),
                 }
             },
-            hyperlink_color: self.fg().get_color(self.prefs().secondary),
+            hyperlink_color: self.accent(),
             faint_bg_color: self.neutral_bg_secondary(),
             code_bg_color: self.neutral_bg_secondary(),
             warn_fg_color: self.fg().yellow,
@@ -803,6 +693,38 @@ mod tests {
                     Palette::Cyan,
                 ] {
                     assert!(apca(theme.fg().get_color(palette), ground) >= MIN_TEXT_LC);
+                }
+            }
+        }
+    }
+
+    /// Every accent sits under the chroma cap after `readable()`, and a
+    /// second pass leaves the theme as it is.
+    #[test]
+    fn theme_accents_stay_under_the_chroma_cap() {
+        let themes: [fn(Mode) -> Theme; 7] = [
+            Theme::default,
+            Theme::apple,
+            Theme::apple_macos,
+            Theme::darcula,
+            Theme::intellij,
+            Theme::vscode,
+            Theme::catppuccin,
+        ];
+        for make in themes {
+            for mode in [Mode::Light, Mode::Dark] {
+                let theme = make(mode);
+                let again = theme.readable();
+                for v in [theme.dim, theme.bright] {
+                    for c in [v.red, v.green, v.yellow, v.blue, v.magenta, v.cyan] {
+                        assert!(srgb_to_oklch(c).1 <= MAX_TEXT_CHROMA + 0.002);
+                    }
+                }
+                for (a, b) in [(theme.dim, again.dim), (theme.bright, again.bright)] {
+                    assert_eq!(
+                        [a.red, a.green, a.yellow, a.blue, a.magenta, a.cyan],
+                        [b.red, b.green, b.yellow, b.blue, b.magenta, b.cyan]
+                    );
                 }
             }
         }

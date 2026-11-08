@@ -277,7 +277,7 @@ fn show_open<T: Clone>(
         && ctx.input(|i| {
             i.events
                 .iter()
-                .any(|e| matches!(e, egui::Event::MouseWheel { .. }))
+                .any(|e| matches!(e, egui::Event::MouseWheel { delta, .. } if *delta != Vec2::ZERO))
         });
 
     if chosen.is_some() || escape || click_outside || scrolled {

@@ -3,6 +3,7 @@ use egui_wgpu_renderer::RendererState;
 use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::*;
+use lb_c::Uuid;
 use lb_java::Lb;
 use ndk_sys::{
     ANativeWindow, ANativeWindow_fromSurface, ANativeWindow_getHeight, ANativeWindow_getWidth,
@@ -14,9 +15,7 @@ use raw_window_handle::{
 };
 use std::ptr::NonNull;
 use wgpu::SurfaceTargetUnsafe;
-use workspace_rs::theme::palette_v2::{
-    Mode, Palette, Preferences, Theme, ThemeExt as _, ThemeVariant,
-};
+use workspace_rs::theme::palette_v2::{Mode, Palette, Theme, ThemeExt as _, ThemeVariant};
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
 
@@ -29,7 +28,6 @@ pub struct NativeWindow {
 }
 
 const WORKSPACE_THEME_VARIANT_SIG: &str = "Lapp/lockbook/util/WorkspaceThemeVariant;";
-const WORKSPACE_THEME_PREFERENCES_SIG: &str = "Lapp/lockbook/util/WorkspaceThemePreferences;";
 
 impl NativeWindow {
     pub fn new(env: &JNIEnv, surface: jobject) -> Self {
@@ -170,6 +168,64 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_defaultTheme(
     lb_theme_to_android_material_theme(&mut env, Theme::default(mode)).into_raw()
 }
 
+/// A preview of open session `jsession` where it's parked, at `width` by
+/// `height` dp and `scale` pixels per dp with `padding` dp around its
+/// content, in the `WorkspaceTheme` `jtheme`, whose mode it's drawn in; 0
+/// for a session that isn't open or is a search. Render it with `renderPreview`. Call on the UI thread.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_previewSession(
+    mut env: JNIEnv, _: JClass, obj: jlong, jsession: JString, width: jfloat, height: jfloat,
+    scale: jfloat, padding: jfloat, jtheme: JObject,
+) -> jlong {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let session: String = env.get_string(&jsession).unwrap().into();
+    let Ok(id) = Uuid::parse_str(&session) else { return 0 };
+    let id = workspace_rs::tab::SessionId::from_uuid(id);
+    let theme = android_material_theme_to_lb(&mut env, jtheme);
+    match obj.preview_session(id, egui::vec2(width, height), scale, padding, theme) {
+        Some(job) => Box::into_raw(Box::new(job)) as jlong,
+        None => 0,
+    }
+}
+
+/// A preview of document `jid` at `jfragment` as a URL writes it (a
+/// heading, `page=3`), empty for its top, in the `WorkspaceTheme` `jtheme`.
+/// Call on the UI thread.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_previewDocument(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, jfragment: JString, width: jfloat,
+    height: jfloat, scale: jfloat, padding: jfloat, jtheme: JObject,
+) -> jlong {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let id: String = env.get_string(&jid).unwrap().into();
+    let Ok(id) = Uuid::parse_str(&id) else { return 0 };
+    let fragment: String = env.get_string(&jfragment).unwrap().into();
+    let fragment = workspace_rs::tab::Fragment::from_url(&fragment);
+    let place = workspace_rs::tab::Place::at(workspace_rs::tab::Destination::File(id), fragment);
+    let theme = android_material_theme_to_lb(&mut env, jtheme);
+    let job = obj.preview(place, egui::vec2(width, height), scale, padding, theme);
+    Box::into_raw(Box::new(job)) as jlong
+}
+
+/// Renders a preview to PNG bytes and frees the job; null if it failed.
+/// Blocks until the tab settles; call off the UI thread.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_renderPreview(
+    env: JNIEnv, _: JClass, job: jlong,
+) -> jni::sys::jbyteArray {
+    let job = unsafe { Box::from_raw(job as *mut crate::preview::PreviewJob) };
+    match job.run() {
+        Ok(png) => env
+            .byte_array_from_slice(&png)
+            .map(|bytes| bytes.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(err) => {
+            tracing::warn!("preview failed: {err}");
+            std::ptr::null_mut()
+        }
+    }
+}
+
 fn android_material_theme_to_lb(env: &mut JNIEnv<'_>, theme: JObject<'_>) -> Theme {
     android_material_theme_to_lb_inner(env, &theme).unwrap_or_else(|| Theme::default(Mode::Light))
 }
@@ -181,18 +237,12 @@ fn android_material_theme_to_lb_inner(env: &mut JNIEnv<'_>, theme: &JObject<'_>)
     let dim_obj = theme_object_field(env, theme, "dim", WORKSPACE_THEME_VARIANT_SIG)?;
     let dim = theme_variant_to_lb(env, &dim_obj)?;
 
-    let light_prefs_obj =
-        theme_object_field(env, theme, "lightPrefs", WORKSPACE_THEME_PREFERENCES_SIG)?;
-    let light_prefs = theme_preferences_to_lb(env, &light_prefs_obj)?;
-
     let bright_obj = theme_object_field(env, theme, "bright", WORKSPACE_THEME_VARIANT_SIG)?;
     let bright = theme_variant_to_lb(env, &bright_obj)?;
 
-    let dark_prefs_obj =
-        theme_object_field(env, theme, "darkPrefs", WORKSPACE_THEME_PREFERENCES_SIG)?;
-    let dark_prefs = theme_preferences_to_lb(env, &dark_prefs_obj)?;
+    let accent_hue = Palette::try_from(string_field(env, theme, "accent")?.as_str()).ok()?;
 
-    Some(Theme::from_android_material(current, dim, light_prefs, bright, dark_prefs))
+    Some(Theme::from_android_material(current, dim, bright, accent_hue))
 }
 
 fn theme_object_field<'local>(
@@ -212,15 +262,6 @@ fn theme_variant_to_lb(env: &mut JNIEnv, variant: &JObject) -> Option<ThemeVaria
         magenta: color32_from_argb(int_field(env, variant, "magenta")?),
         cyan: color32_from_argb(int_field(env, variant, "cyan")?),
         white: color32_from_argb(int_field(env, variant, "white")?),
-    })
-}
-
-fn theme_preferences_to_lb(env: &mut JNIEnv, prefs: &JObject) -> Option<Preferences> {
-    Some(Preferences {
-        primary: Palette::try_from(string_field(env, prefs, "primary")?.as_str()).ok()?,
-        secondary: Palette::try_from(string_field(env, prefs, "secondary")?.as_str()).ok()?,
-        tertiary: Palette::try_from(string_field(env, prefs, "tertiary")?.as_str()).ok()?,
-        quaternary: Palette::try_from(string_field(env, prefs, "quaternary")?.as_str()).ok()?,
     })
 }
 
@@ -244,26 +285,25 @@ fn lb_theme_to_android_material_theme<'local>(
         .find_class("app/lockbook/util/WorkspaceTheme")
         .expect("find WorkspaceTheme class");
     let dim = theme_variant_to_java(env, theme.dim);
-    let light_prefs = theme_preferences_to_java(env, theme.light_prefs);
     let bright = theme_variant_to_java(env, theme.bright);
-    let dark_prefs = theme_preferences_to_java(env, theme.dark_prefs);
+    let accent = env
+        .new_string(palette_name(theme.accent_hue))
+        .expect("create accent palette string");
 
     env.new_object(
         cls,
         concat!(
             "(Z",
             "Lapp/lockbook/util/WorkspaceThemeVariant;",
-            "Lapp/lockbook/util/WorkspaceThemePreferences;",
             "Lapp/lockbook/util/WorkspaceThemeVariant;",
-            "Lapp/lockbook/util/WorkspaceThemePreferences;",
+            "Ljava/lang/String;",
             ")V"
         ),
         &[
             JValue::Bool(if theme.current == Mode::Dark { 1 } else { 0 }),
             JValue::Object(&dim),
-            JValue::Object(&light_prefs),
             JValue::Object(&bright),
-            JValue::Object(&dark_prefs),
+            JValue::Object(&JObject::from(accent)),
         ],
     )
     .expect("create WorkspaceTheme")
@@ -291,38 +331,6 @@ fn theme_variant_to_java<'local>(
         ],
     )
     .expect("create WorkspaceThemeVariant")
-}
-
-fn theme_preferences_to_java<'local>(
-    env: &mut JNIEnv<'local>, prefs: Preferences,
-) -> JObject<'local> {
-    let cls = env
-        .find_class("app/lockbook/util/WorkspaceThemePreferences")
-        .expect("find WorkspaceThemePreferences class");
-    let primary = env
-        .new_string(palette_name(prefs.primary))
-        .expect("create primary palette string");
-    let secondary = env
-        .new_string(palette_name(prefs.secondary))
-        .expect("create secondary palette string");
-    let tertiary = env
-        .new_string(palette_name(prefs.tertiary))
-        .expect("create tertiary palette string");
-    let quaternary = env
-        .new_string(palette_name(prefs.quaternary))
-        .expect("create quaternary palette string");
-
-    env.new_object(
-        cls,
-        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-        &[
-            JValue::Object(&JObject::from(primary)),
-            JValue::Object(&JObject::from(secondary)),
-            JValue::Object(&JObject::from(tertiary)),
-            JValue::Object(&JObject::from(quaternary)),
-        ],
-    )
-    .expect("create WorkspaceThemePreferences")
 }
 
 fn palette_name(palette: Palette) -> &'static str {
@@ -379,4 +387,21 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setBottomInset(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     obj.renderer.bottom_inset = Some(inset as u32);
+}
+
+/// Insets are physical Android pixels; reserve controls without resizing document content.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSafeInsets(
+    _env: JNIEnv, _: JClass, obj: jlong, top: jint, right: jint, bottom: jint, left: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let scale = obj.renderer.screen.pixels_per_point;
+    workspace_rs::safe_area::ControlInsets {
+        top: top.max(0) as f32 / scale,
+        right: right.max(0) as f32 / scale,
+        bottom: bottom.max(0) as f32 / scale,
+        left: left.max(0) as f32 / scale,
+    }
+    .set(&obj.workspace.ctx);
+    obj.workspace.ctx.request_repaint();
 }

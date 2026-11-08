@@ -11,7 +11,7 @@ use egui::{
     scroll_area::ScrollBarVisibility, vec2,
 };
 use lb::Uuid;
-use workspace_rs::file_cache::FilesExt;
+use workspace_rs::file_cache::{FileCache, FilesExt};
 use workspace_rs::tab::Destination;
 
 use crate::components::{
@@ -57,19 +57,33 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         .map(|ready| {
             let current = ready.workspace.current_tab;
             let can_reopen = ready.workspace.can_reopen_closed_tab();
+            let files = ready.workspace.files.read().unwrap();
+            let root = files.root().id;
+            // a share not yet saved to Files has no place there
+            let in_files = |id| id == root || files.ancestors(id).last() == Some(&root);
             let tabs: Vec<TabInfo> = ready
                 .workspace
                 .tab_strip
                 .iter()
                 .enumerate()
                 .map(|(i, slot)| {
-                    let title = tab_label(ready, &slot.dest);
+                    let title = tab_label(&files, &slot.dest);
                     let active = current == Some(slot.id);
                     let file_id = match &slot.dest {
                         Destination::File(id) => Some(*id),
                         _ => None,
                     };
-                    TabInfo { idx: i, title, active, file_id, dest: slot.dest.clone() }
+                    let pinned = file_id.is_some_and(|id| crate::shell::ops::is_pinned(ready, id));
+                    let in_files = file_id.is_some_and(in_files);
+                    TabInfo {
+                        idx: i,
+                        title,
+                        active,
+                        file_id,
+                        pinned,
+                        in_files,
+                        dest: slot.dest.clone(),
+                    }
                 })
                 .collect();
             (tabs, can_reopen)
@@ -205,17 +219,16 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     true
 }
 
-fn tab_label(ready: &crate::shell::session::Ready, dest: &Destination) -> String {
+/// Takes the files `show` already holds: a second read of the lock deadlocks
+/// once a writer queues between the two.
+fn tab_label(files: &FileCache, dest: &Destination) -> String {
     match dest {
-        Destination::File(id) | Destination::MindMap(id) | Destination::SpaceInspector(id) => ready
-            .workspace
-            .files
-            .read()
-            .unwrap()
+        Destination::File(id) | Destination::MindMap(id) | Destination::SpaceInspector(id) => files
             .get_by_id(*id)
             .map(|f| f.name.clone())
             .unwrap_or_else(|| "Unknown".into()),
         Destination::Search(_) => "Search".into(),
+        Destination::Diagram(_) => "Diagram".into(),
     }
 }
 
@@ -240,6 +253,9 @@ struct TabInfo {
     title: String,
     active: bool,
     file_id: Option<Uuid>,
+    pinned: bool,
+    /// The file is in the Files tree, not a share waiting to be saved there.
+    in_files: bool,
     dest: Destination,
 }
 
@@ -250,9 +266,14 @@ enum TabMenu {
     CloseLeft,
     CloseRight,
     CloseAll,
+    RevealInFiles,
     Rename,
+    TogglePin,
+    Move,
+    Duplicate,
     Share,
     CopyLink,
+    Export,
     ReopenClosed,
 }
 
@@ -279,22 +300,15 @@ fn apply_tab_out(queue: &mut Vec<Action>, tab: &TabInfo, out: TabOut) {
             TabMenu::CloseLeft => queue.push(A::CloseTabsToLeft(tab.idx)),
             TabMenu::CloseRight => queue.push(A::CloseTabsToRight(tab.idx)),
             TabMenu::CloseAll => queue.push(A::CloseAllTabs),
-            TabMenu::Rename => {
-                if let Some(id) = tab.file_id {
-                    queue.push(A::OpenRename(id));
-                }
-            }
-            TabMenu::Share => {
-                if let Some(id) = tab.file_id {
-                    queue.push(A::OpenShare(id));
-                }
-            }
-            TabMenu::CopyLink => {
-                if let Some(id) = tab.file_id {
-                    queue.push(A::CopyLink(id));
-                }
-            }
             TabMenu::ReopenClosed => queue.push(A::ReopenClosedTab),
+            TabMenu::RevealInFiles => queue.extend(tab.file_id.map(A::RevealInFiles)),
+            TabMenu::Rename => queue.extend(tab.file_id.map(A::OpenRename)),
+            TabMenu::TogglePin => queue.extend(tab.file_id.map(A::TogglePin)),
+            TabMenu::Move => queue.extend(tab.file_id.map(|id| A::OpenMove(vec![id]))),
+            TabMenu::Duplicate => queue.extend(tab.file_id.map(|id| A::Duplicate(vec![id]))),
+            TabMenu::Share => queue.extend(tab.file_id.map(A::OpenShare)),
+            TabMenu::CopyLink => queue.extend(tab.file_id.map(A::CopyLink)),
+            TabMenu::Export => queue.extend(tab.file_id.map(|id| A::Export(vec![id]))),
         }
         return;
     }
@@ -462,9 +476,21 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             m.separator();
         }
         if is_file {
+            if tab.in_files {
+                m.item(phosphor::FOLDER, "Reveal in Files", TabMenu::RevealInFiles);
+                m.separator();
+            }
             m.item(phosphor::PENCIL, "Rename…", TabMenu::Rename);
+            if tab.in_files {
+                let pin = if tab.pinned { "Unpin" } else { "Pin" };
+                m.item(phosphor::PUSH_PIN, pin, TabMenu::TogglePin);
+                m.item(phosphor::FOLDERS, "Move…", TabMenu::Move);
+                m.item(phosphor::COPY, "Duplicate", TabMenu::Duplicate);
+            }
+            m.separator();
             m.item(phosphor::USERS, "Share…", TabMenu::Share);
-            m.item(phosphor::LINK, "Copy link", TabMenu::CopyLink);
+            m.item(phosphor::LINK, "Copy Link", TabMenu::CopyLink);
+            m.item(phosphor::DOWNLOAD_SIMPLE, "Export…", TabMenu::Export);
         }
         if can_reopen {
             if is_file {

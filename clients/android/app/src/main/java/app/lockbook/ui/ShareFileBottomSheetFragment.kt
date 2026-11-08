@@ -26,11 +26,14 @@ import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.SheetShareFileBinding
+import app.lockbook.model.FileMetadataStore
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.screen.UpdateFilesUI
+import app.lockbook.util.harmonizedIdentityColors
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -45,23 +48,27 @@ import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.LbError.LbEC
 import timber.log.Timber
-import java.util.Locale
 
 class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
     private var _binding: SheetShareFileBinding? = null
     private val binding get() = _binding!!
     private val fileTreeViewModel: FileTreeViewModel by activityViewModels()
-    private val file: File by lazy { Lb.getFileById(requireArguments().getString(FILE_ID_KEY)!!) }
+    private val fileId by lazy { requireArguments().getString(FILE_ID_KEY)!! }
     private var sharedUsernames: List<String> = emptyList()
 
     companion object {
         const val TAG = "ShareFileBottomSheetFragment"
         private const val FILE_ID_KEY = "file_id"
+        private const val FILE_NAME_KEY = "file_name"
         private const val INVITE_FORM_VISIBLE_KEY = "invite_form_visible"
 
-        fun newInstance(fileId: String): ShareFileBottomSheetFragment =
+        fun newInstance(file: File): ShareFileBottomSheetFragment =
             ShareFileBottomSheetFragment().apply {
-                arguments = Bundle().apply { putString(FILE_ID_KEY, fileId) }
+                arguments =
+                    Bundle().apply {
+                        putString(FILE_ID_KEY, file.id)
+                        putString(FILE_NAME_KEY, file.name)
+                    }
             }
     }
 
@@ -79,8 +86,23 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         savedInstanceState: Bundle?,
     ) {
         super.onViewCreated(view, savedInstanceState)
-        binding.shareFileName.text = file.name
-        binding.shareFileInviteName.text = file.name
+        configureShareView(savedInstanceState)
+    }
+
+    private fun configureShareView(savedInstanceState: Bundle?) {
+        binding.shareFileName.text = requireArguments().getString(FILE_NAME_KEY)
+        binding.shareFileInviteName.text = binding.shareFileName.text
+        FileMetadataStore.snapshots.asLiveData().observe(viewLifecycleOwner) { snapshot ->
+            if (snapshot != null) {
+                val current = snapshot.idsAndFiles[fileId]
+                if (current == null) {
+                    dismissAllowingStateLoss()
+                } else {
+                    binding.shareFileName.text = current.name
+                    binding.shareFileInviteName.text = current.name
+                }
+            }
+        }
         fileTreeViewModel.sharingContacts.observe(viewLifecycleOwner) { contacts ->
             sharedUsernames = contacts.map { it.username }
             updateAccessRow()
@@ -180,16 +202,13 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         val availableWidth =
             (binding.shareFileAccessPeople.width - addButtonWidth - avatarSpacing).coerceAtLeast(minLabelWidth)
         val labelWidth = (availableWidth / sharedUsernames.size).coerceIn(minLabelWidth, maxLabelWidth)
-        val primaryColor = MaterialColors.getColor(binding.root, androidx.appcompat.R.attr.colorPrimary)
         val backgroundColors =
             intArrayOf(
                 MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorSurface),
                 MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorSurfaceContainerLow),
             )
         sharedUsernames.forEachIndexed { index, username ->
-            val colorIndex = Math.floorMod(username.lowercase(Locale.ROOT).hashCode(), 8)
-            val seedColor = Color.HSVToColor(floatArrayOf(colorIndex * 45f, 0.65f, 0.8f))
-            val colorRoles = MaterialColors.getColorRoles(requireContext(), MaterialColors.harmonize(seedColor, primaryColor))
+            val colorRoles = harmonizedIdentityColors(requireContext(), username)
             val avatarColor = colorRoles.accentContainer
             val initialColor = colorRoles.onAccentContainer
             val labelColor = readableUsernameColor(colorRoles.accent, backgroundColors)
@@ -290,7 +309,7 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         binding.shareFileBack.isEnabled = false
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             try {
-                Lb.shareFile(file.id, username, mode == ShareMode.Write)
+                Lb.shareFile(fileId, username, mode == ShareMode.Write)
                 fileTreeViewModel._notifyUpdateFilesUI.postValue(UpdateFilesUI.RequestSync)
                 withContext(Dispatchers.Main) {
                     binding.shareFileAddUser.isEnabled = true
@@ -336,7 +355,7 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             val currentContext = context ?: return
             val clipboard = currentContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(
-                ClipData.newPlainText(currentContext.getString(R.string.copy_lockbook_link), Lb.getFileLinkUrl(file.id)),
+                ClipData.newPlainText(currentContext.getString(R.string.copy_lockbook_link), Lb.getFileLinkUrl(fileId)),
             )
         }.onFailure(::showUnexpectedError)
     }

@@ -38,7 +38,7 @@ impl From<Option<&Account>> for Keychain {
     }
 }
 
-impl Lb {
+impl<S> Lb<S> {
     pub fn get_account(&self) -> LbResult<&Account> {
         self.keychain.get_account()
     }

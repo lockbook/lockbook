@@ -85,6 +85,24 @@ impl<'ast> MdEdit {
                     },
                 })
             }
+            egui::Event::Key {
+                key: key @ (Key::ArrowRight | Key::ArrowLeft),
+                pressed: true,
+                modifiers,
+                ..
+            } if modifiers.shift
+                && if cfg!(target_vendor = "apple") {
+                    modifiers.ctrl && modifiers.mac_cmd
+                } else {
+                    modifiers.alt && !modifiers.ctrl
+                }
+                && self
+                    .renderer
+                    .code_scope_at(root, self.renderer.buffer.current.selection.start())
+                    .is_some_and(|scope| scope.highlights.is_some()) =>
+            {
+                Some(Event::Select { region: Region::Syntax { larger: key == Key::ArrowRight } })
+            }
             egui::Event::Key { key, pressed: true, modifiers, .. }
                 if matches!(key, Key::ArrowRight | Key::ArrowLeft | Key::Home | Key::End) =>
             {
@@ -445,6 +463,19 @@ impl<'ast> MdEdit {
                         }),
                     }
                 })
+            }
+            // a table as Obsidian's Insert table writes one, on Apple Notes' keys
+            egui::Event::Key { key: Key::T, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.alt && !modifiers.shift =>
+            {
+                if self.renderer.readonly || self.renderer.kind != markdown_editor::Syntax::Markdown
+                {
+                    return None;
+                }
+                Some(Event::Table(markdown_editor::table::TableAction::Insert {
+                    columns: 2,
+                    rows: 1,
+                }))
             }
             egui::Event::Key { key: Key::Num1, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>

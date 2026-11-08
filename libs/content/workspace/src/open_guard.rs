@@ -6,6 +6,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use chrono::{DateTime, Local, TimeDelta};
 use egui::text::LayoutJob;
@@ -13,6 +14,7 @@ use egui::{Align, Layout, Rect, Ui, pos2, vec2};
 use lb_rs::Uuid;
 use lb_rs::model::usage::bytes_to_human;
 use tracing::warn;
+use web_time::{Duration, Instant};
 
 use crate::style::{Button, Space, Spacer, ThemeExt as _, TypeRole, control_height, phosphor};
 use crate::tab::{ContentState, Tab};
@@ -28,6 +30,10 @@ const MAX_LINE_CHARS: usize = 10_000;
 /// Typing in a fenced code block costs ~180ms a keystroke at this size and
 /// grows faster than its length.
 const MAX_CODE_BLOCK_CHARS: usize = 50_000;
+
+/// How long the guard watches content that never settles: a worker hung
+/// off the UI thread hangs nothing.
+const WATCH_BOUND: Duration = Duration::from_secs(10);
 
 #[derive(Debug)]
 pub struct Refusal {
@@ -189,64 +195,126 @@ pub fn show_refusal(ui: &mut Ui, refusal: &Refusal) -> bool {
     clicked
 }
 
-/// Writes the id of the document being opened to a marker file for the
-/// duration of the open, so the marker outlives a hang the user force-quits.
+/// Holds the documents being opened in a marker file for the duration of
+/// each open, so the marker outlives a hang the user force-quits, and
+/// refuses this session what the last one never finished opening. Shared by
+/// every open: a tab, an embed, a headless render.
 pub struct OpenGuard {
     marker: Option<PathBuf>,
+    state: Mutex<GuardState>,
+}
+
+#[derive(Default)]
+struct GuardState {
+    /// Documents being opened, each once per open in progress.
+    opening: Vec<Uuid>,
+    /// What the previous launch never finished opening.
+    interrupted: Vec<Interrupted>,
+    /// Refused documents the user opened anyway this session.
+    opened_anyway: Vec<Uuid>,
 }
 
 impl OpenGuard {
-    /// Returns the guard and the open a previous launch never finished, if any.
-    pub fn new(
-        writeable_dir: &Path, enabled: bool, last_panic: Option<DateTime<Local>>,
-    ) -> (Self, Option<Interrupted>) {
+    pub fn new(writeable_dir: &Path, enabled: bool, last_panic: Option<DateTime<Local>>) -> Self {
+        let state = Mutex::new(GuardState::default());
         if !enabled {
-            return (Self { marker: None }, None);
+            return Self { marker: None, state };
         }
         let marker = writeable_dir.join("ws_opening");
         let started = fs::metadata(&marker)
             .and_then(|m| m.modified())
             .ok()
             .map(DateTime::<Local>::from);
-        let interrupted = fs::read_to_string(&marker)
-            .ok()
-            .and_then(|id| Uuid::parse_str(id.trim()).ok())
-            .map(|id| Interrupted {
-                id,
-                // panic times are truncated to the second
-                crashed: last_panic
-                    .zip(started)
-                    .is_some_and(|(panic, started)| panic + TimeDelta::seconds(1) >= started),
-            });
-        if let Some(interrupted) = &interrupted {
-            warn!(?interrupted, "previous launch never finished opening a document");
+        // panic times are truncated to the second
+        let crashed = last_panic
+            .zip(started)
+            .is_some_and(|(panic, started)| panic + TimeDelta::seconds(1) >= started);
+        let mut interrupted: Vec<Interrupted> = vec![];
+        for line in fs::read_to_string(&marker).unwrap_or_default().lines() {
+            let Ok(id) = Uuid::parse_str(line.trim()) else { continue };
+            if interrupted.iter().all(|i| i.id != id) {
+                interrupted.push(Interrupted { id, crashed });
+            }
+        }
+        if !interrupted.is_empty() {
+            warn!(?interrupted, "previous launch never finished opening documents");
             let _ = fs::remove_file(&marker);
         }
-        (Self { marker: Some(marker) }, interrupted)
+        state.lock().unwrap().interrupted = interrupted;
+        Self { marker: Some(marker), state }
+    }
+
+    /// What the previous launch never finished opening.
+    pub fn interrupted(&self) -> Vec<Uuid> {
+        let state = self.state.lock().unwrap();
+        state.interrupted.iter().map(|i| i.id).collect()
+    }
+
+    /// Why `id` shouldn't open before its bytes are read, if it shouldn't.
+    pub fn refusal_before_load(&self, id: Uuid) -> Option<Refusal> {
+        let state = self.state.lock().unwrap();
+        let interrupted = state.interrupted.iter().find(|i| i.id == id)?;
+        Some(interrupted.refusal())
+    }
+
+    /// Why `id` shouldn't open with `bytes`, if it shouldn't. `text` says
+    /// the bytes are bound for the editor, and whether as markdown.
+    pub fn refusal(&self, id: Uuid, bytes: &[u8], text: Option<bool>) -> Option<Refusal> {
+        if self.state.lock().unwrap().opened_anyway.contains(&id) {
+            return None;
+        }
+        self.refusal_before_load(id)
+            .or_else(|| text.and_then(|markdown| text_refusal(bytes, markdown)))
+    }
+
+    /// The user chose to open a refused document; it opens from now on.
+    pub fn open_anyway(&self, id: Uuid) {
+        let mut state = self.state.lock().unwrap();
+        state.opened_anyway.push(id);
+        state.interrupted.retain(|i| i.id != id);
     }
 
     pub fn enter(&self, id: Uuid) {
-        if let Some(marker) = &self.marker {
-            let _ = fs::write(marker, id.to_string());
-        }
+        let mut state = self.state.lock().unwrap();
+        state.opening.push(id);
+        self.write(&state.opening);
     }
 
-    pub fn exit(&self) {
-        if let Some(marker) = &self.marker {
+    pub fn exit(&self, id: Uuid) {
+        let mut state = self.state.lock().unwrap();
+        if let Some(i) = state.opening.iter().position(|o| *o == id) {
+            state.opening.swap_remove(i);
+        }
+        self.write(&state.opening);
+    }
+
+    fn write(&self, opening: &[Uuid]) {
+        let Some(marker) = &self.marker else { return };
+        if opening.is_empty() {
             let _ = fs::remove_file(marker);
+        } else {
+            let ids: Vec<String> = opening.iter().map(Uuid::to_string).collect();
+            let _ = fs::write(marker, ids.join("\n"));
         }
     }
 
-    /// Shows `tab`, holding the marker through the first frame of its content.
+    /// Shows `tab`, holding the marker through each frame of its content
+    /// until it settles. The marker exists only mid-frame, so a suspended
+    /// app the system kills leaves none.
     pub fn show<R>(&self, tab: &mut Tab, show: impl FnOnce(&mut Tab) -> R) -> R {
-        let watched = tab.first_draw && matches!(tab.content, ContentState::Open(_));
-        let Some(id) = tab.id().filter(|_| watched) else {
+        let open = matches!(tab.content, ContentState::Open(_));
+        if open && tab.first_draw {
+            tab.watch = Some(Instant::now());
+        }
+        let Some(id) = tab.id().filter(|_| open && tab.watch.is_some()) else {
             return show(tab);
         };
         self.enter(id);
         let result = show(tab);
-        self.exit();
-        tab.first_draw = false;
+        self.exit(id);
+        if tab.settled() || tab.watch.is_some_and(|at| at.elapsed() > WATCH_BOUND) {
+            tab.watch = None;
+        }
         result
     }
 }
@@ -298,25 +366,37 @@ mod tests {
     fn marker_survives_a_hang() {
         let dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
         fs::create_dir_all(&dir).unwrap();
-        let launch = |last_panic| OpenGuard::new(&dir, true, last_panic).1;
-        let (guard, interrupted) = OpenGuard::new(&dir, true, None);
-        assert_eq!(interrupted, None);
+        let launch = |last_panic| {
+            let guard = OpenGuard::new(&dir, true, last_panic);
+            let state = guard.state.into_inner().unwrap();
+            state.interrupted
+        };
+        let guard = OpenGuard::new(&dir, true, None);
+        assert!(guard.interrupted().is_empty());
 
-        let id = Uuid::new_v4();
+        let (id, embed) = (Uuid::new_v4(), Uuid::new_v4());
         guard.enter(id);
-        guard.exit();
-        assert_eq!(launch(None), None);
+        guard.exit(id);
+        assert_eq!(launch(None), vec![]);
 
-        // force-quit mid-open, after an older panic
+        // force-quit mid-open of a note and the document it embeds, after an older panic
         let before = Local::now() - TimeDelta::seconds(60);
         guard.enter(id);
-        assert_eq!(launch(Some(before)), Some(Interrupted { id, crashed: false }));
-        assert_eq!(launch(None), None);
+        guard.enter(embed);
+        let crashed = false;
+        assert_eq!(
+            launch(Some(before)),
+            vec![Interrupted { id, crashed }, Interrupted { id: embed, crashed }]
+        );
+        assert_eq!(launch(None), vec![]);
 
-        // panic mid-open, logged within the same second
+        // panic mid-open, logged within the same second; the embed's open finished
+        let guard = OpenGuard::new(&dir, true, None);
         guard.enter(id);
+        guard.enter(embed);
+        guard.exit(embed);
         let panic = Local::now() - TimeDelta::milliseconds(900);
-        assert_eq!(launch(Some(panic)), Some(Interrupted { id, crashed: true }));
+        assert_eq!(launch(Some(panic)), vec![Interrupted { id, crashed: true }]);
         fs::remove_dir_all(&dir).unwrap();
     }
 }

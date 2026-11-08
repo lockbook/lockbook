@@ -1,0 +1,61 @@
+mod account_service_tests;
+mod activity_service_tests;
+mod admin_tests;
+mod api_auth_tests;
+mod api_billing_tests;
+mod api_change_document_content_tests;
+mod api_create_file_tests;
+mod api_delete_file_tests;
+mod api_get_document_tests;
+mod api_get_subscription_info_tests;
+mod api_move_file_tests;
+mod api_new_account_tests;
+mod api_rename_file_tests;
+mod api_service_tests;
+mod cli_data_tests;
+mod core_ops_tests;
+mod db_migration_tests;
+mod delete_and_list_tests;
+#[cfg(not(target_family = "wasm"))]
+mod document_ipc_tests;
+mod document_tests;
+mod file_ops;
+mod get_usage_tests;
+mod import_export_file_tests;
+mod ingress_perf_tests;
+mod integrity_tests;
+#[cfg(not(target_family = "wasm"))]
+mod ipc_event_tests;
+#[cfg(all(unix, not(target_os = "ios")))]
+mod ipc_notification_tests;
+mod lazy_tests;
+mod link_tests;
+mod path_service_tests;
+mod path_tests;
+mod pin_service_tests;
+mod sharing_contacts_tests;
+mod sharing_tests;
+mod svg_merge_tests;
+#[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+mod sync_ipc_tests;
+mod sync_props;
+mod sync_service_concurrent_change_tests;
+mod sync_service_cycle_resolution_tests;
+mod sync_service_new_synced_client_tests;
+mod sync_service_new_unsynced_client_tests;
+mod sync_service_path_conflict_resolution_tests;
+mod sync_service_pending_share_tests;
+mod sync_service_share_tests;
+mod sync_service_synced_change_new_synced_client_tests;
+mod sync_service_synced_client_tests;
+mod sync_service_tests;
+mod sync_service_unsynced_change_new_synced_client_tests;
+mod sync_service_unsynced_change_synced_client_tests;
+mod sync_service_unsynced_client_tests;
+mod sync_worker_tests;
+#[cfg(not(target_family = "wasm"))]
+mod transaction_tests;
+mod tree_composition_tests;
+mod tree_tests;
+mod usage_tests;
+mod validate_tests;

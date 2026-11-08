@@ -69,6 +69,7 @@ impl LbWebApp {
             client_name: "web".into(),
             build_info: None,
             client_type: ClientType::Ui,
+            ..Default::default()
         })
         .unwrap();
 

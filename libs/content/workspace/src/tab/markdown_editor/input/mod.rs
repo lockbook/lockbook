@@ -1,5 +1,6 @@
 pub mod advance;
 pub mod canonical;
+pub mod code;
 pub mod cursor;
 pub mod events;
 pub mod mutation;
@@ -89,6 +90,10 @@ pub enum Region {
 
     /// Word/line/paragraph/doc at a location, preferring previous word if `backwards`
     BoundAt { bound: Bound, location: Location, backwards: bool },
+
+    /// In code, the smallest syntax node larger than the selection, or if not
+    /// `larger`, the selection it grew from
+    Syntax { larger: bool },
 }
 
 /// Standardized edits to any editor state e.g. buffer, clipboard, debug state.
@@ -112,8 +117,11 @@ pub enum Event {
     DecrementBaseFontSize,
     Camera,                                            // launch camera on platform
     ToggleFold { node: Option<(Grapheme, Grapheme)> }, // the block whose range this is, else the selection's blocks
+    CopyImage,                                         // the selected image or diagram, as pixels
     EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
+    OpenDiagram, // the selected diagram, in the image viewer
     ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
+    ToggleTask { check: Grapheme }, // check or uncheck the task item whose mark is here
     OpenLink { url: String, wikilink: bool }, // navigate, on the platform
     LoadImage { url: String }, // show an image that waited past the note's scope
     Table(TableAction), // a structure edit of the table at the selection, or a new table there

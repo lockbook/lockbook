@@ -2,7 +2,7 @@ use crate::cache::FileEntry;
 use crate::fs_impl::Drive;
 use crate::mount::{mount, umount};
 use cli_rs::cli_error::{CliError, CliResult};
-use lb_rs::model::core_config::{ClientType, Config};
+use lb_rs::model::core_config::{ClientType, Config, host_os_version};
 use lb_rs::model::errors::Unexpected;
 use lb_rs::service::events::{Actor, Event};
 use lb_rs::{Lb, Uuid};
@@ -32,7 +32,9 @@ impl Drive {
             colored_logs: false,
             client_name: "lb-fs".into(),
             build_info: None,
+            os_version: host_os_version(),
             client_type: ClientType::Cli,
+            ..Default::default()
         };
         logger::init();
         lb_rs::service::logging::log_startup(&config);

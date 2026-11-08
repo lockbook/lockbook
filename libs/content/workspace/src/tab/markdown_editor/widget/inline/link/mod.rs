@@ -1,5 +1,5 @@
 pub(crate) mod card;
-mod hover;
+pub(crate) mod hover;
 
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
@@ -11,18 +11,19 @@ use lb_rs::model::text::operation_types::Operation;
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
 use crate::link_preview::{self, LinkMeta, Preview, Status};
 use crate::show::DocType;
-use crate::style::{TypeRole, phosphor, phosphor_font_id};
+use crate::style::{TypeRole, file_row_icon, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::fragment::slugify;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
-    BG_ROW_GAP, CHIP_SIDE_PAD, Format, FragmentContent, Layout, StyleInfo,
+    BG_ROW_GAP, CHIP_SIDE_PAD, Format, FragmentContent, Layout, StyleInfo, chip_of,
 };
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Syntax, View};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
-use crate::theme::palette_v2::ThemeExt as _;
+use crate::theme::palette_v2::{ThemeExt as _, readable_on};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 pub use crate::resolvers::LinkState;
@@ -37,7 +38,7 @@ impl<'ast> MdRender {
         let parent_text_format = self.text_format(parent);
         let theme = self.ctx.get_lb_theme();
         let color = match state {
-            LinkState::Normal => theme.fg().blue,
+            LinkState::Normal => theme.accent(),
             LinkState::Warning { .. } => theme.fg().yellow,
             LinkState::Broken { .. } => theme.fg().red,
             LinkState::Placeholder { .. } => theme.fg().cyan,
@@ -45,18 +46,18 @@ impl<'ast> MdRender {
         Format { color, underline: true, ..parent_text_format }
     }
 
-    /// Capsule "chip" format for a resolved autolink preview: the link colour on
-    /// a subtle surface, no underline (the pill is the affordance). Paired with
-    /// `StyleInfo { chip: true }`, the wrap layout paints the rounded capsule.
+    /// A chip's format: the link colour on a surface washed toward it, read
+    /// against that surface, with no underline (the pill is the affordance).
+    /// Paired with `StyleInfo { chip: true }`, the wrap layout paints the pill.
     pub fn text_format_link_pill(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
-        Format {
-            background: self.ctx.get_lb_theme().neutral_bg_secondary(),
-            underline: false,
-            ..self.text_format_link(parent, state)
-        }
+        let link = self.text_format_link(parent, state);
+        let surface = self.ctx.get_lb_theme().neutral_bg_secondary();
+        let background = surface.lerp_to_gamma(link.color, CHIP_WASH);
+        let color = readable_on(link.color, background);
+        Format { background, underline: false, color, ..link }
     }
 
-    fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
+    pub(crate) fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
         self.infix_range(node)
             .is_some_and(|r| &self.buffer[r] == url)
     }
@@ -146,42 +147,9 @@ impl<'ast> MdRender {
         }
 
         let trimmed = node_range.trim(&range);
-        let title = if is_auto && !revealed && !trimmed.is_empty() {
-            self.get_link_title(&url)
-        } else {
-            None
-        };
-
-        // Resolved autolink preview → a "chip" capsule (favicon + title, no
-        // underline) that behaves like the block card / inline image: tap selects,
-        // cmd/keyboard-tap opens (`handle_link_capsule_interactions`), interior
-        // reveal only.
-        if let Some(t) = title {
-            // a file's name reads as an ordinary link; the pill is for web previews
-            let internal = matches!(self.get_link_meta(&url), LinkMetaLookup::Internal(_));
-            let pill_fmt = if internal {
-                link_fmt.clone()
-            } else {
-                self.text_format_link_pill(parent, state.clone())
-            };
-            layout.interaction_open(Self::link_capsule_id_salt(node_range), egui::Sense::click());
-            layout.style_open(StyleInfo {
-                format: pill_fmt.clone(),
-                source_range: node_range,
-                chip: !internal,
-                wrap: internal,
-            });
-            // Leading em-space reserves the favicon slot (painted in
-            // `show_capsule_overlays`); it's in the title's source range, so the
-            // selection covers the favicon like text — no separate embed.
-            let lead = if self.capsule_favicon_url(&url).is_some() { FAVICON_SLOT } else { "" };
-            let text = match internal {
-                true => t,
-                false => format!("{lead}{}", self.chip_title(node, lead, &t, &pill_fmt).0),
-            };
-            layout.push_override(trimmed, &text, pill_fmt);
-            layout.style_close();
-            layout.interaction_close();
+        let chip = if is_auto && !revealed && !trimmed.is_empty() { self.chip(node) } else { None };
+        if let Some(chip) = chip {
+            self.layout_chip(layout, node, trimmed, chip);
             return;
         }
 
@@ -204,6 +172,65 @@ impl<'ast> MdRender {
         }
     }
 
+    /// How `node` shows as a chip, if it does: a bare link with a title (a
+    /// file's name or a page's), or a wikilink to a file with no title of its
+    /// own. A link given a title keeps it as plain link text.
+    pub(crate) fn chip(&self, node: &'ast AstNode<'ast>) -> Option<Chip> {
+        match &node.data.borrow().value {
+            NodeValue::Link(l) => {
+                if !self.link_is_auto(node, &l.url) {
+                    return None;
+                }
+                let title = self.get_link_title(&l.url)?;
+                let icon = match self.get_link_meta(&l.url) {
+                    LinkMetaLookup::Internal { icon, .. } => Some(ChipIcon::Glyph(icon)),
+                    LinkMetaLookup::Loaded(meta) if self.contact_linked_sites => {
+                        meta.favicon_url.map(ChipIcon::Favicon)
+                    }
+                    _ => None,
+                };
+                Some(Chip { title, state: self.link_state_for_url(&l.url), icon })
+            }
+            NodeValue::WikiLink(wl) => {
+                if wl.embed || self.buffer[self.node_range(node)].contains('|') {
+                    return None; // `![[note]]`, or `[[note|title]]`
+                }
+                let file = self.resolve_wikilink(&wl.url)?;
+                let name = self.files.read().unwrap().get_by_id(file)?.name.clone();
+                Some(Chip {
+                    title: wl.url.clone(),
+                    state: self.link_state_for_wikilink(&wl.url),
+                    icon: Some(ChipIcon::Glyph(file_row_icon(&name, false))),
+                })
+            }
+            _ => None,
+        }
+    }
+
+    /// A chip: the pill that behaves like an inline image. Tap selects,
+    /// cmd/keyboard-tap opens (`handle_link_capsule_interactions`), and only a
+    /// cursor inside reveals its source.
+    pub(crate) fn layout_chip(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, trimmed: (Grapheme, Grapheme),
+        chip: Chip,
+    ) {
+        let node_range = self.node_range(node);
+        let lead = chip.lead();
+        let fmt = self.text_format_link_pill(node.parent().unwrap(), chip.state);
+        layout.interaction_open(Self::link_capsule_id_salt(node_range), egui::Sense::click());
+        layout.style_open(StyleInfo {
+            format: fmt.clone(),
+            source_range: node_range,
+            chip: true,
+            wrap: false,
+        });
+        // `show_capsule_overlays` paints the icon over the lead
+        let text = format!("{lead}{}", self.chip_title(node, lead, &chip.title, &fmt).0);
+        layout.push_override(trimmed, &text, fmt);
+        layout.style_close();
+        layout.interaction_close();
+    }
+
     /// A link's interaction scope: click when it opens on click, else hover
     /// on desktop so the pointer can still show its tip. None on touch, where
     /// taps on an unopenable link place the cursor.
@@ -218,17 +245,18 @@ impl<'ast> MdRender {
     }
 
     /// The hover card explaining a yellow or red link: what's wrong, then the
-    /// fix in quieter ink; for any other web link, its preview card.
-    /// `state` is worked out only under the pointer. `preview` is the link's
-    /// URL and whether its text is that URL, for links that may preview.
+    /// fix in quieter ink; for any other link, its preview card: a web
+    /// page's, or the tab a file's. `state` is worked out only under the
+    /// pointer. `preview` is the link's URL, whether its text is that URL,
+    /// and whether it's a wiki title, for links that may preview.
     pub fn show_link_tip(
         &self, ctx: &egui::Context, response: &egui::Response, state: impl FnOnce() -> LinkState,
-        preview: Option<(&str, bool)>,
+        preview: Option<(&str, bool, bool)>,
     ) {
         if !response.contains_pointer() {
             // the pointer may be on its way to the preview's buttons
-            if let Some((url, shows_url)) = preview {
-                if self.show_link_preview(ctx, response, url, shows_url) {
+            if let Some((url, shows_url, wikilink)) = preview {
+                if self.show_link_preview(ctx, response, url, shows_url, wikilink) {
                     return;
                 }
             }
@@ -247,8 +275,8 @@ impl<'ast> MdRender {
         | LinkState::Broken { message }
         | LinkState::Placeholder { message }) = state()
         else {
-            if let Some((url, shows_url)) = preview {
-                self.show_link_preview(ctx, response, url, shows_url);
+            if let Some((url, shows_url, wikilink)) = preview {
+                self.show_link_preview(ctx, response, url, shows_url, wikilink);
             }
             return;
         };
@@ -310,21 +338,20 @@ impl<'ast> MdRender {
     /// fill over the pill's rounded end, painted over the text; and the x the
     /// fade begins at.
     fn cut_chip_fade(
-        &self, node: &'ast AstNode<'ast>, url: &str, node_range: (Grapheme, Grapheme),
+        &self, node: &'ast AstNode<'ast>, chip: &Chip, node_range: (Grapheme, Grapheme),
     ) -> Option<(Vec<egui::Shape>, f32)> {
-        let title = self.get_link_title(url)?;
         let block = node
             .ancestors()
             .find(|a| a.data.borrow().value.is_leaf_block())?;
-        let lead = if self.capsule_favicon_url(url).is_some() { FAVICON_SLOT } else { "" };
-        let fmt = self.text_format_link_pill(node.parent()?, self.link_state_for_url(url));
-        if !self.chip_title(node, lead, &title, &fmt).1 {
+        let lead = chip.lead();
+        let fmt = self.text_format_link_pill(node.parent()?, chip.state.clone());
+        if !self.chip_title(node, lead, &chip.title, &fmt).1 {
             return None;
         }
-        let chip = self.fragments.iter().filter(|f| {
-            f.source_range.intersects(&node_range, true)
-                && f.style_stack.last().is_some_and(|s| s.chip)
-        });
+        let chip = self
+            .fragments
+            .iter()
+            .filter(|f| chip_of(f) == Some(node_range));
         let text = chip
             .clone()
             .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
@@ -354,34 +381,21 @@ impl<'ast> MdRender {
         Some((vec![egui::Shape::mesh(mesh), egui::Shape::rect_filled(rest, rounded, fill)], from))
     }
 
-    /// Favicon URL for a capsule preview's external link when previews are on
-    /// (not gated on load) — reserves the leading em-space slot in the title.
-    /// [`Self::show_link_favicons`] paints the icon over that slot once loaded.
-    pub(crate) fn capsule_favicon_url(&self, url: &str) -> Option<String> {
-        if !self.contact_linked_sites {
-            return None;
-        }
-        match self.get_link_meta(url) {
-            LinkMetaLookup::Loaded(meta) => meta.favicon_url,
-            _ => None,
-        }
-    }
-
     /// Per-capsule overlays painted after content, before the selection/cursor
-    /// pass: the favicon over the title's em-space slot, then a selection tint on
+    /// pass: the icon over the title's em-space slot, then a selection tint on
     /// top of a selected capsule (the opaque pill hides the under-text rect —
     /// like images/cards).
     /// `frag_start` bounds the pass to `fragments[frag_start..]`: the main
     /// render passes `0`; the drag float passes its own fragment offset so
-    /// only the floated capsule's favicon is painted (its selection tint is
+    /// only the floated capsule's icon is painted (its selection tint is
     /// skipped — the card is already distinct).
     pub fn show_capsule_overlays(
         &mut self, ui: &mut egui::Ui, root: &'ast AstNode<'ast>, viewport: egui::Rect,
         frag_start: usize,
     ) {
-        // Clip favicon + tint to the editor viewport: this runs before
+        // Clip icon + tint to the editor viewport: this runs before
         // `post_render` installs its overlay clip, so a chip scrolled past the
-        // top edge would otherwise bleed the favicon over the tab bar/toolbar.
+        // top edge would otherwise bleed the icon over the tab bar/toolbar.
         let entry_clip = ui.clip_rect();
         ui.set_clip_rect(viewport.intersect(entry_clip));
 
@@ -389,50 +403,59 @@ impl<'ast> MdRender {
             .in_progress_selection
             .unwrap_or(self.buffer.current.selection);
         for node in root.descendants() {
-            let url = match &node.data.borrow().value {
-                NodeValue::Link(l) => l.url.clone(),
-                _ => continue,
-            };
+            if !matches!(node.data.borrow().value, NodeValue::Link(_) | NodeValue::WikiLink(_)) {
+                continue;
+            }
             let node_range = self.node_range(node);
             let chip_rects: Vec<egui::Rect> = self.fragments[frag_start..]
                 .iter()
-                .filter(|f| {
-                    f.source_range.intersects(&node_range, true)
-                        && f.style_stack.last().is_some_and(|s| s.chip)
-                })
+                .filter(|f| chip_of(f) == Some(node_range))
                 .map(|f| f.rect)
                 .collect();
             if chip_rects.is_empty() {
                 continue; // not rendered as a capsule
             }
+            let Some(chip) = self.chip(node) else { continue };
 
-            // Favicon over the leading em-space slot; a neutral link glyph
-            // holds the slot while the texture loads — or forever, if it
-            // never does — so the reserved space always reads as an icon.
+            // The icon over the lead; a web chip's slot holds a link glyph
+            // until its favicon loads, or for good if it never does.
             // a scrolled table shows only some of a row
             let row =
                 egui::Rect::from_x_y_ranges(egui::Rangef::EVERYTHING, chip_rects[0].y_range());
             let showing = self.table_showing(row).unwrap_or(egui::Rect::NOTHING);
             let row_clip = ui.clip_rect();
             ui.set_clip_rect(row_clip.intersect(showing));
-            if let Some(favicon_url) = self.capsule_favicon_url(&url) {
-                let chip = chip_rects[0];
-                let size = chip.height() * 0.7;
-                let inset = chip.height() * 0.3;
-                let icon_rect = egui::Rect::from_min_size(
-                    egui::Pos2::new(chip.min.x + inset, chip.center().y - size * 0.5),
-                    egui::Vec2::splat(size),
+            let pill = chip_rects[0];
+            let size = pill.height() * 0.7;
+            let inset = pill.height() * 0.3;
+            let icon_rect = egui::Rect::from_min_size(
+                egui::Pos2::new(pill.min.x + inset, pill.center().y - size * 0.5),
+                egui::Vec2::splat(size),
+            );
+            if let Some(ChipIcon::Glyph(glyph)) = chip.icon {
+                let link_color = self
+                    .text_format_link_pill(node.parent().unwrap(), chip.state.clone())
+                    .color;
+                ui.painter().text(
+                    icon_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    glyph,
+                    phosphor_font_id(size),
+                    link_color,
                 );
-                self.embeds.prefetch(&favicon_url);
+            }
+            if let Some(ChipIcon::Favicon(favicon_url)) = &chip.icon {
+                let url = node_link_url(node);
+                self.embeds.prefetch(favicon_url);
                 // an issue or pull request shows where it stands instead
                 let status = match self.get_link_meta(&url) {
                     LinkMetaLookup::Loaded(meta) => meta.status,
                     _ => None,
                 };
                 if let Some(status) = status.filter(|s| *s != Status::Answered) {
-                    let mark = icon_rect.expand(chip.height() * 0.06);
+                    let mark = icon_rect.expand(pill.height() * 0.06);
                     hover::paint_status(ui.painter(), mark, status, &self.ctx.get_lb_theme());
-                } else if self.embeds.is_loaded(&favicon_url) {
+                } else if self.embeds.is_loaded(favicon_url) {
                     // Dark mode: a near-white tile behind the icon so dark
                     // monochrome marks (e.g. GitHub) read against the dark pill;
                     // opaque favicons simply hide it.
@@ -444,7 +467,7 @@ impl<'ast> MdRender {
                     // `show_wrap_layout` (#4892)
                     let ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(icon_rect));
                     self.embeds
-                        .show(ui, &favicon_url, icon_rect, egui::CornerRadius::same(3));
+                        .show(ui, favicon_url, icon_rect, egui::CornerRadius::same(3));
                 } else {
                     ui.painter().text(
                         icon_rect.center(),
@@ -459,7 +482,7 @@ impl<'ast> MdRender {
 
             // a cut chip's fade, and where it begins
             let fade =
-                if frag_start == 0 { self.cut_chip_fade(node, &url, node_range) } else { None };
+                if frag_start == 0 { self.cut_chip_fade(node, &chip, node_range) } else { None };
             let fade_from = fade.as_ref().map(|(_, x)| *x);
             if let Some((shapes, _)) = fade {
                 self.over_text.extend(shapes);
@@ -467,7 +490,7 @@ impl<'ast> MdRender {
 
             if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
-                let accent = theme.bg().get_color(theme.prefs().primary);
+                let accent = theme.accent_bg();
                 let tint =
                     egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 90);
                 // Merge fragments into one rect per row so the selection reads as
@@ -496,6 +519,22 @@ impl<'ast> MdRender {
         }
 
         ui.set_clip_rect(entry_clip);
+    }
+
+    pub fn calc_source_links<'a>(&mut self, root: &'a AstNode<'a>) {
+        self.bounds.source_links.clear();
+        if self.view == View::Rendered {
+            return;
+        }
+        for node in root.descendants() {
+            if matches!(
+                node.data.borrow().value,
+                NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_)
+            ) {
+                self.bounds.source_links.push(self.node_range(node));
+            }
+        }
+        self.bounds.source_links.sort_unstable();
     }
 
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
@@ -729,8 +768,11 @@ impl<'ast> MdRender {
     /// opens; click → navigate in place. The producer's interaction scope
     /// is the gate: cmd held (desktop), read-only, or touch — where the
     /// click instead selects the link and pops the menu
-    /// ([`MdEdit::handle_link_menu_taps`]).
-    pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
+    /// ([`MdEdit::handle_link_menu_taps`]). `chips` handles chips' scopes
+    /// instead, for a label that has no editor to treat them as atoms.
+    pub fn handle_link_interactions(
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, chips: bool,
+    ) {
         let parent_base = ui.scope_id();
         for node in root.descendants() {
             let (url, is_wikilink, is_image) = match &node.data.borrow().value {
@@ -739,7 +781,11 @@ impl<'ast> MdRender {
                 NodeValue::Image(nl) => (nl.url.clone(), false, true),
                 _ => continue,
             };
-            let id = parent_base.with(Self::link_interaction_id_salt(self.node_range(node)));
+            let salt = match chips {
+                true => Self::link_capsule_id_salt(self.node_range(node)),
+                false => Self::link_interaction_id_salt(self.node_range(node)),
+            };
+            let id = parent_base.with(salt);
 
             let open = Event::OpenLink { url: url.clone(), wikilink: is_wikilink };
             let tap = if self.readonly {
@@ -756,8 +802,8 @@ impl<'ast> MdRender {
             if response.hovered() && response.sense.senses_click() {
                 crate::style::link_cursor(ui.ctx());
             }
-            let preview =
-                (!is_wikilink && !is_image).then(|| (url.as_str(), self.link_is_auto(node, &url)));
+            let shows_url = !chips && !is_wikilink && self.link_is_auto(node, &url);
+            let preview = (!is_image).then_some((url.as_str(), shows_url, is_wikilink));
             self.show_link_tip(
                 ui.ctx(),
                 response,
@@ -783,7 +829,7 @@ impl<'ast> MdRender {
     /// sites off a web link shows its URL, so it reads as previews being off.
     fn get_link_title(&self, url: &str) -> Option<String> {
         match self.get_link_meta(url) {
-            LinkMetaLookup::Internal(title) => Some(title),
+            LinkMetaLookup::Internal { title, .. } => Some(title),
             LinkMetaLookup::Loaded(meta) => Some(link_preview::label(url).unwrap_or(meta.title)),
             LinkMetaLookup::Loading | LinkMetaLookup::Unavailable => {
                 link_preview::label(url).filter(|_| self.contact_linked_sites)
@@ -808,7 +854,8 @@ impl<'ast> MdRender {
                     return LinkMetaLookup::Unavailable;
                 };
                 let title = DocType::from_name(&file.name).display_name(&file.name);
-                return LinkMetaLookup::Internal(title.to_string());
+                let icon = file_row_icon(&file.name, false);
+                return LinkMetaLookup::Internal { title: title.to_string(), icon };
             }
             ResolvedLink::External(url)
                 if url.starts_with("http://") || url.starts_with("https://") =>
@@ -820,7 +867,10 @@ impl<'ast> MdRender {
 
         match self.previews.get(&resolved_url) {
             Preview::Loaded(meta) => LinkMetaLookup::Loaded(meta),
-            Preview::Loading => LinkMetaLookup::Loading,
+            Preview::Loading => {
+                self.previews_pending.set(true);
+                LinkMetaLookup::Loading
+            }
             Preview::Unavailable => LinkMetaLookup::Unavailable,
         }
     }
@@ -856,10 +906,28 @@ impl<'ast> MdRender {
     }
 }
 
+/// A link shown as a pill: see [`MdRender::chip`].
+pub(crate) struct Chip {
+    title: String,
+    state: LinkState,
+    icon: Option<ChipIcon>,
+}
+
+pub(crate) enum ChipIcon {
+    Favicon(String),
+    Glyph(&'static str),
+}
+
+impl Chip {
+    fn lead(&self) -> &'static str {
+        if self.icon.is_some() { ICON_SLOT } else { "" }
+    }
+}
+
 /// Result of a [`MdRender::get_link_meta`] lookup.
 pub enum LinkMetaLookup {
-    /// Internal file link — a title from the file cache (never a card/capsule).
-    Internal(String),
+    /// Internal file link — its name and doc-type glyph (never a card).
+    Internal { title: String, icon: &'static str },
     /// Fetched external metadata.
     Loaded(Box<LinkMeta>),
     /// External fetch in progress — a card holds a skeleton until it resolves.
@@ -904,7 +972,7 @@ impl MdEdit {
     /// [`Self::heading_link`] for the heading on the caret's line, for the
     /// platform edit menu's "Copy Heading Link".
     pub fn selection_heading_link(&mut self) -> Option<String> {
-        if self.renderer.plaintext {
+        if self.renderer.kind != Syntax::Markdown {
             return None;
         }
         let arena = Arena::new();
@@ -920,18 +988,21 @@ impl MdEdit {
 pub enum LinkMenuAction {
     Open,
     Copy,
+    CopyImage,
     Edit,
     Refresh,
 }
 
-/// What a desktop context menu over a link-like node acts on.
-/// The space a chip's favicon is painted over, before its title.
-const FAVICON_SLOT: &str = "\u{2003}";
+/// The space a chip's icon is painted over, before its title.
+const ICON_SLOT: &str = "\u{2003}";
 /// Chips longer than this many ems are cut short.
 const CHIP_MAX_EMS: f32 = 24.0;
+/// How far a chip's surface leans toward its link colour.
+const CHIP_WASH: f32 = 0.1;
 /// How far a cut chip's fade reaches back into its text, in ems.
 const CHIP_FADE_EMS: f32 = 1.5;
 
+/// What a desktop context menu over a link-like node acts on.
 #[derive(Clone)]
 pub struct LinkMenuTarget {
     pub url: String,
@@ -958,6 +1029,9 @@ pub fn fill_link_menu<T>(
         ("Open Link", "Copy Link", "Edit Link")
     };
     e.item(crate::style::phosphor::ARROW_SQUARE_OUT, open, map(LinkMenuAction::Open));
+    if is_image {
+        e.item(crate::style::phosphor::IMAGE, "Copy Image", map(LinkMenuAction::CopyImage));
+    }
     e.item(crate::style::phosphor::COPY, copy, map(LinkMenuAction::Copy));
     if editable {
         e.item(crate::style::phosphor::PENCIL, edit, map(LinkMenuAction::Edit));

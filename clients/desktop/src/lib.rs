@@ -7,6 +7,7 @@
 
 mod components;
 pub mod host;
+mod link_inbox;
 mod perf;
 mod settings;
 pub mod shell;
@@ -15,8 +16,6 @@ mod util;
 pub use crate::settings::Settings;
 pub use crate::shell::ShellApp;
 pub use host::run;
-
-pub const DEV_USERS: &[&str] = &["parth", "adam", "travis", "at"];
 
 use egui::{OrderedViewportIdMap, PlatformOutput, ViewportOutput};
 use egui_wgpu_renderer::{PreparedFrame, RendererState};
@@ -61,7 +60,9 @@ impl WgpuLockbook<'_> {
     fn frame_ui(&mut self) -> PreparedFrame {
         self.renderer.begin_frame();
         self.app.ui(&self.renderer.context);
-        self.renderer.set_is_dev(self.app.is_dev());
+        let enforced = lb::service::budget::ENFORCED && self.app.is_dev();
+        self.renderer
+            .set_frame_budget(enforced.then_some(lb::service::budget::FRAME_BUDGET));
         self.renderer.prepare_frame()
     }
 

@@ -46,7 +46,7 @@ fn a_far_heading_lands_where_a_near_one_does() {
     let md = format!("intro\n\n# Near\n\n{filler}# Far\n\n{filler}> # Quoted\n\n{filler}");
     let mut ws = TestEditor::new(&md);
     ws.editor.edit.renderer.touch_mode = true;
-    ws.editor.keyboard_visible = false;
+    ws.editor.editing = false;
     ws.enter_frame();
     let landed_top = |ws: &mut TestEditor, heading: &str, frames: usize| {
         ws.editor.open_at_heading(&heading.to_lowercase());

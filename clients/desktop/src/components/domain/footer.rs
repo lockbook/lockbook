@@ -89,14 +89,51 @@ const PAD_X: Space = Space::Sm;
 const BAR_H: f32 = Space::Xxs.pts() * 3.0;
 const BAR_WARN_FRAC: f32 = 0.7;
 
+/// Where the footer's parts sit, as offsets from its top edge.
+struct Layout {
+    /// The usage track's top and fill fraction, when it shows.
+    track: Option<(f32, f32)>,
+    /// The status row's top.
+    row: f32,
+    height: f32,
+}
+
+/// How full the account is, when the server reports a cap.
+fn usage_frac(status: &Status) -> Option<f32> {
+    let usage = status.space_used.as_ref()?;
+    let cap = usage.data_cap.exact;
+    (cap != 0).then(|| (usage.server_usage.exact as f64 / cap as f64).min(1.0) as f32)
+}
+
+fn layout(app: &ShellApp) -> Option<Layout> {
+    let ready = app.session.ready()?;
+    let frac = usage_frac(&ready.status).filter(|_| app.settings.sidebar_usage);
+    let mut y = V_PAD.pts();
+    let track = frac.map(|frac| {
+        let top = y;
+        y += BAR_H + V_PAD.pts();
+        (top, frac)
+    });
+    let row = y;
+    y += control_height() + V_PAD.pts();
+    Some(Layout { track, row, height: y })
+}
+
+/// The footer's height: the usage track when it shows, then the status row.
+pub fn measure(app: &ShellApp) -> f32 {
+    layout(app).map_or(0.0, |l| l.height)
+}
+
 pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+    let Some(layout) = layout(app) else {
+        return;
+    };
     let Some(ready) = app.session.ready() else {
         return;
     };
 
     let status = ready.status.clone();
     let username = ready.workspace.account.username.clone();
-    let show_usage = app.settings.sidebar_usage;
     let settings_on = matches!(app.modal, Some(crate::shell::Modal::Settings { .. }));
 
     if !status.syncing {
@@ -126,62 +163,57 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     }
 
     // Prefer server `readable` (SI 1000) so premium cap shows **30 GB** not 27.9.
-    let usage_info = status.space_used.as_ref().and_then(|usage| {
-        let cap = usage.data_cap.exact;
-        if cap == 0 {
-            return None;
-        }
-        let frac = (usage.server_usage.exact as f64 / cap as f64).min(1.0) as f32;
+    let usage_info = usage_frac(&status).and_then(|frac| {
+        let usage = status.space_used.as_ref()?;
         Some((usage.server_usage.readable.clone(), usage.data_cap.readable.clone(), frac))
     });
 
-    let footer_top = ui.cursor().top();
-    let footer_left = ui.max_rect().left();
-    let footer_right = ui.max_rect().right();
+    // The footer claims its measured band; its parts are placed inside it.
+    let (footer_rect, _) = ui
+        .allocate_exact_size(vec2(crate::components::ui_width(ui), layout.height), Sense::hover());
+    let (footer_top, footer_bot) = (footer_rect.top(), footer_rect.bottom());
+    let footer_left = footer_rect.left();
+    let band = |top: f32, h: f32| {
+        egui::Rect::from_min_size(pos2(footer_left, footer_top + top), vec2(footer_rect.width(), h))
+    };
+    Spacer::paint_at(ui, V_PAD, band(0.0, V_PAD.pts()));
+    Spacer::paint_at(ui, V_PAD, band(layout.height - V_PAD.pts(), V_PAD.pts()));
 
-    ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-    ui.add(Spacer::new(V_PAD));
-
-    // Pref on → always draw the bar when metrics exist (no density frac gate).
-    if show_usage {
-        if let Some((_, _, frac)) = &usage_info {
-            let bar_color = if *frac >= BAR_WARN_FRAC {
-                t.fg()
-                    .get_color(workspace_rs::theme::palette_v2::Palette::Yellow)
-            } else {
-                t.accent()
-            };
-            let (br, _) = ui
-                .allocate_exact_size(vec2(crate::components::ui_width(ui), BAR_H), Sense::hover());
-            // L/R pads as placed Spacers (F2-visible); track fills mid.
-            let px = PAD_X.pts();
-            Spacer::paint_at(ui, PAD_X, egui::Rect::from_min_size(br.min, vec2(px, BAR_H)));
-            Spacer::paint_at(
-                ui,
-                PAD_X,
-                egui::Rect::from_min_size(pos2(br.right() - px, br.top()), vec2(px, BAR_H)),
-            );
-            let track = egui::Rect::from_min_size(
-                pos2(br.left() + px, br.center().y - BAR_H / 2.0),
-                vec2((br.width() - 2.0 * px).max(0.0), BAR_H),
-            );
-            let r = BAR_H / 2.0; // full capsule
-            ui.painter().rect_filled(track, r, t.neutral_bg_tertiary());
-            // Clip fill so partial progress keeps capsule ends (no square corners).
-            let fill_w = (track.width() * *frac).max(0.0);
-            let fill = egui::Rect::from_min_size(track.min, vec2(fill_w, track.height()));
-            ui.painter()
-                .with_clip_rect(track)
-                .rect_filled(fill, r, bar_color);
-            ui.add(Spacer::new(V_PAD));
-        }
+    if let Some((top, frac)) = layout.track {
+        let bar_color = if frac >= BAR_WARN_FRAC {
+            t.fg()
+                .get_color(workspace_rs::theme::palette_v2::Palette::Yellow)
+        } else {
+            t.accent()
+        };
+        let br = band(top, BAR_H);
+        Spacer::paint_at(ui, V_PAD, band(top + BAR_H, V_PAD.pts()));
+        // L/R pads as placed Spacers (F2-visible); track fills mid.
+        let px = PAD_X.pts();
+        Spacer::paint_at(ui, PAD_X, egui::Rect::from_min_size(br.min, vec2(px, BAR_H)));
+        Spacer::paint_at(
+            ui,
+            PAD_X,
+            egui::Rect::from_min_size(pos2(br.right() - px, br.top()), vec2(px, BAR_H)),
+        );
+        let track = egui::Rect::from_min_size(
+            pos2(br.left() + px, br.center().y - BAR_H / 2.0),
+            vec2((br.width() - 2.0 * px).max(0.0), BAR_H),
+        );
+        let r = BAR_H / 2.0; // full capsule
+        ui.painter().rect_filled(track, r, t.neutral_bg_tertiary());
+        // Clip fill so partial progress keeps capsule ends (no square corners).
+        let fill_w = (track.width() * frac).max(0.0);
+        let fill = egui::Rect::from_min_size(track.min, vec2(fill_w, track.height()));
+        ui.painter()
+            .with_clip_rect(track)
+            .rect_filled(fill, r, bar_color);
     }
 
     // Status row: pad · dot · message · … · sync · settings · pad
-    // Parent claims full-width band; L/R pads are placed Spacers (not paint offsets).
+    // L/R pads are placed Spacers (not paint offsets).
     let row_h = control_height();
-    let (rect, _) =
-        ui.allocate_exact_size(vec2(crate::components::ui_width(ui), row_h), Sense::hover());
+    let rect = band(layout.row, row_h);
     let px = PAD_X.pts();
     Spacer::paint_at(ui, PAD_X, egui::Rect::from_min_size(rect.min, vec2(px, row_h)));
     Spacer::paint_at(
@@ -288,13 +320,8 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         },
     );
 
-    ui.add(Spacer::new(V_PAD));
-
     // Hit = passive strip (status / usage). Place = full footer so card centers
     // on the sidebar with equal side air (not flush to the window).
-    let footer_bot = ui.cursor().top();
-    let footer_rect =
-        egui::Rect::from_min_max(pos2(footer_left, footer_top), pos2(footer_right, footer_bot));
     let passive_right = icon_left - Space::Xs.pts();
     let passive_rect = egui::Rect::from_min_max(
         pos2(footer_left, footer_top),

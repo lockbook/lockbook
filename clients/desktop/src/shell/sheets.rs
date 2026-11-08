@@ -120,11 +120,22 @@ pub fn show_modals(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &m
             super::sheet_folder::show_decline_share(ctx, t, queue, id, &name);
         }
         ModalKind::ImportParent => {
-            let (paths, dest) = match &app.modal {
-                Some(Modal::ImportParent { paths, dest }) => (paths.clone(), *dest),
+            let (paths, dest, plan, planning) = match &app.modal {
+                Some(Modal::ImportParent { paths, dest, plan, planning, .. }) => {
+                    (paths.clone(), *dest, plan.clone(), planning.is_some())
+                }
                 _ => return,
             };
-            super::sheet_folder::show_import_parent(app, ctx, t, queue, &paths, dest);
+            super::sheet_folder::show_import_parent(
+                app,
+                ctx,
+                t,
+                queue,
+                &paths,
+                dest,
+                plan.as_ref(),
+                planning,
+            );
         }
         ModalKind::Help => show_help(ctx, t, queue),
         ModalKind::Onboard => {
@@ -559,6 +570,7 @@ fn show_help(ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
         ("⌘,", "Settings"),
         ("⌘/", "Shortcuts"),
         ("⌘\\", "Toggle sidebar"),
+        ("⌥⌘U", "Toggle source"),
     ];
 
     Area::new(Id::unique("shell_help"))

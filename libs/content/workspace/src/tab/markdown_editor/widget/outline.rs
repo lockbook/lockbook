@@ -9,16 +9,18 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Align2, Area, Color32, Galley, Id, Order, Rect, Sense, Ui, pos2, vec2};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::Grapheme;
 
+use crate::GlyphonRendererCallback;
 use crate::style::sheet::sheet_dim;
 use crate::style::{
-    CHROME_BAND_GLYPH, EDGE_FADE, FG_HOVER, Radius, Space, ThemeExt as _, TypeRole, control_height,
-    icon_button_glyph, overlay_scroll, paint_fade, phosphor, pin_shadow, tip_text,
+    CHROME_BAND_GLYPH, EDGE_FADE, FG_HOVER, Radius, Space, ThemeExt as _, TypeRole, context_menu,
+    control_height, icon_button_glyph, overlay_scroll, paint_fade, phosphor, pin_shadow, tip_text,
 };
+use crate::theme::palette_v2::Theme;
+use crate::widgets::{GlyphonLabel, ShapedLabel, TextOverflow};
 
 /// How long the card takes to fade and the text to slide beside it.
 pub const MOTION_SECS: f32 = 0.2;
@@ -40,6 +42,17 @@ pub struct OutlineRow {
     pub span: (Grapheme, Grapheme),
 }
 
+/// The outline's rows, and what it says when there are none.
+#[derive(Clone, Copy)]
+pub struct Headings<'a> {
+    /// The note the headings are in.
+    pub note: Uuid,
+    pub rows: &'a [OutlineRow],
+    pub empty: &'a str,
+    /// Whether a row's slug lands a link on it, as a markdown heading's does.
+    pub linkable: bool,
+}
+
 /// A note that links to this one, and its links here.
 pub struct LinkedNote {
     pub id: Uuid,
@@ -58,12 +71,22 @@ pub struct Mention {
 /// What a click in the outline asks for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Choice {
-    Heading(String),
-    /// A linking note, at the link when there's a span.
-    Note {
-        id: Uuid,
-        span: Option<Range<usize>>,
-    },
+    /// A row of the outline, by its place.
+    Heading(usize),
+    /// A linking note, at the link when there's a span, in a new tab when
+    /// asked.
+    Note { id: Uuid, span: Option<Range<usize>>, new_tab: bool },
+    /// Copy the link to a row of the outline.
+    CopyHeadingLink(usize),
+    /// Copy the link to a note.
+    CopyLink(Uuid),
+}
+
+impl Choice {
+    /// Whether the choice goes somewhere, putting the sheet away.
+    fn goes(&self) -> bool {
+        matches!(self, Choice::Heading(_) | Choice::Note { .. })
+    }
 }
 
 /// Where the card stands: `area` bounds it, and `floating` puts it over the
@@ -119,7 +142,7 @@ impl Outline {
     /// The sheet, if open. Returns the chosen row's choice and the rect that
     /// takes touches.
     pub fn show(
-        &mut self, ctx: &egui::Context, id: Id, rows: &[OutlineRow], current: Option<usize>,
+        &mut self, ctx: &egui::Context, id: Id, rows: Headings, current: Option<usize>,
         linked: &[LinkedNote],
     ) -> (Option<Choice>, Option<Rect>) {
         if !self.sheet_open {
@@ -127,7 +150,7 @@ impl Outline {
         }
         let (chosen, rect, dismissed) = self.sheet(ctx, id, rows, current, linked);
         let escape = ctx.input(|i| i.key_pressed(egui::Key::Escape));
-        if chosen.is_some() || dismissed || escape {
+        if chosen.as_ref().is_some_and(Choice::goes) || dismissed || escape {
             self.sheet_open = false;
         }
         self.sheet_opening = false;
@@ -138,13 +161,16 @@ impl Outline {
     /// the desktop card is, with a close button: the outline, then the notes
     /// `linked` here.
     fn sheet(
-        &mut self, ctx: &egui::Context, id: Id, rows: &[OutlineRow], current: Option<usize>,
+        &mut self, ctx: &egui::Context, id: Id, rows: Headings, current: Option<usize>,
         linked: &[LinkedNote],
     ) -> (Option<Choice>, Rect, bool) {
         let t = ctx.get_lb_theme();
         let screen = ctx.content_rect();
         let layer = egui::LayerId::new(Order::Foreground, id);
-        let mut dismissed = sheet_dim(ctx, id.with("dim"), layer) && !self.sheet_opening;
+        // a tap outside an open row menu puts the menu away, not the sheet
+        let menu_open = context_menu::is_any_open(ctx);
+        let mut dismissed =
+            sheet_dim(ctx, id.with("dim"), layer) && !self.sheet_opening && !menu_open;
         let (margin, pad, header) = (Space::Md.pts(), Space::Sm.pts(), control_height());
         let width = (screen.width() - 2.0 * margin).min(SHEET_MAX_W);
         let inner_w = width - 2.0 * pad;
@@ -153,8 +179,8 @@ impl Outline {
         let max_list = screen.height() * 0.6;
 
         let gap = Space::Md.pts();
-        let measured = measure_headings(ctx, rows, current, inner_w, true);
-        let mentions = measure_linked(ctx, linked, inner_w, true);
+        let measured = measure_headings(ctx, rows, current, inner_w, true, 1.0);
+        let mentions = measure_linked(ctx, linked, inner_w, true, 1.0);
         let room = (max_list - header - gap).max(0.0);
         let (heads_h, links_h) = split(room, measured.height(), mentions.height());
         let size = vec2(width, 2.0 * header + gap + heads_h + links_h + 2.0 * pad);
@@ -173,6 +199,9 @@ impl Outline {
                 ui.allocate_rect(sheet, Sense::hover());
                 paint_surface(ui, sheet, None);
                 paint_title(ui, "Outline", sheet.left() + pad, sheet.top() + pad);
+                let title =
+                    Rect::from_min_size(sheet.min + vec2(pad, pad), vec2(inner_w - header, header));
+                chosen = title_menu(ui, id.with("title"), title, rows.note);
                 let close = Rect::from_min_size(
                     pos2(sheet.right() - pad - header, sheet.top() + pad),
                     vec2(header, header),
@@ -192,9 +221,12 @@ impl Outline {
                 }
                 let (left, mut top) = (sheet.left() + pad, sheet.top() + pad + header);
                 let view = Rect::from_min_size(pos2(left, top), vec2(inner_w, heads_h));
-                chosen = self
+                if let Some(c) = self
                     .headings
-                    .list(ui, id, view, &measured, ground, false, true);
+                    .list(ui, id, view, &measured, ground, false, true)
+                {
+                    chosen = Some(c);
+                }
                 top += heads_h + gap;
                 paint_title(ui, "Backlinks", left, top);
                 top += header;
@@ -218,7 +250,7 @@ impl Outline {
     /// whether it was dismissed.
     #[allow(clippy::too_many_arguments)]
     pub fn card(
-        &mut self, ctx: &egui::Context, id: Id, place: Option<CardPlace>, rows: &[OutlineRow],
+        &mut self, ctx: &egui::Context, id: Id, place: Option<CardPlace>, rows: Headings,
         current: Option<usize>, linked: &[LinkedNote],
     ) -> (Option<Choice>, Option<Rect>, bool) {
         let Some(CardPlace { area, floating, shown, open }) = place else {
@@ -244,8 +276,8 @@ impl Outline {
             .show(ctx, |ui| {
                 ui.multiply_opacity(shown);
                 let inner_w = area.width() - 2.0 * pad;
-                let headings = measure_headings(ctx, rows, current, inner_w, false);
-                let mentions = measure_linked(ctx, linked, inner_w, false);
+                let headings = measure_headings(ctx, rows, current, inner_w, false, shown);
+                let mentions = measure_linked(ctx, linked, inner_w, false, shown);
                 let room = (area.height() - 2.0 * header - gap - 2.0 * pad).max(0.0);
                 let (heads_h, links_h) = split(room, headings.height(), mentions.height());
                 card = Rect::from_min_size(
@@ -262,6 +294,8 @@ impl Outline {
                 ui.painter().rect_filled(card, radius, ground);
                 let (left, mut top) = (card.left() + pad, card.top() + pad);
                 paint_title(ui, "Outline", left, top);
+                let title = Rect::from_min_size(pos2(left, top), vec2(inner_w, header));
+                chosen = title_menu(ui, id.with("title"), title, rows.note);
                 top += header;
                 let view = Rect::from_min_size(pos2(left, top), vec2(inner_w, heads_h));
                 if let Some(c) = self
@@ -323,7 +357,8 @@ impl Scroll {
             let at = pos2(view.left() + Space::Sm.pts(), view.top() + Space::Xs.pts());
             ui.painter_at(view)
                 .galley(at, empty.clone(), Color32::PLACEHOLDER);
-            return None;
+            let resp = ui.interact(view, id.with("empty"), Sense::click());
+            return row_menu(&resp, &t, &measured.empty_menu);
         }
         let fade = EDGE_FADE.pts();
         let content = measured.height();
@@ -344,6 +379,8 @@ impl Scroll {
         let user_scrolled = self.at != before;
         if user_scrolled {
             self.to = None;
+            // a row's menu doesn't follow its row out of view
+            context_menu::close(ui.ctx());
         }
         // the current row clear of the fades, from where the scroll is headed
         if let Some(i) = measured.current.filter(|_| reveal || opening) {
@@ -373,6 +410,7 @@ impl Scroll {
 
         let painter = ui.painter_at(view);
         let mut chosen = None;
+        let mut texts = vec![];
         for (i, m) in measured.rows.iter().enumerate() {
             let top = view.top() + measured.tops[i] - self.at;
             let rect = Rect::from_min_size(pos2(view.left(), top), vec2(view.width(), m.height));
@@ -395,16 +433,27 @@ impl Scroll {
                 pos2(rect.left() + Space::Sm.pts() + m.indent, rect.top()),
                 pos2(rect.right() - Space::Sm.pts(), rect.bottom()),
             );
-            let at = Align2::LEFT_CENTER
-                .align_size_within_rect(m.galley.size(), text_rect)
-                .min;
-            painter.galley(at, m.galley.clone(), Color32::PLACEHOLDER);
-            if m.galley.elided {
+            let at = Align2::LEFT_CENTER.align_size_within_rect(m.label.size, text_rect);
+            let clip = rect.intersect(view);
+            texts.push(m.label.clone().text_area(at, ui.ctx(), clip));
+            if m.label.elided {
                 tip_text(ui.ctx(), &resp, m.tip.clone());
             }
             if resp.clicked() {
                 chosen = Some(m.choice.clone());
             }
+            if let Some(c) = row_menu(&resp, &t, &m.menu) {
+                chosen = Some(c);
+            }
+        }
+
+        // glyphon shapes emoji, which egui's fonts leave out
+        let visible = view.intersect(ui.clip_rect());
+        if !texts.is_empty() && visible.is_positive() {
+            painter.add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                visible,
+                GlyphonRendererCallback::new(texts),
+            ));
         }
 
         let clear = Color32::TRANSPARENT;
@@ -428,11 +477,72 @@ impl Scroll {
 /// A row laid out: its text, its height, how far it indents, what it says
 /// when cut short, and what a click on it asks for.
 struct MeasuredRow {
-    galley: Arc<Galley>,
+    label: ShapedLabel,
     height: f32,
     indent: f32,
     tip: String,
     choice: Choice,
+    /// What a right click or a long press on it offers.
+    menu: Vec<MenuItem>,
+}
+
+/// A context menu row: its icon, its label, and what it asks for; `None`
+/// separates.
+type MenuItem = Option<(&'static str, &'static str, Choice)>;
+
+/// Copying the link to note `note`: the outline's header, its empty list, a
+/// linking note, or with a heading's own link.
+fn note_menu(note: Uuid) -> Vec<MenuItem> {
+    vec![Some((phosphor::LINK, "Copy Note Link", Choice::CopyLink(note)))]
+}
+
+/// The menu of heading `i` of `headings`: its own link, then the note's. A
+/// heading no link lands on has none.
+fn heading_menu(headings: Headings, i: usize) -> Vec<MenuItem> {
+    let row = &headings.rows[i];
+    if !headings.linkable || row.slug.is_empty() {
+        return vec![];
+    }
+    let mut menu = vec![Some((phosphor::HASH, "Copy Heading Link", Choice::CopyHeadingLink(i)))];
+    menu.extend(note_menu(headings.note));
+    menu
+}
+
+/// The menu of a linking note's row, or with `span`, of one of its links.
+fn linked_menu(id: Uuid, span: Option<Range<usize>>) -> Vec<MenuItem> {
+    let is_note = span.is_none();
+    let open = |new_tab| Choice::Note { id, span: span.clone(), new_tab };
+    let mut menu = vec![
+        Some((phosphor::ARROW_SQUARE_OUT, "Open", open(false))),
+        Some((phosphor::APP_WINDOW, "Open in New Tab", open(true))),
+    ];
+    if is_note {
+        menu.push(None);
+        menu.extend(note_menu(id));
+    }
+    menu
+}
+
+/// A section header at `rect` that stands for the note `note`, and what was
+/// chosen in its menu.
+fn title_menu(ui: &mut Ui, id: Id, rect: Rect, note: Uuid) -> Option<Choice> {
+    let resp = ui.interact(rect, id, Sense::click());
+    row_menu(&resp, &ui.ctx().get_lb_theme(), &note_menu(note))
+}
+
+/// The context menu of a row, or of an empty list, and what was chosen in it.
+fn row_menu(resp: &egui::Response, t: &Theme, menu: &[MenuItem]) -> Option<Choice> {
+    if menu.is_empty() {
+        return None;
+    }
+    context_menu::show(resp, t, |e| {
+        for item in menu {
+            match item {
+                Some((icon, label, choice)) => e.item(icon, *label, choice.clone()),
+                None => e.separator(),
+            }
+        }
+    })
 }
 
 /// A list laid out at a width: its rows and each one's top, which is
@@ -442,6 +552,7 @@ struct Measured {
     tops: Vec<f32>,
     current: Option<usize>,
     empty: Option<Arc<Galley>>,
+    empty_menu: Vec<MenuItem>,
 }
 
 impl Measured {
@@ -455,7 +566,7 @@ impl Measured {
                 at
             })
             .collect();
-        Self { rows, tops, current, empty }
+        Self { rows, tops, current, empty, empty_menu: vec![] }
     }
 
     fn height(&self) -> f32 {
@@ -469,11 +580,14 @@ impl Measured {
     }
 }
 
-/// Lays out heading `rows` at `width`. Touch rows are a thumb tall and wrap a
-/// long title to two lines; mouse rows are a control tall and truncate.
+/// Lays out heading `rows` at `width`, `shown` faded. Touch rows are a thumb
+/// tall and wrap a long title to two lines; mouse rows are a control tall and
+/// truncate.
 fn measure_headings(
-    ctx: &egui::Context, rows: &[OutlineRow], current: Option<usize>, width: f32, touch: bool,
+    ctx: &egui::Context, headings: Headings, current: Option<usize>, width: f32, touch: bool,
+    shown: f32,
 ) -> Measured {
+    let rows = headings.rows;
     let t = ctx.get_lb_theme();
     let measured = rows
         .iter()
@@ -482,20 +596,21 @@ fn measure_headings(
             let indent = row.level.saturating_sub(1).min(5) as f32 * Space::Md.pts();
             let text_w = (width - indent - 2.0 * Space::Sm.pts()).max(1.0);
             let color = if current == Some(i) { t.accent() } else { t.neutral_fg() };
-            let mut job =
-                LayoutJob::simple(row.text.clone(), TypeRole::Body.font_id(), color, text_w);
-            job.wrap = wrap(text_w, if touch { 2 } else { 1 });
-            let galley = ctx.fonts_mut(|f| f.layout_job(job));
+            let label = GlyphonLabel::new(&row.text, color.gamma_multiply(shown));
+            let label = shape(ctx, label, text_w, if touch { 2 } else { 1 });
             let min_h = if touch { TOUCH_ROW_H } else { control_height() };
-            let height = min_h.max(galley.size().y + 2.0 * Space::Xs.pts());
+            let height = min_h.max(label.size.y + 2.0 * Space::Xs.pts());
             let tip = row.text.clone();
-            MeasuredRow { galley, height, indent, tip, choice: Choice::Heading(row.slug.clone()) }
+            let menu = heading_menu(headings, i);
+            MeasuredRow { label, height, indent, tip, choice: Choice::Heading(i), menu }
         })
         .collect();
     let empty = rows
         .is_empty()
-        .then(|| quiet_text(ctx, "No headings yet. Start a line with # to add one.", width));
-    Measured::new(measured, current, empty)
+        .then(|| quiet_text(ctx, headings.empty, width));
+    let mut measured = Measured::new(measured, current, empty);
+    measured.empty_menu = note_menu(headings.note);
+    measured
 }
 
 /// Lines of words around a link shown.
@@ -503,49 +618,47 @@ const MENTION_LINES: usize = 3;
 /// Characters kept before a link's own words, so they show in the lines.
 const MENTION_LEAD: usize = 48;
 
-/// Lays out the notes `linked` here at `width`: each note's title, then its
-/// links with the words around them, the link's own in the text color.
-/// Touch rows are at least a thumb tall, and a long title wraps to two lines.
-fn measure_linked(ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch: bool) -> Measured {
+/// Lays out the notes `linked` here at `width`, `shown` faded: each note's
+/// title, then its links with the words around them, the link's own in the
+/// text color. Touch rows are at least a thumb tall, and a long title wraps to
+/// two lines.
+fn measure_linked(
+    ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch: bool, shown: f32,
+) -> Measured {
     let min_h = if touch { TOUCH_ROW_H } else { control_height() };
     let t = ctx.get_lb_theme();
     let text_w = |indent: f32| (width - indent - 2.0 * Space::Sm.pts()).max(1.0);
     let mut rows = vec![];
     for note in linked {
-        let mut job = LayoutJob::simple(
-            note.title.clone(),
-            TypeRole::Body.font_id(),
-            t.neutral_fg(),
-            text_w(0.0),
-        );
-        job.wrap = wrap(text_w(0.0), if touch { 2 } else { 1 });
-        let galley = ctx.fonts_mut(|f| f.layout_job(job));
+        let label = GlyphonLabel::new(&note.title, t.neutral_fg().gamma_multiply(shown));
+        let label = shape(ctx, label, text_w(0.0), if touch { 2 } else { 1 });
         rows.push(MeasuredRow {
-            height: min_h.max(galley.size().y + 2.0 * Space::Xs.pts()),
-            galley,
+            height: min_h.max(label.size.y + 2.0 * Space::Xs.pts()),
+            label,
             indent: 0.0,
             tip: note.title.clone(),
-            choice: Choice::Note { id: note.id, span: None },
+            choice: Choice::Note { id: note.id, span: None, new_tab: false },
+            menu: linked_menu(note.id, None),
         });
         let indent = Space::Md.pts();
         for m in &note.links {
-            let (text, label) = lead_trimmed(&m.context, m.label.clone());
-            let font = TypeRole::Body.font_id();
-            let quiet = TextFormat::simple(font.clone(), t.neutral_fg_secondary());
-            let loud = TextFormat::simple(font, t.neutral_fg());
-            let mut job = LayoutJob::default();
-            job.append(&text[..label.start], 0.0, quiet.clone());
-            job.append(&text[label.clone()], 0.0, loud);
-            job.append(&text[label.end..], 0.0, quiet);
-            job.wrap = wrap(text_w(indent), MENTION_LINES);
-            let galley = ctx.fonts_mut(|f| f.layout_job(job));
+            let (text, own) = lead_trimmed(&m.context, m.label.clone());
+            let quiet = Some(t.neutral_fg_secondary().gamma_multiply(shown));
+            let spans = vec![
+                (&text[..own.start], quiet),
+                (&text[own.clone()], None),
+                (&text[own.end..], quiet),
+            ];
+            let label = GlyphonLabel::new_colored(spans, t.neutral_fg().gamma_multiply(shown));
+            let label = shape(ctx, label, text_w(indent), MENTION_LINES);
             let least = if touch { TOUCH_ROW_H } else { 0.0 };
             rows.push(MeasuredRow {
-                height: least.max(galley.size().y + 2.0 * Space::Xs.pts()),
-                galley,
+                height: least.max(label.size.y + 2.0 * Space::Xs.pts()),
+                label,
                 indent,
                 tip: m.context.clone(),
-                choice: Choice::Note { id: note.id, span: Some(m.span.clone()) },
+                choice: Choice::Note { id: note.id, span: Some(m.span.clone()), new_tab: false },
+                menu: linked_menu(note.id, Some(m.span.clone())),
             });
         }
     }
@@ -573,8 +686,16 @@ fn lead_trimmed(context: &str, label: Range<usize>) -> (String, Range<usize>) {
     (text, moved(label.start)..moved(label.end))
 }
 
-fn wrap(max_width: f32, max_rows: usize) -> TextWrapping {
-    TextWrapping { max_width, max_rows, break_anywhere: false, overflow_character: Some('…') }
+/// `label` in body text at `max_width`, cut short after `max_lines`.
+fn shape(
+    ctx: &egui::Context, label: GlyphonLabel, max_width: f32, max_lines: usize,
+) -> ShapedLabel {
+    label
+        .role(TypeRole::Body)
+        .max_width(max_width)
+        .text_overflow(TextOverflow::EndEllipsis)
+        .max_lines(max_lines)
+        .build(ctx)
 }
 
 /// A list's empty state, laid out at `width`.

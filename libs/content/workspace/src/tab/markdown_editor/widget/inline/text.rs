@@ -1,8 +1,8 @@
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt};
 
-use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
+use crate::tab::markdown_editor::{MdRender, View};
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> MdRender {
@@ -14,6 +14,36 @@ impl<'ast> MdRender {
             return;
         }
         self.layout_source(layout, node, node_range, self.text_format(node), true);
+        if self.is_prose(node) {
+            layout.push_prose(node_range);
+        }
+    }
+
+    /// Whether `node` is text whose words are spell checked.
+    pub fn is_prose(&self, node: &'ast AstNode<'ast>) -> bool {
+        matches!(node.data.borrow().value, NodeValue::Text(_)) && !self.in_autolink(node)
+    }
+
+    pub fn calc_source_prose(&mut self, root: &'ast AstNode<'ast>) {
+        self.bounds.source_prose.clear();
+        if self.view == View::Rendered {
+            return;
+        }
+        let prose = root
+            .descendants()
+            .filter(|&node| self.is_prose(node))
+            .map(|node| self.node_range(node))
+            .collect();
+        self.bounds.source_prose = prose;
+    }
+
+    /// An autolink's text is its URL.
+    fn in_autolink(&self, node: &'ast AstNode<'ast>) -> bool {
+        node.parent()
+            .is_some_and(|parent| match &parent.data.borrow().value {
+                NodeValue::Link(link) => self.link_is_auto(parent, &link.url),
+                _ => false,
+            })
     }
 
     /// Lays out `range` of the source as it is written, in `format`, with
@@ -57,7 +87,7 @@ impl<'ast> MdRender {
         } else {
             self.search_range.map(|r| {
                 let theme = self.ctx.get_lb_theme();
-                let accent = theme.fg().get_color(theme.prefs().primary);
+                let accent = theme.accent();
                 (r, Format { color: accent, ..format.clone() }, false)
             })
         };

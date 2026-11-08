@@ -18,6 +18,7 @@ use lb_rs::model::text::operation_types::{Operation, Replace};
 
 use crate::style::phosphor;
 use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::View;
 use crate::tab::markdown_editor::bounds::FoldBounds;
 use crate::tab::markdown_editor::input::{Advance, Bound, Increment, Region};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
@@ -301,7 +302,7 @@ impl<'ast> MdEdit {
     pub fn unfold_after_edit<'a>(
         &mut self, arena: &'a Arena<'a>, edited: bool, undo_redo: bool,
     ) -> buffer::Response {
-        if edited && !undo_redo && !self.renderer.readonly && !self.renderer.plaintext {
+        if edited && !undo_redo && !self.renderer.readonly && self.renderer.view == View::Rendered {
             self.unfold_at_selection(arena)
         } else {
             buffer::Response::default()

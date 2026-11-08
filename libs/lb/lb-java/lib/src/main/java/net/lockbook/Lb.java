@@ -9,7 +9,7 @@ public class Lb {
 
 
     public static native void init(String path) throws LbError;
-    public static native String getDebugInfo(String osInfo) throws LbError;
+    public static native String getDebugInfo() throws LbError;
 
     public static native String writePanicToFile(String errorHeader, String backtrace) throws LbError;
 

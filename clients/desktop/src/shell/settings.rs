@@ -20,13 +20,16 @@
 use crate::components::{
     Button, FixedPadContent, NavItem, Radius, STROKE_HAIRLINE, Space, Spacer, Theme, ThemeFamily,
     TypeRole, control_height, form_group, form_picker, form_row, form_segmented, form_toggle,
-    form_toggle_detail, form_value, icon_button, phosphor, section_label, sheet_dim, ui_width,
-    with_h_pad, with_overlay_scroll,
+    form_toggle_detail, form_value, icon_button, phosphor, section_label, sheet_dim, theme_family,
+    ui_width, with_h_pad, with_overlay_scroll,
 };
 use egui::{
     Align, Area, CornerRadius, Id, Label, Layout, Order, Pos2, Rect, ScrollArea, Sense, Stroke,
     TextWrapMode, Ui, UiBuilder, vec2,
 };
+
+use workspace_rs::style::swatches::swatches;
+use workspace_rs::theme::palette_v2::Palette;
 
 use super::ShellApp;
 use super::action::Action as A;
@@ -86,6 +89,14 @@ fn header_row_h() -> f32 {
 /// Title bar: `Spacer Sm` · row · `Spacer Sm` (all F2-visible; not Align-center air).
 fn header_band_h() -> f32 {
     Space::Sm.pts() * 2.0 + header_row_h()
+}
+
+/// A theme preview lives only while the theme picker is on screen.
+pub fn end_hidden_theme_preview(app: &ShellApp, ctx: &egui::Context, queue: &mut Vec<Action>) {
+    let app_page = matches!(app.modal, Some(Modal::Settings { cat: SettingsCat::App }));
+    if !app_page && theme_family(ctx) != app.settings.theme_family {
+        queue.push(A::PreviewThemeFamily(None));
+    }
 }
 
 pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
@@ -334,14 +345,43 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
             };
             queue.push(A::SetThemeMode(pref));
         }
-        let names: Vec<&str> = ThemeFamily::ALL.iter().map(|f| f.name()).collect();
+        let names: Vec<&str> = ThemeFamily::ALL.iter().map(|f| f.label()).collect();
+        let saved = app.settings.theme_family;
         let mut fam = ThemeFamily::ALL
             .iter()
-            .position(|f| f.name() == app.settings.theme_name)
-            .unwrap_or(0)
-            .min(names.len().saturating_sub(1));
-        if form_picker(ui, t, "Theme", &names, &mut fam).changed() {
+            .position(|&f| f == saved)
+            .unwrap_or(0);
+        let picked = form_picker(ui, t, "Theme", &names, &mut fam);
+        if picked.response.changed() {
             queue.push(A::SetThemeFamily(ThemeFamily::ALL[fam]));
+        } else {
+            let want = picked.inner.map_or(saved, |i| ThemeFamily::ALL[i]);
+            if want != theme_family(ui.ctx()) {
+                queue.push(A::PreviewThemeFamily((want != saved).then_some(want)));
+            }
+        }
+        const HUES: [Palette; 6] = [
+            Palette::Red,
+            Palette::Yellow,
+            Palette::Green,
+            Palette::Cyan,
+            Palette::Blue,
+            Palette::Magenta,
+        ];
+        let colors = HUES.map(|p| t.fg().get_color(p));
+        let mut hue = HUES.iter().position(|&p| p == t.accent_hue);
+        form_row(ui, t, "Accent", |ui| {
+            if swatches(ui, t, &colors, &mut hue).changed() {
+                if let Some(i) = hue {
+                    queue.push(A::SetThemeAccent(HUES[i]));
+                }
+            }
+        });
+        if let Some(family) = text_font_picker(ui, t, &app.settings.text_font) {
+            queue.push(A::SetTextFont(family));
+        }
+        if let Some(family) = code_font_picker(ui, t, &app.settings.code_font) {
+            queue.push(A::SetCodeFont(family));
         }
     });
 
@@ -391,6 +431,130 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     });
 }
 
+/// Every family `system::families` lists, monospaced ones only for `mono`,
+/// plus `extras` it hides, alphabetical by shown name: `(shown, family)`.
+/// `None` until the background scan finishes.
+fn font_list(
+    mono: bool, extras: &[&'static str],
+) -> Option<&'static [(&'static str, &'static str)]> {
+    use std::sync::OnceLock;
+    use workspace_rs::font::system;
+    static TEXT: OnceLock<Vec<(&'static str, &'static str)>> = OnceLock::new();
+    static CODE: OnceLock<Vec<(&'static str, &'static str)>> = OnceLock::new();
+    let installed = system::families()?;
+    let list = if mono { &CODE } else { &TEXT };
+    Some(list.get_or_init(|| {
+        let mut list: Vec<_> = installed
+            .iter()
+            .filter(|(_, monospaced)| *monospaced || !mono)
+            .map(|(name, _)| (*name, *name))
+            .collect();
+        // a hidden family shows once, as the installed one by its name where there is one
+        for &family in extras {
+            let shown = system::shown_name(family);
+            if !list.iter().any(|(s, f)| *f == family || *s == shown) {
+                list.push((shown, family));
+            }
+        }
+        list.sort_by_cached_key(|(shown, _)| shown.to_lowercase());
+        list
+    }))
+}
+
+/// The font slots by the fonts that fill them, then on request every
+/// installed family; returns the new choice, where `None` is the platform's.
+fn text_font_picker(ui: &mut Ui, t: &Theme, chosen: &Option<String>) -> Option<Option<String>> {
+    use workspace_rs::font::slot::Slot;
+    let slots: Vec<&'static str> = Slot::shown().map(Slot::drawn_family).collect();
+    let platform = workspace_rs::font::system::platform_sans().unwrap_or("Noto Sans");
+    font_picker(ui, t, "Text font", false, &slots, platform, chosen)
+}
+
+/// The platform's monospace family, then on request every installed
+/// monospaced one; returns the new choice, where `None` is the platform's.
+fn code_font_picker(ui: &mut Ui, t: &Theme, chosen: &Option<String>) -> Option<Option<String>> {
+    let platform = workspace_rs::font::system::platform_mono().unwrap_or("Noto Sans Mono");
+    font_picker(ui, t, "Code font", true, &[platform], platform, chosen)
+}
+
+/// A font menu: the `top` families under a rule, the current choice where
+/// it isn't one of them, and a row that swaps in every installed family
+/// (monospaced only for `mono`). Each row names a family in its own font.
+/// Returns the new choice, where `None` is `platform`.
+fn font_picker(
+    ui: &mut Ui, t: &Theme, label: &str, mono: bool, top: &[&'static str], platform: &'static str,
+    chosen: &Option<String>,
+) -> Option<Option<String>> {
+    use crate::components::atoms::picker::OptionFont;
+    use workspace_rs::font::system;
+    const ALL: &str = "All fonts…";
+    let current = chosen.as_deref().unwrap_or(platform);
+    let all_key = egui::Id::unique(label).with("all");
+    let all = ui
+        .ctx()
+        .data(|d| d.get_temp::<bool>(all_key))
+        .unwrap_or(false);
+    // what each row picks; none for the row that opens the full list
+    let mut rows: Vec<(&str, OptionFont, Option<&str>)> = vec![];
+    let families: Vec<&str> = if all {
+        let list = font_list(mono, top);
+        if list.is_none() {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(100));
+        }
+        list.unwrap_or_default().iter().map(|(_, f)| *f).collect()
+    } else {
+        top.to_vec()
+    };
+    for family in families {
+        rows.push((system::shown_name(family), OptionFont::Family(family), Some(family)));
+    }
+    // the choice shows while the list loads, and before it's asked for
+    if !rows.iter().any(|(_, _, pick)| *pick == Some(current)) {
+        rows.push((system::shown_name(current), chosen_font(current), Some(current)));
+    }
+    if !all {
+        rows.push((ALL, OptionFont::Ui(TypeRole::Body.font_id()), None));
+    }
+    let names: Vec<&str> = rows.iter().map(|(name, ..)| *name).collect();
+    let fonts: Vec<OptionFont> = rows.iter().map(|(_, font, _)| font.clone()).collect();
+    let divider = (!all).then(|| top.len().checked_sub(1)).flatten();
+    let mut at = rows
+        .iter()
+        .position(|(_, _, pick)| *pick == Some(current))
+        .unwrap_or(0);
+    let mut out = None;
+    form_row(ui, t, label, |ui| {
+        let resp =
+            crate::components::atoms::picker::picker_fonts(ui, t, &names, &fonts, divider, &mut at)
+                .response;
+        let popup = egui::Popup::default_response_id(&resp);
+        let pick = rows[at].2;
+        if resp.changed() && pick.is_none() {
+            ui.ctx().data_mut(|d| d.insert_temp(all_key, true));
+            egui::Popup::open_id(ui.ctx(), popup);
+        } else if resp.changed() {
+            let family = pick.unwrap_or(platform);
+            out = Some((family != platform).then(|| family.to_owned()));
+        } else if all && !egui::Popup::is_id_open(ui.ctx(), popup) {
+            ui.ctx().data_mut(|d| d.remove_temp::<bool>(all_key));
+        }
+    });
+    out
+}
+
+/// What the row for the chosen `family` draws in: the family itself, read
+/// when it was chosen; the interface font while it's read, or where it
+/// isn't installed.
+fn chosen_font(family: &str) -> crate::components::atoms::picker::OptionFont {
+    use crate::components::atoms::picker::OptionFont;
+    use workspace_rs::font::loader::{self, Kind, Load};
+    match loader::get(family, Kind::Text) {
+        Load::Ready(read) => OptionFont::Family(read.name),
+        Load::Loading | Load::Missing => OptionFont::Ui(TypeRole::Body.font_id()),
+    }
+}
+
 /// Note-adjacent prefs — workspace.cfg only.
 fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     section_label(ui, t, "Links");
@@ -412,7 +576,38 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
             queue.push(A::SetPrefLinkPreviews(previews));
         }
     });
+    section_label(ui, t, "Writing");
+    form_group(ui, t, |ui| {
+        let mut spell_check = app
+            .session
+            .ready()
+            .map(|r| r.workspace.cfg.get_spell_check())
+            .unwrap_or(true);
+        if form_toggle_detail(
+            ui,
+            t,
+            "Check spelling",
+            "Misspelled words get a red dotted underline.",
+            &mut spell_check,
+        )
+        .changed()
+        {
+            queue.push(A::SetPrefSpellCheck(spell_check));
+        }
+        let width = app
+            .session
+            .ready()
+            .map(|r| r.workspace.cfg.get_column_width())
+            .unwrap_or(COLUMN_WIDTHS[1]);
+        let mut pick = COLUMN_WIDTHS.iter().position(|w| *w == width).unwrap_or(0);
+        if form_segmented(ui, t, "Text width", &["Narrow", "Medium", "Wide"], &mut pick).changed() {
+            queue.push(A::SetPrefColumnWidth(COLUMN_WIDTHS[pick]));
+        }
+    });
 }
+
+/// The text column's widest points: Narrow, Medium, Wide.
+const COLUMN_WIDTHS: [f32; 3] = [600.0, 800.0, 1000.0];
 
 fn page_debug(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     // Integrity + panics load off-thread; Copy works without revealing the dump.
@@ -557,6 +752,8 @@ mod tests {
     fn layout_settings_at(screen_w: f32, screen_h: f32, cat: SettingsCat) -> SettingsLayoutReadout {
         let mut app = ShellApp { modal: Some(Modal::Settings { cat }), ..Default::default() };
         let ctx = Context::default();
+        // as the host does: the font menus draw their names in the note fonts
+        workspace_rs::register_font_system(&ctx);
         let input = RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(screen_w, screen_h))),
             ..Default::default()

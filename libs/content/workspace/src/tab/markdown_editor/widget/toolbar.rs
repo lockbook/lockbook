@@ -355,6 +355,10 @@ pub struct ToolbarPersistence {
     task_list: bool,
     #[serde(default)]
     quote: bool,
+    #[serde(default)]
+    code_block: bool,
+    #[serde(default)]
+    rule: bool,
     link: bool,
     image: bool,
     indent: bool,
@@ -583,25 +587,25 @@ impl<'ast> Editor {
         for tools in table_tools.iter().flatten() {
             w += group(tools.len());
         }
-        w += group(
-            block(&[persistence.heading])
-                + count(&[
-                    persistence.bold,
-                    persistence.emph,
-                    persistence.code,
-                    persistence.strikethrough,
-                    persistence.highlight,
-                    persistence.underline,
-                    persistence.spoiler,
-                    persistence.subscript,
-                    persistence.superscript,
-                ]),
-        );
+        w += group(count(&[
+            persistence.bold,
+            persistence.emph,
+            persistence.code,
+            persistence.strikethrough,
+            persistence.highlight,
+            persistence.underline,
+            persistence.spoiler,
+            persistence.subscript,
+            persistence.superscript,
+        ]));
         w += group(block(&[
+            persistence.heading,
             persistence.ordered_list,
             persistence.unordered_list,
             persistence.task_list,
             persistence.quote,
+            persistence.code_block,
+            persistence.rule,
             persistence.table,
         ]));
 
@@ -776,10 +780,6 @@ impl<'ast> Editor {
                 }
 
                 let mut any_style = false;
-                if block(persistence.heading) {
-                    self.heading_button(root, ui).map(|e| events.push(e));
-                    any_style = true;
-                }
                 if persistence.bold || toolbar_is_default {
                     if any_style {
                         ui.add_space(5.);
@@ -857,7 +857,14 @@ impl<'ast> Editor {
                 }
 
                 let mut any_list = false;
+                if block(persistence.heading) {
+                    self.heading_button(root, ui).map(|e| events.push(e));
+                    any_list = true;
+                }
                 if block(persistence.ordered_list) {
+                    if any_list {
+                        ui.add_space(5.);
+                    }
                     self.style(
                         phosphor::LIST_NUMBERS,
                         NodeValue::List(NodeList {
@@ -909,6 +916,32 @@ impl<'ast> Editor {
                     }
                     self.style(phosphor::QUOTES, NodeValue::BlockQuote, root, ui)
                         .map(|e| events.push(e));
+                    any_list = true;
+                }
+                if block(persistence.code_block) {
+                    if any_list {
+                        ui.add_space(5.);
+                    }
+                    self.style(
+                        phosphor::CODE_BLOCK,
+                        NodeValue::CodeBlock(Default::default()),
+                        root,
+                        ui,
+                    )
+                    .map(|e| events.push(e));
+                    any_list = true;
+                }
+                if block(persistence.rule) {
+                    if any_list {
+                        ui.add_space(5.);
+                    }
+                    self.style(
+                        phosphor::ARROWS_OUT_LINE_VERTICAL,
+                        NodeValue::ThematicBreak,
+                        root,
+                        ui,
+                    )
+                    .map(|e| events.push(e));
                     any_list = true;
                 }
                 if block(persistence.table) {
@@ -1245,24 +1278,6 @@ impl<'ast> Editor {
                                     ui,
                                     top_left,
                                     md_width,
-                                    "### Heading",
-                                    phosphor::TEXT_H_ONE,
-                                    persistence.heading,
-                                )
-                                .clicked()
-                            {
-                                let mut persistence = self.persistence.data.write().unwrap();
-                                let persistence = &mut persistence.markdown.toolbar;
-                                persistence.heading ^= true;
-                                self.persistence.write_to_file();
-                            }
-                            top_left.y += self.menu_toggle_height("### Heading");
-
-                            if self
-                                .menu_toggle(
-                                    ui,
-                                    top_left,
-                                    md_width,
                                     "**Bold**",
                                     phosphor::TEXT_B,
                                     persistence.bold,
@@ -1423,7 +1438,25 @@ impl<'ast> Editor {
                             Separator::default().spacing(MENU_SPACE).ui(ui);
                             top_left.y += MENU_SPACE;
 
-                            // lists
+                            // blocks
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
+                                    "### Heading",
+                                    phosphor::TEXT_H_ONE,
+                                    persistence.heading,
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.heading ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("### Heading");
+
                             if self
                                 .menu_toggle(
                                     ui,
@@ -1495,6 +1528,42 @@ impl<'ast> Editor {
                                 self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("> Quote");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
+                                    "``` Code Block",
+                                    phosphor::CODE_BLOCK,
+                                    persistence.code_block,
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.code_block ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("``` Code Block");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
+                                    "--- Divider",
+                                    phosphor::ARROWS_OUT_LINE_VERTICAL,
+                                    persistence.rule,
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.rule ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("--- Divider");
 
                             if self
                                 .menu_toggle(
@@ -1796,11 +1865,11 @@ impl Name for NodeValue {
             NodeValue::DescriptionItem(_) => "",
             NodeValue::DescriptionTerm => "",
             NodeValue::DescriptionDetails => "",
-            NodeValue::CodeBlock(_) => "",
+            NodeValue::CodeBlock(_) => "Code Block",
             NodeValue::HtmlBlock(_) => "",
             NodeValue::Paragraph => "",
             NodeValue::Heading(_) => "Heading",
-            NodeValue::ThematicBreak => "",
+            NodeValue::ThematicBreak => "Divider",
             NodeValue::FootnoteDefinition(_) => "",
             NodeValue::Table(_) => "",
             NodeValue::TableRow(_) => "",

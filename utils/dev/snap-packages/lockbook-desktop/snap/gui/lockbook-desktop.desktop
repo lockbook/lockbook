@@ -1,8 +1,9 @@
 [Desktop Entry]
 Encoding=UTF-8
 Type=Application
-Comment=The private, polished note-taking platform.
+Comment=Write, sketch, and share privately
 Terminal=false
-Exec=lockbook-desktop
+Exec=lockbook-desktop %u
+MimeType=x-scheme-handler/lb;
 Name=Lockbook
 Icon=${SNAP}/meta/gui/logo.svg

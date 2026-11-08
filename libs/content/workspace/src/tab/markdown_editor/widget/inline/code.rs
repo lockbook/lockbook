@@ -10,7 +10,7 @@ impl<'ast> MdRender {
         let theme = self.ctx.get_lb_theme();
         let background = theme.neutral_bg_secondary();
         // the theme's accents read on its secondary background
-        let color = theme.fg().get_color(theme.prefs().primary);
+        let color = theme.accent();
 
         Format {
             color,

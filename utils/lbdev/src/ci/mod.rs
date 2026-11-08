@@ -4,7 +4,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use cli_rs::cli_error::CliResult;
+use cli_rs::cli_error::{CliError, CliResult};
 
 use crate::{
     places::{android_dir, local_env_path, root, server_log},
@@ -129,4 +129,27 @@ pub fn assert_no_udeps() -> CliResult<()> {
         .args(["+nightly-2026-09-19", "udeps"])
         .current_dir(root())
         .assert_success()
+}
+
+/// Only the server and the test helpers that run it in-process may build the server crate; every
+/// client reaches it over the network.
+pub fn assert_clients_without_server() -> CliResult<()> {
+    let out = Command::new("cargo")
+        .args(["tree", "-q", "-e", "normal,build", "--workspace"])
+        .args(["--exclude", "lockbook-server", "--exclude", "test_utils"])
+        .args(["--prefix", "none", "--format", "{p}"])
+        .current_dir(root())
+        .success_output()?;
+    let tree = String::from_utf8(out.stdout).unwrap();
+    let server_deps = tree
+        .lines()
+        .filter(|line| line.starts_with("lockbook-server "))
+        .count();
+    if server_deps > 0 {
+        return Err(CliError {
+            msg: "a client depends on lockbook-server; see `cargo tree -i lockbook-server`".into(),
+            status: 1,
+        });
+    }
+    Ok(())
 }

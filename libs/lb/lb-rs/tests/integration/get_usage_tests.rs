@@ -1,0 +1,386 @@
+use lb_rs::model::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
+use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::file::ShareMode;
+use lb_rs::model::file_like::FileLike;
+use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::file_metadata::FileType::Folder;
+use test_utils::*;
+
+#[tokio::test]
+async fn report_usage() {
+    let core = test_core_with_account().await;
+    let root = core.root().await.unwrap();
+
+    let file = core
+        .create_file(&random_name(), &root.id, FileType::Document)
+        .await
+        .unwrap();
+    core.write_document(file.id, "0000000000".as_bytes())
+        .await
+        .unwrap();
+
+    assert!(
+        core.get_usage().await.unwrap().usages.len() == 1,
+        "Didn't account for the cost of root file metadata"
+    );
+    assert_eq!(core.get_usage().await.unwrap().usages[0].size_bytes, METADATA_FEE);
+
+    core.sync().await.unwrap();
+    let hmac = core
+        .begin_tx()
+        .await
+        .db()
+        .base_metadata
+        .get(&file.id)
+        .unwrap()
+        .document_hmac()
+        .cloned();
+    let docs = &core.docs;
+    let local_encrypted = docs.get(file.id, hmac).await.unwrap().value;
+
+    assert_eq!(core.get_usage().await.unwrap().usages.len(), 2);
+    assert_eq!(
+        core.get_usage()
+            .await
+            .unwrap()
+            .usages
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum::<u64>(),
+        local_encrypted.len() as u64 + METADATA_FEE * 2
+    )
+}
+
+#[tokio::test]
+async fn usage_go_back_down_after_delete() {
+    let core = test_core_with_account().await;
+    let root = core.root().await.unwrap();
+
+    let file = core
+        .create_file(&random_name(), &root.id, FileType::Document)
+        .await
+        .unwrap();
+    core.write_document(file.id, &String::from("0000000000").into_bytes())
+        .await
+        .unwrap();
+
+    core.sync().await.unwrap();
+    core.delete(&file.id).await.unwrap();
+    core.sync().await.unwrap();
+
+    assert_eq!(
+        core.get_usage()
+            .await
+            .unwrap()
+            .usages
+            .iter()
+            .map(|f| f.size_bytes)
+            .sum::<u64>(),
+        METADATA_FEE
+    );
+}
+
+#[tokio::test]
+async fn usage_go_back_down_after_delete_folder() {
+    let core = test_core_with_account().await;
+    let root = core.root().await.unwrap();
+
+    let folder = core.create_file("folder", &root.id, Folder).await.unwrap();
+    let file = core
+        .create_file(&random_name(), &root.id, FileType::Document)
+        .await
+        .unwrap();
+    core.write_document(file.id, &String::from("0000000000").into_bytes())
+        .await
+        .unwrap();
+    let file2 = core
+        .create_file(&random_name(), &folder.id, FileType::Document)
+        .await
+        .unwrap();
+    core.write_document(file2.id, &String::from("0000000000").into_bytes())
+        .await
+        .unwrap();
+    let file3 = core
+        .create_file(&random_name(), &folder.id, FileType::Document)
+        .await
+        .unwrap();
+    core.write_document(file3.id, &String::from("0000000000").into_bytes())
+        .await
+        .unwrap();
+
+    core.sync().await.unwrap();
+    let usages = core.get_usage().await.unwrap();
+    assert_eq!(usages.usages.len(), 5);
+    core.delete(&folder.id).await.unwrap();
+    for usage in usages.usages {
+        assert_ne!(usage.size_bytes, 0);
+    }
+    core.sync().await.unwrap();
+
+    let hmac = core
+        .begin_tx()
+        .await
+        .db()
+        .base_metadata
+        .get(&file.id)
+        .unwrap()
+        .document_hmac()
+        .cloned();
+
+    let docs = &core.docs;
+    docs.get(file.id, hmac).await.unwrap();
+
+    let usage = core
+        .get_usage()
+        .await
+        .unwrap_or_else(|err| panic!("{err:?}"));
+
+    assert_eq!(usage.usages.len(), 2);
+}
+
+#[tokio::test]
+async fn usage_new_files_have_no_size() {
+    let core = test_core_with_account().await;
+    let root = core.root().await.unwrap();
+    core.create_file(&random_name(), &root.id, FileType::Document)
+        .await
+        .unwrap();
+
+    assert!(
+        core.get_usage().await.unwrap().usages.len() == 1,
+        "Didn't account for the cost of root file metadata"
+    );
+
+    core.sync().await.unwrap();
+
+    let total_usage = core
+        .get_usage()
+        .await
+        .unwrap()
+        .usages
+        .iter()
+        .filter(|usage| usage.file_id != root.id)
+        .map(|usage| usage.size_bytes)
+        .sum::<u64>();
+
+    assert_eq!(total_usage, METADATA_FEE);
+}
+
+#[tokio::test]
+async fn change_doc_over_data_cap() {
+    let core: Lb = test_core_with_account().await;
+    let document = core.create_at_path("hello.md").await.unwrap();
+    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE - METADATA_FEE * 2))
+        .map(|_| rand::random::<u8>())
+        .collect();
+    core.write_document(document.id, &content).await.unwrap();
+
+    let result = core.sync().await;
+
+    assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
+}
+
+#[tokio::test]
+async fn old_file_and_new_large_one() {
+    let core = test_core_with_account().await;
+    let document1 = core.create_at_path("document1.md").await.unwrap();
+    let content: Vec<u8> = (0..((FREE_TIER_USAGE_SIZE as f64 * 0.8) as i64))
+        .map(|_| rand::random::<u8>())
+        .collect();
+    core.write_document(document1.id, &content).await.unwrap();
+
+    core.sync().await.unwrap();
+
+    let document2 = core.create_at_path("document2.md").await.unwrap();
+    core.write_document(document2.id, &content).await.unwrap();
+
+    let result = core.sync().await;
+
+    assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
+}
+
+#[tokio::test]
+async fn upsert_meta_over_data_cap() {
+    let core: Lb = test_core_with_account().await;
+
+    let document = core.create_at_path("document.md").await.unwrap();
+
+    let content: Vec<u8> = (0..(FREE_TIER_USAGE_SIZE - 10 * METADATA_FEE))
+        .map(|_| rand::random::<u8>())
+        .collect();
+
+    core.write_document(document.id, &content).await.unwrap();
+
+    core.sync().await.unwrap();
+
+    let hmac = {
+        core.ro_tx()
+            .await
+            .db()
+            .base_metadata
+            .get(&document.id)
+            .unwrap()
+            .document_hmac()
+            .cloned()
+    };
+    let docs = &core.docs;
+    let local_encrypted = docs.get(document.id, hmac).await.unwrap().value;
+
+    let file_capacity =
+        (FREE_TIER_USAGE_SIZE - local_encrypted.len() as u64) as f64 / METADATA_FEE as f64;
+
+    for i in 0..file_capacity as i64 - 2 {
+        core.create_at_path(format!("document{i}.md").as_str())
+            .await
+            .unwrap();
+        core.sync().await.unwrap();
+    }
+
+    core.create_at_path("the_file_that_broke_the_camel's_back.md")
+        .await
+        .unwrap();
+
+    let result = core.sync().await;
+    assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
+}
+
+/// After 25x'ing our free tier this test runs too slow to run repeatedely
+/// creating 25k files takes a long amount of time, although each individual file seems
+/// to take an acceptable amount of time (less than 50ms in a heavily instrumented env.)
+/// It seems to be O(n) not anything worse.
+///
+/// for now, I think ignoring this test is acceptable because someone interacting with lockbook
+/// normally will have a fine time even if they have 25k files. But it could be nice to improve
+/// this for bulk import reasons and here are some possibilities:
+///
+/// - scrutinize link strictness, maybe also for UX reasons
+/// - populate caches incrementally
+/// - consider only performing validations on the staged side of a tree
+#[tokio::test]
+#[ignore]
+async fn upsert_meta_empty_folder_over_data_cap() {
+    let core: Lb = test_core_with_account().await;
+    let free_tier_limit = FREE_TIER_USAGE_SIZE / METADATA_FEE;
+    let root = core.root().await.unwrap();
+
+    for _ in 0..(free_tier_limit + 10) {
+        core.create_file(&uuid::Uuid::new_v4().to_string(), &root.id, FileType::Document)
+            .await
+            .unwrap();
+    }
+    let result = core.sync();
+
+    assert_eq!(result.await.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
+}
+
+#[tokio::test]
+async fn shared_docs_excluded() {
+    let cores: Vec<Lb> = vec![test_core_with_account().await, test_core_with_account().await];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").await.unwrap();
+    cores[0]
+        .create_file("document", &folder.id, FileType::Document)
+        .await
+        .unwrap();
+
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .await
+        .unwrap();
+
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
+
+    cores[1]
+        .create_link_at_path("link", folder.id)
+        .await
+        .unwrap();
+
+    cores[1].sync().await.unwrap();
+
+    assert_eq!(cores[1].get_usage().await.unwrap().usages.len(), 2);
+}
+
+#[tokio::test]
+async fn sharee_cannot_exceed_sharer_data_cap() {
+    let core_a = test_core_with_account().await;
+    let core_b = test_core_with_account().await;
+    let account_b = core_b.get_account().unwrap();
+
+    // A shares a folder with B
+    let folder = core_a.create_at_path("shared_folder/").await.unwrap();
+    core_a
+        .share_file(folder.id, &account_b.username, ShareMode::Write)
+        .await
+        .unwrap();
+    core_a.sync().await.unwrap();
+
+    // B syncs and creates a link to the shared folder
+    core_b.sync().await.unwrap();
+    core_b.create_link_at_path("link", folder.id).await.unwrap();
+    core_b.sync().await.unwrap();
+
+    // B creates 5 documents in the shared folder, each 1/4th of free tier usage
+    // The 5th file should exceed A's data cap
+    let file_size = FREE_TIER_USAGE_SIZE / 4;
+    for i in 0..5 {
+        let doc = core_b
+            .create_file(&format!("doc{i}.md"), &folder.id, FileType::Document)
+            .await
+            .unwrap();
+        let content: Vec<u8> = (0..file_size).map(|_| rand::random::<u8>()).collect();
+        core_b.write_document(doc.id, &content).await.unwrap();
+    }
+
+    // B's sync should fail because the content would exceed A's data cap
+    let result = core_b.sync().await;
+    assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
+}
+
+#[tokio::test]
+async fn sharee_cannot_exceed_sharer_data_cap_via_metadata() {
+    let core_a = test_core_with_account().await;
+    let core_b = test_core_with_account().await;
+    let account_b = core_b.get_account().unwrap();
+
+    // A shares a folder with B
+    let folder = core_a.create_at_path("shared_folder/").await.unwrap();
+    core_a
+        .share_file(folder.id, &account_b.username, ShareMode::Write)
+        .await
+        .unwrap();
+    core_a.sync().await.unwrap();
+
+    // B syncs and creates a link to the shared folder
+    core_b.sync().await.unwrap();
+    core_b.create_link_at_path("link", folder.id).await.unwrap();
+    core_b.sync().await.unwrap();
+
+    // B creates a large document that uses most of A's data cap
+    // Account for: root (1) + shared_folder (1) + large.md (1) = 3 files of metadata already
+    // Leave room for ~5 more files of metadata
+    let large_doc = core_b
+        .create_file("large.md", &folder.id, FileType::Document)
+        .await
+        .unwrap();
+    let content_size = FREE_TIER_USAGE_SIZE - (METADATA_FEE * 8);
+    let content: Vec<u8> = (0..content_size).map(|_| rand::random::<u8>()).collect();
+    core_b.write_document(large_doc.id, &content).await.unwrap();
+    core_b.sync().await.unwrap();
+
+    // Now B creates more empty files to exceed A's cap via metadata alone
+    for i in 0..10 {
+        core_b
+            .create_file(&format!("file{i}.md"), &folder.id, FileType::Document)
+            .await
+            .unwrap();
+    }
+
+    // B's sync should fail because the metadata would exceed A's data cap
+    let result = core_b.sync().await;
+    assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
+}

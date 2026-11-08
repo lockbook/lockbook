@@ -4,8 +4,8 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::TextBufferArea;
-use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::{Affinity, MdRender};
 use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
 
 pub trait BufferExt {
@@ -63,17 +63,27 @@ pub enum FontFamily {
 impl FontFamily {
     pub(crate) fn glyphon_cache_family(self) -> GlyphonFontFamily {
         match self {
-            FontFamily::Sans => GlyphonFontFamily::SansSerif,
-            FontFamily::Mono => GlyphonFontFamily::Monospace,
-            FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols".into()),
-            FontFamily::Phosphor => GlyphonFontFamily::Named("Phosphor".into()),
+            FontFamily::Sans => GlyphonFontFamily::Named(crate::font::note_family(false)),
+            FontFamily::Mono => GlyphonFontFamily::Named(crate::font::note_family(true)),
+            FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols"),
+            FontFamily::Phosphor => GlyphonFontFamily::Named("Phosphor"),
+        }
+    }
+
+    /// How much larger than asked this family draws, so a chosen family's
+    /// lowercase stands as tall as the platform's.
+    pub(crate) fn size_adjust(self) -> f32 {
+        match self {
+            FontFamily::Sans => crate::font::size_adjust(false),
+            FontFamily::Mono => crate::font::size_adjust(true),
+            FontFamily::Icons | FontFamily::Phosphor => 1.,
         }
     }
 
     pub(crate) fn glyphon_family(self) -> glyphon::Family<'static> {
         match self {
-            FontFamily::Sans => glyphon::Family::SansSerif,
-            FontFamily::Mono => glyphon::Family::Monospace,
+            FontFamily::Sans => glyphon::Family::Name(crate::font::note_family(false)),
+            FontFamily::Mono => glyphon::Family::Name(crate::font::note_family(true)),
             FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
             FontFamily::Phosphor => glyphon::Family::Name("Phosphor"),
         }
@@ -196,6 +206,12 @@ pub struct EmbedSpec {
 pub enum EmbedKind {
     Image,
     LinkCard,
+    /// `url` is the diagram's Mermaid source.
+    Diagram,
+    /// A wiki embed's tab; its url is the title.
+    Tab,
+    /// A divider's rule; its url is empty.
+    Rule,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -222,12 +238,25 @@ impl StyleInfo {
     }
 }
 
-/// A strike/underline rule, painted on top of text (see `deco_lines`).
+/// A strike/underline rule or a spelling mark, painted on top of text (see
+/// `deco_lines`).
 #[derive(Clone, Debug)]
 pub struct DecoLine {
     pub x: std::ops::RangeInclusive<f32>,
     pub y: f32,
     pub color: egui::Color32,
+    pub dotted: bool,
+}
+
+impl DecoLine {
+    pub fn paint(&self, painter: &egui::Painter) {
+        if self.dotted {
+            let ends = [Pos2::new(*self.x.start(), self.y), Pos2::new(*self.x.end(), self.y)];
+            painter.extend(egui::Shape::dotted_line(&ends, self.color, 3.0, 1.0));
+        } else {
+            painter.hline(self.x.clone(), self.y, egui::Stroke::new(1.0_f32, self.color));
+        }
+    }
 }
 
 /// One visual row of a wrap unit, emitted by `build_rows`.
@@ -269,6 +298,8 @@ pub struct WrapUnitLayout {
     /// painted glyphs will sit at a different scale from the
     /// fragment rects.
     pub row_height: f32,
+    /// Source ranges of prose, whose words are spell checked.
+    pub prose: Vec<(Grapheme, Grapheme)>,
 }
 
 /// Per-side padding between a fragment's outer rect and its glyph
@@ -376,6 +407,8 @@ pub struct Layout {
     /// substitutes these to spaces too — cosmic-text never sees `\t`.
     /// Walker computes pixel-stop advance for each at shape time.
     tab_positions: Vec<usize>,
+    /// Source ranges of prose, whose words are spell checked.
+    prose: Vec<(Grapheme, Grapheme)>,
 }
 
 #[derive(Clone, Debug)]
@@ -408,6 +441,14 @@ impl Layout {
             events: Vec::new(),
             source_range,
             tab_positions: Vec::new(),
+            prose: Vec::new(),
+        }
+    }
+
+    /// Marks `source` as prose, whose words are spell checked.
+    pub fn push_prose(&mut self, source: (Grapheme, Grapheme)) {
+        if !source.is_empty() {
+            self.prose.push(source);
         }
     }
 
@@ -545,6 +586,66 @@ fn push_sanitised(out: &mut String, tabs: &mut Vec<usize>, text: &str) {
 }
 
 impl MdRender {
+    /// Where body text's baseline falls in a row, as a fraction of the row
+    /// height down from its top; the same at every size.
+    fn body_baseline(&self, row_height: f32) -> f32 {
+        self.body_metrics(row_height).0
+    }
+
+    /// How far body text's ascent rises above the top of a row
+    /// `row_height` tall, as its font reports it: 0 for fonts that fit.
+    pub fn ascent_overflow(&self, row_height: f32) -> f32 {
+        let (baseline, ascent) = self.body_metrics(row_height);
+        (ascent - baseline).max(0.) * row_height
+    }
+
+    /// Body text's baseline and ascent as fractions of the row height.
+    fn body_metrics(&self, row_height: f32) -> (f32, f32) {
+        let seq = crate::font::chosen_seq();
+        if let Some((at, baseline, ascent)) = self.layout_cache.body_metrics.get() {
+            if at == seq {
+                return (baseline, ascent);
+            }
+        }
+        let (baseline, ascent) = self.measure_body_metrics(row_height);
+        self.layout_cache
+            .body_metrics
+            .set(Some((seq, baseline, ascent)));
+        (baseline, ascent)
+    }
+
+    fn measure_body_metrics(&self, row_height: f32) -> (f32, f32) {
+        let fs = self.ctx.data(|d| {
+            d.get_temp::<std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>>(egui::Id::NULL)
+        });
+        let cache = self
+            .ctx
+            .data(|d| d.get_temp::<std::sync::Arc<std::sync::Mutex<GlyphonCache>>>(egui::Id::NULL));
+        let (Some(fs), Some(cache)) = (fs, cache) else { return (BASELINE, BASELINE) };
+        let body = Format {
+            family: FontFamily::Sans,
+            bold: false,
+            italic: false,
+            color: egui::Color32::PLACEHOLDER,
+            underline: false,
+            strikethrough: false,
+            background: egui::Color32::TRANSPARENT,
+            spoiler: false,
+            superscript: false,
+            subscript: false,
+        };
+        let ppi = self.ctx.pixels_per_point();
+        let (buffer, _) = shape_chunk(&fs, &cache, "x", &body, row_height, f32::MAX / 4.0, ppi);
+        let buffer = buffer.read().unwrap();
+        let baseline = baseline_of(&buffer).unwrap_or(BASELINE);
+        let ascent = buffer
+            .lines
+            .first()
+            .and_then(|line| line.layout_opt()?.first())
+            .map_or(baseline, |line| line.max_ascent / buffer.metrics().line_height);
+        (baseline, ascent)
+    }
+
     /// `text`'s width in `format` at `row_height`, shaped as the layout
     /// shapes it.
     pub fn text_advance(&self, text: &str, format: &Format, row_height: f32) -> f32 {
@@ -598,7 +699,8 @@ impl MdRender {
             vec![Row { y_top: 0.0, ascent, descent, source_range, fragments: Vec::new(), anchors }]
         } else {
             let breaks = greedy_break(&items, width, inline_pad);
-            build_rows(&breaks, &items, &layout, row_height, row_spacing, inline_pad)
+            let text_baseline = self.body_baseline(row_height);
+            build_rows(&breaks, &items, &layout, row_height, row_spacing, inline_pad, text_baseline)
         };
         // Wrap unit height = stacked row glyph rects, no extra padding
         // for bg-styled rows. Per design, inline backgrounds contribute
@@ -611,7 +713,7 @@ impl MdRender {
             let last = rows.last().unwrap();
             last.y_top + last.ascent + last.descent
         };
-        WrapUnitLayout { source_range, rows, height, width, row_height }
+        WrapUnitLayout { source_range, rows, height, width, row_height, prose: layout.prose }
     }
 
     /// How wide a wrap unit can usefully be made: at least its longest run
@@ -686,6 +788,14 @@ pub(crate) const BG_ROW_GAP: f32 = 2.0;
 /// the capsule edges) and by cursor math (which backs them out so the
 /// caret beside the atom renders beside the capsule).
 pub(crate) const CHIP_SIDE_PAD: f32 = 0.3;
+
+/// The source span of the chip `f` is part of; touching chips stay apart.
+pub(crate) fn chip_of(f: &Fragment) -> Option<(Grapheme, Grapheme)> {
+    f.style_stack
+        .last()
+        .filter(|s| s.chip)
+        .map(|s| s.source_range)
+}
 
 fn chip_is_icon(s: &StyleInfo) -> bool {
     s.chip && s.format.family == FontFamily::Phosphor
@@ -944,7 +1054,7 @@ fn shape_to_items(
                     natural: 0.0,
                     source_range: (source_range.start(), source_range.start()),
                     visible_byte_range: lo_u..lo_u,
-                    buffer: empty_buffer(&fs, row_height, ppi),
+                    buffer: empty_buffer(row_height, ppi),
                     cluster_advances: Vec::new(),
                 });
             }
@@ -1033,7 +1143,7 @@ fn shape_chunk(
             );
             let text = text.to_string();
             let points =
-                row_height * if format.superscript || format.subscript { 0.75 } else { 1. };
+                row_height * if format.superscript || format.subscript { SCRIPT_SCALE } else { 1. };
             let spans = text.graphemes(true).map(|g| {
                 if shape_as_emoji(&format.family, g) {
                     (g, emoji_attrs.as_attrs())
@@ -1069,12 +1179,13 @@ fn shape_chunk(
 }
 
 /// Build the `GlyphonCache` key for a single-span shape. Super/sub
-/// scales the per-span metric to 0.75×, so we mirror that into the
+/// scales the per-span metric by [`SCRIPT_SCALE`], so we mirror that into the
 /// key's `font_size_bits` to keep cache entries separate from same-
 /// text non-super/sub shapes. `width_bits ^ 1` matches the
 /// `Wrap::None` marker convention from `block::height_buffer`.
 fn shape_cache_key(text: &str, format: &Format, metric: f32, width_px: f32) -> GlyphonCacheKey {
-    let key_metric = if format.superscript || format.subscript { metric * 0.75 } else { metric };
+    let key_metric =
+        if format.superscript || format.subscript { metric * SCRIPT_SCALE } else { metric };
     GlyphonCacheKey::single(
         text,
         format.family.glyphon_cache_family(),
@@ -1211,7 +1322,7 @@ fn emit_cluster_split_boxes(
                 natural: 0.0,
                 source_range: (start_g + i, start_g + i),
                 visible_byte_range: abs_lo..abs_lo,
-                buffer: empty_buffer(fs, row_height, ppi),
+                buffer: empty_buffer(row_height, ppi),
                 cluster_advances: Vec::new(),
             });
         }
@@ -1231,18 +1342,12 @@ fn emit_cluster_split_boxes(
     }
 }
 
-/// An empty (no-text) buffer used for zero-width separators. Cheap;
-/// glyphon caches the empty-shape result.
-fn empty_buffer(
-    fs: &std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>, row_height: f32, ppi: f32,
-) -> std::sync::Arc<std::sync::RwLock<glyphon::Buffer>> {
-    use std::sync::{Arc, RwLock};
+/// An unshaped buffer for zero-width separators; it has no glyphs to paint.
+fn empty_buffer(row_height: f32, ppi: f32) -> std::sync::Arc<std::sync::RwLock<glyphon::Buffer>> {
     let metric = row_height * ppi;
-    let buffer = {
-        let mut guard = fs.lock().unwrap();
-        glyphon::Buffer::new(&mut guard, glyphon::Metrics::new(metric, metric))
-    };
-    Arc::new(RwLock::new(buffer))
+    std::sync::Arc::new(std::sync::RwLock::new(glyphon::Buffer::new_empty(glyphon::Metrics::new(
+        metric, metric,
+    ))))
 }
 
 /// Map a visible byte range back to source. Returns `(start, start)`
@@ -1332,9 +1437,12 @@ fn format_to_attrs(format: &Format, base_row_height: f32) -> glyphon::AttrsOwned
         .family(family)
         .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
         .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
+    let adjust = format.family.size_adjust();
     if format.superscript || format.subscript {
-        let size = base_row_height * 0.75;
-        attrs = attrs.metrics(glyphon::Metrics::new(size, size));
+        let size = base_row_height * SCRIPT_SCALE;
+        attrs = attrs.metrics(glyphon::Metrics::new(size * adjust, size));
+    } else if adjust != 1. {
+        attrs = attrs.metrics(glyphon::Metrics::new(base_row_height * adjust, base_row_height));
     }
     glyphon::AttrsOwned::new(&attrs)
 }
@@ -1514,15 +1622,31 @@ fn active_interaction(stack: &[(egui::Id, egui::Sense)]) -> Option<(egui::Id, eg
         .copied()
 }
 
+/// Where a shaped line's baseline falls, as a fraction of its buffer's line
+/// height down from its top: each font centers its own ascent and descent
+/// there.
+fn baseline_of(buffer: &glyphon::Buffer) -> Option<f32> {
+    let run = buffer.layout_runs().next()?;
+    Some(run.line_y / buffer.metrics().line_height)
+}
+
+/// How large superscripts and subscripts draw against the text they sit in.
+const SCRIPT_SCALE: f32 = 0.75;
+
+/// The baseline of a row with no shaped body text to measure.
+const BASELINE: f32 = 0.8;
+
 /// Walk the broken stream, emitting one `Row` per break window with
 /// one fragment per Box/Glue/Pad (no coalescing). Style scope events
 /// update the running stack between fragments. The wrap-break-glue
 /// (last item of a row when a next row follows, if it's a Glue)
 /// renders as a zero-width fragment and is excluded from the row's
 /// `source_range`.
+/// Text sits on `text_baseline`, a fraction of the row height down from its
+/// top, whatever font draws it.
 pub fn build_rows(
     breaks: &[usize], items: &[InlineItem], layout: &Layout, row_height: f32, row_spacing: f32,
-    inline_pad: f32,
+    inline_pad: f32, text_baseline: f32,
 ) -> Vec<Row> {
     let mut rows: Vec<Row> = Vec::with_capacity(breaks.len().saturating_sub(1));
     let default_ascent = row_height * 0.8;
@@ -1605,7 +1729,7 @@ pub fn build_rows(
             let (item_y_min, item_y_max) = {
                 let f = style_stack.last().map(|s| &s.format);
                 let text_height = default_ascent + default_descent;
-                let small = text_height * 0.75;
+                let small = text_height * SCRIPT_SCALE;
                 match f {
                     Some(f) if f.superscript => (text_top, text_top + small),
                     Some(f) if f.subscript => (text_bottom - small, text_bottom),
@@ -1635,9 +1759,19 @@ pub fn build_rows(
                         row_visible_lo
                             .map_or(visible_byte_range.start, |v| v.min(visible_byte_range.start)),
                     );
+                    // raised a third of the text size or lowered a fifth, as WebKit
+                    let offset = match style_stack.last().map(|s| &s.format) {
+                        Some(f) if f.superscript => -row_height / 3.0,
+                        Some(f) if f.subscript => row_height / 5.0,
+                        _ => 0.0,
+                    };
+                    let own = baseline_of(&buffer.read().unwrap()).unwrap_or(text_baseline);
+                    let top = text_top + text_baseline * row_height + offset
+                        - item_y_min
+                        - own * row_height;
                     row_fragments.push(Fragment {
                         rect,
-                        content_inset: FragmentInset::default(),
+                        content_inset: FragmentInset { top, ..Default::default() },
                         source_range: *source_range,
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Glyphs {
@@ -1890,6 +2024,14 @@ impl MdRender {
             let [r, g, b, a] = c.to_array();
             glyphon::Color::rgba(r, g, b, a)
         };
+        let mut misspelled = self.misspelled_words(&layout.prose);
+        self.misspelled.extend_from_slice(&misspelled);
+        let unit = layout.source_range;
+        let errors = self
+            .diagram_errors
+            .iter()
+            .filter(|e| e.intersects(&unit, false));
+        misspelled.extend(errors);
 
         for row_idx in 0..layout.rows.len() {
             let row = &layout.rows[row_idx];
@@ -1899,7 +2041,6 @@ impl MdRender {
                     .map(|s| s.format.background)
                     .filter(|c| *c != egui::Color32::TRANSPARENT)
             };
-            let chip_of = |f: &Fragment| -> bool { f.style_stack.last().is_some_and(|s| s.chip) };
 
             // Pass 1: coalesce same-bg chains into one pill (single
             // fill, single stroke — no seams at fragment boundaries).
@@ -1927,12 +2068,26 @@ impl MdRender {
                 // backgrounds stop short of the row spacing so ones on
                 // adjacent rows stay apart
                 let pad = inline_pad - BG_ROW_GAP / 2.0;
+                // centered on its text from baseline to ascender, not the
+                // row: fonts place their baseline differently
+                let family = row.fragments[chain_start]
+                    .style_stack
+                    .last()
+                    .map(|s| s.format.family);
+                let mono = family == Some(FontFamily::Mono);
+                let shift = match crate::font::ascender_height(mono) {
+                    Some(ascender) if chip.is_none() => {
+                        let baseline = self.body_baseline(row_height) * row_height;
+                        baseline - ascender * row_height / 2.0 - row_height / 2.0
+                    }
+                    _ => 0.0,
+                };
                 let bg_rect = Rect::from_min_max(
-                    egui::Pos2::new(chain_left, row_top - pad),
-                    egui::Pos2::new(chain_right, row_bottom + pad),
+                    egui::Pos2::new(chain_left, row_top - pad + shift),
+                    egui::Pos2::new(chain_right, row_bottom + pad + shift),
                 );
                 // a chip is one row, so a whole capsule
-                let radius = if chip { bg_rect.height() / 2.0 } else { 2.0 };
+                let radius = if chip.is_some() { bg_rect.height() / 2.0 } else { 2.0 };
                 if ui.clip_rect().intersects(bg_rect) {
                     let rounding = egui::CornerRadius::same(radius as u8);
                     ui.painter().rect_filled(bg_rect, rounding, bg);
@@ -2001,6 +2156,16 @@ impl MdRender {
                             egui::CornerRadius::same(2),
                         ),
                         EmbedKind::LinkCard => self.paint_link_card(embed_ui, url, screen_rect),
+                        EmbedKind::Diagram => {
+                            self.paint_diagram_embed(embed_ui, url, frag.source_range, screen_rect)
+                        }
+                        EmbedKind::Tab => self.paint_tab_embed(
+                            embed_ui,
+                            url,
+                            screen_rect,
+                            frag.source_range.start(),
+                        ),
+                        EmbedKind::Rule => self.paint_rule(embed_ui, screen_rect),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,
@@ -2014,7 +2179,7 @@ impl MdRender {
                         let sr = frag.source_range;
                         if !sel.is_empty() && sel.contains_range(&sr, true, true) {
                             let theme = self.ctx.get_lb_theme();
-                            let accent = theme.bg().get_color(theme.prefs().primary);
+                            let accent = theme.accent_bg();
                             let tint = egui::Color32::from_rgba_unmultiplied(
                                 accent.r(),
                                 accent.g(),
@@ -2038,6 +2203,7 @@ impl MdRender {
                             x: x.clone(),
                             y: baseline_top + row_height * 0.55,
                             color: fmt.color,
+                            dotted: false,
                         });
                     }
                     if fmt.underline {
@@ -2045,6 +2211,7 @@ impl MdRender {
                             x,
                             y: baseline_top + row_height * 0.95,
                             color: fmt.color,
+                            dotted: false,
                         });
                     }
                 }
@@ -2052,6 +2219,7 @@ impl MdRender {
                 // Mirror onto the flat fragment list for cursor / hit-test.
                 let mut f = frag.clone();
                 f.rect = screen_rect;
+                self.mark_misspellings(ui, &f, &misspelled, row_height);
                 self.fragments.push(f);
             }
 
@@ -2096,26 +2264,52 @@ impl MdRender {
     /// Find the fragment whose `source_range` contains `offset`,
     /// inclusive of both endpoints (so cursor positions at line-
     /// trailing `\n` bytes — excluded from any source line by
-    /// `range_split_newlines` — still resolve). Reverse search:
-    /// at a shared boundary `(a, b)`/`(b, c)`, the *later* fragment
-    /// wins (cursor-affinity matches paint).
+    /// `range_split_newlines` — still resolve). At a shared boundary
+    /// `(a, b)`/`(b, c)` the *later* fragment wins, unless the caret sits
+    /// there upstream of a soft wrap: then the row it ends wins.
     pub fn fragment_at_offset(&self, offset: Grapheme) -> Option<&Fragment> {
+        let affinity = self.caret_affinity_at(offset);
+        self.fragment_idx_at_offset(offset, affinity)
+            .map(|i| &self.fragments[i])
+    }
+
+    /// The affinity of a caret at `offset`.
+    pub fn caret_affinity_at(&self, offset: Grapheme) -> Affinity {
+        match self.caret_affinity {
+            (caret, affinity) if caret == offset => affinity,
+            _ => Affinity::Downstream,
+        }
+    }
+
+    /// [`Self::fragment_at_offset`]'s index into `fragments`, for a caret
+    /// with `affinity`.
+    pub fn fragment_idx_at_offset(&self, offset: Grapheme, affinity: Affinity) -> Option<usize> {
+        let contains =
+            |f: &Fragment| f.source_range.start() <= offset && offset <= f.source_range.end();
+        let downstream = self.fragments.iter().rposition(contains)?;
+        let row_top = self.fragments[downstream].rect.top();
+        let upstream = match affinity {
+            Affinity::Upstream => self
+                .fragments
+                .iter()
+                .rposition(|f| contains(f) && f.rect.bottom() <= row_top),
+            Affinity::Downstream => None,
+        };
+        let row = self.fragments[upstream.unwrap_or(downstream)]
+            .rect
+            .y_range();
         // A caret at a chip's edge sits at the pill edge, not inside its padding
         // or favicon slot: prefer the chip's boundary anchor (a zero-width Spacer
         // at exactly `offset`, which `fragment_x` resolves to the pill edge) over
-        // the wider glyph fragments that also span the offset.
-        let anchor = self.fragments.iter().find(|f| {
+        // the wider glyph fragments on the same row that also span the offset.
+        let anchor = self.fragments.iter().position(|f| {
             f.source_range == (offset, offset)
                 && matches!(f.content, FragmentContent::Spacer)
                 && f.style_stack.last().is_some_and(|s| s.chip)
+                && f.rect.top() < row.max
+                && row.min < f.rect.bottom()
         });
-        if anchor.is_some() {
-            return anchor;
-        }
-        self.fragments.iter().rev().find(|f| {
-            let (s, e) = f.source_range;
-            s <= offset && offset <= e
-        })
+        Some(anchor.or(upstream).unwrap_or(downstream))
     }
 
     /// Find the fragment whose rect contains `pos` (clip-aware

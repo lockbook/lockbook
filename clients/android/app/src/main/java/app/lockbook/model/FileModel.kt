@@ -1,7 +1,6 @@
 package app.lockbook.model
 
 import net.lockbook.File
-import net.lockbook.Lb
 
 class FileModel(
     val root: File,
@@ -11,28 +10,17 @@ class FileModel(
 ) {
     companion object {
         // Returns Ok(null) if there is no root
-        fun createAtRoot(): FileModel {
-            val root = Lb.getRoot()
-
-            val fileModel =
-                FileModel(
-                    root,
-                    root,
-                    emptyMap(),
-                    listOf(),
-                )
-            fileModel.refreshFiles()
-
-            return fileModel
-        }
+        fun createAtRoot(snapshot: FileMetadataSnapshot = FileMetadataStore.current()): FileModel =
+            FileModel(snapshot.root, snapshot.root, snapshot.idsAndFiles, snapshot.children(snapshot.root.id))
 
         fun sortFiles(files: List<File>): List<File> = files.sortedWith(compareBy<File> { it.type }.thenBy { it.name })
     }
 
     fun isAtRoot(): Boolean = parent.id == parent.parent
 
-    fun refreshFiles() {
-        idsAndFiles = (Lb.listMetadatas() + Lb.getPendingShareFiles()).associateBy { it.id }
+    fun refreshFiles(snapshot: FileMetadataSnapshot = FileMetadataStore.current()) {
+        idsAndFiles = snapshot.idsAndFiles
+        parent = idsAndFiles[parent.id]?.takeIf { it.type == File.FileType.Folder } ?: root
         refreshChildren()
     }
 

@@ -4,10 +4,11 @@
 //! specific outcome (often a shipped bug fix). Render-side tests reuse the
 //! property `_check` helpers exposed by [`super::render_props`].
 
+use crate::tab::markdown_editor::{Syntax, View};
 use comrak::Arena;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt};
 
-use super::super::input::{Advance, Bound, Event, Location, Region};
+use super::super::input::{Advance, Bound, Event, Increment, Location, Region};
 use super::super::widget::utils::wrap_layout::FragmentContent;
 use super::harness::TestEditor;
 use super::render_props::{
@@ -250,6 +251,25 @@ fn enter_atom_selects_image_url() {
     let sel = ws.editor.edit.renderer.buffer.current.selection;
     assert_eq!(&ws.editor.edit.renderer.buffer[sel], url, "url selected: {sel:?}");
     assert!(ws.editor.edit.renderer.range_revealed_interior(img), "source revealed");
+}
+
+/// Backspace with a diagram ending the note, no newline after it.
+#[test]
+fn backspace_beside_diagram_at_note_end() {
+    use super::super::input::Increment;
+    let mut ws = TestEditor::new("a\n\n```mermaid\ngraph TD\nA-->B\n```");
+    ws.enter_frame();
+    assert_eq!(ws.editor.edit.renderer.bounds.diagrams.len(), 1);
+    ws.push(Event::Select { region: (Grapheme(1), Grapheme(1)).into() });
+    ws.enter_frame();
+    ws.push(Event::Delete {
+        region: Region::SelectionOrAdvance {
+            advance: Advance::By(Increment::Char),
+            backwards: true,
+        },
+    });
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), "\n\n```mermaid\ngraph TD\nA-->B\n```");
 }
 
 /// Mobile edit-menu "Edit" on a labeled link: with the selection exactly
@@ -566,6 +586,14 @@ fn icon_glyphs_skip_emoji_font() {
     assert!(shape_as_emoji(&FontFamily::Sans, "\u{26A0}\u{FE0F}")); // ⚠️
     assert!(shape_as_emoji(&FontFamily::Mono, "🚀"));
     assert!(!shape_as_emoji(&FontFamily::Sans, "a"));
+}
+
+/// A tab in a quote's indent spans to the next 4-column stop from where it
+/// sits, not from where the item's indent ends. Measured from the wrong
+/// column, the `>` of this alert was missed and its title line panicked.
+#[test]
+fn alert_after_mid_stop_tab_opens() {
+    TestEditor::new("1. x\n   \t > [!NOTE]\n");
 }
 
 // ── editor ──
@@ -1957,7 +1985,7 @@ fn find_esc_closes_widget() {
 }
 
 /// The chat connect step's masked key field: a standalone `MdEdit` with
-/// `plaintext + mask + single_line` must produce glyph fragments (the `*`s)
+/// Masked plain source on a single line must produce glyph fragments (the `*`s)
 /// on one unwrapped row, scrolled so a cursor at the end of an overlong key
 /// stays inside the rect.
 #[test]
@@ -1967,9 +1995,11 @@ fn masked_plaintext_mdedit_renders_glyphs() {
 
     let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let mut edit = MdEdit::empty(ctx.clone());
-    edit.renderer.plaintext = true;
+    edit.renderer.kind = Syntax::Plain;
+    edit.renderer.view = View::Source;
     edit.renderer.mask = true;
     edit.renderer.single_line = true;
+    assert_ne!(edit.renderer.kind, Syntax::Markdown, "a key never takes markdown edits");
     // Long enough that a 300px field must overflow (~8px/char mono).
     let key = "sk-test-".repeat(16);
     edit.set_text(&key);
@@ -2343,7 +2373,7 @@ fn phone_toolbar_never_pushed_off_screen() {
     // favicons/capsules only render with link fetching on; all metadata is
     // seeded above, so no request actually leaves the test
     editor.persistence.set_contact_linked_sites(true);
-    editor.virtual_keyboard_shown = true;
+    editor.editing = true;
 
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(390., 700.));
     let frames_run = std::cell::Cell::new(0u32);
@@ -2655,4 +2685,176 @@ fn abandoned_composition_text_commits_after_typing() {
     ws.enter_frame_with_input(vec![Egui::Text("x".into())]);
     ws.enter_frame_with_input(vec![Egui::Ime(ImeEvent::Commit("n".into()))]);
     assert_eq!(ws.get_text(), "xnabn\n");
+}
+
+/// Typing under a task item keeps its checkbox's id, so a pointer resting on
+/// the box keeps it hovered and its animation state through every keystroke.
+#[test]
+fn task_checkbox_id_survives_typing_in_its_children() {
+    let doc = "- [x] done\n  - a\n";
+    let at = Grapheme(doc.len() - 1);
+    let mut ws = TestEditor::new(doc);
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(at),
+            end: Location::Grapheme(at),
+        },
+    });
+    ws.enter_frame();
+
+    // the checkbox's click target on the first row
+    let pointer = egui::pos2(66.0, 71.0);
+    let clickable_under_pointer = |ws: &TestEditor| {
+        ws.editor.edit.renderer.ctx.viewport(|v| {
+            let widgets = &v.this_pass.widgets;
+            let mut ids: Vec<_> = widgets
+                .layers()
+                .flat_map(|(_, rects)| rects)
+                .filter(|w| w.sense.senses_click() && w.interact_rect.contains(pointer))
+                .map(|w| w.id)
+                .collect();
+            ids.sort_by_key(|id| id.value());
+            ids
+        })
+    };
+    ws.enter_frame_with_input(vec![egui::Event::PointerMoved(pointer)]);
+    let before = clickable_under_pointer(&ws);
+    assert!(!before.is_empty());
+
+    for typed in ["b", "c"] {
+        ws.enter_frame_with_input(vec![egui::Event::Text(typed.into())]);
+        assert_eq!(clickable_under_pointer(&ws), before, "after typing {typed:?}");
+    }
+    assert_eq!(ws.get_text(), "- [x] done\n  - abc\n");
+}
+
+/// Where a soft wrap ends one row at the offset that starts the next (a long
+/// word, a hidden mark), a click past the row's end and cmd+right leave the
+/// caret at the end of that row, as in Apple Notes; cmd+left from there goes
+/// to the row's start, and down and up keep to the ends of rows.
+#[test]
+fn caret_at_soft_wrap_stays_on_its_row() {
+    let select = |advance, backwards| Event::Select {
+        region: Region::ToAdvance { advance, backwards, extend_selection: false },
+    };
+    let line = Advance::To(Bound::Line);
+    let down = Advance::By(Increment::Lines(1));
+    let seam_rows = |lines: &[(Grapheme, Grapheme)]| {
+        lines
+            .windows(2)
+            .find(|w| w[0].end() == w[1].start())
+            .map(|w| [w[0], w[1]])
+    };
+    // where the marks doc wraps depends on font metrics, so a leading word of
+    // varying length shifts its wraps until one lands at a mark
+    let marks =
+        (0..40).map(|pad| "x".repeat(pad) + &" lorem *ipsum* dolor **sit** amet".repeat(40));
+    for (doc, wraps_at_marks) in
+        std::iter::once(("x".repeat(1000), false)).chain(marks.map(|doc| (doc, true)))
+    {
+        let mut ws = TestEditor::new(&doc);
+        ws.enter_frame_unfocused();
+        let lines = ws.editor.edit.renderer.bounds.wrap_lines.clone();
+        let Some([row, next]) = seam_rows(&lines) else {
+            assert!(wraps_at_marks, "a row sharing its end with the next row's start");
+            continue;
+        };
+        let rect = |row: (Grapheme, Grapheme)| {
+            ws.editor
+                .edit
+                .renderer
+                .fragments
+                .iter()
+                .filter(|f| {
+                    f.source_range.start() > row.start() && f.source_range.end() < row.end()
+                })
+                .fold(egui::Rect::NOTHING, |r, f| r.union(f.rect))
+        };
+        let (row_rect, next_rect) = (rect(row), rect(next));
+        // the selection, and whether its caret is drawn at the right end of `rect`
+        let caret = |ws: &TestEditor, rect: egui::Rect| {
+            let selection = ws.editor.edit.renderer.buffer.current.selection;
+            let [top, bottom] = ws.editor.edit.cursor_line(selection.1).unwrap();
+            let at_end =
+                rect.y_range().contains((top.y + bottom.y) / 2.) && top.x > rect.center().x;
+            (selection, at_end)
+        };
+
+        let past_end = egui::Pos2::new(row_rect.max.x + 20., row_rect.center().y);
+        ws.push(Event::Select { region: Region::Location(Location::Pos(past_end)) });
+        ws.enter_frame_unfocused();
+        let end = (row.end(), row.end());
+        assert_eq!(caret(&ws, row_rect), (end, true), "click past the row's end in {doc:?}");
+
+        ws.push(select(line, true));
+        ws.enter_frame_unfocused();
+        assert_eq!(caret(&ws, row_rect).0, (row.start(), row.start()), "cmd+left in {doc:?}");
+
+        ws.push(select(line, false));
+        ws.enter_frame_unfocused();
+        assert_eq!(caret(&ws, row_rect), (end, true), "cmd+right in {doc:?}");
+
+        ws.push(select(down, false));
+        ws.enter_frame_unfocused();
+        assert!(caret(&ws, next_rect).1, "down in {doc:?}");
+
+        ws.push(select(down, true));
+        ws.enter_frame_unfocused();
+        assert!(caret(&ws, row_rect).1, "up in {doc:?}");
+        if wraps_at_marks {
+            return;
+        }
+    }
+    panic!("no leading word makes the marks doc wrap at a mark");
+}
+
+/// From the end of a row that shares its end with the next row's start, a
+/// two-line move keeps the right-hand column, and so does a line move for a
+/// platform text system, whose positions carry no affinity.
+#[test]
+fn line_moves_from_a_soft_wrapped_row_end_keep_the_column() {
+    let mut ws = TestEditor::new(&"x".repeat(400));
+    ws.enter_frame_unfocused();
+    let lines = ws.editor.edit.renderer.bounds.wrap_lines.clone();
+    assert!(lines[..3].windows(2).all(|w| w[0].end() == w[1].start()));
+    let row_rect = |ws: &TestEditor, row: (Grapheme, Grapheme)| {
+        ws.editor
+            .edit
+            .renderer
+            .fragments
+            .iter()
+            .filter(|f| f.source_range.start() > row.start() && f.source_range.end() < row.end())
+            .fold(egui::Rect::NOTHING, |r, f| r.union(f.rect))
+    };
+    let drawn_at_end = |ws: &TestEditor, offset: Grapheme, row| {
+        let rect = row_rect(ws, row);
+        let [top, bottom] = ws.editor.edit.cursor_line(offset).unwrap();
+        rect.y_range().contains((top.y + bottom.y) / 2.) && top.x > rect.center().x
+    };
+    let click_past_end = |ws: &mut TestEditor, row| {
+        let rect = row_rect(ws, row);
+        let pos = egui::Pos2::new(rect.max.x + 20., rect.center().y);
+        ws.push(Event::Select { region: Region::Location(Location::Pos(pos)) });
+        ws.enter_frame_unfocused();
+    };
+
+    click_past_end(&mut ws, lines[0]);
+    ws.push(Event::Select {
+        region: Region::ToAdvance {
+            advance: Advance::By(Increment::Lines(2)),
+            backwards: false,
+            extend_selection: false,
+        },
+    });
+    ws.enter_frame_unfocused();
+    let caret = ws.editor.edit.renderer.buffer.current.selection.1;
+    assert!(drawn_at_end(&ws, caret, lines[2]), "two lines down landed at {caret:?}");
+
+    click_past_end(&mut ws, lines[1]);
+    // the way the iOS host moves the caret: by offset alone
+    let up = ws.editor.edit.lines_from(lines[1].end(), 1, true);
+    let at = Location::Grapheme(up);
+    ws.push(Event::Select { region: Region::BetweenLocations { start: at, end: at } });
+    ws.enter_frame_unfocused();
+    assert!(drawn_at_end(&ws, up, lines[0]), "a platform line up landed at {up:?}");
 }

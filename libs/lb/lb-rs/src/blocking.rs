@@ -17,7 +17,7 @@ use crate::model::path_ops::Filter;
 use crate::service::activity::RankingWeights;
 
 use crate::service::events::Event;
-use crate::service::import_export::{ExportFileInfo, ImportStatus};
+use crate::service::import_export::{Existing, ExportFileInfo, ImportPlan, ImportStatus};
 use crate::service::usage::UsageMetrics;
 use crate::subscribers::status::Status;
 
@@ -289,6 +289,18 @@ impl Lb {
         self.block_on(self.lb.import_files(sources, dest, update_status))
     }
 
+    pub fn plan_import(
+        &self, sources: &[PathBuf], dest: Uuid, existing: Existing,
+    ) -> LbResult<ImportPlan> {
+        self.block_on(self.lb.plan_import(sources, dest, existing))
+    }
+
+    pub fn import_planned<F: Fn(ImportStatus)>(
+        &self, plan: &ImportPlan, update_status: &F,
+    ) -> LbResult<()> {
+        self.block_on(self.lb.import_planned(plan, update_status))
+    }
+
     pub fn export_files(
         &self, id: Uuid, dest: PathBuf, edit: bool,
         export_progress: &Option<Box<dyn Fn(ExportFileInfo)>>,
@@ -403,8 +415,8 @@ impl Lb {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    pub fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
-        self.rt.block_on(self.lb.debug_info(os_info, true))
+    pub fn debug_info(&self) -> LbResult<DebugInfo> {
+        self.rt.block_on(self.lb.debug_info(true))
     }
 
     pub fn recent_panic(&self) -> LbResult<Option<chrono::DateTime<chrono::Local>>> {

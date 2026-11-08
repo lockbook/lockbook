@@ -1,16 +1,29 @@
 use std::mem;
 
+use crate::tab::markdown_editor::Affinity;
 use crate::tab::markdown_editor::MdEdit;
-use crate::tab::markdown_editor::bounds::BoundExt as _;
+use crate::tab::markdown_editor::View;
+use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _};
 use crate::tab::markdown_editor::input::{Advance, Bound, Increment};
 use crate::tab::markdown_editor::table::{CellBounds, TableCellBox};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Fragment;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 impl MdEdit {
-    pub fn advance(&mut self, offset: Grapheme, advance: Advance, backwards: bool) -> Grapheme {
+    /// Where `advance` takes a caret at `offset`, and the row it is drawn on
+    /// there when a soft wrap's shared offset leaves that open.
+    pub fn advance(
+        &mut self, offset: Grapheme, advance: Advance, backwards: bool,
+    ) -> (Grapheme, Affinity) {
         let maybe_x_target_value = mem::take(&mut self.cursor.x_target);
+        let mut affinity = Affinity::Downstream;
         let result = match advance {
+            Advance::To(Bound::Line) => {
+                if !backwards {
+                    affinity = Affinity::Upstream;
+                }
+                self.to_caret_row_bound(offset, backwards)
+            }
             Advance::To(bound) => offset.advance_to_bound(bound, backwards, &self.renderer.bounds),
             Advance::Next(bound) => {
                 offset.advance_to_next_bound(bound, backwards, &self.renderer.bounds)
@@ -29,16 +42,18 @@ impl MdEdit {
             }
             Advance::By(Increment::Lines(n)) => {
                 let mut result = offset;
+                affinity = self.renderer.caret_affinity_at(offset);
                 for _ in 0..n {
-                    let Some(result_x) = self.x(result) else {
+                    let Some(result_x) = self.x((result, affinity)) else {
                         match self.table_advance_from_hidden_cell(result, backwards) {
-                            Some(next) => result = next,
+                            Some(next) => (result, affinity) = (next, Affinity::Downstream),
                             None => break,
                         }
                         continue;
                     };
                     let x_target = maybe_x_target_value.unwrap_or(result_x);
-                    result = self.advance_by_line(result, x_target, backwards);
+                    (result, affinity) =
+                        self.advance_by_line((result, affinity), x_target, backwards);
                     if result != 0
                         && result != self.renderer.buffer.current.segs.last_cursor_position()
                     {
@@ -48,7 +63,11 @@ impl MdEdit {
                 result
             }
         };
+        let raw = result;
         let result = self.renderer.snap_offset_out_of_folds(result, backwards);
+        let affinity_at = |result: Grapheme| {
+            (result, if result == raw { affinity } else { Affinity::Downstream })
+        };
         // in a cell a line is the cell's own: its ends are the content's,
         // and from an end the next cell's is the line
         let cell = self.renderer.bounds.table_at(offset).and_then(|table| {
@@ -63,20 +82,36 @@ impl MdEdit {
                 _ => None,
             };
             if let Some(next) = next.and_then(|next| row.cells.get(next)) {
-                return if backwards { next.content.start() } else { next.content.end() };
+                return affinity_at(if backwards {
+                    next.content.start()
+                } else {
+                    next.content.end()
+                });
             }
-            return result.max(content.start()).min(content.end());
+            return affinity_at(result.max(content.start()).min(content.end()));
         }
-        self.renderer
-            .snap_offset_into_table_cell(offset, result, backwards)
+        affinity_at(
+            self.renderer
+                .snap_offset_into_table_cell(offset, result, backwards),
+        )
     }
 
     /// `n` visual lines from `offset`, holding its column. Pure: a platform
     /// text system keeps the column by always moving from the same start.
+    /// Its positions carry no affinity, so a row's end shared with the next
+    /// row's start comes back as the grapheme before it.
     pub fn lines_from(&self, offset: Grapheme, n: usize, backwards: bool) -> Grapheme {
-        let Some(x_target) = self.x(offset) else { return offset };
-        let result =
-            (0..n).fold(offset, |result, _| self.advance_by_line(result, x_target, backwards));
+        let caret = (offset, self.renderer.caret_affinity_at(offset));
+        let Some(x_target) = self.x(caret) else { return offset };
+        let (mut result, affinity) =
+            (0..n).fold(caret, |caret, _| self.advance_by_line(caret, x_target, backwards));
+        let r = &self.renderer;
+        let rows = [affinity, Affinity::Downstream].map(|a| r.fragment_idx_at_offset(result, a));
+        if let [Some(drawn), Some(downstream)] = rows {
+            if r.fragments[drawn].rect.bottom() <= r.fragments[downstream].rect.top() {
+                result = Grapheme(result.0 - 1);
+            }
+        }
         let result = self.renderer.snap_offset_out_of_folds(result, backwards);
         self.renderer
             .snap_offset_into_table_cell(offset, result, backwards)
@@ -86,21 +121,26 @@ impl MdEdit {
     /// table that is a row of the cell's own text, else the cell above or
     /// below, else the row beyond the table's edge.
     pub(crate) fn advance_by_line(
-        &self, offset: Grapheme, x_target: f32, backwards: bool,
-    ) -> Grapheme {
+        &self, caret: (Grapheme, Affinity), x_target: f32, backwards: bool,
+    ) -> (Grapheme, Affinity) {
+        let offset = caret.0;
         if let Some(result) = self.table_advance_by_line(offset, x_target, backwards) {
-            return result;
+            return (result, Affinity::Downstream);
         }
-        let result = self
-            .advance_by_row(offset, x_target, backwards, &|_| true)
-            .unwrap_or_else(|| self.document_edge_past(backwards));
-        self.table_enter_by_line(offset, result, x_target, backwards)
+        let (result, affinity) = self
+            .advance_by_row(caret, x_target, backwards, &|_| true)
+            .unwrap_or_else(|| (self.document_edge_past(backwards), Affinity::Downstream));
+        let entered = self.table_enter_by_line(offset, result, x_target, backwards);
+        (entered, if entered == result { affinity } else { Affinity::Downstream })
     }
 
     /// [`Self::advance_by_line`] from a table cell; `None` from elsewhere.
     fn table_advance_by_line(
         &self, offset: Grapheme, x_target: f32, backwards: bool,
     ) -> Option<Grapheme> {
+        if self.renderer.view == View::Source {
+            return None;
+        }
         let table = self.renderer.bounds.table_at(offset)?;
         let (row, column) = table.cell_at(offset)?;
         let cell = table.rows[row].cells[column];
@@ -109,7 +149,8 @@ impl MdEdit {
             return None; // shown as source
         }
 
-        if let Some(result) = self.advance_by_row(offset, x_target, backwards, &in_cell) {
+        let caret = (offset, self.renderer.caret_affinity_at(offset));
+        if let Some((result, _)) = self.advance_by_row(caret, x_target, backwards, &in_cell) {
             return Some(result.max(cell.content.start()).min(cell.content.end()));
         }
         if let Some(neighbor) = self.table_row_past(offset, backwards) {
@@ -124,8 +165,8 @@ impl MdEdit {
         let outside = |f: &Fragment| !table_lines.contains_range(&f.source_range, true, true);
         // with nothing beyond the table's edge, the caret stays in its cell
         Some(
-            self.advance_by_row(offset, x_target, backwards, &outside)
-                .unwrap_or(offset),
+            self.advance_by_row(caret, x_target, backwards, &outside)
+                .map_or(offset, |(result, _)| result),
         )
     }
 
@@ -136,12 +177,17 @@ impl MdEdit {
     fn table_advance_from_hidden_cell(
         &self, offset: Grapheme, backwards: bool,
     ) -> Option<Grapheme> {
+        if self.renderer.view == View::Source {
+            return None;
+        }
         let r = &self.renderer;
         let table = r.bounds.table_at(offset)?;
         let (_, column) = table.cell_at(offset)?;
         let key = Some(table.rows[0].line.start());
         let painted = |cell_box: &TableCellBox| r.table_key(cell_box.row) == key;
-        if self.x(offset).is_some() || !r.table_cell_boxes.iter().any(painted) {
+        if self.x((offset, r.caret_affinity_at(offset))).is_some()
+            || !r.table_cell_boxes.iter().any(painted)
+        {
             return None;
         }
         let (lines, (first, end)) = (&r.bounds.source_lines, table.lines());
@@ -173,11 +219,12 @@ impl MdEdit {
         });
         let Some(cell) = cell else { return false };
         let in_cell = |f: &Fragment| cell.span.contains_range(&f.source_range, true, true);
-        let Some(x) = self.x(offset) else { return false };
+        let Some(x) = self.x((offset, self.renderer.caret_affinity_at(offset))) else {
+            return false;
+        };
+        let caret = (offset, self.renderer.caret_affinity_at(offset));
         self.renderer.fragments.iter().any(in_cell)
-            && self
-                .advance_by_row(offset, x, backwards, &in_cell)
-                .is_none()
+            && self.advance_by_row(caret, x, backwards, &in_cell).is_none()
     }
 
     /// A vertical move from outside a table lands in the cell under
@@ -185,6 +232,9 @@ impl MdEdit {
     fn table_enter_by_line(
         &self, origin: Grapheme, result: Grapheme, x_target: f32, backwards: bool,
     ) -> Grapheme {
+        if self.renderer.view == View::Source {
+            return result;
+        }
         let r = &self.renderer;
         let Some(table) = r.bounds.table_at(result) else { return result };
         if r.bounds.table_at(origin) == Some(table) {
@@ -236,37 +286,25 @@ impl MdEdit {
             .map(|(offset, _)| offset.max(cell.content.start()).min(cell.content.end()))
     }
 
-    /// One visual row up or down from `offset` among the fragments `allow`
+    /// One visual row up or down from `caret` among the fragments `allow`
     /// admits; `None` if they hold no row in that direction.
     fn advance_by_row(
-        &self, offset: Grapheme, x_target: f32, backwards: bool, allow: &dyn Fn(&Fragment) -> bool,
-    ) -> Option<Grapheme> {
-        // Mirror `fragment_at_offset`'s last-match semantics so navigation
-        // agrees with cursor rendering at wrap boundaries.
-        let Some(cur_idx) = self
-            .renderer
-            .fragments
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(i, f)| {
-                let (s, e) = f.source_range;
-                (s <= offset && offset <= e).then_some(i)
-            })
-        else {
-            return Some(offset);
+        &self, caret: (Grapheme, Affinity), x_target: f32, backwards: bool,
+        allow: &dyn Fn(&Fragment) -> bool,
+    ) -> Option<(Grapheme, Affinity)> {
+        let Some(cur_idx) = self.renderer.fragment_idx_at_offset(caret.0, caret.1) else {
+            return Some(caret);
         };
         // A far row has no laid-out neighbors to move to.
         if self.renderer.fragments[cur_idx].far {
-            return Some(offset);
+            return Some(caret);
         }
         let cur_top = self.renderer.fragments[cur_idx].rect.top();
 
         // Walk one visual row at a time in the travel direction, nearest
         // first, taking the first row with a candidate that actually
-        // *renders* past the current row. Climbing past a row with no such
-        // candidate steps over wrap seams whose only offsets render back
-        // onto the current row.
+        // *renders* past the current row, climbing past a row with no such
+        // candidate.
         let mut row_cutoff =
             if backwards { cur_top } else { self.renderer.fragments[cur_idx].rect.bottom() };
         loop {
@@ -297,28 +335,19 @@ impl MdEdit {
     /// Also returns the row's far edge (top going up, bottom going down) so the
     /// caller can climb past a row with no such candidate.
     ///
-    /// Candidates are each fragment's closest point to `x_target`, plus the
-    /// grapheme just inside the row's far edge (`row_end - 1` up, `row_start +
-    /// 1` down) for nonempty rows — all ordered only by distance to `x_target`.
-    /// The inner grapheme matters at a soft-wrap seam: the row's end offset is
-    /// closest to a right-leaning `x_target` but renders on the row below (so it
-    /// fails the test), leaving the inner grapheme as the nearest candidate that
-    /// renders on the row itself. Down's `row_start + 1` never wins — last-match
-    /// resolves a seam to the lower row, already correct for down — but is kept
-    /// for symmetry.
+    /// Candidates are each fragment's closest point to `x_target`, with the
+    /// affinity that draws it on this row.
     fn best_offset_on_row(
         &self, cur_idx: usize, row_cutoff: f32, cur_top: f32, x_target: f32, backwards: bool,
         allow: &dyn Fn(&Fragment) -> bool,
-    ) -> (Option<Grapheme>, Option<f32>) {
+    ) -> (Option<(Grapheme, Affinity)>, Option<f32>) {
         let fragments = &self.renderer.fragments;
 
         // Gather the adjacent row's fragments: each contributes its closest
-        // point to `x_target`, while we track the row's source extent and
-        // the fragments holding its far edges for the inner-grapheme step.
+        // point to `x_target`.
         let mut row_edge: Option<f32> = None;
-        let mut candidates: Vec<(Grapheme, f32, bool)> = Vec::new(); // (offset, gen_x, empty_frag)
-        let (mut lo, mut hi) = (Grapheme(usize::MAX), Grapheme(0));
-        let (mut lo_idx, mut hi_idx) = (None, None);
+        // (offset, affinity, gen_x, empty_frag)
+        let mut candidates: Vec<(Grapheme, Affinity, f32, bool)> = Vec::new();
 
         let mut idx = cur_idx;
         loop {
@@ -355,56 +384,67 @@ impl MdEdit {
                 row_edge = Some(if backwards { frag.rect.top() } else { frag.rect.bottom() });
 
                 let (s, e) = (frag.source_range.start(), frag.source_range.end());
-                if s < lo {
-                    (lo, lo_idx) = (s, Some(idx));
-                }
-                if e > hi {
-                    (hi, hi_idx) = (e, Some(idx));
-                }
-
                 let off = self.renderer.fragment_offset(frag, x_target);
-                candidates.push((off, self.renderer.fragment_x(frag, off), s == e));
-            }
-        }
-
-        // The grapheme just inside the row's far edge — lets an up-press
-        // land on a soft-wrapped row rather than on its seam (see above).
-        if lo < hi {
-            if backwards {
-                if let Some(i) = hi_idx {
-                    let off = Grapheme(hi.0 - 1);
-                    candidates.push((off, self.renderer.fragment_x(&fragments[i], off), false));
-                }
-            } else if let Some(i) = lo_idx {
-                let off = Grapheme(lo.0 + 1);
-                candidates.push((off, self.renderer.fragment_x(&fragments[i], off), false));
+                let on_row = |affinity| {
+                    self.renderer
+                        .fragment_idx_at_offset(off, affinity)
+                        .is_some_and(|i| {
+                            fragments[i].rect.y_range().intersects(frag.rect.y_range())
+                        })
+                };
+                let affinity = match on_row(Affinity::Downstream) {
+                    true => Affinity::Downstream,
+                    false => Affinity::Upstream,
+                };
+                candidates.push((off, affinity, self.renderer.fragment_x(frag, off), s == e));
             }
         }
 
         // Closest candidate to `x_target` that renders past the current row
         // in the travel direction. Ties prefer empty fragments, placed
         // deliberately to steer this navigation.
-        let mut best: Option<Grapheme> = None;
+        let mut best: Option<(Grapheme, Affinity)> = None;
         let mut best_distance = f32::INFINITY;
-        for (off, gen_x, empty) in candidates {
-            let renders_past = self.renderer.fragment_at_offset(off).is_some_and(|f| {
-                if backwards { f.rect.top() < cur_top } else { f.rect.top() > cur_top }
-            });
+        for (off, affinity, gen_x, empty) in candidates {
+            let renders_past = self
+                .renderer
+                .fragment_idx_at_offset(off, affinity)
+                .is_some_and(|i| {
+                    let top = fragments[i].rect.top();
+                    if backwards { top < cur_top } else { top > cur_top }
+                });
             if !renders_past {
                 continue;
             }
             let distance = (gen_x - x_target).abs();
             if distance < best_distance || (distance == best_distance && empty) {
-                (best, best_distance) = (Some(off), distance);
+                (best, best_distance) = (Some((off, affinity)), distance);
             }
         }
 
         (best, row_edge)
     }
 
+    /// The start or end of the visual row the caret at `offset` is drawn on,
+    /// which at a soft wrap's shared offset its affinity picks.
+    fn to_caret_row_bound(&self, offset: Grapheme, backwards: bool) -> Grapheme {
+        let bounds = &self.renderer.bounds;
+        if let BoundCase::AtSharedBoundOfTouchingNonemptyRanges { range_before, range_after } =
+            offset.bound_case(&bounds.wrap_lines)
+        {
+            let row = match self.renderer.caret_affinity_at(offset) {
+                Affinity::Upstream => range_before,
+                Affinity::Downstream => range_after,
+            };
+            return if backwards { row.start() } else { row.end() };
+        }
+        offset.advance_to_bound(Bound::Line, backwards, bounds)
+    }
+
     /// returns the x coordinate of the absolute position of `self` in `fragment`
-    fn x(&self, offset: Grapheme) -> Option<f32> {
-        let frag = self.renderer.fragment_at_offset(offset)?;
+    fn x(&self, (offset, affinity): (Grapheme, Affinity)) -> Option<f32> {
+        let frag =
+            &self.renderer.fragments[self.renderer.fragment_idx_at_offset(offset, affinity)?];
         Some(self.renderer.fragment_x(frag, offset))
     }
 }

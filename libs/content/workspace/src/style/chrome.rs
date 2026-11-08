@@ -332,6 +332,8 @@ pub mod phosphor {
     pub const PHONE_DISCONNECT: &str = "\u{e3bc}";
     /// `ph-phone-slash`.
     pub const PHONE_SLASH: &str = "\u{e3c2}";
+    /// `ph-qr-code`.
+    pub const QR_CODE: &str = "\u{e3e6}";
     /// `ph-microphone`. U+E328 is `microphone-slash`.
     pub const MICROPHONE: &str = "\u{e326}";
     /// `ph-microphone-slash`.
@@ -422,6 +424,9 @@ pub mod phosphor {
     pub const TEXT_INDENT: &str = "\u{ea1e}";
     pub const TEXT_OUTDENT: &str = "\u{ea1c}";
     pub const QUOTES: &str = "\u{e660}";
+    pub const CODE_BLOCK: &str = "\u{eafe}";
+    /// Horizontal rule (`ph-arrows-out-line-vertical`).
+    pub const ARROWS_OUT_LINE_VERTICAL: &str = "\u{e536}";
     pub const TABLE: &str = "\u{e476}";
     pub const ROWS_PLUS_TOP: &str = "\u{e5a0}";
     pub const ROWS_PLUS_BOTTOM: &str = "\u{e59e}";
@@ -505,6 +510,7 @@ pub mod phosphor {
     pub const ARROW_LINE_DOWN: &str = "\u{e05c}";
     /// Mind map tab (connected nodes).
     pub const GRAPH: &str = "\u{eb58}";
+    pub const FLOW_ARROW: &str = "\u{e6ec}";
     /// Space inspector tab (share of disk).
     pub const CHART_PIE_SLICE: &str = "\u{e15a}";
 }
@@ -549,6 +555,7 @@ pub fn tab_icon(dest: &crate::tab::Destination, name: &str) -> &'static str {
         Destination::Search(_) => phosphor::SEARCH,
         Destination::MindMap(_) => phosphor::GRAPH,
         Destination::SpaceInspector(_) => phosphor::CHART_PIE_SLICE,
+        Destination::Diagram(_) => phosphor::FLOW_ARROW,
         Destination::File(_) => file_row_icon(name, false),
     }
 }

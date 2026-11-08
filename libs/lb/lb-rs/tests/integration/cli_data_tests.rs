@@ -1,0 +1,30 @@
+use lb_rs::Lb;
+use lb_rs::model::core_config::Config;
+use lb_rs::service::debug::DebugInfoDisplay;
+
+#[tokio::test]
+#[ignore]
+async fn pending_shares_perf() {
+    let lb = Lb::init(Config::cli_config("cli")).await.unwrap();
+    for _ in 0..1000 {
+        lb.get_pending_shares().await.unwrap();
+    }
+}
+
+#[tokio::test]
+#[ignore]
+async fn debug_info_test() {
+    let lb = Lb::init(Config::cli_config("cli")).await.unwrap();
+    for _ in 0..2 {
+        lb.debug_info(true).await.to_string();
+    }
+}
+
+#[tokio::test]
+#[ignore]
+async fn list_metadatas_perf() {
+    let lb = Lb::init(Config::cli_config("cli")).await.unwrap();
+    for _ in 0..100 {
+        lb.list_metadatas().await.unwrap();
+    }
+}

@@ -3,7 +3,9 @@ use egui::{Pos2, Rect, Sense, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::style::{Space, ThemeExt as _};
+use crate::syntax::Role;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+use crate::theme::palette_v2::Palette;
 
 use super::MdRender;
 use super::bounds::RangesExt as _;
@@ -14,6 +16,7 @@ pub(crate) mod debug;
 pub(crate) mod emoji_completions;
 pub(crate) mod find;
 pub(crate) mod inline;
+pub(crate) mod language_completions;
 pub(crate) mod link_completions;
 pub(crate) mod outline;
 pub(crate) mod toolbar;
@@ -139,7 +142,7 @@ impl<'ast> MdRender {
         range
     }
 
-    /// Creates a UI that assigns ids using the node range.
+    /// Creates a UI that assigns ids using the node's start.
     // By default, egui ids are assigned to ui's and widgets based on the parent
     // ui's id and incremented with each addition to a given parent. Because
     // editor text may be clickable, text allocates ids and affects future ids.
@@ -150,12 +153,13 @@ impl<'ast> MdRender {
     // widget being tapped may have had its id changed and will not register as
     // clicked. This function creates a consistently idenified ui based on the
     // node range to prevent ids from changing mid tap and therefore prevents
-    // taps from failing. Note that this range does not and need not survive
-    // edits to the document itself.
+    // taps from failing. Keyed on the start alone: siblings never share one,
+    // and it holds through edits inside or after the node, so typing doesn't
+    // re-key a block's widgets and drop their hover and animation state.
     pub fn node_ui(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>) -> Ui {
         ui.new_child(
             UiBuilder::new()
-                .id_salt(self.node_range(node)) // <- the magic
+                .id_salt(self.node_range(node).start()) // <- the magic
                 .layer_id(ui.layer_id())
                 .max_rect(ui.max_rect()),
         )
@@ -245,34 +249,32 @@ impl<'ast> MdRender {
             NodeValue::HtmlBlock(_) => self.text_format_html_block(parent()),
             NodeValue::Paragraph => parent_text_format(),
             NodeValue::TableCell => parent_text_format(),
+            // a checked task reads as done, all of it; what sets its own color keeps it
+            NodeValue::TaskItem(task) if task.symbol.is_some() => Format {
+                color: self.ctx.get_lb_theme().neutral_fg_secondary(),
+                ..parent_text_format()
+            },
             NodeValue::TaskItem(_) => parent_text_format(),
             NodeValue::ThematicBreak => parent_text_format(),
         }
     }
 
-    pub fn syntax_color_for_hex(&self, hex: &str) -> egui::Color32 {
+    /// How a span of `role` is drawn, over `format`: three accents, darkest
+    /// on structure (keywords, then names, then values), and headings and
+    /// styles weighted as they render.
+    pub fn syntax_format(&self, role: Role, mut format: Format) -> Format {
         let theme = self.ctx.get_lb_theme();
-        if let Some(code) = theme.code_variant() {
-            return match hex {
-                "#000000" => code.text,
-                "#111111" => code.comment,
-                "#222222" => code.class,
-                "#333333" => code.function,
-                "#444444" => code.keyword,
-                "#555555" => code.string,
-                "#666666" => code.number,
-                _ => code.text,
-            };
-        }
-        match hex {
-            "#000000" => theme.neutral_fg(),
-            "#111111" => theme.neutral_fg_secondary(),
-            "#222222" => theme.fg().get_color(theme.prefs().primary),
-            "#333333" => theme.fg().get_color(theme.prefs().secondary),
-            "#444444" => theme.fg().get_color(theme.prefs().tertiary),
-            "#555555" | "#666666" => theme.fg().get_color(theme.prefs().quaternary),
-            _ => theme.neutral_fg(),
-        }
+        let accent = |p| theme.fg().get_color(p);
+        format.color = match role {
+            Role::Text => theme.neutral_fg(),
+            Role::Comment => theme.neutral_fg_secondary(),
+            Role::Keyword | Role::Heading => accent(Palette::Magenta),
+            Role::Class | Role::Function | Role::Emphasis | Role::Strong => accent(Palette::Blue),
+            Role::String | Role::Number => accent(Palette::Green),
+        };
+        format.bold = matches!(role, Role::Heading | Role::Strong);
+        format.italic = role == Role::Emphasis;
+        format
     }
 
     pub fn text_format_syntax(&self) -> Format {

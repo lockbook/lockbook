@@ -56,11 +56,6 @@ pub async fn whereami() -> Result<(), CliError> {
 #[tokio::main]
 pub async fn debug_info() -> Result<(), CliError> {
     let lb = &core().await?;
-    println!(
-        "{}",
-        lb.debug_info("None Provided".to_string(), true)
-            .await
-            .to_string()
-    );
+    println!("{}", lb.debug_info(true).await.to_string());
     Ok(())
 }

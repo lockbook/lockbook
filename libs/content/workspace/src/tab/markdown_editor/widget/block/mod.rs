@@ -97,12 +97,15 @@ impl<'ast> MdRender {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
         }
+        // stamped with the inputs as they were before computing: a load
+        // landing mid-computation must not pass for already counted
+        let deps = self.height_deps();
 
         // Block too narrow to fit anything meaningful: render nothing.
         // `show_block` short-circuits on the same condition, so this
         // matches what gets painted.
         if self.width(node) < self.layout.row_height {
-            self.set_cached_node_height(node, 0.0);
+            self.set_cached_node_height(node, 0.0, deps);
             return 0.0;
         }
 
@@ -172,7 +175,7 @@ impl<'ast> MdRender {
             NodeValue::ThematicBreak => self.height_thematic_break(),
         };
 
-        self.set_cached_node_height(node, height);
+        self.set_cached_node_height(node, height, deps);
 
         height
     }
@@ -185,12 +188,13 @@ impl<'ast> MdRender {
         if let Some(cached) = self.get_cached_node_height_approx(node) {
             return cached;
         }
+        let deps = self.height_deps();
         if self.hidden_by_fold(node) {
-            self.set_cached_node_height_approx(node, 0.);
+            self.set_cached_node_height_approx(node, 0., deps);
             return 0.;
         }
         if self.width(node) < self.layout.row_height {
-            self.set_cached_node_height_approx(node, 0.);
+            self.set_cached_node_height_approx(node, 0., deps);
             return 0.;
         }
         let value = &node.data.borrow().value;
@@ -220,6 +224,10 @@ impl<'ast> MdRender {
                 // height separately and `max` it in at the end.
                 let mut image_height = 0.0f32;
                 for d in node.descendants() {
+                    if let Some(height) = self.tab_embed_height(d) {
+                        image_height = image_height.max(height);
+                        continue;
+                    }
                     if let Some(url) = image_url(d) {
                         let dims = self.embeds.size(&url);
                         image_height =
@@ -251,7 +259,7 @@ impl<'ast> MdRender {
             NodeValue::FrontMatter(_) => self.height_front_matter(node),
             _ => 0.,
         };
-        self.set_cached_node_height_approx(node, height);
+        self.set_cached_node_height_approx(node, height, deps);
         height
     }
 
@@ -704,10 +712,10 @@ type LinePrefixKey = (u64, (Grapheme, Grapheme));
 type TableColumns = (std::rc::Rc<[f32]>, HeightDeps);
 type LinePrefixValue = (Graphemes, bool);
 
-/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq]`. Text-
+/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq, diagrams_seq]`. Text-
 /// change invalidation is handled wholesale by [`LayoutCache::ensure_text_consistent`]
 /// before any read, so text_seq isn't part of the per-entry stamp.
-pub type HeightDeps = [u64; 4];
+pub type HeightDeps = [u64; 6];
 
 /// A table cell's stamp, a width as bits, and whether the cell is being
 /// measured for its column's width or laid out in it.
@@ -740,6 +748,11 @@ pub struct LayoutCache {
     /// heights, AST re-parse shifts sourcepos keys), so per-entry
     /// stamping wouldn't help.
     pub text_seq: std::cell::Cell<u64>,
+
+    /// Body text's baseline, down from a row's top, and its ascent, up from
+    /// the baseline, as fractions of the row height, and the
+    /// [`crate::font::chosen_seq`] they were measured at.
+    pub body_metrics: std::cell::Cell<Option<(u64, f32, f32)>>,
 }
 
 impl LayoutCache {
@@ -875,7 +888,8 @@ impl MdRender {
                 .family(format.family.glyphon_family())
                 .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
                 .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
-            let metrics = glyphon::Metrics::new(font_size, line_height);
+            let metrics =
+                glyphon::Metrics::new(font_size * format.family.size_adjust(), line_height);
             let mut fs = fs.lock().unwrap();
             let mut b = glyphon::Buffer::new(&mut fs, metrics);
             b.set_size(Some(width), None);
@@ -912,7 +926,14 @@ impl MdRender {
 
 impl<'ast> MdRender {
     fn height_deps(&self) -> HeightDeps {
-        [self.width_seq, self.embeds.seq(), self.previews.seq(), self.reveal_seq]
+        [
+            self.width_seq,
+            self.embeds.seq(),
+            self.previews.seq(),
+            self.reveal_seq,
+            self.diagrams.seq(),
+            self.tab_embeds.seq(),
+        ]
     }
 
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
@@ -923,9 +944,8 @@ impl<'ast> MdRender {
         (*stamps == deps).then_some(*v)
     }
 
-    pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32) {
+    pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32, deps: HeightDeps) {
         let key = Self::pack_node_key(node);
-        let deps = self.height_deps();
         self.layout_cache
             .height
             .borrow_mut()
@@ -940,9 +960,10 @@ impl<'ast> MdRender {
         (*stamps == deps).then_some(*v)
     }
 
-    pub fn set_cached_node_height_approx(&self, node: &'ast AstNode<'ast>, height: f32) {
+    pub fn set_cached_node_height_approx(
+        &self, node: &'ast AstNode<'ast>, height: f32, deps: HeightDeps,
+    ) {
         let key = Self::pack_node_key(node);
-        let deps = self.height_deps();
         self.layout_cache
             .height_approx
             .borrow_mut()

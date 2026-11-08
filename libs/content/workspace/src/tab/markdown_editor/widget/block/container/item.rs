@@ -52,10 +52,10 @@ impl<'ast> MdRender {
         // Desktop drag handle (bullet/number is non-interactive). On touch
         // the body must own the press instead, so a pan scrolls and a hold
         // arms a reorder (see `MdEdit::detect_touch_reorder`).
-        let drag_id = ui.scope_id().with(("item_drag", self.node_range(node)));
+        let drag_id = ui.scope_id().with("item_drag");
         let sense = if self.touch_mode { egui::Sense::hover() } else { egui::Sense::drag() };
         let drag_resp = ui.interact(annotation_space, drag_id, sense);
-        self.handle_item_drag_resp(ui, node, &drag_resp);
+        self.handle_item_drag_resp(ui, node, &drag_resp, true);
 
         let annotation_color = self.ctx.get_lb_theme().neutral_fg_secondary();
 
@@ -262,7 +262,7 @@ impl<'ast> MdRender {
                 } else {
                     // Deepest gutter item — take the rest so content
                     // isn't over-indented.
-                    result += consume_indent_columns(text, usize::MAX);
+                    result += consume_indent_columns(text, 0, usize::MAX);
                 }
             }
         }

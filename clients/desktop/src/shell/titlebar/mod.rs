@@ -130,6 +130,7 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
     if app.product_open() {
         floating_toolbar(app, ctx, t, queue);
         sidecar_toggle(app, ctx, t, queue);
+        source_toggle(app, ctx, t, queue);
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -325,6 +326,31 @@ fn sidecar_toggle(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mu
         });
 }
 
+/// The source toggle, left of the sidecar toggle: files with a rendered form
+/// shown as their text. Muted where the file has no rendered form.
+fn source_toggle(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+    let size = icon_size();
+    let y = HEADER_CENTER - size / 2.0;
+    let right = ctx.content_rect().right() - sidecar_toggle_inset() - size;
+    let rect = Rect::from_min_size(pos2(right - size, y), vec2(size, size));
+    block_window_drag(ctx, rect);
+    let (enabled, active) = app
+        .session
+        .ready()
+        .map(|r| (r.workspace.source_offered(), r.workspace.source_on()))
+        .unwrap_or_default();
+    let ground = t.neutral_bg_secondary();
+    Area::new(Id::unique("shell_source_toggle"))
+        .order(Order::Foreground)
+        .fixed_pos(rect.min)
+        .show(ctx, |ui| {
+            let resp = titlebar_icon(ui, t, phosphor::CODE, active, enabled, ground, "Source");
+            if enabled && resp.clicked() {
+                queue.push(A::ToggleSource);
+            }
+        });
+}
+
 /// Titleband icon: pane toggles (accent when selected) and back/forward
 /// (foreground when enabled; muted, no hover, when disabled).
 fn titlebar_icon(
@@ -352,6 +378,14 @@ fn titlebar_icon(
 #[cfg(not(target_os = "macos"))]
 fn window_resize_edges(ctx: &egui::Context) {
     use egui::{CursorIcon, PointerButton, ResizeDirection, ViewportCommand};
+    // A resize on a maximized or fullscreen window never starts, and on Windows
+    // winit then refuses every later resize and title-bar drag.
+    let sized_by_os = ctx.input(|i| {
+        i.viewport().maximized.unwrap_or(false) || i.viewport().fullscreen.unwrap_or(false)
+    });
+    if sized_by_os {
+        return;
+    }
     let r = ctx.content_rect();
     let b = 6.0;
     let zones = [

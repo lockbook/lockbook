@@ -61,6 +61,13 @@ impl Tasks {
     fn load_or_save_in_progress(&self, id: Uuid) -> bool {
         self.load_in_progress(id) || self.save_in_progress(id)
     }
+
+    fn busy(&self, id: Uuid) -> bool {
+        self.load_or_save_queued(id)
+            || self.load_or_save_in_progress(id)
+            || self.completed_loads.iter().any(|l| l.request.id == id)
+            || self.completed_saves.iter().any(|s| s.request.id == id)
+    }
 }
 
 pub struct Response {
@@ -260,6 +267,12 @@ impl TaskManager {
 
     pub fn load_or_save_in_progress(&self, id: Uuid) -> bool {
         self.tasks.lock().unwrap().load_or_save_in_progress(id)
+    }
+
+    /// Whether a load or save of `id` is queued, running, or finished but
+    /// not yet applied to its tab.
+    pub fn busy(&self, id: Uuid) -> bool {
+        self.tasks.lock().unwrap().busy(id)
     }
 
     #[allow(clippy::manual_map)] // manual map clarifies overall fn structure

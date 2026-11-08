@@ -145,10 +145,17 @@ import SwiftUI
         }
     }
 
-    public class iOSMTKInputManager: UIView {
+    public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
         public var mtkView: iOSMTK
 
         var currentWrapper: UIView?
+
+        private let backSwipe = UIScreenEdgePanGestureRecognizer()
+        private let forwardSwipe = UIScreenEdgePanGestureRecognizer()
+        private let trackpadSwipe = UIPanGestureRecognizer()
+        private var trackpadForward = false
+        private var swipeArmed = false
+        private let swipeHaptic = UIImpactFeedbackGenerator(style: .light)
 
         init(
             _ workspaceInput: WorkspaceInputState,
@@ -172,11 +179,102 @@ import SwiftUI
                     equalTo: bottomAnchor
                 ),
             ])
+
+            for (swipe, edge) in [(backSwipe, UIRectEdge.left), (forwardSwipe, .right)] {
+                swipe.edges = edge
+                swipe.allowedTouchTypes = [UITouch.TouchType.direct.rawValue as NSNumber]
+                swipe.delegate = self
+                swipe.addTarget(self, action: #selector(handleHistorySwipe(_:)))
+                addGestureRecognizer(swipe)
+            }
+
+            trackpadSwipe.allowedScrollTypesMask = .continuous
+            trackpadSwipe.maximumNumberOfTouches = 0
+            trackpadSwipe.delegate = self
+            trackpadSwipe.addTarget(self, action: #selector(handleHistorySwipe(_:)))
+            addGestureRecognizer(trackpadSwipe)
+
+            // here, above every subview, so the pointer never leaves between them
+            addGestureRecognizer(
+                UIHoverGestureRecognizer(target: mtkView, action: #selector(iOSMTK.handleHover(_:)))
+            )
         }
 
         @available(*, unavailable)
         required init?(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
+        }
+
+        override public func gestureRecognizerShouldBegin(
+            _ gestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            if gestureRecognizer === backSwipe {
+                return mtkView.workspaceInput?.canNavBack() == true
+            }
+            if gestureRecognizer === forwardSwipe {
+                return mtkView.workspaceInput?.canNavForward() == true
+            }
+            if gestureRecognizer === trackpadSwipe {
+                guard currentWrapper is TextPage else { return false }
+                let velocity = trackpadSwipe.velocity(in: self)
+                guard abs(velocity.x) > abs(velocity.y) else { return false }
+                trackpadForward = velocity.x < 0
+                return trackpadForward
+                    ? mtkView.workspaceInput?.canNavForward() == true
+                    : mtkView.workspaceInput?.canNavBack() == true
+            }
+            return super.gestureRecognizerShouldBegin(gestureRecognizer)
+        }
+
+        public func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            if gestureRecognizer === trackpadSwipe {
+                return otherGestureRecognizer === (currentWrapper as? TextPage)?.rowPan
+            }
+            return isHistorySwipe(gestureRecognizer) && otherGestureRecognizer.isRangeAdjustment
+        }
+
+        public func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            guard isHistorySwipe(gestureRecognizer),
+                  let pan = otherGestureRecognizer as? UIPanGestureRecognizer
+            else { return false }
+            return pan.maximumNumberOfTouches > 0 && !isHistorySwipe(pan)
+        }
+
+        private func isHistorySwipe(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            gestureRecognizer === backSwipe || gestureRecognizer === forwardSwipe
+        }
+
+        @objc private func handleHistorySwipe(_ swipe: UIPanGestureRecognizer) {
+            guard let wsHandle = mtkView.wsHandle else { return }
+            let forward = swipe === trackpadSwipe ? trackpadForward : swipe === forwardSwipe
+
+            switch swipe.state {
+            case .began, .changed:
+                let x = swipe.translation(in: self).x
+                let y = swipe.location(in: self).y
+                let armed = history_swipe(wsHandle, forward, Float(forward ? -x : x), Float(y))
+                if swipe.state == .began {
+                    swipeHaptic.prepare()
+                }
+                if armed, !swipeArmed {
+                    swipeHaptic.impactOccurred()
+                }
+                swipeArmed = armed
+            case .ended:
+                history_swipe_end(wsHandle)
+                swipeArmed = false
+            default:
+                history_swipe_cancel(wsHandle)
+                swipeArmed = false
+            }
+
+            mtkView.requestFrame()
         }
 
         public func updateCurrentTab(newCurrentTab: WorkspaceTab) {

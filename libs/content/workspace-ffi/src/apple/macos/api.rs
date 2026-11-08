@@ -1,5 +1,4 @@
 use egui::Event;
-use egui::PointerButton::{Primary, Secondary};
 use std::ffi::{CStr, c_char, c_void};
 
 use super::response::*;
@@ -10,7 +9,9 @@ use crate::apple::keyboard::NSKeys;
 #[no_mangle]
 pub unsafe extern "C" fn macos_frame(obj: *mut c_void) -> MacOSResponse {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.frame().into()
+    let mut response: MacOSResponse = obj.frame().into();
+    response.chrome_text_focused = obj.workspace.chrome_text_focused();
+    response
 }
 
 /// # Safety
@@ -67,24 +68,6 @@ pub unsafe extern "C" fn window_focused(obj: *mut c_void, focused: bool) {
         .raw_input
         .events
         .push(Event::WindowFocused(focused));
-}
-
-/// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn mouse_button(
-    obj: *mut c_void, x: f32, y: f32, pressed: bool, primary: bool, shift: bool, ctrl: bool,
-    option: bool, command: bool,
-) {
-    let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
-
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let pos = obj.renderer.pos_from_points(x, y);
-    obj.renderer.raw_input.events.push(Event::PointerButton {
-        pos,
-        button: if primary { Primary } else { Secondary },
-        pressed,
-        modifiers,
-    })
 }
 
 /// # Safety

@@ -2,6 +2,7 @@ use std::backtrace::Backtrace;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 use std::panic::Location;
+use std::path::PathBuf;
 use std::sync::PoisonError;
 
 use aes_gcm::aead;
@@ -19,10 +20,19 @@ use super::api;
 
 pub type LbResult<T> = Result<T, LbErr>;
 
-#[derive(Debug)]
 pub struct LbErr {
     pub kind: LbErrKind,
     pub backtrace: Option<Backtrace>,
+}
+
+impl fmt::Debug for LbErr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.kind)?;
+        if let Some(backtrace) = &self.backtrace {
+            write!(f, "\n{}", backtrace.to_string().trim_end())?;
+        }
+        Ok(())
+    }
 }
 
 /// Using this within core has limited meaning as the unexpected / expected error
@@ -115,6 +125,17 @@ impl Display for LbErrKind {
             LbErrKind::UsernamePublicKeyMismatch => {
                 write!(f, "That username doesn't match that public key")
             }
+            LbErrKind::ImportFailed { paths, total } => {
+                let name = paths
+                    .first()
+                    .and_then(|p| p.file_name())
+                    .unwrap_or_default()
+                    .to_string_lossy();
+                match paths.len() {
+                    1 => write!(f, "{name} couldn't be imported"),
+                    n => write!(f, "{n} of {total} files couldn't be imported, including {name}"),
+                }
+            }
             LbErrKind::UsernameTaken => write!(f, "That username is not available"),
             LbErrKind::Unexpected(msg) => write!(f, "Unexpected error: {msg}"),
             LbErrKind::AlreadySyncing => {
@@ -144,6 +165,9 @@ impl Display for LbErrKind {
                 }
                 ValidationFailure::SharedLink { .. } => {
                     write!(f, "you cannot place a link inside a shared folder!")
+                }
+                ValidationFailure::SelfShare(_) => {
+                    write!(f, "you cannot share a file with its owner or yourself")
                 }
                 _ => write!(f, "unexpected validation failure: {validation_failure:?}"),
             },
@@ -298,6 +322,11 @@ pub enum LbErrKind {
     FileNonexistent,
     FileNotDocument,
     FileParentNonexistent,
+    /// These of the `total` files an import meant to write weren't written.
+    ImportFailed {
+        paths: Vec<PathBuf>,
+        total: usize,
+    },
     InsufficientPermission,
     InvalidPurchaseToken,
     InvalidAuthDetails,
@@ -474,6 +503,12 @@ impl From<ApiError<api::GetDocumentError>> for LbErr {
     fn from(e: ApiError<api::GetDocumentError>) -> Self {
         match e {
             ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+            ApiError::Endpoint(api::GetDocumentError::DocumentNotFound) => {
+                LbErrKind::FileNonexistent
+            }
+            ApiError::Endpoint(api::GetDocumentError::NotPermissioned) => {
+                LbErrKind::InsufficientPermission
+            }
             ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
             e => core_err_unexpected(e),
         }
