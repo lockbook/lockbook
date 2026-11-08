@@ -249,6 +249,11 @@ impl<'ast> MdRender {
             NodeValue::HtmlBlock(_) => self.text_format_html_block(parent()),
             NodeValue::Paragraph => parent_text_format(),
             NodeValue::TableCell => parent_text_format(),
+            // a checked task reads as done, all of it; what sets its own color keeps it
+            NodeValue::TaskItem(task) if task.symbol.is_some() => Format {
+                color: self.ctx.get_lb_theme().neutral_fg_secondary(),
+                ..parent_text_format()
+            },
             NodeValue::TaskItem(_) => parent_text_format(),
             NodeValue::ThematicBreak => parent_text_format(),
         }

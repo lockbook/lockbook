@@ -55,7 +55,7 @@ impl<'ast> MdRender {
         let drag_id = ui.scope_id().with("item_drag");
         let sense = if self.touch_mode { egui::Sense::hover() } else { egui::Sense::drag() };
         let drag_resp = ui.interact(annotation_space, drag_id, sense);
-        self.handle_item_drag_resp(ui, node, &drag_resp);
+        self.handle_item_drag_resp(ui, node, &drag_resp, true);
 
         let annotation_color = self.ctx.get_lb_theme().neutral_fg_secondary();
 

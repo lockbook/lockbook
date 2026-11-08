@@ -1,13 +1,104 @@
 use comrak::nodes::{AstNode, NodeTaskItem, NodeValue};
-use egui::{Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
+use egui::emath::GuiRounding as _;
+use egui::emath::easing::{back_out, cubic_in, cubic_out};
+use egui::{Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, lerp};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
+
+use crate::style::chrome::{ANIM_MAX_SECS, Radius, STROKE_HAIRLINE, TOGGLE_ANIM_SECS};
 
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::widget::utils::consume_indent_columns_ceil;
 use crate::tab::markdown_editor::{Event, MdRender};
-use crate::theme::palette_v2::ThemeExt;
+use crate::theme::palette_v2::{Theme, ThemeExt};
 
-const TOGGLE_SECS: f64 = 0.2;
+/// Checking: the box pops and the check springs in over this long.
+const POP_SECS: f32 = ANIM_MAX_SECS;
+/// The fill grows or collapses, and the check draws, over this long.
+const FILL_SECS: f32 = TOGGLE_ANIM_SECS;
+/// Checking: the check starts this long after the fill.
+const CHECK_DELAY_SECS: f32 = 0.04;
+/// The ghost check that previews a click.
+const GHOST_ALPHA: f32 = 0.35;
+/// Pressing shrinks the box to this scale.
+const PRESS_SCALE: f32 = 0.9;
+/// The check's polyline in a unit box.
+const CHECK: [(f32, f32); 3] = [(0.27, 0.525), (0.44, 0.69), (0.74, 0.325)];
+
+/// How the box looks `secs` after it was toggled (`None`: at rest).
+struct Look {
+    scale: f32,
+    fill: f32,
+    draw: f32,
+    check_scale: f32,
+}
+
+impl Look {
+    fn at(checked: bool, secs: Option<f32>) -> Self {
+        let s = secs.unwrap_or(f32::INFINITY);
+        let ramp = |from: f32, len: f32| ((s - from) / len).clamp(0.0, 1.0);
+        if checked {
+            // pressed size, up past full, settle
+            let pop = ramp(0.0, POP_SECS);
+            let scale = if pop < 0.55 {
+                lerp(PRESS_SCALE..=1.1, cubic_out(pop / 0.55))
+            } else {
+                lerp(1.1..=1.0, cubic_out((pop - 0.55) / 0.45))
+            };
+            Self {
+                scale,
+                fill: cubic_out(ramp(0.0, FILL_SECS)),
+                draw: cubic_out(ramp(CHECK_DELAY_SECS, FILL_SECS)),
+                check_scale: lerp(
+                    0.5..=1.0,
+                    back_out(ramp(CHECK_DELAY_SECS, POP_SECS - CHECK_DELAY_SECS)),
+                ),
+            }
+        } else {
+            // the check leaves with the fill
+            Self {
+                scale: 1.0,
+                fill: 1.0 - cubic_in(ramp(0.0, FILL_SECS)),
+                draw: 1.0,
+                check_scale: 1.0,
+            }
+        }
+    }
+}
+
+/// The check in `box_rect`, its first `draw` (0..=1) drawn, scaled by `scale`.
+fn paint_check(ui: &Ui, box_rect: Rect, draw: f32, scale: f32, color: egui::Color32) {
+    if draw <= 0.0 || color.a() == 0 {
+        return;
+    }
+    let size = box_rect.width() * scale;
+    let corner = box_rect.center() - Vec2::splat(size / 2.0);
+    let points: Vec<Pos2> = CHECK
+        .iter()
+        .map(|&(x, y)| corner + Vec2::new(x, y) * size)
+        .collect();
+    ui.painter().add(Shape::line(
+        partial_polyline(&points, draw),
+        Stroke::new(box_rect.width() / 8.0, color),
+    ));
+}
+
+/// The first `draw` (0..=1) of `points`' length.
+fn partial_polyline(points: &[Pos2], draw: f32) -> Vec<Pos2> {
+    let total: f32 = points.windows(2).map(|w| w[0].distance(w[1])).sum();
+    let mut left = total * draw;
+    let mut out = vec![points[0]];
+    for w in points.windows(2) {
+        let len = w[0].distance(w[1]);
+        if left >= len {
+            out.push(w[1]);
+            left -= len;
+        } else {
+            out.push(w[0] + (w[1] - w[0]) * (left / len));
+            break;
+        }
+    }
+    out
+}
 
 impl<'ast> MdRender {
     pub fn height_task_item(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -34,12 +125,10 @@ impl<'ast> MdRender {
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
         // when revealed, the raw `- [ ]` marker occupies this column instead
         if !self.reveal_line(node, first_line) {
-            let mut checkbox_space = Rect::from_center_size(
+            let checkbox_space = Rect::from_center_size(
                 annotation_space.center(),
                 Vec2::splat(annotation_space.size().min_elem()),
             );
-            let border_radius = 2.0;
-
             let checkbox_id = ui.scope_id().with("task_checkbox");
 
             // allocate a slightly larger clickable space that makes the checkbox
@@ -65,9 +154,7 @@ impl<'ast> MdRender {
             if checkbox_response.clicked() {
                 self.render_events.push(toggle.clone());
             }
-            if checkbox_response.hovered() && !self.readonly {
-                checkbox_space = checkbox_space.expand(0.5);
-            }
+            let hovered = checkbox_response.hovered() && !self.readonly && !self.touch_mode;
             if !self.readonly {
                 // A finger's target: the gutter beside the box and the row's
                 // height, stopping short of the item's text.
@@ -79,55 +166,65 @@ impl<'ast> MdRender {
             }
             // Click toggles; drag starts a reorder (`click_and_drag`
             // above distinguishes the two).
-            self.handle_item_drag_resp(ui, node, &checkbox_response);
+            self.handle_item_drag_resp(ui, node, &checkbox_response, false);
 
-            let progress = match self.task_toggled {
+            let secs = match self.task_toggled {
                 Some((check, at)) if check == check_offset => {
-                    let t = ((ui.input(|i| i.time) - at) / TOGGLE_SECS) as f32;
-                    if t < 1.0 {
-                        ui.ctx().request_repaint();
-                    }
-                    t.clamp(0.0, 1.0)
+                    Some((ui.input(|i| i.time) - at) as f32)
                 }
-                _ => 1.0,
+                _ => None,
             };
-            let how_on = if checked { progress } else { 1.0 - progress };
+            if secs.is_some_and(|s| s < POP_SECS) {
+                ui.ctx().request_repaint();
+            }
+            let look = Look::at(checked, secs);
+            // press snaps in, as other controls do
+            let pressed = checkbox_response.is_pointer_button_down_on() && !self.readonly;
+            let scale = if pressed { look.scale.min(PRESS_SCALE) } else { look.scale };
 
-            // draw rect background for checkbox
-            ui.painter().rect(
-                checkbox_space.shrink(2. * how_on), // anticipation for the main animation
-                border_radius,
-                theme.accent_bg().gamma_multiply(0.1),
-                Stroke::new(0.5_f32, theme.accent()),
-                StrokeKind::Inside,
-            );
+            // on the pixel grid at rest; in motion the rounding would wobble it
+            let radius = Radius::Sm.pts() as f32;
+            let box_rect =
+                Rect::from_center_size(checkbox_space.center(), checkbox_space.size() * scale);
+            let box_rect = if scale == 1.0 {
+                box_rect.round_to_pixels(ui.ctx().pixels_per_point())
+            } else {
+                box_rect
+            };
+            if look.fill < 1.0 {
+                let outline = if hovered { theme.accent() } else { theme.neutral() };
+                ui.painter().rect_stroke(
+                    box_rect,
+                    radius,
+                    Stroke::new(STROKE_HAIRLINE, outline),
+                    StrokeKind::Inside,
+                );
+            }
+            if look.fill > 0.0 {
+                let fill = if hovered {
+                    theme.wash_toward_neutral_fg(theme.accent(), Theme::HOVER_WASH)
+                } else {
+                    theme.accent()
+                };
+                ui.painter().rect_filled(
+                    Rect::from_center_size(box_rect.center(), box_rect.size() * look.fill),
+                    radius * look.fill,
+                    fill,
+                );
+            }
 
-            // animate filled in rect for checked state
-            ui.painter().rect_filled(
-                checkbox_space.expand2(checkbox_space.size() * how_on - checkbox_space.size()),
-                border_radius,
-                theme.accent(),
-            );
-
-            // draw check
-            let check_space = checkbox_space.shrink(4.5);
-            ui.painter().add(Shape::line(
-                vec![
-                    egui::pos2(check_space.left(), check_space.center().y),
-                    egui::pos2(
-                        check_space.center().x - check_space.width() / 7.0,
-                        check_space.bottom(),
-                    ),
-                    egui::pos2(check_space.right(), check_space.top()),
-                ],
-                Stroke::new(
-                    2_f32,
-                    theme
-                        .fg()
-                        .get_color(crate::theme::palette_v2::Palette::White)
-                        .linear_multiply(how_on),
-                ),
-            ));
+            // checked: page colour, which `readable()` keeps legible on every accent
+            if look.fill > 0.0 {
+                let color = theme.neutral_bg().gamma_multiply(look.fill);
+                paint_check(ui, box_rect, look.draw, look.check_scale, color);
+            }
+            // unchecked and hovered: a faint preview of the click, rising as the fill leaves
+            if hovered && !checked {
+                let color = theme
+                    .accent()
+                    .gamma_multiply(GHOST_ALPHA * (1.0 - look.fill));
+                paint_check(ui, box_rect, 1.0, 1.0, color);
+            }
         }
 
         let any_children = node.children().next().is_some();

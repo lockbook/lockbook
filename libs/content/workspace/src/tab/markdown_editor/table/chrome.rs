@@ -265,7 +265,7 @@ impl MdRender {
 
         // body rows reorder among themselves
         if row.index > 0 && row.of > 2 {
-            self.handle_drag_resp(ui, &resp, dragging, |_, origin| {
+            self.handle_drag_resp(ui, &resp, dragging, true, |_, origin| {
                 Some(BlockDrag {
                     section_range: row.line,
                     grabbed: row.line,
@@ -316,7 +316,7 @@ impl MdRender {
         let resp = self.table_handle(ui, id, pill, phosphor::DOTS_SIX, dragging);
 
         if column.of > 1 {
-            self.handle_drag_resp(ui, &resp, dragging, |r, origin| {
+            self.handle_drag_resp(ui, &resp, dragging, true, |r, origin| {
                 r.table_column_drag((key, column.index), origin)
             });
         }
