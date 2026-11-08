@@ -11,6 +11,7 @@ pub mod style;
 
 pub use style::{
     ModePreference, ThemeFamily, install, set_mode_preference, set_theme_accent, set_theme_family,
+    theme_family,
 };
 pub use workspace_rs::style::ROW_H;
 pub use workspace_rs::style::Space;

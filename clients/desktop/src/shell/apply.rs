@@ -682,10 +682,17 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             let _ = app.settings.to_file();
         }
         A::SetThemeFamily(fam) => {
-            app.settings.theme_name = fam.name().to_owned();
+            app.settings.theme_family = fam;
             app.settings.theme_accent = None;
             set_theme_family(ctx, fam);
             let _ = app.settings.to_file();
+        }
+        A::PreviewThemeFamily(fam) => {
+            match fam {
+                Some(fam) => set_theme_family(ctx, fam),
+                None => app.show_saved_theme(ctx),
+            }
+            ctx.request_repaint();
         }
         A::SetThemeAccent(accent) => {
             app.settings.theme_accent = Some(accent);

@@ -25,7 +25,7 @@ pub enum ModePreference {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
 pub enum ThemeFamily {
     #[default]
-    Default,
+    Mnemonic,
     Apple,
     Darcula,
     IntelliJ,
@@ -34,12 +34,27 @@ pub enum ThemeFamily {
 }
 
 impl ThemeFamily {
-    pub const ALL: [ThemeFamily; 6] =
-        [Self::Default, Self::Apple, Self::Darcula, Self::IntelliJ, Self::VsCode, Self::Catppuccin];
+    pub const ALL: [ThemeFamily; 6] = [
+        Self::Mnemonic,
+        Self::Apple,
+        Self::Darcula,
+        Self::IntelliJ,
+        Self::VsCode,
+        Self::Catppuccin,
+    ];
 
+    /// The family saved under `name`; the default for a name no family has.
+    pub fn from_name(name: &str) -> Self {
+        Self::ALL
+            .into_iter()
+            .find(|f| f.name() == name)
+            .unwrap_or_default()
+    }
+
+    /// Settings key.
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Default => "default",
+            Self::Mnemonic => "mnemonic",
             Self::Apple => "apple",
             Self::Darcula => "darcula",
             Self::IntelliJ => "intellij",
@@ -48,15 +63,41 @@ impl ThemeFamily {
         }
     }
 
+    /// Picker label.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Mnemonic => "Mnemonic",
+            Self::Apple => "Apple",
+            Self::Darcula => "Darcula",
+            Self::IntelliJ => "IntelliJ",
+            Self::VsCode => "VS Code",
+            Self::Catppuccin => "Catppuccin",
+        }
+    }
+
     pub fn build(self, mode: Mode) -> Theme {
         match self {
-            Self::Default => Theme::default(mode),
+            Self::Mnemonic => Theme::mnemonic(mode),
             Self::Apple => Theme::apple(mode),
             Self::Darcula => Theme::darcula(mode),
             Self::IntelliJ => Theme::intellij(mode),
             Self::VsCode => Theme::vscode(mode),
             Self::Catppuccin => Theme::catppuccin(mode),
         }
+    }
+}
+
+/// Saved as its [`ThemeFamily::name`].
+impl serde::Serialize for ThemeFamily {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.name())
+    }
+}
+
+/// A name no family has reads as the default.
+impl<'de> serde::Deserialize<'de> for ThemeFamily {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(Self::from_name(&String::deserialize(d)?))
     }
 }
 

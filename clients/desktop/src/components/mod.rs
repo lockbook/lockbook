@@ -21,7 +21,7 @@ pub use foundation::{
     phosphor, phosphor_font_id, phosphor_ui_font_id, pin_shadow, place_at, plate_content_shadow,
     remaining_height, sense_click, set_mode_preference, set_theme_accent, set_theme_family,
     shortcut_cmd_i, shortcut_cmd_n, shortcut_enter, shortcut_esc, shortcut_return, tab_icon,
-    ui_width, with_h_pad, with_h_pad_in, with_pad_fit,
+    theme_family, ui_width, with_h_pad, with_h_pad_in, with_pad_fit,
 };
 #[cfg(test)]
 pub use foundation::{begin_spacer_record, take_spacer_record};

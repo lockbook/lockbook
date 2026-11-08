@@ -319,7 +319,7 @@ pub fn form_segmented(
 /// Label + [`super::picker`] in the trailing slot (single value, menu of options).
 pub fn form_picker(
     ui: &mut Ui, t: &Theme, label: &str, options: &[&str], selected: &mut usize,
-) -> Response {
+) -> egui::InnerResponse<Option<usize>> {
     let mut out = None;
     form_row(ui, t, label, |ui| {
         out = Some(crate::components::atoms::picker::picker(ui, t, options, selected));
