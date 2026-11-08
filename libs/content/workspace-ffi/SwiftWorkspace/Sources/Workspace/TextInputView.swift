@@ -180,6 +180,7 @@
             // Runestone activates the display the same way.
             if result {
                 selectionDisplay?.isActivated = !chromeFocused && !caretCovered
+                syncKeyboardState()
             }
             return result
         }
@@ -191,8 +192,17 @@
             let result = super.resignFirstResponder()
             if result {
                 selectionDisplay?.isActivated = false
+                syncKeyboardState()
             }
             return result
+        }
+
+        /// UIKit changes focus on its own, as the ✓ button does; the editor
+        /// hears of it then, not after a frame that may never come.
+        private func syncKeyboardState() {
+            // The editor writes to the current tab: a page no longer shown says nothing.
+            guard let wsHandle, let page, mtkView.currentWrapper === page else { return }
+            update_virtual_keyboard(wsHandle, isFirstResponder && documentEditable)
         }
 
         // MARK: - Frame output
@@ -246,9 +256,7 @@
                 display.layoutManagedSubviews()
             }
 
-            if let wsHandle {
-                update_virtual_keyboard(wsHandle, isFirstResponder && documentEditable)
-            }
+            syncKeyboardState()
         }
 
         /// The selection's ends moved on screen this frame: the page scrolled

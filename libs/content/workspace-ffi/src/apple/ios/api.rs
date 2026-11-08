@@ -636,7 +636,10 @@ pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, editing: bool
         None => return,
     };
 
-    markdown.editing = editing;
+    if markdown.editing != editing {
+        markdown.editing = editing;
+        obj.renderer.context.request_repaint();
+    }
 }
 
 /// # Safety
