@@ -427,19 +427,26 @@ where
         )?
         .to_lazy();
 
+        // A changed file of another owner may have just come into reach, by a share or by a move
+        // into a share, bringing its unchanged descendants with it. Owners always hold their whole
+        // tree because a file's owner is its parent's owner.
         let mut result_ids = HashSet::new();
+        let mut reached = Vec::new();
         for id in tree.ids() {
             let file = tree.find(&id)?;
             if file.version >= request.since_metadata_version {
                 result_ids.insert(id);
-                if file.owner() != owner
-                    && file
-                        .user_access_keys()
-                        .iter()
-                        .any(|k| !k.deleted && k.encrypted_for == context.public_key)
-                {
-                    result_ids.insert(id);
-                    result_ids.extend(tree.descendants(&id)?);
+                if file.owner() != owner {
+                    reached.push(id);
+                }
+            }
+        }
+        let mut expanded = HashSet::new();
+        while let Some(id) = reached.pop() {
+            if expanded.insert(id) {
+                for child in tree.children(&id)? {
+                    result_ids.insert(child);
+                    reached.push(child);
                 }
             }
         }
