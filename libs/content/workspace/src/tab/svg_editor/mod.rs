@@ -158,6 +158,7 @@ impl SVGEditor {
         let content = std::str::from_utf8(bytes).unwrap();
 
         let mut buffer = Buffer::new(content);
+        let opened_content = buffer.clone();
         let mut viewport_settings = ViewportSettings::from(buffer.weak_viewport_settings);
 
         for (_, el) in buffer.elements.iter_mut() {
@@ -190,7 +191,7 @@ impl SVGEditor {
         Self {
             embedded: false,
             buffer,
-            opened_content: Buffer::new(content),
+            opened_content,
             open_file_hmac: hmac,
             history: History::default(),
             toolbar,
@@ -223,9 +224,14 @@ impl SVGEditor {
         self.input_ctx.update(ui);
         self.buffer.weak_viewport_settings = self.viewport_settings.into();
 
-        let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
-        self.buffer
-            .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
+        let had_weak_images = !self.buffer.weak_images.is_empty();
+        if let Err(err) = self
+            .buffer
+            .promote_weak_images(self.viewport_settings.master_transform, &self.lb)
+        {
+            tracing::warn!(%err, "could not load drawing images");
+        }
+        let images_loaded = had_weak_images && self.buffer.weak_images.is_empty();
 
         let request_diff_change = !self.embedded && self.show_toolbar(ui);
 
@@ -266,7 +272,7 @@ impl SVGEditor {
             self.toolbar.hide_overlay || self.embedded,
         );
 
-        if non_empty_weak_imaegs {
+        if images_loaded {
             self.has_queued_save_request = true;
         }
         if global_diff.is_dirty() {

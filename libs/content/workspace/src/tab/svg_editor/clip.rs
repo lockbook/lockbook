@@ -25,18 +25,11 @@ impl SVGEditor {
                         let (name, data) = match clip {
                             ClipContent::Image(data) => (None, data),
                             ClipContent::NamedImage { name, data } => (Some(name), data),
-                            ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
+                            ClipContent::Files(..) => continue, // todo: support file drop & paste
                         };
-                        let Ok(file) = crate::tab::import_image(
-                            &self.lb,
-                            self.open_file,
-                            name.as_deref(),
-                            &data,
-                        ) else {
+                        let Ok(img) = image::load_from_memory(&data) else {
                             continue;
                         };
-
-                        let img = image::load_from_memory(&data).unwrap();
 
                         let paste_pos = ui.input(|r| {
                             r.pointer.hover_pos().unwrap_or(
@@ -70,6 +63,22 @@ impl SVGEditor {
                         .unwrap_or_default();
 
                         let fitted_img_rect = transform_rect(img_rect, transform);
+                        let Some(view_box) = NonZeroRect::from_xywh(
+                            fitted_img_rect.min.x,
+                            fitted_img_rect.min.y,
+                            fitted_img_rect.width(),
+                            fitted_img_rect.height(),
+                        ) else {
+                            continue;
+                        };
+                        let Ok(file) = crate::tab::import_image(
+                            &self.lb,
+                            self.open_file,
+                            name.as_deref(),
+                            &data,
+                        ) else {
+                            continue;
+                        };
 
                         let id = Uuid::new_v4();
                         self.buffer.elements.insert(
@@ -78,13 +87,7 @@ impl SVGEditor {
                                 data: resvg::usvg::ImageKind::PNG(data.into()),
                                 visible: true,
                                 transform,
-                                view_box: NonZeroRect::from_xywh(
-                                    fitted_img_rect.min.x,
-                                    fitted_img_rect.min.y,
-                                    fitted_img_rect.width(),
-                                    fitted_img_rect.height(),
-                                )
-                                .unwrap(),
+                                view_box,
                                 href: file.id,
                                 opacity: 1.0,
                                 diff_state: DiffState::new(),
@@ -107,10 +110,16 @@ impl SVGEditor {
                     if !payload.starts_with("<svg") {
                         continue;
                     }
-                    let mut pasted_buffer = Buffer::new(payload);
+                    let Ok(mut pasted_buffer) = Buffer::parse(payload) else {
+                        continue;
+                    };
 
-                    pasted_buffer
-                        .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
+                    if let Err(err) = pasted_buffer
+                        .promote_weak_images(self.viewport_settings.master_transform, &self.lb)
+                    {
+                        tracing::warn!(%err, "could not paste drawing images");
+                        continue;
+                    }
 
                     if !pasted_buffer.elements.is_empty() || !pasted_buffer.weak_images.is_empty() {
                         let mut container = egui::Rect::NOTHING;

@@ -21,6 +21,13 @@ const WEAK_IMAGE_G_ID: &str = "lb_images";
 const WEAK_PATH_PRESSURES_G_ID: &str = "lb_path_pressures";
 const WEAK_VIEWPORT_SETTINGS_G_ID: &str = "lb_viewport_settings";
 
+pub fn is_lockbook_group(id: &str) -> bool {
+    matches!(
+        id,
+        ZOOM_G_ID | WEAK_IMAGE_G_ID | WEAK_PATH_PRESSURES_G_ID | WEAK_VIEWPORT_SETTINGS_G_ID
+    )
+}
+
 #[derive(Default, Clone)]
 pub struct Buffer {
     pub elements: IndexMap<Uuid, Element>,
@@ -51,39 +58,42 @@ pub struct WeakViewportSettings {
 
 impl Buffer {
     pub fn new(content: &str) -> Self {
+        Self::parse(content).unwrap_or_else(|err| {
+            println!("{err}");
+            Self::default()
+        })
+    }
+
+    /// Parse SVG and Lockbook metadata, reporting malformed content to callers
+    /// that need an error rather than an empty drawing.
+    pub fn parse(content: &str) -> Result<Self, String> {
         let mut elements = IndexMap::default();
         let mut id_map = HashMap::default();
         let mut weak_images = WeakImages::default();
         let mut weak_path_pressures = WeakPathPressures::default();
         let mut weak_viewport_settings = WeakViewportSettings::default();
 
-        let maybe_tree = usvg::Tree::from_str(content, &Options::default());
-
-        if let Err(err) = maybe_tree {
-            println!("{err:#?}");
-        } else {
-            let utree = maybe_tree.unwrap();
-
-            utree.root().children().iter().for_each(|u_el| {
-                parse_child(
-                    u_el,
-                    &mut elements,
-                    &mut weak_viewport_settings,
-                    &mut id_map,
-                    &mut weak_images,
-                    &mut weak_path_pressures,
-                )
-            });
+        let tree =
+            usvg::Tree::from_str(content, &Options::default()).map_err(|err| err.to_string())?;
+        for node in tree.root().children() {
+            parse_child(
+                node,
+                &mut elements,
+                &mut weak_viewport_settings,
+                &mut id_map,
+                &mut weak_images,
+                &mut weak_path_pressures,
+            )?;
         }
 
-        Self {
+        Ok(Self {
             elements,
             id_map,
             weak_images,
             weak_viewport_settings,
             weak_path_pressures,
             master_transform_changed: false,
-        }
+        })
     }
 
     pub fn reload(
@@ -311,42 +321,35 @@ pub fn serialize_inner(
     root
 }
 
+fn parse_metadata<T: serde::de::DeserializeOwned + Default>(
+    group: &usvg::Group,
+) -> Result<T, String> {
+    let bytes = base64::decode(group.id().as_bytes()).map_err(|err| err.to_string())?;
+    Ok(bincode::deserialize(&bytes).unwrap_or_default())
+}
+
 pub fn parse_child(
     u_el: &usvg::Node, elements: &mut IndexMap<Uuid, Element>,
     weak_viewport_settings: &mut WeakViewportSettings, id_map: &mut HashMap<Uuid, String>,
     weak_images: &mut WeakImages, weak_path_pressures: &mut WeakPathPressures,
-) {
+) -> Result<(), String> {
     match &u_el {
         usvg::Node::Group(group) => {
             if group.id().eq(WEAK_IMAGE_G_ID) {
                 if let Some(usvg::Node::Group(weak_images_g)) = group.children().first() {
-                    let base64 = base64::decode(weak_images_g.id().as_bytes())
-                        .expect("Failed to decode base64");
-
-                    let decoded: WeakImages = bincode::deserialize(&base64).unwrap_or_default();
-                    *weak_images = decoded;
+                    *weak_images = parse_metadata(weak_images_g)?;
                 }
             } else if group.id().eq(WEAK_PATH_PRESSURES_G_ID) {
                 if let Some(usvg::Node::Group(weak_pressures_g)) = group.children().first() {
-                    let base64 = base64::decode(weak_pressures_g.id().as_bytes())
-                        .expect("Failed to decode base64");
-
-                    let decoded: WeakPathPressures =
-                        bincode::deserialize(&base64).unwrap_or_default();
-                    *weak_path_pressures = decoded;
+                    *weak_path_pressures = parse_metadata(weak_pressures_g)?;
                 }
             } else if group.id().eq(WEAK_VIEWPORT_SETTINGS_G_ID) {
                 if let Some(usvg::Node::Group(weak_viewport_settings_g)) = group.children().first()
                 {
-                    let base64 = base64::decode(weak_viewport_settings_g.id().as_bytes())
-                        .expect("Failed to decode base64");
-
-                    let decoded: WeakViewportSettings =
-                        bincode::deserialize(&base64).unwrap_or_default();
-                    *weak_viewport_settings = decoded;
+                    *weak_viewport_settings = parse_metadata(weak_viewport_settings_g)?;
                 }
             } else {
-                group.children().iter().for_each(|u_el| {
+                for u_el in group.children() {
                     parse_child(
                         u_el,
                         elements,
@@ -354,8 +357,8 @@ pub fn parse_child(
                         id_map,
                         weak_images,
                         weak_path_pressures,
-                    )
-                });
+                    )?;
+                }
             }
         }
 
@@ -403,6 +406,7 @@ pub fn parse_child(
         }
         _ => {}
     }
+    Ok(())
 }
 
 pub fn get_dyn_color(color: Color) -> DynamicColor {

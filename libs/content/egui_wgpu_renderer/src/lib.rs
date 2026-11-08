@@ -18,7 +18,7 @@ pub use wgpu;
 mod offscreen;
 mod shame;
 
-pub use offscreen::{OFFSCREEN_FORMAT, OffscreenFrame, render_offscreen};
+pub use offscreen::{OFFSCREEN_FORMAT, OffscreenFrame, OffscreenGpu, render_offscreen};
 
 const NOOB_FACTOR: u64 = 8;
 const FRAME_BUDGET: Duration = Duration::from_micros((16_667 / 2) * NOOB_FACTOR);
@@ -90,6 +90,9 @@ impl<'w> RendererState<'w> {
             RendererOptions { msaa_samples: 4, ..Default::default() },
         );
 
+        let context = egui::Context::default();
+        OffscreenGpu::new(&device, &queue, 4).install(&context);
+
         RendererState {
             screen,
             backend: Some(RenderBackend {
@@ -110,7 +113,7 @@ impl<'w> RendererState<'w> {
                 msaa_dimension: None,
             }),
             bottom_inset: None,
-            context: Default::default(),
+            context,
             raw_input: Default::default(),
             modifiers: Default::default(),
             start_time: Instant::now(),

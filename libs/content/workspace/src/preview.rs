@@ -85,6 +85,9 @@ impl Headless {
     /// on the calling thread.
     pub fn open(live: &TabResources, look: Look, req: &PreviewRequest) -> Self {
         let ctx = Context::default();
+        if let Some(gpu) = egui_wgpu_renderer::OffscreenGpu::of(&live.ctx) {
+            gpu.install(&ctx);
+        }
         let mut fonts = egui::FontDefinitions::default();
         crate::register_fonts(&mut fonts);
         ctx.set_fonts(fonts);

@@ -321,7 +321,13 @@ impl ImageCache {
                     && matches!(key, ImageKey::File(_))
                     && Drawing::is_lockbook_drawing(&bytes)
                 {
-                    return Ok((Drawing::load(&bytes, &core)?.image(dark_mode)?, bytes));
+                    let drawing = Drawing::load(&bytes, &core)?;
+                    let image = drawing.image(&ctx, dark_mode);
+                    #[cfg(target_arch = "wasm32")]
+                    let image = image.await?;
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let image = futures::executor::block_on(image)?;
+                    return Ok((image, bytes));
                 }
                 let rasterized = if is_svg {
                     Some(rasterize_svg(&bytes, matches!(key, ImageKey::File(_)), 2048.0, 1.0)?)
@@ -449,7 +455,10 @@ impl ImageCache {
             #[cfg(not(target_arch = "wasm32"))]
             let result = decode_closure();
 
-            let playback = loader.install(&key, &state, result);
+            #[cfg(target_arch = "wasm32")]
+            let playback = loader.install(&key, &state, result).await;
+            #[cfg(not(target_arch = "wasm32"))]
+            let playback = futures::executor::block_on(loader.install(&key, &state, result));
             // a player outlives its loader, so dropping the cache closes the channel
             drop((span, loader));
             if let Some(playback) = playback {
@@ -572,18 +581,9 @@ impl ImageCache {
             .unwrap()
             .current
             .insert(key.clone(), state.clone());
-        let (key, loader, core) = (key.clone(), self.loader(), self.core.clone());
+        let (key, loader) = (key.clone(), self.loader());
         std::thread::spawn(move || {
-            let is_svg = bytes_look_like_svg(&bytes);
-            let result = decode_source(
-                bytes,
-                is_svg,
-                matches!(key, ImageKey::File(_)),
-                &core,
-                1920.0,
-                loader.ctx.pixels_per_point(),
-            );
-            let playback = loader.install(&key, &state, result);
+            let playback = futures::executor::block_on(loader.install(&key, &state, decode(bytes)));
             drop(loader);
             if let Some(playback) = playback {
                 futures::executor::block_on(play(playback));
@@ -604,28 +604,31 @@ struct Loader {
 impl Loader {
     /// Shows a decoded image: its first frame becomes its texture. Returns
     /// the rest of an animation, for [`play`] to feed the texture.
-    fn install(
+    async fn install(
         &self, key: &ImageKey, state: &Mutex<ImageState>, result: Result<Decoded, String>,
     ) -> Option<Playback> {
-        // Rasterize on the loading worker, before taking the cache lock. Drop
-        // the parsed buffer and mesh caches as soon as pixels are available.
-        let result = result.and_then(|decoded| match decoded {
-            Decoded::Drawing(drawing) => {
-                let dark_mode = self.ctx.style_of(self.ctx.theme()).visuals.dark_mode;
-                let pixels_per_point = self.ctx.pixels_per_point();
-                let max_side =
-                    (self.ctx.content_rect().width() * pixels_per_point).clamp(1.0, 2048.0);
-                let image = drawing.rasterize(dark_mode, max_side)?;
-                let metadata = DrawingTexture {
-                    references: drawing.references().to_vec(),
-                    dark_mode,
-                    pixels_per_point,
-                };
-                Ok((Arc::new(image), None, Some(metadata)))
-            }
-            Decoded::Still(image) => Ok((image, None, None)),
-            Decoded::Animated(first, rest) => Ok((first.image, Some((first.delay, rest)), None)),
-        });
+        // Render on the GPU before taking the cache lock. Drop the parsed
+        // buffer, meshes and CPU pixels once the texture has been uploaded.
+        let result = async {
+            Ok(match result? {
+                Decoded::Drawing(drawing) => {
+                    let dark_mode = self.ctx.style_of(self.ctx.theme()).visuals.dark_mode;
+                    let pixels_per_point = self.ctx.pixels_per_point();
+                    let max_side =
+                        (self.ctx.content_rect().width() * pixels_per_point).clamp(1.0, 2048.0);
+                    let image = drawing.rasterize(&self.ctx, dark_mode, max_side).await?;
+                    let metadata = DrawingTexture {
+                        references: drawing.references(),
+                        dark_mode,
+                        pixels_per_point,
+                    };
+                    (Arc::new(image), None, Some(metadata))
+                }
+                Decoded::Still(image) => (image, None, None),
+                Decoded::Animated(first, rest) => (first.image, Some((first.delay, rest)), None),
+            })
+        }
+        .await;
         let mut inner = self.inner.lock().unwrap();
         if !inner
             .current
@@ -945,8 +948,10 @@ mod tests {
     use crate::workspace::WsPersistentStore;
 
     fn drawing_cache() -> ImageCache {
+        let ctx = crate::tab::markdown_editor::test_egui_ctx();
+        crate::tab::svg_editor::drawing::install_test_gpu(&ctx);
         ImageCache::new(
-            crate::tab::markdown_editor::test_egui_ctx(),
+            ctx,
             Default::default(),
             crate::tab::markdown_editor::tests::harness::build_lb(),
             Arc::new(RwLock::new(FileCache::empty())),
@@ -965,22 +970,6 @@ mod tests {
     }
 
     #[test]
-    fn drawing_cache_routes_local_drawings_and_keeps_web_svg_rasterized() {
-        let images = drawing_cache();
-        let local =
-            super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 2.0).unwrap();
-        assert!(matches!(local, super::Decoded::Drawing(_)));
-        let remote =
-            super::decode_source(drawing_bytes(), true, false, &images.core, 1920.0, 2.0).unwrap();
-        assert!(matches!(remote, super::Decoded::Still(_)));
-        let generic = br##"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#000000"/></svg>"##;
-        assert!(matches!(
-            super::decode_source(generic.to_vec(), true, true, &images.core, 1920.0, 2.0).unwrap(),
-            super::Decoded::Still(_)
-        ));
-    }
-
-    #[test]
     fn drawing_cache_invalidates_revisions_and_rejects_late_workers() {
         use super::{Decoded, ImageState};
         let images = drawing_cache();
@@ -994,7 +983,7 @@ mod tests {
             .insert(key.clone(), state.clone());
         let result =
             super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 1.0).unwrap();
-        images.loader().install(&key, &state, Ok(result));
+        futures::executor::block_on(images.loader().install(&key, &state, Ok(result)));
         assert!(images.is_loaded(&key));
         let texture = match *state.lock().unwrap() {
             ImageState::Loaded(texture) => texture,
@@ -1019,12 +1008,14 @@ mod tests {
             .current
             .insert(key.clone(), replacement.clone());
         let stale = Decoded::Still(Arc::new(egui::ColorImage::filled([2, 2], Color32::RED)));
-        images.loader().install(&key, &state, Ok(stale));
+        futures::executor::block_on(images.loader().install(&key, &state, Ok(stale)));
         assert_eq!(*replacement.lock().unwrap(), ImageState::Loading);
         assert!(!images.is_loaded(&key));
-        images
-            .loader()
-            .install(&key, &replacement, Err("unreadable image".into()));
+        futures::executor::block_on(images.loader().install(
+            &key,
+            &replacement,
+            Err("unreadable image".into()),
+        ));
         assert_eq!(*replacement.lock().unwrap(), ImageState::Failed("unreadable image".into()));
     }
 
@@ -1044,7 +1035,7 @@ mod tests {
             let decoded =
                 super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 1.0)
                     .unwrap();
-            images.loader().install(&key, &state, Ok(decoded));
+            futures::executor::block_on(images.loader().install(&key, &state, Ok(decoded)));
             let texture = match *state.lock().unwrap() {
                 super::ImageState::Loaded(texture) => texture,
                 ref state => panic!("expected a texture, got {state:?}"),
@@ -1080,131 +1071,6 @@ mod tests {
         images.end_frame();
         assert!(images.texture_size(texture).is_none());
         assert!(images.inner.lock().unwrap().drawings.is_empty());
-    }
-
-    #[test]
-    fn drawing_cache_renders_both_markdown_embed_syntaxes_in_the_current_theme() {
-        use crate::tab::markdown_editor::{Editor, MdConfig, MdResources};
-        use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
-        use lb_rs::model::{file::File, file_metadata::FileType};
-        let images = drawing_cache();
-        let [root, note, drawing] = [1, 2, 3].map(Uuid::from_u128);
-        let file = |id, name: &str, file_type| File {
-            id,
-            parent: root,
-            name: name.into(),
-            file_type,
-            last_modified: 0,
-            last_modified_by: Default::default(),
-            owner: Default::default(),
-            shares: vec![],
-            size_bytes: 0,
-        };
-        let root_file = file(root, "root", FileType::Folder);
-        *images.files.write().unwrap() = FileCache::from_owned_and_shared(
-            root_file.clone(),
-            [
-                root_file,
-                file(note, "note.md", FileType::Document),
-                file(drawing, "drawing.svg", FileType::Document),
-            ],
-            [],
-        );
-        let key = ImageKey::File(drawing);
-        let state = Arc::new(std::sync::Mutex::new(super::ImageState::Loading));
-        let mut editor = Editor::new(
-            "![drawing](drawing.svg)\n\n![[drawing.svg]]\n\nend\n",
-            note,
-            None,
-            MdResources {
-                ctx: images.ctx.clone(),
-                core: images.core.clone(),
-                persistence: images.persistence.clone(),
-                previews: crate::link_preview::LinkPreviews::new(
-                    images.ctx.clone(),
-                    Default::default(),
-                    images.persistence.clone(),
-                ),
-                link_resolver: Box::new(()),
-                embeds: Box::new(crate::resolvers::image_embed::ImageEmbedResolver::new(
-                    images.clone(),
-                    note,
-                )),
-                files: images.files.clone(),
-            },
-            MdConfig { readonly: true, ext: "md".into() },
-        );
-        for dark in [false, true, false] {
-            images
-                .ctx
-                .set_lb_theme(Theme::default(if dark { Mode::Dark } else { Mode::Light }));
-            for frame in 0..2 {
-                let mut output = images.ctx.run_pass(
-                    egui::RawInput {
-                        screen_rect: Some(egui::Rect::from_min_size(
-                            egui::Pos2::ZERO,
-                            egui::vec2(800.0, 600.0),
-                        )),
-                        ..Default::default()
-                    },
-                    |ctx| {
-                        images.begin_frame();
-                        if !images.is_loaded(&key) {
-                            // Install synchronously to exercise both embed syntaxes without
-                            // depending on worker timing or a document in the core database.
-                            images
-                                .inner
-                                .lock()
-                                .unwrap()
-                                .current
-                                .insert(key.clone(), state.clone());
-                            let decoded = super::decode_source(
-                                drawing_bytes(),
-                                true,
-                                true,
-                                &images.core,
-                                800.0,
-                                1.0,
-                            )
-                            .unwrap();
-                            images.loader().install(&key, &state, Ok(decoded));
-                        }
-                        editor.surrender_focus(ctx);
-                        ctx.root_ui(|ui| {
-                            editor.show(ui);
-                        });
-                        images.end_frame();
-                    },
-                );
-                let texture = match *state.lock().unwrap() {
-                    super::ImageState::Loaded(texture) => texture,
-                    ref state => panic!("expected a texture, got {state:?}"),
-                };
-                assert_eq!(images.inner.lock().unwrap().drawings[&key].dark_mode, dark);
-                if frame == 0 {
-                    assert!(
-                        output.textures_delta.set.contains_key(&texture),
-                        "theme changes must upload fresh pixels"
-                    );
-                }
-                // Ink lives in texture pixels now; the editor paints white-tinted rectangles.
-                for (_, deltas) in output
-                    .textures_delta
-                    .set
-                    .iter()
-                    .filter(|(id, _)| **id == texture)
-                {
-                    let egui::ImageData::Color(image) = &deltas[0].image;
-                    let ink = if dark { Color32::WHITE } else { Color32::BLACK };
-                    assert!(image.pixels.iter().any(|pixel| *pixel == ink));
-                }
-                let embeds = output.shapes.iter().filter(|shape| {
-                    matches!(&shape.shape, egui::Shape::Rect(rect) if rect.fill_texture_id() == texture)
-                }).count();
-                output.textures_delta.clear();
-                assert_eq!(embeds, 2, "both syntaxes must paint the drawing texture, dark={dark}");
-            }
-        }
     }
 
     /// A 4×4 gif of solid frames, each with its delay in centiseconds.

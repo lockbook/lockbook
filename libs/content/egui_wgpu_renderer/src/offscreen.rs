@@ -2,14 +2,60 @@
 //! previews drawn off screen.
 
 use std::iter;
+use std::sync::Arc;
 
 use egui::TexturesDelta;
 use egui::epaint::ClippedPrimitive;
-use egui_wgpu::{Renderer, ScreenDescriptor};
+use egui_wgpu::{Renderer, RendererOptions, ScreenDescriptor};
 use wgpu::{Device, Queue, TextureFormat};
 
 /// The format a renderer for [`render_offscreen`] is built with.
 pub const OFFSCREEN_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
+
+/// A reusable offscreen renderer sharing the live application's GPU.
+#[derive(Clone)]
+pub struct OffscreenGpu {
+    device: Device,
+    queue: Queue,
+    renderer: Arc<futures::lock::Mutex<Renderer>>,
+    sample_count: u32,
+}
+
+impl OffscreenGpu {
+    pub fn new(device: &Device, queue: &Queue, sample_count: u32) -> Self {
+        let renderer = Renderer::new(
+            device,
+            OFFSCREEN_FORMAT,
+            RendererOptions { msaa_samples: sample_count, ..Default::default() },
+        );
+        Self {
+            device: device.clone(),
+            queue: queue.clone(),
+            renderer: Arc::new(futures::lock::Mutex::new(renderer)),
+            sample_count,
+        }
+    }
+
+    pub fn install(&self, ctx: &egui::Context) {
+        ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, self.clone()));
+    }
+
+    pub fn of(ctx: &egui::Context) -> Option<Self> {
+        ctx.data(|d| d.get_temp(egui::Id::NULL))
+    }
+
+    /// Frames have their own context and supply all their textures. Release
+    /// those textures after rendering, keeping only the GPU pipeline for reuse.
+    pub async fn render(&self, mut frame: OffscreenFrame) -> Option<Vec<u8>> {
+        frame
+            .textures
+            .free
+            .extend(frame.textures.set.keys().copied());
+        let mut renderer = self.renderer.lock().await;
+        render_offscreen_async(&self.device, &self.queue, &mut renderer, frame, self.sample_count)
+            .await
+    }
+}
 
 /// A frame for [`render_offscreen`]: tessellated, with every texture change
 /// its context made since the renderer last saw it.
@@ -27,6 +73,15 @@ pub struct OffscreenFrame {
 /// background. `renderer` must be built with [`OFFSCREEN_FORMAT`] and
 /// `sample_count` samples.
 pub fn render_offscreen(
+    device: &Device, queue: &Queue, renderer: &mut Renderer, frame: OffscreenFrame,
+    sample_count: u32,
+) -> Option<Vec<u8>> {
+    pollster::block_on(render_offscreen_async(device, queue, renderer, frame, sample_count))
+}
+
+/// Asynchronous readback also works in browsers, where mapping completes on
+/// a later event-loop turn and blocking would prevent it from completing.
+pub async fn render_offscreen_async(
     device: &Device, queue: &Queue, renderer: &mut Renderer, frame: OffscreenFrame,
     sample_count: u32,
 ) -> Option<Vec<u8>> {
@@ -113,13 +168,20 @@ pub fn render_offscreen(
     queue.submit(prepared.into_iter().chain(iter::once(encoder.finish())));
 
     let slice = buffer.slice(..);
-    let (tx, rx) = std::sync::mpsc::channel();
+    let (tx, rx) = futures::channel::oneshot::channel();
     slice.map_async(wgpu::MapMode::Read, move |mapped| {
         let _ = tx.send(mapped.is_ok());
     });
-    let timeout = Some(std::time::Duration::from_secs(5));
-    let polled = device.poll(wgpu::PollType::Wait { submission_index: None, timeout });
-    let mapped = polled.is_ok() && rx.try_recv() == Ok(true);
+    #[cfg(not(target_arch = "wasm32"))]
+    let polled = device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(5)),
+        })
+        .is_ok();
+    #[cfg(target_arch = "wasm32")]
+    let polled = true;
+    let mapped = polled && rx.await.unwrap_or(false);
     let mut pixels = Vec::with_capacity((row * height) as usize);
     if mapped {
         if let Ok(range) = slice.get_mapped_range() {
