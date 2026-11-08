@@ -321,3 +321,16 @@ fn enter_in_a_task_fence_keeps_the_task_indent() {
     ws.enter_frame_with_input(super::harness::key_press(egui::Key::Enter, Default::default()));
     assert_eq!(shown(&ws), "- [ ]\n  ```\n  roller\n  |\n  ```\n- [ ] trim");
 }
+
+#[test]
+fn backspace_at_a_fence_start_takes_the_fence_away() {
+    let backspace = || super::harness::key_press(egui::Key::Backspace, Default::default());
+    for (doc, want) in [
+        ("```\n|code\n```", "|code"),
+        ("- [ ]\n  ```\n  |roller\n  ```\n- [ ] trim", "- [ ] |roller\n- [ ] trim"),
+    ] {
+        let mut ws = editor(doc, None);
+        ws.enter_frame_with_input(backspace());
+        assert_eq!(shown(&ws), want);
+    }
+}

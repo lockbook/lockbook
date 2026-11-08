@@ -249,6 +249,10 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                if self.delete_at_code_start(root, region, current_selection, operations) {
+                    return response;
+                }
+
                 // delete container block prefix
                 let mut handled = || {
                     // must be mostly vanilla backspace
@@ -1077,6 +1081,30 @@ impl<'ast> MdEdit {
                     || !self.renderer.node_contains_selection(node)
             })
             .collect()
+    }
+
+    /// Backspace at the start of a fenced code block's first line takes the
+    /// fence away, as a code block toggle does. True if handled (ops pushed).
+    fn delete_at_code_start(
+        &mut self, root: &'ast AstNode<'ast>, region: Region,
+        current_selection: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
+    ) -> bool {
+        let Region::SelectionOrAdvance { backwards: true, .. } = region else { return false };
+        let Some(offset) = self.renderer.selection_offset() else { return false };
+        let at_start = root.descendants().any(|node| {
+            let NodeValue::CodeBlock(code) = &node.data.borrow().value else { return false };
+            let first_idx = self.renderer.node_first_line_idx(node);
+            let Some(&line) = self.renderer.bounds.source_lines.get(first_idx + 1) else {
+                return false;
+            };
+            code.fenced
+                && first_idx < self.renderer.node_last_line_idx(node)
+                && self.renderer.node_line(node, line).start() == offset
+        });
+        if at_start {
+            self.toggle_code_block(root, current_selection, operations);
+        }
+        at_start
     }
 
     /// Inserts a `---` after the top-level block holding the selection's
