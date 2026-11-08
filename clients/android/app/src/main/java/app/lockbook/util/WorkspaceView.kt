@@ -11,7 +11,9 @@ import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
 import android.os.Build
+import android.os.Handler
 import android.os.LocaleList
+import android.os.Looper
 import android.os.SystemClock
 import android.view.ActionMode
 import android.view.Choreographer
@@ -41,6 +43,7 @@ import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.JTextRange
+import app.lockbook.workspace.RepaintCallback
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import app.lockbook.workspace.toModelTab
@@ -51,6 +54,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import net.lockbook.Lb
 import java.io.File
+import java.lang.ref.WeakReference
 
 @SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
 class WorkspaceView(
@@ -59,6 +63,25 @@ class WorkspaceView(
 ) : SurfaceView(context),
     SurfaceHolder.Callback2 {
     private var surface: Surface? = null
+    private var repaintCallback: ViewRepaintCallback? = null
+
+    // JNI retains this callback for the native workspace's lifetime, which can
+    // outlive the surface. Neither the callback nor its queued work owns the view.
+    private class ViewRepaintCallback(
+        view: WorkspaceView,
+    ) : RepaintCallback {
+        private val view = WeakReference(view)
+        private val mainHandler = Handler(Looper.getMainLooper())
+
+        override fun repaint(delayMs: Long) {
+            mainHandler.post {
+                val view = view.get() ?: return@post
+                if (view.repaintCallback === this && view.surface != null && view.isAttachedToWindow) {
+                    view.requestRedraw(delayMs)
+                }
+            }
+        }
+    }
 
     // The fragment may request a file before SurfaceView creates its native workspace.
     private var deferredOpenDoc: OpenFileRequest? = null
@@ -273,12 +296,15 @@ class WorkspaceView(
 
         // includes the app's own language choice, which the system property misses
         Workspace.setPreferredLanguages(LocaleList.getDefault().toLanguageTags())
+        val repaint = ViewRepaintCallback(this)
+        repaintCallback = repaint
         wgpuObj =
             Workspace.initWSOffloaded(
                 surface!!,
                 Lb.lb,
                 workspaceTheme,
-            ) { delayMs -> post { requestRedraw(delayMs) } }
+                repaint,
+            )
         publishSafeInsets()
         setWillNotDraw(false)
 
@@ -325,12 +351,14 @@ class WorkspaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        repaintCallback = null
         cancelRedraw()
         dismissMagnifier()
         surface = null
     }
 
     override fun onDetachedFromWindow() {
+        repaintCallback = null
         cancelRedraw()
         ioScope.cancel()
         super.onDetachedFromWindow()
