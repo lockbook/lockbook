@@ -52,7 +52,7 @@ impl ApplicationHandler<UserEvent> for App {
 
         let mut window_attrs = Window::default_attributes()
             .with_title("Lockbook")
-            .with_inner_size(LogicalSize::new(1300, 800))
+            .with_inner_size(LogicalSize::new(1280, 800))
             .with_window_icon(window_icon);
 
         // Frameless product chrome: shell paints its own titlebar / controls.

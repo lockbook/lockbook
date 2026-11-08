@@ -499,18 +499,40 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::OpenHelp => app.modal = Some(Modal::Help),
         A::OnboardSetMode(m) => {
-            if matches!(&app.modal, Some(Modal::Onboard { mode: OnboardMode::Backup, .. })) {
+            let Some(Modal::Onboard {
+                mode,
+                err,
+                uname_lookup,
+                uname_lookup_for,
+                busy,
+                signing_in,
+                ready,
+                draft,
+                ..
+            }) = &mut app.modal
+            else {
+                return;
+            };
+            // busy holds the list still, except a sign-in's sync, which Look
+            // and Complete wait out
+            let syncing = *signing_in && matches!(m, OnboardMode::Look | OnboardMode::Complete);
+            if *busy && !syncing {
                 return;
             }
-            if let Some(Modal::Onboard { mode, err, uname_lookup, uname_lookup_for, .. }) =
-                &mut app.modal
-            {
-                *mode = m;
-                *err = None;
-                if matches!(m, OnboardMode::Create) {
-                    *uname_lookup = OnboardLookup::Idle;
-                    uname_lookup_for.clear();
-                }
+            // Complete ends an account under way: a draft to register, or a sign-in
+            if m == OnboardMode::Complete && draft.is_none() && !*signing_in {
+                return;
+            }
+            *mode = m;
+            *err = None;
+            if matches!(m, OnboardMode::Create) {
+                *uname_lookup = OnboardLookup::Idle;
+                uname_lookup_for.clear();
+            }
+            // signing in leaves the unregistered account behind
+            if matches!(m, OnboardMode::Import) {
+                *ready = false;
+                *draft = None;
             }
             // Default-focus the field when entering a form step (Create/Rename pattern).
             match m {
@@ -522,25 +544,26 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 OnboardMode::Import => {
                     onboard_import_focus(ctx);
                 }
-                OnboardMode::Choice | OnboardMode::Backup => {}
+                OnboardMode::Backup => super::apply_account::spawn_account_qr(app, ctx),
+                OnboardMode::Choice | OnboardMode::Look | OnboardMode::Complete => {}
             }
         }
         A::OnboardVerifyUname => onboard_verify_uname(app, ctx),
         A::OnboardSubmit { show_error } => onboard_submit(app, ctx, show_error),
-        A::OnboardFinishBackup => {
-            let stored = matches!(
-                &app.modal,
-                Some(Modal::Onboard { mode: OnboardMode::Backup, key_stored: true, .. })
-            );
-            let phrase_ok = app
-                .phrase_cache
-                .as_deref()
-                .is_some_and(|p| p.split_whitespace().count() == 24);
-            if stored && phrase_ok {
-                app.modal = None;
-                app.phrase_cache = None;
+        A::OnboardFinish => match &app.modal {
+            // a sign-in lands in its synced files; a new account registers
+            // now, and the list closes once it is ready
+            Some(Modal::Onboard {
+                mode: OnboardMode::Complete,
+                signing_in: true,
+                ready: true,
+                ..
+            }) => close_onboarding(app),
+            Some(Modal::Onboard { mode: OnboardMode::Complete, signing_in: false, .. }) => {
+                onboard_register(app, ctx)
             }
-        }
+            _ => {}
+        },
         A::RequestSync => request_sync(app, ctx),
         A::TogglePin(id) => toggle_pins(app, &[id]),
         A::TogglePinMany(ids) => toggle_pins(app, &ids),
@@ -774,7 +797,14 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             app.phrase_cache = None;
         }
         A::CopyPhrase => {
-            if let Some(p) = &app.phrase_cache {
+            // a new account's key is its draft until it registers
+            let draft = match &app.modal {
+                Some(Modal::Onboard { draft: Some(d), .. }) => {
+                    d.get_phrase().ok().map(|w| w.join(" "))
+                }
+                _ => None,
+            };
+            if let Some(p) = draft.as_ref().or(app.phrase_cache.as_ref()) {
                 ctx.copy_text(p.clone());
             } else if let Some(r) = app.session.ready() {
                 if let Ok(p) = r.workspace.core.export_account_phrase() {
@@ -1742,6 +1772,41 @@ mod import_dest_tests {
     fn home_when_no_context() {
         let (root, _, _) = ids();
         assert_eq!(import_dest_id(root, None, None), root);
+    }
+}
+
+/// A new account lands in its welcome note, or in a new note when it has none.
+/// The list is done: the account it ends on is the session's, so what was
+/// cached for the draft goes with it.
+pub(super) fn close_onboarding(app: &mut ShellApp) {
+    app.modal = None;
+    app.phrase_cache = None;
+    app.onboard_note = None;
+    if let Ok(mut qr) = app.account_qr.lock() {
+        *qr = super::AccountQrCache::Idle;
+    }
+}
+
+pub(super) fn land_in_welcome_note(app: &mut ShellApp) {
+    let Some(r) = app.session.ready_mut() else {
+        return;
+    };
+    let (root, welcome) = {
+        let files = r.workspace.files.read().unwrap();
+        let root = files.root.id;
+        let welcome = files
+            .iter_files()
+            .find(|f| f.parent == root && f.is_document() && f.name == "welcome.md")
+            .map(|f| f.id);
+        (root, welcome)
+    };
+    match welcome {
+        Some(id) => {
+            r.workspace.open_file(id, true, false);
+            r.select_only(id);
+            super::reveal_and_scroll(r, id);
+        }
+        None => r.workspace.create_doc_at(false, root),
     }
 }
 

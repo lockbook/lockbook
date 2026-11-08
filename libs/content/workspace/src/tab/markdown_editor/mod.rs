@@ -658,6 +658,13 @@ pub struct MdConfig {
     pub ext: String,
 }
 
+/// Where a note's text sits across a pane `canvas_width` wide: its left
+/// offset and width, capped at `max_width` and centered.
+pub fn text_column(canvas_width: f32, margin: f32, max_width: f32) -> (f32, f32) {
+    let width = (canvas_width - 2.0 * margin).min(max_width).max(0.0);
+    (((canvas_width - width) / 2.0).max(0.0), width)
+}
+
 pub struct MdLayout {
     pub margin: f32,
     pub max_width: f32,
@@ -2098,8 +2105,7 @@ impl Editor {
                 // crossing from docked to floating moves nothing.
                 let edge = crate::style::Space::Md.pts();
                 let side = SIDECAR_GAP + SIDECAR_W + edge;
-                let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
-                let centered = ((canvas_width - col_width) / 2.0).max(0.0);
+                let (centered, col_width) = text_column(canvas_width, layout_margin, max_width);
                 let beside = canvas_width - side - col_width;
                 let docks = beside >= layout_margin;
                 let open_left = beside.max(layout_margin).min(centered);

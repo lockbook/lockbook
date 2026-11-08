@@ -190,8 +190,14 @@ pub enum Modal {
         api_url: String,
         busy: bool,
         err: Option<String>,
-        /// Backup step: user confirmed they stored the key.
-        key_stored: bool,
+        /// The account is on this device and its first sync is done: a new
+        /// account can move on to its key, a sign-in can finish.
+        ready: bool,
+        /// The Account step took a key, so the list has no key step.
+        signing_in: bool,
+        /// A new account's key, made once its first username is accepted and
+        /// kept through any change of name; Done registers it.
+        draft: Option<lb::model::account::Account>,
     },
 }
 
@@ -200,9 +206,14 @@ pub enum OnboardMode {
     #[default]
     Choice,
     Create,
+    /// After the account step: pick a color and a font while the account is
+    /// made or the notes sync.
+    Look,
     Import,
-    /// After create: show the 24-word key and require a backup ack.
+    /// After create: show the 24-word key.
     Backup,
+    /// The last step: Start writing ends the list in the person's notes.
+    Complete,
 }
 
 /// Stripe upgrade sheet stages.
@@ -376,8 +387,9 @@ pub enum Action {
     OnboardSubmit {
         show_error: bool,
     },
-    /// Backup step finished (key ack). Dismisses onboard.
-    OnboardFinishBackup,
+    /// The list's last Done: a new account lands in its welcome note, a
+    /// sign-in in its files.
+    OnboardFinish,
     RequestSync,
     TogglePin(Uuid),
     /// Toggle pin on each id (own state).
@@ -540,7 +552,7 @@ impl Action {
             Self::OnboardSetMode(_) => "OnboardSetMode",
             Self::OnboardVerifyUname => "OnboardVerifyUname",
             Self::OnboardSubmit { .. } => "OnboardSubmit",
-            Self::OnboardFinishBackup => "OnboardFinishBackup",
+            Self::OnboardFinish => "OnboardFinish",
             Self::RequestSync => "RequestSync",
             Self::TogglePin(_) => "TogglePin",
             Self::TogglePinMany(_) => "TogglePinMany",
