@@ -21,8 +21,7 @@ use super::link::hover::{CARD_PAD, CARD_RADIUS, FILE_CARD, ink_secondary};
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
 use crate::resolvers::image_embed::wiki_embed_key;
 use crate::show::ElapsedHumanString as _;
-use crate::style::button::icon_button;
-use crate::style::phosphor::ARROW_SQUARE_OUT;
+use crate::style::button::Button;
 use crate::style::tree_metrics::INDENT_BASE;
 use crate::style::{FileRow, ROW_H, Space, TypeRole, file_row_icon, parent_crumbs};
 use crate::tab::markdown_editor::input::Event;
@@ -195,11 +194,16 @@ impl TabEmbeds {
     }
 
     /// The place `title` embeds, if it can: a document past no cycle and
-    /// within the depth, while something can build its tab.
+    /// within the depth, while something can build its tab. A note shows a
+    /// heading of its own once: the copy shows none of itself.
     fn place(&self, renderer: &MdRender, title: &str) -> Option<Place> {
         let place = self.reach(renderer, title)?;
         let id = place.dest.backing_file()?;
-        (self.path.len() < EMBED_DEPTH && !self.path.contains(&id)).then_some(place)
+        let shown = self.path.iter().filter(|shown| **shown == id).count();
+        let own_heading = shown == 1
+            && self.path.last() == Some(&id)
+            && matches!(place.fragment, Some(Fragment::Heading(_)));
+        (self.path.len() < EMBED_DEPTH && (shown == 0 || own_heading)).then_some(place)
     }
 
     /// The document `title` names, for a card, which nests nothing.
@@ -234,8 +238,9 @@ impl TabEmbeds {
         measured.or_else(remembered).unwrap_or(SKELETON_HEIGHT)
     }
 
-    /// Draws the slot `key` names into `rect`, opening its tab first.
-    fn paint(&self, ui: &mut egui::Ui, key: SlotKey, place: Place, rect: Rect) {
+    /// Draws the slot `key` names into `rect`, opening its tab first, the
+    /// tab `band` lower than the slot's pad for what heads the slot.
+    fn paint(&self, ui: &mut egui::Ui, key: SlotKey, place: Place, rect: Rect, band: f32) {
         let Some(res) = self.res.clone() else { return };
         let mut slots = self.slots.borrow_mut();
         let slot = slots
@@ -251,11 +256,7 @@ impl TabEmbeds {
         let t = ui.ctx().get_lb_theme();
         // a card's frame pads it; a slot pads itself
         let inner = if key.card { rect } else { rect.shrink(CARD_PAD.pts()) };
-        // the page's ground, so the selection slot behind hides as it does behind an image
-        if !key.card {
-            let ground = egui::Frame::canvas(ui.style()).fill;
-            ui.painter().rect_filled(rect, CARD_RADIUS.corner(), ground);
-        }
+        let inner = inner.with_min_y(inner.top() + band);
         match &mut slot.state {
             SlotState::Open(tab) => {
                 // the pad takes what hangs past the content: a list's numbers, a last line's descent
@@ -324,7 +325,6 @@ impl TabEmbeds {
         }
         if !key.card {
             crate::style::paint_doc_border(ui.painter(), rect, CARD_RADIUS.corner(), &t);
-            open_button(ui, rect, &place);
         }
     }
 }
@@ -488,7 +488,14 @@ impl<'ast> MdRender {
         let height = self
             .tab_embeds
             .content_height(&title, &place, width - pad, false);
-        Some((place, vec2(width, height + pad)))
+        let band = self.tab_embed_band_height(&place);
+        Some((place, vec2(width, band + height + pad)))
+    }
+
+    /// What heads a note embed: its file's row, as its hover card shows it,
+    /// with the row's own pad above and below.
+    fn tab_embed_band_height(&self, place: &Place) -> f32 {
+        FileRow::height_for(self.card_folder(place).is_some())
     }
 
     /// The slot's height for the block-height estimate, if `node` embeds.
@@ -524,7 +531,8 @@ impl<'ast> MdRender {
 
     /// Paints the tab an embed slot holds; `at` is where its source starts,
     /// which tells repeated embeds of one title apart.
-    pub fn paint_tab_embed(&self, ui: &mut egui::Ui, title: &str, rect: Rect, at: Grapheme) {
+    pub fn paint_tab_embed(&mut self, ui: &mut egui::Ui, title: &str, rect: Rect, at: Grapheme) {
+        let name = title;
         let Some(place) = self.tab_embeds.place(self, title) else { return };
         let segs = &self.buffer.current.segs;
         let before = &self.buffer.current.text[..segs.offset_to_byte(at).0];
@@ -535,7 +543,58 @@ impl<'ast> MdRender {
             .filter(|(i, _)| before[i + open.len()..].starts_with([']', '|']))
             .count();
         let key = SlotKey { url: title.into(), nth, card: false };
-        self.tab_embeds.paint(ui, key, place, rect);
+        let band = self.tab_embed_band_height(&place);
+        // the title: the file's row on the secondary ground, a rule under it
+        let t = ui.ctx().get_lb_theme();
+        // the page's ground, so the selection slot behind hides as it does behind an image
+        let ground = egui::Frame::canvas(ui.style()).fill;
+        ui.painter().rect_filled(rect, CARD_RADIUS.corner(), ground);
+        let title = rect.with_max_y(rect.top() + band);
+        let r = CARD_RADIUS.corner();
+        let top = CornerRadius { nw: r.nw, ne: r.ne, sw: 0, se: 0 };
+        ui.painter()
+            .rect_filled(title, top, t.neutral_bg_secondary());
+        // The Open button shows while a pointer is over the embed, or on
+        // touch once a tap on the title shows it, the next tap hiding it.
+        // each note keeps its own: two boards embedding one ticket don't share
+        let note = self.tab_embeds.path.last().copied();
+        let shown = egui::Id::unique(("md_embed_open", note, name, nth));
+        if self.touch_mode && !self.painting_drag_float {
+            // egui takes the tap, not the platform's text view, ahead of the
+            // embed's own target under it: the first that holds a point wins
+            self.touch_targets.insert(0, (title, TouchTarget::Popup));
+            if ui
+                .interact(title, shown.with("tap"), Sense::click())
+                .clicked()
+            {
+                ui.data_mut(|d| {
+                    let on = d.get_temp_mut_or_default::<bool>(shown);
+                    *on = !*on;
+                });
+                ui.ctx().request_repaint();
+            }
+        }
+        let show_open = if self.touch_mode {
+            ui.data(|d| d.get_temp::<bool>(shown).unwrap_or(false))
+        } else {
+            ui.rect_contains_pointer(rect)
+        };
+        // the row stops short of the Open button at its right
+        let open = if show_open { self.open_button_width() + Space::Sm.pts() } else { 0.0 };
+        let header = Rect::from_min_max(
+            pos2(rect.left() + CARD_PAD.pts(), title.top() + row_pad()),
+            pos2(rect.right() - CARD_PAD.pts() - open, title.bottom() - row_pad()),
+        );
+        let header_ui = &mut ui.new_child(UiBuilder::new().max_rect(header));
+        let folder = self.card_folder(&place);
+        let heading = Self::named_heading(&place, wiki_fragment(name).1);
+        self.card_header(header_ui, &place, heading, folder, header.width());
+        let rule = egui::Stroke::new(1.0, t.neutral_bg_tertiary());
+        ui.painter().hline(rect.x_range(), title.bottom(), rule);
+        self.tab_embeds.paint(ui, key, place.clone(), rect, band);
+        if show_open {
+            open_button(ui, title, &place);
+        }
     }
 
     /// The place a link reaches, when it's a tab a card can show.
@@ -567,11 +626,12 @@ impl<'ast> MdRender {
                     .min(card_view_height(folder.is_some()));
                 ui.set_width(width);
                 ui.spacing_mut().item_spacing.y = HEADER_GAP.pts();
-                self.card_header(ui, &place, folder, width);
+                let heading = Self::named_heading(&place, url.split_once('#').map(|(_, h)| h));
+                self.card_header(ui, &place, heading, folder, width);
                 ui.spacing_mut().item_spacing.y = Space::Sm.pts();
                 let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
                 let key = SlotKey { url: url.into(), nth: 0, card: true };
-                self.tab_embeds.paint(ui, key, place.clone(), rect);
+                self.tab_embeds.paint(ui, key, place.clone(), rect, 0.0);
                 if let Some(action) = self.card_file_footer(ui, &place) {
                     *self.card_action.borrow_mut() = Some((url.to_string(), action));
                     crate::style::dismiss_tip(ui.ctx());
@@ -582,16 +642,37 @@ impl<'ast> MdRender {
         true
     }
 
-    /// The folders `place`'s file sits in, as crumbs, unless it's at the root.
+    /// The quiet Open button's width: its label and the control's pads.
+    fn open_button_width(&self) -> f32 {
+        self.body_width("Open") + 2.0 * crate::style::space::control::PAD_X.pts()
+    }
+
+    fn body_width(&self, text: &str) -> f32 {
+        let label = GlyphonLabel::new(text, egui::Color32::WHITE)
+            .font_size(TypeRole::Body.size())
+            .line_height(TypeRole::Body.line_height());
+        label.build(&self.ctx).size.x.ceil()
+    }
+
+    /// The heading a link names after its `#`, when it lands on one.
+    fn named_heading<'u>(place: &Place, fragment: Option<&'u str>) -> Option<&'u str> {
+        fragment.filter(|_| matches!(place.fragment, Some(Fragment::Heading(_))))
+    }
+
+    /// The folders `place`'s file sits in, as crumbs, or Home at the root.
     fn card_folder(&self, place: &Place) -> Option<String> {
         let files = self.files.read().unwrap();
         let file = files.get_by_id(place.dest.backing_file()?)?;
-        (file.parent != files.root.id).then(|| parent_crumbs(&files.path(file.id)))
+        Some(parent_crumbs(&files.path(file.id)))
     }
 
     /// A file card's top: `place`'s file as a row, under its name the
     /// `folder` it's in, its icon in line with the tab's content under it.
-    fn card_header(&self, ui: &mut egui::Ui, place: &Place, folder: Option<String>, width: f32) {
+    /// A `heading` the link names heads the row instead, the note under it.
+    fn card_header(
+        &self, ui: &mut egui::Ui, place: &Place, heading: Option<&str>, folder: Option<String>,
+        width: f32,
+    ) {
         let t = ui.ctx().get_lb_theme();
         let height = card_header_height(folder.is_some());
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
@@ -602,9 +683,16 @@ impl<'ast> MdRender {
         let Some(file) = place.dest.backing_file().and_then(|id| files.get_by_id(id)) else {
             return;
         };
-        FileRow::new(&t, file.name.clone())
+        let (name, under) = match heading {
+            Some(heading) => {
+                let note = file.name.strip_suffix(".md").unwrap_or(&file.name);
+                (heading.to_string(), note.to_string())
+            }
+            None => (file.name.clone(), folder.unwrap_or_default()),
+        };
+        FileRow::new(&t, name)
             .icon(file_row_icon(&file.name, false))
-            .subtitle(folder.unwrap_or_default())
+            .subtitle(under)
             .interactive(false)
             .paint_at_hit(ui, row, row, ui.scope_id().with("card_header"));
     }
@@ -676,18 +764,19 @@ fn row_pad() -> f32 {
     (ROW_H - TypeRole::Body.line_height()) / 2.0
 }
 
-/// Opens the embedded file from the slot's corner, shown while hovered.
-fn open_button(ui: &mut egui::Ui, rect: Rect, place: &Place) {
-    if !ui.rect_contains_pointer(rect) {
-        return;
-    }
+/// Opens the embedded file from the right of the slot's `title`.
+fn open_button(ui: &mut egui::Ui, title: Rect, place: &Place) {
     let Some(id) = place.dest.backing_file() else { return };
     let t = ui.ctx().get_lb_theme();
+    // the hover card's Open, quiet: its plate is the page's, on the tinted title
     let side = crate::style::control_height();
-    let at =
-        Rect::from_min_size(pos2(rect.right() - side - 4.0, rect.top() + 4.0), vec2(side, side));
-    let ui = &mut ui.new_child(UiBuilder::new().max_rect(at));
-    let resp = icon_button(ui, &t, ARROW_SQUARE_OUT, false, t.neutral_bg());
+    let area = Rect::from_x_y_ranges(
+        title.left()..=title.right() - CARD_PAD.pts(),
+        title.center().y - side / 2.0..=title.center().y + side / 2.0,
+    );
+    let layout = egui::Layout::right_to_left(egui::Align::Center);
+    let ui = &mut ui.new_child(UiBuilder::new().max_rect(area).layout(layout));
+    let resp = Button::quiet(&t, "Open").show(ui);
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
     }
@@ -943,8 +1032,34 @@ mod tests {
         let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
         let on_link = md.edit.touch_target_at(link.center());
         assert!(matches!(on_link, Some(TouchTarget::Popup)), "{on_link:?}");
-        let on_body = md.edit.touch_target_at(rect.left_top() + vec2(20.0, 20.0));
+        // below the title band, which is egui's
+        let on_body = md
+            .edit
+            .touch_target_at(rect.left_center() + vec2(20.0, 0.0));
         assert!(matches!(on_body, Some(TouchTarget::Tap(_))), "{on_body:?}");
+    }
+
+    /// On touch, a tap on a note embed's title band is the band's, which shows
+    /// Open, not the embed's, which would select it.
+    #[test]
+    fn a_tap_on_an_embeds_band_leaves_the_selection() {
+        use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, FragmentContent};
+        let mut t = TestWs::new();
+        t.ctx.set_os(egui::os::OperatingSystem::IOS);
+        embed_of_a_link(&mut t);
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        let r = &md.edit.renderer;
+        let selection = r.buffer.current.selection;
+        let embed = r
+            .fragments
+            .iter()
+            .find(|f| matches!(f.content, FragmentContent::Embed { kind: EmbedKind::Tab, .. }));
+        let band = embed.expect("the embed draws").rect.center_top() + vec2(0.0, 10.0);
+        let on_band = md.edit.touch_target_at(band);
+        assert!(matches!(on_band, Some(TouchTarget::Popup)), "{on_band:?}");
+        click(&mut t, band);
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.selection, selection);
     }
 
     /// An embed stays on the page it names while the note is edited above it.

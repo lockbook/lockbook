@@ -2794,8 +2794,8 @@ impl Editor {
     }
 
     /// The rows `fragment` names, first and last: a heading's section, from
-    /// its block to the next heading of its level or higher, or else every
-    /// row of the note.
+    /// under the heading to the next heading of its level or higher, or else
+    /// every row of the note.
     fn region_rows<'a>(
         &self, rows: &scroll_content::DocScrollContent<'_, 'a>, root: &'a AstNode<'a>,
         fragment: Option<&crate::tab::Fragment>,
@@ -2820,6 +2820,7 @@ impl Editor {
             .find(|row| *row != start)
             .and_then(|row| rows.prev(&row))
             .unwrap_or(last);
+        let start = if end != start { rows.next(&start)? } else { start };
         Some((start, end))
     }
 
