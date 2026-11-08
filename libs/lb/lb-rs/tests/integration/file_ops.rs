@@ -215,6 +215,16 @@ async fn duplicate_no_extension() {
 }
 
 #[tokio::test]
+async fn duplicate_keeps_dates_and_dots() {
+    let core = test_core_with_account().await;
+    let dated = core.create_at_path("2026-11-07.md").await.unwrap().id;
+    let titled = core.create_at_path("Dr. Smith").await.unwrap().id;
+
+    assert_eq!(core.duplicate_file(&dated).await.unwrap().name, "2026-11-07 copy.md");
+    assert_eq!(core.duplicate_file(&titled).await.unwrap().name, "Dr. Smith copy");
+}
+
+#[tokio::test]
 async fn duplicate_folder() {
     let core = test_core_with_account().await;
     let id = core.create_at_path("folder/").await.unwrap().id;

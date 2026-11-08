@@ -30,6 +30,18 @@ async fn concurrent_create_documents() {
 }
 
 #[tokio::test]
+async fn concurrent_create_dated_documents() {
+    let c1 = test_core_with_account().await;
+    let c2 = another_client(&c1).await;
+    c2.sync().await.unwrap();
+    c1.create_at_path("/2026-11-07.md").await.unwrap();
+    c2.create_at_path("/2026-11-07.md").await.unwrap();
+
+    sync_and_assert_stuff(&c1, &c2).await;
+    assert::all_paths(&c2, &["/", "/2026-11-07.md", "/2026-11-07 2.md"]).await;
+}
+
+#[tokio::test]
 async fn concurrent_create_folders() {
     let c1 = test_core_with_account().await;
     let c2 = another_client(&c1).await;

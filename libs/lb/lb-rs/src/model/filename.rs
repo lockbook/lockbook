@@ -168,6 +168,7 @@ mod unit_tests {
         assert_symmetry("-1.");
         assert_symmetry("test");
         assert_symmetry("test-32");
+        assert_symmetry("2026-11-07.md");
     }
 
     #[test]
