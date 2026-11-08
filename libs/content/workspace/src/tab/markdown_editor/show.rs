@@ -632,16 +632,20 @@ impl MdEdit {
             None => {}
         }
         if self.in_progress_block_drag.is_some() {
-            self.auto_scroll_to_drag_pointer(ui);
+            let sideways = self
+                .in_progress_block_drag
+                .is_some_and(|drag| matches!(drag.unit, DragUnit::Column(_)));
+            self.auto_scroll_to_drag_pointer(ui, sideways);
             ui.ctx().request_repaint();
         }
     }
 
-    /// Edge-scroll while a drag is in flight: reveal the pointer
-    /// padded by `row_height` on each side. The pointer y is clamped to
-    /// the viewport so dragging past the toolbar / window edge still
-    /// scrolls at full rate.
-    pub(crate) fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui) {
+    /// Edge-scroll while a drag is in flight: reveal the pointer padded by
+    /// `row_height` on each side. The pointer y is clamped to the viewport
+    /// so dragging past the toolbar / window edge still scrolls at full
+    /// rate. `sideways`, for a drag that drops along a table's rows, a
+    /// block wider than the note under the pointer scrolls the same way.
+    pub(crate) fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui, sideways: bool) {
         use crate::tab::markdown_editor::scroll_content::DocScrollContent;
         use crate::widgets::affine_scroll::{Align, Reveal};
 
@@ -649,6 +653,9 @@ impl MdEdit {
         let viewport = ui.clip_rect();
         let viewport_y = (pointer.y - viewport.min.y).clamp(0.0, viewport.height());
         let pad = self.renderer.layout.row_height;
+        if sideways {
+            self.renderer.reveal_along_row(pointer);
+        }
 
         let arena = comrak::Arena::new();
         let root = self.renderer.reparse(&arena);

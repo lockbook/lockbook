@@ -636,7 +636,7 @@ impl<'ast> MdEdit {
         if live {
             self.in_progress_image_drag = Some(drag);
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
-            self.auto_scroll_to_drag_pointer(ui);
+            self.auto_scroll_to_drag_pointer(ui, true);
         } else {
             self.in_progress_image_drag = None;
             if let Some(to) = drag.target {

@@ -11,6 +11,12 @@ use crate::style::{EDGE_FADE, overlay_scroll};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::widgets::affine_scroll::{COAST_DECAY_PER_SEC, COAST_STOP};
 
+/// How near a scrolled block's edge a drag pans it: a fingertip, Apple's
+/// smallest touch target.
+const EDGE_PAN_ZONE: f32 = 44.0;
+/// How fast a drag at or past the edge pans, in the block's shown widths a second.
+const EDGE_PAN_SPEED: f32 = 3.0;
+
 /// A block that scrolls along its rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RowScroller {
@@ -189,6 +195,31 @@ impl MdRender {
         overlay_scroll::scroller_bar_x(ui, id, rect, content, &mut offset, row_scroll.quiet);
         if offset != row_scroll.offset {
             (row_scroll.offset, row_scroll.velocity) = (offset, 0.0);
+        }
+    }
+
+    /// Scrolls the block wider than the note level with `pointer` as a drag
+    /// comes within [`EDGE_PAN_ZONE`] of its edge: deeper in, faster, to
+    /// [`EDGE_PAN_SPEED`] at the edge and past it, out to the screen's,
+    /// whatever the frame rate.
+    pub fn reveal_along_row(&mut self, pointer: Pos2) {
+        let pad = EDGE_PAN_ZONE;
+        let Some(&(rect, key)) = self
+            .row_scrollers
+            .iter()
+            .find(|(rect, _)| rect.y_range().contains(pointer.y))
+        else {
+            return;
+        };
+        let Some(scroll) = self.row_scrolls.get_mut(&key) else { return };
+        let past =
+            (pointer.x + pad - rect.right()).max(0.0) - (rect.left() - pointer.x + pad).max(0.0);
+        if past != 0.0 {
+            let depth = (past / pad).clamp(-1.0, 1.0);
+            let dt = self.ctx.input(|i| i.stable_dt).min(0.1);
+            let speed = EDGE_PAN_SPEED * rect.width();
+            (scroll.offset, scroll.velocity) = (scroll.offset + depth * speed * dt, 0.0);
+            self.ctx.request_repaint();
         }
     }
 

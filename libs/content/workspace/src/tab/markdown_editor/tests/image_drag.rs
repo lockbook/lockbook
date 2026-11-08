@@ -235,6 +235,34 @@ fn a_drop_leaves_the_caret_where_it_was() {
 }
 
 #[test]
+fn a_drag_at_a_wide_tables_edge_scrolls_it_along() {
+    let word = "x".repeat(40);
+    let md = format!(
+        "| ![a]({IMAGE}) | {word} | {word} | {word} |\n| - | - | - | - |\n| c | {word} | {word} | {word} |\n"
+    );
+    let mut ws = editor(&md);
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+    let viewport = super::tables::cell_rects(&ws)[0][0].left();
+    let r = &ws.editor.edit.renderer;
+    let (table, _) = *r
+        .row_scrollers
+        .first()
+        .expect("the table is wider than the note");
+    assert!(viewport >= table.left());
+
+    let from = image_center(&ws);
+    assert!(ws.editor.edit.reorder_start(from));
+    ws.enter_frame();
+    let edge = Pos2::new(table.right() - 2.0, from.y);
+    for _ in 0..5 {
+        ws.editor.edit.reorder_move(edge);
+        ws.enter_frame();
+    }
+    assert!(ws.editor.edit.renderer.table_scrolled(Grapheme(0)) > 0.0, "it scrolled along");
+}
+
+#[test]
 fn an_image_dropped_in_code_lands_at_its_nearer_edge() {
     let cases = [
         (
@@ -252,6 +280,33 @@ fn an_image_dropped_in_code_lands_at_its_nearer_edge() {
         drag(&mut ws, from, to);
         assert_eq!(ws.get_text(), moved);
     }
+}
+
+#[test]
+fn a_drag_past_a_wide_tables_edge_keeps_scrolling_it() {
+    let word = "x".repeat(40);
+    let md = format!(
+        "| ![a]({IMAGE}) | {word} | {word} | {word} |\n| - | - | - | - |\n| c | {word} | {word} | {word} |\n"
+    );
+    let mut ws = editor(&md);
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+    let (table, _) = *ws
+        .editor
+        .edit
+        .renderer
+        .row_scrollers
+        .first()
+        .expect("the table is wider than the note");
+    let from = image_center(&ws);
+    assert!(ws.editor.edit.reorder_start(from));
+    ws.enter_frame();
+    let past = Pos2::new(table.right() + 10.0, from.y);
+    for _ in 0..5 {
+        ws.editor.edit.reorder_move(past);
+        ws.enter_frame();
+    }
+    assert!(ws.editor.edit.renderer.table_scrolled(Grapheme(0)) > 0.0, "it scrolled along");
 }
 
 #[test]
