@@ -147,6 +147,8 @@ impl<S: Server> Lb<S> {
             return Err(LbErrKind::AccountExists.into());
         }
 
+        let key = key.trim();
+
         if let Ok(key) = base64::decode(key) {
             if let Ok(account) = bincode::deserialize(&key[..]) {
                 return self.import_account_private_key_v1(account).await;
