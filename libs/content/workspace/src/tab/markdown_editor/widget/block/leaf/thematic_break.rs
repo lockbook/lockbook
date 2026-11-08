@@ -1,9 +1,8 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Rect, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _};
+use egui::{Pos2, Rect, Stroke, Ui};
 
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -19,11 +18,10 @@ impl<'ast> MdRender {
         let row_height = self.layout.row_height;
 
         // Reveal on the node's *line* range, not `node_range`: comrak
-        // reports a thematic break's sourcepos as a single column, so
-        // inside a container the cursor on a later `*`/`-` wouldn't
-        // intersect it and the row's interior offsets would have no
-        // fragment.
-        if self.range_revealed(node_line, true) {
+        // reports a thematic break's sourcepos as a single column. Like an
+        // image, only a caret inside the syntax reveals it; one at either
+        // edge sits beside the drawn rule.
+        if self.range_revealed_interior(node_line) {
             let result = self.compute_section_layout_new(
                 node_line,
                 width,
@@ -31,28 +29,25 @@ impl<'ast> MdRender {
                 self.text_format_syntax(),
             );
             self.show_wrap_layout(ui, top_left, &result);
-            self.show_block_line_prefixes(ui, node, line, top_left, row_height);
         } else {
-            // Painted as a horizontal rule, with zero-visible anchors
-            // at each endpoint so cursor placement at the row's edges
-            // resolves to the thematic-break's source range.
-            let rect = Rect::from_min_size(top_left, Vec2::new(width, self.layout.row_height));
-            ui.painter().hline(
-                rect.x_range(),
-                rect.center().y,
-                Stroke { width: 1.0, color: self.ctx.get_lb_theme().neutral() },
-            );
-
-            // Build a layout with two zero-visible anchors at the
-            // line's endpoints. Each becomes a row Anchor (cursor-only,
-            // no glyph) via the row builder's empty-source-segment
-            // handling.
             let mut layout = Layout::new(node_line);
-            layout.push_override(node_line.start().into_range(), "", self.text_format_syntax());
-            layout.push_override(node_line.end().into_range(), "", self.text_format_syntax());
+            layout.push_embed(EmbedSpec {
+                advance: width,
+                ascent: row_height,
+                descent: 0.0,
+                source_range: node_line,
+                url: String::new(),
+                kind: EmbedKind::Rule,
+            });
             let result = self.compute_layout_from(layout, width, row_height);
             self.show_wrap_layout(ui, top_left, &result);
-            self.show_block_line_prefixes(ui, node, line, top_left, row_height);
         }
+        self.show_block_line_prefixes(ui, node, line, top_left, row_height);
+    }
+
+    /// A divider drawn as a rule across `rect`.
+    pub fn paint_rule(&self, ui: &Ui, rect: Rect) {
+        let stroke = Stroke { width: 1.0, color: self.ctx.get_lb_theme().neutral() };
+        ui.painter().hline(rect.x_range(), rect.center().y, stroke);
     }
 }

@@ -377,7 +377,8 @@ impl<'ast> MdEdit {
     /// Backspace/forward-delete against a collapsed image selects it rather
     /// than erasing a character of its source; a second press then deletes the
     /// selection. Mirrors [`Self::delete_at_fold`]'s non-destructive edit. A
-    /// note embed showing its tab is such an atom too. True if handled (ops pushed).
+    /// note embed showing its tab, a diagram and a divider are such atoms too.
+    /// True if handled (ops pushed).
     pub fn delete_at_image(
         &self, root: &'ast AstNode<'ast>, region: Region, operations: &mut Vec<Operation>,
     ) -> bool {
@@ -395,10 +396,14 @@ impl<'ast> MdEdit {
         let r = &self.renderer;
         let last = r.buffer.current.segs.last_cursor_position();
         let newline = |at: Grapheme| at < last && r.buffer[(at, at + 1)] == *"\n";
-        // a diagram is a block: the newline beside it is against it too
-        let diagrams = r
-            .collapsed_diagrams()
-            .map(|d| (d, newline(d.end()), d.start() > 0 && newline(d.start() - 1)));
+        let rules = root
+            .descendants()
+            .filter(|node| matches!(node.data.borrow().value, NodeValue::ThematicBreak))
+            .map(|node| r.node_line(node, r.node_first_line(node)));
+        // diagrams and dividers are blocks: the newline beside one is against it too
+        let blocks = r.collapsed_diagrams().chain(rules);
+        let diagrams =
+            blocks.map(|d| (d, newline(d.end()), d.start() > 0 && newline(d.start() - 1)));
         let images = r.bounds.images.iter().copied();
         let embeds = root
             .descendants()

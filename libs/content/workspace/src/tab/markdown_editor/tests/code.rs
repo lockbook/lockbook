@@ -323,6 +323,20 @@ fn enter_in_a_task_fence_keeps_the_task_indent() {
 }
 
 #[test]
+fn backspace_selects_a_divider_then_deletes_it() {
+    for (doc, selected) in
+        [("a\n\n---|\n\nb", "a\n\n|---|\n\nb"), ("a\n\n---\n|b", "a\n\n|---|\nb")]
+    {
+        let mut ws = editor(doc, None);
+        let backspace = || super::harness::key_press(egui::Key::Backspace, Default::default());
+        ws.enter_frame_with_input(backspace());
+        assert_eq!(shown(&ws), selected);
+        ws.enter_frame_with_input(backspace());
+        assert!(!ws.get_text().contains("---"), "{doc:?}");
+    }
+}
+
+#[test]
 fn backspace_at_a_fence_start_takes_the_fence_away() {
     let backspace = || super::harness::key_press(egui::Key::Backspace, Default::default());
     for (doc, want) in [
