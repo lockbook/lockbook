@@ -168,7 +168,10 @@ class WorkspaceFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             FileMetadataStore.snapshots.collect { snapshot ->
                 val tab = model.currentTab.value
-                if (snapshot != null && tab != null) updateCurrentTab(workspaceWrapper, tab, metadataOnly = true)
+                if (snapshot != null && tab != null) {
+                    updateCurrentTab(workspaceWrapper, tab, metadataOnly = true)
+                    welcomeScreen.finishCaptureHandoff(workspaceWrapper, tab)
+                }
             }
         }
 
@@ -549,6 +552,8 @@ class WorkspaceFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         model._showKeyboard.observe(viewLifecycleOwner) {
+            // Quick capture owns the IME until its input connection has moved to the editor.
+            if (welcomeScreen.isExpanding) return@observe
             if (it) {
                 // the keyboard comes up only for the view that takes the text
                 (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)

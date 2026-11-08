@@ -4231,7 +4231,7 @@ dependencies = [
 [[package]]
 name = "lb-fonts"
 version = "0.2.0"
-source = "git+https://github.com/lockbook/lb-fonts#b0c78dd621be704aea25490078ebd1e741086da0"
+source = "git+https://github.com/lockbook/lb-fonts#65830f0f1597ce3ffd8968f9c7b4891e03023ca9"
 
 [[package]]
 name = "lb-fs"
@@ -7380,7 +7380,7 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a253edfdea34032da21af84e16fcc94f4c7a6ba237f9f3bc2dbf43cea8535c44"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "nohash-hasher",
  "num-traits",
  "serde_core",

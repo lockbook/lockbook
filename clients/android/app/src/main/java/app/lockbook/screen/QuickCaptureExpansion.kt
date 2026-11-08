@@ -3,7 +3,9 @@ package app.lockbook.screen
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
+import android.os.Build
 import android.util.TypedValue
+import android.view.HapticFeedbackConstants
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -75,6 +77,16 @@ internal class QuickCaptureExpansion(
                 }
                 addListener(
                     object : AnimatorListenerAdapter() {
+                        override fun onAnimationStart(animation: Animator) {
+                            input.performHapticFeedback(
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                    HapticFeedbackConstants.CONFIRM
+                                } else {
+                                    HapticFeedbackConstants.KEYBOARD_TAP
+                                },
+                            )
+                        }
+
                         override fun onAnimationEnd(animation: Animator) {
                             if (!cancelled) onExpanded()
                         }
