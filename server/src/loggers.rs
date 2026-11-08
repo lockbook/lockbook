@@ -20,7 +20,9 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{Layer, filter, fmt};
 
 use pagerduty_rs::eventsv2async::EventsV2;
-use pagerduty_rs::types::{AlertTrigger, AlertTriggerPayload, Event as PagerEvent, Severity};
+use pagerduty_rs::types::{
+    AlertTrigger, AlertTriggerPayload, Change, ChangePayload, Event as PagerEvent, Severity,
+};
 
 use crate::CARGO_PKG_VERSION;
 use crate::config::Config;
@@ -133,6 +135,27 @@ fn send_to_pagerduty(handle: &Handle, env: String, api_key: &str, alert: AlertDe
                 .err()
                 .map(|err| eprintln!("Failed spawning task in Tokio runtime! {err}"))
         })
+    });
+}
+
+pub fn record_startup(config: &Config) {
+    let Some(api_key) = config.server.pd_api_key.clone() else { return };
+    let source = Some(config.server.env.to_string());
+    let summary = format!("lockbook-server {CARGO_PKG_VERSION} started");
+    tokio::spawn(async move {
+        let events = EventsV2::new(api_key, Some("lockbook-server".to_string())).unwrap();
+        let change = Change {
+            payload: ChangePayload::<()> {
+                summary,
+                timestamp: SystemTime::now().into(),
+                source,
+                custom_details: None,
+            },
+            links: None,
+        };
+        if let Err(err) = events.event(PagerEvent::Change(change)).await {
+            eprintln!("Failed reporting event to PagerDuty! {err}");
+        }
     });
 }
 

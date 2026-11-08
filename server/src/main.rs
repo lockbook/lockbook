@@ -56,8 +56,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let server = warp::serve(routes);
 
-    error!("server started successfully");
-
     server_state.start_metrics_worker();
     server_state.start_garbage_worker();
 
@@ -67,20 +65,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // *** How people can connect to this server ***
     match (cfg.server.ssl_cert_location, cfg.server.ssl_private_key_location) {
         (Some(cert), Some(key)) => {
-            info!("binding to https://0.0.0.0:{}", cfg.server.port);
-            server
+            let (addr, server) = server
                 .tls()
                 .cert_path(&cert)
                 .key_path(&key)
-                .run(([0, 0, 0, 0], cfg.server.port))
-                .await
+                .bind_ephemeral(([0, 0, 0, 0], cfg.server.port));
+            info!("server started successfully on https://{addr}");
+            loggers::record_startup(&server_state.config);
+            server.await
         }
         _ => {
-            info!(
-                "binding to http://0.0.0.0:{} without tls for local development",
-                cfg.server.port
-            );
-            server.run(([0, 0, 0, 0], cfg.server.port)).await
+            let (addr, server) = server.bind_ephemeral(([0, 0, 0, 0], cfg.server.port));
+            info!("server started successfully on http://{addr} without tls for local development");
+            server.await
         }
     };
 
