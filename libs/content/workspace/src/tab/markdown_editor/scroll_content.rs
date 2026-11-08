@@ -59,6 +59,9 @@ pub struct DocScrollContent<'a, 'ast> {
     bounds: Option<(DocRowId, DocRowId)>,
 }
 
+/// The top pad, which holds content clear of the Android status bar.
+pub const DEFAULT_LEADING: f32 = 15.0;
+
 impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     pub fn new(renderer: &'a MdRender, root: &'ast AstNode<'ast>, trailing_precise: f32) -> Self {
         let source = renderer.view == View::Source;
@@ -78,12 +81,21 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     }
 
     /// Set `leading_precise` to the default top-padding for production
-    /// rendering. Platform chrome is handled separately from document padding.
+    /// rendering, or to how far the first row's font rises above its row
+    /// when that is more.
+    /// Platform chrome is handled separately from document padding.
     /// All production walks (render + persistence + scroll-
     /// to) must agree on this value or anchor offsets drift by the
     /// difference.
     pub fn with_default_leading(mut self) -> Self {
-        self.leading_precise = 15.0;
+        let first_row_height = match self.blocks.first() {
+            Some(node) => self.renderer.row_height(node),
+            None => self.renderer.layout.row_height,
+        };
+        self.leading_precise = self
+            .renderer
+            .ascent_overflow(first_row_height)
+            .max(DEFAULT_LEADING);
         self
     }
 
