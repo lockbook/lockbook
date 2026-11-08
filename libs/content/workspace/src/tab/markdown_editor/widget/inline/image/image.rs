@@ -46,6 +46,8 @@ fn names_image(title: &str) -> bool {
 #[derive(Clone, Debug)]
 pub struct ImageDrag {
     pub image: (Grapheme, Grapheme),
+    /// The buffer's sequence `image` is right for; edits since move it along.
+    pub seq: usize,
     /// What it floats as, from the grab: its url, its kind and its size,
     /// so it draws where the finger holds it with its source scrolled away.
     pub url: String,
@@ -285,7 +287,18 @@ impl<'ast> MdRender {
         let grab_offset = if rect.is_positive() { pointer - rect.left_top() } else { Vec2::ZERO };
         let (url, size) =
             (url.to_string(), if rect.is_positive() { rect.size() } else { Vec2::ZERO });
-        ImageDrag { image, url, kind, size, pointer, grab_offset, dropped: false, target: None }
+        let seq = self.buffer.current.seq;
+        ImageDrag {
+            image,
+            seq,
+            url,
+            kind,
+            size,
+            pointer,
+            grab_offset,
+            dropped: false,
+            target: None,
+        }
     }
 
     /// Recompute [`super::super::super::bounds::Bounds::images`] — the source
@@ -621,15 +634,26 @@ impl<'ast> MdEdit {
         else {
             return;
         };
-        // touch-up nulls egui's pointer, so the drop is where it last lived
-        if let Some(pointer) = self.drag_pointer(ui) {
-            drag.pointer = pointer;
+        // the text may have changed under it, a sync or a key: the image's
+        // range follows, or the drag ends if the image itself was edited
+        let mut image = drag.image;
+        if !self.renderer.buffer.transform_range(drag.seq, &mut image) {
+            self.in_progress_image_drag = None;
+            return;
         }
+        (drag.image, drag.seq) = (image, self.renderer.buffer.current.seq);
         let live = if self.renderer.touch_mode {
             matches!(self.touch_reorder, TouchReorder::Armed { .. })
         } else {
             ui.input(|i| i.pointer.primary_down())
         };
+        // a lifted finger's last position stands: touch-up nulls egui's
+        // pointer, and a platform-driven drop has already set it
+        if live || !self.renderer.touch_mode {
+            if let Some(pointer) = self.drag_pointer(ui) {
+                drag.pointer = pointer;
+            }
+        }
         // rising above the finger or pointer as it moves down (`drag_lift`)
         let aim = drag.pointer - egui::vec2(0.0, self.drag_lift(drag.grab_offset.y));
         drag.target = self.image_drop_offset(root, drag.image, aim, ui.clip_rect());

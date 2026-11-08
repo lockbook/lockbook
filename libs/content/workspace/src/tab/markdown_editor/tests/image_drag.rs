@@ -438,3 +438,74 @@ fn a_move_changes_only_the_images_characters() {
         assert_eq!(ws.get_text(), spliced, "from {md:?}");
     }
 }
+
+/// Text edited while an image is held, as a sync or a key would: the drag
+/// still moves the image, not the characters that took its place.
+#[test]
+fn an_edit_during_a_drag_still_moves_the_image() {
+    use super::super::input::{Location, Region};
+    let md = format!("abc\n\n![a]({IMAGE})\n\nend here\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "end"));
+    let button = |pos, pressed| Egui::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(from)]);
+    ws.enter_frame_with_input(vec![button(from, true)]);
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(from + egui::vec2(20.0, 20.0))]);
+    let grab = ws
+        .editor
+        .edit
+        .in_progress_image_drag
+        .as_ref()
+        .expect("it lifted")
+        .grab_offset;
+    let lift = egui::vec2(0.0, grab.y + ws.editor.edit.renderer.drop_lift());
+    ws.push(Event::Replace {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(0)),
+            end: Location::Grapheme(Grapheme(3)),
+        },
+        text: "".into(),
+        advance_cursor: false,
+    });
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(to)]);
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(to + lift)]);
+    ws.enter_frame_with_input(vec![button(to + lift, false)]);
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), format!("\n\n\n\nend![a]({IMAGE}) here\n"));
+}
+
+/// A drop the platform drives lands where the finger let go, whatever
+/// pointer egui still tracks.
+#[test]
+fn a_platform_driven_drop_lands_where_the_finger_let_go() {
+    let md = format!("caret\n\n| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
+    let mut ws = editor(&md);
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+    let (from, to, elsewhere) = (image_center(&ws), after(&ws, "| d"), after(&ws, "caret"));
+    assert!(ws.editor.edit.reorder_start(from));
+    ws.enter_frame();
+    let grab = ws
+        .editor
+        .edit
+        .in_progress_image_drag
+        .as_ref()
+        .expect("it lifted")
+        .grab_offset;
+    let lift = egui::vec2(0.0, grab.y + ws.editor.edit.renderer.drop_lift());
+    ws.editor.edit.reorder_move(from + lift);
+    ws.enter_frame();
+    ws.editor.edit.reorder_move(to + lift);
+    ws.enter_frame();
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(elsewhere)]);
+    ws.editor.edit.reorder_end(to + lift, false);
+    ws.enter_frame();
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), format!("caret\n\n|  | b |\n| - | - |\n| c | d![a]({IMAGE}) |\n"));
+}
