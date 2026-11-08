@@ -810,9 +810,7 @@ pub extern "C" fn lb_import_files(
 
     let sources = r_paths(sources, sources_len);
 
-    match lb
-        .import_files(&sources, dest.into(), &|_status: ImportStatus| println!("imported one file"))
-    {
+    match lb.import_files(&sources, dest.into(), &|_status: ImportStatus| {}) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }

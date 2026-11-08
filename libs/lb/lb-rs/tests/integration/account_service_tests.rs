@@ -236,6 +236,24 @@ async fn import_account_phrases() {
 }
 
 #[tokio::test]
+async fn import_account_surrounding_whitespace() {
+    let core1 = test_core().await;
+    let account1 = core1
+        .create_account(&random_name(), &url(), false)
+        .await
+        .unwrap();
+    let account_string = core1.export_account_private_key().unwrap();
+
+    let core2 = test_core().await;
+    let account2 = core2
+        .import_account(&format!(" {account_string}\n"), Some(&account1.api_url))
+        .await
+        .unwrap();
+
+    assert_eq!(account1.private_key.serialize(), account2.private_key.serialize());
+}
+
+#[tokio::test]
 async fn delete_account_then_request() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();

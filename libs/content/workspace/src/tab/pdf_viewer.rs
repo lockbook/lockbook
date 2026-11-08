@@ -910,7 +910,7 @@ impl PdfViewer {
             return;
         }
         // location in the old viewport
-        println!("zoom from {zoom_from:?}");
+        tracing::trace!("zoom from {zoom_from:?}");
         let old_viewport_location = match zoom_from {
             Some(mouse) => {
                 ((mouse - self.render_area.min) + self.current_viewport.min.to_vec2()).to_pos2()
@@ -919,12 +919,12 @@ impl PdfViewer {
             None if self.fit_width || self.fit_height => self.current_viewport.min,
             None => self.current_viewport.center(),
         };
-        println!("old_viewport {old_viewport_location:?}");
+        tracing::trace!("old_viewport {old_viewport_location:?}");
 
         // normalized point location in page space
         let normalized_page_space = old_viewport_location.to_vec2()
             / self.page_bounds.last().map(|r| r.max.to_vec2()).unwrap();
-        println!("normalized_page space {normalized_page_space:?}");
+        tracing::trace!("normalized_page space {normalized_page_space:?}");
 
         self.scale = new_scale;
         self.page_bounds.clear();
@@ -939,9 +939,9 @@ impl PdfViewer {
         // calculate the new viewport
         let new_location =
             normalized_page_space * self.page_bounds.last().map(|r| r.max.to_vec2()).unwrap();
-        println!("new location {new_location:?}");
+        tracing::trace!("new location {new_location:?}");
         self.viewport_adjustment = Some(-1. * (new_location - old_viewport_location.to_vec2()));
-        println!("adjustment {:?}", self.viewport_adjustment);
+        tracing::trace!("adjustment {:?}", self.viewport_adjustment);
         self.ctx.request_repaint();
     }
 }
