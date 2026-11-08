@@ -319,7 +319,7 @@ impl<'ast> MdRender {
             return (title.into(), false);
         };
         let em = self.row_height(block);
-        let room = (CHIP_MAX_EMS * em).min(self.width(block)) - 2.0 * em * CHIP_SIDE_PAD;
+        let room = CHIP_MAX.min(self.width(block)) - 2.0 * em * CHIP_SIDE_PAD;
         let fits = |t: &str| self.text_advance(&format!("{lead}{t}"), fmt, em) <= room;
         if fits(title) {
             return (title.into(), false);
@@ -995,8 +995,8 @@ pub enum LinkMenuAction {
 
 /// The space a chip's icon is painted over, before its title.
 const ICON_SLOT: &str = "\u{2003}";
-/// Chips longer than this many ems are cut short.
-const CHIP_MAX_EMS: f32 = 24.0;
+/// Chips wider than this, in points, are cut short, wherever they are.
+const CHIP_MAX: f32 = 300.0;
 /// How far a chip's surface leans toward its link colour.
 const CHIP_WASH: f32 = 0.1;
 /// How far a cut chip's fade reaches back into its text, in ems.
