@@ -66,9 +66,9 @@ impl<'ast> MdRender {
     /// than an inline link. The trigger is positional so the source stays clean,
     /// portable markdown: a **bare autolink** (`https://x.com`, not `[label](url)`
     /// and not the delimited `<url>` form) that is **alone on its own line**
-    /// (within a paragraph, bounded by line breaks or the paragraph edges) and
-    /// **not inside a container block** (list item / quote / alert / table /
-    /// footnote).
+    /// (within a paragraph, bounded by line breaks or the paragraph edges),
+    /// in a quote or a list as in the note itself; a table cell holds no
+    /// paragraph, so never there.
     pub fn link_renders_as_card(&self, node: &'ast AstNode<'ast>) -> bool {
         let url = node_link_url(node);
         if url.is_empty() || !self.link_is_auto(node, &url) {
@@ -93,15 +93,6 @@ impl<'ast> MdRender {
             return false;
         }
 
-        // not inside a container block (Document itself doesn't count)
-        let mut ancestor = parent.parent();
-        while let Some(a) = ancestor {
-            let value = &a.data.borrow().value;
-            if !matches!(value, NodeValue::Document) && value.is_container_block() {
-                return false;
-            }
-            ancestor = a.parent();
-        }
         true
     }
 
