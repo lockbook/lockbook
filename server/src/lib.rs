@@ -44,6 +44,8 @@ where
     pub document_service: D,
     pub discord_client: reqwest::Client,
     pub recent_new_account_ips: Arc<Mutex<VecDeque<IpData>>>,
+    /// Stamps metadata versions and `as_of_metadata_version`.
+    pub clock: Arc<clock::Clock>,
 }
 
 #[derive(Clone)]

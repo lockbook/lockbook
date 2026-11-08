@@ -1,7 +1,6 @@
 use super::errors::{DiffError, LbErrKind, LbResult};
 use super::server_meta::{IntoServerMeta, ServerMeta};
 use super::signed_meta::SignedMeta;
-use crate::model::clock::get_time;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::FileDiff;
 use crate::model::lazy::{LazyStaged1, LazyTree};
@@ -12,7 +11,7 @@ type LazyServerStaged1<'a> = LazyStaged1<ServerTree<'a>, Vec<ServerMeta>>;
 
 impl<'a> LazyTree<ServerTree<'a>> {
     pub fn stage_diff_v2(
-        self, changes: Vec<FileDiff<SignedMeta>>,
+        self, changes: Vec<FileDiff<SignedMeta>>, version: u64,
     ) -> LbResult<LazyServerStaged1<'a>> {
         // Check new.id == old.id
         for change in &changes {
@@ -72,14 +71,15 @@ impl<'a> LazyTree<ServerTree<'a>> {
             }
         }
 
-        Ok(self.stage_unvalidated(changes))
+        Ok(self.stage_unvalidated(changes, version))
     }
 
-    pub fn stage_unvalidated(self, changes: Vec<FileDiff<SignedMeta>>) -> LazyServerStaged1<'a> {
-        let now = get_time().0 as u64;
+    pub fn stage_unvalidated(
+        self, changes: Vec<FileDiff<SignedMeta>>, version: u64,
+    ) -> LazyServerStaged1<'a> {
         let changes = changes
             .into_iter()
-            .map(|change| change.new.add_time(now))
+            .map(|change| change.new.add_time(version))
             .collect();
 
         self.stage(changes)

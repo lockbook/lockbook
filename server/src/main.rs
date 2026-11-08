@@ -45,6 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         document_service,
         discord_client,
         recent_new_account_ips: Default::default(),
+        clock: Default::default(),
     });
 
     let routes = core_routes(&server_state)

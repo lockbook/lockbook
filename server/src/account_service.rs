@@ -19,7 +19,6 @@ use lb_rs::model::api::{
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, METADATA_FEE, NewAccountError,
     NewAccountRequestV2, NewAccountResponse, PaymentPlatform,
 };
-use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::server_meta::IntoServerMeta;
@@ -58,8 +57,7 @@ where
         }
 
         let root = request.root_folder.clone();
-        let now = get_time().0 as u64;
-        let root = root.add_time(now);
+        let root = root.add_time(self.clock.now().0 as u64);
 
         let mut guard = self.index_db.lock().await;
         let mut tx = ServerTx::begin(&mut guard)?;
