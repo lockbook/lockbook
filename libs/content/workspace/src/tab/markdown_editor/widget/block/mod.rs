@@ -749,9 +749,10 @@ pub struct LayoutCache {
     /// stamping wouldn't help.
     pub text_seq: std::cell::Cell<u64>,
 
-    /// Where body text's baseline falls in a row, as a fraction of its
-    /// height, and the [`crate::font::chosen_seq`] it was measured at.
-    pub body_baseline: std::cell::Cell<Option<(u64, f32)>>,
+    /// Body text's baseline, down from a row's top, and its ascent, up from
+    /// the baseline, as fractions of the row height, and the
+    /// [`crate::font::chosen_seq`] they were measured at.
+    pub body_metrics: std::cell::Cell<Option<(u64, f32, f32)>>,
 }
 
 impl LayoutCache {

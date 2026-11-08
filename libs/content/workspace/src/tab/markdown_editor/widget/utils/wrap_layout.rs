@@ -587,25 +587,39 @@ impl MdRender {
     /// Where body text's baseline falls in a row, as a fraction of the row
     /// height down from its top; the same at every size.
     fn body_baseline(&self, row_height: f32) -> f32 {
-        let seq = crate::font::chosen_seq();
-        if let Some((at, baseline)) = self.layout_cache.body_baseline.get() {
-            if at == seq {
-                return baseline;
-            }
-        }
-        let baseline = self.measure_body_baseline(row_height);
-        self.layout_cache.body_baseline.set(Some((seq, baseline)));
-        baseline
+        self.body_metrics(row_height).0
     }
 
-    fn measure_body_baseline(&self, row_height: f32) -> f32 {
+    /// How far body text's ascent rises above the top of a row
+    /// `row_height` tall, as its font reports it: 0 for fonts that fit.
+    pub fn ascent_overflow(&self, row_height: f32) -> f32 {
+        let (baseline, ascent) = self.body_metrics(row_height);
+        (ascent - baseline).max(0.) * row_height
+    }
+
+    /// Body text's baseline and ascent as fractions of the row height.
+    fn body_metrics(&self, row_height: f32) -> (f32, f32) {
+        let seq = crate::font::chosen_seq();
+        if let Some((at, baseline, ascent)) = self.layout_cache.body_metrics.get() {
+            if at == seq {
+                return (baseline, ascent);
+            }
+        }
+        let (baseline, ascent) = self.measure_body_metrics(row_height);
+        self.layout_cache
+            .body_metrics
+            .set(Some((seq, baseline, ascent)));
+        (baseline, ascent)
+    }
+
+    fn measure_body_metrics(&self, row_height: f32) -> (f32, f32) {
         let fs = self.ctx.data(|d| {
             d.get_temp::<std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>>(egui::Id::NULL)
         });
         let cache = self
             .ctx
             .data(|d| d.get_temp::<std::sync::Arc<std::sync::Mutex<GlyphonCache>>>(egui::Id::NULL));
-        let (Some(fs), Some(cache)) = (fs, cache) else { return BASELINE };
+        let (Some(fs), Some(cache)) = (fs, cache) else { return (BASELINE, BASELINE) };
         let body = Format {
             family: FontFamily::Sans,
             bold: false,
@@ -620,8 +634,14 @@ impl MdRender {
         };
         let ppi = self.ctx.pixels_per_point();
         let (buffer, _) = shape_chunk(&fs, &cache, "x", &body, row_height, f32::MAX / 4.0, ppi);
-        let baseline = baseline_of(&buffer.read().unwrap());
-        baseline.unwrap_or(BASELINE)
+        let buffer = buffer.read().unwrap();
+        let baseline = baseline_of(&buffer).unwrap_or(BASELINE);
+        let ascent = buffer
+            .lines
+            .first()
+            .and_then(|line| line.layout_opt()?.first())
+            .map_or(baseline, |line| line.max_ascent / buffer.metrics().line_height);
+        (baseline, ascent)
     }
 
     /// `text`'s width in `format` at `row_height`, shaped as the layout

@@ -3284,8 +3284,8 @@ type DocOffset = Offset<scroll_content::DocRowId>;
 
 /// Room above the reading line: the landing room, plus the bars an Android
 /// page runs under.
-fn reading_room(rows: &scroll_content::DocScrollContent<'_, '_>) -> f32 {
-    landing_room() + android_top_overlay(rows)
+fn reading_room() -> f32 {
+    landing_room() + android_top_overlay()
 }
 
 /// The reading line's slide over the last screen of scrolling, in a note
@@ -3349,7 +3349,7 @@ fn reading_line(
     rows: &scroll_content::DocScrollContent<'_, '_>,
 ) -> Option<DocOffset> {
     use crate::widgets::affine_scroll::offset_by;
-    let room = reading_room(rows);
+    let room = reading_room();
     let off = state.offset(rows)?;
     if let Some(slide) = Slide::new(state, rows, room) {
         if let Some(r) = state
@@ -3370,7 +3370,7 @@ fn heading_scroll(
     rows: &scroll_content::DocScrollContent<'_, '_>, target: DocOffset,
 ) -> DocOffset {
     use crate::widgets::affine_scroll::offset_by;
-    let room = reading_room(rows);
+    let room = reading_room();
     let above = offset_by(rows, target.clone(), -room);
     let Some(slide) = Slide::new(state, rows, room) else { return above };
     let Some(t) = state.precise_distance(rows, &slide.max, &target, state.viewport_height) else {
@@ -3436,10 +3436,9 @@ enum EndpointSide {
 }
 
 /// Height of the fixed overlay covering the top of the editor (Android
-/// status-bar safe area); zero elsewhere. Equals the leading pad, which
-/// exists to hold content clear of that overlay.
-fn android_top_overlay(content: &scroll_content::DocScrollContent<'_, '_>) -> f32 {
-    if cfg!(target_os = "android") { content.leading_precise } else { 0.0 }
+/// status-bar safe area); zero elsewhere.
+fn android_top_overlay() -> f32 {
+    if cfg!(target_os = "android") { scroll_content::DEFAULT_LEADING } else { 0.0 }
 }
 
 fn endpoint_offset(
@@ -3457,7 +3456,7 @@ fn endpoint_offset(
     if let Some(frag) = frag.filter(|f| !f.far) {
         let y_range = frag.rect.y_range().expand(pad);
         let y = match side {
-            EndpointSide::Top => y_range.min - android_top_overlay(content),
+            EndpointSide::Top => y_range.min - android_top_overlay(),
             EndpointSide::Bottom => y_range.max,
         };
         return state.offset_at_viewport_y(content, y - canvas_rect.min.y);
