@@ -166,7 +166,7 @@ impl<'ast> MdRender {
             }
             // Click toggles; drag starts a reorder (`click_and_drag`
             // above distinguishes the two).
-            self.handle_item_drag_resp(ui, node, &checkbox_response);
+            self.handle_item_drag_resp(ui, node, &checkbox_response, false);
 
             let secs = match self.task_toggled {
                 Some((check, at)) if check == check_offset => {
