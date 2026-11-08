@@ -422,6 +422,9 @@ pub mod phosphor {
     pub const TEXT_INDENT: &str = "\u{ea1e}";
     pub const TEXT_OUTDENT: &str = "\u{ea1c}";
     pub const QUOTES: &str = "\u{e660}";
+    pub const CODE_BLOCK: &str = "\u{eafe}";
+    /// Horizontal rule (`ph-arrows-out-line-vertical`).
+    pub const ARROWS_OUT_LINE_VERTICAL: &str = "\u{e536}";
     pub const TABLE: &str = "\u{e476}";
     pub const ROWS_PLUS_TOP: &str = "\u{e5a0}";
     pub const ROWS_PLUS_BOTTOM: &str = "\u{e59e}";
