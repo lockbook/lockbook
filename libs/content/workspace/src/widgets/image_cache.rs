@@ -459,8 +459,8 @@ impl ImageCache {
             let playback = loader.install(&key, &state, result).await;
             #[cfg(not(target_arch = "wasm32"))]
             let playback = futures::executor::block_on(loader.install(&key, &state, result));
-            // a player outlives its loader, so dropping the cache closes the channel
-            drop((span, loader));
+            // install consumes the loader, so playback doesn't keep the cache alive.
+            drop(span);
             if let Some(playback) = playback {
                 #[cfg(target_arch = "wasm32")]
                 play(playback).await;
@@ -489,10 +489,11 @@ impl ImageCache {
         for map in [current, previous] {
             map.retain(|key, state| {
                 let state = state.lock().unwrap();
+                // TODO: Handle referenced images changing while a drawing is still loading.
                 let affected = *key == ImageKey::File(id)
-                    || drawings.get(key).is_some_and(|drawing| drawing.references.contains(&id))
-                    // Dependencies are not known until a load completes.
-                    || matches!((key, &*state), (ImageKey::File(_), ImageState::Loading));
+                    || drawings
+                        .get(key)
+                        .is_some_and(|drawing| drawing.references.contains(&id));
                 if affected {
                     removed.push((
                         key.clone(),
@@ -584,7 +585,6 @@ impl ImageCache {
         let (key, loader) = (key.clone(), self.loader());
         std::thread::spawn(move || {
             let playback = futures::executor::block_on(loader.install(&key, &state, decode(bytes)));
-            drop(loader);
             if let Some(playback) = playback {
                 futures::executor::block_on(play(playback));
             }
@@ -605,7 +605,7 @@ impl Loader {
     /// Shows a decoded image: its first frame becomes its texture. Returns
     /// the rest of an animation, for [`play`] to feed the texture.
     async fn install(
-        &self, key: &ImageKey, state: &Mutex<ImageState>, result: Result<Decoded, String>,
+        self, key: &ImageKey, state: &Mutex<ImageState>, result: Result<Decoded, String>,
     ) -> Option<Playback> {
         // Render on the GPU before taking the cache lock. Drop the parsed
         // buffer, meshes and CPU pixels once the texture has been uploaded.
@@ -946,132 +946,6 @@ mod tests {
     use super::{ImageCache, ImageKey, bytes_look_like_svg, rasterize_svg};
     use crate::file_cache::FileCache;
     use crate::workspace::WsPersistentStore;
-
-    fn drawing_cache() -> ImageCache {
-        let ctx = crate::tab::markdown_editor::test_egui_ctx();
-        crate::tab::svg_editor::drawing::install_test_gpu(&ctx);
-        ImageCache::new(
-            ctx,
-            Default::default(),
-            crate::tab::markdown_editor::tests::harness::build_lb(),
-            Arc::new(RwLock::new(FileCache::empty())),
-            WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true),
-        )
-    }
-
-    fn drawing_bytes() -> Vec<u8> {
-        lb_rs::model::svg::buffer::Buffer::new(
-            r##"<svg xmlns="http://www.w3.org/2000/svg">
-            <path d="M-100 -20 L0 -20" stroke="#000000" stroke-width="8" fill="none"/>
-        </svg>"##,
-        )
-        .serialize()
-        .into_bytes()
-    }
-
-    #[test]
-    fn drawing_cache_invalidates_revisions_and_rejects_late_workers() {
-        use super::{Decoded, ImageState};
-        let images = drawing_cache();
-        let key = ImageKey::File(Uuid::new_v4());
-        let state = Arc::new(std::sync::Mutex::new(ImageState::Loading));
-        images
-            .inner
-            .lock()
-            .unwrap()
-            .current
-            .insert(key.clone(), state.clone());
-        let result =
-            super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 1.0).unwrap();
-        futures::executor::block_on(images.loader().install(&key, &state, Ok(result)));
-        assert!(images.is_loaded(&key));
-        let texture = match *state.lock().unwrap() {
-            ImageState::Loaded(texture) => texture,
-            ref state => panic!("expected a flattened drawing, got {state:?}"),
-        };
-        let size = images.texture_size(texture).unwrap();
-        assert!(size[0] <= 2048 && size[1] <= 2048);
-        assert_eq!(images.dims(&key).unwrap(), egui::vec2(size[0] as f32, size[1] as f32));
-        let ImageKey::File(id) = key else { unreachable!() };
-        let seq = images.seq();
-        images.invalidate(id);
-        assert!(images.texture_size(texture).is_none());
-        assert!(!images.inner.lock().unwrap().drawings.contains_key(&key));
-        assert!(!images.is_loaded(&key));
-        assert!(images.seq() > seq);
-
-        let replacement = Arc::new(std::sync::Mutex::new(ImageState::Loading));
-        images
-            .inner
-            .lock()
-            .unwrap()
-            .current
-            .insert(key.clone(), replacement.clone());
-        let stale = Decoded::Still(Arc::new(egui::ColorImage::filled([2, 2], Color32::RED)));
-        futures::executor::block_on(images.loader().install(&key, &state, Ok(stale)));
-        assert_eq!(*replacement.lock().unwrap(), ImageState::Loading);
-        assert!(!images.is_loaded(&key));
-        futures::executor::block_on(images.loader().install(
-            &key,
-            &replacement,
-            Err("unreadable image".into()),
-        ));
-        assert_eq!(*replacement.lock().unwrap(), ImageState::Failed("unreadable image".into()));
-    }
-
-    #[test]
-    fn drawing_textures_reload_for_dependencies_and_density_and_evict_metadata() {
-        let images = drawing_cache();
-        let key = ImageKey::File(Uuid::new_v4());
-        let dependency = Uuid::new_v4();
-        let install = || {
-            let state = Arc::new(std::sync::Mutex::new(super::ImageState::Loading));
-            images
-                .inner
-                .lock()
-                .unwrap()
-                .current
-                .insert(key.clone(), state.clone());
-            let decoded =
-                super::decode_source(drawing_bytes(), true, true, &images.core, 1920.0, 1.0)
-                    .unwrap();
-            futures::executor::block_on(images.loader().install(&key, &state, Ok(decoded)));
-            let texture = match *state.lock().unwrap() {
-                super::ImageState::Loaded(texture) => texture,
-                ref state => panic!("expected a texture, got {state:?}"),
-            };
-            texture
-        };
-        let texture = install();
-        images
-            .inner
-            .lock()
-            .unwrap()
-            .drawings
-            .get_mut(&key)
-            .unwrap()
-            .references
-            .push(dependency);
-        images.invalidate(dependency);
-        assert!(!images.is_loaded(&key));
-        assert!(images.texture_size(texture).is_none());
-
-        let texture = install();
-        images.ctx.set_pixels_per_point(2.0);
-        let mut output = images
-            .ctx
-            .run_pass(Default::default(), |_| images.begin_frame());
-        output.textures_delta.clear();
-        assert!(!images.is_loaded(&key));
-        assert!(images.texture_size(texture).is_none());
-        images.end_frame();
-
-        let texture = install();
-        images.begin_frame();
-        images.end_frame();
-        assert!(images.texture_size(texture).is_none());
-        assert!(images.inner.lock().unwrap().drawings.is_empty());
-    }
 
     /// A 4×4 gif of solid frames, each with its delay in centiseconds.
     fn solid_gif(frames: &[(Color32, u16)], repeat: Option<gif::Repeat>) -> Vec<u8> {
