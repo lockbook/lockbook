@@ -9,6 +9,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::style::{EDGE_FADE, overlay_scroll};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::widgets::affine_scroll::{COAST_DECAY_PER_SEC, COAST_STOP};
 
 /// A block that scrolls along its rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -92,11 +93,10 @@ impl MdRender {
             }
         }
         // coasting after a pan, slowing as the page does
-        if scroll.velocity.abs() > 1.0 {
-            const DECAY_PER_SEC: f32 = 4.0;
+        if scroll.velocity.abs() > COAST_STOP {
             let dt = ui.input(|i| i.stable_dt).max(0.0001);
             scroll.offset += scroll.velocity * dt;
-            scroll.velocity *= (-DECAY_PER_SEC * dt).exp();
+            scroll.velocity *= (-COAST_DECAY_PER_SEC * dt).exp();
             ui.ctx().request_repaint();
         } else {
             scroll.velocity = 0.0;
@@ -140,7 +140,7 @@ impl MdRender {
     pub fn stop_row_coasts(&mut self) -> bool {
         let mut coasting = false;
         for scroll in self.row_scrolls.values_mut() {
-            coasting |= scroll.velocity.abs() > 1.0;
+            coasting |= scroll.velocity.abs() > COAST_STOP;
             scroll.velocity = 0.0;
         }
         coasting
