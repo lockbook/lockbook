@@ -210,6 +210,8 @@ pub enum EmbedKind {
     Diagram,
     /// A wiki embed's tab; its url is the title.
     Tab,
+    /// A divider's rule; its url is empty.
+    Rule,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -2143,6 +2145,7 @@ impl MdRender {
                             screen_rect,
                             frag.source_range.start(),
                         ),
+                        EmbedKind::Rule => self.paint_rule(embed_ui, screen_rect),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,

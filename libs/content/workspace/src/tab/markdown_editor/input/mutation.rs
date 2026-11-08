@@ -249,6 +249,10 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                if self.delete_at_code_start(root, region, current_selection, operations) {
+                    return response;
+                }
+
                 // delete container block prefix
                 let mut handled = || {
                     // must be mostly vanilla backspace
@@ -675,6 +679,10 @@ impl<'ast> MdEdit {
 
         match style {
             NodeValue::Document | NodeValue::Paragraph => {}
+            NodeValue::CodeBlock(_) => self.toggle_code_block(root, current_selection, operations),
+            NodeValue::ThematicBreak => {
+                self.insert_thematic_break(root, current_selection, operations)
+            }
             _ if style.is_inline() => {
                 let unapply = self.unapply_inline(root, range, &style);
 
@@ -944,6 +952,211 @@ impl<'ast> MdEdit {
         }
     }
 
+    /// Unfences the selected fenced code blocks; else fences the selected
+    /// blocks, or opens an empty fence at a caret between blocks.
+    fn toggle_code_block(
+        &mut self, root: &'ast AstNode<'ast>, current_selection: (Grapheme, Grapheme),
+        operations: &mut Vec<Operation>,
+    ) {
+        let selected = self.code_block_targets(root);
+        let code_blocks: Vec<_> = selected
+            .iter()
+            .filter(|node| matches!(node.data.borrow().value, NodeValue::CodeBlock(_)))
+            .collect();
+        if !code_blocks.is_empty() {
+            for &&node in &code_blocks {
+                let NodeValue::CodeBlock(code_block) = &node.data.borrow().value else {
+                    unreachable!()
+                };
+                if !code_block.fenced {
+                    continue;
+                }
+                let lines = &self.renderer.bounds.source_lines;
+                let (first_idx, last_idx) = (
+                    self.renderer.node_first_line_idx(node),
+                    self.renderer.node_last_line_idx(node),
+                );
+                let first = lines[first_idx];
+
+                // the opening fence line, through the next line's container prefixes;
+                // under a checkbox, the text comes back up beside it
+                let under_checkbox = opens_task(node)
+                    && node
+                        .parent()
+                        .is_some_and(|task| self.renderer.node_first_line_idx(task) < first_idx);
+                let mut range = if under_checkbox {
+                    (lines[first_idx - 1].end(), first.end())
+                } else {
+                    (self.renderer.node_line(node, first).start(), first.end())
+                };
+                if let Some(&next) = lines.get(first_idx + 1) {
+                    range.1 = self.renderer.node_line(node, next).start();
+                }
+                let text = if under_checkbox { " " } else { "" };
+                let last = lines[last_idx];
+                if last_idx > first_idx && self.renderer.is_closing_fence(node, code_block, last) {
+                    let close = (lines[last_idx - 1].end(), last.end());
+                    if close.start() < range.end() {
+                        range.1 = close.end();
+                    } else {
+                        operations
+                            .push(Operation::Replace(Replace { range: close, text: "".into() }));
+                    }
+                }
+                operations.push(Operation::Replace(Replace { range, text: text.into() }));
+            }
+            operations.push(Operation::Select(current_selection));
+            return;
+        }
+
+        let (Some(&first), Some(&last)) = (selected.first(), selected.last()) else {
+            let container = self
+                .renderer
+                .deepest_container_block_at_offset(root, current_selection.start());
+            let Some(prefix) = self.renderer.extension_prefix(container) else { return };
+            let line = self.renderer.line_at_offset(current_selection.start());
+            let blank = (self.renderer.line_prefix(container, line).end(), line.end());
+            if !self.renderer.buffer[blank].trim().is_empty() {
+                return;
+            }
+            let at = blank.start().into_range();
+            operations
+                .push(Operation::Replace(Replace { range: at, text: format!("```\n{prefix}") }));
+            operations.push(Operation::Select(at));
+            operations
+                .push(Operation::Replace(Replace { range: at, text: format!("\n{prefix}```") }));
+            operations.push(Operation::Replace(Replace { range: blank, text: "".into() }));
+            return;
+        };
+        let parent_prefix = |node: &'ast AstNode<'ast>| {
+            node.parent()
+                .and_then(|parent| self.renderer.extension_prefix(parent))
+        };
+        let (Some(first_prefix), Some(last_prefix)) = (parent_prefix(first), parent_prefix(last))
+        else {
+            return;
+        };
+        // whole lines, so the blocks keep their indents and trailing spaces
+        let first_line = self.renderer.node_first_line(first);
+        let start = self.renderer.line_ancestors_prefix(first, first_line).end();
+        let end = self.renderer.node_last_line(last).end();
+        // longer than any backtick run inside, so none of them closes it
+        let longest_run = self.renderer.buffer[(start, end)]
+            .split(|c| c != '`')
+            .map(str::len)
+            .max()
+            .unwrap_or_default();
+        let fence = "`".repeat(longest_run.max(2) + 1);
+        // a task's text moves under its checkbox: `- [ ] ```` would be no task
+        let open = if opens_task(first) {
+            let text_start = self.renderer.node_range(first).start();
+            let before = &self.renderer.buffer[(first_line.start(), text_start)];
+            let spaces = Graphemes(before.len() - before.trim_end().len());
+            (text_start - spaces, text_start)
+        } else {
+            start.into_range()
+        };
+        let open_text = if opens_task(first) {
+            format!("\n{first_prefix}{fence}\n{first_prefix}")
+        } else {
+            format!("{fence}\n{first_prefix}")
+        };
+        operations.push(Operation::Replace(Replace { range: open, text: open_text }));
+        operations.push(Operation::Replace(Replace {
+            range: end.into_range(),
+            text: format!("\n{last_prefix}{fence}"),
+        }));
+        operations.push(Operation::Select(current_selection));
+    }
+
+    /// The blocks a code block toggle acts on: it unfences the code blocks
+    /// among them, or else fences them all.
+    fn code_block_targets(&self, root: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
+        // a container holding the whole selection was picked for a blank line in it
+        root.descendants()
+            .filter(|&node| self.renderer.table_styled_whole(node))
+            .filter(|&node| {
+                node.is_leaf_block()
+                    || matches!(node.data.borrow().value, NodeValue::Table(_))
+                    || !self.renderer.node_contains_selection(node)
+            })
+            .collect()
+    }
+
+    /// Backspace at the start of a fenced code block's first line takes the
+    /// fence away, as a code block toggle does. True if handled (ops pushed).
+    fn delete_at_code_start(
+        &mut self, root: &'ast AstNode<'ast>, region: Region,
+        current_selection: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
+    ) -> bool {
+        let Region::SelectionOrAdvance { backwards: true, .. } = region else { return false };
+        let Some(offset) = self.renderer.selection_offset() else { return false };
+        let at_start = root.descendants().any(|node| {
+            let NodeValue::CodeBlock(code) = &node.data.borrow().value else { return false };
+            let first_idx = self.renderer.node_first_line_idx(node);
+            let Some(&line) = self.renderer.bounds.source_lines.get(first_idx + 1) else {
+                return false;
+            };
+            code.fenced
+                && first_idx < self.renderer.node_last_line_idx(node)
+                && self.renderer.node_line(node, line).start() == offset
+        });
+        if at_start {
+            self.toggle_code_block(root, current_selection, operations);
+        }
+        at_start
+    }
+
+    /// Inserts a `---` after the top-level block holding the selection's
+    /// end, or at that end between blocks.
+    fn insert_thematic_break(
+        &mut self, root: &'ast AstNode<'ast>, current_selection: (Grapheme, Grapheme),
+        operations: &mut Vec<Operation>,
+    ) {
+        let end = current_selection.end();
+        let lines = &self.renderer.bounds.source_lines;
+        let (line_idx, _) = lines.find_containing(end, true, true);
+        let block_at = |line_idx| {
+            root.children().find(|&node| {
+                let (first, last) = self.renderer.node_lines(node);
+                (first..last).contains(&line_idx)
+            })
+        };
+        // `---` right under these runs on: HTML takes it in, and readers with
+        // setext headings underline a paragraph into one
+        let runs_on = |node: &'ast AstNode<'ast>| {
+            matches!(node.data.borrow().value, NodeValue::Paragraph | NodeValue::HtmlBlock(_))
+        };
+        let block = block_at(line_idx);
+        // a `---` on the first line, or after one there, would open front matter
+        let first_line = lines.first().map(|&line| self.renderer.buffer[line].trim());
+        let fronts = first_line == Some("---") || (block.is_none() && line_idx == 0);
+        let rule = if fronts { "***" } else { "---" };
+        let (at, text) = match block {
+            Some(block) => {
+                // an unclosed fence runs to the end of the doc, so close it first
+                let close = match &block.data.borrow().value {
+                    NodeValue::CodeBlock(code) if code.fenced && !code.closed => {
+                        let fence = (code.fence_char as char).to_string();
+                        format!("\n{}", fence.repeat(code.fence_length))
+                    }
+                    _ => String::new(),
+                };
+                let gap = if runs_on(block) { "\n\n" } else { "\n" };
+                (self.renderer.node_last_line(block).end(), format!("{close}{gap}{rule}"))
+            }
+            None => {
+                let under = line_idx > 0 && block_at(line_idx - 1).is_some_and(runs_on);
+                let at = lines[line_idx].start();
+                (at, if under { format!("\n{rule}") } else { rule.into() })
+            }
+        };
+        operations.push(Operation::Replace(Replace { range: at.into_range(), text }));
+        if block.is_none() {
+            operations.push(Operation::Select(at.into_range()));
+        }
+    }
+
     /// Returns true if all text in the given range has style `style`
     pub fn inline_styled(
         &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), style: &NodeValue,
@@ -982,6 +1195,12 @@ impl<'ast> MdEdit {
 
     /// Returns true if a block style would be unapplied instead of applied
     pub fn unapply_block(&self, root: &'ast AstNode<'ast>, style: &NodeValue) -> bool {
+        if let NodeValue::CodeBlock(_) = style {
+            let targets = self.code_block_targets(root);
+            return targets
+                .iter()
+                .any(|node| matches!(node.data.borrow().value, NodeValue::CodeBlock(_)));
+        }
         let mut unapply = false;
         let mut any_selected_blocks = false;
         for node in root.descendants() {
@@ -1395,6 +1614,16 @@ pub fn distance(coord: f32, range: Rangef) -> f32 {
 /// Nearest container at or above `node` of `style`'s kind: the list for
 /// any list style, the quote for a quote. A leaf's walk starts at its
 /// parent; `* foo` is `List > Item > Paragraph`, bullet style on `List`.
+/// Whether `node` is the first block in a task item, the one its checkbox stands beside.
+fn opens_task(node: &AstNode<'_>) -> bool {
+    node.parent().is_some_and(|parent| {
+        matches!(parent.data.borrow().value, NodeValue::TaskItem(_))
+            && parent
+                .first_child()
+                .is_some_and(|child| child.same_node(node))
+    })
+}
+
 fn kind_ancestor<'ast>(
     node: &'ast AstNode<'ast>, style: &NodeValue,
 ) -> Option<&'ast AstNode<'ast>> {
