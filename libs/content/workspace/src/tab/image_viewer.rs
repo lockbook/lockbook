@@ -415,15 +415,14 @@ fn transform_rect(rect: Rect, transform: Transform) -> Rect {
     Rect { min: transform_point(rect.min, transform), max: transform_point(rect.max, transform) }
 }
 
-// a copy of this fn exists in Swift as isSupportedImageFormat()
 pub fn is_supported_image_fmt(ext: &str) -> bool {
     let ext: &str = &ext.to_lowercase();
 
-    // complete list derived from which features are enabled on image crate according to image-rs default features:
+    // Raster formats come from image-rs default features; SVG uses our SVG renderer.
     // https://github.com/image-rs/image/blob/main/Cargo.toml#L70
-    const IMG_FORMATS: [&str; 16] = [
+    const IMG_FORMATS: [&str; 17] = [
         "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "jpg", "png", "pnm", "qoi",
-        "tga", "tiff", "webp",
+        "svg", "tga", "tiff", "webp",
     ];
     IMG_FORMATS.contains(&ext)
 }

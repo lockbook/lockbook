@@ -2,7 +2,7 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::svg::WeakTransform;
 use lb_rs::model::svg::buffer::{Buffer, WeakViewportSettings};
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{Element, Image, Path, WeakImage};
+use lb_rs::model::svg::element::{Element, Image, Path, Stroke, WeakImage};
 use resvg::usvg::{NonZeroRect, Transform};
 
 use super::ViewportSettings;
@@ -48,6 +48,19 @@ impl BoundedElement for Path {
             max: egui::pos2(bb[1].x as f32, bb[1].y as f32),
         }
     }
+}
+
+/// Stroke width in drawing coordinates, including stylus pressure.
+pub fn stroke_width(stroke: Stroke, transform: Transform, pressure: f32) -> f32 {
+    stroke.width * (transform.sx + transform.sy) / 2.0 * (1.0 + pressure)
+}
+
+/// Include the widest stroke when measuring a path for rendering or export.
+pub fn stroked_path_bounds(path: &Path, pressures: &[f32]) -> egui::Rect {
+    let bounds = path.bounding_box();
+    let Some(stroke) = path.stroke else { return bounds };
+    let pressure = pressures.iter().copied().fold(0.0_f32, f32::max);
+    bounds.expand(stroke_width(stroke, path.transform, pressure).abs() / 2.0)
 }
 
 pub trait PromoteWeakImage {

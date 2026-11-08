@@ -317,7 +317,10 @@ impl ImageCache {
                         (bytes, is_svg)
                     }
                 };
-                if is_svg && matches!(key, ImageKey::File(_)) && Drawing::is_drawing(&bytes) {
+                if is_svg
+                    && matches!(key, ImageKey::File(_))
+                    && Drawing::is_lockbook_drawing(&bytes)
+                {
                     return Ok((Drawing::load(&bytes, &core)?.image(dark_mode)?, bytes));
                 }
                 let rasterized = if is_svg {
@@ -676,7 +679,7 @@ fn decode_source(
     bytes: Vec<u8>, is_svg: bool, is_file: bool, core: &Lb, viewport_width: f32,
     pixels_per_point: f32,
 ) -> Result<Decoded, String> {
-    if is_svg && is_file && Drawing::is_drawing(&bytes) {
+    if is_svg && is_file && Drawing::is_lockbook_drawing(&bytes) {
         return Ok(Decoded::Drawing(Drawing::load(&bytes, core)?));
     }
     let bytes = if is_svg {

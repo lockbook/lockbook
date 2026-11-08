@@ -7,7 +7,7 @@ use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::element::{Element, Image};
 use resvg::usvg::Transform;
 
-use super::element::{BoundedElement, PromoteWeakImage};
+use super::element::{BoundedElement, PromoteWeakImage, stroked_path_bounds};
 use super::renderer::{RenderOptions, Renderer};
 
 pub struct Drawing {
@@ -19,7 +19,9 @@ pub struct Drawing {
 impl Drawing {
     /// Generic SVG artwork stays with resvg: the canvas renderer implements
     /// Lockbook strokes and referenced images, rather than all SVG features.
-    pub fn is_drawing(bytes: &[u8]) -> bool {
+    /// TODO: Make Lockbook drawings fully SVG compliant so standard SVG renderers
+    /// can display them without special handling.
+    pub fn is_lockbook_drawing(bytes: &[u8]) -> bool {
         std::str::from_utf8(bytes)
             .ok()
             .and_then(|s| roxmltree::Document::parse(s).ok())
@@ -79,16 +81,11 @@ impl Drawing {
             let mut bb = element.bounding_box();
             match element {
                 Element::Path(path) => {
-                    if let Some(stroke) = path.stroke {
-                        let pressure = buffer
-                            .weak_path_pressures
-                            .get(id)
-                            .map_or(0.0, |p| p.iter().copied().fold(0.0_f32, f32::max));
-                        let radius = stroke.width * (path.transform.sx + path.transform.sy).abs()
-                            / 4.0
-                            * (1.0 + pressure);
-                        bb = bb.expand(radius);
-                    }
+                    let pressures = buffer
+                        .weak_path_pressures
+                        .get(id)
+                        .map_or(&[][..], Vec::as_slice);
+                    bb = stroked_path_bounds(path, pressures);
                     path.diff_state = Default::default();
                 }
                 Element::Image(image) => {
@@ -333,14 +330,14 @@ mod tests {
             }
         }
         let serialized = buffer.serialize();
-        assert!(Drawing::is_drawing(serialized.as_bytes()));
+        assert!(Drawing::is_lockbook_drawing(serialized.as_bytes()));
         let core = crate::tab::markdown_editor::tests::harness::build_lb();
         let after = Drawing::load(serialized.as_bytes(), &core)
             .unwrap()
             .image(false)
             .unwrap();
         assert_eq!(before, after);
-        assert!(!Drawing::is_drawing(
+        assert!(!Drawing::is_lockbook_drawing(
             b"<svg xmlns='http://www.w3.org/2000/svg'><rect width='20' height='20'/></svg>"
         ));
         assert!(

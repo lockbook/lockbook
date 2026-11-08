@@ -1035,6 +1035,10 @@ fn has_extension(name: &str) -> bool {
 /// made empty (`photo.png`, `paper.pdf`): a title naming one creates nothing.
 fn unmakeable(name: &str) -> bool {
     let ext = name.rsplit_once('.').map_or("", |(_, ext)| ext);
+    // Drawings can start empty, unlike raster images and PDFs.
+    if ext.eq_ignore_ascii_case("svg") {
+        return false;
+    }
     crate::tab::image_viewer::is_supported_image_fmt(ext) || ext.eq_ignore_ascii_case("pdf")
 }
 
@@ -1391,6 +1395,9 @@ pub(crate) mod tests {
         };
 
         assert_eq!(place("map.svg", note).unwrap(), "/project/map.svg");
+        assert_eq!(place("map.SVG", note).unwrap(), "/project/map.SVG");
+        assert_eq!(place("photo.png", note), None);
+        assert_eq!(place("paper.pdf", note), None);
         assert_eq!(place("v1.2 notes", note).unwrap(), "/project/v1.2 notes.md");
         assert_eq!(place("Node.js", note).unwrap(), "/project/Node.js.md");
         assert_eq!(place("design/drafts/Ideas", note).unwrap(), "/project/design/drafts/Ideas.md");

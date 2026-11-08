@@ -753,9 +753,10 @@ impl LinkCompletions {
             .filter(|f| f.is_document() && f.id != file_id)
             .filter(|f| {
                 !image
-                    || f.name.rsplit('.').next().is_some_and(|ext| {
-                        is_supported_image_fmt(ext) || ext.eq_ignore_ascii_case("svg")
-                    })
+                    || f.name
+                        .rsplit('.')
+                        .next()
+                        .is_some_and(is_supported_image_fmt)
             })
             .map(|f| {
                 let outside = f.id == scope || !cache.in_scope(scope, f.id);
