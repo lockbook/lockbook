@@ -7,7 +7,10 @@ use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 use crate::style::chrome::{ANIM_MAX_SECS, Radius, STROKE_HAIRLINE, TOGGLE_ANIM_SECS};
 
 use crate::tab::markdown_editor::TouchTarget;
-use crate::tab::markdown_editor::widget::utils::consume_indent_columns_ceil;
+use crate::tab::markdown_editor::bounds::RangesExt as _;
+use crate::tab::markdown_editor::widget::utils::{
+    consume_indent_columns_ceil, leading_indent_cols_ceil,
+};
 use crate::tab::markdown_editor::{Event, MdRender};
 use crate::theme::palette_v2::{Theme, ThemeExt};
 
@@ -289,60 +292,59 @@ impl<'ast> MdRender {
         &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
     ) -> Option<Graphemes> {
         let node_line = self.node_line(node, line);
-        let mut result = 0.into();
+        let first_line = self.node_first_line(node);
+        let first_node_line = self.node_line(node, first_line);
+        let first_text = &self.buffer[first_node_line];
+        let bracket = self.check_offset(node) - 1;
 
         // "If a sequence of lines Ls constitutes a list item according to rule
         // #1, #2, or #3, then the result of indenting each line of Ls by 1-3
         // spaces (the same for each line) also constitutes a list item with the
         // same contents and attributes."
-        let indentation = {
-            let first_line = self.node_first_line(node);
-            let node_line = self.node_line(node, first_line);
+        let indentation = consume_indent_columns_ceil(first_text, 3);
+        let indent_cols = leading_indent_cols_ceil(first_text, 3);
 
-            // 1-3 columns of relative indent before the marker; ceil so a
-            // straddling tab is claimed rather than leaking into content.
-            let text = &self.buffer[(node_line.start(), node_line.end())];
-            consume_indent_columns_ceil(text, 3)
+        // "If a sequence of lines Ls constitute a sequence of blocks Bs starting
+        // with a non-whitespace character, and M is a list marker of width W
+        // followed by 1 ≤ N ≤ 4 spaces, then the result of prepending M and the
+        // following spaces to the first line of Ls, and indenting subsequent lines
+        // of Ls by W + N spaces, is a list item with Bs as its contents."
+        //
+        // "If a sequence of lines Ls starting with a single blank line
+        // constitute a (possibly empty) sequence of blocks Bs, not separated
+        // from each other by more than one blank line, and M is a list marker
+        // of width W, then the result of prepending M to the first line of Ls,
+        // and indenting subsequent lines of Ls by W + 1 spaces, is a list item
+        // with Bs as its contents."
+        //
+        // Comrak parses `1. [ ] foo` as a `1. ` item whose content begins with
+        // `[ ] `, so the content column is W + N, short of the `]`: an indented
+        // code block inside the item starts 4 columns past it.
+        let content_cols = if first_node_line.contains(bracket, true, true) {
+            // tabs stop at columns of the source line, outer prefixes included
+            let source_line_idx = self
+                .bounds
+                .source_lines
+                .find_containing(first_line.start(), true, true)
+                .start();
+            let source_line_start = self.bounds.source_lines[source_line_idx].start();
+            let marker_start = first_node_line.start() + indentation;
+            columns(&self.buffer[(source_line_start, bracket)])
+                - columns(&self.buffer[(source_line_start, marker_start)])
+        } else {
+            let marker =
+                &self.buffer[(first_node_line.start() + indentation, first_node_line.end())];
+            columns(marker.trim_end()) + 1
         };
-        let marker_width_including_spaces: usize = {
-            // task items don't have a NodeList so we have to do this ourselves
-            let first_line = self.node_first_line(node);
 
-            // "   - [ ]   item"
-            // indentation + marker + spaces + content
-            let node_line = self.node_line(node, first_line);
-
-            // spaces + content
-            let marker_width = 5;
-            let text =
-                &self.buffer[(node_line.start() + indentation + marker_width, node_line.end())];
-            marker_width
-                + if text.starts_with("   ") {
-                    "   ".len()
-                } else if text.starts_with("  ") {
-                    "  ".len()
-                } else if text.starts_with(" ") {
-                    " ".len()
-                } else {
-                    0
-                }
-        };
-        if line == self.node_first_line(node) {
-            result += indentation;
-
-            // "If a sequence of lines Ls constitute a sequence of blocks Bs starting
-            // with a non-whitespace character, and M is a list marker of width W
-            // followed by 1 ≤ N ≤ 4 spaces, then the result of prepending M and the
-            // following spaces to the first line of Ls, and indenting subsequent lines
-            // of Ls by W + N spaces, is a list item with Bs as its contents."
-            //
-            // "If a sequence of lines Ls starting with a single blank line
-            // constitute a (possibly empty) sequence of blocks Bs, not separated
-            // from each other by more than one blank line, and M is a list marker
-            // of width W, then the result of prepending M to the first line of Ls,
-            // and indenting subsequent lines of Ls by W + 1 spaces, is a list item
-            // with Bs as its contents."
-            result += marker_width_including_spaces;
+        let len = if node_line.contains(bracket, true, true) {
+            // through the `]` and up to 3 spaces after it
+            let after = &self.buffer[(bracket + "[ ]".len(), node_line.end())];
+            let spaces = after.len() - after.trim_start_matches(' ').len();
+            (bracket - node_line.start()).0 + "[ ]".len() + spaces.min(3)
+        } else if line == first_line {
+            // a blank first line holds only the list marker
+            node_line.len().0
         } else {
             // "If a string of lines Ls constitute a list item with contents Bs, then
             // the result of deleting some or all of the indentation from one or
@@ -352,25 +354,12 @@ impl<'ast> MdRender {
             //
             // "If a line is empty, then it need not be indented."
             //
-            // The threshold here is the *list's* content column (= the
-            // bullet marker `- ` width, typically 2), not the visual
-            // `- [ ] ` width. Comrak parses `- [ ] foo` as a `- ` bullet
-            // item whose content begins with the task syntax `[ ] `, so an
-            // indented code block inside the item begins at content_col + 4
-            // (= 6). Stripping the full visual `- [ ] ` here would consume
-            // the very indent the code block is defined by — and the
-            // code block's own 4-space strip would then leave it empty.
-            let parent_padding = match &node.parent().unwrap().data.borrow().value {
-                NodeValue::List(node_list) => node_list.padding,
-                _ => marker_width_including_spaces, // fallback, shouldn't happen
-            };
-            let text = &self.buffer[node_line];
             // Ceil so a straddling tab is claimed here rather than leaking
             // into a nested block's prefix (per-level tab attribution).
-            result += consume_indent_columns_ceil(text, indentation + parent_padding);
-        }
+            consume_indent_columns_ceil(&self.buffer[node_line], indent_cols + content_cols)
+        };
 
-        Some(result)
+        Some(Graphemes(len))
     }
 
     pub fn compute_bounds_task_item(&mut self, node: &'ast AstNode<'ast>) {
@@ -384,21 +373,17 @@ impl<'ast> MdRender {
         }
     }
 
+    /// Where the task's mark sits, between its brackets.
     pub(crate) fn check_offset(&self, node: &'ast AstNode<'ast>) -> Grapheme {
-        let line = self.node_first_line(node);
-        let node_line = self.node_line(node, line);
-
-        let text = &self.buffer[(node_line.start(), node_line.end())];
-        let indentation = if text.starts_with("   ") {
-            "   ".len()
-        } else if text.starts_with("  ") {
-            "  ".len()
-        } else if text.starts_with(" ") {
-            " ".len()
-        } else {
-            0
+        let NodeValue::TaskItem(task) = &node.data.borrow().value else {
+            unreachable!("not a task item")
         };
-
-        node_line.start() + indentation + 3
+        self.line_column_to_offset(task.symbol_sourcepos.start)
     }
+}
+
+/// Columns `text` spans, tabs stopping every 4.
+fn columns(text: &str) -> usize {
+    text.chars()
+        .fold(0, |cols, c| if c == '\t' { (cols / 4 + 1) * 4 } else { cols + 1 })
 }
