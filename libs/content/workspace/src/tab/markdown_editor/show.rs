@@ -76,6 +76,10 @@ impl MdEdit {
         let prior_entered_atom = self.renderer.entered_atom;
 
         // a drag let go last frame stops floating as its move applies
+        self.in_progress_image_drag = self
+            .in_progress_image_drag
+            .take()
+            .filter(|drag| !drag.dropped);
         if self.pending_block_move.is_some() {
             self.in_progress_block_drag = None;
         }
@@ -507,8 +511,10 @@ impl MdEdit {
         self.renderer.show_capsule_overlays(ui, root, rect, 0);
 
         self.handle_block_drag(ui);
+        self.handle_image_drag(ui, root);
         self.post_render(ui, rect, id, pre);
         self.draw_dragged_overlay(ui, root);
+        self.draw_image_drag(ui);
         if overflow > 0.0 {
             self.show_overflow_scrollbar(ui, rect, id, height);
         }
@@ -629,11 +635,11 @@ impl MdEdit {
         }
     }
 
-    /// Edge-scroll while a block drag is in flight: reveal the pointer
+    /// Edge-scroll while a drag is in flight: reveal the pointer
     /// padded by `row_height` on each side. The pointer y is clamped to
     /// the viewport so dragging past the toolbar / window edge still
     /// scrolls at full rate.
-    fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui) {
+    pub(crate) fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui) {
         use crate::tab::markdown_editor::scroll_content::DocScrollContent;
         use crate::widgets::affine_scroll::{Align, Reveal};
 

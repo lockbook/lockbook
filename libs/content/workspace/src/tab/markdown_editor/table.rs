@@ -150,12 +150,10 @@ impl RowBounds {
             .unwrap_or(0)
     }
 
-    /// The edge of a cell's content nearest `offset`.
+    /// The edge of its cell's content nearest `offset`.
     fn nearest_content_edge(&self, offset: Grapheme) -> Option<Grapheme> {
-        self.cells
-            .iter()
-            .flat_map(|cell| [cell.content.start(), cell.content.end()])
-            .min_by_key(|edge| edge.0.abs_diff(offset.0))
+        let content = self.cells.get(self.cell_near(offset))?.content;
+        Some(offset.clamp(content.start(), content.end()))
     }
 }
 

@@ -345,6 +345,8 @@ pub struct MdEdit {
     /// Mirrored onto the renderer each frame for the dim/indicator paint.
     pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
 
+    pub in_progress_image_drag: Option<widget::inline::image::image::ImageDrag>,
+
     /// Touch long-press → reorder gesture state (touch only; desktop drags
     /// the marker handle directly). See [`MdEdit::detect_touch_reorder`].
     pub touch_reorder: widget::block::drag::TouchReorder,
@@ -476,6 +478,7 @@ impl MdEdit {
             handle_drag_touch_offset: None,
             insertion_handle_visible: false,
             in_progress_block_drag: None,
+            in_progress_image_drag: None,
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
             pending_block_move: None,
@@ -1186,6 +1189,7 @@ impl Editor {
                 handle_drag_touch_offset: None,
                 insertion_handle_visible: false,
                 in_progress_block_drag: None,
+                in_progress_image_drag: None,
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
                 pending_block_move: None,
@@ -2390,6 +2394,7 @@ impl Editor {
                         // post_render so they composite on top).
                         self.edit.detect_touch_reorder(ui, self.keyboard_shown());
                         self.edit.handle_block_drag(ui);
+                        self.edit.handle_image_drag(ui, root);
                         pre
                     })
                     .inner;
@@ -2407,6 +2412,7 @@ impl Editor {
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);
+                self.edit.draw_image_drag(ui);
                 self.show_outline(ui, root, canvas_rect);
                 ui.advance_cursor_after_rect(canvas_rect);
             });

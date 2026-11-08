@@ -498,6 +498,13 @@ impl<'ast> MdRender {
         FileRow::height_for(self.card_folder(place).is_some())
     }
 
+    /// The band atop the note embed of `title` drawn in `rect`: where a
+    /// hold lifts it, the inside being the embedded note's.
+    pub(crate) fn tab_embed_band(&self, title: &str, rect: Rect) -> Option<Rect> {
+        let place = self.tab_embeds.place(self, title)?;
+        Some(rect.with_max_y(rect.top() + self.tab_embed_band_height(&place)))
+    }
+
     /// The slot's height for the block-height estimate, if `node` embeds.
     pub fn tab_embed_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
         let range = self.node_range(node);

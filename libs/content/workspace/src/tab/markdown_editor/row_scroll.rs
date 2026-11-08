@@ -332,7 +332,11 @@ impl MdEdit {
             if let Some(scroll) = scroller.and_then(|key| self.renderer.row_scrolls.get_mut(&key)) {
                 (scroll.velocity, scroll.tracked) = (0.0, 0.0);
             }
-        } else if gone || !body.dragged() || self.in_progress_block_drag.is_some() {
+        } else if gone
+            || !body.dragged()
+            || self.in_progress_block_drag.is_some()
+            || self.in_progress_image_drag.is_some()
+        {
             // a finger lifted mid-motion leaves the block coasting
             if let Some((key, Some(true))) = self.row_pan.take() {
                 if let Some(scroll) = self.renderer.row_scrolls.get_mut(&key) {

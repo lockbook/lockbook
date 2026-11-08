@@ -2,7 +2,7 @@ use std::f32;
 
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{self, Vec2};
-use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::file_cache::{ResolvedLink, wiki_fragment};
@@ -12,9 +12,11 @@ use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
 use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
+use crate::tab::markdown_editor::widget::inline::link::hover::CARD_RADIUS;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use crate::tab::markdown_editor::widget::inline::tab_embed::tab_embed_title;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
@@ -37,6 +39,27 @@ fn names_image(title: &str) -> bool {
     let file = wiki_fragment(title).0;
     let ext = file.rsplit_once('.').map_or("", |(_, ext)| ext.trim());
     is_supported_image_fmt(ext) || ext.eq_ignore_ascii_case("svg")
+}
+
+/// An image a drag is moving, from grab until release.
+#[derive(Clone, Debug)]
+pub struct ImageDrag {
+    pub image: (Grapheme, Grapheme),
+    /// What it floats as, from the grab: its url, its kind and its size,
+    /// so it draws where the finger holds it with its source scrolled away.
+    pub url: String,
+    pub kind: EmbedKind,
+    pub size: Vec2,
+    /// The live pointer, or where it last was once a finger lifts.
+    pub pointer: egui::Pos2,
+    /// Pointer less the image's top left at the grab, so the floating
+    /// image keeps the grab point under the pointer.
+    pub grab_offset: Vec2,
+    /// Let go with its move queued: it floats where it lands until the move
+    /// applies, so no frame draws it back where it was.
+    pub dropped: bool,
+    /// Where it lands if let go now, as this frame found it.
+    pub target: Option<Grapheme>,
 }
 
 impl MdRender {
@@ -170,8 +193,9 @@ impl<'ast> MdRender {
             return;
         };
         let Some(url) = image_url(node) else { return };
-        // Always interactive: a plain tap selects, a cmd/keyboard-hidden tap opens.
-        layout.interaction_open(Self::image_interaction_id_salt(node_range), egui::Sense::click());
+        // Always interactive: a plain tap selects, a cmd/keyboard-hidden tap
+        // opens, and in a note a mouse drags it to another place.
+        layout.interaction_open(Self::image_interaction_id_salt(node_range), self.embed_sense());
         // sized against the text it sits in: a heading's, else the body's
         let block = node
             .ancestors()
@@ -202,11 +226,65 @@ impl<'ast> MdRender {
         }
     }
 
+    /// How an embed takes the pointer: a click, and where the note is
+    /// editable, a mouse drag that moves it (touch lifts with a long press).
+    pub fn embed_sense(&self) -> egui::Sense {
+        if self.readonly || self.touch_mode {
+            egui::Sense::click()
+        } else {
+            egui::Sense::click_and_drag()
+        }
+    }
+
     /// Interaction-response salt for a rendered image; distinct from
     /// [`Self::link_interaction_id_salt`] so the collapsed-image and
     /// revealed-link handlers don't collide.
     pub fn image_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
         egui::Id::unique(("md_image", node_range))
+    }
+
+    /// The source range of what an inline drag lifts at `pos`: the image
+    /// drawn there, or a note embed held by its title, its inside being the
+    /// embedded note's.
+    pub fn image_at(&self, pos: egui::Pos2) -> Option<(Grapheme, Grapheme)> {
+        if let Some((salt, _)) = self.fragment_at_pos(pos).and_then(|f| f.interaction) {
+            let mut images = self.bounds.images.iter().copied();
+            if let Some(image) = images.find(|&r| Self::image_interaction_id_salt(r) == salt) {
+                return Some(image);
+            }
+        }
+        self.fragments.iter().find_map(|f| {
+            let FragmentContent::Embed { kind: EmbedKind::Tab, url } = &f.content else {
+                return None;
+            };
+            let band = self.tab_embed_band(url, f.rect)?;
+            band.contains(pos).then_some(f.source_range)
+        })
+    }
+
+    /// Where the image or embed at `image` was last drawn, its url and kind.
+    pub fn drawn_image(
+        &self, image: (Grapheme, Grapheme),
+    ) -> Option<(egui::Rect, &str, EmbedKind)> {
+        self.fragments.iter().find_map(|f| match &f.content {
+            FragmentContent::Embed { url, kind } if f.source_range == image => {
+                Some((f.rect, url.as_str(), *kind))
+            }
+            _ => None,
+        })
+    }
+
+    /// A drag of `image` grabbed at `pointer`.
+    pub fn image_drag(&self, image: (Grapheme, Grapheme), pointer: egui::Pos2) -> ImageDrag {
+        let (rect, url, kind) = self
+            .drawn_image(image)
+            .map_or((egui::Rect::NOTHING, "", EmbedKind::Image), |(rect, url, kind)| {
+                (rect, url, kind)
+            });
+        let grab_offset = if rect.is_positive() { pointer - rect.left_top() } else { Vec2::ZERO };
+        let (url, size) =
+            (url.to_string(), if rect.is_positive() { rect.size() } else { Vec2::ZERO });
+        ImageDrag { image, url, kind, size, pointer, grab_offset, dropped: false, target: None }
     }
 
     /// Recompute [`super::super::super::bounds::Bounds::images`] — the source
@@ -361,7 +439,250 @@ impl<'ast> MdEdit {
             let Some(url) = image_url(node) else { continue };
             let node_range = self.renderer.node_range(node);
             let salt = MdRender::image_interaction_id_salt(node_range);
+            let grabbed = self
+                .renderer
+                .interaction_responses
+                .get(&ui.scope_id().with(salt))
+                .is_some_and(|r| r.drag_started_by(egui::PointerButton::Primary));
+            if grabbed {
+                let pointer = ui.input(|i| i.pointer.press_origin()).unwrap_or_default();
+                self.in_progress_image_drag = Some(self.renderer.image_drag(node_range, pointer));
+                crate::style::context_menu::close(ui.ctx());
+            }
             self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
+        }
+        if self.renderer.readonly || self.renderer.touch_mode {
+            return;
+        }
+        // a note embed, by its title, as a mouse drags an image
+        let r = &self.renderer;
+        let held: Vec<((Grapheme, Grapheme), egui::Rect)> = r
+            .fragments
+            .iter()
+            .filter_map(|f| match &f.content {
+                FragmentContent::Embed { kind: EmbedKind::Tab, url } => {
+                    Some((f.source_range, r.tab_embed_band(url, f.rect)?))
+                }
+                _ => None,
+            })
+            .collect();
+        for (range, band) in held {
+            let resp = ui.interact(
+                band,
+                ui.scope_id().with(("md_embed_band", range)),
+                egui::Sense::drag(),
+            );
+            if resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+            }
+            if resp.drag_started_by(egui::PointerButton::Primary) {
+                let pointer = ui.input(|i| i.pointer.press_origin()).unwrap_or_default();
+                self.in_progress_image_drag = Some(self.renderer.image_drag(range, pointer));
+            }
+        }
+    }
+
+    /// Where an inline embed dragged from `image` would land with the
+    /// pointer at `pos`: the caret a click there places. Where it can't
+    /// land, inside a word, a code span, a link or a block of code, it goes
+    /// to that thing's nearer edge. `None` where the drop moves nothing or
+    /// `pos` is outside the note's `viewport`.
+    fn image_drop_offset(
+        &self, root: &'ast AstNode<'ast>, image: (Grapheme, Grapheme), pos: egui::Pos2,
+        viewport: egui::Rect,
+    ) -> Option<Grapheme> {
+        if !viewport.contains(pos) {
+            return None;
+        }
+        let to = self
+            .location_to_char_offset(Location::Pos(pos))
+            .into_range();
+        let to = self.renderer.snap_selection_out_of_fold_tags(to);
+        let to = self.renderer.snap_selection_into_table_cells(to).start();
+        let r = &self.renderer;
+        // a span's edges, the nearer first
+        let edges = |(start, end): (Grapheme, Grapheme)| {
+            if to.0 - start.0 <= end.0 - to.0 { [start, end] } else { [end, start] }
+        };
+        // inside these the source shows, or the url takes the image in; a
+        // bare url, as comrak reads one, runs on to the next space
+        let raw = |n: &'ast AstNode<'ast>| {
+            matches!(
+                n.data.borrow().value,
+                NodeValue::Code(_)
+                    | NodeValue::Math(_)
+                    | NodeValue::HtmlInline(_)
+                    | NodeValue::Link(_)
+                    | NodeValue::WikiLink(_)
+                    | NodeValue::Image(_)
+                    | NodeValue::FootnoteReference(_)
+            )
+        };
+        let spans: Vec<((Grapheme, Grapheme), bool)> = root
+            .descendants()
+            .filter(|&n| raw(n))
+            .map(|n| {
+                let range = r.node_range(n);
+                let bare = matches!(n.data.borrow().value, NodeValue::Link(_))
+                    && !r.buffer[range].starts_with(['[', '<']);
+                let line = r
+                    .bounds
+                    .source_lines
+                    .iter()
+                    .find(|l| l.contains(range.end(), true, true));
+                let mut end = range.end();
+                while bare
+                    && line.is_some_and(|l| end < l.end())
+                    && !r.buffer[(end, end + 1)].chars().all(char::is_whitespace)
+                {
+                    end += 1;
+                }
+                ((range.start(), end), bare)
+            })
+            .collect();
+        // a backslash before it would escape its `!`
+        let lands = |to: Grapheme| {
+            let inline = r
+                .bounds
+                .inline_paragraphs
+                .iter()
+                .any(|p| p.contains_inclusive(to));
+            let escaped = to.0 > 0 && &r.buffer[(to - 1, to)] == "\\";
+            let after_url = spans.iter().any(|&(span, bare)| bare && span.end() == to);
+            inline && !escaped && !after_url && !image.contains_inclusive(to)
+        };
+        let span = spans
+            .iter()
+            .find(|&&(span, bare)| {
+                span.start() < to && (to < span.end() || bare && to == span.end())
+            })
+            .map(|&(span, _)| span);
+        // nor a word
+        let word = || {
+            let &line = r
+                .bounds
+                .source_lines
+                .iter()
+                .find(|l| l.contains(to, true, true))?;
+            let letter = |g: Grapheme| r.buffer[(g, g + 1)].chars().all(char::is_alphanumeric);
+            let inside = to > line.start() && to < line.end() && letter(to - 1) && letter(to);
+            let (mut start, mut end) = (to, to);
+            while inside && start > line.start() && letter(start - 1) {
+                start -= 1;
+            }
+            while inside && end < line.end() && letter(end) {
+                end += 1;
+            }
+            inside.then_some((start, end))
+        };
+        let candidates = match span.or_else(word) {
+            Some(span) => edges(span).to_vec(),
+            None => vec![to],
+        };
+        if let Some(to) = candidates.into_iter().find(|&to| lands(to)) {
+            return Some(to);
+        }
+        // in a block of code: the line before it or after it, nearer first
+        let lines = &r.bounds.source_lines;
+        let block = root
+            .descendants()
+            .filter(|n| {
+                let value = &n.data.borrow().value;
+                value.is_leaf_block() && !value.contains_inlines()
+            })
+            .map(|n| r.node_range(n))
+            .find(|range| range.contains(to, true, true))?;
+        let first = lines
+            .iter()
+            .position(|l| l.contains(block.start(), true, true))?;
+        let last = lines
+            .iter()
+            .rposition(|l| l.contains(block.end(), true, true))?;
+        let before = first.checked_sub(1).map(|i| lines[i].end());
+        let after = lines.get(last + 1).map(|l| l.start());
+        let sides = if to.0 - block.start().0 <= block.end().0 - to.0 {
+            [before, after]
+        } else {
+            [after, before]
+        };
+        sides.into_iter().flatten().find(|&to| lands(to))
+    }
+
+    /// Follows an image drag: the grabbing hand, edge scroll, and on release
+    /// the move to where the pointer let go. A mouse drag lives while the
+    /// button is down; a touch drag while its long press is armed. `root`
+    /// is this frame's parse.
+    pub(crate) fn handle_image_drag(&mut self, ui: &mut egui::Ui, root: &'ast AstNode<'ast>) {
+        let Some(mut drag) = self
+            .in_progress_image_drag
+            .clone()
+            .filter(|drag| !drag.dropped)
+        else {
+            return;
+        };
+        // touch-up nulls egui's pointer, so the drop is where it last lived
+        if let Some(pointer) = self.drag_pointer(ui) {
+            drag.pointer = pointer;
+        }
+        let live = ui.input(|i| i.pointer.primary_down());
+        drag.target = self.image_drop_offset(root, drag.image, drag.pointer, ui.clip_rect());
+        if live {
+            self.in_progress_image_drag = Some(drag);
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Grabbing);
+            self.auto_scroll_to_drag_pointer(ui);
+        } else {
+            self.in_progress_image_drag = None;
+            if let Some(to) = drag.target {
+                let range = drag.image;
+                self.event.internal_events.push(Event::Move { range, to });
+                self.in_progress_image_drag = Some(ImageDrag { dropped: true, ..drag });
+            }
+        }
+        ui.ctx().request_repaint();
+    }
+
+    /// A dragged image: an empty slot where it was, the caret where it would
+    /// land, and the image itself under the pointer.
+    pub(crate) fn draw_image_drag(&mut self, ui: &mut egui::Ui) {
+        let Some(drag) = self.in_progress_image_drag.clone() else { return };
+        let theme = self.renderer.ctx.get_lb_theme();
+        if let Some(to) = drag.target {
+            // the drop line, standing in the text: unlike the caret, it has its dot
+            if let Some([top, bot]) = self.cursor_line(to) {
+                let start = egui::pos2(top.x, top.y - 4.0);
+                crate::style::paint_drop_line(
+                    ui.painter(),
+                    start,
+                    egui::pos2(top.x, bot.y),
+                    &theme,
+                );
+            }
+        }
+        let (url, kind) = (drag.url.as_str(), drag.kind);
+        let corner = match kind {
+            EmbedKind::Tab => CARD_RADIUS.corner(),
+            _ => egui::CornerRadius::same(2),
+        };
+        // the empty slot, as far as its source shows: a scrolled table hides it
+        let src = self.renderer.drawn_image(drag.image).map(|(src, ..)| src);
+        if let Some(slot) = src.and_then(|src| self.renderer.row_showing(drag.image, src)) {
+            ui.painter().rect_filled(slot, corner, theme.neutral_bg());
+            crate::style::paint_inset_shadow(ui.painter(), slot, corner, &theme);
+        }
+        let card = egui::Rect::from_min_size(drag.pointer - drag.grab_offset, drag.size);
+        ui.painter()
+            .add(crate::style::overlay_shadow(&theme).as_shape(card, corner));
+        let float_ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(card));
+        match kind {
+            EmbedKind::Tab => {
+                ui.painter().rect_filled(card, corner, theme.neutral_bg());
+                // the floating copy only paints
+                self.renderer.painting_drag_float = true;
+                self.renderer
+                    .paint_tab_embed(float_ui, url, card, drag.image.start());
+                self.renderer.painting_drag_float = false;
+            }
+            _ => self.renderer.embeds.show(float_ui, url, card, corner),
         }
     }
 

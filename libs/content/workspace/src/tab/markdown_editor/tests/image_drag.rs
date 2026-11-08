@@ -3,10 +3,13 @@
 //! and the release where the pointer lets go; on touch, the long press
 //! that lifts it.
 
-use egui::Pos2;
+use egui::{Event as Egui, Modifiers, PointerButton, Pos2};
 use lb_rs::model::text::offset_types::Grapheme;
 
+use super::super::input::Event;
+use super::super::widget::utils::wrap_layout::FragmentContent;
 use super::harness::{TestEditor, build_lb};
+use super::tables::table_ranges_check_md;
 
 const IMAGE: &str = "https://x.test/a.png";
 
@@ -17,11 +20,95 @@ fn editor(md: &str) -> TestEditor {
     ws
 }
 
+fn image_center(ws: &TestEditor) -> Pos2 {
+    ws.editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .find(|f| matches!(f.content, FragmentContent::Embed { .. }))
+        .expect("the image draws")
+        .rect
+        .center()
+}
+
 /// Where a click puts the caret just after `needle`.
 fn after(ws: &TestEditor, needle: &str) -> Pos2 {
     let offset = Grapheme(ws.get_text().find(needle).unwrap() + needle.len());
     let [top, bot] = ws.editor.edit.cursor_line(offset).unwrap();
     Pos2::new(top.x - 1.0, (top.y + bot.y) / 2.0)
+}
+
+fn drag(ws: &mut TestEditor, from: Pos2, to: Pos2) {
+    let button = |pos, pressed| Egui::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(from)]);
+    ws.enter_frame_with_input(vec![button(from, true)]);
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(from + egui::vec2(20.0, 20.0))]);
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(to)]);
+    ws.enter_frame_with_input(vec![button(to, false)]);
+    ws.enter_frame();
+}
+
+#[test]
+fn image_drags_to_another_cell() {
+    let md = format!("| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
+    let mut ws = editor(&md);
+
+    let (from, to) = (image_center(&ws), after(&ws, "| d"));
+    drag(&mut ws, from, to);
+
+    let moved = format!("|  | b |\n| - | - |\n| c | d![a]({IMAGE}) |\n");
+    assert_eq!(ws.get_text(), moved);
+    table_ranges_check_md(&moved).unwrap();
+
+    ws.push(Event::Undo);
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), md, "one undo puts the image back");
+}
+
+#[test]
+fn sized_image_drags_into_a_cell_escaped() {
+    let md = format!("![a|20]({IMAGE})\n\n| b | c |\n| - | - |\n");
+    let mut ws = editor(&md);
+
+    let (from, to) = (image_center(&ws), after(&ws, "| b"));
+    drag(&mut ws, from, to);
+
+    let moved = format!("\n\n| b![a\\|20]({IMAGE}) | c |\n| - | - |\n");
+    assert_eq!(ws.get_text(), moved);
+    assert_eq!(table_ranges_check_md(&moved), Ok(1));
+}
+
+#[test]
+fn image_drags_into_an_empty_cell() {
+    let md = format!("| a | b |\n| - | - |\n|    | ![a]({IMAGE}) |\n");
+    let mut ws = editor(&md);
+
+    let (from, to) = (image_center(&ws), super::tables::cell_rects(&ws)[1][0].center());
+    drag(&mut ws, from, to);
+
+    let moved = format!("| a | b |\n| - | - |\n| ![a]({IMAGE})   |  |\n");
+    assert_eq!(ws.get_text(), moved);
+}
+
+#[test]
+fn an_image_dropped_below_a_table_is_one_more_row() {
+    let md = format!("| a | b |\n| - | - |\n| ![a]({IMAGE}) | x |\n");
+    let mut ws = editor(&md);
+
+    let below = super::tables::cell_rects(&ws)[1][0].left_bottom() + egui::vec2(10.0, 15.0);
+    let from = image_center(&ws);
+    drag(&mut ws, from, below);
+
+    // the line under a table's last row is a row, as typed there it would be
+    let moved = format!("| a | b |\n| - | - |\n|  | x |\n![a]({IMAGE})");
+    assert_eq!(ws.get_text(), moved);
+    table_ranges_check_md(&moved).unwrap();
 }
 
 /// A touch drag let go at `to`: the frames until the text moves.
@@ -49,4 +136,174 @@ fn a_dropped_list_item_never_draws_back_where_it_was() {
     let below = |ws: &TestEditor, needle: &str| after(ws, needle) + egui::vec2(0.0, 8.0);
     let (from, to) = (after(&ws, "- on"), below(&ws, "three"));
     drop_frames(&mut ws, from, to, md);
+}
+
+#[test]
+fn a_drop_leaves_the_caret_where_it_was() {
+    let md = format!("caret\n\n| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
+    let mut ws = editor(&md);
+    let caret = Grapheme("car".len());
+    ws.editor
+        .edit
+        .renderer
+        .buffer
+        .queue(vec![lb_rs::model::text::operation_types::Operation::Select((caret, caret))]);
+    ws.editor.edit.renderer.buffer.update();
+    ws.enter_frame();
+
+    let (from, to) = (image_center(&ws), after(&ws, "| d"));
+    drag(&mut ws, from, to);
+
+    assert_ne!(ws.get_text(), md, "the drop moved it");
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection, (caret, caret));
+}
+
+#[test]
+fn an_image_dropped_in_code_lands_at_its_nearer_edge() {
+    let cases = [
+        (
+            format!("`some code here`\n\n![a]({IMAGE})\n"),
+            format!("![a]({IMAGE})`some code here`\n\n\n"),
+        ),
+        (
+            format!("para\n\n```\nsome code here\n```\n\n![a]({IMAGE})\n"),
+            format!("para\n![a]({IMAGE})\n```\nsome code here\n```\n\n\n"),
+        ),
+    ];
+    for (md, moved) in cases {
+        let mut ws = editor(&md);
+        let (from, to) = (image_center(&ws), after(&ws, "some co"));
+        drag(&mut ws, from, to);
+        assert_eq!(ws.get_text(), moved);
+    }
+}
+
+#[test]
+fn an_image_off_its_own_line_leaves_the_line_empty() {
+    let md = format!("one\n![a]({IMAGE})\ntwo\n\n| b | c |\n| - | - |\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "| b"));
+    drag(&mut ws, from, to);
+    assert_eq!(ws.get_text(), format!("one\n\ntwo\n\n| b![a]({IMAGE}) | c |\n| - | - |\n"));
+}
+
+#[test]
+fn an_image_never_runs_into_a_url_before_it() {
+    let md = format!("see https://x.test/page. now\n\n![a]({IMAGE})\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "https://x.test/page."));
+    drag(&mut ws, from, to);
+    assert_eq!(ws.get_text(), format!("see ![a]({IMAGE})https://x.test/page. now\n\n\n"));
+}
+
+#[test]
+fn an_image_moved_to_the_next_line_leaves_its_line() {
+    let md = format!("a\n![a]({IMAGE})\nb\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "a.png)\n"));
+    drag(&mut ws, from, to);
+    assert_eq!(ws.get_text(), format!("a\n\n![a]({IMAGE})b\n"));
+}
+
+#[test]
+fn an_image_dropped_in_a_link_lands_at_its_nearer_edge() {
+    let md = format!("see https://x.test/page now\n\n![a]({IMAGE})\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "https://x.te"));
+    drag(&mut ws, from, to);
+    // its end would run the url on into the image
+    assert_eq!(ws.get_text(), format!("see ![a]({IMAGE})https://x.test/page now\n\n\n"));
+    ws.enter_frame();
+    image_center(&ws);
+}
+
+#[test]
+fn an_image_dropped_inside_a_word_lands_at_its_nearer_edge() {
+    let md = format!("# A heading to drop into\n\n![a]({IMAGE})\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "# A heading to dro"));
+    drag(&mut ws, from, to);
+    assert_eq!(ws.get_text(), format!("# A heading to drop![a]({IMAGE}) into\n\n\n"));
+}
+
+#[test]
+fn an_undo_after_a_tap_elsewhere_comes_back_to_the_image() {
+    use super::super::input::{Location, Region};
+    let md = format!("caret\n\n| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "| d"));
+    drag(&mut ws, from, to);
+    assert_ne!(ws.get_text(), md, "the drop moved it");
+
+    // a tap elsewhere, as the one that brings a keyboard up
+    let elsewhere = Location::Grapheme(Grapheme(2));
+    ws.push(Event::Select { region: Region::Location(elsewhere) });
+    ws.enter_frame();
+    ws.push(Event::Undo);
+    ws.enter_frame();
+
+    assert_eq!(ws.get_text(), md, "one undo puts the image back");
+    let start = md.find("![a]").unwrap();
+    let image = (Grapheme(start), Grapheme(start + format!("![a]({IMAGE})").len()));
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection, image, "selected where it was");
+}
+
+#[test]
+fn no_frame_of_a_drop_moves_the_caret() {
+    let md = format!("caret\n\n| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
+    let mut ws = editor(&md);
+    let caret = (Grapheme(3), Grapheme(3));
+    ws.editor
+        .edit
+        .renderer
+        .buffer
+        .queue(vec![lb_rs::model::text::operation_types::Operation::Select(caret)]);
+    ws.editor.edit.renderer.buffer.update();
+    ws.enter_frame();
+
+    let (from, to) = (image_center(&ws), after(&ws, "| d"));
+    let button = |pos, pressed| Egui::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    let frames = [
+        vec![Egui::PointerMoved(from)],
+        vec![button(from, true)],
+        vec![Egui::PointerMoved(from + egui::vec2(20.0, 20.0))],
+        vec![Egui::PointerMoved(to)],
+        vec![button(to, false)],
+        vec![],
+        vec![],
+    ];
+    for input in frames {
+        ws.enter_frame_with_input(input);
+        // a platform reads the selection between frames: it must not see one move
+        assert_eq!(ws.editor.edit.renderer.buffer.current.selection, caret);
+    }
+    assert_ne!(ws.get_text(), md, "the drop moved it");
+}
+
+/// A move is a cut and a paste of the image's characters and nothing else:
+/// the note reads as the source with them spliced out and back in.
+#[test]
+fn a_move_changes_only_the_images_characters() {
+    let image = format!("![a]({IMAGE})");
+    let cases = [
+        (format!("- item\n\npara {image}\n"), "- item\n"),
+        (format!("para\n\n{image}\n\nnext\n"), "para\n"),
+        (format!("para\n\n```\ncode\n```\n\n{image}\n"), "para\n"),
+    ];
+    for (md, needle) in cases {
+        let mut ws = editor(&md);
+        let (from, to) = (image_center(&ws), after(&ws, needle));
+        drag(&mut ws, from, to);
+        let at = md.find(needle).unwrap() + needle.len();
+        let was = md.find(&image).unwrap();
+        let removed = md.replacen(&image, "", 1);
+        let at = if was < at { at - image.len() } else { at };
+        let spliced = format!("{}{image}{}", &removed[..at], &removed[at..]);
+        assert_eq!(ws.get_text(), spliced, "from {md:?}");
+    }
 }
