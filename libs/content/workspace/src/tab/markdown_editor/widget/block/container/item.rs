@@ -65,7 +65,7 @@ impl<'ast> MdRender {
                 ListType::Bullet => {
                     ui.painter().circle_filled(
                         annotation_space.center(),
-                        self.layout.bullet_radius * row_height / self.layout.row_height,
+                        self.layout.bullet_radius,
                         annotation_color,
                     );
                 }

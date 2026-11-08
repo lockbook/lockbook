@@ -18,6 +18,34 @@ use super::render_props::{
 
 // ── renderer ──
 
+/// A tall image on a task item's first row leaves its checkbox
+/// the size of a plain item's.
+#[test]
+fn task_checkboxes_are_one_size() {
+    use super::super::TouchTarget;
+
+    let lb = super::harness::build_lb();
+    let url = "https://x.test/i.png";
+    let (mut ws, embeds) =
+        TestEditor::with_test_embeds(lb, &format!("- [ ] plain\n- [ ] ![]({url}) image\n\nend\n"));
+    embeds.complete(url, egui::Vec2::splat(64.0));
+    ws.push(Event::Select { region: Region::Location(Location::Grapheme(Grapheme(55))) });
+    ws.enter_frame();
+    ws.enter_frame();
+
+    let sizes: Vec<_> = ws
+        .editor
+        .edit
+        .renderer
+        .touch_targets
+        .iter()
+        .filter(|(_, t)| matches!(t, TouchTarget::Tap(Event::ToggleTask { .. })))
+        .map(|(rect, _)| rect.size())
+        .collect();
+    assert_eq!(sizes.len(), 2);
+    assert!((sizes[1] - sizes[0]).length() < 0.01, "checkbox targets: {sizes:?}");
+}
+
 /// An image past the note's scope, or from the web while sites may not be
 /// contacted, waits, and never starts a load, until the reader asks to see
 /// it: the cache is shared by every note and the image viewer, which must

@@ -125,9 +125,10 @@ impl<'ast> MdRender {
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
         // when revealed, the raw `- [ ]` marker occupies this column instead
         if !self.reveal_line(node, first_line) {
+            // one size on every row: a body text row's height
             let checkbox_space = Rect::from_center_size(
                 annotation_space.center(),
-                Vec2::splat(annotation_space.size().min_elem()),
+                Vec2::splat(self.layout.row_height),
             );
             let checkbox_id = ui.scope_id().with("task_checkbox");
 
