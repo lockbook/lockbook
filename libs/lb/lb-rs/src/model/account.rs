@@ -59,6 +59,13 @@ impl Account {
         PublicKey::from_secret_key(&self.private_key)
     }
 
+    /// The sign-in QR: the private key, as a PNG another device scans.
+    pub fn qr_png(&self) -> LbResult<Vec<u8>> {
+        let secret = base64::encode(self.private_key.serialize());
+        qrcode_generator::to_png_to_vec(secret, qrcode_generator::QrCodeEcc::Low, 1024)
+            .map_err(|err| super::errors::core_err_unexpected(err).into())
+    }
+
     pub fn get_phrase(&self) -> LbResult<[&'static str; 24]> {
         let key = self.private_key.serialize();
         let key_bits = key.iter().fold(String::new(), |mut out, byte| {

@@ -81,6 +81,15 @@ impl Lb {
         self.block_on(self.lb.create_account(username, api_url, welcome_doc))
     }
 
+    pub fn create_account_with_key(
+        &self, username: &str, api_url: &str, key: libsecp256k1::SecretKey, welcome_doc: bool,
+    ) -> LbResult<Account> {
+        self.block_on(
+            self.lb
+                .create_account_with_key(username, api_url, key, welcome_doc),
+        )
+    }
+
     pub fn import_account(&self, key: &str, api_url: Option<&str>) -> LbResult<Account> {
         self.block_on(self.lb.import_account(key, api_url))
     }
