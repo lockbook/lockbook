@@ -78,6 +78,7 @@ where
     pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> LbResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(&id)) {
             if self.maybe_find_parent(file).is_none()
+                && self.maybe_find_attached(file).is_none()
                 && !file.explicitly_deleted()
                 && !file
                     .user_access_keys()
@@ -159,6 +160,7 @@ where
                     None => {
                         if !current_file.user_access_keys().is_empty()
                             || current_file.explicitly_deleted()
+                            || self.maybe_find_attached(current_file).is_some()
                         {
                             break;
                         } else {
@@ -357,16 +359,19 @@ where
                             if let Some(ref old) = file_diff.old { old } else { &file_diff.new };
                         // parent folder new -> rely on parent folder check
                         if !new_files.contains(file.parent()) {
-                            // must have parent and have write access to parent
-                            if let Some(parent) = self.maybe_find(file.parent()) {
-                                if base.access_mode(owner, parent.id())?
-                                    < Some(UserAccessMode::Write)
-                                {
-                                    // parent is shared with access < write
-                                    Err(LbErrKind::InsufficientPermission)?;
-                                }
-                            } else {
-                                // this file is shared and its parent is not
+                            // must have write access to the parent, or to the document an
+                            // attachments folder belongs to
+                            let through_parent = match self.maybe_find(file.parent()) {
+                                Some(parent) => base.access_mode(owner, parent.id())?,
+                                None => None, // this file is shared and its parent is not
+                            };
+                            let through_document = match base.maybe_find_attached(file) {
+                                Some(document) => base.access_mode(owner, document.id())?,
+                                None => None,
+                            };
+                            if through_parent < Some(UserAccessMode::Write)
+                                && through_document < Some(UserAccessMode::Write)
+                            {
                                 Err(LbErrKind::InsufficientPermission)?;
                             }
                         }
