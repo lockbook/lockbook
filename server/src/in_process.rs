@@ -71,6 +71,7 @@ fn in_process_config() -> Config {
         index_db: IndexDbConf { db_location: none(), time_between_compacts: Duration::ZERO },
         files: FilesConfig { path: PathBuf::new() },
         metrics: MetricsConfig {
+            addr: ([127, 0, 0, 1], 0).into(),
             time_between_metrics_refresh: Duration::ZERO,
             time_between_metrics: Duration::ZERO,
         },

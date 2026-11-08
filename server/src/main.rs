@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     server_state.start_garbage_worker();
 
     // metrics endpoint to be served anauthenticated, locally, only
-    tokio::spawn(warp::serve(get_metrics()).run(([127, 0, 0, 1], 8080)));
+    tokio::spawn(warp::serve(get_metrics()).run(cfg.metrics.addr));
 
     // *** How people can connect to this server ***
     match (cfg.server.ssl_cert_location, cfg.server.ssl_private_key_location) {
