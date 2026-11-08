@@ -309,7 +309,7 @@ impl Renderer {
                     .insert(id, MeshShape { shape: mesh, scale: img.transform.sx });
             }
             _ => {
-                println!("image type is not supported")
+                tracing::trace!("image type is not supported")
             }
         }
     }

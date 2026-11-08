@@ -1,4 +1,5 @@
 use std::{
+    io::Write,
     iter,
     time::{Duration, Instant},
 };
@@ -370,7 +371,6 @@ impl<'w> RenderBackend<'w> {
                 // This error occurs when the app is minimized on Windows.
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
-                eprintln!("wgpu::CurrentSurfaceTexture::Outdated");
                 self.free_textures(textures);
                 return; // todo: could this be the source of a bug if some
                 // response has a default value of true or something
@@ -381,7 +381,7 @@ impl<'w> RenderBackend<'w> {
                 return;
             }
             other => {
-                eprintln!("Dropped frame: {other:?}");
+                let _ = writeln!(std::io::stderr(), "Dropped frame: {other:?}");
                 self.free_textures(textures);
                 return;
             }

@@ -60,7 +60,7 @@ impl Buffer {
         let maybe_tree = usvg::Tree::from_str(content, &Options::default());
 
         if let Err(err) = maybe_tree {
-            println!("{err:#?}");
+            tracing::warn!("{err:#?}");
         } else {
             let utree = maybe_tree.unwrap();
 
