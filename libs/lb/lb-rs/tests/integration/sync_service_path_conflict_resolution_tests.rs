@@ -25,8 +25,8 @@ async fn concurrent_create_documents() {
     c2.create_at_path("/a.md").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/a.md", "/a-1.md"]).await;
-    assert::all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]).await;
+    assert::all_paths(&c2, &["/", "/a.md", "/a 2.md"]).await;
+    assert::all_document_contents(&c2, &[("/a.md", b""), ("/a 2.md", b"")]).await;
 }
 
 #[tokio::test]
@@ -50,7 +50,7 @@ async fn concurrent_create_folders() {
     c2.create_at_path("/a/").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/a/", "/a-1/"]).await;
+    assert::all_paths(&c2, &["/", "/a/", "/a 2/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
@@ -63,7 +63,7 @@ async fn concurrent_create_folders_with_children() {
     c2.create_at_path("/a/child/").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/a/", "/a-1/", "/a/child/", "/a-1/child/"]).await;
+    assert::all_paths(&c2, &["/", "/a/", "/a 2/", "/a/child/", "/a 2/child/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
@@ -76,7 +76,7 @@ async fn concurrent_create_document_then_folder() {
     c2.create_at_path("/a.md/").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/a.md", "/a-1.md/"]).await;
+    assert::all_paths(&c2, &["/", "/a.md", "/a.md 2/"]).await;
     assert::all_document_contents(&c2, &[("/a.md", b"")]).await;
 }
 
@@ -89,8 +89,8 @@ async fn concurrent_create_folder_then_document() {
     c2.create_at_path("/a.md").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/a.md/", "/a-1.md"]).await;
-    assert::all_document_contents(&c2, &[("/a-1.md", b"")]).await;
+    assert::all_paths(&c2, &["/", "/a.md/", "/a 2.md"]).await;
+    assert::all_document_contents(&c2, &[("/a 2.md", b"")]).await;
 }
 
 #[tokio::test]
@@ -102,7 +102,7 @@ async fn concurrent_create_document_then_folder_with_child() {
     c2.create_at_path("/a.md/child/").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"]).await;
+    assert::all_paths(&c2, &["/", "/a.md", "/a.md 2/", "/a.md 2/child/"]).await;
     assert::all_document_contents(&c2, &[("/a.md", b"")]).await;
 }
 
@@ -115,8 +115,8 @@ async fn concurrent_create_folder_with_child_then_document() {
     c2.create_at_path("/a.md").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/a.md/", "/a.md/child/", "/a-1.md"]).await;
-    assert::all_document_contents(&c2, &[("/a-1.md", b"")]).await;
+    assert::all_paths(&c2, &["/", "/a.md/", "/a.md/child/", "/a 2.md"]).await;
+    assert::all_document_contents(&c2, &[("/a 2.md", b"")]).await;
 }
 
 #[tokio::test]
@@ -132,8 +132,8 @@ async fn concurrent_move_then_create_documents() {
     c2.create_at_path("/a.md").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/folder/", "/a.md", "/a-1.md"]).await;
-    assert::all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]).await;
+    assert::all_paths(&c2, &["/", "/folder/", "/a.md", "/a 2.md"]).await;
+    assert::all_document_contents(&c2, &[("/a.md", b""), ("/a 2.md", b"")]).await;
 }
 
 #[tokio::test]
@@ -149,8 +149,8 @@ async fn concurrent_create_then_move_documents() {
     move_by_path(&c2, "/folder/a.md", "").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/folder/", "/a.md", "/a-1.md"]).await;
-    assert::all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]).await;
+    assert::all_paths(&c2, &["/", "/folder/", "/a.md", "/a 2.md"]).await;
+    assert::all_document_contents(&c2, &[("/a.md", b""), ("/a 2.md", b"")]).await;
 }
 
 #[tokio::test]
@@ -166,7 +166,7 @@ async fn concurrent_move_then_create_folders() {
     c2.create_at_path("/a.md/").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/folder/", "/a.md/", "/a-1.md/"]).await;
+    assert::all_paths(&c2, &["/", "/folder/", "/a.md/", "/a.md 2/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
@@ -183,7 +183,7 @@ async fn concurrent_create_then_move_folders() {
     move_by_path(&c2, "/folder/a.md/", "").await.unwrap();
 
     sync_and_assert_stuff(&c1, &c2).await;
-    assert::all_paths(&c2, &["/", "/folder/", "/a.md/", "/a-1.md/"]).await;
+    assert::all_paths(&c2, &["/", "/folder/", "/a.md/", "/a.md 2/"]).await;
     assert::all_document_contents(&c2, &[]).await;
 }
 
@@ -202,7 +202,7 @@ async fn concurrent_move_then_create_folders_with_children() {
     sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(
         &c2,
-        &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
+        &["/", "/folder/", "/a.md/", "/a.md 2/", "/a.md/child/", "/a.md 2/child/"],
     )
     .await;
     assert::all_document_contents(&c2, &[]).await;
@@ -223,7 +223,7 @@ async fn concurrent_create_then_move_folders_with_children() {
     sync_and_assert_stuff(&c1, &c2).await;
     assert::all_paths(
         &c2,
-        &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
+        &["/", "/folder/", "/a.md/", "/a.md 2/", "/a.md/child/", "/a.md 2/child/"],
     )
     .await;
     assert::all_document_contents(&c2, &[]).await;

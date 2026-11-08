@@ -23,71 +23,100 @@ impl DocumentType {
     }
 }
 
+/// A file name split to pick a free name beside it, as Finder does: copies are `name copy.md`
+/// then `name copy 2.md`, and other free names are `name 2.md`. Only the copy marker is read
+/// back out of a name, so dates and numbers people type stay as written.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct NameComponents {
-    pub name: String,
-    pub variant: Option<usize>,
-    pub extension: Option<String>,
+    name: String,
+    /// `Some(1)` is ` copy`, `Some(n)` is ` copy n`
+    copy: Option<usize>,
+    extension: Option<String>,
 }
 
 impl NameComponents {
+    /// A document's name. Its extension follows the last dot when that text has a letter and no
+    /// whitespace and the dot doesn't start the name, so `Dr. Smith`, `10.5 notes` and
+    /// `.gitignore` have none.
     pub fn from(file_name: &str) -> NameComponents {
-        let extension_location = file_name
-            .rfind('.')
-            .filter(|&location| location != file_name.len() - 1);
-
-        let name_with_variant = match extension_location {
-            Some(location) => &file_name[..location],
-            None => file_name,
-        };
-
-        let mut variant_location = name_with_variant.rfind('-');
-
-        let variant = variant_location
-            .map(|location| name_with_variant[location + 1..].to_string())
-            .and_then(|maybe_variant| maybe_variant.parse::<usize>().ok());
-
-        if variant.is_none() {
-            variant_location = None
+        match file_name.rsplit_once('.') {
+            Some((stem, extension)) if !stem.is_empty() && is_extension(extension) => {
+                Self::split(stem, Some(extension.to_string()))
+            }
+            _ => Self::split(file_name, None),
         }
-
-        let name = {
-            let name_right_bound =
-                variant_location.unwrap_or_else(|| extension_location.unwrap_or(file_name.len()));
-            file_name[0..name_right_bound].to_string()
-        };
-
-        let extension = extension_location.map(|location| file_name[location + 1..].to_string());
-
-        NameComponents { name, variant, extension }
     }
 
-    pub fn generate_next(&self) -> NameComponents {
-        self.generate_incremented(1)
+    /// A folder's name, which has no extension.
+    pub fn folder(file_name: &str) -> NameComponents {
+        Self::split(file_name, None)
     }
 
-    pub fn generate_incremented(&self, n: usize) -> NameComponents {
-        let mut next = self.clone();
-        next.variant = Some(self.variant.unwrap_or(0) + n);
-        next
+    fn split(stem: &str, extension: Option<String>) -> NameComponents {
+        let numbered_copy = stem.rsplit_once(' ').and_then(|(rest, digits)| {
+            let name = rest.strip_suffix(" copy")?;
+            let n = digits.parse::<usize>().ok()?;
+            (n >= 2 && n.to_string() == digits).then_some((name, Some(n)))
+        });
+        let (name, copy) = numbered_copy
+            .or_else(|| stem.strip_suffix(" copy").map(|name| (name, Some(1))))
+            .unwrap_or((stem, None));
+        NameComponents { name: name.to_string(), copy, extension }
     }
 
-    pub fn next_in_children(&mut self, children: Vec<File>) {
-        if !children.iter().any(|f| f.name == self.to_name()) {
-            return;
-        }
+    /// The `n`th copy of this name, counting on from the copy it already is.
+    pub fn copy(&self, n: usize) -> String {
+        NameComponents { copy: Some(self.copy.unwrap_or(0) + n), ..self.clone() }.to_name()
+    }
 
-        self.variant = Some(self.variant.unwrap_or_default() + 1);
-        self.next_in_children(children);
+    /// This name with ` n` after it, or the name itself for 1.
+    pub fn numbered(&self, n: usize) -> String {
+        let number = if n == 1 { String::new() } else { format!(" {n}") };
+        format!("{}{}{number}{}", self.name, self.copy_marker(), self.dot_extension())
+    }
+
+    /// The first copy whose name no child has.
+    pub fn free_copy_in(&self, children: &[File]) -> String {
+        first_free(children, |n| self.copy(n))
+    }
+
+    /// The first numbered name no child has, starting from this name itself.
+    pub fn free_number_in(&self, children: &[File]) -> String {
+        first_free(children, |n| self.numbered(n))
     }
 
     pub fn to_name(&self) -> String {
-        match (&self.variant, &self.extension) {
-            (Some(variant), Some(extension)) => format!("{}-{}.{}", self.name, variant, extension),
-            (Some(variant), None) => format!("{}-{}", self.name, variant),
-            (None, Some(extension)) => format!("{}.{}", self.name, extension),
-            (None, None) => self.name.to_string(),
+        self.numbered(1)
+    }
+
+    fn copy_marker(&self) -> String {
+        match self.copy {
+            None => String::new(),
+            Some(1) => " copy".to_string(),
+            Some(n) => format!(" copy {n}"),
         }
+    }
+
+    fn dot_extension(&self) -> String {
+        self.extension
+            .as_ref()
+            .map(|extension| format!(".{extension}"))
+            .unwrap_or_default()
+    }
+}
+
+fn is_extension(text: &str) -> bool {
+    text.chars().any(char::is_alphabetic) && !text.chars().any(char::is_whitespace)
+}
+
+fn first_free(children: &[File], name: impl Fn(usize) -> String) -> String {
+    let mut n = 1;
+    loop {
+        let candidate = name(n);
+        if children.iter().all(|child| child.name != candidate) {
+            return candidate;
+        }
+        n += 1;
     }
 }
 
@@ -95,85 +124,50 @@ impl NameComponents {
 mod unit_tests {
     use crate::model::filename::NameComponents;
 
-    fn from_components(
-        name: &str, variant: Option<usize>, extension: Option<&str>,
-    ) -> NameComponents {
-        NameComponents {
-            name: name.to_string(),
-            variant,
-            extension: extension.map(|str| str.to_string()),
+    #[test]
+    fn names_round_trip() {
+        for name in [
+            "",
+            ".",
+            ".md",
+            ".gitignore",
+            "test",
+            "test.md",
+            "test-1.md",
+            "test-32",
+            "test.",
+            "2026-11-07.md",
+            "2026-11-07",
+            "Dr. Smith",
+            "10.5 release notes",
+            "archive.tar.gz",
+            "notes copy.md",
+            "notes copy 2.md",
+            "notes copy 1.md",
+            "notes copy 02.md",
+            " copy",
+        ] {
+            assert_eq!(NameComponents::from(name).to_name(), name);
+            assert_eq!(NameComponents::folder(name).to_name(), name);
         }
     }
 
     #[test]
-    fn test_name_components() {
-        assert_eq!(NameComponents::from("test-1.md"), from_components("test", Some(1), Some("md")));
-        assert_eq!(NameComponents::from("test-.md"), from_components("test-", None, Some("md")));
-        assert_eq!(NameComponents::from(".md"), from_components("", None, Some("md")));
-        assert_eq!(NameComponents::from(""), from_components("", None, None));
-        assert_eq!(
-            NameComponents::from("test-file.md"),
-            from_components("test-file", None, Some("md"))
-        );
-        assert_eq!(
-            NameComponents::from("test-file-1.md"),
-            from_components("test-file", Some(1), Some("md"))
-        );
-        assert_eq!(
-            NameComponents::from("test-file-1.md."),
-            from_components("test-file-1.md.", None, None)
-        );
-        assert_eq!(
-            NameComponents::from("test-file-1.m"),
-            from_components("test-file", Some(1), Some("m"))
-        );
-        assert_eq!(
-            NameComponents::from("test-file-100.m"),
-            from_components("test-file", Some(100), Some("m"))
-        );
-        assert_eq!(
-            NameComponents::from("test-file--100.m"),
-            from_components("test-file-", Some(100), Some("m"))
-        );
-        assert_eq!(
-            NameComponents::from("test-file-.-100.m"),
-            from_components("test-file-.", Some(100), Some("m"))
-        );
-        assert_eq!(NameComponents::from("."), from_components(".", None, None));
-        assert_eq!(NameComponents::from("-1."), from_components("-1.", None, None));
-        assert_eq!(NameComponents::from("-1."), from_components("-1.", None, None));
-        assert_eq!(NameComponents::from("test"), from_components("test", None, None));
-        assert_eq!(NameComponents::from("test-32"), from_components("test", Some(32), None));
-    }
-
-    fn assert_symmetry(name: &str) {
-        assert_eq!(NameComponents::from(name).to_name(), name);
-    }
-
-    #[test]
-    fn test_back_to_name() {
-        assert_symmetry("test-1.md");
-        assert_symmetry("test-.md");
-        assert_symmetry(".md");
-        assert_symmetry("");
-        assert_symmetry("test-file.md");
-        assert_symmetry("test-file-1.md");
-        assert_symmetry("test-file-1.md.");
-        assert_symmetry("test-file-1.m");
-        assert_symmetry("test-file-100.m");
-        assert_symmetry("test-file--100.m");
-        assert_symmetry("test-file-.-100.m");
-        assert_symmetry(".");
-        assert_symmetry("-1.");
-        assert_symmetry("-1.");
-        assert_symmetry("test");
-        assert_symmetry("test-32");
-        assert_symmetry("2026-11-07.md");
-    }
-
-    #[test]
-    fn test_next_variant() {
-        assert_eq!(NameComponents::from("test.md").generate_next().to_name(), "test-1.md");
-        assert_eq!(NameComponents::from("test-2.md").generate_next().to_name(), "test-3.md");
+    fn copies_and_numbers() {
+        for (name, copy, copy_2, numbered) in [
+            ("2026-11-07.md", "2026-11-07 copy.md", "2026-11-07 copy 2.md", "2026-11-07 2.md"),
+            ("chapter-3.md", "chapter-3 copy.md", "chapter-3 copy 2.md", "chapter-3 2.md"),
+            ("notes 2.md", "notes 2 copy.md", "notes 2 copy 2.md", "notes 2 2.md"),
+            ("notes copy.md", "notes copy 2.md", "notes copy 3.md", "notes copy 2.md"),
+            ("Dr. Smith", "Dr. Smith copy", "Dr. Smith copy 2", "Dr. Smith 2"),
+            ("Q3.2026", "Q3.2026 copy", "Q3.2026 copy 2", "Q3.2026 2"),
+            (".gitignore", ".gitignore copy", ".gitignore copy 2", ".gitignore 2"),
+        ] {
+            let components = NameComponents::from(name);
+            assert_eq!(components.copy(1), copy);
+            assert_eq!(components.copy(2), copy_2);
+            assert_eq!(components.numbered(2), numbered);
+        }
+        assert_eq!(NameComponents::folder("Project.Alpha").numbered(2), "Project.Alpha 2");
     }
 }
