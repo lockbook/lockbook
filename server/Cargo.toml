@@ -2,7 +2,6 @@
 name = "lockbook-server"
 version = "26.11.6"
 edition = "2021"
-build = "build.rs"
 description = "Lockbook's server, exposed as a library for testing."
 license = "BSD-3-Clause"
 
@@ -30,7 +29,6 @@ pagerduty-rs = { version = "0.1.5", default-features = false, features = [
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
-shadow-rs = "0.28.0"
 tokio = { version = "1.5.0", features = ["full"] }
 uuid = { version = "1.2.2", features = ["v4", "serde"] }
 libsecp256k1 = "0.7.1"
@@ -65,6 +63,3 @@ db-rs-old = { package = "db-rs", version = "=0.3.7" }
 db-rs-derive = "0.3.7"
 semver = "1.0.17"
 async-trait = "0.1.68"
-
-[build-dependencies]
-shadow-rs = "0.28.0"
