@@ -1,4 +1,6 @@
 use db_rs::View;
+use db_rs::config::Config;
+use db_rs::log::Log;
 use db_rs_old::{Config as OldConfig, Db};
 use lb_rs::Lb;
 use lb_rs::io::{self, legacy::CoreV4};
@@ -144,4 +146,27 @@ async fn lb_transaction_flushes_on_drop() {
     }
     let lb = Lb::init(config).await.unwrap();
     assert_eq!(lb.ro_tx().await.db().last_synced.as_ref(), Some(&123));
+}
+
+#[test]
+fn opens_past_a_write_cut_short() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path();
+    {
+        let mut db = io::init_with_migration(path).unwrap();
+        for value in [1, 2] {
+            let tx = db.write_tx().unwrap();
+            db.schema.last_synced.replace(value).unwrap();
+            tx.end_tx(&mut db).unwrap();
+        }
+    }
+    let config = Config::default().log_location(path.join("CoreV5"));
+    let log = fs::OpenOptions::new()
+        .write(true)
+        .open(Log::find_latest(&config).unwrap().unwrap())
+        .unwrap();
+    log.set_len(log.metadata().unwrap().len() - 1).unwrap();
+
+    let db = io::init_with_migration(path).unwrap();
+    assert_eq!(db.schema.last_synced.as_ref(), Some(&1));
 }

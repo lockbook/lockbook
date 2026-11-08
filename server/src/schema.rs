@@ -78,6 +78,9 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<ServerDb> {
     let directory = path.join("ServerV6");
     fs::create_dir_all(&directory)?;
     let mut db = ServerDb::init(&Config::default().log_location(directory))?;
+    if let Some(bytes) = db.log_mut().take_incomplete_write() {
+        tracing::error!(bytes, "discarded an incomplete database write");
+    }
     let old_path = path.join("ServerV5.db");
 
     if db.schema.accounts.is_empty() {
