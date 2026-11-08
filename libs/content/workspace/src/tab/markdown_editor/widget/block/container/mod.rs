@@ -403,12 +403,9 @@ impl<'ast> MdRender {
                 return None;
             }
             NodeValue::TaskItem(_) => {
-                if line == self.node_first_line(node) {
-                    // ' [ ]' is not part of the list marker for indentation purposes
-                    " ".repeat(own_prefix.len().0.saturating_sub(4))
-                } else {
-                    " ".repeat(own_prefix.len().0)
-                }
+                // the checkbox, with or without a space after it, isn't part of the marker
+                let marker = &self.buffer[own_prefix];
+                " ".repeat(marker.find('[').unwrap_or(marker.len()))
             }
 
             // inline
