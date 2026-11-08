@@ -384,7 +384,7 @@ impl<'ast> MdRender {
         }
     }
 
-    fn check_offset(&self, node: &'ast AstNode<'ast>) -> Grapheme {
+    pub(crate) fn check_offset(&self, node: &'ast AstNode<'ast>) -> Grapheme {
         let line = self.node_first_line(node);
         let node_line = self.node_line(node, line);
 
