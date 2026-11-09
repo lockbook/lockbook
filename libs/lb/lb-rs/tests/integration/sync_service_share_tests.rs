@@ -1159,3 +1159,45 @@ async fn edit_then_decline_share_another_device_moved_into() {
     other_device.sync().await.unwrap();
     assert::all_paths(&other_device, &["/"]).await;
 }
+
+/// One device moves its link to a share into a folder while another device moves that folder into
+/// the share; the folder move is undone, as it would have been refused had the device known.
+#[tokio::test]
+async fn link_moved_into_folder_that_another_device_moved_into_the_share() {
+    let owner = test_core_with_account().await;
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    recipient
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    recipient.create_at_path("/notes/").await.unwrap();
+    recipient.sync().await.unwrap();
+    let other_device = another_client(&recipient).await;
+    other_device.sync().await.unwrap();
+
+    let link = recipient.get_by_path("/team").await.unwrap();
+    let notes = recipient.get_by_path("/notes/").await.unwrap();
+    recipient.move_file(&link.id, &notes.id).await.unwrap();
+    recipient.sync().await.unwrap();
+
+    move_by_path(&other_device, "/notes/", "/team/")
+        .await
+        .unwrap();
+    other_device.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    owner.sync().await.unwrap();
+
+    assert::all_paths(&owner, &["/", "/team/"]).await;
+    for device in [&recipient, &other_device] {
+        assert::all_paths(device, &["/", "/notes/", "/notes/team/"]).await;
+    }
+}
