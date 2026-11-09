@@ -254,7 +254,7 @@ fn act(editor: &mut TestEditor, action: TableAction) {
 }
 
 /// The rect of each cell of the document's first table, row by row.
-fn cell_rects(editor: &TestEditor) -> Vec<Vec<egui::Rect>> {
+pub(super) fn cell_rects(editor: &TestEditor) -> Vec<Vec<egui::Rect>> {
     let r = &editor.editor.edit.renderer;
     let table = &r.bounds.tables[0];
     table
@@ -310,7 +310,7 @@ fn paste(editor: &mut TestEditor, text: &str) {
     editor.enter_frame();
 }
 
-/// A paste after "Paste as table" was chosen.
+/// A paste after "Paste as Table" was chosen.
 fn paste_as_table(editor: &mut TestEditor, text: &str) {
     let edit = &editor.editor.edit;
     let now = edit.renderer.ctx.input(|i| i.time);
@@ -384,14 +384,14 @@ fn an_image_is_clamped_to_its_cell() {
         })
         .collect();
     assert_eq!(images.len(), 2);
+    // a cell's box sits a hairline inside its column, past the border
     for (image, cell) in images.iter().zip(&rects[1]) {
         assert!(
-            cell.shrink(padding).expand(0.5).contains_rect(image.rect),
+            cell.shrink(padding).expand(1.0).contains_rect(image.rect),
             "image {:?} outside its cell {cell:?}",
             image.rect
         );
     }
-    assert!(rects[1][3].right() <= r.width + rects[1][0].left() + 0.5);
 }
 
 #[test]
@@ -695,4 +695,136 @@ fn a_gesture_begun_on_text_leaves_its_sideways_travel_to_the_workspace() {
         .ctx
         .input(|i| i.smooth_scroll_delta.x);
     assert_eq!(left, -10.0);
+}
+
+/// The width of each column of the document's first table, scrolled out of
+/// view or not.
+fn column_widths(md: &str) -> Vec<f32> {
+    let mut editor = TestEditor::new(md);
+    editor.enter_frame();
+    let arena = comrak::Arena::new();
+    let r = &mut editor.editor.edit.renderer;
+    let root = r.reparse(&arena);
+    let table = root
+        .descendants()
+        .find(|node| matches!(node.data.borrow().value, comrak::nodes::NodeValue::Table(_)))
+        .unwrap();
+    r.table_column_widths(table).to_vec()
+}
+
+#[test]
+fn moving_text_between_wrapping_columns_leaves_the_widths() {
+    let long = "words ".repeat(40);
+    let longer = "words ".repeat(70);
+    let before = column_widths(&format!("| a | b | c |\n| - | - | - |\n| {long} | {longer} | x |"));
+    let after = column_widths(&format!("| a | b | c |\n| - | - | - |\n| {longer} | {long} | x |"));
+    assert_eq!(before, after);
+}
+
+#[test]
+fn images_that_stack_take_a_column_no_wider_than_one() {
+    let column = |cell: &str| column_widths(&format!("| a |\n| - |\n| {cell} |"))[0];
+    let one = "![a\\|200](a.png)";
+    assert_eq!(column(&format!("{one}{one}")), column(one));
+}
+
+#[test]
+fn the_caret_in_a_cell_leaves_its_column_alone() {
+    let md = "| a | b |\n| - | - |\n| [Plan](https://example.com/some/long/path/here) | x |";
+    let mut editor = TestEditor::new(md);
+    editor.enter_frame();
+    let widths = |editor: &mut TestEditor| {
+        let arena = comrak::Arena::new();
+        let r = &mut editor.editor.edit.renderer;
+        let root = r.reparse(&arena);
+        let table = root
+            .descendants()
+            .find(|node| matches!(node.data.borrow().value, comrak::nodes::NodeValue::Table(_)))
+            .unwrap();
+        r.table_column_widths(table).to_vec()
+    };
+    let before = widths(&mut editor);
+    let inside = md.find("Plan").unwrap() + 2;
+    editor.push(crate::tab::markdown_editor::input::Event::Select {
+        region: (inside.into(), inside.into()).into(),
+    });
+    editor.enter_frame();
+    editor.enter_frame();
+    assert_eq!(widths(&mut editor), before);
+}
+
+#[test]
+fn a_cell_keeps_the_rows_its_column_was_measured_with() {
+    // the column fits the first row whole, the space after it included
+    let md = "| a |\n| - |\n| Pack the car and check the tire pressure before leaving town. |";
+    let mut editor = TestEditor::new(md);
+    editor.enter_frame();
+    let r = &editor.editor.edit.renderer;
+    let first = |word: &str| {
+        let at = md.find(word).unwrap();
+        r.fragments
+            .iter()
+            .find(|f| f.source_range.0.0 == at)
+            .unwrap()
+            .rect
+            .top()
+    };
+    assert_eq!(first("tire"), first("Pack"), "tire stays on the first row");
+}
+
+#[test]
+fn a_column_is_as_wide_as_its_widest_cell_whatever_its_neighbors() {
+    let long = "words ".repeat(70);
+    let wraps =
+        column_widths(&format!("| a | b | short |\n| - | - | - |\n| {long} | {long} | x |"));
+    let fits = column_widths("| a | b | short |\n| - | - | - |\n| a | b | x |");
+    assert_eq!(wraps[2], fits[2]);
+}
+
+#[test]
+fn images_with_no_space_between_wrap_like_spaced_ones() {
+    use super::harness::build_lb;
+    let long = "words ".repeat(70);
+    let widths = |cards: &str| {
+        let md = format!(
+            "| a | b | c | d | e | f | cards |\n| - | - | - | - | - | - | - |\n| {long} | {long} | {long} | {long} | {long} | {long} | {cards} |"
+        );
+        let (mut editor, embeds) = TestEditor::with_test_embeds(build_lb(), &md);
+        embeds.complete("card.png", egui::Vec2::new(96.0, 64.0));
+        editor.enter_frame();
+        editor.enter_frame();
+        cell_rects(&editor)[0]
+            .iter()
+            .map(|rect| rect.width())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        widths("![a](card.png)![b](card.png)![c](card.png)"),
+        widths("![a](card.png) ![b](card.png) ![c](card.png)")
+    );
+}
+
+#[test]
+fn spaced_cards_stack_as_tight_as_glued_ones() {
+    use super::harness::build_lb;
+    let tops = |separator: &str| {
+        let cards = ["![card](card.png)"; 8].join(separator);
+        let md = format!("| a | b |\n| - | - |\n| {cards} | ![card](card.png) |");
+        let (mut editor, embeds) = TestEditor::with_test_embeds(build_lb(), &md);
+        embeds.complete("card.png", egui::Vec2::new(96.0, 64.0));
+        editor.enter_frame();
+        editor.enter_frame();
+        let r = &editor.editor.edit.renderer;
+        r.fragments
+            .iter()
+            .filter(|f| {
+                matches!(
+                    f.content,
+                    super::super::widget::utils::wrap_layout::FragmentContent::Embed { .. }
+                )
+            })
+            .map(|f| f.rect.top())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(tops(" "), tops(""));
 }

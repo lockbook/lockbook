@@ -45,6 +45,7 @@ data class AndroidResponse(
     val hasMagnifier: Boolean,
     val magnifierX: Float,
     val magnifierY: Float,
+    val lifted: Boolean,
 )
 
 @Serializable
@@ -97,6 +98,12 @@ data class MarkdownToolbarState(
     val onHeader: Boolean = false,
 )
 
+// called from any thread, under the workspace's lock, when it wants a frame in delayMs;
+// implementations hand off (post) and never call back into the workspace
+fun interface RepaintCallback {
+    fun repaint(delayMs: Long)
+}
+
 object Workspace {
     init {
         System.loadLibrary("workspace")
@@ -107,7 +114,9 @@ object Workspace {
         print("do nothing")
     }
 
-    external fun initWSOffloaded(surface: Surface, core: Long, theme: Any): Long
+    external fun initWSOffloaded(surface: Surface, core: Long, theme: Any, repaint: RepaintCallback): Long
+
+    external fun dropWS(rustObj: Long)
 
     // comma-separated BCP 47 tags, before the first initWS
     external fun setPreferredLanguages(tags: String)
@@ -155,6 +164,8 @@ object Workspace {
     external fun closeSession(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
     external fun closeCurrentTabToWelcome(rustObj: Long): Boolean
+
+    external fun saveAll(rustObj: Long)
     external fun back(rustObj: Long): Boolean
     external fun forward(rustObj: Long): Boolean
     external fun canForward(rustObj: Long): Boolean

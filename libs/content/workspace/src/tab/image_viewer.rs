@@ -176,7 +176,7 @@ impl ImageViewer {
             Picture::Diagram(source) => match DiagramCache::of(ui.ctx()).size(source) {
                 DiagramSize::Pending => ImageState::Loading,
                 DiagramSize::Ready(_) => ImageState::Loaded(egui::TextureId::default()),
-                DiagramSize::Failed(message) => ImageState::Failed(message),
+                DiagramSize::Failed(error) => ImageState::Failed(error.message),
             },
         }
     }
@@ -374,7 +374,7 @@ impl ImageViewer {
 
         let t = ui.ctx().get_lb_theme();
         let cmd = context_menu::show(&response, &t, |e| {
-            e.item(phosphor::COPY, "Copy image", ImageCmd::Copy);
+            e.item(phosphor::COPY, "Copy Image", ImageCmd::Copy);
         });
         if let Some(ImageCmd::Copy) = cmd {
             self.copy_image(ui.ctx());

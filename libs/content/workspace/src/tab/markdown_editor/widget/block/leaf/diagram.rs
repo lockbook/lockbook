@@ -2,10 +2,12 @@
 //! whole fence is one atom, like an image. With the caret inside, the source
 //! shows as code with the last good render below it.
 
+use std::ops::Range;
+
 use comrak::nodes::{AstNode, NodeCodeBlock, NodeValue};
 use egui::{Color32, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 use epaint::RectShape;
-use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
+use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::style::phosphor;
@@ -66,19 +68,67 @@ impl<'ast> MdRender {
     }
 
     /// The fence's content lines, without fence indent or container prefixes.
+    fn diagram_lines(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+    ) -> Vec<(Grapheme, Grapheme)> {
+        let first = self.node_first_line_idx(node);
+        let last = self.node_last_line_idx(node);
+        (first + 1..last)
+            .map(|idx| {
+                let node_line = self.node_line(node, self.bounds.source_lines[idx]);
+                self.code_line_range(node, node_code_block, node_line, false)
+            })
+            .collect()
+    }
+
+    /// The fence's content lines joined: what merman reads.
     pub fn diagram_source(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> String {
-        let first = self.node_first_line_idx(node);
-        let last = self.node_last_line_idx(node);
-        let lines: Vec<&str> = (first + 1..last)
-            .map(|idx| {
-                let node_line = self.node_line(node, self.bounds.source_lines[idx]);
-                let code = self.code_line_range(node, node_code_block, node_line, false);
-                &self.buffer[code]
-            })
-            .collect();
+        let lines = self.diagram_lines(node, node_code_block);
+        let lines: Vec<&str> = lines.into_iter().map(|line| &self.buffer[line]).collect();
         lines.join("\n")
+    }
+
+    /// Where in the note `span` of the diagram's source falls: the span, or
+    /// the line it falls on (else the last line above with text) when it
+    /// holds no text, as where something is missing.
+    fn diagram_error_range(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, span: Range<usize>,
+    ) -> Option<(Grapheme, Grapheme)> {
+        let segs = &self.buffer.current.segs;
+        let lines = self.diagram_lines(node, node_code_block);
+        let bytes: Vec<(usize, usize)> = lines
+            .iter()
+            .map(|&line| segs.range_to_byte(line))
+            .map(|(s, e)| (s.0, e.0))
+            .collect();
+        // each line's start in the source, which joins them with a newline
+        let mut starts = Vec::with_capacity(bytes.len());
+        let mut at = 0;
+        for (start, end) in &bytes {
+            starts.push(at);
+            at += end - start + 1;
+        }
+        let to_note = |offset: usize| {
+            let line = starts
+                .partition_point(|&start| start <= offset)
+                .checked_sub(1)?;
+            let (start, end) = bytes[line];
+            Some((line, (start + offset - starts[line]).min(end)))
+        };
+        let (line, start) = to_note(span.start)?;
+        let (_, end) = to_note(span.end.max(span.start))?;
+        let text = &self.buffer.current.text;
+        if !text[start..end].trim().is_empty() {
+            return Some((segs.byte_to_char_floor(Byte(start)), segs.byte_to_char_ceil(Byte(end))));
+        }
+        let line = (0..=line)
+            .rev()
+            .find(|&l| !self.buffer[lines[l]].trim().is_empty())?;
+        let (start, end) = bytes[line];
+        let indent = text[start..end].len() - text[start..end].trim_start().len();
+        Some((segs.byte_to_char_floor(Byte(start + indent)), lines[line].end()))
     }
 
     /// The diagram's box: its natural size, shrunk to fit `width` but no
@@ -91,8 +141,8 @@ impl<'ast> MdRender {
                 (natural * scale).max(Vec2::splat(1.0))
             }
             DiagramSize::Pending => vec2(width, PENDING_HEIGHT),
-            DiagramSize::Failed(message) => {
-                let label = self.diagram_error_label(&message, width - 2.0 * ERROR_PAD);
+            DiagramSize::Failed(error) => {
+                let label = self.diagram_error_label(&error.message, width - 2.0 * ERROR_PAD);
                 vec2(width, label.size.y + 2.0 * ERROR_PAD)
             }
         }
@@ -198,7 +248,7 @@ impl<'ast> MdRender {
             DiagramSize::Pending => {
                 painter.rect_filled(rect, RADIUS, theme.neutral_bg_secondary());
             }
-            DiagramSize::Failed(message) => {
+            DiagramSize::Failed(error) => {
                 painter.rect_filled(rect, RADIUS, theme.neutral_bg_secondary());
                 painter.rect_stroke(
                     rect,
@@ -206,12 +256,29 @@ impl<'ast> MdRender {
                     Stroke::new(1.0_f32, theme.neutral_bg_tertiary()),
                     StrokeKind::Inside,
                 );
-                let label = self.diagram_error_label(&message, rect.width() - 2.0 * ERROR_PAD);
+                let label =
+                    self.diagram_error_label(&error.message, rect.width() - 2.0 * ERROR_PAD);
                 let at = Rect::from_min_size(rect.min + Vec2::splat(ERROR_PAD), label.size);
                 self.text_areas
                     .push(label.text_area(at, &self.ctx, ui.clip_rect()));
             }
         }
+    }
+
+    /// Where a revealed diagram's error points in the note, if it knows.
+    pub fn diagram_error(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+    ) -> Option<(Grapheme, Grapheme)> {
+        if !self.diagram_eligible(node, node_code_block) {
+            return None;
+        }
+        let DiagramSize::Failed(error) = self
+            .diagrams
+            .size(&self.diagram_source(node, node_code_block))
+        else {
+            return None;
+        };
+        self.diagram_error_range(node, node_code_block, error.span?)
     }
 
     fn diagram_preview(
@@ -230,9 +297,10 @@ impl<'ast> MdRender {
                 (None, Some(source))
             }
             DiagramSize::Pending => (None, previews.get(&start).cloned()),
-            DiagramSize::Failed(message) => {
-                (Some(self.diagram_error_label(&message, width)), previews.get(&start).cloned())
-            }
+            DiagramSize::Failed(error) => (
+                Some(self.diagram_error_label(&error.message, width)),
+                previews.get(&start).cloned(),
+            ),
         };
         let image = shown.and_then(|shown| match self.diagrams.size(&shown) {
             DiagramSize::Ready(_) => {
@@ -407,11 +475,13 @@ impl<'ast> MdEdit {
         }
     }
 
-    /// A tap selects a collapsed diagram (and, on touch, pops the atom menu);
-    /// desktop right-click shows Copy Image / Copy / Edit.
+    /// A click selects a collapsed diagram (and, on touch, pops the atom
+    /// menu), and a cmd-click opens it, as any click does read-only; desktop
+    /// right-click shows the menu.
     pub fn handle_diagram_interactions(
         &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
     ) {
+        let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
             let NodeValue::CodeBlock(ncb) = &node.data.borrow().value else {
                 continue;
@@ -434,7 +504,10 @@ impl<'ast> MdEdit {
                 ui.scope_id().with(salt),
                 TouchTarget::Tap(select.clone()),
             );
-            if response.double_clicked() {
+            if open && response.hovered() {
+                crate::style::link_cursor(ui.ctx());
+            }
+            if response.clicked() && open {
                 ui.ctx()
                     .open_diagram(self.renderer.diagram_source(node, ncb));
             } else if response.clicked() {
@@ -455,7 +528,7 @@ impl<'ast> MdEdit {
                 e.item(phosphor::IMAGE, "Copy Image", DiagramMenu::CopyImage);
                 e.item(phosphor::COPY, "Copy", DiagramMenu::Copy);
                 if editable {
-                    e.item(phosphor::PENCIL, "Edit", DiagramMenu::Edit);
+                    e.item(phosphor::PENCIL, "Edit Diagram", DiagramMenu::Edit);
                 }
             });
             match action {
@@ -468,19 +541,20 @@ impl<'ast> MdEdit {
                     self.renderer.copy_picture(Picture::Diagram(source));
                 }
                 Some(DiagramMenu::Copy) => ui.ctx().copy_text(self.renderer.buffer[range].into()),
-                Some(DiagramMenu::Edit) => {
-                    ui.memory_mut(|m| m.request_focus(id));
-                    let caret = self.diagram_edit_caret(node);
-                    self.calc_operations(
-                        ui.ctx(),
-                        root,
-                        Event::Select { region: caret.into() },
-                        ops,
-                    );
-                }
+                Some(DiagramMenu::Edit) => self.edit_diagram(root, node, ui, id, ops),
                 None => {}
             }
         }
+    }
+
+    /// Puts the caret in a diagram's source, revealing it.
+    fn edit_diagram(
+        &mut self, root: &'ast AstNode<'ast>, node: &'ast AstNode<'ast>, ui: &egui::Ui,
+        id: egui::Id, ops: &mut Vec<Operation>,
+    ) {
+        ui.memory_mut(|m| m.request_focus(id));
+        let caret = self.diagram_edit_caret(node);
+        self.calc_operations(ui.ctx(), root, Event::Select { region: caret.into() }, ops);
     }
 
     /// The end of a diagram's last source line: where Edit puts the caret.

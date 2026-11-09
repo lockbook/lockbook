@@ -86,6 +86,8 @@ pub struct Response {
     /// A popup is painted over the caret: a platform that draws its own
     /// caret above the editor hides it.
     pub caret_covered: bool,
+    /// A long press lifted something to drag this frame: the platform buzzes.
+    pub lifted: bool,
 }
 
 /// A region painted this frame that a platform deciding touches itself
@@ -107,6 +109,15 @@ pub struct ImeMarked {
     pub range: (Grapheme, Grapheme),
     pub text: String,
     pub seq: usize,
+}
+
+/// Which side of an offset the caret belongs to. Where a soft wrap ends one
+/// row at the offset that starts the next, upstream is the end of the first.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Affinity {
+    Upstream,
+    #[default]
+    Downstream,
 }
 
 pub struct MdRender {
@@ -136,6 +147,9 @@ pub struct MdRender {
 
     // document
     pub buffer: Buffer,
+    /// The row the caret at this offset draws on where a soft wrap ends one
+    /// row and starts the next; downstream at any other offset.
+    pub caret_affinity: (Grapheme, Affinity),
     pub text_seq: u64, // buffer.seq includes selection changes
 
     pub bounds: Bounds,
@@ -150,6 +164,8 @@ pub struct MdRender {
     pub scroll_bounds: Option<(scroll_content::DocRowId, scroll_content::DocRowId)>,
     /// Words marked misspelled this frame, in source order of their units.
     pub misspelled: Vec<(Grapheme, Grapheme)>,
+    /// Where revealed diagrams' errors point this frame, marked as misspellings are.
+    pub diagram_errors: Vec<(Grapheme, Grapheme)>,
     /// Edge fades of scrolled tables, code blocks, and diagrams `(rect,
     /// left color, right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
@@ -183,6 +199,8 @@ pub struct MdRender {
     /// Per-frame: each line of a scrolled code block, as the rect it shows
     /// in and its source.
     pub code_line_clips: Vec<(Rect, (Grapheme, Grapheme))>,
+    /// [`crate::font::chosen_seq`] the layout cache was measured at
+    font_seq: u64,
     /// A code block whose code was copied, by its range, and until when its
     /// button says so.
     pub code_copied: Option<((Grapheme, Grapheme), f64)>,
@@ -204,6 +222,12 @@ pub struct MdRender {
     /// cleared by `bump_text_seq` whenever the doc text changes so a
     /// fresh edit re-hides every spoiler.
     pub revealed_spoilers: std::collections::HashSet<egui::Id>,
+    /// The mark of a task item [`Event::ToggleTask`] is toggling, until its
+    /// edit lands.
+    pub task_toggle_pending: Option<Grapheme>,
+    /// The mark the latest text edit toggled, and when. Only that box
+    /// animates, so a box that takes over another's position never does.
+    pub task_toggled: Option<(Grapheme, f64)>,
 
     // render input
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
@@ -323,6 +347,12 @@ pub struct MdEdit {
     /// Mirrored onto the renderer each frame for the dim/indicator paint.
     pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
 
+    pub in_progress_image_drag: Option<widget::inline::image::image::ImageDrag>,
+
+    /// A drag's downward travel so far, and where its pointer last was: see
+    /// [`MdEdit::drag_lift`].
+    pub drag_travel: (f32, Option<f32>),
+
     /// Touch long-press → reorder gesture state (touch only; desktop drags
     /// the marker handle directly). See [`MdEdit::detect_touch_reorder`].
     pub touch_reorder: widget::block::drag::TouchReorder,
@@ -330,12 +360,16 @@ pub struct MdEdit {
     /// The platform's own recognizer drives the reorder (see [`commands`]),
     /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
     pub touch_reorder_driven: bool,
+    /// Something lifted to drag since the last frame, by whichever long press:
+    /// the frame reports it so the platform buzzes.
+    pub lifted: bool,
 
     /// A committed reorder `(drag, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
     /// new layout is then current before the platform refetches selection
     /// geometry. Set on drag release (which runs post-render).
-    pub pending_block_move: Option<(widget::block::drag::BlockDrag, Grapheme)>,
+    pub pending_block_move:
+        Option<(widget::block::drag::BlockDrag, widget::block::drag::DropGap, Pos2)>,
 
     /// Selections expand selection grew, each `(from, to)`: shrink selection
     /// goes back while the selection is the last `to`.
@@ -413,7 +447,7 @@ pub struct MdEdit {
     /// A word the person taught the system, under the menu's click.
     pub context_menu_learned: Option<String>,
 
-    /// When "Paste as table" was last chosen: the paste it requested from
+    /// When "Paste as Table" was last chosen: the paste it requested from
     /// the platform, which arrives as any other does, is to be a table.
     pub paste_as_table: std::cell::Cell<Option<f64>>,
 
@@ -453,8 +487,11 @@ impl MdEdit {
             handle_drag_touch_offset: None,
             insertion_handle_visible: false,
             in_progress_block_drag: None,
+            in_progress_image_drag: None,
+            drag_travel: (0.0, None),
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
+            lifted: false,
             pending_block_move: None,
             syntax_grown: Vec::new(),
             bracket_pair_at: None,
@@ -556,8 +593,8 @@ pub struct Editor {
     // change detection
     pub unprocessed_scroll: Option<Instant>,
     prev_dimensions: Option<Vec2>,
-    prev_virtual_keyboard_shown: bool,
-    prev_keyboard_visible: bool,
+    prev_keyboard_shown: bool,
+    prev_editing: bool,
     /// The find bar's height while open; opening and closing scroll the
     /// page by it so the content stays put on screen.
     find_bar_height: f32,
@@ -574,13 +611,9 @@ pub struct Editor {
     /// Where the phone toolbar was allocated this frame — the layout-level
     /// signal that embed painting hasn't dragged it off screen (#4892).
     pub mobile_toolbar_rect: Option<egui::Rect>,
-    pub virtual_keyboard_shown: bool,
-    /// Real platform IME visibility, pushed by the client (Android inset
-    /// listener, iOS keyboard callbacks). Unlike `virtual_keyboard_shown`
-    /// — the editor's *request* — this is whether the keyboard is actually
-    /// on screen. Touch long-press uses it: keyboard down → drag-reorder,
-    /// keyboard up → text selection.
-    pub keyboard_visible: bool,
+    /// The host's text input has focus: on iOS the first responder of an
+    /// editable note with either keyboard, on Android the keyboard being up.
+    pub editing: bool,
 
     // outputs from drawing a frame need an additional frame to process before reporting
     next_resp: Response,
@@ -632,6 +665,11 @@ pub struct MdLayout {
     pub annotation_font_size: f32,
     pub row_height: f32,
     pub block_padding: f32,
+    /// A table column's narrowest width, its padding included.
+    pub table_column_width: f32,
+    /// A table column's widest, its padding included: past it, text
+    /// wraps; an image or a note embed in a cell is at most this wide.
+    pub table_column_max: f32,
     pub indent: f32,
     pub bullet_radius: f32,
     pub row_spacing: f32,
@@ -651,6 +689,8 @@ impl MdLayout {
             annotation_font_size: 12.0,
             row_height: 16.0,
             block_padding: 10.0,
+            table_column_width: 150.0,
+            table_column_max: 300.0,
             indent: 26.0,
             bullet_radius: 2.0,
             row_spacing: 6.0,
@@ -670,6 +710,8 @@ impl MdLayout {
             annotation_font_size: 12.0,
             row_height: 16.0,
             block_padding: 10.0,
+            table_column_width: 150.0,
+            table_column_max: 300.0,
             indent: 26.0,
             bullet_radius: 2.0,
             row_spacing: 6.0,
@@ -689,6 +731,18 @@ pub type HttpClient = reqwest::Client;
 pub type HttpClient = reqwest::blocking::Client;
 
 impl MdRender {
+    /// Drops what was laid out in fonts since replaced; whether it did.
+    pub fn follow_fonts(&mut self) -> bool {
+        let seq = crate::font::chosen_seq();
+        if self.font_seq == seq {
+            return false;
+        }
+        self.font_seq = seq;
+        self.layout_cache.clear();
+        self.layout_cache.table_cells.borrow_mut().clear();
+        true
+    }
+
     /// Minimal renderer with no resolvers, empty file cache, and `md`
     /// extension. Used by [`MdLabel`] and tests. Touch-mode and layout are
     /// derived from `ctx`.
@@ -710,6 +764,7 @@ impl MdRender {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            caret_affinity: Default::default(),
             typing: false,
             buffer: "".into(),
             bounds: Default::default(),
@@ -722,6 +777,7 @@ impl MdRender {
             row_scrollers: Default::default(),
             wheel: Default::default(),
             code_line_clips: Default::default(),
+            font_seq: crate::font::chosen_seq(),
             code_copied: None,
             diagrams,
             diagram_previews: Default::default(),
@@ -729,6 +785,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             misspelled: Default::default(),
+            diagram_errors: Default::default(),
             edge_fades: Default::default(),
             scroll_bounds: None,
             over_text: Default::default(),
@@ -739,6 +796,8 @@ impl MdRender {
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
+            task_toggle_pending: None,
+            task_toggled: None,
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
@@ -822,6 +881,7 @@ impl MdRender {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            caret_affinity: Default::default(),
             typing: false,
             bounds: Default::default(),
             buffer: md.into(),
@@ -833,6 +893,7 @@ impl MdRender {
             row_scrollers: Default::default(),
             wheel: Default::default(),
             code_line_clips: Default::default(),
+            font_seq: crate::font::chosen_seq(),
             code_copied: None,
             diagrams,
             diagram_previews: Default::default(),
@@ -840,6 +901,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             misspelled: Default::default(),
+            diagram_errors: Default::default(),
             edge_fades: Default::default(),
             scroll_bounds: None,
             over_text: Default::default(),
@@ -850,6 +912,8 @@ impl MdRender {
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
+            task_toggle_pending: None,
+            task_toggled: None,
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
@@ -908,6 +972,9 @@ impl MdRender {
             .ws_seq
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.revealed_spoilers.clear();
+        let now = self.ctx.input(|i| i.time);
+        self.task_toggled = self.task_toggle_pending.take().map(|check| (check, now));
+        self.caret_affinity = Default::default();
     }
 
     /// Re-parse the buffer into a fresh AST and rebuild all text-derived
@@ -1043,6 +1110,7 @@ impl Editor {
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
+            caret_affinity: Default::default(),
             typing: false,
 
             bounds: Default::default(),
@@ -1056,6 +1124,7 @@ impl Editor {
             row_scrollers: Default::default(),
             wheel: Default::default(),
             code_line_clips: Default::default(),
+            font_seq: crate::font::chosen_seq(),
             code_copied: None,
             diagrams,
             diagram_previews: Default::default(),
@@ -1063,6 +1132,7 @@ impl Editor {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             misspelled: Default::default(),
+            diagram_errors: Default::default(),
             edge_fades: Default::default(),
             scroll_bounds: None,
             over_text: Default::default(),
@@ -1073,6 +1143,8 @@ impl Editor {
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
+            task_toggle_pending: None,
+            task_toggled: None,
 
             in_progress_selection: None,
             in_progress_block_drag: None,
@@ -1128,8 +1200,11 @@ impl Editor {
                 handle_drag_touch_offset: None,
                 insertion_handle_visible: false,
                 in_progress_block_drag: None,
+                in_progress_image_drag: None,
+                drag_travel: (0.0, None),
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
+                lifted: false,
                 pending_block_move: None,
                 syntax_grown: Vec::new(),
                 bracket_pair_at: None,
@@ -1197,13 +1272,12 @@ impl Editor {
 
             // this is used to toggle the mobile toolbar
             mobile_toolbar_rect: None,
-            virtual_keyboard_shown: false,
-            keyboard_visible: false,
+            editing: false,
             unprocessed_scroll: Default::default(),
 
             prev_dimensions: None,
-            prev_virtual_keyboard_shown: false,
-            prev_keyboard_visible: false,
+            prev_keyboard_shown: false,
+            prev_editing: false,
             find_bar_height: 0.0,
 
             next_resp: Default::default(),
@@ -1441,23 +1515,24 @@ impl Editor {
 
         // Mirror the opt-in fetch preference onto the renderer each frame.
         self.edit.renderer.contact_linked_sites = self.persistence.get_contact_linked_sites();
-        // On touch, spelling is marked while the keyboard is up, and the
-        // host checks the words again as it comes up.
+        // On touch, spelling is marked while editing, and the host checks
+        // the words again as editing starts.
         let touch = self.edit.renderer.touch_mode;
         self.edit.renderer.spell_check =
-            self.persistence.get_spell_check() && (!touch || self.keyboard_visible);
-        if touch && self.keyboard_visible && !self.prev_keyboard_visible {
+            self.persistence.get_spell_check() && (!touch || self.editing);
+        if touch && self.editing && !self.prev_editing {
             if let Some(spelling) = crate::spelling::get(ui.ctx()) {
                 spelling.recheck();
             }
         }
-        self.prev_keyboard_visible = self.keyboard_visible;
+        self.prev_editing = self.editing;
 
         let start = web_time::Instant::now();
 
         if height_updated {
             self.edit.renderer.layout_cache.clear();
         }
+        let fonts_updated = self.edit.renderer.follow_fonts();
 
         // both stamp the workspace counter, so the larger moves when either does
         let embeds_seq = (
@@ -1574,7 +1649,7 @@ impl Editor {
                             .unwrap_or(0.)
                     } else if !self.edit.renderer.readonly
                         && self.edit.renderer.kind == Syntax::Markdown
-                        && (self.virtual_keyboard_shown || self.toolbar.menu_open)
+                        && (self.keyboard_shown() || self.toolbar.menu_open)
                     {
                         MOBILE_TOOL_BAR_SIZE
                     } else {
@@ -1622,7 +1697,7 @@ impl Editor {
                     if !cfg!(target_os = "android")
                         && !self.edit.renderer.readonly
                         && self.edit.renderer.kind == Syntax::Markdown
-                        && (self.virtual_keyboard_shown || self.toolbar.menu_open)
+                        && (self.keyboard_shown() || self.toolbar.menu_open)
                     {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
@@ -1783,7 +1858,7 @@ impl Editor {
         }
 
         // post-frame bookkeeping
-        if embeds_updated || height_updated || width_updated {
+        if embeds_updated || height_updated || width_updated || fonts_updated {
             if embeds_updated {
                 self.unprocessed_scroll = Some(Instant::now());
             }
@@ -1794,13 +1869,13 @@ impl Editor {
         // Pull the cursor out from behind the virtual keyboard: scroll on
         // its rising edge, and keep re-asserting while the viewport shrinks
         // across the show animation. A growing viewport hides nothing.
-        let keyboard_just_shown = self.virtual_keyboard_shown && !self.prev_virtual_keyboard_shown;
-        self.prev_virtual_keyboard_shown = self.virtual_keyboard_shown;
+        let keyboard_just_shown = self.keyboard_shown() && !self.prev_keyboard_shown;
+        self.prev_keyboard_shown = self.keyboard_shown();
         // A viewport of no height is a transition (rotation); nothing to reveal.
         if self.initialized
             && self.edit.renderer.touch_mode
             && dimensions.y > 0.0
-            && (keyboard_just_shown || (height_shrunk && self.virtual_keyboard_shown))
+            && (keyboard_just_shown || (height_shrunk && self.keyboard_shown()))
         {
             // Under find, the keyboard is the field's: keep the match in view.
             self.edit.pending_scroll = Some(if self.find.focused(ui.ctx()) {
@@ -1911,12 +1986,23 @@ impl Editor {
         self.initialized = true;
         resp.user_scrolled = std::mem::take(&mut self.user_scrolled);
         self.moved_unpainted |= std::mem::take(&mut self.edit.moved_after_paint);
-        // a touch on an embed is the embed's
+        // a touch on an embedded tab's own target (a link) is the tab's
+        let inner = self.edit.renderer.tab_embeds.inner_targets();
+        let inner = inner.into_iter().map(|rect| (rect, TouchTarget::Popup));
+        self.edit.renderer.touch_targets.splice(0..0, inner);
+        // a touch elsewhere on an embed is the embed's
         for rect in self.edit.renderer.tab_embeds.rects() {
             self.edit
                 .renderer
                 .touch_targets
                 .push((rect, TouchTarget::Popup));
+        }
+        // and on a hover card, which is above all of them, the card's
+        if let Some(rect) = crate::style::card_shown(ui.ctx()) {
+            self.edit
+                .renderer
+                .touch_targets
+                .insert(0, (rect, TouchTarget::Popup));
         }
         self.edit.renderer.tab_embeds.end_frame();
         self.loads_pending = self.edit.renderer.embeds.take_pending()
@@ -2093,6 +2179,7 @@ impl Editor {
                         self.edit.renderer.text_areas.clear();
                         self.edit.renderer.deco_lines.clear();
                         self.edit.renderer.misspelled.clear();
+                        self.edit.renderer.diagram_errors.clear();
                         self.edit.renderer.clear_row_scroll_frame();
 
                         // Phase 1: drive scroll math + scrollbar, and
@@ -2318,8 +2405,11 @@ impl Editor {
                         // long-press, then consume the handle action and
                         // commit on release (visuals are drawn after
                         // post_render so they composite on top).
-                        self.edit.detect_touch_reorder(ui, self.keyboard_visible);
+                        self.edit.detect_touch_reorder(ui, self.keyboard_shown());
+                        self.next_resp.lifted = std::mem::take(&mut self.edit.lifted);
+                        self.edit.track_drag_travel(ui);
                         self.edit.handle_block_drag(ui);
+                        self.edit.handle_image_drag(ui, root);
                         pre
                     })
                     .inner;
@@ -2337,6 +2427,7 @@ impl Editor {
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);
+                self.edit.draw_image_drag(ui);
                 self.show_outline(ui, root, canvas_rect);
                 ui.advance_cursor_after_rect(canvas_rect);
             });
@@ -2404,7 +2495,7 @@ impl Editor {
             self.find.show(
                 &self.edit.renderer.buffer,
                 self.edit.renderer.text_seq,
-                self.virtual_keyboard_shown,
+                self.keyboard_shown(),
                 ui,
             )
         });
@@ -2494,14 +2585,14 @@ impl Editor {
             !f.far && f.rect.bottom() > canvas.top() && f.rect.top() < canvas.bottom()
         });
         let mut typing = if r.touch_mode {
-            self.keyboard_visible
+            self.keyboard_shown()
         } else {
             self.outline_follows_caret && caret_shown
         };
         if self.outline.is_opening() {
             self.outline_from_typing = typing;
             // the sheet stands where the keyboard is
-            if r.touch_mode && self.keyboard_visible {
+            if r.touch_mode && self.keyboard_shown() {
                 crate::tab::ExtendedOutput::set_virtual_keyboard_shown(ui.ctx(), false);
             }
         }
@@ -2524,7 +2615,9 @@ impl Editor {
         } else {
             "No headings yet. Start a line with # to add one."
         };
-        let rows_shown = widget::outline::Headings { rows: &rows, empty };
+        let linkable = self.edit.renderer.kind == Syntax::Markdown;
+        let rows_shown =
+            widget::outline::Headings { note: self.edit.file_id, rows: &rows, empty, linkable };
         let (chosen, popup) = if self.edit.renderer.touch_mode {
             self.outline
                 .show(ui.ctx(), id.with("sheet"), rows_shown, current, &linked)
@@ -2544,9 +2637,9 @@ impl Editor {
         };
         self.linked = Some((version, linked));
         let chosen_row = match &chosen {
-            Some(widget::outline::Choice::Heading(i)) => {
-                rows.get(*i).map(|row| (row.slug.clone(), row.span))
-            }
+            Some(
+                widget::outline::Choice::Heading(i) | widget::outline::Choice::CopyHeadingLink(i),
+            ) => rows.get(*i).map(|row| (row.slug.clone(), row.span)),
             _ => None,
         };
         self.outline_rows = Some((seq, rows));
@@ -2565,16 +2658,27 @@ impl Editor {
                     self.open_at_heading(&slug);
                 }
                 // a reader who jumped didn't ask for the keyboard
-                if !self.edit.renderer.touch_mode || self.keyboard_visible {
+                if !self.edit.renderer.touch_mode || self.keyboard_shown() {
                     self.focus(ui.ctx());
                 }
             }
-            Some(widget::outline::Choice::Note { id, span }) => {
+            Some(widget::outline::Choice::Note { id, span, new_tab }) => {
                 use crate::tab::ExtendedOutput as _;
-                let new_tab = ui.input(|i| i.modifiers.command);
+                let new_tab = new_tab || ui.input(|i| i.modifiers.command);
                 match span {
                     Some(span) => ui.ctx().open_link_at(id, span, new_tab),
                     None => ui.ctx().open_link(id, None, new_tab),
+                }
+            }
+            Some(widget::outline::Choice::CopyHeadingLink(_)) => {
+                let Some((slug, _)) = chosen_row else { return };
+                ui.ctx().copy_text(self.edit.heading_link(&slug));
+            }
+            Some(widget::outline::Choice::CopyLink(id)) => {
+                let place = crate::tab::Place::new(crate::tab::Destination::File(id));
+                let render = &self.edit.renderer;
+                if let Some(url) = place.to_url_with(|id| Some(render.external_url(id))) {
+                    ui.ctx().copy_text(url);
                 }
             }
             None => {}
@@ -2642,7 +2746,7 @@ impl Editor {
             .clamp(0.into(), last);
         let arena = Arena::new();
         self.edit.pending_scroll = Some(ScrollTarget::Heading);
-        let reading = self.edit.renderer.touch_mode && !self.keyboard_visible;
+        let reading = self.edit.renderer.touch_mode && !self.keyboard_shown();
         let prior = self.edit.renderer.buffer.current.selection;
         self.select_from_outside((start, end));
         if self.edit.renderer.view == View::Rendered {
@@ -2656,10 +2760,16 @@ impl Editor {
         self.heading_flash = Some((range, web_time::Instant::now()));
     }
 
+    /// The software keyboard is on screen: editing on touch, with no
+    /// hardware keyboard keeping it away.
+    fn keyboard_shown(&self) -> bool {
+        self.editing && self.edit.phone_mode
+    }
+
     /// Lands on a definition a code file's outline lists, `span` its name.
     fn open_at_definition(&mut self, span: (Grapheme, Grapheme)) {
         self.edit.pending_scroll = Some(ScrollTarget::Heading);
-        if !(self.edit.renderer.touch_mode && !self.keyboard_visible) {
+        if !(self.edit.renderer.touch_mode && !self.keyboard_shown()) {
             self.select_from_outside((span.0, span.0));
         }
         self.landing = Some(Landing::Heading(span));
@@ -2678,7 +2788,7 @@ impl Editor {
             self.landing = Some(Landing::Top);
             return;
         };
-        let reading = self.edit.renderer.touch_mode && !self.keyboard_visible;
+        let reading = self.edit.renderer.touch_mode && !self.keyboard_shown();
         let prior = self.edit.renderer.buffer.current.selection;
         self.select_from_outside((caret, caret));
         if self.edit.renderer.view == View::Rendered
@@ -2710,8 +2820,8 @@ impl Editor {
     }
 
     /// The rows `fragment` names, first and last: a heading's section, from
-    /// its block to the next heading of its level or higher, or else every
-    /// row of the note.
+    /// under the heading to the next heading of its level or higher, or else
+    /// every row of the note.
     fn region_rows<'a>(
         &self, rows: &scroll_content::DocScrollContent<'_, 'a>, root: &'a AstNode<'a>,
         fragment: Option<&crate::tab::Fragment>,
@@ -2736,6 +2846,7 @@ impl Editor {
             .find(|row| *row != start)
             .and_then(|row| rows.prev(&row))
             .unwrap_or(last);
+        let start = if end != start { rows.next(&start)? } else { start };
         Some((start, end))
     }
 
@@ -3209,8 +3320,8 @@ type DocOffset = Offset<scroll_content::DocRowId>;
 
 /// Room above the reading line: the landing room, plus the bars an Android
 /// page runs under.
-fn reading_room(rows: &scroll_content::DocScrollContent<'_, '_>) -> f32 {
-    landing_room() + android_top_overlay(rows)
+fn reading_room() -> f32 {
+    landing_room() + android_top_overlay()
 }
 
 /// The reading line's slide over the last screen of scrolling, in a note
@@ -3274,7 +3385,7 @@ fn reading_line(
     rows: &scroll_content::DocScrollContent<'_, '_>,
 ) -> Option<DocOffset> {
     use crate::widgets::affine_scroll::offset_by;
-    let room = reading_room(rows);
+    let room = reading_room();
     let off = state.offset(rows)?;
     if let Some(slide) = Slide::new(state, rows, room) {
         if let Some(r) = state
@@ -3295,7 +3406,7 @@ fn heading_scroll(
     rows: &scroll_content::DocScrollContent<'_, '_>, target: DocOffset,
 ) -> DocOffset {
     use crate::widgets::affine_scroll::offset_by;
-    let room = reading_room(rows);
+    let room = reading_room();
     let above = offset_by(rows, target.clone(), -room);
     let Some(slide) = Slide::new(state, rows, room) else { return above };
     let Some(t) = state.precise_distance(rows, &slide.max, &target, state.viewport_height) else {
@@ -3361,10 +3472,9 @@ enum EndpointSide {
 }
 
 /// Height of the fixed overlay covering the top of the editor (Android
-/// status-bar safe area); zero elsewhere. Equals the leading pad, which
-/// exists to hold content clear of that overlay.
-fn android_top_overlay(content: &scroll_content::DocScrollContent<'_, '_>) -> f32 {
-    if cfg!(target_os = "android") { content.leading_precise } else { 0.0 }
+/// status-bar safe area); zero elsewhere.
+fn android_top_overlay() -> f32 {
+    if cfg!(target_os = "android") { scroll_content::DEFAULT_LEADING } else { 0.0 }
 }
 
 fn endpoint_offset(
@@ -3382,7 +3492,7 @@ fn endpoint_offset(
     if let Some(frag) = frag.filter(|f| !f.far) {
         let y_range = frag.rect.y_range().expand(pad);
         let y = match side {
-            EndpointSide::Top => y_range.min - android_top_overlay(content),
+            EndpointSide::Top => y_range.min - android_top_overlay(),
             EndpointSide::Bottom => y_range.max,
         };
         return state.offset_at_viewport_y(content, y - canvas_rect.min.y);
@@ -3578,8 +3688,6 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .unwrap()
             .push("phosphor".to_owned());
     }
-
-    crate::font::cjk::register_egui(fonts, base_scale);
 }
 
 /// Headless `Context` with the same fonts as production, including Phosphor.

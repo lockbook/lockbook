@@ -45,6 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         document_service,
         discord_client,
         recent_new_account_ips: Default::default(),
+        clock: Default::default(),
     });
 
     let routes = core_routes(&server_state)
@@ -56,31 +57,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let server = warp::serve(routes);
 
-    error!("server started successfully");
-
     server_state.start_metrics_worker();
     server_state.start_garbage_worker();
 
     // metrics endpoint to be served anauthenticated, locally, only
-    tokio::spawn(warp::serve(get_metrics()).run(([127, 0, 0, 1], 8080)));
+    tokio::spawn(warp::serve(get_metrics()).run(cfg.metrics.addr));
 
     // *** How people can connect to this server ***
     match (cfg.server.ssl_cert_location, cfg.server.ssl_private_key_location) {
         (Some(cert), Some(key)) => {
-            info!("binding to https://0.0.0.0:{}", cfg.server.port);
-            server
+            let (addr, server) = server
                 .tls()
                 .cert_path(&cert)
                 .key_path(&key)
-                .run(([0, 0, 0, 0], cfg.server.port))
-                .await
+                .bind_ephemeral(([0, 0, 0, 0], cfg.server.port));
+            info!("server started successfully on https://{addr}");
+            loggers::record_startup(&server_state.config);
+            server.await
         }
         _ => {
-            info!(
-                "binding to http://0.0.0.0:{} without tls for local development",
-                cfg.server.port
-            );
-            server.run(([0, 0, 0, 0], cfg.server.port)).await
+            let (addr, server) = server.bind_ephemeral(([0, 0, 0, 0], cfg.server.port));
+            info!("server started successfully on http://{addr} without tls for local development");
+            server.await
         }
     };
 

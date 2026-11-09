@@ -1,4 +1,5 @@
 use crate::Lb;
+use crate::io::server::Server;
 use crate::model::access_info::UserAccessMode;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
@@ -11,7 +12,7 @@ use crate::service::events::Actor;
 use std::iter;
 use uuid::Uuid;
 
-impl Lb {
+impl<S: Server> Lb<S> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_file(
         &self, name: &str, parent: &Uuid, file_type: FileType,
@@ -98,11 +99,11 @@ impl Lb {
 
         let content = self.read_document(source.id, false).await?;
 
-        let mut name = NameComponents::from(&source.name);
-        name.next_in_children(self.get_children(&source.parent).await?);
+        let name = NameComponents::from(&source.name)
+            .free_copy_in(&self.get_children(&source.parent).await?);
 
         let new_file = self
-            .create_file(&name.to_name(), &source.parent, FileType::Document)
+            .create_file(&name, &source.parent, FileType::Document)
             .await?;
         self.write_document(new_file.id, &content).await?;
 

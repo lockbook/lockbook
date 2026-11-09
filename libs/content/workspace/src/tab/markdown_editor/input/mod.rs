@@ -105,6 +105,7 @@ pub enum Event {
     ToggleStyle { region: Region, style: NodeValue }, // supports toolbar and inline tyle keyboard shortcuts
     Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
+    Move { range: (Grapheme, Grapheme), to: Grapheme }, // the text of `range`, cut and pasted at `to`: a dragged image
     Indent { deindent: bool }, // distinct from replace because it's a no-op for first list item, etc
     Undo,
     Redo,
@@ -121,6 +122,7 @@ pub enum Event {
     EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
     OpenDiagram, // the selected diagram, in the image viewer
     ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
+    ToggleTask { check: Grapheme }, // check or uncheck the task item whose mark is here
     OpenLink { url: String, wikilink: bool }, // navigate, on the platform
     LoadImage { url: String }, // show an image that waited past the note's scope
     Table(TableAction), // a structure edit of the table at the selection, or a new table there

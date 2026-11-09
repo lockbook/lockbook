@@ -629,15 +629,17 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, showing: bool) {
+pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, editing: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
         None => return,
     };
 
-    markdown.virtual_keyboard_shown = showing;
-    markdown.keyboard_visible = showing;
+    if markdown.editing != editing {
+        markdown.editing = editing;
+        obj.renderer.context.request_repaint();
+    }
 }
 
 /// # Safety
@@ -681,8 +683,8 @@ pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
 fn tab_info(session: &workspace_rs::tab::Session) -> CTabInfo {
     CTabInfo {
         session_id: session.id.as_uuid().into(),
-        dest_kind: session.dest.kind_code(),
-        dest_file: session.dest.backing_file().unwrap_or_default().into(),
+        dest_kind: session.place.dest.kind_code(),
+        dest_file: session.place.dest.backing_file().unwrap_or_default().into(),
     }
 }
 

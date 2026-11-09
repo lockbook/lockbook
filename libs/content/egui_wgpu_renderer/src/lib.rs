@@ -1,4 +1,5 @@
 use std::{
+    io::Write,
     iter,
     time::{Duration, Instant},
 };
@@ -15,17 +16,14 @@ use wgpu::{
 pub use egui_wgpu;
 pub use wgpu;
 
+mod frame_shame;
 mod offscreen;
-mod shame;
 
 pub use offscreen::{OFFSCREEN_FORMAT, OffscreenFrame, render_offscreen, render_offscreen_async};
 
-const NOOB_FACTOR: u64 = 8;
-const FRAME_BUDGET: Duration = Duration::from_micros((16_667 / 2) * NOOB_FACTOR);
-
 pub struct RendererState<'w> {
     frame_start: Option<Instant>,
-    is_dev: bool,
+    frame_budget: Option<Duration>,
 
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
@@ -115,7 +113,7 @@ impl<'w> RendererState<'w> {
             modifiers: Default::default(),
             start_time: Instant::now(),
             frame_start: None,
-            is_dev: false,
+            frame_budget: None,
         }
     }
 }
@@ -143,10 +141,10 @@ impl<'w> RendererState<'w> {
         }
     }
 
-    /// When true, frames that exceed `FRAME_BUDGET` will panic with a
-    /// developer-shaming message at the end of `end_frame`.
-    pub fn set_is_dev(&mut self, is_dev: bool) {
-        self.is_dev = is_dev;
+    /// When set, frames that exceed `frame_budget` write a developer-shaming
+    /// panic report and exit the process.
+    pub fn set_frame_budget(&mut self, frame_budget: Option<Duration>) {
+        self.frame_budget = frame_budget;
     }
 
     /// Call to update the screen ppp based on an up-to-date native ppp. This is
@@ -234,15 +232,17 @@ impl<'w> RendererState<'w> {
         let Some(frame_start) = self.frame_start.take() else {
             return;
         };
-        if !self.is_dev {
+        let Some(budget) = self.frame_budget else {
             return;
-        }
+        };
         let elapsed = frame_start.elapsed();
-        if elapsed <= FRAME_BUDGET {
+        if elapsed <= budget {
             return;
         }
 
-        shame::frame_budget_destroyed(elapsed, FRAME_BUDGET);
+        // The panic hook writes the report; exiting keeps the app from running on without its UI thread.
+        let _ = std::panic::catch_unwind(|| frame_shame::frame_budget_destroyed(elapsed, budget));
+        std::process::exit(101);
     }
 
     /// inspired by egui_wgpu::RenderState
@@ -371,7 +371,6 @@ impl<'w> RenderBackend<'w> {
                 // This error occurs when the app is minimized on Windows.
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
-                eprintln!("wgpu::CurrentSurfaceTexture::Outdated");
                 self.free_textures(textures);
                 return; // todo: could this be the source of a bug if some
                 // response has a default value of true or something
@@ -382,7 +381,7 @@ impl<'w> RenderBackend<'w> {
                 return;
             }
             other => {
-                eprintln!("Dropped frame: {other:?}");
+                let _ = writeln!(std::io::stderr(), "Dropped frame: {other:?}");
                 self.free_textures(textures);
                 return;
             }

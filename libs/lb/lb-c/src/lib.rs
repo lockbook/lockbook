@@ -273,12 +273,8 @@ pub extern "C" fn lb_next_name(
 
     match lb.get_children(&parent.into()) {
         Ok(children) => {
-            let mut name = NameComponents::from(rstr(desired));
-            if let Some(variant) = name.variant.take() {
-                name.name = format!("{}-{}", name.name, variant);
-            }
-            name.next_in_children(children);
-            LbNextNameRes { err: null_mut(), name: cstring(name.to_name()) }
+            let name = NameComponents::from(rstr(desired)).free_number_in(&children);
+            LbNextNameRes { err: null_mut(), name: cstring(name) }
         }
         Err(err) => LbNextNameRes { err: lb_err(err), name: null_mut() },
     }
@@ -464,6 +460,44 @@ pub extern "C" fn lb_unshare_file(
     match lb.unshare_file(id.into(), username) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
+    }
+}
+
+#[repr(C)]
+pub struct LbUsernamesRes {
+    err: *mut LbFfiErr,
+    usernames: *mut *mut c_char,
+    len: usize,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_known_usernames(lb: *mut Lb) -> LbUsernamesRes {
+    let lb = rlb(lb);
+
+    match lb.known_usernames() {
+        Ok(usernames) => {
+            let (usernames, len) = cstring_array(usernames);
+
+            LbUsernamesRes { err: null_mut(), usernames, len }
+        }
+        Err(err) => LbUsernamesRes { err: lb_err(err), usernames: null_mut(), len: 0 },
+    }
+}
+
+#[repr(C)]
+pub struct LbUsernameExistsRes {
+    err: *mut LbFfiErr,
+    exists: bool,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_username_exists(lb: *mut Lb, username: *const c_char) -> LbUsernameExistsRes {
+    let lb = rlb(lb);
+    let username = rstr(username);
+
+    match lb.username_exists(username) {
+        Ok(exists) => LbUsernameExistsRes { err: null_mut(), exists },
+        Err(err) => LbUsernameExistsRes { err: lb_err(err), exists: false },
     }
 }
 
@@ -772,9 +806,7 @@ pub extern "C" fn lb_import_files(
 
     let sources = r_paths(sources, sources_len);
 
-    match lb
-        .import_files(&sources, dest.into(), &|_status: ImportStatus| println!("imported one file"))
-    {
+    match lb.import_files(&sources, dest.into(), &|_status: ImportStatus| {}) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }

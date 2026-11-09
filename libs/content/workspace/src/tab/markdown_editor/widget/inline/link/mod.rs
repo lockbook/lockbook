@@ -38,7 +38,7 @@ impl<'ast> MdRender {
         let parent_text_format = self.text_format(parent);
         let theme = self.ctx.get_lb_theme();
         let color = match state {
-            LinkState::Normal => theme.fg().blue,
+            LinkState::Normal => theme.accent(),
             LinkState::Warning { .. } => theme.fg().yellow,
             LinkState::Broken { .. } => theme.fg().red,
             LinkState::Placeholder { .. } => theme.fg().cyan,
@@ -66,9 +66,9 @@ impl<'ast> MdRender {
     /// than an inline link. The trigger is positional so the source stays clean,
     /// portable markdown: a **bare autolink** (`https://x.com`, not `[label](url)`
     /// and not the delimited `<url>` form) that is **alone on its own line**
-    /// (within a paragraph, bounded by line breaks or the paragraph edges) and
-    /// **not inside a container block** (list item / quote / alert / table /
-    /// footnote).
+    /// (within a paragraph, bounded by line breaks or the paragraph edges),
+    /// in a quote or a list as in the note itself; a table cell holds no
+    /// paragraph, so never there.
     pub fn link_renders_as_card(&self, node: &'ast AstNode<'ast>) -> bool {
         let url = node_link_url(node);
         if url.is_empty() || !self.link_is_auto(node, &url) {
@@ -93,15 +93,6 @@ impl<'ast> MdRender {
             return false;
         }
 
-        // not inside a container block (Document itself doesn't count)
-        let mut ancestor = parent.parent();
-        while let Some(a) = ancestor {
-            let value = &a.data.borrow().value;
-            if !matches!(value, NodeValue::Document) && value.is_container_block() {
-                return false;
-            }
-            ancestor = a.parent();
-        }
         true
     }
 
@@ -319,7 +310,8 @@ impl<'ast> MdRender {
             return (title.into(), false);
         };
         let em = self.row_height(block);
-        let room = (CHIP_MAX_EMS * em).min(self.width(block)) - 2.0 * em * CHIP_SIDE_PAD;
+        // no wider than its block either, which in a table cell is a column's widest
+        let room = CHIP_MAX.min(self.embed_room(block)) - 2.0 * em * CHIP_SIDE_PAD;
         let fits = |t: &str| self.text_advance(&format!("{lead}{t}"), fmt, em) <= room;
         if fits(title) {
             return (title.into(), false);
@@ -490,7 +482,7 @@ impl<'ast> MdRender {
 
             if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
-                let accent = theme.bg().get_color(theme.prefs().primary);
+                let accent = theme.accent_bg();
                 let tint =
                     egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 90);
                 // Merge fragments into one rect per row so the selection reads as
@@ -573,10 +565,11 @@ impl<'ast> MdRender {
             let shown = format!("[[{title}]]");
             return self.explain_unopenable(&shown, self.link_state_for_wikilink(title), ctx);
         };
-        let heading = wiki_fragment(title).1;
+        // the slug, as copying this link writes it
+        let heading = wiki_fragment(title).1.map(slugify);
         match self.link_resolver.wikilink_confirmation(title) {
-            Some(reason) => self.ask_to_open(file_id, heading, new_tab, reason, ctx),
-            None => ctx.open_link(file_id, heading.map(Into::into), new_tab),
+            Some(reason) => self.ask_to_open(file_id, heading.as_deref(), new_tab, reason, ctx),
+            None => ctx.open_link(file_id, heading, new_tab),
         }
     }
 
@@ -995,8 +988,8 @@ pub enum LinkMenuAction {
 
 /// The space a chip's icon is painted over, before its title.
 const ICON_SLOT: &str = "\u{2003}";
-/// Chips longer than this many ems are cut short.
-const CHIP_MAX_EMS: f32 = 24.0;
+/// Chips wider than this, in points, are cut short, wherever they are.
+const CHIP_MAX: f32 = 300.0;
 /// How far a chip's surface leans toward its link colour.
 const CHIP_WASH: f32 = 0.1;
 /// How far a cut chip's fade reaches back into its text, in ems.

@@ -19,7 +19,6 @@ use lb_rs::model::api::{
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, METADATA_FEE, NewAccountError,
     NewAccountRequestV2, NewAccountResponse, PaymentPlatform,
 };
-use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::server_meta::IntoServerMeta;
@@ -57,13 +56,13 @@ where
             return Err(ClientError(NewAccountError::Disabled));
         }
 
-        let root = request.root_folder.clone();
-        let now = get_time().0 as u64;
-        let root = root.add_time(now);
-
         let mut guard = self.index_db.lock().await;
         let mut tx = ServerTx::begin(&mut guard)?;
         let db = &mut *tx;
+        let root = request
+            .root_folder
+            .clone()
+            .add_time(self.clock.now().0 as u64);
         if let Some(ip) = context.ip {
             if !self.can_create_account(ip.ip()).await {
                 return Err(ClientError(NewAccountError::RateLimited));

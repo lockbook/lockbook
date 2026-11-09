@@ -1,4 +1,5 @@
 use crate::experiments::{WelcomeDoc, cohort};
+use crate::io::server::Server;
 use crate::model::account::{Account, MAX_USERNAME_LENGTH};
 use crate::model::api::{
     DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequestV2,
@@ -7,6 +8,7 @@ use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::meta::Meta;
+use crate::model::pubkey;
 use crate::service::events::Actor;
 use crate::{DEFAULT_API_LOCATION, Lb};
 use libsecp256k1::SecretKey;
@@ -14,7 +16,7 @@ use qrcode_generator::QrCodeEcc;
 
 use crate::io::network::ApiError;
 
-impl Lb {
+impl<S: Server> Lb<S> {
     /// CoreError::AccountExists,
     /// CoreError::UsernameTaken,
     /// CoreError::UsernameInvalid,
@@ -24,6 +26,15 @@ impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
+    ) -> LbResult<Account> {
+        self.create_account_with_key(username, api_url, pubkey::generate_key(), welcome_doc)
+            .await
+    }
+
+    /// [Self::create_account] with the caller's key.
+    #[instrument(level = "debug", skip(self, key), err(Debug))]
+    pub async fn create_account_with_key(
+        &self, username: &str, api_url: &str, key: SecretKey, welcome_doc: bool,
     ) -> LbResult<Account> {
         let username = String::from(username).to_lowercase();
 
@@ -38,14 +49,15 @@ impl Lb {
             return Err(LbErrKind::AccountExists.into());
         }
 
-        let account = Account::new(username.clone(), api_url.to_string());
+        let account =
+            Account { username: username.clone(), api_url: api_url.to_string(), private_key: key };
 
         let root = Meta::create_root(&account)?.sign_with(&account)?;
         let root_id = *root.id();
 
         let last_synced = self
             .client
-            .request(&account, NewAccountRequestV2::new(&account, &root))
+            .new_account_v2(&account, NewAccountRequestV2::new(&account, &root))
             .await?
             .last_synced;
 
@@ -135,6 +147,8 @@ impl Lb {
             return Err(LbErrKind::AccountExists.into());
         }
 
+        let key = key.trim();
+
         if let Ok(key) = base64::decode(key) {
             if let Ok(account) = bincode::deserialize(&key[..]) {
                 return self.import_account_private_key_v1(account).await;
@@ -159,7 +173,7 @@ impl Lb {
     pub async fn import_account_private_key_v1(&self, account: Account) -> LbResult<Account> {
         let server_public_key = self
             .client
-            .request(&account, GetPublicKeyRequest { username: account.username.clone() })
+            .get_public_key(&account, GetPublicKeyRequest { username: account.username.clone() })
             .await?
             .key;
 
@@ -186,7 +200,7 @@ impl Lb {
 
         account.username = self
             .client
-            .request(&account, GetUsernameRequest { key: public_key })
+            .get_username(&account, GetUsernameRequest { key: public_key })
             .await?
             .username;
 
@@ -228,7 +242,7 @@ impl Lb {
         let account = self.get_account()?;
 
         self.client
-            .request(account, DeleteAccountRequest {})
+            .delete_account(account, DeleteAccountRequest {})
             .await
             .map_err(|err| match err {
                 ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,

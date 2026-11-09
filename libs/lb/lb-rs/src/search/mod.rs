@@ -1,3 +1,4 @@
+use crate::io::server::Server;
 pub mod content;
 pub mod path;
 
@@ -42,7 +43,7 @@ pub struct ContentMatch {
 
 use crate::Lb;
 
-impl Lb {
+impl<S: Server> Lb<S> {
     pub async fn path_searcher(&self) -> PathSearcher {
         PathSearcher::new(self).await
     }

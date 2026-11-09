@@ -44,6 +44,9 @@ pub struct AndroidResponse {
     pub has_magnifier: bool,
     pub magnifier_x: f32,
     pub magnifier_y: f32,
+
+    /// A long press lifted something to drag: buzz.
+    pub lifted: bool,
 }
 
 impl From<crate::Response> for AndroidResponse {
@@ -65,6 +68,7 @@ impl From<crate::Response> for AndroidResponse {
                     text_interaction_rect,
                     mobile_toolbar_shown: _,
                     caret_covered: _,
+                    lifted,
                     tabs_changed,
                     failure_messages,
                     selected_folder_changed: _,
@@ -123,6 +127,7 @@ impl From<crate::Response> for AndroidResponse {
                 Some((_, workspace_rs::tab::ContextMenuTarget::Image))
             ),
             virtual_keyboard_shown,
+            lifted,
         }
     }
 }

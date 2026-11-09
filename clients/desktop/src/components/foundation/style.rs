@@ -2,13 +2,14 @@
 //! Mode preference defaults to system; pin via [`set_mode_preference`].
 
 use egui::{Context, FontDefinitions, Id, Theme as EguiTheme, Vec2};
-use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
+use workspace_rs::theme::palette_v2::{Mode, Palette, Theme, ThemeExt};
 
 use super::chrome::HOVER_ANIM_SECS;
 use super::typography;
 
 const MODE_PREF_ID: &str = "design_mode_preference";
 const THEME_FAMILY_ID: &str = "design_theme_family";
+const THEME_ACCENT_ID: &str = "design_theme_accent";
 const DETECTED_MODE_ID: &str = "design_detected_system_mode";
 const OS_PROBE_TTL_SECS: f64 = 1.0;
 
@@ -24,7 +25,7 @@ pub enum ModePreference {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
 pub enum ThemeFamily {
     #[default]
-    Default,
+    Mnemonic,
     Apple,
     Darcula,
     IntelliJ,
@@ -33,12 +34,27 @@ pub enum ThemeFamily {
 }
 
 impl ThemeFamily {
-    pub const ALL: [ThemeFamily; 6] =
-        [Self::Default, Self::Apple, Self::Darcula, Self::IntelliJ, Self::VsCode, Self::Catppuccin];
+    pub const ALL: [ThemeFamily; 6] = [
+        Self::Mnemonic,
+        Self::Apple,
+        Self::Darcula,
+        Self::IntelliJ,
+        Self::VsCode,
+        Self::Catppuccin,
+    ];
 
+    /// The family saved under `name`; the default for a name no family has.
+    pub fn from_name(name: &str) -> Self {
+        Self::ALL
+            .into_iter()
+            .find(|f| f.name() == name)
+            .unwrap_or_default()
+    }
+
+    /// Settings key.
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Default => "default",
+            Self::Mnemonic => "mnemonic",
             Self::Apple => "apple",
             Self::Darcula => "darcula",
             Self::IntelliJ => "intellij",
@@ -47,15 +63,41 @@ impl ThemeFamily {
         }
     }
 
+    /// Picker label.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Mnemonic => "Mnemonic",
+            Self::Apple => "Apple",
+            Self::Darcula => "Darcula",
+            Self::IntelliJ => "IntelliJ",
+            Self::VsCode => "VS Code",
+            Self::Catppuccin => "Catppuccin",
+        }
+    }
+
     pub fn build(self, mode: Mode) -> Theme {
         match self {
-            Self::Default => Theme::default(mode),
+            Self::Mnemonic => Theme::mnemonic(mode),
             Self::Apple => Theme::apple(mode),
             Self::Darcula => Theme::darcula(mode),
             Self::IntelliJ => Theme::intellij(mode),
             Self::VsCode => Theme::vscode(mode),
             Self::Catppuccin => Theme::catppuccin(mode),
         }
+    }
+}
+
+/// Saved as its [`ThemeFamily::name`].
+impl serde::Serialize for ThemeFamily {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.name())
+    }
+}
+
+/// A name no family has reads as the default.
+impl<'de> serde::Deserialize<'de> for ThemeFamily {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(Self::from_name(&String::deserialize(d)?))
     }
 }
 
@@ -122,8 +164,7 @@ pub fn ensure_theme(ctx: &Context) {
     });
     if !has {
         set_mode_preference(ctx, ModePreference::System);
-        let family = theme_family(ctx);
-        ctx.set_lb_theme(family.build(resolved_mode(ctx)));
+        ctx.set_lb_theme(build_theme(ctx, resolved_mode(ctx)));
         return;
     }
     sync_mode_from_preference(ctx);
@@ -136,9 +177,30 @@ pub fn theme_family(ctx: &Context) -> ThemeFamily {
     })
 }
 
+/// Also drops any accent pick, so the family's own accent shows.
 pub fn set_theme_family(ctx: &Context, family: ThemeFamily) {
-    ctx.data_mut(|d| d.insert_temp(Id::unique(THEME_FAMILY_ID), family));
-    ctx.set_lb_theme(family.build(resolved_mode(ctx)));
+    ctx.data_mut(|d| {
+        d.insert_temp(Id::unique(THEME_FAMILY_ID), family);
+        d.insert_temp(Id::unique(THEME_ACCENT_ID), None::<Palette>);
+    });
+    ctx.set_lb_theme(build_theme(ctx, resolved_mode(ctx)));
+}
+
+/// Overrides the family's accent until the family changes.
+pub fn set_theme_accent(ctx: &Context, accent: Palette) {
+    ctx.data_mut(|d| d.insert_temp(Id::unique(THEME_ACCENT_ID), Some(accent)));
+    ctx.set_lb_theme(build_theme(ctx, resolved_mode(ctx)));
+}
+
+fn build_theme(ctx: &Context, mode: Mode) -> Theme {
+    let theme = theme_family(ctx).build(mode);
+    match ctx
+        .data(|d| d.get_temp::<Option<Palette>>(Id::unique(THEME_ACCENT_ID)))
+        .flatten()
+    {
+        Some(accent) => theme.with_accent(accent),
+        None => theme,
+    }
 }
 
 /// Current mode preference (system vs pinned).
@@ -207,7 +269,7 @@ fn sync_mode_from_preference(ctx: &Context) {
             .is_some()
     });
     if !has {
-        ctx.set_lb_theme(theme_family(ctx).build(want));
+        ctx.set_lb_theme(build_theme(ctx, want));
         return;
     }
     let current = ctx.get_lb_theme().current;
@@ -217,6 +279,6 @@ fn sync_mode_from_preference(ctx: &Context) {
 }
 
 fn apply_mode(ctx: &Context, mode: Mode) {
-    ctx.set_lb_theme(theme_family(ctx).build(mode));
+    ctx.set_lb_theme(build_theme(ctx, mode));
     reinstall_style(ctx);
 }

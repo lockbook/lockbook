@@ -11,10 +11,14 @@ import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
 import android.os.Build
+import android.os.Handler
 import android.os.LocaleList
+import android.os.Looper
+import android.os.SystemClock
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
@@ -40,6 +44,7 @@ import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.JTextRange
+import app.lockbook.workspace.RepaintCallback
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import app.lockbook.workspace.toModelTab
@@ -50,6 +55,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import net.lockbook.Lb
 import java.io.File
+import java.lang.ref.WeakReference
 
 @SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
 class WorkspaceView(
@@ -58,6 +64,25 @@ class WorkspaceView(
 ) : SurfaceView(context),
     SurfaceHolder.Callback2 {
     private var surface: Surface? = null
+    private var repaintCallback: ViewRepaintCallback? = null
+
+    // JNI retains this callback for the native workspace's lifetime, which can
+    // outlive the surface. Neither the callback nor its queued work owns the view.
+    private class ViewRepaintCallback(
+        view: WorkspaceView,
+    ) : RepaintCallback {
+        private val view = WeakReference(view)
+        private val mainHandler = Handler(Looper.getMainLooper())
+
+        override fun repaint(delayMs: Long) {
+            mainHandler.post {
+                val view = view.get() ?: return@post
+                if (view.repaintCallback === this && view.surface != null && view.isAttachedToWindow) {
+                    view.requestRedraw(delayMs)
+                }
+            }
+        }
+    }
 
     // The fragment may request a file before SurfaceView creates its native workspace.
     private var deferredOpenDoc: OpenFileRequest? = null
@@ -67,8 +92,11 @@ class WorkspaceView(
     var contextMenu: ActionMode? = null
     private var magnifier: Magnifier? = null
 
+    // uptime of the one pending delayed redraw; the earliest request wins
+    private var redrawAt = Long.MAX_VALUE
     private var redrawTask: Runnable =
         Runnable {
+            redrawAt = Long.MAX_VALUE
             invalidate()
         }
     private val choreographer: Choreographer by lazy { Choreographer.getInstance() }
@@ -269,11 +297,19 @@ class WorkspaceView(
 
         // includes the app's own language choice, which the system property misses
         Workspace.setPreferredLanguages(LocaleList.getDefault().toLanguageTags())
+        // a new surface gets a new workspace; the last one goes with its surface
+        if (wgpuObj != Long.MAX_VALUE) {
+            Workspace.dropWS(wgpuObj)
+            wgpuObj = Long.MAX_VALUE
+        }
+        val repaint = ViewRepaintCallback(this)
+        repaintCallback = repaint
         wgpuObj =
             Workspace.initWSOffloaded(
                 surface!!,
                 Lb.lb,
                 workspaceTheme,
+                repaint,
             )
         publishSafeInsets()
         setWillNotDraw(false)
@@ -321,13 +357,19 @@ class WorkspaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        handler?.removeCallbacks(redrawTask)
+        repaintCallback = null
+        // no frame runs the autosave until a new workspace replaces this one
+        if (wgpuObj != Long.MAX_VALUE) {
+            Workspace.saveAll(wgpuObj)
+        }
+        cancelRedraw()
         dismissMagnifier()
         surface = null
     }
 
     override fun onDetachedFromWindow() {
-        handler?.removeCallbacks(redrawTask)
+        repaintCallback = null
+        cancelRedraw()
         ioScope.cancel()
         super.onDetachedFromWindow()
     }
@@ -498,6 +540,7 @@ class WorkspaceView(
                 }
 
                 updateMagnifier(response, density)
+                if (response.lifted) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
 
                 response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
                 keyboardPull.selecting = response.hasMagnifier
@@ -527,11 +570,34 @@ class WorkspaceView(
 
         spelling.check(wgpuObj)
 
-        if (response.redrawIn < 100) {
-            invalidate()
-        } else {
-            handler.postDelayed(redrawTask, response.redrawIn)
+        requestRedraw(response.redrawIn)
+    }
+
+    private fun requestRedraw(delayMs: Long) {
+        when (delayMs) {
+            0L -> {
+                invalidate()
+            }
+
+            Long.MAX_VALUE -> {}
+
+            else -> {
+                scheduleRedraw(delayMs)
+            }
         }
+    }
+
+    private fun scheduleRedraw(delayMs: Long) {
+        val at = SystemClock.uptimeMillis() + delayMs
+        if (at >= redrawAt) return
+        handler.removeCallbacks(redrawTask)
+        redrawAt = at
+        handler.postAtTime(redrawTask, at)
+    }
+
+    private fun cancelRedraw() {
+        handler?.removeCallbacks(redrawTask)
+        redrawAt = Long.MAX_VALUE
     }
 
     fun drawImmediately() {

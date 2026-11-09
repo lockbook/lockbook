@@ -58,6 +58,12 @@ pub struct Config {
 
     #[serde(default)]
     pub client_type: ClientType,
+
+    /// Should dev accounts exit when a db lock is held past its budget? Set per platform: a host
+    /// turns it on where it enforces the frame budget. lb-rs can't derive it, since
+    /// [ClientType::Ui] doesn't mean the host has a frame budget.
+    #[serde(default)]
+    pub lock_budget: bool,
 }
 
 impl Default for Config {
@@ -74,6 +80,7 @@ impl Default for Config {
             stdout_logs: false,
             colored_logs: false,
             client_type: ClientType::Unknown,
+            lock_budget: false,
         }
     }
 }

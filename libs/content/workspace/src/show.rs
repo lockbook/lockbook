@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::mem;
 use std::sync::{Arc, Mutex};
-use web_time::{Duration, Instant};
+use web_time::Instant;
 
 use crate::file_cache::{FilesExt as _, link_id, split_fragment};
 use crate::output::Response;
@@ -33,6 +33,7 @@ impl Workspace {
         {
             cache.lock().unwrap().begin_frame();
         }
+        crate::font::poll(ui.ctx());
         self.images.begin_frame();
         crate::widgets::diagram_cache::DiagramCache::of(ui.ctx()).begin_frame();
         self.tabs.begin_frame();
@@ -50,7 +51,7 @@ impl Workspace {
         self.process_bg_tasks();
         self.process_lb_updates();
         self.process_task_updates();
-        self.refit_source_views();
+        self.refit_to_names();
         self.process_keys();
         self.process_clip_events();
 
@@ -110,25 +111,17 @@ impl Workspace {
         }
     }
 
+    /// Stock egui tooltips wait for a still pointer; a finger or Pencil on
+    /// the screen is none.
     fn set_tooltip_visibility(&mut self, ui: &mut egui::Ui) {
-        let has_touch = ui.input(|r| {
-            r.events.iter().any(|e| {
-                matches!(e, egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force: _ })
-            })
-        });
-        if has_touch && self.last_touch_event.is_none() {
-            self.last_touch_event = Some(Instant::now());
-        }
-
-        if let Some(last_touch_event) = self.last_touch_event {
-            if Instant::now() - last_touch_event > Duration::from_secs(5) {
-                self.ctx
-                    .global_style_mut(|style| style.interaction.tooltip_delay = 0.0);
-                self.last_touch_event = None;
-            } else {
-                self.ctx
-                    .global_style_mut(|style| style.interaction.tooltip_delay = f32::MAX);
-            }
+        let delay = if ui.input(|i| i.any_touches()) {
+            f32::MAX
+        } else {
+            egui::style::Interaction::default().tooltip_delay
+        };
+        if self.ctx.global_style().interaction.tooltip_delay != delay {
+            self.ctx
+                .global_style_mut(|style| style.interaction.tooltip_delay = delay);
         }
     }
 
@@ -275,6 +268,7 @@ impl Workspace {
             self.out.text_interaction_rect = resp.text_interaction_rect;
             self.out.mobile_toolbar_shown = resp.mobile_toolbar_shown;
             self.out.caret_covered = resp.caret_covered;
+            self.out.lifted = resp.lifted;
             if resp.scroll_updated {
                 self.out.markdown_editor_scroll_updated = true;
             }
@@ -641,7 +635,7 @@ impl DocType {
 
     /// Whether the file has a rendered form it can trade for its source.
     pub fn has_source_view(&self) -> bool {
-        matches!(self, DocType::Markdown | DocType::SVG)
+        *self == DocType::Markdown
     }
 
     pub fn hide_ext(&self) -> bool {

@@ -127,9 +127,10 @@ impl<'ast> MdRender {
 
     /// Shared by `show_item` (marker rect) and `show_task_item`
     /// (checkbox response): translate the response into a drag action
-    /// and set the cursor icon.
+    /// and set the cursor icon (see [`Self::handle_drag_resp`] for `grab_on_hover`).
     pub fn handle_item_drag_resp(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, resp: &egui::Response,
+        grab_on_hover: bool,
     ) {
         if self.readonly || !self.interactive || !self.is_reorderable_item(node) {
             return;
@@ -143,7 +144,7 @@ impl<'ast> MdRender {
             })
         };
         let fallback = resp.rect.left_top();
-        self.handle_drag_resp(ui, resp, dragging_this, |r, origin| {
+        self.handle_drag_resp(ui, resp, dragging_this, grab_on_hover, |r, origin| {
             let parent_start = r.node_range(node.parent()?).start();
             let section_range = r.drag_span(node);
             // Anchor on the section's top-left so multi-item drags keep
@@ -165,17 +166,17 @@ impl<'ast> MdRender {
 
     /// Translates a drag handle's response into a drag action and sets the
     /// cursor icon. `start` makes the drag from where the pointer went down.
+    /// `grab_on_hover` shows the open hand at rest; a control whose click
+    /// comes first (a checkbox) keeps the arrow until the drag starts.
     pub fn handle_drag_resp(
-        &mut self, ui: &mut Ui, resp: &egui::Response, dragging_this: bool,
+        &mut self, ui: &mut Ui, resp: &egui::Response, dragging_this: bool, grab_on_hover: bool,
         start: impl FnOnce(&Self, Pos2) -> Option<BlockDrag>,
     ) {
         let pointer = ui.input(|i| i.pointer.latest_pos());
-        let active = resp.hovered() || dragging_this;
-        if active {
-            let grabbing = resp.dragged() || dragging_this;
-            ui.output_mut(|o| {
-                o.cursor_icon = if grabbing { CursorIcon::Grabbing } else { CursorIcon::Grab };
-            });
+        if resp.dragged() || dragging_this {
+            ui.output_mut(|o| o.cursor_icon = CursorIcon::Grabbing);
+        } else if grab_on_hover && resp.hovered() {
+            ui.output_mut(|o| o.cursor_icon = CursorIcon::Grab);
         }
         if resp.drag_started() {
             // where the press began: the pointer has moved since
@@ -237,6 +238,13 @@ impl<'ast> MdRender {
             }
         }
         rect
+    }
+
+    /// How far above the floating card a drop aims at most, once the finger
+    /// or pointer has moved down that far: they and the card cover what is
+    /// under them (see `MdEdit::drag_lift`).
+    pub fn drop_lift(&self) -> f32 {
+        crate::style::space::Space::Md.pts()
     }
 
     /// Drop gap nearest the dragged item's translated top within its
@@ -428,13 +436,35 @@ impl<'ast> MdRender {
     }
 }
 
+impl MdRender {
+    /// Whether a long press at `pos` lifts something: an image or a note
+    /// embed, or a list item, table row or column.
+    pub fn can_lift(&self, pos: Pos2) -> bool {
+        self.image_at(pos).is_some() || self.touch_reorder_target(pos).is_some()
+    }
+}
+
 impl MdEdit {
+    /// Lift what a long press at `pos` grabs, the image over the block it
+    /// sits in. False if nothing is there.
+    pub(crate) fn lift(&mut self, pos: Pos2) -> bool {
+        if let Some(image) = self.renderer.image_at(pos) {
+            self.in_progress_image_drag = Some(self.renderer.image_drag(image, pos));
+        } else if let Some(drag) = self.renderer.touch_reorder_target(pos) {
+            self.renderer.block_drag_action = Some(BlockDragAction::Started(drag));
+        } else {
+            return false;
+        }
+        self.lifted = true;
+        true
+    }
+
     /// Touch long-press → drag-reorder. The body owns the press so a pan
     /// still scrolls; a stationary hold past `LONG_PRESS` arms the reorder.
     /// No-op unless touch, editable, and the keyboard is hidden (keyboard up
     /// → long-press is text selection). Emits into `block_drag_action`,
     /// consumed by `handle_block_drag`.
-    pub(crate) fn detect_touch_reorder(&mut self, ui: &mut Ui, keyboard_visible: bool) {
+    pub(crate) fn detect_touch_reorder(&mut self, ui: &mut Ui, keyboard_shown: bool) {
         // Structural conditions don't change mid-gesture.
         if !self.renderer.touch_mode || self.renderer.readonly || !self.renderer.interactive {
             self.touch_reorder = TouchReorder::Idle;
@@ -467,28 +497,25 @@ impl MdEdit {
             TouchReorder::Idle => {
                 // Keyboard up → long-press is text selection, not reorder.
                 if let (true, false, Some(origin), Some(started)) =
-                    (any_pressed, keyboard_visible, origin, t0)
+                    (any_pressed, keyboard_shown, origin, t0)
                 {
-                    if self.renderer.touch_reorder_target(origin).is_some() {
+                    if self.renderer.can_lift(origin) {
                         self.touch_reorder = TouchReorder::Pending { origin, started };
                     }
                 }
             }
             TouchReorder::Pending { origin, started } => {
                 let moved = latest.map(|p| (p - origin).length()).unwrap_or(0.0);
-                if keyboard_visible || lifted {
+                if keyboard_shown || lifted {
                     self.touch_reorder = TouchReorder::Idle; // tapped, or keyboard rose
                 } else if moved > SLOP {
                     self.touch_reorder = TouchReorder::Idle; // pan → leave it to scroll
                 } else if time - started >= LONG_PRESS {
-                    match self.renderer.touch_reorder_target(origin) {
-                        Some(drag) => {
-                            self.renderer.block_drag_action = Some(BlockDragAction::Started(drag));
-                            self.touch_reorder =
-                                TouchReorder::Armed { last: latest.unwrap_or(origin) };
-                        }
-                        None => self.touch_reorder = TouchReorder::Idle,
-                    }
+                    self.touch_reorder = if self.lift(origin) {
+                        TouchReorder::Armed { last: latest.unwrap_or(origin) }
+                    } else {
+                        TouchReorder::Idle
+                    };
                 } else {
                     ui.ctx().request_repaint(); // tick toward the threshold
                 }

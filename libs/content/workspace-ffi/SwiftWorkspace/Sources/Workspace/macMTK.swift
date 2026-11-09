@@ -353,6 +353,10 @@
                 return false
 
             case 13: // Return key
+                if workspaceInput?.getTabs().isEmpty == true {
+                    window?.performClose(nil)
+                    return true
+                }
                 sendKeyEvent(event, true)
                 return true
 

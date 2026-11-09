@@ -4,8 +4,8 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::TextBufferArea;
-use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::{Affinity, MdRender};
 use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
 
 pub trait BufferExt {
@@ -63,17 +63,27 @@ pub enum FontFamily {
 impl FontFamily {
     pub(crate) fn glyphon_cache_family(self) -> GlyphonFontFamily {
         match self {
-            FontFamily::Sans => GlyphonFontFamily::SansSerif,
-            FontFamily::Mono => GlyphonFontFamily::Monospace,
-            FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols".into()),
-            FontFamily::Phosphor => GlyphonFontFamily::Named("Phosphor".into()),
+            FontFamily::Sans => GlyphonFontFamily::Named(crate::font::note_family(false)),
+            FontFamily::Mono => GlyphonFontFamily::Named(crate::font::note_family(true)),
+            FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols"),
+            FontFamily::Phosphor => GlyphonFontFamily::Named("Phosphor"),
+        }
+    }
+
+    /// How much larger than asked this family draws, so a chosen family's
+    /// lowercase stands as tall as the platform's.
+    pub(crate) fn size_adjust(self) -> f32 {
+        match self {
+            FontFamily::Sans => crate::font::size_adjust(false),
+            FontFamily::Mono => crate::font::size_adjust(true),
+            FontFamily::Icons | FontFamily::Phosphor => 1.,
         }
     }
 
     pub(crate) fn glyphon_family(self) -> glyphon::Family<'static> {
         match self {
-            FontFamily::Sans => glyphon::Family::SansSerif,
-            FontFamily::Mono => glyphon::Family::Monospace,
+            FontFamily::Sans => glyphon::Family::Name(crate::font::note_family(false)),
+            FontFamily::Mono => glyphon::Family::Name(crate::font::note_family(true)),
             FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
             FontFamily::Phosphor => glyphon::Family::Name("Phosphor"),
         }
@@ -200,6 +210,8 @@ pub enum EmbedKind {
     Diagram,
     /// A wiki embed's tab; its url is the title.
     Tab,
+    /// A divider's rule; its url is empty.
+    Rule,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -397,6 +409,9 @@ pub struct Layout {
     tab_positions: Vec<usize>,
     /// Source ranges of prose, whose words are spell checked.
     prose: Vec<(Grapheme, Grapheme)>,
+    /// Spaces past a row's end start the next row, as code needs, instead
+    /// of hanging off the row's end.
+    keeps_spaces: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -430,7 +445,13 @@ impl Layout {
             source_range,
             tab_positions: Vec::new(),
             prose: Vec::new(),
+            keeps_spaces: false,
         }
+    }
+
+    /// Wraps spaces past a row's end onto the next row, as code needs.
+    pub fn keep_spaces(&mut self) {
+        self.keeps_spaces = true;
     }
 
     /// Marks `source` as prose, whose words are spell checked.
@@ -574,6 +595,66 @@ fn push_sanitised(out: &mut String, tabs: &mut Vec<usize>, text: &str) {
 }
 
 impl MdRender {
+    /// Where body text's baseline falls in a row, as a fraction of the row
+    /// height down from its top; the same at every size.
+    pub(crate) fn body_baseline(&self, row_height: f32) -> f32 {
+        self.body_metrics(row_height).0
+    }
+
+    /// How far body text's ascent rises above the top of a row
+    /// `row_height` tall, as its font reports it: 0 for fonts that fit.
+    pub fn ascent_overflow(&self, row_height: f32) -> f32 {
+        let (baseline, ascent) = self.body_metrics(row_height);
+        (ascent - baseline).max(0.) * row_height
+    }
+
+    /// Body text's baseline and ascent as fractions of the row height.
+    fn body_metrics(&self, row_height: f32) -> (f32, f32) {
+        let seq = crate::font::chosen_seq();
+        if let Some((at, baseline, ascent)) = self.layout_cache.body_metrics.get() {
+            if at == seq {
+                return (baseline, ascent);
+            }
+        }
+        let (baseline, ascent) = self.measure_body_metrics(row_height);
+        self.layout_cache
+            .body_metrics
+            .set(Some((seq, baseline, ascent)));
+        (baseline, ascent)
+    }
+
+    fn measure_body_metrics(&self, row_height: f32) -> (f32, f32) {
+        let fs = self.ctx.data(|d| {
+            d.get_temp::<std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>>(egui::Id::NULL)
+        });
+        let cache = self
+            .ctx
+            .data(|d| d.get_temp::<std::sync::Arc<std::sync::Mutex<GlyphonCache>>>(egui::Id::NULL));
+        let (Some(fs), Some(cache)) = (fs, cache) else { return (BASELINE, BASELINE) };
+        let body = Format {
+            family: FontFamily::Sans,
+            bold: false,
+            italic: false,
+            color: egui::Color32::PLACEHOLDER,
+            underline: false,
+            strikethrough: false,
+            background: egui::Color32::TRANSPARENT,
+            spoiler: false,
+            superscript: false,
+            subscript: false,
+        };
+        let ppi = self.ctx.pixels_per_point();
+        let (buffer, _) = shape_chunk(&fs, &cache, "x", &body, row_height, f32::MAX / 4.0, ppi);
+        let buffer = buffer.read().unwrap();
+        let baseline = baseline_of(&buffer).unwrap_or(BASELINE);
+        let ascent = buffer
+            .lines
+            .first()
+            .and_then(|line| line.layout_opt()?.first())
+            .map_or(baseline, |line| line.max_ascent / buffer.metrics().line_height);
+        (baseline, ascent)
+    }
+
     /// `text`'s width in `format` at `row_height`, shaped as the layout
     /// shapes it.
     pub fn text_advance(&self, text: &str, format: &Format, row_height: f32) -> f32 {
@@ -626,8 +707,10 @@ impl MdRender {
             }
             vec![Row { y_top: 0.0, ascent, descent, source_range, fragments: Vec::new(), anchors }]
         } else {
-            let breaks = greedy_break(&items, width, inline_pad);
-            build_rows(&breaks, &items, &layout, row_height, row_spacing, inline_pad)
+            let breaks = greedy_break(&items, width, inline_pad, !layout.keeps_spaces);
+            let text_baseline = self.body_baseline(row_height);
+            let (spacing, pad) = (row_spacing, inline_pad);
+            build_rows(&breaks, &items, &layout, width, row_height, spacing, pad, text_baseline)
         };
         // Wrap unit height = stacked row glyph rects, no extra padding
         // for bg-styled rows. Per design, inline backgrounds contribute
@@ -641,46 +724,6 @@ impl MdRender {
             last.y_top + last.ascent + last.descent
         };
         WrapUnitLayout { source_range, rows, height, width, row_height, prose: layout.prose }
-    }
-
-    /// How wide a wrap unit can usefully be made: at least its longest run
-    /// with nowhere to break, and at most all of it on one row. An embed
-    /// shrinks to fit what holds it, so it counts for no more than
-    /// `embed_min` of a run. Mirrors [`greedy_break`], which leaves room
-    /// for a background's padding around what it holds.
-    pub fn measure_layout(&self, layout: Layout, row_height: f32, embed_min: f32) -> (f32, f32) {
-        const UNBOUNDED: f32 = 100_000.0;
-        let inline_pad = self.layout.inline_padding;
-        let items =
-            shape_to_items(self, &layout, row_height, UNBOUNDED, inline_pad).unwrap_or_default();
-        let (mut run, mut widest_run, mut row, mut widest_row) = (0f32, 0f32, 0f32, 0f32);
-        let mut backgrounds: Vec<bool> = Vec::new();
-        for item in &items {
-            let room = if backgrounds.contains(&true) { 2.0 * inline_pad } else { 0.0 };
-            match item {
-                InlineItem::Box { advance, .. } | InlineItem::Pad { advance, .. } => {
-                    run += advance;
-                    row += advance;
-                }
-                InlineItem::Embed(spec) => {
-                    run += spec.advance.min(embed_min);
-                    row += spec.advance;
-                }
-                InlineItem::Glue { natural, .. } => {
-                    run = 0.0;
-                    row += natural;
-                }
-                InlineItem::Break { .. } => (run, row) = (0.0, 0.0),
-                InlineItem::StyleOpen(style) => {
-                    backgrounds.push(style.format.background != egui::Color32::TRANSPARENT)
-                }
-                InlineItem::StyleClose => drop(backgrounds.pop()),
-                InlineItem::InteractionOpen(..) | InlineItem::InteractionClose => {}
-            }
-            widest_run = widest_run.max(run + room);
-            widest_row = widest_row.max(row + room);
-        }
-        (widest_run, widest_row)
     }
 
     /// Convenience: lay out a single source range with one format
@@ -1070,7 +1113,7 @@ fn shape_chunk(
             );
             let text = text.to_string();
             let points =
-                row_height * if format.superscript || format.subscript { 0.75 } else { 1. };
+                row_height * if format.superscript || format.subscript { SCRIPT_SCALE } else { 1. };
             let spans = text.graphemes(true).map(|g| {
                 if shape_as_emoji(&format.family, g) {
                     (g, emoji_attrs.as_attrs())
@@ -1106,12 +1149,13 @@ fn shape_chunk(
 }
 
 /// Build the `GlyphonCache` key for a single-span shape. Super/sub
-/// scales the per-span metric to 0.75×, so we mirror that into the
+/// scales the per-span metric by [`SCRIPT_SCALE`], so we mirror that into the
 /// key's `font_size_bits` to keep cache entries separate from same-
 /// text non-super/sub shapes. `width_bits ^ 1` matches the
 /// `Wrap::None` marker convention from `block::height_buffer`.
 fn shape_cache_key(text: &str, format: &Format, metric: f32, width_px: f32) -> GlyphonCacheKey {
-    let key_metric = if format.superscript || format.subscript { metric * 0.75 } else { metric };
+    let key_metric =
+        if format.superscript || format.subscript { metric * SCRIPT_SCALE } else { metric };
     GlyphonCacheKey::single(
         text,
         format.family.glyphon_cache_family(),
@@ -1363,9 +1407,12 @@ fn format_to_attrs(format: &Format, base_row_height: f32) -> glyphon::AttrsOwned
         .family(family)
         .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
         .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
+    let adjust = format.family.size_adjust();
     if format.superscript || format.subscript {
-        let size = base_row_height * 0.75;
-        attrs = attrs.metrics(glyphon::Metrics::new(size, size));
+        let size = base_row_height * SCRIPT_SCALE;
+        attrs = attrs.metrics(glyphon::Metrics::new(size * adjust, size));
+    } else if adjust != 1. {
+        attrs = attrs.metrics(glyphon::Metrics::new(base_row_height * adjust, base_row_height));
     }
     glyphon::AttrsOwned::new(&attrs)
 }
@@ -1375,7 +1422,9 @@ fn format_to_attrs(format: &Format, base_row_height: f32) -> glyphon::AttrsOwned
 /// `breaks[i]..breaks[i+1]` is row `i`'s items (with a sentinel at
 /// the end equal to `items.len()`). Breaks the row when a `Box`
 /// overflows, falling back to the last seen `Glue`.
-pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<usize> {
+pub fn greedy_break(
+    items: &[InlineItem], width: f32, inline_pad: f32, hang_spaces: bool,
+) -> Vec<usize> {
     let mut breaks = vec![0usize];
     let mut cur_width = 0.0f32;
     // Two wrap-point trackers so we can prefer whitespace breaks over
@@ -1410,7 +1459,10 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
         match &items[i] {
             InlineItem::Box { advance, .. } | InlineItem::Embed(EmbedSpec { advance, .. }) => {
                 let overflow = cur_width + advance > effective_width;
-                let lg = if overflow {
+                // either side of an embed is a place to break, as a space
+                // is: text touching it doesn't come along to its row
+                let embed = matches!(items[i], InlineItem::Embed(_));
+                let lg = if overflow && !(embed && cur_width > 0.0) {
                     pick_wrap_point(last_whitespace_glue, last_any_glue, i, effective_width)
                 } else {
                     None
@@ -1427,8 +1479,13 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                     // Overflow with no glue to break at — adjacent inline images
                     // emit no separating whitespace. Break before this item so an
                     // unbreakable box/embed starts a fresh row instead of running
-                    // past the width into the scrollbar gutter.
-                    breaks.push(i);
+                    // past the width into the scrollbar gutter. An embed's
+                    // row starts at its interaction, which opens just before it.
+                    let mut start = i;
+                    while matches!(items[start - 1], InlineItem::InteractionOpen(..)) {
+                        start -= 1;
+                    }
+                    breaks.push(start);
                     cur_width = *advance;
                     if bg_open(&scope_bg_stack) {
                         cur_width += inline_pad;
@@ -1438,14 +1495,19 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                 } else {
                     cur_width += advance;
                 }
+                if embed {
+                    (last_whitespace_glue, last_any_glue) = (Some(i), Some(i));
+                }
                 i += 1;
             }
             InlineItem::Glue { natural, .. } => {
                 // Per-space splits make trailing whitespace a series of
                 // Glues. Without this overflow check they'd silently
                 // accumulate past `width` (the Box-only check needs a
-                // following Box to fire).
-                let lg = if cur_width + natural > effective_width {
+                // following Box to fire). Spaces that hang never wrap: the
+                // next Box does.
+                let wraps = cur_width + natural > effective_width && !hang_spaces;
+                let lg = if wraps {
                     pick_wrap_point(last_whitespace_glue, last_any_glue, i, effective_width)
                 } else {
                     None
@@ -1457,10 +1519,11 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                         cur_width += inline_pad;
                     }
                     last_whitespace_glue = None;
-                } else if cur_width + natural > effective_width && cur_width > 0.0 {
+                } else if wraps && cur_width > 0.0 {
                     // nowhere earlier on the row to wrap (it holds one
                     // unbreakable run, as a chip): the space starts the next
-                    // row, as an overflowing box does
+                    // row, as an overflowing box does; after an image, which
+                    // shrinks to fill its row, it hangs off the row's end
                     breaks.push(i);
                     cur_width = *natural;
                     if bg_open(&scope_bg_stack) {
@@ -1545,28 +1608,46 @@ fn active_interaction(stack: &[(egui::Id, egui::Sense)]) -> Option<(egui::Id, eg
         .copied()
 }
 
+/// Where a shaped line's baseline falls, as a fraction of its buffer's line
+/// height down from its top: each font centers its own ascent and descent
+/// there.
+fn baseline_of(buffer: &glyphon::Buffer) -> Option<f32> {
+    let run = buffer.layout_runs().next()?;
+    Some(run.line_y / buffer.metrics().line_height)
+}
+
+/// How large superscripts and subscripts draw against the text they sit in.
+const SCRIPT_SCALE: f32 = 0.75;
+
+/// The baseline of a row with no shaped body text to measure.
+const BASELINE: f32 = 0.8;
+
 /// Walk the broken stream, emitting one `Row` per break window with
 /// one fragment per Box/Glue/Pad (no coalescing). Style scope events
 /// update the running stack between fragments. The wrap-break-glue
 /// (last item of a row when a next row follows, if it's a Glue)
 /// renders as a zero-width fragment and is excluded from the row's
 /// `source_range`.
+/// Text sits on `text_baseline`, a fraction of the row height down from its
+/// top, whatever font draws it. Unless the layout keeps its spaces, a space
+/// that doesn't fit before `width` hangs at the row's end with no width.
+#[allow(clippy::too_many_arguments)]
 pub fn build_rows(
-    breaks: &[usize], items: &[InlineItem], layout: &Layout, row_height: f32, row_spacing: f32,
-    inline_pad: f32,
+    breaks: &[usize], items: &[InlineItem], layout: &Layout, width: f32, row_height: f32,
+    row_spacing: f32, inline_pad: f32, text_baseline: f32,
 ) -> Vec<Row> {
     let mut rows: Vec<Row> = Vec::with_capacity(breaks.len().saturating_sub(1));
-    let default_ascent = row_height * 0.8;
-    let default_descent = row_height * 0.2;
+    let default_ascent = row_height * text_baseline;
+    let default_descent = row_height - default_ascent;
     let mut style_stack: Vec<StyleInfo> = Vec::new();
     let mut interaction_stack: Vec<(egui::Id, egui::Sense)> = Vec::new();
     let mut y_top = 0.0f32;
 
     for win in breaks.windows(2) {
         let (start, end) = (win[0], win[1]);
-        // Row baseline = `y_top + ascent`. Text fragments span the
-        // text band (`baseline ± default_*`); image fragments hang
-        // above the baseline so `image_bottom == baseline`.
+        // Row baseline = `y_top + ascent`, where the glyphs sit. Text
+        // fragments span the text band (`baseline ± default_*`); embeds
+        // hang about it by their own ascent and descent.
         let (ascent, descent) = items[start..end]
             .iter()
             .filter_map(item_metrics)
@@ -1636,7 +1717,7 @@ pub fn build_rows(
             let (item_y_min, item_y_max) = {
                 let f = style_stack.last().map(|s| &s.format);
                 let text_height = default_ascent + default_descent;
-                let small = text_height * 0.75;
+                let small = text_height * SCRIPT_SCALE;
                 match f {
                     Some(f) if f.superscript => (text_top, text_top + small),
                     Some(f) if f.subscript => (text_bottom - small, text_bottom),
@@ -1666,9 +1747,19 @@ pub fn build_rows(
                         row_visible_lo
                             .map_or(visible_byte_range.start, |v| v.min(visible_byte_range.start)),
                     );
+                    // raised a third of the text size or lowered a fifth, as WebKit
+                    let offset = match style_stack.last().map(|s| &s.format) {
+                        Some(f) if f.superscript => -row_height / 3.0,
+                        Some(f) if f.subscript => row_height / 5.0,
+                        _ => 0.0,
+                    };
+                    let own = baseline_of(&buffer.read().unwrap()).unwrap_or(text_baseline);
+                    let top = text_top + text_baseline * row_height + offset
+                        - item_y_min
+                        - own * row_height;
                     row_fragments.push(Fragment {
                         rect,
-                        content_inset: FragmentInset::default(),
+                        content_inset: FragmentInset { top, ..Default::default() },
                         source_range: *source_range,
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Glyphs {
@@ -1693,7 +1784,8 @@ pub fn build_rows(
                     buffer,
                     cluster_advances,
                 } => {
-                    let effective_advance = if is_wrap_break { 0.0 } else { *natural };
+                    let hung = !layout.keeps_spaces && x + natural > width;
+                    let effective_advance = if is_wrap_break || hung { 0.0 } else { *natural };
                     let rect = Rect::from_min_max(
                         Pos2::new(x, item_y_min),
                         Pos2::new(x + effective_advance, item_y_max),
@@ -1713,12 +1805,12 @@ pub fn build_rows(
                         row_visible_lo
                             .map_or(visible_byte_range.start, |v| v.min(visible_byte_range.start)),
                     );
-                    // Wrap-break-glue and zero-width inter-chunk glues
-                    // emit no glyphs: wrap-break to keep the trailing
-                    // whitespace from painting past the row edge,
+                    // Wrap-break-glue, hung spaces and zero-width
+                    // inter-chunk glues emit no glyphs: wrap-break and hung
+                    // to keep whitespace from painting past the row edge,
                     // zero-width to keep paint+hit-test from
                     // discovering two fragments at the same origin.
-                    let content = if is_wrap_break || *natural == 0.0 {
+                    let content = if is_wrap_break || hung || *natural == 0.0 {
                         FragmentContent::Spacer
                     } else {
                         FragmentContent::Glyphs {
@@ -1921,8 +2013,14 @@ impl MdRender {
             let [r, g, b, a] = c.to_array();
             glyphon::Color::rgba(r, g, b, a)
         };
-        let misspelled = self.misspelled_words(&layout.prose);
+        let mut misspelled = self.misspelled_words(&layout.prose);
         self.misspelled.extend_from_slice(&misspelled);
+        let unit = layout.source_range;
+        let errors = self
+            .diagram_errors
+            .iter()
+            .filter(|e| e.intersects(&unit, false));
+        misspelled.extend(errors);
 
         for row_idx in 0..layout.rows.len() {
             let row = &layout.rows[row_idx];
@@ -1959,9 +2057,23 @@ impl MdRender {
                 // backgrounds stop short of the row spacing so ones on
                 // adjacent rows stay apart
                 let pad = inline_pad - BG_ROW_GAP / 2.0;
+                // centered on its text from baseline to ascender, not the
+                // row: fonts place their baseline differently
+                let family = row.fragments[chain_start]
+                    .style_stack
+                    .last()
+                    .map(|s| s.format.family);
+                let mono = family == Some(FontFamily::Mono);
+                let shift = match crate::font::ascender_height(mono) {
+                    Some(ascender) if chip.is_none() => {
+                        let baseline = self.body_baseline(row_height) * row_height;
+                        baseline - ascender * row_height / 2.0 - row_height / 2.0
+                    }
+                    _ => 0.0,
+                };
                 let bg_rect = Rect::from_min_max(
-                    egui::Pos2::new(chain_left, row_top - pad),
-                    egui::Pos2::new(chain_right, row_bottom + pad),
+                    egui::Pos2::new(chain_left, row_top - pad + shift),
+                    egui::Pos2::new(chain_right, row_bottom + pad + shift),
                 );
                 // a chip is one row, so a whole capsule
                 let radius = if chip.is_some() { bg_rect.height() / 2.0 } else { 2.0 };
@@ -2042,6 +2154,7 @@ impl MdRender {
                             screen_rect,
                             frag.source_range.start(),
                         ),
+                        EmbedKind::Rule => self.paint_rule(embed_ui, screen_rect),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,
@@ -2055,7 +2168,7 @@ impl MdRender {
                         let sr = frag.source_range;
                         if !sel.is_empty() && sel.contains_range(&sr, true, true) {
                             let theme = self.ctx.get_lb_theme();
-                            let accent = theme.bg().get_color(theme.prefs().primary);
+                            let accent = theme.accent_bg();
                             let tint = egui::Color32::from_rgba_unmultiplied(
                                 accent.r(),
                                 accent.g(),
@@ -2140,26 +2253,52 @@ impl MdRender {
     /// Find the fragment whose `source_range` contains `offset`,
     /// inclusive of both endpoints (so cursor positions at line-
     /// trailing `\n` bytes — excluded from any source line by
-    /// `range_split_newlines` — still resolve). Reverse search:
-    /// at a shared boundary `(a, b)`/`(b, c)`, the *later* fragment
-    /// wins (cursor-affinity matches paint).
+    /// `range_split_newlines` — still resolve). At a shared boundary
+    /// `(a, b)`/`(b, c)` the *later* fragment wins, unless the caret sits
+    /// there upstream of a soft wrap: then the row it ends wins.
     pub fn fragment_at_offset(&self, offset: Grapheme) -> Option<&Fragment> {
+        let affinity = self.caret_affinity_at(offset);
+        self.fragment_idx_at_offset(offset, affinity)
+            .map(|i| &self.fragments[i])
+    }
+
+    /// The affinity of a caret at `offset`.
+    pub fn caret_affinity_at(&self, offset: Grapheme) -> Affinity {
+        match self.caret_affinity {
+            (caret, affinity) if caret == offset => affinity,
+            _ => Affinity::Downstream,
+        }
+    }
+
+    /// [`Self::fragment_at_offset`]'s index into `fragments`, for a caret
+    /// with `affinity`.
+    pub fn fragment_idx_at_offset(&self, offset: Grapheme, affinity: Affinity) -> Option<usize> {
+        let contains =
+            |f: &Fragment| f.source_range.start() <= offset && offset <= f.source_range.end();
+        let downstream = self.fragments.iter().rposition(contains)?;
+        let row_top = self.fragments[downstream].rect.top();
+        let upstream = match affinity {
+            Affinity::Upstream => self
+                .fragments
+                .iter()
+                .rposition(|f| contains(f) && f.rect.bottom() <= row_top),
+            Affinity::Downstream => None,
+        };
+        let row = self.fragments[upstream.unwrap_or(downstream)]
+            .rect
+            .y_range();
         // A caret at a chip's edge sits at the pill edge, not inside its padding
         // or favicon slot: prefer the chip's boundary anchor (a zero-width Spacer
         // at exactly `offset`, which `fragment_x` resolves to the pill edge) over
-        // the wider glyph fragments that also span the offset.
-        let anchor = self.fragments.iter().find(|f| {
+        // the wider glyph fragments on the same row that also span the offset.
+        let anchor = self.fragments.iter().position(|f| {
             f.source_range == (offset, offset)
                 && matches!(f.content, FragmentContent::Spacer)
                 && f.style_stack.last().is_some_and(|s| s.chip)
+                && f.rect.top() < row.max
+                && row.min < f.rect.bottom()
         });
-        if anchor.is_some() {
-            return anchor;
-        }
-        self.fragments.iter().rev().find(|f| {
-            let (s, e) = f.source_range;
-            s <= offset && offset <= e
-        })
+        Some(anchor.or(upstream).unwrap_or(downstream))
     }
 
     /// Find the fragment whose rect contains `pos` (clip-aware
@@ -2273,8 +2412,11 @@ impl MdRender {
             // at an equal distance, what shows wins over what is hidden
             let x_dist = if rect != f.rect && rect.width() == 0.0 { x_dist + 0.5 } else { x_dist };
             let dist = (y_dist, x_dist);
+            // at an equal distance, the last hanging space ends the row
+            let hanging = matches!(f.content, FragmentContent::Spacer) && f.rect.width() == 0.0;
             let prefer = dist == closest_dist
                 && (f.source_range.start() == f.source_range.end()
+                    || hanging
                     || (f.atomic && matches!(f.content, FragmentContent::Spacer)));
             if dist < closest_dist || prefer {
                 closest = Some(i);
@@ -2405,6 +2547,21 @@ impl MdRender {
                 return fragment.source_range.end();
             }
         }
+        // past a row's hanging spaces: the row's end
+        let hanging = matches!(fragment.content, FragmentContent::Spacer)
+            && fragment.rect.width() == 0.0
+            && !fragment.source_range.is_empty();
+        if hanging && x >= fragment.rect.max.x {
+            let start = fragment.source_range.start();
+            let row = self
+                .bounds
+                .wrap_lines
+                .iter()
+                .find(|l| l.contains(start, true, true));
+            if let Some(row) = row {
+                return row.end();
+            }
+        }
         // Empty advances: snap by midpoint.
         let mid_x = (fragment.rect.min.x + fragment.rect.max.x) / 2.0;
         if x < mid_x { fragment.source_range.start() } else { fragment.source_range.end() }
@@ -2436,7 +2593,7 @@ mod tests {
         let width = 950.0;
         // small, full-width, small — as in the reported doc.
         let items = vec![embed(100.0), embed(900.0), embed(100.0)];
-        let breaks = greedy_break(&items, width, 0.0);
+        let breaks = greedy_break(&items, width, 0.0, true);
         // One row per image: [0,1), [1,2), [2,3).
         assert_eq!(breaks, vec![0, 1, 2, 3]);
     }
@@ -2447,9 +2604,61 @@ mod tests {
     fn embeds_share_row_until_overflow() {
         let width = 500.0;
         let items = vec![embed(100.0), embed(100.0), embed(400.0)];
-        let breaks = greedy_break(&items, width, 0.0);
+        let breaks = greedy_break(&items, width, 0.0, true);
         // 100+100 fit; the 400 overflows and starts a new row.
         assert_eq!(breaks, vec![0, 2, 3]);
+    }
+
+    fn buffer() -> std::sync::Arc<std::sync::RwLock<glyphon::Buffer>> {
+        let metrics = glyphon::Metrics::new(14.0, 16.0);
+        std::sync::Arc::new(std::sync::RwLock::new(glyphon::Buffer::new_empty(metrics)))
+    }
+
+    fn word(advance: f32) -> InlineItem {
+        InlineItem::Box {
+            advance,
+            source_range: (Grapheme(0), Grapheme(0)),
+            visible_byte_range: 0..0,
+            buffer: buffer(),
+            cluster_advances: Vec::new(),
+            atomic: false,
+        }
+    }
+
+    fn space(natural: f32) -> InlineItem {
+        InlineItem::Glue {
+            natural,
+            source_range: (Grapheme(0), Grapheme(0)),
+            visible_byte_range: 0..0,
+            buffer: buffer(),
+            cluster_advances: Vec::new(),
+        }
+    }
+
+    /// Words touching a full-width embed, with no spaces between them, stay
+    /// on rows of their own: the embed is never pulled onto a row with them,
+    /// past the width.
+    #[test]
+    fn words_touching_an_embed_break_around_it() {
+        let items = vec![word(100.0), space(10.0), word(100.0), embed(500.0), word(100.0)];
+        let breaks = greedy_break(&items, 500.0, 0.0, true);
+        assert_eq!(breaks, vec![0, 3, 4, 5]);
+
+        // as a space is, the embed's far edge is the latest place to break
+        let items = vec![word(100.0), space(10.0), word(100.0), embed(100.0), word(250.0)];
+        let breaks = greedy_break(&items, 500.0, 0.0, true);
+        assert_eq!(breaks, vec![0, 4, 5]);
+    }
+
+    /// A space before an embed too wide to join it ends its row, and the
+    /// embed's interaction goes with it to the next.
+    #[test]
+    fn a_space_before_a_wrapped_embed_ends_its_row() {
+        let interaction = InlineItem::InteractionOpen(egui::Id::NULL, egui::Sense::click());
+        let items =
+            vec![word(100.0), space(10.0), interaction, embed(450.0), InlineItem::InteractionClose];
+        let breaks = greedy_break(&items, 500.0, 0.0, true);
+        assert_eq!(breaks, vec![0, 2, 5]);
     }
 
     /// A single embed wider than the row is the first item on its row —
@@ -2458,7 +2667,7 @@ mod tests {
     fn lone_oversized_embed_does_not_break() {
         let width = 100.0;
         let items = vec![embed(500.0)];
-        let breaks = greedy_break(&items, width, 0.0);
+        let breaks = greedy_break(&items, width, 0.0, true);
         assert_eq!(breaks, vec![0, 1]);
     }
 

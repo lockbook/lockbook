@@ -7,6 +7,7 @@
 use egui::{FontFamily, FontId, Id, Ui, pos2, vec2};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
+use workspace_rs::tab::{Destination, Place};
 
 use crate::components::{
     EqualCells, FixedPadContent, LIST_PAD, QuietChipAlign, QuietChipLabel, Space, Spacer, Theme,
@@ -201,14 +202,14 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
     if let Some(cmd) = context_menu::show(&resp, t, |e| {
         if !row.is_folder {
             e.item(phosphor::ARROW_SQUARE_OUT, "Open", PinCmd::Open);
-            e.item(phosphor::APP_WINDOW, "Open in new tab", PinCmd::OpenNewTab);
+            e.item(phosphor::APP_WINDOW, "Open in New Tab", PinCmd::OpenNewTab);
             e.separator();
         }
         e.item(phosphor::NOTE_PENCIL, "Create…", PinCmd::Create);
         if row.is_folder {
             e.separator();
-            e.item(phosphor::CARET_DOWN, "Expand all", PinCmd::ExpandAll);
-            e.item(phosphor::CARET_LEFT, "Collapse all", PinCmd::CollapseAll);
+            e.item(phosphor::CARET_DOWN, "Expand All", PinCmd::ExpandAll);
+            e.item(phosphor::CARET_LEFT, "Collapse All", PinCmd::CollapseAll);
         }
         e.separator();
         e.item(phosphor::PENCIL, "Rename…", PinCmd::Rename);
@@ -220,12 +221,12 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
         e.separator();
         e.item(phosphor::USERS, "Share…", PinCmd::Share);
         if !row.is_folder {
-            e.item(phosphor::LINK, "Copy link", PinCmd::CopyLink);
+            e.item(phosphor::LINK, "Copy Link", PinCmd::CopyLink);
             e.item(phosphor::DOWNLOAD_SIMPLE, "Export…", PinCmd::Export);
         }
         e.separator();
         if row.saved_share {
-            e.item(phosphor::FOLDER_MINUS, "Remove from files…", PinCmd::Delete);
+            e.item(phosphor::FOLDER_MINUS, "Remove from Files…", PinCmd::Delete);
         } else {
             e.item_danger(phosphor::TRASH, "Delete…", PinCmd::Delete);
         }
@@ -255,7 +256,7 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
             PinCmd::Move => queue.push(A::OpenMove(vec![row.id])),
             PinCmd::Duplicate => queue.push(A::Duplicate(vec![row.id])),
             PinCmd::Share => queue.push(A::OpenShare(row.id)),
-            PinCmd::CopyLink => queue.push(A::CopyLink(row.id)),
+            PinCmd::CopyLink => queue.push(A::CopyLink(Place::new(Destination::File(row.id)))),
             PinCmd::Export => queue.push(A::Export(vec![row.id])),
             PinCmd::Delete => queue.push(A::OpenDelete(vec![row.id])),
         }

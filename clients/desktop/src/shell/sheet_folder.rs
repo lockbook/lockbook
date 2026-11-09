@@ -311,6 +311,8 @@ pub(crate) fn show_move(
         dest,
         ids,
         FolderPickKind::Move,
+        None,
+        false,
     );
 }
 
@@ -333,6 +335,8 @@ pub(crate) fn show_accept_share(
         dest,
         &[],
         FolderPickKind::AcceptShare,
+        None,
+        false,
     );
     let _ = id;
 }
@@ -399,6 +403,7 @@ fn paint_decline_summary(ui: &mut egui::Ui, t: &Theme, name: &str) {
 pub(crate) fn show_import_parent(
     app: &ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
     paths: &[std::path::PathBuf], dest: Option<Uuid>,
+    plan: Option<&workspace_rs::import::ImportPlan>, planning: bool,
 ) {
     // Summary subject only (no second title line) — same as Move / Accept.
     let subject = match paths.len() {
@@ -422,7 +427,13 @@ pub(crate) fn show_import_parent(
         dest,
         &[],
         FolderPickKind::ImportParent,
+        plan,
+        planning,
     );
+}
+
+fn kind_is_import(kind: FolderPickKind) -> bool {
+    matches!(kind, FolderPickKind::ImportParent)
 }
 
 #[derive(Clone, Copy)]
@@ -435,7 +446,7 @@ enum FolderPickKind {
 fn folder_picker_sheet(
     app: &ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>, salt: &str,
     action: &str, subject: &str, hint: &str, primary: &str, dest: Option<Uuid>, exclude: &[Uuid],
-    kind: FolderPickKind,
+    kind: FolderPickKind, plan: Option<&workspace_rs::import::ImportPlan>, planning: bool,
 ) {
     let layer = egui::LayerId::new(Order::Foreground, Id::unique(salt));
     if sheet_dim(ctx, Id::unique(format!("{salt}_dim")), layer) {
@@ -521,9 +532,13 @@ fn folder_picker_sheet(
                         FolderPickKind::AcceptShare => {
                             dest_action_summary(ui, t, app, subject, "will be saved to", dest)
                         }
-                        FolderPickKind::ImportParent => {
-                            dest_action_summary(ui, t, app, subject, "will be imported into", dest)
-                        }
+                        FolderPickKind::ImportParent => match plan {
+                            Some(plan) => import_plan_block(ui, t, app, queue, plan),
+                            None => {
+                                let name = display_file_name(subject);
+                                sentence(ui, t, &format!("Counting the files in **{name}**…"))
+                            }
+                        },
                     }
                 }
                 ui.add(Spacer::new(Space::Md));
@@ -533,7 +548,14 @@ fn folder_picker_sheet(
                     primary,
                     SheetFooterOpts::default()
                         .divider(false)
-                        .primary_enabled(dest.is_some())
+                        .primary_enabled(
+                            dest.is_some()
+                                && (!kind_is_import(kind)
+                                    || (!planning
+                                        && plan.is_some_and(|p| {
+                                            p.writes() > 0 && p.over_cap().is_none()
+                                        }))),
+                        )
                         .primary_shortcut(shortcut_enter()),
                 );
                 if foot.cancel {
@@ -577,4 +599,191 @@ fn dest_action_summary(
         .line_height(lh)
         .max_width(max_w),
     );
+}
+
+/// What an import will do: what comes in and where, then what's skipped, then
+/// how it sits against the account's cap with ways to make it fit.
+fn import_plan_block(
+    ui: &mut egui::Ui, t: &Theme, app: &ShellApp, queue: &mut Vec<Action>,
+    plan: &workspace_rs::import::ImportPlan,
+) {
+    use crate::components::domain::import_card::count;
+    use crate::components::{Button, form_group, form_row_detail, form_toggle_detail};
+    use workspace_rs::import;
+
+    let path = match folder_path_slash(app, Some(plan.dest())).as_str() {
+        "/" => "Home".to_owned(),
+        p => p.to_owned(),
+    };
+    let subject = display_file_name(&plan.subject).to_owned();
+    let premium = plan.room.is_some_and(|r| r.premium());
+
+    let sum = plan.summary();
+    let writes = plan.writes();
+    // Owned pieces first; the label borrows them.
+    let (files, noun) = (count(writes), plural(writes, "file"));
+    // Stored the way the account counts it: compressed, encrypted, a fee per new file.
+    let size = si_bytes(sum.stored_bytes);
+    let mut skips: Vec<String> = Vec::new();
+    if sum.same > 0 {
+        skips.push(format!("**{}** existing {}", count(sum.same), plural(sum.same, "file")));
+    }
+    for k in &plan.skip.kinds {
+        let n = plan
+            .kinds
+            .iter()
+            .find(|(x, _)| x == k)
+            .map_or(0, |(_, s)| s.files);
+        skips.push(format!("**{}** {}", count(n), import::noun(*k, n)));
+    }
+    let hidden = plan.ignored_names(import::IgnoreReason::Hidden);
+    match hidden.len() {
+        0 => {}
+        1..=3 => skips.extend(hidden.iter().map(|n| format!("**{n}**"))),
+        _ => skips.push(format!("**{}** hidden files", count(sum.hidden))),
+    }
+
+    // Once some of the folder is already here, the count and size are only what changes.
+    let (added, replaced) = (sum.new, sum.changed);
+    let mut text = if !plan.found_anything() {
+        String::new()
+    } else if writes == 0 {
+        format!("**{subject}** in **{path}** is up to date.")
+    } else if sum.same == 0 && replaced == 0 {
+        format!("**{subject}** (**{files}** {noun}, **{size}**) will be imported into **{path}**.")
+    } else {
+        let mut parts = Vec::new();
+        if added > 0 {
+            parts.push(format!("adding **{}** {}", count(added), plural(added, "file")));
+        }
+        if replaced > 0 {
+            parts.push(format!("replacing **{}** {}", count(replaced), plural(replaced, "file")));
+        }
+        format!(
+            "**{subject}** will be imported into **{path}**, {} (**{size}**).",
+            parts.join(" and ")
+        )
+    };
+    if !skips.is_empty() {
+        text.push_str(&format!(" {} will be skipped.", series(&skips)));
+    }
+    let unreadable = plan.ignored_names(import::IgnoreReason::Unreadable);
+    match unreadable.len() {
+        0 => {}
+        1..=3 => {
+            let names: Vec<_> = unreadable.iter().map(|n| format!("**{n}**")).collect();
+            text.push_str(&format!(" {} couldn’t be read.", series(&names)));
+        }
+        _ => text.push_str(&format!(" **{}** files couldn’t be read.", count(sum.unreadable))),
+    }
+    let refused: Vec<_> = plan
+        .refused_names()
+        .iter()
+        .map(|n| format!("**{n}**"))
+        .collect();
+    match refused.len() {
+        0 => {}
+        1 => text.push_str(&format!(" {} is a link, so it can’t be imported.", refused[0])),
+        2..=3 => {
+            text.push_str(&format!(" {} are links, so they can’t be imported.", series(&refused)))
+        }
+        n => text.push_str(&format!(" **{}** links can’t be imported.", count(n))),
+    }
+    sentence(ui, t, text.trim_start());
+    if let Some((after, cap)) = plan.over_cap() {
+        let over_text = if premium {
+            let (after, cap) = (si_bytes(after), si_bytes(cap));
+            format!(
+                "This import brings your account to **{after}**, over its **{cap}** limit. Reduce the size of the import."
+            )
+        } else {
+            // How far over, since the total and the cap can round to the same size.
+            let (over, cap) = (si_bytes(after - cap), si_bytes(cap));
+            format!(
+                "This import goes over the **{cap}** free tier limit by **{over}**. Reduce the size of the import or upgrade to premium."
+            )
+        };
+        ui.add(Spacer::new(Space::Sm));
+        sentence(ui, t, &over_text);
+    }
+
+    if !plan.whole_over_cap() {
+        return;
+    }
+    // Ways to fit: each kind there is, or Premium.
+    ui.add(Spacer::new(Space::Md));
+    form_group(ui, t, |ui| {
+        for (i, (kind, total)) in plan.kinds.iter().enumerate() {
+            if i > 0 {
+                ui.add(Spacer::new(Space::Sm));
+            }
+            let mut on = plan.skip.kinds.contains(kind);
+            let label = format!("Skip all {}", import::plural(*kind));
+            let detail = format!(
+                "{} {}, {}",
+                count(total.files),
+                plural(total.files, "file"),
+                si_bytes(total.added_bytes)
+            );
+            if form_toggle_detail(ui, t, &label, &detail, &mut on).changed() {
+                queue.push(A::ImportSkipKind(*kind));
+            }
+        }
+        if premium {
+            return;
+        }
+        ui.add(Spacer::new(Space::Sm));
+        form_row_detail(ui, t, "Bring everything", "Premium holds 30 GB", |ui| {
+            if Button::secondary(t, "Upgrade").show(ui).clicked() {
+                queue.push(A::ImportUpgrade);
+            }
+        });
+    });
+}
+
+fn plural(n: usize, one: &str) -> String {
+    if n == 1 { one.to_owned() } else { format!("{one}s") }
+}
+
+/// "a", "a and b", "a, b, and c".
+fn series(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [a] => a.clone(),
+        [a, b] => format!("{a} and {b}"),
+        [rest @ .., last] => format!("{}, and {last}", rest.join(", ")),
+    }
+}
+
+/// A paragraph with `**…**` spans bold, wrapped to the sheet.
+fn sentence(ui: &mut egui::Ui, t: &Theme, text: &str) {
+    use workspace_rs::widgets::GlyphonLabel;
+    // A leading "." forbids a line break before it (UAX #14 LB13); ZWSP allows one.
+    let text = text.replace(" **.", " \u{200B}**.");
+    let spans: Vec<(&str, bool)> = text
+        .split("**")
+        .enumerate()
+        .filter(|(_, s)| !s.is_empty())
+        .map(|(i, s)| (s, i % 2 == 1))
+        .collect();
+    let max_w = crate::components::ui_width(ui).max(1.0);
+    ui.add(
+        GlyphonLabel::new_rich(spans, t.neutral_fg())
+            .font_size(TypeRole::Body.size())
+            .line_height(TypeRole::Body.line_height())
+            .max_width(max_w),
+    );
+}
+
+/// SI bytes the way the usage bar reads them: 142 MB, with a no-break space so the
+/// number and its unit stay on one line.
+fn si_bytes(b: u64) -> String {
+    let units = [("GB", 1e9), ("MB", 1e6), ("KB", 1e3)];
+    for (u, f) in units {
+        if b as f64 >= f {
+            let v = b as f64 / f;
+            return if v < 10.0 { format!("{v:.1}\u{a0}{u}") } else { format!("{v:.0}\u{a0}{u}") };
+        }
+    }
+    format!("{b}\u{a0}bytes")
 }

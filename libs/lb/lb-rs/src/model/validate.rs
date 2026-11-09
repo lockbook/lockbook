@@ -331,6 +331,24 @@ where
 
         let base = self.tree.base().to_lazy();
         for file_diff in self.diffs()? {
+            // a share to the file's owner or to the sharer is refused when it's made
+            for key in file_diff.new.user_access_keys() {
+                let to_self = key.encrypted_for == file_diff.new.owner().0
+                    || key.encrypted_for == key.encrypted_by;
+                let made = !file_diff
+                    .old
+                    .iter()
+                    .flat_map(|old| old.user_access_keys())
+                    .any(|old| {
+                        old.encrypted_by == key.encrypted_by
+                            && old.encrypted_for == key.encrypted_for
+                            && old.mode == key.mode
+                            && old.deleted == key.deleted
+                    });
+                if to_self && made && !key.deleted && key.mode != UserAccessMode::Owner {
+                    Err(LbErrKind::Validation(ValidationFailure::SelfShare(*file_diff.id())))?;
+                }
+            }
             for field_diff in file_diff.diff() {
                 match field_diff {
                     Diff::New | Diff::Name | Diff::Deleted => {

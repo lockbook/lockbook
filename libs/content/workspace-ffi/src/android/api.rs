@@ -199,7 +199,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFF)V",
+        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFFZ)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -228,6 +228,7 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.has_magnifier { 1 } else { 0 }),
             JValue::Float(response.magnifier_x),
             JValue::Float(response.magnifier_y),
+            JValue::Bool(if response.lifted { 1 } else { 0 }),
         ],
     )
     .expect("create AndroidResponse")
@@ -510,9 +511,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     if let Some(md) = obj.workspace.current_tab_markdown_mut() {
-        let shown = shown == 1;
-        md.keyboard_visible = shown;
-        md.virtual_keyboard_shown = shown;
+        md.editing = shown == 1;
     }
 }
 
@@ -883,6 +882,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_navigateDoc(
     get_current_tab(obj)
 }
 
+/// Starts saving every edited tab now, without waiting for the next frame's
+/// autosave.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_saveAll(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.save_all_tabs();
+    obj.workspace.tasks.check_launch(&mut obj.workspace.tabs);
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
     mut _env: JNIEnv, _: JClass, obj: jlong,
@@ -947,7 +957,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
         .workspace
         .tab_strip
         .iter()
-        .map(|s| format!("{} {}", s.id.as_uuid(), s.dest.id()));
+        .map(|s| format!("{} {}", s.id.as_uuid(), s.place.dest.id()));
 
     let string_class = env.find_class("java/lang/String").unwrap();
 

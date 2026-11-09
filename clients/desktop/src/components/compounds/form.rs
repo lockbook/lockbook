@@ -186,7 +186,8 @@ fn measure_trail_col() -> f32 {
 }
 
 /// Wrap text to `max_w` (form label / detail). Width is the slot left of trailing
-/// controls — never paint past that into the switch / buttons.
+/// controls — never paint past that into the switch / buttons. `**…**` in a
+/// proportional label is bold.
 fn layout_form_text(
     ui: &Ui, text: &str, font_id: FontId, color: egui::Color32, max_w: f32,
 ) -> std::sync::Arc<egui::Galley> {
@@ -200,7 +201,15 @@ fn layout_form_text(
         },
         ..Default::default()
     };
-    job.append(text, 0.0, TextFormat { font_id, color, ..Default::default() });
+    let bolds = font_id.family == egui::FontFamily::Proportional;
+    for (i, part) in text.split(if bolds { "**" } else { "\0" }).enumerate() {
+        let family = match i % 2 {
+            1 => egui::FontFamily::Name(std::sync::Arc::from("Bold")),
+            _ => font_id.family.clone(),
+        };
+        let font_id = FontId::new(font_id.size, family);
+        job.append(part, 0.0, TextFormat { font_id, color, ..Default::default() });
+    }
     ui.fonts_mut(|f| f.layout_job(job))
 }
 
@@ -310,7 +319,7 @@ pub fn form_segmented(
 /// Label + [`super::picker`] in the trailing slot (single value, menu of options).
 pub fn form_picker(
     ui: &mut Ui, t: &Theme, label: &str, options: &[&str], selected: &mut usize,
-) -> Response {
+) -> egui::InnerResponse<Option<usize>> {
     let mut out = None;
     form_row(ui, t, label, |ui| {
         out = Some(crate::components::atoms::picker::picker(ui, t, options, selected));

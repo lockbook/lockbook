@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use egui::{
-    Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, Rect,
+    Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, Pos2, Rect,
     Response, Sense, Shadow, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 
@@ -260,6 +260,23 @@ pub fn plate_content_shadow(
         .response
 }
 
+/// Where a drag lands between others, from `start` to `end` along the flow
+/// (across a list, down a column or a line of text): a soft capsule, a line
+/// down its middle, and a hollow dot at `start`. One mark for every drop.
+pub fn paint_drop_line(painter: &egui::Painter, start: Pos2, end: Pos2, t: &Theme) {
+    let primary = t.accent_bg();
+    let (dot, half, wash) = (4.0, 1.25, 3.0);
+    let along = (end - start).normalized();
+    let across = vec2(along.y.abs(), along.x.abs());
+    let capsule = Rect::from_two_pos(start, end).expand2(across * wash);
+    painter.rect_filled(capsule, CornerRadius::same(3), primary.gamma_multiply(0.18));
+    let head = start + along * dot;
+    let line = Rect::from_two_pos(head, end).expand2(across * half);
+    painter.rect_filled(line, CornerRadius::same(1), primary);
+    painter.circle_filled(head, dot, primary);
+    painter.circle_filled(head, dot - 1.5, t.neutral_bg());
+}
+
 /// The slot something was lifted out of: shaded in from its edges, most
 /// under the top one, as if pressed into the surface.
 pub fn paint_inset_shadow(
@@ -332,6 +349,8 @@ pub mod phosphor {
     pub const PHONE_DISCONNECT: &str = "\u{e3bc}";
     /// `ph-phone-slash`.
     pub const PHONE_SLASH: &str = "\u{e3c2}";
+    /// `ph-qr-code`.
+    pub const QR_CODE: &str = "\u{e3e6}";
     /// `ph-microphone`. U+E328 is `microphone-slash`.
     pub const MICROPHONE: &str = "\u{e326}";
     /// `ph-microphone-slash`.
@@ -422,6 +441,9 @@ pub mod phosphor {
     pub const TEXT_INDENT: &str = "\u{ea1e}";
     pub const TEXT_OUTDENT: &str = "\u{ea1c}";
     pub const QUOTES: &str = "\u{e660}";
+    pub const CODE_BLOCK: &str = "\u{eafe}";
+    /// Horizontal rule (`ph-arrows-out-line-vertical`).
+    pub const ARROWS_OUT_LINE_VERTICAL: &str = "\u{e536}";
     pub const TABLE: &str = "\u{e476}";
     pub const ROWS_PLUS_TOP: &str = "\u{e5a0}";
     pub const ROWS_PLUS_BOTTOM: &str = "\u{e59e}";

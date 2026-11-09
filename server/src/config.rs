@@ -3,6 +3,7 @@ use lb_rs::model::account::Username;
 use semver::VersionReq;
 use std::collections::HashSet;
 use std::fmt::Display;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fmt, fs};
@@ -187,6 +188,7 @@ impl ServerConfig {
 
 #[derive(Clone, Debug)]
 pub struct MetricsConfig {
+    pub addr: SocketAddr,
     pub time_between_metrics_refresh: Duration,
     pub time_between_metrics: Duration,
 }
@@ -194,6 +196,9 @@ pub struct MetricsConfig {
 impl MetricsConfig {
     pub fn from_env_vars() -> Self {
         Self {
+            addr: env_or_empty("METRICS_ADDR")
+                .map(|addr| addr.parse().unwrap())
+                .unwrap_or(([127, 0, 0, 1], 8080).into()),
             time_between_metrics_refresh: Duration::from_secs(
                 env_or_panic("MINUTES_BETWEEN_METRICS_REFRESH")
                     .parse::<u64>()

@@ -57,7 +57,7 @@ where
             }
         }
 
-        let mut tree = tree.stage_diff_v2(updates.clone())?;
+        let mut tree = tree.stage_diff_v2(updates.clone(), self.clock.now().0 as u64)?;
         tree.validate(req_owner)?;
 
         for id in tree.ids() {
@@ -89,7 +89,7 @@ where
             .to_lazy();
 
             let old_usage = tree.calculate_usage(owner)?;
-            let mut tree = tree.stage_unvalidated(updates.clone());
+            let mut tree = tree.stage_unvalidated(updates.clone(), self.clock.now().0 as u64);
             let new_usage = tree.calculate_usage(owner)?;
 
             debug!(?owner, ?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
@@ -109,7 +109,7 @@ where
         )?
         .to_lazy();
 
-        let tree = tree.stage_unvalidated(updates.clone());
+        let tree = tree.stage_unvalidated(updates.clone(), self.clock.now().0 as u64);
         let tree = tree.promote()?;
 
         for id in tree.ids() {
@@ -173,7 +173,7 @@ where
 
         let requester = Owner(context.public_key);
         let id = *diff.id();
-        let new_meta = diff.new.clone().add_time(get_time().0 as u64);
+        let new_meta = diff.new.clone().add_time(self.clock.now().0 as u64);
 
         // phase 1: validate request before io
         let mut lock = self.index_db.lock().await;
@@ -270,6 +270,8 @@ where
                 }
             }
 
+            // every pull answered before this promote has an as_of at or below this version
+            let new_meta = new_meta.file.add_time(get_time().0 as u64);
             let old_usage = tree.calculate_usage(tree_owner)?;
             let mut tree = tree.stage(vec![new_meta]);
             let new_usage = tree.calculate_usage(tree_owner)?;
@@ -279,6 +281,7 @@ where
                 return Err(ClientError(UsageIsOverDataCap));
             }
             tree.promote()?;
+            db.scheduled_file_cleanups.remove(&(id, hmac_bytes))?;
 
             if let Some(old_hmac) = diff.old.and_then(|old| old.document_hmac().copied()) {
                 db.scheduled_file_cleanups
@@ -293,9 +296,26 @@ where
         let result = result.await;
 
         if result.is_err() {
-            // Cleanup the NEW file created if, for some reason, the tx failed
-            self.document_service.delete(&id, &hmac_bytes).await?;
-            debug!(?id, ?hmac, "Cleaned up new document contents after failed metadata update");
+            // Identical uploads share this key, so deleting it here could remove bytes another
+            // upload has committed or is about to commit. Schedule it instead, unless the file
+            // already carries it; an upload of the same bytes unschedules it on store and commit.
+            let mut lock = self.index_db.lock().await;
+            let mut tx = ServerTx::begin(&mut lock)?;
+            let db = &mut *tx;
+            let committed_hmac = db
+                .metas
+                .get(&id)
+                .and_then(|meta| meta.document_hmac().copied());
+            if committed_hmac != Some(hmac_bytes) {
+                db.scheduled_file_cleanups
+                    .insert((id, hmac_bytes), get_time().0)?;
+                debug!(
+                    ?id,
+                    ?hmac,
+                    "Scheduled cleanup of new document contents after failed metadata update"
+                );
+            }
+            tx.end()?;
         }
 
         result?;
@@ -427,25 +447,32 @@ where
         )?
         .to_lazy();
 
+        // A changed file of another owner may have just come into reach, by a share or by a move
+        // into a share, bringing its unchanged descendants with it. Owners always hold their whole
+        // tree because a file's owner is its parent's owner.
         let mut result_ids = HashSet::new();
+        let mut reached = Vec::new();
         for id in tree.ids() {
             let file = tree.find(&id)?;
             if file.version >= request.since_metadata_version {
                 result_ids.insert(id);
-                if file.owner() != owner
-                    && file
-                        .user_access_keys()
-                        .iter()
-                        .any(|k| !k.deleted && k.encrypted_for == context.public_key)
-                {
-                    result_ids.insert(id);
-                    result_ids.extend(tree.descendants(&id)?);
+                if file.owner() != owner {
+                    reached.push(id);
+                }
+            }
+        }
+        let mut expanded = HashSet::new();
+        while let Some(id) = reached.pop() {
+            if expanded.insert(id) {
+                for child in tree.children(&id)? {
+                    result_ids.insert(child);
+                    reached.push(child);
                 }
             }
         }
 
         Ok(GetUpdatesResponseV2 {
-            as_of_metadata_version: get_time().0 as u64,
+            as_of_metadata_version: self.clock.now().0 as u64,
             file_metadata: tree
                 .all_files()?
                 .into_iter()

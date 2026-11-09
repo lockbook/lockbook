@@ -230,7 +230,7 @@ fn panic_capture(config: &Config) {
     panic::set_hook(Box::new(move |error_header| {
         let bt = Backtrace::force_capture();
         tracing::error!("panic detected: {error_header} {}", bt);
-        eprintln!("panic detected and logged: {error_header} {bt}");
+        let _ = writeln!(std::io::stderr(), "panic detected and logged: {error_header} {bt}");
         let file_name = generate_panic_filename(&config.writeable_path);
         let location = error_header
             .location()

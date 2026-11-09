@@ -8,6 +8,7 @@
 //! `LayoutCache`, but that's inherent to label-style use.
 
 use comrak::Arena;
+
 use egui::{Pos2, Rect, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::buffer::Buffer;
 
@@ -41,9 +42,12 @@ impl MdLabel {
     /// Render `md` into `ui` at the current cursor position, wrapping at
     /// `width`. Advances `ui`'s cursor past the rendered block. Returns the
     /// shaped text areas for the caller to submit via `GlyphonRendererCallback`.
-    pub fn show(&mut self, ui: &mut Ui, md: &str, width: f32) -> Vec<TextBufferArea> {
+    /// `id_salt` must be unique among labels painted into one `ui`.
+    pub fn show(
+        &mut self, ui: &mut Ui, id_salt: impl egui::AsIdSalt, md: &str, width: f32,
+    ) -> Vec<TextBufferArea> {
         let top_left = ui.next_widget_position();
-        let (text_areas, rect) = self.paint_at(ui, md, top_left, width);
+        let (text_areas, rect) = self.paint_at(ui, id_salt, md, top_left, width);
         ui.advance_cursor_after_rect(rect);
         text_areas
     }
@@ -51,9 +55,11 @@ impl MdLabel {
     /// Render at an absolute `top_left` without advancing the caller's layout
     /// cursor — for manual-layout contexts (e.g. a chat transcript that
     /// positions each bubble via a running y coordinate). Returns the shaped
-    /// text areas and the rendered rect.
+    /// text areas and the rendered rect. `id_salt` must be unique among labels
+    /// painted into one `ui`: two labels' blocks at the same offset otherwise
+    /// share widget ids.
     pub fn paint_at(
-        &mut self, ui: &mut Ui, md: &str, top_left: Pos2, width: f32,
+        &mut self, ui: &mut Ui, id_salt: impl egui::AsIdSalt, md: &str, top_left: Pos2, width: f32,
     ) -> (Vec<TextBufferArea>, Rect) {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
         self.prepare(md, width);
@@ -75,7 +81,7 @@ impl MdLabel {
         // Links resolve inside the same scope: `interact_fragments` registers
         // their widgets keyed to this ui's id, and read-only labels open
         // them on plain click.
-        ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+        ui.scope_builder(UiBuilder::new().id_salt(id_salt).max_rect(rect), |ui| {
             self.renderer.show_block(ui, root, top_left);
             self.renderer.show_capsule_overlays(ui, root, rect, 0);
             for shape in std::mem::take(&mut self.renderer.over_text) {
@@ -90,6 +96,9 @@ impl MdLabel {
     }
 
     fn prepare(&mut self, md: &str, width: f32) {
+        if self.renderer.follow_fonts() {
+            self.last_prepared = None;
+        }
         // Content whose rendered size resolves asynchronously (an image
         // loading from its placeholder) must re-lay-out every frame to pick
         // up the change; only static content is safe to memoize.

@@ -8,13 +8,16 @@
 pub mod docs;
 pub mod legacy;
 pub mod network;
+pub mod server;
 
 use crate::Lb;
 use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
+use crate::service::budget::LOCK_BUDGET;
 use crate::service::lb_id::LbID;
+use crate::service::lock_shame::lock_budget_destroyed;
 #[cfg(all(unix, not(target_os = "ios")))]
 use crate::subscribers::ipc::Ipc;
 use db_rs::View;
@@ -86,6 +89,9 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<CoreDb> {
     let directory = path.join("CoreV5");
     fs::create_dir_all(&directory)?;
     let mut db = CoreDb::init(&Config::default().log_location(directory))?;
+    if let Some(bytes) = db.log_mut().take_incomplete_write() {
+        error!(bytes, "discarded an incomplete database write");
+    }
     let old_path = path.join("CoreV4.db");
 
     if db.schema.account.is_none() {
@@ -138,6 +144,7 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<CoreDb> {
 
 pub struct LbRO<'a> {
     guard: RwLockReadGuard<'a, CoreDb>,
+    budget_start: Option<Instant>,
 }
 
 impl LbRO<'_> {
@@ -150,7 +157,26 @@ pub struct LbTx<'a> {
     guard: RwLockWriteGuard<'a, CoreDb>,
     tx: Option<WriteTx>,
     #[cfg(all(unix, not(target_os = "ios")))]
-    ipc: &'a Ipc,
+    ipc: Option<&'a Ipc>,
+    budget_start: Option<Instant>,
+}
+
+/// Called while the guard is still held, so the panic report is written before any waiter,
+/// such as a UI thread about to blow its frame budget, can proceed. The process then exits,
+/// whichever thread held the lock, as a frame overrun on the UI thread does.
+fn check_hold(lock: &str, budget_start: Option<Instant>) {
+    let Some(start) = budget_start else { return };
+    let held = start.elapsed();
+    if held > LOCK_BUDGET && !std::thread::panicking() {
+        let _ = std::panic::catch_unwind(|| lock_budget_destroyed(lock, held, LOCK_BUDGET));
+        std::process::exit(101);
+    }
+}
+
+impl Drop for LbRO<'_> {
+    fn drop(&mut self) {
+        check_hold("read", self.budget_start);
+    }
 }
 
 impl LbTx<'_> {
@@ -169,7 +195,9 @@ impl LbTx<'_> {
         // Empty transactions retain the previous sequence, including after catch-up.
         if committed_seq == seq_no {
             #[cfg(all(unix, not(target_os = "ios")))]
-            self.ipc.notify_peers();
+            if let Some(ipc) = self.ipc {
+                ipc.notify_peers();
+            }
         }
         Ok(())
     }
@@ -182,10 +210,11 @@ impl Drop for LbTx<'_> {
                 error!(?error, "failed to flush database transaction on drop");
             }
         }
+        check_hold("write", self.budget_start);
     }
 }
 
-impl Lb {
+impl<S> Lb<S> {
     pub async fn ro_tx(&self) -> LbRO<'_> {
         let start = Instant::now();
 
@@ -195,7 +224,14 @@ impl Lb {
             warn!("readonly transaction lock acquisition took {:?}", start.elapsed());
         }
 
-        LbRO { guard }
+        LbRO { guard, budget_start: self.budget_start() }
+    }
+
+    /// With [crate::model::core_config::Config::lock_budget], dev accounts exit when they release a lock held past
+    /// [LOCK_BUDGET].
+    fn budget_start(&self) -> Option<Instant> {
+        let enforced = self.config.lock_budget && self.get_account().is_ok_and(Account::is_dev);
+        enforced.then(Instant::now)
     }
 
     /// note: you cannot call init for the same config, from the same tokio runtime, or you risk
@@ -219,16 +255,21 @@ impl Lb {
         if start.elapsed() > Duration::from_millis(100) {
             warn!("readwrite transaction lock acquisition took {:?}", start.elapsed());
         }
+        let budget_start = self.budget_start();
 
         let previous_seq = guard.last_modified();
         let tx = guard.write_tx().unwrap();
+        if let Some(bytes) = guard.log_mut().take_incomplete_write() {
+            error!(bytes, "discarded an incomplete database write");
+        }
         self.notify_catch_up(&guard.schema, previous_seq).await;
 
         LbTx {
             guard,
             tx: Some(tx),
             #[cfg(all(unix, not(target_os = "ios")))]
-            ipc: &self.ipc,
+            ipc: self.ipc.as_deref(),
+            budget_start,
         }
     }
 }

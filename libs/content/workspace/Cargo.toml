@@ -161,9 +161,13 @@ jni = "0.21.0"
 pollster = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = [
     "std",
+    "NSFont",
+    "NSFontDescriptor",
     "NSSpellChecker",
+    "objc2-core-foundation",
 ] }
 objc2-foundation = { version = "0.3", default-features = false, features = [
     "std",
@@ -172,11 +176,34 @@ objc2-foundation = { version = "0.3", default-features = false, features = [
     "NSString",
 ] }
 
+[target.'cfg(target_vendor = "apple")'.dependencies]
+objc2-core-foundation = { version = "0.3", default-features = false, features = [
+    "std",
+    "CFArray",
+    "CFData",
+    "CFDictionary",
+    "CFString",
+    "CFURL",
+] }
+objc2-core-text = { version = "0.3", default-features = false, features = [
+    "std",
+    "CTFont",
+    "CTFontCollection",
+    "CTFontDescriptor",
+    "CTFontTraits",
+] }
+
 [target.'cfg(windows)'.dependencies]
+# the `implement` macro names its paths in windows-core
+windows-core = "0.62"
 windows = { version = "0.62", features = [
+    "Win32_Graphics_DirectWrite",
     "Win32_Globalization",
     "Win32_System_Com",
 ] }
 
-[target.'cfg(target_os = "linux")'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 spellbook = "0.4"
+
+[dev-dependencies]
+test_utils = { path = "../../lb/test_utils" }

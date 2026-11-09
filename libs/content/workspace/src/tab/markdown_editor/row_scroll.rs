@@ -9,6 +9,13 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::style::{EDGE_FADE, overlay_scroll};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::widgets::affine_scroll::{COAST_DECAY_PER_SEC, COAST_STOP};
+
+/// How near a scrolled block's edge a drag pans it: a fingertip, Apple's
+/// smallest touch target.
+const EDGE_PAN_ZONE: f32 = 44.0;
+/// How fast a drag at or past the edge pans, in the block's shown widths a second.
+const EDGE_PAN_SPEED: f32 = 3.0;
 
 /// A block that scrolls along its rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -92,11 +99,10 @@ impl MdRender {
             }
         }
         // coasting after a pan, slowing as the page does
-        if scroll.velocity.abs() > 1.0 {
-            const DECAY_PER_SEC: f32 = 4.0;
+        if scroll.velocity.abs() > COAST_STOP {
             let dt = ui.input(|i| i.stable_dt).max(0.0001);
             scroll.offset += scroll.velocity * dt;
-            scroll.velocity *= (-DECAY_PER_SEC * dt).exp();
+            scroll.velocity *= (-COAST_DECAY_PER_SEC * dt).exp();
             ui.ctx().request_repaint();
         } else {
             scroll.velocity = 0.0;
@@ -140,7 +146,7 @@ impl MdRender {
     pub fn stop_row_coasts(&mut self) -> bool {
         let mut coasting = false;
         for scroll in self.row_scrolls.values_mut() {
-            coasting |= scroll.velocity.abs() > 1.0;
+            coasting |= scroll.velocity.abs() > COAST_STOP;
             scroll.velocity = 0.0;
         }
         coasting
@@ -189,6 +195,31 @@ impl MdRender {
         overlay_scroll::scroller_bar_x(ui, id, rect, content, &mut offset, row_scroll.quiet);
         if offset != row_scroll.offset {
             (row_scroll.offset, row_scroll.velocity) = (offset, 0.0);
+        }
+    }
+
+    /// Scrolls the block wider than the note level with `pointer` as a drag
+    /// comes within [`EDGE_PAN_ZONE`] of its edge: deeper in, faster, to
+    /// [`EDGE_PAN_SPEED`] at the edge and past it, out to the screen's,
+    /// whatever the frame rate.
+    pub fn reveal_along_row(&mut self, pointer: Pos2) {
+        let pad = EDGE_PAN_ZONE;
+        let Some(&(rect, key)) = self
+            .row_scrollers
+            .iter()
+            .find(|(rect, _)| rect.y_range().contains(pointer.y))
+        else {
+            return;
+        };
+        let Some(scroll) = self.row_scrolls.get_mut(&key) else { return };
+        let past =
+            (pointer.x + pad - rect.right()).max(0.0) - (rect.left() - pointer.x + pad).max(0.0);
+        if past != 0.0 {
+            let depth = (past / pad).clamp(-1.0, 1.0);
+            let dt = self.ctx.input(|i| i.stable_dt).min(0.1);
+            let speed = EDGE_PAN_SPEED * rect.width();
+            (scroll.offset, scroll.velocity) = (scroll.offset + depth * speed * dt, 0.0);
+            self.ctx.request_repaint();
         }
     }
 
@@ -332,7 +363,11 @@ impl MdEdit {
             if let Some(scroll) = scroller.and_then(|key| self.renderer.row_scrolls.get_mut(&key)) {
                 (scroll.velocity, scroll.tracked) = (0.0, 0.0);
             }
-        } else if gone || !body.dragged() || self.in_progress_block_drag.is_some() {
+        } else if gone
+            || !body.dragged()
+            || self.in_progress_block_drag.is_some()
+            || self.in_progress_image_drag.is_some()
+        {
             // a finger lifted mid-motion leaves the block coasting
             if let Some((key, Some(true))) = self.row_pan.take() {
                 if let Some(scroll) = self.renderer.row_scrolls.get_mut(&key) {

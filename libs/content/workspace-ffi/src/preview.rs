@@ -35,10 +35,10 @@ impl WgpuWorkspace<'_> {
         &self, id: SessionId, size: Vec2, scale: f32, padding: f32, theme: Theme,
     ) -> Option<PreviewJob> {
         let session = self.workspace.tab_strip.iter().find(|s| s.id == id)?;
-        if matches!(session.dest, Destination::Search(_)) {
+        if matches!(session.place.dest, Destination::Search(_)) {
             return None;
         }
-        Some(self.preview(session.place(), size, scale, padding, theme))
+        Some(self.preview(session.place.clone(), size, scale, padding, theme))
     }
 
     /// A preview of `place`, a pinned document at a fragment, drawn in

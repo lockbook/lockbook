@@ -191,6 +191,8 @@ impl<'ast> MdRender {
                 rows.push(CodeRow { line, top: y - layout.height, layout, scrolls: true });
             }
         }
+        self.diagram_errors
+            .extend(self.diagram_error(node, node_code_block));
         self.show_code_rows(ui, node, rect, rows);
         self.show_diagram_preview(ui, node, rect.left_bottom(), node_code_block);
     }
@@ -446,7 +448,7 @@ impl<'ast> MdRender {
         }
 
         let copy = Event::CopyCode { node: range };
-        let resp = ui.interact(button, ui.scope_id().with(("code_copy", range)), Sense::click());
+        let resp = ui.interact(button, ui.scope_id().with("code_copy"), Sense::click());
         if resp.clicked() {
             self.render_events.push(copy.clone());
         }
@@ -532,7 +534,7 @@ impl<'ast> MdRender {
                 parent_item_padding + 4
             };
             let text = &self.buffer[node_line];
-            let strip_graphemes = consume_indent_columns(text, target_cols);
+            let strip_graphemes = consume_indent_columns(text, 0, target_cols);
             let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
             (chunk_start, node_line.end())
         }
@@ -608,6 +610,7 @@ impl<'ast> MdRender {
         let code_line = self.code_line_range(node, node_code_block, node_line, synthetic);
         let code_line_text = &self.buffer[code_line];
         let mut layout = Layout::new(code_line);
+        layout.keep_spaces();
         let regions = self.code_line_regions(node, node_code_block, code_line, synthetic);
         if let Some(regions) = regions {
             let text_format = self.text_format(node);

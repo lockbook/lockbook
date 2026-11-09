@@ -44,6 +44,8 @@ where
     pub document_service: D,
     pub discord_client: reqwest::Client,
     pub recent_new_account_ips: Arc<Mutex<VecDeque<IpData>>>,
+    /// Stamps metadata versions and `as_of_metadata_version`.
+    pub clock: Arc<clock::Clock>,
 }
 
 #[derive(Clone)]
@@ -111,6 +113,8 @@ pub mod error_handler;
 pub mod file_service;
 pub mod garbage_worker;
 pub mod guard;
+#[cfg(feature = "in-process")]
+pub mod in_process;
 pub mod loggers;
 pub mod metrics;
 pub mod router_service;

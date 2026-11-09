@@ -11,6 +11,7 @@ mod apply_account;
 mod apply_onboard;
 mod apply_share;
 mod editor;
+pub mod nudge;
 pub mod ops;
 pub mod prefs;
 pub mod session;
@@ -45,8 +46,8 @@ use workspace_rs::file_cache::FilesExt;
 use workspace_rs::search::SearchType;
 
 use crate::components::{
-    self, Space, Spacer, Theme, ThemeExt, ThemeFamily, TypeRole, handle_toggle_shortcut,
-    set_mode_preference, set_theme_family, sheet_panel_fit,
+    self, Space, Spacer, Theme, ThemeExt, TypeRole, handle_toggle_shortcut, set_mode_preference,
+    set_theme_accent, set_theme_family, sheet_panel_fit,
 };
 use crate::settings::Settings;
 
@@ -115,6 +116,12 @@ pub struct ShellApp {
     pub(crate) onboard_backup_pending: bool,
     /// The file a link from outside the app names, until it opens.
     pub(crate) incoming_link: Option<apply::IncomingLink>,
+    /// Loaded once the account is ready.
+    pub nudges: Option<nudge::Nudges>,
+    /// The import running or just finished, drawn above the sync footer.
+    pub import_job: Option<workspace_rs::import::ImportJob>,
+    /// An import waiting on an upgrade: its paths, its folder, and the cap it must outgrow.
+    pub(crate) import_after_upgrade: Option<(Vec<std::path::PathBuf>, Uuid, u64)>,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -182,6 +189,9 @@ impl Default for ShellApp {
             onboard_auto_rx: None,
             onboard_backup_pending: false,
             incoming_link: None,
+            nudges: None,
+            import_job: None,
+            import_after_upgrade: None,
         }
     }
 }
@@ -196,12 +206,11 @@ impl ShellApp {
         self.account_panel = AccountPanel::Closed;
     }
 
-    /// Dev-gated renderer extras (`DEV_USERS`).
+    /// Dev-gated renderer extras.
     pub fn is_dev(&self) -> bool {
         self.session
             .ready()
-            .map(|r| crate::DEV_USERS.contains(&r.workspace.account.username.as_str()))
-            .unwrap_or(false)
+            .is_some_and(|r| r.workspace.account.is_dev())
     }
 
     fn showing_backup(&self) -> bool {
@@ -315,9 +324,15 @@ impl ShellApp {
                 apply_onboard::onboard_import_focus(ctx);
             }
         }
+        if let Some(r) = self.session.ready() {
+            self.nudges.get_or_insert_with(|| nudge::Nudges::load(r));
+        }
         if self.onboard_backup_pending && matches!(self.session, Session::Ready(_)) {
             self.onboard_backup_pending = false;
             if let Some(r) = self.session.ready() {
+                if let Some(nudges) = &mut self.nudges {
+                    nudges.created(r);
+                }
                 if let Ok(p) = r.workspace.core.export_account_phrase() {
                     self.phrase_cache = Some(p);
                 }
@@ -348,6 +363,18 @@ impl ShellApp {
         if ctx.input(|i| i.viewport().close_requested()) {
             if let Some(r) = self.session.ready_mut() {
                 r.workspace.save_all_tabs();
+            }
+        }
+
+        if let Some(nudges) = &self.nudges {
+            nudges.tick(ctx);
+        }
+        if let Some(a) = apply::import_event(self) {
+            self.queue.push(a);
+        }
+        if let Some(job) = &self.import_job {
+            if job.view().phase != workspace_rs::import::Phase::Done {
+                ctx.request_repaint_after(std::time::Duration::from_millis(250));
             }
         }
 
@@ -395,6 +422,7 @@ impl ShellApp {
             Session::Ready(_) => {}
         }
 
+        settings::end_hidden_theme_preview(self, ctx, &mut queue);
         if self.modal.is_some() {
             sheets::show_modals(self, ctx, &t, &mut queue);
         }
@@ -563,12 +591,15 @@ impl ShellApp {
         }
         self.theme_applied = true;
         set_mode_preference(ctx, self.settings.theme_mode);
-        let fam = ThemeFamily::ALL
-            .iter()
-            .find(|f| f.name() == self.settings.theme_name)
-            .copied()
-            .unwrap_or_default();
-        set_theme_family(ctx, fam);
+        self.show_saved_theme(ctx);
+    }
+
+    /// Installs the saved family and accent.
+    fn show_saved_theme(&self, ctx: &egui::Context) {
+        set_theme_family(ctx, self.settings.theme_family);
+        if let Some(accent) = self.settings.theme_accent {
+            set_theme_accent(ctx, accent);
+        }
     }
 
     fn drain_events(&mut self) {
@@ -598,7 +629,11 @@ impl ShellApp {
     fn process_keys(&mut self, ctx: &egui::Context) {
         const CMD: egui::Modifiers = egui::Modifiers::COMMAND;
 
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && self.modal.is_some() {
+        // An open menu takes Escape first; egui closes it.
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape))
+            && self.modal.is_some()
+            && !egui::Popup::is_any_open(ctx)
+        {
             let revert_server = matches!(
                 &self.modal,
                 Some(Modal::Onboard { mode: action::OnboardMode::Choice, .. })
@@ -745,18 +780,24 @@ impl ShellApp {
                     self.queue.push(A::ShareStageField);
                 }
             } else {
-                // Pay (upgrade confirm): ⌘⏎ only. Other primaries: ⏎ or ⌘⏎.
+                // Pay (upgrade confirm) and onboard create / import: ⌘⏎ only. Other primaries: ⏎ or ⌘⏎.
                 let cmd_enter = ctx.input_mut(|i| i.consume_key(CMD, egui::Key::Enter));
                 let plain_enter =
                     ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
-                let pay_commit = matches!(
+                let cmd_only = matches!(
                     (&modal, &self.account_panel),
                     (
                         Modal::Settings { .. },
                         AccountPanel::Upgrade { stage: action::UpgradeStage::Confirm, .. }
+                    ) | (
+                        Modal::Onboard {
+                            mode: action::OnboardMode::Create | action::OnboardMode::Import,
+                            ..
+                        },
+                        _
                     )
                 );
-                let commit = if pay_commit { cmd_enter } else { cmd_enter || plain_enter };
+                let commit = if cmd_only { cmd_enter } else { cmd_enter || plain_enter };
                 if commit {
                     match modal {
                         Modal::Delete { .. } => self.queue.push(A::ConfirmDelete),

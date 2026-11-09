@@ -59,7 +59,7 @@ pub struct WeakViewportSettings {
 impl Buffer {
     pub fn new(content: &str) -> Self {
         Self::parse(content).unwrap_or_else(|err| {
-            println!("{err}");
+            tracing::warn!("{err}");
             Self::default()
         })
     }

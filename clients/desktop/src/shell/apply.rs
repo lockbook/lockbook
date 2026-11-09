@@ -17,7 +17,8 @@ use lb::Uuid;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use rfd::FileDialog;
-use workspace_rs::file_cache::{Change, FileCache, FilesExt, link_id, split_fragment};
+use workspace_rs::file_cache::{Change, FileCache, FilesExt};
+use workspace_rs::tab::{Destination, Place};
 
 use super::ShellApp;
 use super::action::{
@@ -27,7 +28,7 @@ use super::action::{
 use super::ops::{is_pinned, note_files_changed, refresh_pinned};
 use super::prefs::AccountPanel;
 use super::session::Ready;
-use crate::components::{set_mode_preference, set_theme_family};
+use crate::components::{set_mode_preference, set_theme_accent, set_theme_family};
 use tracing::instrument;
 
 #[instrument(level = "trace", skip_all, fields(action = action.name()))]
@@ -93,15 +94,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::CollapseSubtree(id) => expand_or_collapse(app, id, false),
         A::OpenFile(id) => open_documents(app, &[id], false),
         A::OpenFileNewTab(id) => open_documents(app, &[id], true),
-        A::OpenLink(url) => match link_id(&url) {
-            Some(id) => {
-                let heading = split_fragment(&url).1.map(String::from);
-                app.incoming_link = Some(IncomingLink::Waiting { id, heading });
-                // actions apply after the editor draws, so the next frame opens it
-                ctx.request_repaint();
-            }
-            None => app.toasts.error("This link doesn't name a note."),
-        },
+        A::OpenLink(url) => {
+            app.incoming_link = Some(IncomingLink::Waiting(url));
+            // actions apply after the editor draws, so the next frame opens it
+            ctx.request_repaint();
+        }
         A::NavBack => nav_history(app, true),
         A::ToggleSidecar => {
             if let Some(md) = app
@@ -134,7 +131,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                     r.select_only(id);
                     super::reveal_and_scroll(r, id);
                 } else if let Some(slot) = r.workspace.tab_strip.get(i) {
-                    if let Some(id) = slot.dest.backing_file() {
+                    if let Some(id) = slot.place.dest.backing_file() {
                         r.select_only(id);
                         super::reveal_and_scroll(r, id);
                     }
@@ -569,24 +566,102 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::Duplicate(ids) => duplicate_files(app, &ids),
         A::Export(ids) => export_files(app, ctx, &ids),
-        A::CopyLink(id) => {
+        A::CopyLink(place) => {
             if let Some(r) = app.session.ready() {
-                if let Ok(url) = r.workspace.core.get_file_link_url(id) {
+                let core = &r.workspace.core;
+                if let Some(url) = place.to_url_with(|id| core.get_file_link_url(id).ok()) {
                     ctx.copy_text(url);
                 }
             }
         }
+        A::RevealInFiles(id) => {
+            app.pane = super::action::SidebarPane::Files;
+            app.sidebar_open = true;
+            if app.settings.zen_mode {
+                let _ = app.settings.write_zen_mode(false);
+            }
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.sidebar_open = true;
+                r.select_only(id);
+                super::reveal_and_scroll(r, id);
+            }
+            persist_zen(app);
+        }
         A::Import => import_pick(app, ctx),
-        A::ImportPaths { paths, parent } => import_paths(app, ctx, paths, parent),
+        A::ImportPaths { paths, parent } => {
+            open_import_parent_sheet(app, ctx, paths);
+            apply(app, ctx, A::ImportParentSelect(parent));
+        }
         A::OpenImportParent { paths } => open_import_parent_sheet(app, ctx, paths),
         A::ImportParentSelect(id) => {
             if let Some(Modal::ImportParent { dest, .. }) = &mut app.modal {
                 *dest = Some(id);
             }
+            replan_import(app, ctx);
+        }
+        A::ImportSkipKind(kind) => {
+            if let Some(Modal::ImportParent { plan: Some(plan), .. }) = &mut app.modal {
+                plan.toggle_kind(kind);
+            }
         }
         A::ConfirmImportParent => {
-            if let Some(Modal::ImportParent { paths, dest: Some(parent) }) = app.modal.take() {
-                import_paths(app, ctx, paths, parent);
+            // Only a settled plan that writes something and fits the account confirms.
+            let ready = matches!(
+                &app.modal,
+                Some(Modal::ImportParent { plan: Some(plan), planning: None, .. })
+                    if plan.writes() > 0 && plan.over_cap().is_none()
+            );
+            if ready {
+                if let Some(Modal::ImportParent { plan: Some(plan), .. }) = app.modal.take() {
+                    import_plan(app, ctx, plan);
+                }
+            }
+        }
+        A::ImportUpgrade => {
+            // Held until the account is premium, then offered again with nothing left out.
+            if let Some(Modal::ImportParent { paths, dest: Some(dest), plan, .. }) =
+                app.modal.take()
+            {
+                let cap = plan.and_then(|p| p.room).map_or(0, |r| r.cap);
+                app.import_after_upgrade = Some((paths, dest, cap));
+            }
+            apply(app, ctx, A::OpenUpgrade);
+        }
+        A::ImportShow(id) => {
+            if let Some(r) = app.session.ready_mut() {
+                r.expanded.insert(id);
+                super::reveal_and_scroll(r, id);
+                r.select_only(id);
+            }
+            app.import_job = None;
+        }
+        A::ImportDismiss => app.import_job = None,
+        A::ImportPlanned(Ok(mut p)) => {
+            if let Some(Modal::ImportParent { plan, planning, .. }) = &mut app.modal {
+                // A new destination keeps what the person chose to skip.
+                if let Some(old) = plan.take() {
+                    p.skipping(old.skip);
+                }
+                *plan = Some(p);
+                *planning = None;
+            }
+        }
+        A::ImportPlanned(Err(e)) => {
+            if matches!(app.modal, Some(Modal::ImportParent { .. })) {
+                app.modal = None;
+            }
+            eprintln!("import plan: {e}");
+            app.toasts.error("The import couldn’t be read.");
+        }
+        A::ImportResume => {
+            if let Some((paths, dest, _)) = app.import_after_upgrade.take() {
+                app.modal = Some(Modal::ImportParent {
+                    paths,
+                    dest: Some(dest),
+                    plan: None,
+                    planning: None,
+                });
+                replan_import(app, ctx);
             }
         }
         A::OpenSearch(search_type) => {
@@ -605,9 +680,30 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             let _ = app.settings.to_file();
         }
         A::SetThemeFamily(fam) => {
-            app.settings.theme_name = fam.name().to_owned();
+            app.settings.theme_family = fam;
+            app.settings.theme_accent = None;
             set_theme_family(ctx, fam);
             let _ = app.settings.to_file();
+        }
+        A::PreviewThemeFamily(fam) => {
+            match fam {
+                Some(fam) => set_theme_family(ctx, fam),
+                None => app.show_saved_theme(ctx),
+            }
+            ctx.request_repaint();
+        }
+        A::SetThemeAccent(accent) => {
+            app.settings.theme_accent = Some(accent);
+            set_theme_accent(ctx, accent);
+            let _ = app.settings.to_file();
+        }
+        A::SetTextFont(family) => {
+            app.settings.text_font = family;
+            apply_fonts(app, ctx);
+        }
+        A::SetCodeFont(family) => {
+            app.settings.code_font = family;
+            apply_fonts(app, ctx);
         }
         // Workspace prefs: single store on `workspace.cfg`.
         A::SetPrefUpdateLinks(v) => {
@@ -647,6 +743,16 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 let _ = app.settings.to_file();
             }
             let _ = v;
+        }
+        A::NudgeAccept => {
+            if let Some(then) = app.nudges.as_mut().map(|n| n.accept()) {
+                apply(app, ctx, then);
+            }
+        }
+        A::NudgeDismiss => {
+            if let Some(nudges) = &mut app.nudges {
+                nudges.dismiss();
+            }
         }
         A::RevealPhrase => {
             ensure_settings_account(app);
@@ -1046,11 +1152,8 @@ pub(crate) struct RenameLive {
     pub can_commit: bool,
 }
 
-/// Suggested create name: local calendar date + unique variant
-/// under `parent` via [`lb::model::filename::NameComponents`].
-///
-/// Note: NameComponents currently treats the day of `YYYY-MM-DD` as a variant
-/// (`2026-08-05` → `2026-08-5`). Accept that until NameComponents is fixed.
+/// Suggested create name: local calendar date, numbered until no file
+/// under `parent` has it, via [`lb::model::filename::NameComponents`].
 fn suggested_create_name(app: &ShellApp, parent: Option<Uuid>, kind: CreateKind) -> String {
     let date = chrono::Local::now().format("%Y-%m-%d").to_string();
     let ext = kind.ext().unwrap_or("");
@@ -1061,9 +1164,7 @@ fn suggested_create_name(app: &ShellApp, parent: Option<Uuid>, kind: CreateKind)
     let files = r.workspace.files.read().unwrap();
     let parent = parent.unwrap_or_else(|| files.root().id);
     let kids: Vec<_> = files.children(parent).into_iter().cloned().collect();
-    let mut nc = lb::model::filename::NameComponents::from(&desired);
-    nc.next_in_children(kids);
-    let full = nc.to_name();
+    let full = lb::model::filename::NameComponents::from(&desired).free_number_in(&kids);
     // Sheet shows stem; extension is a static trailing label.
     if let Some(e) = kind.ext() { full.strip_suffix(e).unwrap_or(&full).to_owned() } else { full }
 }
@@ -1268,38 +1369,44 @@ pub(crate) fn native_file_dialog_open() -> bool {
 
 pub(crate) enum IncomingLink {
     /// Waits for the account to load.
-    Waiting { id: Uuid, heading: Option<String> },
+    Waiting(String),
     /// Syncs to find a file this device hasn't seen.
     Syncing(mpsc::Receiver<LinkSynced>),
 }
 
 pub(crate) struct LinkSynced {
-    id: Uuid,
-    heading: Option<String>,
+    place: Place,
     synced: Result<(), String>,
 }
 
-/// Opens the incoming link's file once the account is ready and the file is
-/// known here.
+/// Opens the place the incoming link names once the account is ready and
+/// the file it's in, if any, is known here.
 pub(crate) fn poll_incoming_link(app: &mut ShellApp, ctx: &Context) {
     let Some(r) = app.session.ready_mut() else {
         return;
     };
+    let known = |r: &Ready, place: &Place| {
+        place
+            .dest
+            .backing_file()
+            .is_none_or(|id| r.workspace.files.read().unwrap().get_by_id(id).is_some())
+    };
     match app.incoming_link.take() {
         None => {}
-        Some(IncomingLink::Waiting { id, heading }) => {
-            if r.workspace.files.read().unwrap().get_by_id(id).is_some() {
-                open_incoming_link(r, id, heading);
-            } else {
-                app.incoming_link = Some(IncomingLink::Syncing(sync_for_link(r, ctx, id, heading)));
+        Some(IncomingLink::Waiting(url)) => match Place::from_url(&url) {
+            Some(place) if known(r, &place) => open_incoming_link(r, place),
+            Some(place) => {
+                app.incoming_link = Some(IncomingLink::Syncing(sync_for_link(r, ctx, place)))
             }
-        }
+            None => app
+                .toasts
+                .error("This link doesn't name a note or a search."),
+        },
         Some(IncomingLink::Syncing(rx)) => match rx.try_recv() {
-            Ok(LinkSynced { id, heading, synced }) => {
+            Ok(LinkSynced { place, synced }) => {
                 note_files_changed(r);
-                let known = r.workspace.files.read().unwrap().get_by_id(id).is_some();
-                match (known, synced) {
-                    (true, _) => open_incoming_link(r, id, heading),
+                match (known(r, &place), synced) {
+                    (true, _) => open_incoming_link(r, place),
                     (false, Ok(())) => app
                         .toasts
                         .error("This note was deleted or isn't shared with you."),
@@ -1314,9 +1421,7 @@ pub(crate) fn poll_incoming_link(app: &mut ShellApp, ctx: &Context) {
     }
 }
 
-fn sync_for_link(
-    r: &Ready, ctx: &Context, id: Uuid, heading: Option<String>,
-) -> mpsc::Receiver<LinkSynced> {
+fn sync_for_link(r: &Ready, ctx: &Context, place: Place) -> mpsc::Receiver<LinkSynced> {
     let (tx, rx) = mpsc::channel();
     let (core, files, ctx) = (r.workspace.core.clone(), r.workspace.files.clone(), ctx.clone());
     thread::spawn(move || {
@@ -1325,13 +1430,19 @@ fn sync_for_link(
         if let Ok(cache) = FileCache::new(&core) {
             files.write().unwrap().replace(cache);
         }
-        let _ = tx.send(LinkSynced { id, heading, synced });
+        let _ = tx.send(LinkSynced { place, synced });
         ctx.request_repaint();
     });
     rx
 }
 
-fn open_incoming_link(r: &mut Ready, id: Uuid, heading: Option<String>) {
+/// Opens `place`. A note link also selects and reveals the note in the tree;
+/// a folder link only selects and reveals the folder.
+fn open_incoming_link(r: &mut Ready, place: Place) {
+    let Destination::File(id) = place.dest else {
+        r.workspace.open_place(place, true, false);
+        return;
+    };
     let is_document = r
         .workspace
         .files
@@ -1340,8 +1451,7 @@ fn open_incoming_link(r: &mut Ready, id: Uuid, heading: Option<String>) {
         .get_by_id(id)
         .is_some_and(|f| f.is_document());
     if is_document {
-        r.workspace
-            .open_file_at_heading(id, heading.unwrap_or_default(), false);
+        r.workspace.open_place(place, true, false);
     }
     r.select_only(id);
     super::reveal_and_scroll(r, id);
@@ -1445,7 +1555,11 @@ fn finish_export(app: &mut ShellApp, files: Vec<File>, dest: PathBuf) {
 fn import_pick(app: &mut ShellApp, ctx: &Context) {
     // Off-thread: blocking NSOpenPanel inside the egui/wgpu frame crashes/quits
     // on cancel (spurious window-close). Same pattern as the old linux client.
-    spawn_native_dialog(app, ctx, || NativeDialogResult::Import(FileDialog::new().pick_files()));
+    #[cfg(target_os = "macos")]
+    let pick = super::macos_window::pick_files_and_folders;
+    #[cfg(not(target_os = "macos"))]
+    let pick = || FileDialog::new().pick_files();
+    spawn_native_dialog(app, ctx, move || NativeDialogResult::Import(pick()));
 }
 
 /// Open the Import folder-picker sheet. Seeds `dest` from tree selection
@@ -1459,29 +1573,55 @@ fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBu
         )));
         d.remove::<bool>(super::tree::folder_tree_scroll_key("shell_import_parent"));
     });
-    app.modal = Some(Modal::ImportParent { paths, dest });
+    app.import_after_upgrade = None;
+    app.modal = Some(Modal::ImportParent { paths, dest, plan: None, planning: None });
+    replan_import(app, ctx);
 }
 
-fn import_paths(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBuf>, parent: Uuid) {
-    let Some(r) = app.session.ready() else {
+/// Plan the open import again off the UI thread.
+fn replan_import(app: &mut ShellApp, ctx: &Context) {
+    let Some((core, status)) = app
+        .session
+        .ready()
+        .map(|r| (r.workspace.core.clone(), r.status.clone()))
+    else {
         return;
     };
-    let core = r.workspace.core.clone();
-    let ctx = ctx.clone();
-    let n = paths.len();
-    let toast_inbox = app.toasts.inbox.clone();
-    if let Some(r) = app.session.ready_mut() {
-        r.expanded.insert(parent);
-        r.status_msg = format!("Importing {n}…");
+    if let Some(Modal::ImportParent { paths, dest: Some(dest), planning, .. }) = &mut app.modal {
+        *planning = Some(workspace_rs::import::plan_in_background(
+            core,
+            paths.clone(),
+            *dest,
+            status,
+            ctx.clone(),
+        ));
     }
-    thread::spawn(move || {
-        if let Err(e) = core.import_files(&paths, parent, &|_| {}) {
-            eprintln!("import failed: {e:?}");
-            toast_inbox.error(format!("Import failed: {e}"));
-        }
-        let _ = n;
-        ctx.request_repaint();
-    });
+}
+
+/// A finished plan for the open sheet, or a held import the account now has room for.
+pub(crate) fn import_event(app: &ShellApp) -> Option<A> {
+    if let Some(Modal::ImportParent { planning: Some(rx), .. }) = &app.modal {
+        return rx.try_recv().ok().map(A::ImportPlanned);
+    }
+    let (_, _, waiting_on) = app.import_after_upgrade.as_ref()?;
+    let cap = app
+        .session
+        .ready()?
+        .status
+        .space_used
+        .as_ref()?
+        .data_cap
+        .exact;
+    (cap > *waiting_on && app.modal.is_none()).then_some(A::ImportResume)
+}
+
+fn import_plan(app: &mut ShellApp, ctx: &Context, plan: workspace_rs::import::ImportPlan) {
+    let Some(r) = app.session.ready_mut() else {
+        return;
+    };
+    r.expanded.insert(plan.dest());
+    let (core, status) = (r.workspace.core.clone(), r.status.clone());
+    app.import_job = Some(workspace_rs::import::ImportJob::start(core, plan, status, ctx.clone()));
 }
 
 fn request_sync(app: &mut ShellApp, ctx: &Context) {
@@ -1603,4 +1743,11 @@ mod import_dest_tests {
         let (root, _, _) = ids();
         assert_eq!(import_dest_id(root, None, None), root);
     }
+}
+
+fn apply_fonts(app: &mut ShellApp, ctx: &Context) {
+    let settings = &app.settings;
+    workspace_rs::font::choose(settings.text_font.as_deref(), settings.code_font.as_deref());
+    ctx.request_repaint();
+    let _ = settings.to_file();
 }

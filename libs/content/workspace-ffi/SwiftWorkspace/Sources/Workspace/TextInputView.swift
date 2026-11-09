@@ -21,10 +21,16 @@
         private let textInteraction = UITextInteraction(for: .editable)
         private let history = EditorUndoManager()
         private let reorderPress = ReorderPressRecognizer()
+        /// Buzzes as a hold lifts something to drag, from where the finger is.
+        private lazy var liftHaptic = UIImpactFeedbackGenerator(style: .medium, view: self)
         private lazy var editMenu = UIEditMenuInteraction(delegate: self)
         private var menuForAtom = false
         /// A UIKit tap, loupe drag, or handle drag is writing the selection.
         private var textInteractionActive = false
+        /// A selection UIKit wrote itself, not for a person's gesture or our
+        /// own command: before deleteBackward it grows the caret this way.
+        /// Lives until the next frame.
+        private var uikitSelection: TextRange?
 
         weak var inputDelegate: UITextInputDelegate?
         lazy var tokenizer: UITextInputTokenizer = EditorTokenizer(textInput: self)
@@ -71,36 +77,38 @@
                 object: nil
             )
 
-            // A hold on a list item with the keyboard down lifts the item. It
-            // fails at touch-down anywhere else, so no text gesture waits.
-            reorderPress.canStart = { [weak self] point in
+            // A hold on a list item or an image with the keyboard down lifts
+            // it. It fails at touch-down anywhere else, so no text gesture
+            // waits. It sits on the page, so it sees the holds on images that
+            // the tap layer takes.
+            // it measures where egui's own touches do, the editor's view
+            reorderPress.space = mtkView
+            reorderPress.canStart = { [weak self] p in
                 guard let self, let wsHandle = self.wsHandle, !self.isSoftwareKeyboardUp else {
                     return false
                 }
-                let p = self.convert(point, to: self.mtkView)
                 return ios_reorder_can_start(wsHandle, Float(p.x), Float(p.y))
             }
-            reorderPress.start = { [weak self] point in
+            reorderPress.start = { [weak self] p in
                 guard let self, let wsHandle = self.wsHandle else { return false }
-                let p = self.convert(point, to: self.mtkView)
                 let lifted = ios_reorder_start(wsHandle, Float(p.x), Float(p.y))
                 self.mtkView.requestFrame()
                 return lifted
             }
-            reorderPress.move = { [weak self] point in
+            reorderPress.move = { [weak self] p in
                 guard let self, let wsHandle = self.wsHandle else { return }
-                let p = self.convert(point, to: self.mtkView)
                 ios_reorder_move(wsHandle, Float(p.x), Float(p.y))
                 self.mtkView.requestFrame()
             }
-            reorderPress.end = { [weak self] point, cancelled in
+            reorderPress.end = { [weak self] p, cancelled in
                 guard let self, let wsHandle = self.wsHandle else { return }
-                let p = self.convert(point, to: self.mtkView)
                 ios_reorder_end(wsHandle, Float(p.x), Float(p.y), cancelled)
                 self.mtkView.requestFrame()
             }
             reorderPress.delegate = self
-            addGestureRecognizer(reorderPress)
+            page.addGestureRecognizer(reorderPress)
+            // a hold that lifts an image doesn't also tap it
+            page.taps.tap.require(toFail: reorderPress)
             for gesture in textInteraction.gesturesForFailureRequirements {
                 gesture.require(toFail: reorderPress)
             }
@@ -132,6 +140,7 @@
                 !handle.isHidden && handle.convert(handle.bounds, to: self).insetBy(dx: -22, dy: -22).contains(point)
             }
         }
+
 
         /// The software keyboard is up: first responder, and no hardware keyboard keeps it away.
         var isSoftwareKeyboardUp: Bool {
@@ -176,6 +185,7 @@
             // Runestone activates the display the same way.
             if result {
                 selectionDisplay?.isActivated = !chromeFocused && !caretCovered
+                syncKeyboardState()
             }
             return result
         }
@@ -187,8 +197,17 @@
             let result = super.resignFirstResponder()
             if result {
                 selectionDisplay?.isActivated = false
+                syncKeyboardState()
             }
             return result
+        }
+
+        /// UIKit changes focus on its own, as the ✓ button does; the editor
+        /// hears of it then, not after a frame that may never come.
+        private func syncKeyboardState() {
+            // The editor writes to the current tab: a page no longer shown says nothing.
+            guard let wsHandle, let page, mtkView.currentWrapper === page else { return }
+            update_virtual_keyboard(wsHandle, isFirstResponder && documentEditable)
         }
 
         // MARK: - Frame output
@@ -196,6 +215,7 @@
         /// Apply one frame's output. Only changes the editor made itself are
         /// reported to UIKit; edits UIKit made were applied synchronously.
         func apply(_ output: IOSResponse) {
+            uikitSelection = nil
             if pendingSelection != nil, !(page?.touches.touching ?? false) {
                 textInteractionActive = false
                 commitPendingSelection()
@@ -219,6 +239,10 @@
                 caretCovered = output.caret_covered
                 selectionDisplay?.isActivated = !chromeFocused && !caretCovered
             }
+            // whichever long press lifted it, the frame says so
+            if output.lifted {
+                liftHaptic.impactOccurred()
+            }
             if output.text_updated {
                 marked = nil
                 inputDelegate?.textWillChange(self)
@@ -241,9 +265,7 @@
                 display.layoutManagedSubviews()
             }
 
-            if let wsHandle {
-                update_virtual_keyboard(wsHandle, isSoftwareKeyboardUp)
-            }
+            syncKeyboardState()
         }
 
         /// The selection's ends moved on screen this frame: the page scrolled
@@ -346,6 +368,7 @@
             commitPendingSelection()
             inputDelegate?.selectionWillChange(self)
             selectedTextRange = range
+            uikitSelection = nil
             inputDelegate?.selectionDidChange(self)
             let keyboardWasUp = isFirstResponder
             if !keyboardWasUp {
@@ -388,8 +411,9 @@
         // MARK: - Hardware keys
 
         /// Each key has one owner. UIKit's text system takes text keys:
-        /// characters, arrows, deletes, Return, Tab, and the standard edit
-        /// chords. The editor takes its own shortcuts.
+        /// characters, arrows, Return, Tab, and the standard edit chords. The
+        /// editor takes its own shortcuts, the keys UIKit ignores, like Home
+        /// and End, and the deletes as key commands.
         private var editorKeys = Set<UIKeyboardHIDUsage>()
 
         override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -483,7 +507,13 @@
             case .keyboardReturnOrEnter:
                 // Return sends in the composer; with Shift it is UIKit's, a newline.
                 return sendOnReturn && GCKeyboard.coalesced != nil && !mods.contains(.shift)
-            case .keyboardLeftArrow, .keyboardRightArrow, .keyboardUpArrow, .keyboardDownArrow,
+            case .keyboardLeftArrow, .keyboardRightArrow:
+                // Control-Command-Shift grows or shrinks a selection in code, as on the Mac.
+                return chord == [.shift, .control, .command] && marked == nil
+            case .keyboardHome, .keyboardEnd, .keyboardPageUp, .keyboardPageDown:
+                // UIKit ignores these, except during a composition.
+                return marked == nil
+            case .keyboardUpArrow, .keyboardDownArrow,
                  .keyboardDeleteOrBackspace, .keyboardDeleteForward,
                  .keyboardLeftShift, .keyboardRightShift, .keyboardLeftControl, .keyboardRightControl,
                  .keyboardLeftAlt, .keyboardRightAlt, .keyboardLeftGUI, .keyboardRightGUI,
@@ -524,7 +554,36 @@
             // system swallows the chord before `pressesBegan`.
             let send = UIKeyCommand(input: "\r", modifierFlags: .command, action: #selector(sendCommand(_:)))
             send.wantsPriorityOverSystemBehavior = true
-            return iOSMTK.workspaceBracketKeyCommands() + [find, send]
+            return iOSMTK.workspaceBracketKeyCommands() + [find, send] + deleteCommands()
+        }
+
+        /// ⌫ and ⌦ with their word and line chords reach the editor as keys,
+        /// so its delete rules decide; while text is marked, or the find
+        /// field has focus, they stay UIKit's.
+        private func deleteCommands() -> [UIKeyCommand] {
+            guard marked == nil, !chromeFocused else { return [] }
+            let chords: [UIKeyModifierFlags] = [[], .alternate, .command, .shift]
+            return [("\u{8}", UIKeyboardHIDUsage.keyboardDeleteOrBackspace), (UIKeyCommand.inputDelete, .keyboardDeleteForward)]
+                .flatMap { input, key in
+                    chords.map { flags in
+                        let command = UIKeyCommand(
+                            action: #selector(deleteCommand(_:)), input: input, modifierFlags: flags,
+                            propertyList: key.rawValue
+                        )
+                        command.wantsPriorityOverSystemBehavior = true
+                        command.repeatBehavior = .repeatable
+                        return command
+                    }
+                }
+        }
+
+        @objc private func deleteCommand(_ command: UIKeyCommand) {
+            guard let wsHandle, let key = command.propertyList as? Int else { return }
+            let mods = command.modifierFlags
+            let (shift, alt, cmd) = (mods.contains(.shift), mods.contains(.alternate), mods.contains(.command))
+            ios_key_event(wsHandle, key, shift, false, alt, cmd, true)
+            ios_key_event(wsHandle, key, shift, false, alt, cmd, false)
+            mtkView.requestFrame()
         }
 
         @objc private func sendCommand(_: UIKeyCommand) {
@@ -694,8 +753,18 @@
             commitPendingSelection()
             editMenu.dismissMenu()
             guard let wsHandle else { return }
+            let composing = marked != nil
             marked = nil
             let before = selectedTextRange as? TextRange
+            // UIKit selects the character before a caret, then deletes the
+            // selection: that is the caret's Backspace, which the editor's own
+            // rules decide (an atom or a fold selects first). A character a
+            // person selected is deleted as selected.
+            let grown = before.flatMap { $0 == uikitSelection ? $0 : nil }
+            uikitSelection = nil
+            if let grown, grown.hi - grown.lo == 1, !composing, !chromeFocused {
+                set_selected(wsHandle, cRange(grown.hi, grown.hi), false)
+            }
             backspace(wsHandle)
             if chromeFocused {
                 chromeMarkedLength = 0
@@ -790,6 +859,7 @@
                 // finger: no reveal, which would scroll to the far end.
                 let reveal = !(page?.textDragActive ?? false)
                 set_selected(wsHandle, cRange(range.lo, range.hi), reveal)
+                uikitSelection = reveal ? range : nil
                 mtkView.requestFrame()
             }
         }
@@ -844,6 +914,7 @@
                 ?? TextRange(under.offset, under.offset)
             if next != range {
                 selectedTextRange = next
+                uikitSelection = nil
                 // UIKit draws its highlight from its own candidate range,
                 // which follows a change it hears of; the bare notification
                 // leaves the keyboard's context alone.
@@ -1063,6 +1134,7 @@
             else { return }
             inputDelegate?.selectionWillChange(self)
             selectedTextRange = word
+            uikitSelection = nil
             inputDelegate?.selectionDidChange(self)
         }
 
@@ -1071,6 +1143,7 @@
             guard !chromeFocused else { return }
             inputDelegate?.selectionWillChange(self)
             selectedTextRange = TextRange(0, endOffset)
+            uikitSelection = nil
             inputDelegate?.selectionDidChange(self)
         }
 
@@ -1297,7 +1370,7 @@
     }
 
     extension TextInputView: UIGestureRecognizerDelegate {
-        /// The list-item hold runs beside the page pan (the editor ignores the
+        /// The list-item or image hold runs beside the page pan (the editor ignores the
         /// pan while an item is lifted) and the touch watch.
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
@@ -1614,6 +1687,8 @@
         var start: (CGPoint) -> Bool = { _ in false }
         var move: (CGPoint) -> Void = { _ in }
         var end: (CGPoint, Bool) -> Void = { _, _ in }
+        /// The view its points are measured in, its own when unset.
+        weak var space: UIView?
 
         private var origin: CGPoint?
         private var hold: DispatchWorkItem?
@@ -1633,7 +1708,7 @@
                 state = .failed
                 return
             }
-            let point = touch.location(in: view)
+            let point = touch.location(in: space ?? view)
             guard canStart(point) else {
                 state = .failed
                 return
@@ -1651,7 +1726,7 @@
 
         override func touchesMoved(_ touches: Set<UITouch>, with _: UIEvent) {
             guard let origin, let touch = touches.first else { return }
-            let point = touch.location(in: view)
+            let point = touch.location(in: space ?? view)
             switch state {
             case .possible:
                 if hypot(point.x - origin.x, point.y - origin.y) > 12 {
@@ -1677,7 +1752,7 @@
         private func finish(_ touches: Set<UITouch>, cancelled: Bool) {
             hold?.cancel()
             if state == .began || state == .changed {
-                let point = touches.first?.location(in: view) ?? origin ?? .zero
+                let point = touches.first?.location(in: space ?? view) ?? origin ?? .zero
                 end(point, cancelled)
                 state = cancelled ? .cancelled : .ended
             } else {
