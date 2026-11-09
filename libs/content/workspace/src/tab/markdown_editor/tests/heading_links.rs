@@ -74,3 +74,28 @@ fn a_far_heading_lands_where_a_near_one_does() {
     assert!((near - far).abs() < 0.5, "near {near}, far {far}");
     assert!((near - quoted).abs() < 0.5, "near {near}, quoted {quoted}");
 }
+
+/// The link glyph sits after a heading's last letter, not after the spaces
+/// that trail it.
+#[test]
+fn the_link_glyph_follows_a_headings_text_not_its_spaces() {
+    let md = format!("# Title{}\n\nbody\n", " ".repeat(14));
+    let mut ws = TestEditor::new(&md);
+    // the caret after the spaces, as when they were just typed
+    let end = super::super::input::Location::Grapheme(Grapheme(7 + 14));
+    let region = super::super::input::Region::BetweenLocations { start: end, end };
+    ws.push(super::super::input::Event::Select { region });
+    ws.enter_frame();
+    let [top, bottom] = ws.editor.edit.cursor_line(Grapheme(7)).unwrap();
+    let layout = &ws.editor.edit.renderer.layout;
+    let size = layout.indent * 0.8;
+    let pos =
+        egui::pos2(top.x + layout.inline_padding * 2.0 + size / 2.0, (top.y + bottom.y) / 2.0);
+    let (button, modifiers) = (egui::PointerButton::Primary, egui::Modifiers::default());
+    ws.enter_frame_with_input(vec![egui::Event::PointerMoved(pos)]);
+    ws.enter_frame_with_input(vec![
+        egui::Event::PointerButton { pos, button, pressed: true, modifiers },
+        egui::Event::PointerButton { pos, button, pressed: false, modifiers },
+    ]);
+    assert!(ws.editor.edit.renderer.heading_copied.is_some(), "the glyph at {pos:?} copies");
+}

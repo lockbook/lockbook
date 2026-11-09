@@ -610,6 +610,7 @@ impl<'ast> MdRender {
         let code_line = self.code_line_range(node, node_code_block, node_line, synthetic);
         let code_line_text = &self.buffer[code_line];
         let mut layout = Layout::new(code_line);
+        layout.keep_spaces();
         let regions = self.code_line_regions(node, node_code_block, code_line, synthetic);
         if let Some(regions) = regions {
             let text_format = self.text_format(node);

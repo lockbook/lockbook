@@ -83,6 +83,7 @@ impl<'ast> MdRender {
     fn layout_source_line(&self, line_idx: usize) -> Layout {
         let line = self.bounds.source_lines[line_idx];
         let mut layout = Layout::new(line);
+        layout.keep_spaces();
         if self.mask {
             // One `*` per source byte keeps the `one_to_one` (byte-indexed)
             // mapping exact — cursor, selection, and iOS text rects line up

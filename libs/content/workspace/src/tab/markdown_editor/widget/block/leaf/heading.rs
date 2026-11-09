@@ -13,7 +13,9 @@ use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::View;
 use crate::tab::markdown_editor::fragment;
 use crate::tab::markdown_editor::input::Event;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Layout, WrapUnitLayout};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{
+    FragmentContent, Layout, WrapUnitLayout,
+};
 
 /// How long a copied heading link shows its check.
 const COPIED_SECS: f32 = 1.5;
@@ -210,9 +212,19 @@ impl<'ast> MdRender {
         // todo: proper hit-testing (this ignores anything covering the space)
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
+        // beside the first line's text, which an image makes its row tall above
+        let text_top = self
+            .fragments
+            .iter()
+            .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
+            .filter(|f| first_line.contains_range(&f.source_range, true, true))
+            .map(|f| f.rect.top())
+            .reduce(f32::min);
+        let text_top_left =
+            Pos2::new(top_left.x, text_top.map_or(top_left.y, |top| top_left.y.max(top)));
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
-            Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
+            Self::fold_button_size_icon_size_space(text_top_left, row_height, self.layout.indent);
         let show_fold_button = self.interactive
             && (self.touch_mode
                 || hovered
@@ -324,7 +336,7 @@ impl<'ast> MdRender {
                 let h = result.height;
                 self.show_wrap_layout(ui, top_left, &result);
                 self.show_block_line_prefixes(ui, node, line, top_left, row_height);
-                trailing = row_trailing(top_left, &result);
+                trailing = self.row_trailing(top_left, &result);
                 top_left.y += h;
                 top_left.y += self.layout.row_spacing;
             } else if reveal {
@@ -363,7 +375,7 @@ impl<'ast> MdRender {
         let height = result.height;
         self.show_wrap_layout(ui, top_left, &result);
         self.show_block_line_prefixes(ui, node, line, top_left, row_height);
-        let trailing = row_trailing(top_left, &result);
+        let trailing = self.row_trailing(top_left, &result);
 
         top_left.y += height;
         if level == 1 {
@@ -580,15 +592,18 @@ impl<'ast> MdRender {
     pub fn heading_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
         self.range_contains_fold_revealed(self.heading_contents(node), false, true)
     }
-}
 
-/// The right end of a wrap unit's last row, at that row's middle.
-fn row_trailing(top_left: Pos2, layout: &WrapUnitLayout) -> Option<Pos2> {
-    let row = layout.rows.last()?;
-    let right = row
-        .fragments
-        .iter()
-        .map(|f| f.rect.right())
-        .fold(0.0_f32, f32::max);
-    Some(Pos2::new(top_left.x + right, top_left.y + row.y_top + (row.ascent + row.descent) / 2.0))
+    /// The right end of what a wrap unit's last row shows, before any spaces
+    /// trailing it, at that row's middle.
+    fn row_trailing(&self, top_left: Pos2, layout: &WrapUnitLayout) -> Option<Pos2> {
+        let row = layout.rows.last()?;
+        let right = row
+            .fragments
+            .iter()
+            .filter(|f| f.source_range.is_empty() || !self.buffer[f.source_range].trim().is_empty())
+            .map(|f| f.rect.right())
+            .fold(0.0_f32, f32::max);
+        let y = top_left.y + row.y_top + (row.ascent + row.descent) / 2.0;
+        Some(Pos2::new(top_left.x + right, y))
+    }
 }

@@ -175,7 +175,14 @@ impl<'ast> MdRender {
         let Some(url) = image_url(node) else { return };
         // Always interactive: a plain tap selects, a cmd/keyboard-hidden tap opens.
         layout.interaction_open(Self::image_interaction_id_salt(node_range), egui::Sense::click());
-        let (ascent, descent) = small_image_metrics(size.y, self.row_height(node));
+        // sized against the text it sits in: a heading's, else the body's
+        let block = node
+            .ancestors()
+            .skip(1)
+            .find(|a| a.data.borrow().value.is_leaf_block());
+        let row_height = block.map_or(self.layout.row_height, |b| self.row_height(b));
+        let baseline = self.body_baseline(row_height);
+        let (ascent, descent) = small_image_metrics(size.y, row_height, baseline);
         layout.push_embed(EmbedSpec {
             advance: size.x,
             ascent,
@@ -436,14 +443,14 @@ pub struct ImageDims {
     pub height: Option<f32>,
 }
 
-/// An image's `(ascent, descent)` about the text baseline: one up to two
-/// text rows tall centers on the text, growing its row evenly; a taller one
-/// stands on the baseline.
-pub fn small_image_metrics(height: f32, row_height: f32) -> (f32, f32) {
+/// An image's `(ascent, descent)` about the text baseline, `baseline` of the
+/// row down from its top: one up to two text rows tall centers on the text,
+/// growing its row evenly; a taller one stands on the baseline.
+pub fn small_image_metrics(height: f32, row_height: f32, baseline: f32) -> (f32, f32) {
     if height > 2.0 * row_height {
         return (height, 0.0);
     }
-    let ascent = 0.3 * row_height + height / 2.0;
+    let ascent = (baseline - 0.5) * row_height + height / 2.0;
     (ascent, height - ascent)
 }
 

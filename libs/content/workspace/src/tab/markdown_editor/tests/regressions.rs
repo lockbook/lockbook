@@ -2886,3 +2886,109 @@ fn line_moves_from_a_soft_wrapped_row_end_keep_the_column() {
     ws.enter_frame_unfocused();
     assert!(drawn_at_end(&ws, up, lines[0]), "a platform line up landed at {up:?}");
 }
+
+/// The first image's rect and the baseline of the first text beside it.
+fn image_and_baseline(md: &str) -> (egui::Rect, f32) {
+    let (mut ws, embeds) = TestEditor::with_test_embeds(super::harness::build_lb(), md);
+    embeds.complete("https://x.test/a.png", egui::vec2(60.0, 60.0));
+    ws.enter_frame();
+    let fragments = &ws.editor.edit.renderer.fragments;
+    let image = fragments
+        .iter()
+        .find(|f| matches!(f.content, FragmentContent::Embed { .. }))
+        .expect("the image draws")
+        .rect;
+    let baseline = fragments
+        .iter()
+        .find_map(|f| match &f.content {
+            FragmentContent::Glyphs { buffer, .. } => {
+                let line_y = buffer.read().unwrap().layout_runs().next()?.line_y;
+                Some(f.rect.top() + f.content_inset.top + line_y)
+            }
+            _ => None,
+        })
+        .expect("the text draws");
+    (image, baseline)
+}
+
+#[test]
+fn a_tall_image_stands_on_its_texts_baseline() {
+    let (image, baseline) = image_and_baseline("before ![a](https://x.test/a.png) after\n");
+    assert!((image.bottom() - baseline).abs() < 0.5, "{image:?} on {baseline}");
+}
+
+#[test]
+fn an_image_in_a_heading_measures_against_the_headings_text() {
+    // 60 tall: past two body rows, within two heading rows, so it centers
+    let (image, baseline) = image_and_baseline("# before ![a](https://x.test/a.png) after\n");
+    assert!(image.bottom() > baseline + 1.0, "{image:?} centers on the text about {baseline}");
+}
+
+/// Types spaces at `at` in `md`, whose image is as wide as the note allows,
+/// and returns that image's rect, the note's right edge, the caret's top and
+/// bottom, and the caret's top before typing.
+fn spaces_typed(md: &str, at: usize) -> (egui::Rect, f32, [egui::Pos2; 2], egui::Pos2) {
+    let (mut ws, embeds) = TestEditor::with_test_embeds(super::harness::build_lb(), md);
+    embeds.complete("https://x.test/a.png", egui::vec2(4000.0, 100.0));
+    let at = Location::Grapheme(Grapheme(at));
+    ws.push(Event::Select { region: Region::BetweenLocations { start: at, end: at } });
+    ws.enter_frame();
+    let caret = |ws: &TestEditor| {
+        let offset = ws.editor.edit.renderer.buffer.current.selection.1;
+        ws.editor.edit.cursor_line(offset).expect("the caret draws")
+    };
+    let [before, _] = caret(&ws);
+    let text = " ".repeat(300);
+    ws.push(Event::Replace { region: Region::Selection, text, advance_cursor: true });
+    ws.enter_frame();
+    let image = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .find(|f| matches!(f.content, FragmentContent::Embed { .. }))
+        .expect("the image draws")
+        .rect;
+    let edge = image.left() + ws.editor.edit.renderer.width;
+    (image, edge, caret(&ws), before)
+}
+
+#[test]
+fn spaces_typed_at_the_end_of_a_row_hang_off_it() {
+    let md = "![a](https://x.test/a.png)\n\nword\n";
+    let (_, edge, [top, _], before) = spaces_typed(md, md.len() - 1);
+    assert_eq!(top.y, before.y, "the spaces stay on the row they end");
+    assert!(top.x <= edge + 0.5, "the caret at {top:?} stays in the note, before {edge}");
+}
+
+#[test]
+fn spaces_typed_after_a_wide_image_hang_off_its_row() {
+    let md = "![a](https://x.test/a.png)\n";
+    let (image, edge, [top, bottom], _) = spaces_typed(md, md.len() - 1);
+    assert!(top.y < image.bottom() && bottom.y > image.top(), "the caret stays beside the image");
+    assert!(top.x <= edge + 0.5, "the caret at {top:?} stays in the note, before {edge}");
+}
+
+/// A click past a row's hanging spaces lands at the row's end: after the
+/// spaces, before the one a wrap takes.
+#[test]
+fn a_click_past_hanging_spaces_lands_at_the_rows_end() {
+    let spaces = " ".repeat(300);
+    for (md, end) in [(format!("word{spaces}\n"), 304), (format!("word{spaces}end\n"), 303)] {
+        let mut ws = TestEditor::new(&md);
+        ws.enter_frame();
+        let [top, bottom] = ws.editor.edit.cursor_line(Grapheme(1)).unwrap();
+        let pos = egui::pos2(790.0, (top.y + bottom.y) / 2.0);
+        let (button, modifiers) = (egui::PointerButton::Primary, egui::Modifiers::default());
+        ws.enter_frame_with_input(vec![
+            egui::Event::PointerMoved(pos),
+            egui::Event::PointerButton { pos, button, pressed: true, modifiers },
+            egui::Event::PointerButton { pos, button, pressed: false, modifiers },
+        ]);
+        let selection = ws.editor.edit.renderer.buffer.current.selection;
+        assert_eq!(selection, (Grapheme(end), Grapheme(end)), "{md:?}");
+        let [caret, _] = ws.editor.edit.cursor_line(selection.1).unwrap();
+        assert_eq!(caret.y, top.y, "the caret stays on the clicked row");
+    }
+}
