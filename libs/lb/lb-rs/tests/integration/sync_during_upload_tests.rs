@@ -76,6 +76,7 @@ fn gated_server() -> GatedServer {
         google_play_client: base.google_play_client,
         app_store_client: base.app_store_client,
         document_service: GatedDocuments::default(),
+        clock: base.clock,
         discord_client: base.discord_client,
         recent_new_account_ips: base.recent_new_account_ips,
     }
