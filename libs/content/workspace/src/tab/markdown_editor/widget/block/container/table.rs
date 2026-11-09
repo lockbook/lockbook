@@ -86,21 +86,12 @@ impl<'ast> MdRender {
 
                 let mut clipped = ui.new_child(UiBuilder::new().max_rect(table));
                 clipped.set_clip_rect(clip);
-                let header_slots = self.table_header_slots.len();
                 self.show_block_children(&mut clipped, node, top_left - Vec2::new(scroll, 0.0));
 
-                // the header fades in its own color, inside the border, which
-                // stays put over the fades
+                // rows fade into the page, the header's ground too, so an edge
+                // with more beyond it shows; the border stays put over the fades
                 let inside = table.shrink(1.0);
-                let header = self
-                    .table_header_slots
-                    .get(header_slots)
-                    .map(|(_, rect)| *rect);
-                let header_bottom = header.map_or(inside.top(), |h| h.bottom());
-                let bands = [
-                    (inside.top(), header_bottom, theme.neutral_bg_secondary()),
-                    (header_bottom, inside.bottom(), theme.neutral_bg()),
-                ];
+                let bands = [(inside.top(), inside.bottom(), theme.neutral_bg())];
                 let key = node.first_child().map(|header| self.table_row_key(header));
                 if let Some(ordinal) = key.and_then(|key| self.table_ordinal(key)) {
                     let key = RowScroller::Table(ordinal);
@@ -176,77 +167,63 @@ impl<'ast> MdRender {
         })
     }
 
-    /// The width of each of the table's columns, padding included. A
-    /// column is as wide as its widest cell on one row where the table's
-    /// width allows that; else the columns share the width in proportion,
-    /// none narrower than its longest unbreakable run, and cells wrap. If
-    /// not even those runs fit, each column is as wide as its own and the
-    /// table is wider than the note, in which it scrolls.
+    /// The width of each of the table's columns, padding included: as
+    /// wide as its widest cell's content on one row, between a column's
+    /// narrowest and widest. Past the widest, text wraps; a table wider
+    /// than the note scrolls.
     pub fn table_column_widths(&self, table: &'ast AstNode<'ast>) -> Rc<[f32]> {
         if let Some(columns) = self.get_cached_table_columns(table) {
             return columns;
         }
-
-        let available = self.width(table);
-        let padding = 2.0 * self.layout.block_padding;
-        let row_height = self.layout.row_height;
-        // an image's size here is what it will shrink from, never grow to
-        let embed_min = 3.0 * row_height;
-
-        let column_count = table
+        let count = table
             .first_child()
             .map_or(0, |header| header.children().count());
-        let mut narrowest = vec![0f32; column_count];
-        let mut widest = vec![0f32; column_count];
-        self.layout_cache
-            .table_cell_measure
-            .set(Some((available - padding).max(0.0)));
+        let padding = 2.0 * self.layout.block_padding;
+        let (narrowest, widest) = (self.layout.table_column_width, self.layout.table_column_max);
+        let mut widths = vec![narrowest; count];
+        self.layout_cache.table_cell_measuring.set(true);
         for row in table.children() {
-            for (column, cell) in row.children().enumerate().take(column_count) {
+            for (column, cell) in row.children().enumerate().take(count) {
                 if self.table_cell_autocompleted(cell) {
                     break;
                 }
-                // an embed is measured at the width it is clamped to
-                let measuring = (available - padding).max(0.0).to_bits();
-                let key = self.table_cell_stamp(cell);
-                let (run, row) = self
-                    .table_cell_cached(key.map(|stamp| (stamp, measuring, true)), || {
-                        self.measure_layout(self.layout_table_cell(cell), row_height, embed_min)
-                    });
-                if row > 0.0 {
-                    narrowest[column] = narrowest[column].max(run.ceil());
-                    // a pixel to spare, or rounding wraps a cell that fits
-                    widest[column] = widest[column].max(row.ceil() + 1.0);
-                }
+                // a point to spare, or rounding wraps a cell that fits
+                let fit = padding + self.table_cell_fit(cell, widest - padding).ceil() + 1.0;
+                widths[column] = widths[column].max(fit.min(widest));
             }
         }
-        self.layout_cache.table_cell_measure.set(None);
-        for column in 0..column_count {
-            // room to click into a column, more if it holds nothing yet
-            let room = if widest[column] == 0.0 { 3.0 * row_height } else { row_height };
-            // and no column wider than the note: a run that long breaks
-            let note = (available - padding).max(room);
-            narrowest[column] = narrowest[column].max(room).min(note);
-            widest[column] = widest[column].max(room);
-        }
-
-        let total = |widths: &[f32]| widths.iter().sum::<f32>() + padding * column_count as f32;
-        let (least, most) = (total(&narrowest), total(&widest));
-        let columns: Rc<[f32]> = (0..column_count)
-            .map(|column| {
-                let (narrowest, widest) = (narrowest[column], widest[column]);
-                padding
-                    + if most <= available {
-                        widest
-                    } else if least <= available {
-                        let spare = (available - least) / (most - least);
-                        narrowest + (widest - narrowest) * spare
-                    } else {
-                        narrowest
-                    }
-            })
-            .collect();
+        self.layout_cache.table_cell_measuring.set(false);
+        let columns: Rc<[f32]> = widths.into();
         self.set_cached_table_columns(table, columns.clone());
         columns
+    }
+
+    /// How wide `cell`'s content is laid out within `room`: its widest row,
+    /// so what wraps there, as text or a stack of embeds, is as wide as it
+    /// is wrapped.
+    fn table_cell_fit(&self, cell: &'ast AstNode<'ast>, room: f32) -> f32 {
+        let key = self
+            .table_cell_stamp(cell)
+            .map(|stamp| (stamp, room.to_bits(), true));
+        self.table_cell_cached(key, || {
+            let layout = self.layout_table_cell(cell);
+            let layout = self.compute_layout_from(layout, room, self.layout.row_height);
+            // a row holding a background, as a chip, keeps its padding's room, as wrapping does
+            let room = 2.0 * self.layout.inline_padding;
+            let row_width = |row: &crate::tab::markdown_editor::widget::utils::wrap_layout::Row| {
+                let right = row
+                    .fragments
+                    .iter()
+                    .map(|f| f.rect.right())
+                    .fold(0.0, f32::max);
+                let background = row.fragments.iter().any(|f| {
+                    f.style_stack
+                        .iter()
+                        .any(|s| s.format.background != egui::Color32::TRANSPARENT)
+                });
+                if background { right + room } else { right }
+            };
+            layout.rows.iter().map(row_width).fold(0.0, f32::max)
+        })
     }
 }

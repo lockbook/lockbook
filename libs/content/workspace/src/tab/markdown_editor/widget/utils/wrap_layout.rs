@@ -726,52 +726,6 @@ impl MdRender {
         WrapUnitLayout { source_range, rows, height, width, row_height, prose: layout.prose }
     }
 
-    /// How wide a wrap unit can usefully be made: at least its longest run
-    /// with nowhere to break, and at most all of it on one row. An embed
-    /// shrinks to fit what holds it, so it counts for no more than
-    /// `embed_min`, and rows break on either side of it. Mirrors
-    /// [`greedy_break`], which leaves room for a background's padding
-    /// around what it holds.
-    pub fn measure_layout(&self, layout: Layout, row_height: f32, embed_min: f32) -> (f32, f32) {
-        const UNBOUNDED: f32 = 100_000.0;
-        let inline_pad = self.layout.inline_padding;
-        let items =
-            shape_to_items(self, &layout, row_height, UNBOUNDED, inline_pad).unwrap_or_default();
-        let (mut run, mut widest_run, mut row, mut widest_row) = (0f32, 0f32, 0f32, 0f32);
-        let mut backgrounds: Vec<bool> = Vec::new();
-        let mut after_embed = false;
-        for item in &items {
-            let room = if backgrounds.contains(&true) { 2.0 * inline_pad } else { 0.0 };
-            match item {
-                InlineItem::Box { advance, .. } | InlineItem::Pad { advance, .. } => {
-                    if std::mem::take(&mut after_embed) {
-                        run = 0.0;
-                    }
-                    run += advance;
-                    row += advance;
-                }
-                InlineItem::Embed(spec) => {
-                    run = spec.advance.min(embed_min);
-                    row += spec.advance;
-                    after_embed = true;
-                }
-                InlineItem::Glue { natural, .. } => {
-                    run = 0.0;
-                    row += natural;
-                }
-                InlineItem::Break { .. } => (run, row, after_embed) = (0.0, 0.0, false),
-                InlineItem::StyleOpen(style) => {
-                    backgrounds.push(style.format.background != egui::Color32::TRANSPARENT)
-                }
-                InlineItem::StyleClose => drop(backgrounds.pop()),
-                InlineItem::InteractionOpen(..) | InlineItem::InteractionClose => {}
-            }
-            widest_run = widest_run.max(run + room);
-            widest_row = widest_row.max(row + room);
-        }
-        (widest_run, widest_row)
-    }
-
     /// Convenience: lay out a single source range with one format
     /// (no style brackets, no overrides, no embeds).
     pub fn compute_section_layout_new(
@@ -1568,7 +1522,8 @@ pub fn greedy_break(
                 } else if wraps && cur_width > 0.0 {
                     // nowhere earlier on the row to wrap (it holds one
                     // unbreakable run, as a chip): the space starts the next
-                    // row, as an overflowing box does
+                    // row, as an overflowing box does; after an image, which
+                    // shrinks to fill its row, it hangs off the row's end
                     breaks.push(i);
                     cur_width = *natural;
                     if bg_open(&scope_bg_stack) {

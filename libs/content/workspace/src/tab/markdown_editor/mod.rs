@@ -650,6 +650,11 @@ pub struct MdLayout {
     pub annotation_font_size: f32,
     pub row_height: f32,
     pub block_padding: f32,
+    /// A table column's narrowest width, its padding included.
+    pub table_column_width: f32,
+    /// A table column's widest, its padding included: past it, text
+    /// wraps; an image or a note embed in a cell is at most this wide.
+    pub table_column_max: f32,
     pub indent: f32,
     pub bullet_radius: f32,
     pub row_spacing: f32,
@@ -669,6 +674,8 @@ impl MdLayout {
             annotation_font_size: 12.0,
             row_height: 16.0,
             block_padding: 10.0,
+            table_column_width: 150.0,
+            table_column_max: 300.0,
             indent: 26.0,
             bullet_radius: 2.0,
             row_spacing: 6.0,
@@ -688,6 +695,8 @@ impl MdLayout {
             annotation_font_size: 12.0,
             row_height: 16.0,
             block_padding: 10.0,
+            table_column_width: 150.0,
+            table_column_max: 300.0,
             indent: 26.0,
             bullet_radius: 2.0,
             row_spacing: 6.0,

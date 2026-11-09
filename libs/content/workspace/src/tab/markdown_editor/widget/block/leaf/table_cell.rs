@@ -29,7 +29,7 @@ impl<'ast> MdRender {
 
         // a space typed at the end of a cell is padding once typed; it shows
         // while the caret is still after it
-        let measuring = self.layout_cache.table_cell_measure.get().is_some();
+        let measuring = self.layout_cache.table_cell_measuring.get();
         let typed = self
             .reveal_selection
             .into_iter()
@@ -55,7 +55,7 @@ impl<'ast> MdRender {
     pub fn table_cell_stamp(&self, node: &'ast AstNode<'ast>) -> Option<u64> {
         let span = self.node_range(node);
         let touches = |range: (_, _)| span.intersects(&range, true);
-        let measuring = self.layout_cache.table_cell_measure.get().is_some();
+        let measuring = self.layout_cache.table_cell_measuring.get();
         let marked = self.entered_atom.filter(|_| !measuring);
         let marked = marked.into_iter().chain(self.search_range);
         if self.reveal_ranges().chain(marked).any(touches) {
@@ -88,8 +88,8 @@ impl<'ast> MdRender {
     /// What `compute` gives for a cell, kept under `key` for the next
     /// time the cell, or one just like it, is asked the same.
     pub fn table_cell_cached(
-        &self, key: Option<TableCellKey>, compute: impl FnOnce() -> (f32, f32),
-    ) -> (f32, f32) {
+        &self, key: Option<TableCellKey>, compute: impl FnOnce() -> f32,
+    ) -> f32 {
         let Some(key) = key else { return compute() };
         let cached = self.layout_cache.table_cells.borrow().get(&key).copied();
         if let Some(cached) = cached {
@@ -116,21 +116,15 @@ impl<'ast> MdRender {
             let key = key.map(|stamp| (stamp, width.to_bits(), false));
             let height = || {
                 let layout = self.layout_table_cell(node);
-                (
-                    self.compute_layout_from(layout, width, self.layout.row_height)
-                        .height,
-                    0.0,
-                )
+                self.compute_layout_from(layout, width, self.layout.row_height)
+                    .height
             };
-            self.table_cell_cached(key, height).0
+            self.table_cell_cached(key, height)
         };
         self.layout.block_padding + content_height + self.layout.block_padding
     }
 
     pub fn width_table_cell(&self, node: &'ast AstNode<'ast>) -> f32 {
-        if let Some(measuring) = self.layout_cache.table_cell_measure.get() {
-            return measuring + 2.0 * self.layout.block_padding;
-        }
         let row = node.parent().unwrap();
         let column = row
             .children()
