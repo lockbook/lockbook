@@ -43,13 +43,14 @@ struct ResultHUD<ID: Equatable>: View {
 struct MoveResult: Equatable {
     let moved: Int
     let requested: Int
+    let destination: String
 
     var message: String {
         if requested == 1 {
-            return moved == 1 ? "File moved" : "File not moved"
+            return moved == 1 ? "Moved to \(destination)" : "File not moved"
         }
 
-        return "\(moved)/\(requested) files moved"
+        return "\(moved)/\(requested) files moved to \(destination)"
     }
 
     var systemImage: String {
@@ -70,8 +71,8 @@ struct ImportResult: Equatable {
 }
 
 #Preview {
-    let full = MoveResult(moved: 5, requested: 5)
-    let partial = MoveResult(moved: 2, requested: 5)
+    let full = MoveResult(moved: 5, requested: 5, destination: "Inbox")
+    let partial = MoveResult(moved: 2, requested: 5, destination: "Inbox")
 
     return VStack(spacing: 20) {
         ResultHUD(id: full, message: full.message, systemImage: full.systemImage) {}

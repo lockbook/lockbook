@@ -182,7 +182,9 @@ import SwiftWorkspace
             return .success(moved)
         } then: { moved in
             if let moved {
-                self.moveResult = MoveResult(moved: moved, requested: requested)
+                self.moveResult = MoveResult(
+                    moved: moved, requested: requested, destination: dest.isRoot ? "Home" : dest.name
+                )
             }
         }
 
