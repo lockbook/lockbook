@@ -194,6 +194,12 @@ impl Place {
     /// fragments a link writes down: a heading that reads as something else
     /// is left off. None for a destination no link names.
     pub fn to_url(&self) -> Option<String> {
+        self.to_url_with(|id| Some(format!("lb://{id}")))
+    }
+
+    /// [`Self::to_url`] with a file's link from `file_url`, such as the
+    /// external URL anyone the file is shared with can open.
+    pub fn to_url_with(&self, file_url: impl FnOnce(Uuid) -> Option<String>) -> Option<String> {
         match &self.dest {
             Destination::File(id) => {
                 let fragment = match self.fragment.as_ref().filter(|f| f.persists()) {
@@ -207,7 +213,7 @@ impl Place {
                     Some(Fragment::Entry(entry)) => format!("#{entry}"),
                     _ => String::new(),
                 };
-                Some(format!("lb://{id}{fragment}"))
+                Some(format!("{}{fragment}", file_url(*id)?))
             }
             Destination::Search(state) => {
                 let mut query = url::form_urlencoded::Serializer::new(String::new());
@@ -1775,6 +1781,11 @@ mod nav_tests {
         );
         assert_eq!(Place::new(search("")).to_url().as_deref(), Some("lb://search?type=path"));
         assert_eq!(Place::new(Destination::MindMap(id)).to_url(), None);
+
+        let page = Place::at(Destination::File(id), Some(Fragment::Page(2)));
+        let shared = page.to_url_with(|id| Some(format!("https://app.lockbook.net/open/{id}")));
+        assert_eq!(shared, Some(format!("https://app.lockbook.net/open/{id}#page=3")));
+        assert_eq!(Place::from_url(&shared.unwrap()), Some(page));
     }
 
     /// A place with a link: no text ranges, and headings as a link or the

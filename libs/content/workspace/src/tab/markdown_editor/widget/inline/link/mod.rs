@@ -573,10 +573,11 @@ impl<'ast> MdRender {
             let shown = format!("[[{title}]]");
             return self.explain_unopenable(&shown, self.link_state_for_wikilink(title), ctx);
         };
-        let heading = wiki_fragment(title).1;
+        // the slug, as copying this link writes it
+        let heading = wiki_fragment(title).1.map(slugify);
         match self.link_resolver.wikilink_confirmation(title) {
-            Some(reason) => self.ask_to_open(file_id, heading, new_tab, reason, ctx),
-            None => ctx.open_link(file_id, heading.map(Into::into), new_tab),
+            Some(reason) => self.ask_to_open(file_id, heading.as_deref(), new_tab, reason, ctx),
+            None => ctx.open_link(file_id, heading, new_tab),
         }
     }
 

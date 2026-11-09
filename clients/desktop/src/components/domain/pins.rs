@@ -7,6 +7,7 @@
 use egui::{FontFamily, FontId, Id, Ui, pos2, vec2};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
+use workspace_rs::tab::{Destination, Place};
 
 use crate::components::{
     EqualCells, FixedPadContent, LIST_PAD, QuietChipAlign, QuietChipLabel, Space, Spacer, Theme,
@@ -255,7 +256,7 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
             PinCmd::Move => queue.push(A::OpenMove(vec![row.id])),
             PinCmd::Duplicate => queue.push(A::Duplicate(vec![row.id])),
             PinCmd::Share => queue.push(A::OpenShare(row.id)),
-            PinCmd::CopyLink => queue.push(A::CopyLink(row.id)),
+            PinCmd::CopyLink => queue.push(A::CopyLink(Place::new(Destination::File(row.id)))),
             PinCmd::Export => queue.push(A::Export(vec![row.id])),
             PinCmd::Delete => queue.push(A::OpenDelete(vec![row.id])),
         }

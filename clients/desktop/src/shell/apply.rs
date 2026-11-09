@@ -566,9 +566,10 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::Duplicate(ids) => duplicate_files(app, &ids),
         A::Export(ids) => export_files(app, ctx, &ids),
-        A::CopyLink(id) => {
+        A::CopyLink(place) => {
             if let Some(r) = app.session.ready() {
-                if let Ok(url) = r.workspace.core.get_file_link_url(id) {
+                let core = &r.workspace.core;
+                if let Some(url) = place.to_url_with(|id| core.get_file_link_url(id).ok()) {
                     ctx.copy_text(url);
                 }
             }

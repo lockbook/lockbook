@@ -32,6 +32,7 @@ use egui::{
 };
 use lb::Uuid;
 use workspace_rs::file_cache::{FileCache, FilesExt};
+use workspace_rs::tab::{Destination, Place};
 
 use crate::components::domain::pins;
 use crate::components::{
@@ -947,7 +948,9 @@ fn paint_row(
             }
             FileCmd::Duplicate => queue.push(Action::Duplicate(targets.clone())),
             FileCmd::Export => queue.push(Action::Export(targets.clone())),
-            FileCmd::CopyLink => queue.push(Action::CopyLink(row.id)),
+            FileCmd::CopyLink => {
+                queue.push(Action::CopyLink(Place::new(Destination::File(row.id))))
+            }
             FileCmd::ExpandAll => queue.push(Action::ExpandSubtree(row.id)),
             FileCmd::CollapseAll => queue.push(Action::CollapseSubtree(row.id)),
             FileCmd::OrganizeShare | FileCmd::DeclineShare => {}

@@ -386,8 +386,8 @@ pub enum Action {
     Duplicate(Vec<Uuid>),
     /// Export each id into one picked destination folder.
     Export(Vec<Uuid>),
-    /// Copy lb:// or https file link to OS clipboard.
-    CopyLink(Uuid),
+    /// Copy a place's link to the OS clipboard, a file's as its external URL.
+    CopyLink(workspace_rs::tab::Place),
     /// Show the Files pane with the file selected and scrolled into view.
     RevealInFiles(Uuid),
     Import,
