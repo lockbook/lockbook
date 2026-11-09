@@ -89,8 +89,6 @@ impl LbWebApp {
             panic!("must use wgpu as graphics target")
         };
 
-        workspace_rs::OffscreenGpu::new(&wgpu.device, &wgpu.queue, 1).install(&ctx);
-
         workspace_rs::register_render_callback_resources(
             &wgpu.device,
             &wgpu.queue,

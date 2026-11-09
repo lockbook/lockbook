@@ -2,60 +2,14 @@
 //! previews drawn off screen.
 
 use std::iter;
-use std::sync::Arc;
 
 use egui::TexturesDelta;
 use egui::epaint::ClippedPrimitive;
-use egui_wgpu::{Renderer, RendererOptions, ScreenDescriptor};
+use egui_wgpu::{Renderer, ScreenDescriptor};
 use wgpu::{Device, Queue, TextureFormat};
 
 /// The format a renderer for [`render_offscreen`] is built with.
 pub const OFFSCREEN_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
-
-/// A reusable offscreen renderer sharing the live application's GPU.
-#[derive(Clone)]
-pub struct OffscreenGpu {
-    device: Device,
-    queue: Queue,
-    renderer: Arc<futures::lock::Mutex<Renderer>>,
-    sample_count: u32,
-}
-
-impl OffscreenGpu {
-    pub fn new(device: &Device, queue: &Queue, sample_count: u32) -> Self {
-        let renderer = Renderer::new(
-            device,
-            OFFSCREEN_FORMAT,
-            RendererOptions { msaa_samples: sample_count, ..Default::default() },
-        );
-        Self {
-            device: device.clone(),
-            queue: queue.clone(),
-            renderer: Arc::new(futures::lock::Mutex::new(renderer)),
-            sample_count,
-        }
-    }
-
-    pub fn install(&self, ctx: &egui::Context) {
-        ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, self.clone()));
-    }
-
-    pub fn of(ctx: &egui::Context) -> Option<Self> {
-        ctx.data(|d| d.get_temp(egui::Id::NULL))
-    }
-
-    /// Frames have their own context and supply all their textures. Release
-    /// those textures after rendering, keeping only the GPU pipeline for reuse.
-    pub async fn render(&self, mut frame: OffscreenFrame) -> Option<Vec<u8>> {
-        frame
-            .textures
-            .free
-            .extend(frame.textures.set.keys().copied());
-        let mut renderer = self.renderer.lock().await;
-        render_offscreen_async(&self.device, &self.queue, &mut renderer, frame, self.sample_count)
-            .await
-    }
-}
 
 /// A frame for [`render_offscreen`]: tessellated, with every texture change
 /// its context made since the renderer last saw it.

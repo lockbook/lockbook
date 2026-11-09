@@ -434,7 +434,7 @@
             clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
         }
 
-        /// Raster formats accepted by clipboard_send_image; SVGs go through clipboard_send_file.
+        /// copy of workspace::tab::image_viewer::is_supported_image_fmt() because ffi seems like overkill
         func isSupportedImageFormat(ext: String) -> Bool {
             // Complete list derived from which features are enabled on image crate according to image-rs default features:
             // https://github.com/image-rs/image/blob/main/Cargo.toml#L70

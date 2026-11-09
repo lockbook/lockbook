@@ -1,11 +1,9 @@
 //! Rasterize Lockbook drawings with the canvas renderer.
 
-use egui::{ColorImage, Context, Rect, Vec2};
-use egui_wgpu_renderer::{OffscreenFrame, OffscreenGpu, wgpu};
-use lb_rs::Uuid;
+use egui::{ColorImage, Rect, Vec2};
+use egui_wgpu_renderer::{OffscreenFrame, egui_wgpu, render_offscreen_async, wgpu};
 use lb_rs::blocking::Lb;
 use lb_rs::model::svg::buffer::{Buffer, is_lockbook_group};
-use lb_rs::model::svg::element::Element;
 use resvg::usvg::Transform;
 
 use super::element::PromoteBufferWeakImages;
@@ -50,29 +48,13 @@ impl Drawing {
         Self { bounds, buffer }
     }
 
-    pub fn references(&self) -> Vec<Uuid> {
-        self.buffer
-            .elements
-            .values()
-            .filter_map(|element| match element {
-                Element::Image(image) => Some(image.href),
-                _ => None,
-            })
-            .collect()
-    }
-
-    /// Clipboard pixels use the same GPU pipeline as cached previews.
-    pub async fn image(&self, ctx: &Context, dark_mode: bool) -> Result<ColorImage, String> {
-        self.rasterize(ctx, dark_mode, self.bounds.size().max_elem().min(2048.0))
-            .await
-    }
-
-    /// Render through egui-wgpu on the live device. Pixels are temporary: the
-    /// cache uploads them and drops the CPU copy; the clipboard owns its copy.
+    /// Rasterize with the caller's GPU renderer, returning temporary RGBA pixels.
+    /// The renderer must use `egui_wgpu_renderer::OFFSCREEN_FORMAT` and the
+    /// supplied sample count. Its textures belong to this drawing pass.
     pub async fn rasterize(
-        &self, live: &Context, dark_mode: bool, max_side: f32,
+        &self, device: &wgpu::Device, queue: &wgpu::Queue, gpu: &mut egui_wgpu::Renderer,
+        sample_count: u32, dark_mode: bool, max_side: f32,
     ) -> Result<ColorImage, String> {
-        let gpu = OffscreenGpu::of(live).ok_or("drawing GPU renderer unavailable")?;
         let mut buffer = self.buffer.clone();
         let mut renderer = Renderer::new(buffer.elements.len());
         let scale = max_side / self.bounds.size().max_elem();
@@ -105,6 +87,11 @@ impl Drawing {
             }
         }
         let size = [size.x as u32, size.y as u32];
+        // Each pass has its own context; release its textures after readback.
+        output
+            .textures_delta
+            .free
+            .extend(output.textures_delta.set.keys().copied());
         let frame = OffscreenFrame {
             paint_jobs: ctx.tessellate(output.shapes, 1.0),
             textures: output.textures_delta,
@@ -112,8 +99,7 @@ impl Drawing {
             pixels_per_point: 1.0,
             clear: wgpu::Color::TRANSPARENT,
         };
-        let pixels = gpu
-            .render(frame)
+        let pixels = render_offscreen_async(device, queue, gpu, frame, sample_count)
             .await
             .ok_or("the GPU returned no drawing pixels")?;
         Ok(ColorImage::from_rgba_premultiplied(size.map(|n| n as usize), &pixels))

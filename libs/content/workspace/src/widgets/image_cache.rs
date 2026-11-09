@@ -5,9 +5,8 @@
 //! freed) after one grace frame. Matches the lifecycle pattern used by
 //! [`GlyphonCache`](super::glyphon_cache::GlyphonCache).
 //!
-//! The cache loads lockbook files and http(s) URLs, rasterizes Lockbook drawings
-//! with the canvas renderer and generic SVG via resvg, and
-//! corrects EXIF orientation. Decoded images are uploaded as
+//! The cache loads lockbook files and http(s) URLs, rasterizes SVG via
+//! resvg, and corrects EXIF orientation. Decoded images are uploaded as
 //! egui textures. Animated gifs, WebPs and PNGs play: a [`Player`] swaps
 //! each frame into the image's one texture as the frame clock reaches it.
 
@@ -36,9 +35,7 @@ use resvg::usvg::{self, Transform};
 
 use crate::file_cache::FileCache;
 use crate::seq::ws_seq;
-use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::HttpClient;
-use crate::tab::svg_editor::drawing::Drawing;
 use crate::workspace::WsPersistentStore;
 
 /// Wraps a block in an `async` closure on wasm, a plain closure on native.
@@ -46,14 +43,14 @@ use crate::workspace::WsPersistentStore;
 /// synchronously on native (where `spawn!` backs onto a worker thread).
 #[cfg(target_arch = "wasm32")]
 macro_rules! async_on_wasm {
-    ($result:ty, $block:block) => {
-        (async || -> Result<$result, String> { $block })
+    ($block:block) => {
+        (async || -> Result<Decoded, String> { $block })
     };
 }
 #[cfg(not(target_arch = "wasm32"))]
 macro_rules! async_on_wasm {
-    ($result:ty, $block:block) => {
-        (|| -> Result<$result, String> { $block })
+    ($block:block) => {
+        (|| -> Result<Decoded, String> { $block })
     };
 }
 
@@ -92,14 +89,6 @@ struct Inner {
     shown_anyway: HashSet<(Uuid, ImageKey)>,
     /// Animations that are loaded and still playing; evicted with their texture.
     players: HashMap<ImageKey, Player>,
-    /// Only dependency IDs and rasterization settings survive drawing loads.
-    drawings: HashMap<ImageKey, DrawingTexture>,
-}
-
-struct DrawingTexture {
-    references: Vec<Uuid>,
-    dark_mode: bool,
-    pixels_per_point: f32,
 }
 
 #[derive(Clone)]
@@ -113,8 +102,6 @@ pub struct ImageCache {
     core: Lb,
     files: Arc<RwLock<FileCache>>,
     persistence: WsPersistentStore, // persist image dims
-    #[cfg(not(target_family = "wasm"))]
-    writes: Arc<Mutex<lb_rs::service::events::Receiver<lb_rs::service::events::Event>>>,
 }
 
 impl ImageCache {
@@ -129,8 +116,6 @@ impl ImageCache {
             ws_seq,
             ctx,
             client,
-            #[cfg(not(target_family = "wasm"))]
-            writes: Arc::new(Mutex::new(core.subscribe())),
             core,
             files,
             persistence,
@@ -145,9 +130,6 @@ impl ImageCache {
     }
 
     pub fn begin_frame(&self) {
-        #[cfg(not(target_family = "wasm"))]
-        self.reload_written();
-        self.reload_drawings();
         let now = self.ctx.input(|i| i.time);
         let mut inner = self.inner.lock().unwrap();
         if !inner.began_this_frame {
@@ -214,7 +196,6 @@ impl ImageCache {
                 keep.push((key, state));
             } else if let Some(id) = free_id {
                 inner.players.remove(&key);
-                inner.drawings.remove(&key);
                 texture_manager.write().free(id);
             }
         }
@@ -292,61 +273,48 @@ impl ImageCache {
         self.ctx.pixels_per_point()
     }
 
+    /// The file's pixels, an animation's first frame, and its bytes.
+    pub fn copied_image(&self, id: Uuid) -> Result<(ColorImage, Vec<u8>), String> {
+        let bytes = self
+            .core
+            .read_document(id, false)
+            .map_err(|e| e.to_string())?;
+        let image = decode_with_orientation(&bytes)?;
+        let size = [image.width() as usize, image.height() as usize];
+        Ok((ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()), bytes))
+    }
+
     /// Put `key`'s image on the clipboard once it's read and decoded, off
     /// the UI thread.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn copy_image(&self, key: &ImageKey) {
         let key = key.clone();
         let (ctx, client, core) = (self.ctx.clone(), self.client.clone(), self.core.clone());
-        let dark_mode = ctx.style_of(ctx.theme()).visuals.dark_mode;
         spawn!({
-            let read = async_on_wasm!((ColorImage, Vec<u8>), {
+            let read = || -> Result<ColorImage, String> {
                 let (bytes, is_svg) = match &key {
                     ImageKey::File(id) => {
                         let bytes = core.read_document(*id, false).map_err(|e| e.to_string())?;
                         let file = core.get_file_by_id(*id).map_err(|e| e.to_string())?;
-                        (bytes, file.name.to_ascii_lowercase().ends_with(".svg"))
+                        (bytes, file.name.ends_with(".svg"))
                     }
                     ImageKey::Web(url) => {
-                        #[cfg(target_arch = "wasm32")]
-                        let bytes = download_image(&client, url)
-                            .await
-                            .map_err(|e| e.to_string())?;
-                        #[cfg(not(target_arch = "wasm32"))]
                         let bytes = download_image(&client, url)?;
                         let is_svg = url.ends_with(".svg") || bytes_look_like_svg(&bytes);
                         (bytes, is_svg)
                     }
                 };
-                if is_svg
-                    && matches!(key, ImageKey::File(_))
-                    && Drawing::is_lockbook_drawing(&bytes)
-                {
-                    let drawing = Drawing::load(&bytes, &core)?;
-                    let image = drawing.image(&ctx, dark_mode);
-                    #[cfg(target_arch = "wasm32")]
-                    let image = image.await?;
-                    #[cfg(not(target_arch = "wasm32"))]
-                    let image = futures::executor::block_on(image)?;
-                    return Ok((image, bytes));
-                }
-                let rasterized = if is_svg {
-                    Some(rasterize_svg(&bytes, matches!(key, ImageKey::File(_)), 2048.0, 1.0)?)
+                let bytes = if is_svg {
+                    rasterize_svg(&bytes, matches!(key, ImageKey::File(_)), 2048.0, 1.0)?
                 } else {
-                    None
+                    bytes
                 };
-                let image = decode_with_orientation(rasterized.as_deref().unwrap_or(&bytes))?;
+                let image = decode_with_orientation(&bytes)?;
                 let size = [image.width() as usize, image.height() as usize];
-                Ok((ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()), bytes))
-            });
-            #[cfg(target_arch = "wasm32")]
-            let result = read().await;
-            #[cfg(not(target_arch = "wasm32"))]
-            let result = read();
-            match result {
-                Ok((image, bytes)) => {
-                    if image::guess_format(&bytes).is_ok_and(|f| f == ImageFormat::Gif) {
-                        ctx.set_copied_gif(bytes);
-                    }
+                Ok(ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()))
+            };
+            match read() {
+                Ok(image) => {
                     ctx.copy_image(image);
                     ctx.request_repaint();
                 }
@@ -354,6 +322,9 @@ impl ImageCache {
             }
         });
     }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn copy_image(&self, _key: &ImageKey) {}
 
     /// Whether `key`'s texture is decoded and ready to paint this session — the
     /// real `Loaded` state, not just persisted dims (which outlive the texture).
@@ -414,14 +385,14 @@ impl ImageCache {
         spawn!({
             let span = tracing::trace_span!("ImageCache::load").entered();
 
-            let decode_closure = async_on_wasm!(Decoded, {
+            let decode_closure = async_on_wasm!({
                 let (image_bytes, is_svg) = match &key {
                     ImageKey::File(id) => {
                         let bytes = core
                             .read_document(*id, user_activity)
                             .map_err(|e| e.to_string())?;
                         let file = core.get_file_by_id(*id).map_err(|e| e.to_string())?;
-                        (bytes, file.name.to_ascii_lowercase().ends_with(".svg"))
+                        (bytes, file.name.ends_with(".svg"))
                     }
                     ImageKey::Web(url) => {
                         if !url.starts_with("http://") && !url.starts_with("https://") {
@@ -440,14 +411,14 @@ impl ImageCache {
                     }
                 };
 
-                decode_source(
-                    image_bytes,
-                    is_svg,
-                    matches!(key, ImageKey::File(_)),
-                    &core,
-                    viewport_width,
-                    pixels_per_point,
-                )
+                let image_bytes = if is_svg {
+                    let is_lockbook_svg = matches!(key, ImageKey::File(_));
+                    rasterize_svg(&image_bytes, is_lockbook_svg, viewport_width, pixels_per_point)?
+                } else {
+                    image_bytes
+                };
+
+                decode(image_bytes)
             });
 
             #[cfg(target_arch = "wasm32")]
@@ -455,12 +426,9 @@ impl ImageCache {
             #[cfg(not(target_arch = "wasm32"))]
             let result = decode_closure();
 
-            #[cfg(target_arch = "wasm32")]
-            let playback = loader.install(&key, &state, result).await;
-            #[cfg(not(target_arch = "wasm32"))]
-            let playback = futures::executor::block_on(loader.install(&key, &state, result));
-            // install consumes the loader, so playback doesn't keep the cache alive.
-            drop(span);
+            let playback = loader.install(&key, &state, result);
+            // a player outlives its loader, so dropping the cache closes the channel
+            drop((span, loader));
             if let Some(playback) = playback {
                 #[cfg(target_arch = "wasm32")]
                 play(playback).await;
@@ -480,99 +448,6 @@ impl ImageCache {
         }
     }
 
-    /// Drop the cached revision, including previews that depend on a changed
-    /// referenced image. A late worker cannot install into a replacement entry.
-    pub fn invalidate(&self, id: Uuid) {
-        let mut inner = self.inner.lock().unwrap();
-        let mut removed = Vec::new();
-        let Inner { current, previous, drawings, .. } = &mut *inner;
-        for map in [current, previous] {
-            map.retain(|key, state| {
-                let state = state.lock().unwrap();
-                // TODO: Handle referenced images changing while a drawing is still loading.
-                let affected = *key == ImageKey::File(id)
-                    || drawings
-                        .get(key)
-                        .is_some_and(|drawing| drawing.references.contains(&id));
-                if affected {
-                    removed.push((
-                        key.clone(),
-                        match &*state {
-                            ImageState::Loaded(texture) => Some(*texture),
-                            _ => None,
-                        },
-                    ));
-                }
-                !affected
-            });
-        }
-        if removed.is_empty() {
-            return;
-        }
-        for (key, texture) in removed {
-            inner.players.remove(&key);
-            inner.drawings.remove(&key);
-            if let Some(texture) = texture {
-                self.ctx.tex_manager().write().free(texture);
-            }
-        }
-        self.seq
-            .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
-        self.ctx.request_repaint();
-    }
-
-    /// Flattened drawings must be rebuilt when their colors or pixel density change.
-    fn reload_drawings(&self) {
-        let dark_mode = self.ctx.style_of(self.ctx.theme()).visuals.dark_mode;
-        let pixels_per_point = self.ctx.pixels_per_point();
-        let ids: Vec<_> = self
-            .inner
-            .lock()
-            .unwrap()
-            .drawings
-            .iter()
-            .filter_map(|(key, drawing)| {
-                if drawing.dark_mode == dark_mode && drawing.pixels_per_point == pixels_per_point {
-                    return None;
-                }
-                if let ImageKey::File(id) = key { Some(*id) } else { None }
-            })
-            .collect();
-        for id in ids {
-            self.invalidate(id);
-        }
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn reload_written(&self) {
-        use lb_rs::service::events::{Event, broadcast::error::TryRecvError};
-        let mut writes = self.writes.lock().unwrap();
-        loop {
-            match writes.try_recv() {
-                Ok(Event::DocumentWritten(id, _)) => self.invalidate(id),
-                Ok(Event::IpcChangesApplied) | Err(TryRecvError::Lagged(_)) => {
-                    let keys: Vec<_> =
-                        {
-                            let inner = self.inner.lock().unwrap();
-                            inner
-                                .current
-                                .keys()
-                                .chain(inner.previous.keys())
-                                .filter_map(|k| {
-                                    if let ImageKey::File(id) = k { Some(*id) } else { None }
-                                })
-                                .collect()
-                        };
-                    for id in keys {
-                        self.invalidate(id);
-                    }
-                }
-                Ok(_) => {}
-                Err(_) => break,
-            }
-        }
-    }
-
     /// Test helper: load `bytes` as `key` on a worker, as a fetch would.
     #[cfg(test)]
     pub fn load_bytes(&self, key: &ImageKey, bytes: Vec<u8>) {
@@ -584,7 +459,8 @@ impl ImageCache {
             .insert(key.clone(), state.clone());
         let (key, loader) = (key.clone(), self.loader());
         std::thread::spawn(move || {
-            let playback = futures::executor::block_on(loader.install(&key, &state, decode(bytes)));
+            let playback = loader.install(&key, &state, decode(bytes));
+            drop(loader);
             if let Some(playback) = playback {
                 futures::executor::block_on(play(playback));
             }
@@ -604,45 +480,15 @@ struct Loader {
 impl Loader {
     /// Shows a decoded image: its first frame becomes its texture. Returns
     /// the rest of an animation, for [`play`] to feed the texture.
-    async fn install(
-        self, key: &ImageKey, state: &Mutex<ImageState>, result: Result<Decoded, String>,
+    fn install(
+        &self, key: &ImageKey, state: &Mutex<ImageState>, result: Result<Decoded, String>,
     ) -> Option<Playback> {
-        // Render on the GPU before taking the cache lock. Drop the parsed
-        // buffer, meshes and CPU pixels once the texture has been uploaded.
-        let result = async {
-            Ok(match result? {
-                Decoded::Drawing(drawing) => {
-                    let dark_mode = self.ctx.style_of(self.ctx.theme()).visuals.dark_mode;
-                    let pixels_per_point = self.ctx.pixels_per_point();
-                    let max_side =
-                        (self.ctx.content_rect().width() * pixels_per_point).clamp(1.0, 2048.0);
-                    let image = drawing.rasterize(&self.ctx, dark_mode, max_side).await?;
-                    let metadata = DrawingTexture {
-                        references: drawing.references(),
-                        dark_mode,
-                        pixels_per_point,
-                    };
-                    (Arc::new(image), None, Some(metadata))
-                }
-                Decoded::Still(image) => (image, None, None),
-                Decoded::Animated(first, rest) => (first.image, Some((first.delay, rest)), None),
-            })
-        }
-        .await;
-        let mut inner = self.inner.lock().unwrap();
-        if !inner
-            .current
-            .get(key)
-            .or_else(|| inner.previous.get(key))
-            .is_some_and(|entry| std::ptr::eq(entry.as_ref(), state))
-        {
-            return None;
-        }
         let mut playback = None;
-        let shown = result.map(|(image, rest, drawing_texture)| {
-            if let Some(drawing) = drawing_texture {
-                inner.drawings.insert(key.clone(), drawing);
-            }
+        let shown = result.map(|decoded| {
+            let (image, rest) = match decoded {
+                Decoded::Still(image) => (image, None),
+                Decoded::Animated(first, rest) => (first.image, Some((first.delay, rest))),
+            };
             let [w, h] = image.size;
             self.persistence
                 .merge_image_dims(HashMap::from([(key.persisted(), [w as f32, h as f32])]));
@@ -655,13 +501,17 @@ impl Loader {
                 let (tx, frames) = mpsc::channel(1);
                 let starved = Arc::new(AtomicBool::new(false));
                 let player = Player { texture, frames, due: None, delay, starved: starved.clone() };
-                inner.players.insert(key.clone(), player);
+                self.inner
+                    .lock()
+                    .unwrap()
+                    .players
+                    .insert(key.clone(), player);
                 playback = Some(Playback { rest, tx, starved, ctx: self.ctx.clone() });
             }
-            ImageState::Loaded(texture)
+            texture
         });
         *state.lock().unwrap() = match shown {
-            Ok(state) => state,
+            Ok(texture) => ImageState::Loaded(texture),
             Err(err) => ImageState::Failed(err),
         };
         self.seq
@@ -671,26 +521,10 @@ impl Loader {
     }
 }
 
-/// A decoded source, ready for rasterization or texture upload.
+/// A decoded image: a still, or an animation's first frame and the rest.
 enum Decoded {
-    Drawing(Box<Drawing>),
     Still(Arc<ColorImage>),
     Animated(Frame, Rest),
-}
-
-fn decode_source(
-    bytes: Vec<u8>, is_svg: bool, is_file: bool, core: &Lb, viewport_width: f32,
-    pixels_per_point: f32,
-) -> Result<Decoded, String> {
-    if is_svg && is_file && Drawing::is_lockbook_drawing(&bytes) {
-        return Ok(Decoded::Drawing(Box::new(Drawing::load(&bytes, core)?)));
-    }
-    let bytes = if is_svg {
-        rasterize_svg(&bytes, is_file, viewport_width, pixels_per_point)?
-    } else {
-        bytes
-    };
-    decode(bytes)
 }
 
 /// One frame of an animation, ready to upload.

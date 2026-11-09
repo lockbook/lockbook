@@ -35,7 +35,7 @@ pub fn image_url(node: &AstNode<'_>) -> Option<String> {
 fn names_image(title: &str) -> bool {
     let file = wiki_fragment(title).0;
     let ext = file.rsplit_once('.').map_or("", |(_, ext)| ext.trim());
-    is_supported_image_fmt(ext)
+    is_supported_image_fmt(ext) || ext.eq_ignore_ascii_case("svg")
 }
 
 impl MdRender {

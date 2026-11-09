@@ -36,7 +36,6 @@ mod file_cache_prop_tests;
 #[cfg(test)]
 mod test_utils;
 
-pub use egui_wgpu_renderer::OffscreenGpu;
 pub use output::Response;
 pub use tab::Event;
 

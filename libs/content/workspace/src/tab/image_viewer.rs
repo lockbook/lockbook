@@ -4,6 +4,7 @@ use egui::{Color32, Pos2, Rect, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
+use tracing::error;
 
 use crate::style::chrome::phosphor;
 use crate::style::space::control as control_space;
@@ -390,7 +391,15 @@ impl ImageViewer {
                 return;
             }
         };
-        self.images.copy_image(&ImageKey::File(id));
+        match self.images.copied_image(id) {
+            Ok((image, bytes)) => {
+                if image::guess_format(&bytes).is_ok_and(|f| f == image::ImageFormat::Gif) {
+                    ctx.set_copied_gif(bytes);
+                }
+                ctx.copy_image(image);
+            }
+            Err(err) => error!("failed to copy image to clipboard: {err}"),
+        }
     }
 
     fn zoom_to(&mut self, zoom_percentage: f32, anchor: Pos2) {
@@ -415,14 +424,15 @@ fn transform_rect(rect: Rect, transform: Transform) -> Rect {
     Rect { min: transform_point(rect.min, transform), max: transform_point(rect.max, transform) }
 }
 
+// a copy of this fn exists in Swift as isSupportedImageFormat()
 pub fn is_supported_image_fmt(ext: &str) -> bool {
     let ext: &str = &ext.to_lowercase();
 
-    // Raster formats come from image-rs default features; SVG uses our SVG renderer.
+    // complete list derived from which features are enabled on image crate according to image-rs default features:
     // https://github.com/image-rs/image/blob/main/Cargo.toml#L70
-    const IMG_FORMATS: [&str; 17] = [
+    const IMG_FORMATS: [&str; 16] = [
         "avif", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "jpg", "png", "pnm", "qoi",
-        "svg", "tga", "tiff", "webp",
+        "tga", "tiff", "webp",
     ];
     IMG_FORMATS.contains(&ext)
 }
