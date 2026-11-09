@@ -678,7 +678,10 @@ struct HomeView: View {
                 SharedWithMeView(fileTreeModel: sharedTreeModel)
             #if os(iOS)
                 case .search:
-                    SearchTabView(model: searchModel)
+                    SearchTabView(model: searchModel, fileTreeModel: fileTreeModel) { file in
+                        fileTreeModel.reveal(file)
+                        selectedTab = .files
+                    }
             #endif
             }
         }

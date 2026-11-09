@@ -11,6 +11,9 @@ import SwiftWorkspace
     var shareTarget: File? = nil
     var moveTarget: File? = nil
 
+    var revealTarget: UUID? = nil
+    var locatedId: UUID? = nil
+
     let selection = SelectionModel()
 
     private let filesModel: FilesModel
@@ -87,6 +90,12 @@ import SwiftWorkspace
         }
 
         expandToFile(parent)
+    }
+
+    func reveal(_ file: File) {
+        expandToFile(file)
+        revealTarget = file.id
+        locatedId = file.id
     }
 
     func expandToFile(_ file: File) {

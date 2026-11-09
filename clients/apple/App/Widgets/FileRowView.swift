@@ -74,6 +74,13 @@ struct FileRowView: View {
         .padding(.leading, level * 20 + 5)
         .padding(.trailing, 10)
         .modifier(OpenDocModifier(file: file))
+        .background {
+            if fileTreeModel.locatedId == file.id {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.15))
+                    .padding(.vertical, 2)
+            }
+        }
         .overlay(alignment: .bottom) {
             if isDropTargeted, !file.isFolder {
                 Capsule()
