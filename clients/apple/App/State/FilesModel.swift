@@ -274,6 +274,23 @@ import SwiftWorkspace
         }
     }
 
+    func isSavedShare(_ file: File) -> Bool {
+        guard let me = AppState.shared.account?.username, let parent = idsToFiles[file.parent] else {
+            return false
+        }
+
+        return file.owner.lowercased() != me.lowercased() && parent.owner.lowercased() == me.lowercased()
+    }
+
+    func removePrompt(_ files: [File]) -> String? {
+        guard let first = files.first, files.allSatisfy(isSavedShare) else {
+            return nil
+        }
+
+        let names = files.count == 1 ? "\"\(first.name)\"" : "\(files.count) files"
+        return "\(names) will be removed from files. You'll still have access through Shared with me."
+    }
+
     func deleteFiles(_ files: [File], notifying workspaceInput: WorkspaceInputState) {
         mutateAndReload { () -> Result<Void, LbError> in
             for file in files {
