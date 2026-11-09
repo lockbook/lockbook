@@ -270,6 +270,8 @@ where
                 }
             }
 
+            // every pull answered before this promote has an as_of at or below this version
+            let new_meta = new_meta.file.add_time(get_time().0 as u64);
             let old_usage = tree.calculate_usage(tree_owner)?;
             let mut tree = tree.stage(vec![new_meta]);
             let new_usage = tree.calculate_usage(tree_owner)?;
