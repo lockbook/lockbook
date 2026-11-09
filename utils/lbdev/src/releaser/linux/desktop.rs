@@ -252,8 +252,8 @@ makedepends=('cargo' 'git' 'cmake' 'base-devel' 'gtk3')
 depends=()
 provides=('lockbook-desktop')
 conflicts=('lockbook-desktop')
-source=("git+https://github.com/lockbook/aur-lockbook-desktop.git" "git+https://github.com/lockbook/lockbook.git#tag=$pkgver")
-sha256sums=('SKIP' 'SKIP')
+source=("git+https://github.com/lockbook/lockbook.git#tag=$pkgver")
+sha256sums=('SKIP')
 groups=('lockbook')
 options=(!lto)
 
@@ -269,8 +269,8 @@ build() {{
 
 package() {{
   install -D -m755 "$srcdir/lockbook/target/release/lockbook-linux" "$pkgdir/usr/bin/lockbook-desktop"
-  install -D -m644 "$srcdir/aur-lockbook-desktop/logo.svg" "$pkgdir/usr/share/pixmaps/logo.svg"
-  install -D -m644 "$srcdir/aur-lockbook-desktop/lockbook-desktop.desktop" "$pkgdir/usr/share/applications/lockbook-desktop.desktop"
+  install -D -m644 "$srcdir/lockbook/docs/graphics/logo.svg" "$pkgdir/usr/share/pixmaps/logo.svg"
+  install -D -m644 "$srcdir/lockbook/utils/dev/aur-package/lockbook-desktop.desktop" "$pkgdir/usr/share/applications/lockbook-desktop.desktop"
 }}
 "#
     );
@@ -291,9 +291,7 @@ pkgbase = lockbook-desktop
 	makedepends = base-devel
 	provides = lockbook-desktop
 	conflicts = lockbook-desktop
-	source = git+https://github.com/lockbook/aur-lockbook-desktop.git
 	source = git+https://github.com/lockbook/lockbook.git#tag=v{version}
-	sha256sums = SKIP
 	sha256sums = SKIP
 
 pkgname = lockbook-desktop

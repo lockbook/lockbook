@@ -1,0 +1,9 @@
+[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Comment=The private, polished note-taking platform.
+Terminal=false
+Exec=/usr/bin/lockbook-desktop %u
+MimeType=x-scheme-handler/lb;
+Name=Lockbook
+Icon=logo
