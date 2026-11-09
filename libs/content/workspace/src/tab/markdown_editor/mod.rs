@@ -2644,7 +2644,11 @@ impl Editor {
                 ui.ctx().copy_text(self.edit.heading_link(&slug));
             }
             Some(widget::outline::Choice::CopyLink(id)) => {
-                ui.ctx().copy_text(self.edit.renderer.external_url(id));
+                let place = crate::tab::Place::new(crate::tab::Destination::File(id));
+                let render = &self.edit.renderer;
+                if let Some(url) = place.to_url_with(|id| Some(render.external_url(id))) {
+                    ui.ctx().copy_text(url);
+                }
             }
             None => {}
         }
