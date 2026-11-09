@@ -2992,3 +2992,53 @@ fn a_click_past_hanging_spaces_lands_at_the_rows_end() {
         assert_eq!(caret.y, top.y, "the caret stays on the clicked row");
     }
 }
+
+/// A task item's marker runs through its `]` and the spaces after it,
+/// whatever list marker leads it, so its paragraph lines show only their
+/// text, and its check sits inside the brackets.
+#[test]
+fn task_item_markers_cover_the_brackets() {
+    use comrak::nodes::NodeValue;
+
+    let docs: &[(&str, &[&str])] = &[
+        ("- [ ] x\n", &["x"]),
+        ("1. [ ] x\n", &["x"]),
+        ("1. [ ]\n", &[]),
+        ("10. [x] x\n", &["x"]),
+        ("1) [ ] x\n", &["x"]),
+        ("9. [ ] x\n10. [x] y\n    z\n", &["x", "y", "z"]),
+        ("- a\n  1. [ ] x\n", &["a", "x"]),
+        ("1. a\n   1. [ ] x\n", &["a", "x"]),
+        ("1.\t[ ] x\n    y\n", &["x", "y"]),
+        ("1.\n   [ ] x\n", &["x"]),
+        ("> 1.\t[ ] x\n>       y\n", &["x", "y"]),
+        ("- a\n  1.\t[ ] x\n        y\n", &["a", "x", "y"]),
+    ];
+    for &(md, paragraph_lines) in docs {
+        let mut r = test_renderer(md);
+        render_frame(&mut r, 800.0, None, |_| {});
+
+        let arena = Arena::new();
+        let root = r.reparse(&arena);
+        let mut shown = vec![];
+        for node in root.descendants() {
+            match node.data.borrow().value {
+                NodeValue::Paragraph => {
+                    let (first, last) = r.node_lines(node);
+                    for idx in first..last {
+                        let line = r.bounds.source_lines[idx];
+                        let item = node.parent().unwrap();
+                        shown.push(r.buffer[r.line_content(item, line)].to_string());
+                    }
+                }
+                NodeValue::TaskItem(_) => {
+                    let check = r.check_offset(node);
+                    assert_eq!(&r.buffer[(check - 1, check)], "[", "{md:?}");
+                    assert_eq!(&r.buffer[(check + 1, check + 2)], "]", "{md:?}");
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(shown, paragraph_lines, "{md:?}");
+    }
+}
