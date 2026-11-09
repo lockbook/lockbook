@@ -56,12 +56,13 @@ where
             return Err(ClientError(NewAccountError::Disabled));
         }
 
-        let root = request.root_folder.clone();
-        let root = root.add_time(self.clock.now().0 as u64);
-
         let mut guard = self.index_db.lock().await;
         let mut tx = ServerTx::begin(&mut guard)?;
         let db = &mut *tx;
+        let root = request
+            .root_folder
+            .clone()
+            .add_time(self.clock.now().0 as u64);
         if let Some(ip) = context.ip {
             if !self.can_create_account(ip.ip()).await {
                 return Err(ClientError(NewAccountError::RateLimited));
