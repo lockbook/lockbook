@@ -765,7 +765,11 @@ impl Tab {
                 ..Default::default()
             },
             ContentState::Failed(fail) => {
-                ui.label(fail.msg());
+                crate::style::message_indicator(
+                    ui,
+                    crate::style::phosphor::WARNING_CIRCLE,
+                    &fail.msg(),
+                );
                 Response::default()
             }
             ContentState::Open(content) => {
@@ -1072,7 +1076,7 @@ impl From<LbErr> for TabFailure {
     fn from(err: LbErr) -> Self {
         match err.kind {
             LbErrKind::Unexpected(msg) => Self::Unexpected(msg),
-            _ => Self::SimpleMisc(format!("{err:?}")),
+            _ => Self::SimpleMisc(err.to_string()),
         }
     }
 }

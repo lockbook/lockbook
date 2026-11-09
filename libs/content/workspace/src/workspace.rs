@@ -1418,10 +1418,10 @@ impl Workspace {
                     let (hmac, bytes) = match content_result {
                         Ok(loaded) => loaded,
                         Err(err) => {
-                            let msg = format!("failed to load file: {err:?}");
-                            error!(msg);
-                            tab.content = ContentState::Failed(TabFailure::Unexpected(msg.clone()));
-                            self.out.failure_messages.push(msg);
+                            error!("failed to load file: {err:?}");
+                            let failure = TabFailure::from(err);
+                            self.out.failure_messages.push(failure.msg());
+                            tab.content = ContentState::Failed(failure);
                             continue;
                         }
                     };
