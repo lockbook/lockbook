@@ -1043,3 +1043,82 @@ async fn move_cycle_in_share_with_share_inside() {
     friend.sync().await.unwrap();
     assert::all_paths(&friend, &["/", "/trip/", "/trip/a/", "/trip/a/b/", "/trip/a/doc.md"]).await;
 }
+
+/// A device that hasn't seen a folder move into the recipient's own share can still share it with
+/// them; once it syncs, the share is moot and sync goes on.
+#[tokio::test]
+async fn share_with_new_owner_of_moved_folder() {
+    let alice = test_core_with_account().await;
+    let bob = test_core_with_account().await;
+    let carol = test_core_with_account().await;
+    let alice_name = alice.get_account().unwrap().username.clone();
+    let bob_name = bob.get_account().unwrap().username.clone();
+    let carol_name = carol.get_account().unwrap().username.clone();
+
+    let team = alice.create_at_path("/team/").await.unwrap();
+    alice
+        .share_file(team.id, &bob_name, ShareMode::Write)
+        .await
+        .unwrap();
+    alice.sync().await.unwrap();
+    bob.sync().await.unwrap();
+    bob.create_link_at_path("/team", team.id).await.unwrap();
+
+    let drafts = bob.create_at_path("/drafts/").await.unwrap();
+    bob.share_file(drafts.id, &carol_name, ShareMode::Write)
+        .await
+        .unwrap();
+    bob.sync().await.unwrap();
+    carol.sync().await.unwrap();
+    carol
+        .create_link_at_path("/drafts", drafts.id)
+        .await
+        .unwrap();
+    carol.sync().await.unwrap();
+
+    move_by_path(&bob, "/drafts/", "/team/").await.unwrap();
+    bob.sync().await.unwrap();
+
+    carol
+        .share_file(drafts.id, &alice_name, ShareMode::Read)
+        .await
+        .unwrap();
+    carol.sync().await.unwrap();
+    carol.sync().await.unwrap();
+    assert::all_paths(&carol, &["/", "/drafts/"]).await;
+}
+
+/// Sharing a note with someone and then moving its folder into their share syncs the move.
+#[tokio::test]
+async fn share_note_then_move_its_folder_into_recipients_share() {
+    let owner = test_core_with_account().await;
+    let collaborator = test_core_with_account().await;
+    let owner_name = owner.get_account().unwrap().username.clone();
+    let collaborator_name = collaborator.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &collaborator_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    collaborator.sync().await.unwrap();
+    collaborator
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    let note = collaborator.create_at_path("/notes/note.md").await.unwrap();
+    collaborator.sync().await.unwrap();
+
+    collaborator
+        .share_file(note.id, &owner_name, ShareMode::Read)
+        .await
+        .unwrap();
+    move_by_path(&collaborator, "/notes/", "/team/")
+        .await
+        .unwrap();
+    collaborator.sync().await.unwrap();
+
+    owner.sync().await.unwrap();
+    assert::all_paths(&owner, &["/", "/team/", "/team/notes/", "/team/notes/note.md"]).await;
+}
