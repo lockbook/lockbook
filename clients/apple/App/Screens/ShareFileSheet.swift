@@ -173,6 +173,22 @@ struct ShareFileSheet: View {
 
             usernameField
 
+            if !suggestions.isEmpty {
+                ChipFlow(spacing: 6) {
+                    ForEach(suggestions, id: \.self) { name in
+                        Button {
+                            stage(name)
+                            query = ""
+                        } label: {
+                            Label(name, systemImage: "person.crop.circle")
+                                .font(.callout)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+            }
+
             if !staged.isEmpty {
                 ChipFlow(spacing: 6) {
                     ForEach(staged) { person in
@@ -346,6 +362,22 @@ struct ShareFileSheet: View {
         }
 
         return ShareSummary.sentence(subject: file.name, people: names, edit: mode == .write)
+    }
+
+    private var suggestions: [String] {
+        let prefix = trimmedQuery.lowercased()
+        let me = AppState.shared.account?.username.lowercased()
+        guard !prefix.isEmpty else {
+            return []
+        }
+
+        let matches = knownUsernames.filter { name in
+            let lower = name.lowercased()
+            return lower.hasPrefix(prefix) && lower != prefix && lower != me
+                && !staged.contains { $0.id == lower }
+        }
+
+        return Array(matches.sorted { ($0.count, $0.lowercased()) < ($1.count, $1.lowercased()) }.prefix(3))
     }
 
     private func isKnown(_ name: String) -> Bool {
