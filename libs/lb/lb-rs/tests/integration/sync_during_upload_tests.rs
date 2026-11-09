@@ -121,3 +121,43 @@ async fn pull_during_content_upload_still_gets_the_edit() {
     reader.sync().await.unwrap();
     assert_eq!(reader.read_document(doc, false).await.unwrap(), b"after");
 }
+
+/// Two devices that upload the same edit at once leave the note readable on a third device.
+#[tokio::test]
+async fn same_edit_uploaded_twice_at_once_stays_readable() {
+    let server = gated_server();
+    let gate = server.document_service.clone();
+
+    let first = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    first
+        .create_account(&random_name(), "", false)
+        .await
+        .unwrap();
+    let doc = first.create_at_path("note.md").await.unwrap().id;
+    first.write_document(doc, b"before").await.unwrap();
+    first.sync().await.unwrap();
+
+    let second = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let key = first.export_account_private_key().unwrap();
+    second.import_account(&key, None).await.unwrap();
+    second.sync().await.unwrap();
+
+    first.write_document(doc, b"after").await.unwrap();
+    second.write_document(doc, b"after").await.unwrap();
+    gate.armed.store(true, Ordering::SeqCst);
+    let second_uploads_mid_upload = async {
+        gate.entered.notified().await;
+        second.sync().await.unwrap();
+        gate.release.notify_one();
+    };
+    let both = async { tokio::join!(first.sync(), second_uploads_mid_upload) };
+    // the parked upload loses the race and is refused
+    let (_refused, ()) = tokio::time::timeout(Duration::from_secs(10), both)
+        .await
+        .expect("both uploads finish");
+
+    let third = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    third.import_account(&key, None).await.unwrap();
+    third.sync().await.unwrap();
+    assert_eq!(third.read_document(doc, false).await.unwrap(), b"after");
+}
