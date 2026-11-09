@@ -471,9 +471,13 @@ impl<S: Server> Lb<S> {
                                 && !remote.calculate_deleted(&id)?
                                 && !files_to_unmove.contains(&id)
                             {
-                                // a move this device may no longer make is undone
-                                let from = *remote.find(&id)?.parent();
-                                if !may_write_in(&local, &remote, me, &from)?
+                                // a move this device may no longer make is undone; at the source
+                                // only the server's grant counts, since leaving a share after
+                                // moving out of it is this device's own later change
+                                let from = remote.find(&id)?.parent();
+                                let may_move_from = remote.maybe_find(from).is_some()
+                                    && remote.access_mode(me, from)? >= Some(UserAccessMode::Write);
+                                if !may_move_from
                                     || !may_write_in(&local, &remote, me, local_file.parent())?
                                 {
                                     files_to_unmove.insert(id);
@@ -565,38 +569,56 @@ impl<S: Server> Lb<S> {
                         }
                     }
 
-                    // moves, renames, edits, and shares
-                    // creations happen first in case a file is moved into a new folder
+                    // skip files that are already deleted, will be deleted, were not created, or
+                    // are no longer reachable from this device
+                    let mut replayed = Vec::new();
                     for id in db.local_metadata.ids() {
-                        // skip files that are already deleted, will be deleted, were not
-                        // created, or are no longer reachable from this device
-                        if merge.maybe_find(&id).is_none()
-                            || deletions.maybe_find(&id).is_none()
-                            || deletions.calculate_deleted(&id)?
-                            || (remote.maybe_find(&id).is_some()
+                        if merge.maybe_find(&id).is_some()
+                            && deletions.maybe_find(&id).is_some()
+                            && !deletions.calculate_deleted(&id)?
+                            && !(remote.maybe_find(&id).is_some()
                                 && remote.calculate_deleted(&id)?)
-                            || links_to_delete.contains(&id)
-                            || lost_access(&local, me, &id)?
+                            && !links_to_delete.contains(&id)
+                            && !lost_access(&local, me, &id)?
                         {
-                            continue;
+                            replayed.push(id);
                         }
+                    }
 
+                    // moves (creations happen first in case a file is moved into a new folder)
+                    for &id in &replayed {
+                        let local_file = local.find(&id)?;
+                        if let Some(base_file) = base.maybe_find(&id) {
+                            if local_file.parent() != base_file.parent()
+                                && remote.find(&id)?.parent() == base_file.parent()
+                                && !files_to_unmove.contains(&id)
+                            {
+                                let parent = *local_file.parent();
+                                merge.move_unvalidated(&id, &parent, &self.keychain)?;
+                            }
+                        }
+                    }
+                    // access is read from the merge below, which needs a tree without cycles; the
+                    // full validation after construction reports every other failure
+                    if let Err(LbErr {
+                        kind: LbErrKind::Validation(ValidationFailure::Cycle(ids)),
+                        ..
+                    }) = merge.assert_no_cycles()
+                    {
+                        unmove_cycle(&db.local_metadata, &ids, &mut files_to_unmove)?;
+                        continue 'merge_construction;
+                    }
+
+                    // renames, edits, and shares (moves happen first so each file is where
+                    // the merge puts it)
+                    for id in replayed {
                         let local_file = local.find(&id)?.clone();
                         let local_name = local.name(&id, &self.keychain)?;
                         let maybe_base_file = base.maybe_find(&id).cloned();
                         let maybe_remote_file = remote.maybe_find(&id).cloned();
-                        if let Some(ref base_file) = maybe_base_file {
+                        if maybe_base_file.is_some() {
                             let base_name = base.name(&id, &self.keychain)?;
-                            let remote_file = remote.find(&id)?.clone();
                             let remote_name = remote.name(&id, &self.keychain)?;
-
-                            // move
-                            if local_file.parent() != base_file.parent()
-                                && remote_file.parent() == base_file.parent()
-                                && !files_to_unmove.contains(&id)
-                            {
-                                merge.move_unvalidated(&id, local_file.parent(), &self.keychain)?;
-                            }
 
                             // rename
                             if local_name != base_name
@@ -799,21 +821,7 @@ impl<S: Server> Lb<S> {
                         LbErrKind::Validation(ref vf) => match vf {
                             // merge changeset has resolvable validation errors and needs modification
                             ValidationFailure::Cycle(ids) => {
-                                // revert all local moves in the cycle
-                                let mut progress = false;
-                                for &id in ids {
-                                    if db.local_metadata.maybe_find(&id).is_some()
-                                        && files_to_unmove.insert(id)
-                                    {
-                                        progress = true;
-                                    }
-                                }
-                                if !progress {
-                                    return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve cycle: {ids:?}"
-                                    ))
-                                    .into());
-                                }
+                                unmove_cycle(&db.local_metadata, ids, &mut files_to_unmove)?;
                             }
                             ValidationFailure::PathConflict(ids) => {
                                 // pick one local id and generate a non-conflicting filename
@@ -1448,8 +1456,7 @@ impl<S: Server> Lb<S> {
 
 /// Whether this device may still change `id` or what's in it: write is granted at the nearest file
 /// the server has, at or above `id` in this device's tree, and in this device's own tree, where it
-/// may have rejected a share. The merge's tree can hold a cycle while moves apply, so access is
-/// never read from it.
+/// may have rejected a share. Access is read from those two trees, not the merge's.
 fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<bool> {
@@ -1467,6 +1474,22 @@ fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
         id = *file.parent();
     }
     Ok(remote.access_mode(me, &id)? >= Some(UserAccessMode::Write))
+}
+
+/// Undoes this device's moves that form a cycle, or fails when none of them is this device's.
+fn unmove_cycle<T: TreeLike>(
+    local_changes: &T, ids: &HashSet<Uuid>, files_to_unmove: &mut HashSet<Uuid>,
+) -> LbResult<()> {
+    let mut progress = false;
+    for &id in ids {
+        if local_changes.maybe_find(&id).is_some() && files_to_unmove.insert(id) {
+            progress = true;
+        }
+    }
+    if !progress {
+        return Err(LbErrKind::Unexpected(format!("sync failed to resolve cycle: {ids:?}")).into());
+    }
+    Ok(())
 }
 
 /// `ids` ordered so each file comes after its parent when that parent is also in `ids`.
