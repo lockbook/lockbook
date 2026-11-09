@@ -869,7 +869,10 @@ impl<S: Server> Lb<S> {
                                 }
                             }
                             ValidationFailure::SharedLink { link, shared_ancestor } => {
-                                // if ancestor is newly shared, delete share, otherwise delete link
+                                // if ancestor is newly shared, delete share; if this device moved
+                                // the link, or a folder between it and the share, into the share,
+                                // undo that move unless it would land in a deleted folder;
+                                // otherwise delete link
                                 let mut progress = false;
                                 if let Some(base_shared_ancestor) = base.maybe_find(shared_ancestor)
                                 {
@@ -878,6 +881,25 @@ impl<S: Server> Lb<S> {
                                     {
                                         progress = true;
                                     }
+                                }
+                                let mut id = *link;
+                                while !progress && id != *shared_ancestor {
+                                    if let (Some(base_file), Some(remote_file)) =
+                                        (base.maybe_find(&id), remote.maybe_find(&id))
+                                    {
+                                        let from = *remote_file.parent();
+                                        let moved_here =
+                                            db.local_metadata.maybe_find(&id).is_some()
+                                                && local.find(&id)?.parent() != base_file.parent()
+                                                && from == *base_file.parent();
+                                        if moved_here
+                                            && !remote_with_moves.calculate_deleted(&from)?
+                                            && files_to_unmove.insert(id)
+                                        {
+                                            progress = true;
+                                        }
+                                    }
+                                    id = *merge.find(&id)?.parent();
                                 }
                                 if !progress && links_to_delete.insert(*link) {
                                     progress = true;
