@@ -67,9 +67,9 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 .iter()
                 .enumerate()
                 .map(|(i, slot)| {
-                    let title = tab_label(&files, &slot.dest);
+                    let title = tab_label(&files, &slot.place.dest);
                     let active = current == Some(slot.id);
-                    let file_id = match &slot.dest {
+                    let file_id = match &slot.place.dest {
                         Destination::File(id) => Some(*id),
                         _ => None,
                     };
@@ -82,7 +82,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                         file_id,
                         pinned,
                         in_files,
-                        dest: slot.dest.clone(),
+                        dest: slot.place.dest.clone(),
                     }
                 })
                 .collect();

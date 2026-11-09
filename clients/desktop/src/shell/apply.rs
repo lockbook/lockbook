@@ -131,7 +131,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                     r.select_only(id);
                     super::reveal_and_scroll(r, id);
                 } else if let Some(slot) = r.workspace.tab_strip.get(i) {
-                    if let Some(id) = slot.dest.backing_file() {
+                    if let Some(id) = slot.place.dest.backing_file() {
                         r.select_only(id);
                         super::reveal_and_scroll(r, id);
                     }

@@ -680,8 +680,8 @@ pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
 fn tab_info(session: &workspace_rs::tab::Session) -> CTabInfo {
     CTabInfo {
         session_id: session.id.as_uuid().into(),
-        dest_kind: session.dest.kind_code(),
-        dest_file: session.dest.backing_file().unwrap_or_default().into(),
+        dest_kind: session.place.dest.kind_code(),
+        dest_file: session.place.dest.backing_file().unwrap_or_default().into(),
     }
 }
 

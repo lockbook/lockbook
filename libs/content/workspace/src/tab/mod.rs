@@ -191,15 +191,14 @@ impl Place {
     }
 }
 
-/// A persistable navigation journey: the current dest plus back/forward stacks.
-/// Changes to `dest` or `fragment` are navigation; stacks are the undo/redo of
-/// those changes. `id` identifies this session/tab instance and is not persisted.
+/// A persistable navigation journey: the current place plus back/forward stacks.
+/// Changes to `place` are navigation; stacks are the undo/redo of those
+/// changes. `id` identifies this session/tab instance and is not persisted.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(from = "PersistedSession", into = "PersistedSession")]
 pub struct Session {
     pub id: SessionId,
-    pub dest: Destination,
-    pub fragment: Option<Fragment>,
+    pub place: Place,
     pub back: Vec<Place>,
     pub forward: Vec<Place>,
 }
@@ -235,8 +234,8 @@ impl From<Session> for PersistedSession {
         let (back, back_fragments) = split(s.back);
         let (forward, forward_fragments) = split(s.forward);
         Self {
-            dest: s.dest,
-            fragment: persisted(&s.fragment),
+            dest: s.place.dest,
+            fragment: persisted(&s.place.fragment),
             back,
             forward,
             back_fragments,
@@ -257,8 +256,7 @@ impl From<PersistedSession> for Session {
         };
         Self {
             id: SessionId::new(),
-            dest: p.dest,
-            fragment: p.fragment,
+            place: Place::at(p.dest, p.fragment),
             back: join(p.back, p.back_fragments),
             forward: join(p.forward, p.forward_fragments),
         }
@@ -271,24 +269,11 @@ impl Session {
     }
 
     pub fn at(place: Place) -> Self {
-        Self {
-            id: SessionId::new(),
-            dest: place.dest,
-            fragment: place.fragment,
-            back: Vec::new(),
-            forward: Vec::new(),
-        }
-    }
-
-    pub fn place(&self) -> Place {
-        Place::at(self.dest.clone(), self.fragment.clone())
+        Self { id: SessionId::new(), place, back: Vec::new(), forward: Vec::new() }
     }
 
     fn swap_place(&mut self, to: Place) -> Place {
-        let from = self.place();
-        self.dest = to.dest;
-        self.fragment = to.fragment;
-        from
+        std::mem::replace(&mut self.place, to)
     }
 
     /// Push the current place onto back, clear forward, and move to `to`.
@@ -300,11 +285,13 @@ impl Session {
     /// [`Self::navigate`] to a place. `here` names where the session is
     /// when it has no fragment, so Back from a jump within the dest returns.
     pub fn navigate_to(&mut self, to: Place, here: Option<Fragment>) {
-        if self.dest == to.dest && (to.fragment.is_none() || self.fragment == to.fragment) {
+        if self.place.dest == to.dest
+            && (to.fragment.is_none() || self.place.fragment == to.fragment)
+        {
             return;
         }
         let mut from = self.swap_place(to);
-        if from.dest == self.dest && from.fragment.is_none() {
+        if from.dest == self.place.dest && from.fragment.is_none() {
             from.fragment = here;
         }
         self.back.push(from);
@@ -351,7 +338,7 @@ impl Session {
 
 /// A tab that has only ever shown search: safe to close when leaving search.
 pub fn session_is_disposable_search(s: &Session) -> bool {
-    std::iter::once(&s.dest)
+    std::iter::once(&s.place.dest)
         .chain(s.back.iter().map(|p| &p.dest))
         .chain(s.forward.iter().map(|p| &p.dest))
         .all(|d| matches!(d, Destination::Search(_)))
@@ -393,16 +380,22 @@ pub fn index_of_dest_to_activate(
     strip: &[Session], current: Option<SessionId>, recents: &[SessionId], dest: &Destination,
 ) -> Option<usize> {
     if let Some(id) = current {
-        if let Some(i) = strip.iter().position(|s| s.id == id && s.dest == *dest) {
+        if let Some(i) = strip
+            .iter()
+            .position(|s| s.id == id && s.place.dest == *dest)
+        {
             return Some(i);
         }
     }
     for id in recents.iter().rev() {
-        if let Some(i) = strip.iter().position(|s| s.id == *id && s.dest == *dest) {
+        if let Some(i) = strip
+            .iter()
+            .position(|s| s.id == *id && s.place.dest == *dest)
+        {
             return Some(i);
         }
     }
-    strip.iter().position(|s| s.dest == *dest)
+    strip.iter().position(|s| s.place.dest == *dest)
 }
 
 pub use open::{Doc, TabResources};
@@ -1563,16 +1556,16 @@ mod nav_tests {
         let b = file(2);
         let mut session = Session::new(a.clone());
         session.navigate(b.clone());
-        assert_eq!(session.dest, b);
+        assert_eq!(session.place.dest, b);
         assert_eq!(session.back, vec![Place::new(a.clone())]);
         assert!(session.forward.is_empty());
 
         assert!(session.go_back());
-        assert_eq!(session.dest, a);
+        assert_eq!(session.place.dest, a);
         assert_eq!(session.forward, vec![Place::new(b.clone())]);
 
         assert!(session.go_forward());
-        assert_eq!(session.dest, b);
+        assert_eq!(session.place.dest, b);
     }
 
     #[test]
@@ -1581,7 +1574,7 @@ mod nav_tests {
         let mut session = Session::new(a.clone());
         session.navigate(a.clone());
         assert!(session.back.is_empty());
-        assert_eq!(session.dest, a);
+        assert_eq!(session.place.dest, a);
     }
 
     #[test]
@@ -1592,7 +1585,7 @@ mod nav_tests {
         session.navigate(file(3));
         let id = session.id;
         session.replace(b.clone());
-        assert_eq!(session.dest, b);
+        assert_eq!(session.place.dest, b);
         assert_eq!(session.id, id);
         assert!(session.back.is_empty());
         assert!(session.forward.is_empty());
@@ -1604,7 +1597,7 @@ mod nav_tests {
         let a = Session::new(dest.clone());
         let b = Session::new(dest.clone());
         assert_ne!(a.id, b.id);
-        assert_eq!(a.dest, b.dest);
+        assert_eq!(a.place.dest, b.place.dest);
     }
 
     #[test]
@@ -1662,7 +1655,7 @@ mod nav_tests {
         let mut session = Session::new(a.clone());
         session.navigate(b.clone());
         assert!(session.go_back());
-        assert_eq!(session.dest, a);
+        assert_eq!(session.place.dest, a);
         assert!(!session.forward.is_empty());
         let id = session.id;
         session.replace(a.clone());
@@ -1730,7 +1723,7 @@ mod nav_tests {
         session.navigate(file(3));
         let json = serde_json::to_string(&session).unwrap();
         let restored: Session = serde_json::from_str(&json).unwrap();
-        assert_eq!(restored.dest, session.dest);
+        assert_eq!(restored.place.dest, session.place.dest);
         assert_eq!(restored.back, session.back);
         assert_eq!(restored.forward, session.forward);
         assert!(!restored.id.is_nil());
@@ -1752,11 +1745,11 @@ mod nav_tests {
         let json = serde_json::to_value(&session).unwrap();
         assert_eq!(json["back"], serde_json::to_value(vec![&a, &a]).unwrap());
         let restored: Session = serde_json::from_value(json).unwrap();
-        assert_eq!(restored.fragment, None);
+        assert_eq!(restored.place.fragment, None);
         assert_eq!(restored.back, session.back);
 
         assert!(session.go_back());
-        assert_eq!(session.fragment, heading("x"));
+        assert_eq!(session.place.fragment, heading("x"));
         assert_eq!(session.forward[0].fragment, Some(Fragment::Text(3..5)));
     }
 
@@ -1766,7 +1759,7 @@ mod nav_tests {
         let json = serde_json::to_string(&vec![dest.clone()]).unwrap();
         let dests: Vec<Destination> = serde_json::from_str(&json).unwrap();
         let sessions: Vec<Session> = dests.into_iter().map(Session::new).collect();
-        assert_eq!(sessions[0].dest, dest);
+        assert_eq!(sessions[0].place.dest, dest);
         assert!(sessions[0].back.is_empty());
     }
 }
