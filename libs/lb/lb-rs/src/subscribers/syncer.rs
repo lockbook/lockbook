@@ -520,7 +520,7 @@ impl<S: Server> Lb<S> {
                             && remote.maybe_find(&id).is_none()
                             && !links_to_delete.contains(&id)
                             && !lost_access(&local, me, &id)?
-                            && may_write_in(&local, &remote, me, local.find(&id)?.parent())?
+                            && may_write_in(&local, &deletions, me, local.find(&id)?.parent())?
                         {
                             creations.insert(id);
                         }
@@ -623,7 +623,7 @@ impl<S: Server> Lb<S> {
                             // rename
                             if local_name != base_name
                                 && remote_name == base_name
-                                && may_write_in(&local, &remote, me, merge.find(&id)?.parent())?
+                                && may_write_in(&local, &deletions, me, merge.find(&id)?.parent())?
                             {
                                 merge.rename_unvalidated(&id, &local_name, &self.keychain)?;
                             }
@@ -632,7 +632,7 @@ impl<S: Server> Lb<S> {
                         // share: replay what this device changed about each recipient's share;
                         // when the server changed it too, this device wins if either side unshared,
                         // otherwise the higher mode
-                        let writable = may_write_in(&local, &remote, me, &id)?;
+                        let writable = may_write_in(&local, &deletions, me, &id)?;
                         let base_keys = shares_by_recipient(maybe_base_file.as_ref());
                         let remote_keys = shares_by_recipient(maybe_remote_file.as_ref());
                         let owner = merge.find(&id)?.owner();
@@ -688,7 +688,7 @@ impl<S: Server> Lb<S> {
                         let remote_hmac =
                             maybe_remote_file.and_then(|f| f.document_hmac().cloned());
                         let local_hmac = local_file.document_hmac().cloned();
-                        if may_write_in(&local, &remote, me, &id)? && local_hmac != base_hmac {
+                        if may_write_in(&local, &deletions, me, &id)? && local_hmac != base_hmac {
                             if remote_hmac != base_hmac && remote_hmac != local_hmac {
                                 // merge
                                 let merge_name = merge.name(&id, &self.keychain)?;
@@ -725,7 +725,7 @@ impl<S: Server> Lb<S> {
                                         // link there's nowhere to put it
                                         let parent = *merge.find(&id)?.parent();
                                         let writable = merge.maybe_find(&parent).is_some()
-                                            && may_write_in(&local, &remote, me, &parent)?;
+                                            && may_write_in(&local, &deletions, me, &parent)?;
                                         let copy_parent = if writable {
                                             Some(parent)
                                         } else if let Some(link) = merge.linked_by(&id)? {
@@ -1457,8 +1457,9 @@ impl<S: Server> Lb<S> {
 }
 
 /// Whether this device may still change `id` or what's in it: write is granted at the nearest file
-/// the server has, at or above `id` in this device's tree, and in this device's own tree, where it
-/// may have rejected a share. Access is read from those two trees, not the merge's.
+/// `remote` has, at or above `id` in this device's tree, by a share this device hasn't declined,
+/// and in this device's own tree. `remote` is the server's tree, or the deletions tree once this
+/// device's moves are in it, so shares are read where each file ends up, not the merge's.
 fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<bool> {
@@ -1475,7 +1476,21 @@ fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
         }
         id = *file.parent();
     }
-    Ok(remote.access_mode(me, &id)? >= Some(UserAccessMode::Write))
+    // the server's access at `id`, less the shares this device declined
+    let mut ids = remote.ancestors(&id)?;
+    ids.insert(id);
+    let mut mode = None;
+    for id in ids {
+        let declined = local.maybe_find(&id).is_some_and(|file| {
+            file.user_access_keys()
+                .iter()
+                .any(|key| key.encrypted_for == me.0 && key.deleted)
+        });
+        if !declined {
+            mode = mode.max(remote.find(&id)?.access_mode(&me));
+        }
+    }
+    Ok(mode >= Some(UserAccessMode::Write))
 }
 
 /// Undoes this device's moves that form a cycle, or fails when none of them is this device's.
