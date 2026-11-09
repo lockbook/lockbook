@@ -10,8 +10,14 @@
     }
 
     @Observable class SearchModel {
+        private static let modeKey = "searchMode"
+
         var input: String = ""
-        var mode: SearchMode = .path
+        var mode: SearchMode = .path {
+            didSet {
+                UserDefaults.standard.set(mode.rawValue, forKey: Self.modeKey)
+            }
+        }
         var contentResults: [ContentSearcherResult] = []
         var pathResults: [PathSearcherResult] = []
         var focusedResult: ContentSearcherResult? = nil
@@ -28,6 +34,7 @@
 
         init(filesModel: FilesModel) {
             self.filesModel = filesModel
+            mode = UserDefaults.standard.string(forKey: Self.modeKey).flatMap(SearchMode.init) ?? .path
         }
 
         func refresh() {
