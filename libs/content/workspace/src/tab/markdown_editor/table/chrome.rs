@@ -444,7 +444,6 @@ impl MdEdit {
     ) {
         let r = &self.renderer;
         let theme = r.ctx.get_lb_theme();
-        let primary = theme.accent_bg();
         let key = drag.parent_start;
         let cells: Vec<TableCellBox> = r
             .table_boxes(key)
@@ -462,20 +461,8 @@ impl MdEdit {
         // Drop-gap indicator: soft capsule with a hollow leading dot, which
         // starts above the table so the card doesn't hide it.
         if let Some(gap) = r.drop_gap_for(&drag, p) {
-            let (dot, half) = (4.0, 1.25);
-            let (x, y0, y1) = (gap.at as f32, src_rect.top() - 3.0 * dot, src_rect.bottom());
-            painter.rect_filled(
-                Rect::from_min_max(Pos2::new(x - 3.0, y0), Pos2::new(x + 3.0, y1)),
-                CornerRadius::same(3),
-                primary.gamma_multiply(0.18),
-            );
-            painter.rect_filled(
-                Rect::from_min_max(Pos2::new(x - half, y0 + dot), Pos2::new(x + half, y1)),
-                CornerRadius::same(1),
-                primary,
-            );
-            painter.circle_filled(Pos2::new(x, y0 + dot), dot, primary);
-            painter.circle_filled(Pos2::new(x, y0 + dot), dot - 1.5, theme.neutral_bg());
+            let (x, y0, y1) = (gap.at as f32, src_rect.top() - 12.0, src_rect.bottom());
+            crate::style::paint_drop_line(painter, Pos2::new(x, y0), Pos2::new(x, y1), &theme);
         }
 
         // Source slot: an empty ghost of the card.

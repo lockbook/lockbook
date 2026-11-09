@@ -31,6 +31,7 @@ mod diagrams;
 mod edit_props;
 mod folding;
 mod heading_links;
+mod image_drag;
 mod ios_host;
 mod link_card;
 mod links;

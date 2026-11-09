@@ -86,6 +86,8 @@ pub struct Response {
     /// A popup is painted over the caret: a platform that draws its own
     /// caret above the editor hides it.
     pub caret_covered: bool,
+    /// A long press lifted something to drag this frame: the platform buzzes.
+    pub lifted: bool,
 }
 
 /// A region painted this frame that a platform deciding touches itself
@@ -345,6 +347,12 @@ pub struct MdEdit {
     /// Mirrored onto the renderer each frame for the dim/indicator paint.
     pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
 
+    pub in_progress_image_drag: Option<widget::inline::image::image::ImageDrag>,
+
+    /// A drag's downward travel so far, and where its pointer last was: see
+    /// [`MdEdit::drag_lift`].
+    pub drag_travel: (f32, Option<f32>),
+
     /// Touch long-press → reorder gesture state (touch only; desktop drags
     /// the marker handle directly). See [`MdEdit::detect_touch_reorder`].
     pub touch_reorder: widget::block::drag::TouchReorder,
@@ -352,12 +360,16 @@ pub struct MdEdit {
     /// The platform's own recognizer drives the reorder (see [`commands`]),
     /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
     pub touch_reorder_driven: bool,
+    /// Something lifted to drag since the last frame, by whichever long press:
+    /// the frame reports it so the platform buzzes.
+    pub lifted: bool,
 
     /// A committed reorder `(drag, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
     /// new layout is then current before the platform refetches selection
     /// geometry. Set on drag release (which runs post-render).
-    pub pending_block_move: Option<(widget::block::drag::BlockDrag, Grapheme)>,
+    pub pending_block_move:
+        Option<(widget::block::drag::BlockDrag, widget::block::drag::DropGap, Pos2)>,
 
     /// Selections expand selection grew, each `(from, to)`: shrink selection
     /// goes back while the selection is the last `to`.
@@ -475,8 +487,11 @@ impl MdEdit {
             handle_drag_touch_offset: None,
             insertion_handle_visible: false,
             in_progress_block_drag: None,
+            in_progress_image_drag: None,
+            drag_travel: (0.0, None),
             touch_reorder: Default::default(),
             touch_reorder_driven: false,
+            lifted: false,
             pending_block_move: None,
             syntax_grown: Vec::new(),
             bracket_pair_at: None,
@@ -1185,8 +1200,11 @@ impl Editor {
                 handle_drag_touch_offset: None,
                 insertion_handle_visible: false,
                 in_progress_block_drag: None,
+                in_progress_image_drag: None,
+                drag_travel: (0.0, None),
                 touch_reorder: Default::default(),
                 touch_reorder_driven: false,
+                lifted: false,
                 pending_block_move: None,
                 syntax_grown: Vec::new(),
                 bracket_pair_at: None,
@@ -2388,7 +2406,10 @@ impl Editor {
                         // commit on release (visuals are drawn after
                         // post_render so they composite on top).
                         self.edit.detect_touch_reorder(ui, self.keyboard_shown());
+                        self.next_resp.lifted = std::mem::take(&mut self.edit.lifted);
+                        self.edit.track_drag_travel(ui);
                         self.edit.handle_block_drag(ui);
+                        self.edit.handle_image_drag(ui, root);
                         pre
                     })
                     .inner;
@@ -2406,6 +2427,7 @@ impl Editor {
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);
+                self.edit.draw_image_drag(ui);
                 self.show_outline(ui, root, canvas_rect);
                 ui.advance_cursor_after_rect(canvas_rect);
             });
@@ -2794,8 +2816,8 @@ impl Editor {
     }
 
     /// The rows `fragment` names, first and last: a heading's section, from
-    /// its block to the next heading of its level or higher, or else every
-    /// row of the note.
+    /// under the heading to the next heading of its level or higher, or else
+    /// every row of the note.
     fn region_rows<'a>(
         &self, rows: &scroll_content::DocScrollContent<'_, 'a>, root: &'a AstNode<'a>,
         fragment: Option<&crate::tab::Fragment>,
@@ -2820,6 +2842,7 @@ impl Editor {
             .find(|row| *row != start)
             .and_then(|row| rows.prev(&row))
             .unwrap_or(last);
+        let start = if end != start { rows.next(&start)? } else { start };
         Some((start, end))
     }
 

@@ -78,10 +78,9 @@ fn angle_bracket_autolink_is_not_a_card() {
 }
 
 #[test]
-fn url_in_a_container_block_is_not_a_card() {
-    // One representative container — the trigger excludes any container block
-    // via the same ancestor walk, so list item stands in for quote/task/nested.
-    assert!(!first_link_is_card("- https://example.com\n"));
+fn url_in_a_container_block_is_a_card() {
+    assert!(first_link_is_card("- https://example.com\n"));
+    assert!(first_link_is_card("> https://example.com\n"));
 }
 
 #[test]
@@ -156,9 +155,8 @@ fn previews_off_leaves_known_sites_as_urls() {
 }
 
 #[test]
-fn url_in_list_renders_no_card_even_when_cached() {
-    // The positional trigger excludes container blocks regardless of metadata.
-    assert!(!renders_card_with_cached_meta("- https://example.com\n", "https://example.com"));
+fn url_in_list_renders_a_card_when_cached() {
+    assert!(renders_card_with_cached_meta("- https://example.com\n", "https://example.com"));
 }
 
 #[test]

@@ -254,7 +254,7 @@ fn act(editor: &mut TestEditor, action: TableAction) {
 }
 
 /// The rect of each cell of the document's first table, row by row.
-fn cell_rects(editor: &TestEditor) -> Vec<Vec<egui::Rect>> {
+pub(super) fn cell_rects(editor: &TestEditor) -> Vec<Vec<egui::Rect>> {
     let r = &editor.editor.edit.renderer;
     let table = &r.bounds.tables[0];
     table

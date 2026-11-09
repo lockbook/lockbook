@@ -7,7 +7,7 @@
 //! middle-click close; active title → rename sheet; context menu.
 
 use egui::{
-    Align, CornerRadius, CursorIcon, DragAndDrop, Id, Layout, Sense, Stroke, Ui, UiBuilder, pos2,
+    Align, CornerRadius, CursorIcon, DragAndDrop, Id, Layout, Sense, Ui, UiBuilder, pos2,
     scroll_area::ScrollBarVisibility, vec2,
 };
 use lb::Uuid;
@@ -442,14 +442,14 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             let is_noop = dst == src || dst == src + 1;
             if !is_noop {
                 let x = if drop_left { body.left() } else { body.right() };
-                let stroke = Stroke::new(STROKE_HAIRLINE * 2.0, t.accent());
                 ui.scope_builder(
                     UiBuilder::new().layer_id(egui::LayerId::new(
                         egui::Order::Foreground,
                         Id::unique("shell_tab_reorder_drop"),
                     )),
                     |ui| {
-                        ui.painter().vline(x, chrome.y_range(), stroke);
+                        let (top, bottom) = (pos2(x, chrome.top()), pos2(x, chrome.bottom()));
+                        workspace_rs::style::paint_drop_line(ui.painter(), top, bottom, t);
                     },
                 );
                 if let Some(src) = resp.dnd_release_payload::<TabReorder>() {

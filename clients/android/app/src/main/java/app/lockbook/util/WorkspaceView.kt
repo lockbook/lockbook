@@ -18,6 +18,7 @@ import android.os.SystemClock
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
@@ -539,6 +540,7 @@ class WorkspaceView(
                 }
 
                 updateMagnifier(response, density)
+                if (response.lifted) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
 
                 response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
                 keyboardPull.selecting = response.hasMagnifier

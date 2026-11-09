@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use egui::{
-    Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, Rect,
+    Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, Pos2, Rect,
     Response, Sense, Shadow, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 
@@ -258,6 +258,23 @@ pub fn plate_content_shadow(
         .inner_margin(0.0)
         .show(ui, add)
         .response
+}
+
+/// Where a drag lands between others, from `start` to `end` along the flow
+/// (across a list, down a column or a line of text): a soft capsule, a line
+/// down its middle, and a hollow dot at `start`. One mark for every drop.
+pub fn paint_drop_line(painter: &egui::Painter, start: Pos2, end: Pos2, t: &Theme) {
+    let primary = t.accent_bg();
+    let (dot, half, wash) = (4.0, 1.25, 3.0);
+    let along = (end - start).normalized();
+    let across = vec2(along.y.abs(), along.x.abs());
+    let capsule = Rect::from_two_pos(start, end).expand2(across * wash);
+    painter.rect_filled(capsule, CornerRadius::same(3), primary.gamma_multiply(0.18));
+    let head = start + along * dot;
+    let line = Rect::from_two_pos(head, end).expand2(across * half);
+    painter.rect_filled(line, CornerRadius::same(1), primary);
+    painter.circle_filled(head, dot, primary);
+    painter.circle_filled(head, dot - 1.5, t.neutral_bg());
 }
 
 /// The slot something was lifted out of: shaded in from its edges, most

@@ -75,11 +75,22 @@ impl MdEdit {
         let focused = ctx.memory(|m| m.has_focus(id));
         let prior_entered_atom = self.renderer.entered_atom;
 
+        // a drag let go last frame stops floating as its move applies
+        self.in_progress_image_drag = self
+            .in_progress_image_drag
+            .take()
+            .filter(|drag| !drag.dropped);
+        if self.pending_block_move.is_some() {
+            self.in_progress_block_drag = None;
+        }
+
         // Deferred block reorder
         let move_resp = match self.pending_block_move.take() {
-            Some((drag, insert_offset)) => match drag.unit {
-                DragUnit::Item => self.move_block(drag.section_range, insert_offset),
-                DragUnit::Row | DragUnit::Column(_) => self.move_table_part(drag, insert_offset),
+            Some((drag, gap, _)) => match drag.unit {
+                DragUnit::Item => self.move_block(drag.section_range, gap.insert_offset),
+                DragUnit::Row | DragUnit::Column(_) => {
+                    self.move_table_part(drag, gap.insert_offset)
+                }
             },
             None => buffer::Response::default(),
         };
@@ -145,9 +156,11 @@ impl MdEdit {
         // triggering selection); the fold check below stands down for the
         // frame so undo isn't immediately re-undone.
         let mut undo_redo = false;
+        let mut moved = false;
 
         for event in std::mem::take(&mut self.event.internal_events) {
             undo_redo |= matches!(event, Event::Undo | Event::Redo);
+            moved |= matches!(event, Event::Move { .. });
             direct_resp |= self.calc_operations(ctx, root, event, &mut ops);
         }
 
@@ -203,6 +216,11 @@ impl MdEdit {
         let mut buf_resp = direct_resp;
         buf_resp |= self.renderer.buffer.update();
         buf_resp |= move_resp; // a deferred reorder reports its text/selection edit
+        // a drop puts the caret back where it was: the drag placed the view,
+        // so nothing scrolls to the caret
+        if moved {
+            buf_resp.selection_user_moved = false;
+        }
 
         if buf_resp.text_updated {
             self.renderer.bump_text_seq();
@@ -492,9 +510,12 @@ impl MdEdit {
         // Favicon + selection tint, over the opaque capsule pills.
         self.renderer.show_capsule_overlays(ui, root, rect, 0);
 
+        self.track_drag_travel(ui);
         self.handle_block_drag(ui);
+        self.handle_image_drag(ui, root);
         self.post_render(ui, rect, id, pre);
         self.draw_dragged_overlay(ui, root);
+        self.draw_image_drag(ui);
         if overflow > 0.0 {
             self.show_overflow_scrollbar(ui, rect, id, height);
         }
@@ -598,9 +619,12 @@ impl MdEdit {
             Some(BlockDragAction::Dragged(_)) => {}
             Some(BlockDragAction::Released(pointer)) => {
                 if let Some(drag) = self.in_progress_block_drag.take() {
-                    if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
-                        // deferred move (applied next frame in `handle_input`)
-                        self.pending_block_move = Some((drag, gap.insert_offset));
+                    let aim = self.block_drop_pointer(&drag, pointer);
+                    if let Some(gap) = self.renderer.drop_gap_for(&drag, aim) {
+                        // deferred move (applied next frame in `handle_input`),
+                        // floating where it lands until then
+                        self.pending_block_move = Some((drag, gap, pointer));
+                        self.in_progress_block_drag = Some(drag);
                         ui.ctx().request_repaint();
                     }
                 }
@@ -608,16 +632,20 @@ impl MdEdit {
             None => {}
         }
         if self.in_progress_block_drag.is_some() {
-            self.auto_scroll_to_drag_pointer(ui);
+            let sideways = self
+                .in_progress_block_drag
+                .is_some_and(|drag| matches!(drag.unit, DragUnit::Column(_)));
+            self.auto_scroll_to_drag_pointer(ui, sideways);
             ui.ctx().request_repaint();
         }
     }
 
-    /// Edge-scroll while a block drag is in flight: reveal the pointer
-    /// padded by `row_height` on each side. The pointer y is clamped to
-    /// the viewport so dragging past the toolbar / window edge still
-    /// scrolls at full rate.
-    fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui) {
+    /// Edge-scroll while a drag is in flight: reveal the pointer padded by
+    /// `row_height` on each side. The pointer y is clamped to the viewport
+    /// so dragging past the toolbar / window edge still scrolls at full
+    /// rate. `sideways`, for a drag that drops along a table's rows, a
+    /// block wider than the note under the pointer scrolls the same way.
+    pub(crate) fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui, sideways: bool) {
         use crate::tab::markdown_editor::scroll_content::DocScrollContent;
         use crate::widgets::affine_scroll::{Align, Reveal};
 
@@ -625,6 +653,9 @@ impl MdEdit {
         let viewport = ui.clip_rect();
         let viewport_y = (pointer.y - viewport.min.y).clamp(0.0, viewport.height());
         let pad = self.renderer.layout.row_height;
+        if sideways {
+            self.renderer.reveal_along_row(pointer);
+        }
 
         let arena = comrak::Arena::new();
         let root = self.renderer.reparse(&arena);
@@ -654,17 +685,19 @@ impl MdEdit {
         &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>,
     ) {
         let Some(drag) = self.in_progress_block_drag else { return };
-        let Some(p) = self.drag_pointer(ui) else { return };
+        // let go, a touch leaves no pointer: it floats where it was let go
+        let released = self.pending_block_move.map(|(_, _, released)| released);
+        let Some(p) = released.or_else(|| self.drag_pointer(ui)) else { return };
         if let DragUnit::Column(column) = drag.unit {
             return self.draw_dragged_column(ui, root, drag, column, p);
         }
         let theme = self.renderer.ctx.get_lb_theme();
-        let primary = theme.accent_bg();
         // a table's rows touch: nothing of one reaches past its rect
         let is_row = drag.unit == DragUnit::Row;
 
         // Drop-gap indicator: soft capsule with a hollow leading dot.
-        if let Some(gap) = self.renderer.drop_gap_for(&drag, p) {
+        let aim = self.block_drop_pointer(&drag, p);
+        if let Some(gap) = self.renderer.drop_gap_for(&drag, aim) {
             let (x0, x1) = self
                 .renderer
                 .block_boxes
@@ -677,24 +710,12 @@ impl MdEdit {
                 // Start in the gutter so the dot isn't hidden by markers.
                 let x0 = x0 - self.renderer.layout.indent;
                 let y = gap.at as f32;
-                let dot = 4.0;
-                let half = 1.25;
-                let painter = ui.painter();
-                painter.rect_filled(
-                    egui::Rect::from_min_max(Pos2::new(x0, y - 3.0), Pos2::new(x1, y + 3.0)),
-                    egui::CornerRadius::same(3),
-                    primary.gamma_multiply(0.18),
+                crate::style::paint_drop_line(
+                    ui.painter(),
+                    Pos2::new(x0, y),
+                    Pos2::new(x1, y),
+                    &theme,
                 );
-                painter.rect_filled(
-                    egui::Rect::from_min_max(
-                        Pos2::new(x0 + dot, y - half),
-                        Pos2::new(x1, y + half),
-                    ),
-                    egui::CornerRadius::same(1),
-                    primary,
-                );
-                painter.circle_filled(Pos2::new(x0 + dot, y), dot, primary);
-                painter.circle_filled(Pos2::new(x0 + dot, y), dot - 1.5, theme.neutral_bg());
             }
         }
 

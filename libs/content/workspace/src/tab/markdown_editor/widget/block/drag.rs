@@ -240,6 +240,13 @@ impl<'ast> MdRender {
         rect
     }
 
+    /// How far above the floating card a drop aims at most, once the finger
+    /// or pointer has moved down that far: they and the card cover what is
+    /// under them (see `MdEdit::drag_lift`).
+    pub fn drop_lift(&self) -> f32 {
+        crate::style::space::Space::Md.pts()
+    }
+
     /// Drop gap nearest the dragged item's translated top within its
     /// sibling group. `None` if hovering the item's own slot (cancel).
     pub fn drop_gap_for(&self, drag: &BlockDrag, pointer: Pos2) -> Option<DropGap> {
@@ -429,7 +436,29 @@ impl<'ast> MdRender {
     }
 }
 
+impl MdRender {
+    /// Whether a long press at `pos` lifts something: an image or a note
+    /// embed, or a list item, table row or column.
+    pub fn can_lift(&self, pos: Pos2) -> bool {
+        self.image_at(pos).is_some() || self.touch_reorder_target(pos).is_some()
+    }
+}
+
 impl MdEdit {
+    /// Lift what a long press at `pos` grabs, the image over the block it
+    /// sits in. False if nothing is there.
+    pub(crate) fn lift(&mut self, pos: Pos2) -> bool {
+        if let Some(image) = self.renderer.image_at(pos) {
+            self.in_progress_image_drag = Some(self.renderer.image_drag(image, pos));
+        } else if let Some(drag) = self.renderer.touch_reorder_target(pos) {
+            self.renderer.block_drag_action = Some(BlockDragAction::Started(drag));
+        } else {
+            return false;
+        }
+        self.lifted = true;
+        true
+    }
+
     /// Touch long-press → drag-reorder. The body owns the press so a pan
     /// still scrolls; a stationary hold past `LONG_PRESS` arms the reorder.
     /// No-op unless touch, editable, and the keyboard is hidden (keyboard up
@@ -470,7 +499,7 @@ impl MdEdit {
                 if let (true, false, Some(origin), Some(started)) =
                     (any_pressed, keyboard_shown, origin, t0)
                 {
-                    if self.renderer.touch_reorder_target(origin).is_some() {
+                    if self.renderer.can_lift(origin) {
                         self.touch_reorder = TouchReorder::Pending { origin, started };
                     }
                 }
@@ -482,14 +511,11 @@ impl MdEdit {
                 } else if moved > SLOP {
                     self.touch_reorder = TouchReorder::Idle; // pan → leave it to scroll
                 } else if time - started >= LONG_PRESS {
-                    match self.renderer.touch_reorder_target(origin) {
-                        Some(drag) => {
-                            self.renderer.block_drag_action = Some(BlockDragAction::Started(drag));
-                            self.touch_reorder =
-                                TouchReorder::Armed { last: latest.unwrap_or(origin) };
-                        }
-                        None => self.touch_reorder = TouchReorder::Idle,
-                    }
+                    self.touch_reorder = if self.lift(origin) {
+                        TouchReorder::Armed { last: latest.unwrap_or(origin) }
+                    } else {
+                        TouchReorder::Idle
+                    };
                 } else {
                     ui.ctx().request_repaint(); // tick toward the threshold
                 }

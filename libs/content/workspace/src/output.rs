@@ -30,6 +30,8 @@ pub struct Response {
     /// A popup is painted over the caret: a platform that draws its own
     /// caret above the editor hides it.
     pub caret_covered: bool,
+    /// A long press lifted something to drag: a touch platform buzzes.
+    pub lifted: bool,
 
     pub tabs_changed: bool,
 

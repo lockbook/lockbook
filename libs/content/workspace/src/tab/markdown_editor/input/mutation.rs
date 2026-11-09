@@ -55,6 +55,23 @@ impl MdEdit {
         resp.selection_user_moved = false;
         resp
     }
+
+    /// Moves the text of `range` to `to` as a cut and a paste would: only
+    /// those characters, a table cell they leave or enter staying one cell.
+    fn move_text(
+        &self, range: (Grapheme, Grapheme), to: Grapheme, operations: &mut Vec<Operation>,
+    ) {
+        if range.contains_inclusive(to) {
+            return;
+        }
+        let pasted = self.renderer.buffer[range].to_string();
+        if !self.replace_in_table(range, "", false, operations) {
+            operations.push(Operation::Replace(Replace { range, text: "".into() }));
+        }
+        if !self.replace_in_table(to.into_range(), &pasted, false, operations) {
+            operations.push(Operation::Replace(Replace { range: to.into_range(), text: pasted }));
+        }
+    }
 }
 
 impl<'ast> MdEdit {
@@ -110,6 +127,15 @@ impl<'ast> MdEdit {
                 if advance_cursor {
                     operations.push(Operation::Select(range.start().to_range()));
                 }
+            }
+            Event::Move { range, to } => {
+                // A step of its own selects it where it was: an undo of the
+                // move comes back to it there, not to a caret a tap since
+                // moved. The caret is back by the frame's end.
+                self.renderer.buffer.queue(vec![Operation::Select(range)]);
+                response |= self.renderer.buffer.update();
+                self.move_text(range, to, operations);
+                operations.push(Operation::Select(current_selection));
             }
             Event::ToggleStyle { region, style } => {
                 // ToggleStyle inserts markdown syntax (e.g. `**…**`)
