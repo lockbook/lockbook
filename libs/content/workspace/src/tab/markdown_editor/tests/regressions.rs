@@ -24,7 +24,7 @@ use super::render_props::{
 fn task_checkboxes_are_one_size() {
     use super::super::TouchTarget;
 
-    let lb = super::harness::build_lb();
+    let lb = super::harness::in_memory_core();
     let url = "https://x.test/i.png";
     let (mut ws, embeds) =
         TestEditor::with_test_embeds(lb, &format!("- [ ] plain\n- [ ] ![]({url}) image\n\nend\n"));
@@ -62,12 +62,11 @@ fn withheld_embeds_leave_image_cache_alone() {
 
     let (cache, [note, _, private, ..]) = alice();
     let files = Arc::new(RwLock::new(cache));
-    let persistence =
-        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let persistence = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
     let images = ImageCache::new(
         crate::tab::markdown_editor::test_egui_ctx(),
         super::super::HttpClient::default(),
-        super::harness::build_lb(),
+        super::harness::in_memory_core(),
         files,
         persistence,
     );
@@ -137,9 +136,9 @@ fn same_image_path_in_two_folders_shows_two_files() {
     let images = ImageCache::new(
         crate::tab::markdown_editor::test_egui_ctx(),
         super::super::HttpClient::default(),
-        super::harness::build_lb(),
+        super::harness::in_memory_core(),
         Arc::new(RwLock::new(files)),
-        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true),
+        WsPersistentStore::new(false, std::path::PathBuf::new(), false),
     );
 
     ImageEmbedResolver::new(images.clone(), note_a).prefetch("photo.png");
@@ -161,13 +160,12 @@ fn inline_image_advance_matches_rendered_width() {
     use std::sync::Arc;
     use std::sync::RwLock;
 
-    let lb = super::harness::build_lb();
+    let lb = super::harness::in_memory_core();
     let ctx = crate::tab::markdown_editor::test_egui_ctx();
     ctx.set_pixels_per_point(2.0);
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
-    let mut persistence =
-        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let mut persistence = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
     persistence.set_contact_linked_sites(true);
     let image_cache =
         ImageCache::new(ctx.clone(), client, lb.clone(), files.clone(), persistence.clone());
@@ -860,7 +858,7 @@ fn layout_cache_consistent_under_link_title() {
 #[test]
 fn layout_cache_consistent_under_embed() {
     const EPS: f32 = 0.5;
-    let lb = super::harness::build_lb();
+    let lb = super::harness::in_memory_core();
     let (mut ws, embeds) =
         TestEditor::with_test_embeds(lb, "![alt](https://x.test/i.png)\n\nafter\n");
     ws.enter_frame();
@@ -1358,12 +1356,11 @@ fn image_load_layout_consistent() {
     use crate::widgets::image_cache::{ImageCache, ImageKey};
     use crate::workspace::WsPersistentStore;
 
-    let lb = super::harness::build_lb();
+    let lb = super::harness::in_memory_core();
     let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
-    let persistence =
-        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let persistence = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
 
     let image_cache =
         ImageCache::new(ctx.clone(), client, lb.clone(), files.clone(), persistence.clone());
@@ -2202,7 +2199,7 @@ fn touch_image_tap_selects_and_pops_menu() {
     use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
     let (mut ws, _embeds) = TestEditor::with_test_embeds(
-        super::harness::build_lb(),
+        super::harness::in_memory_core(),
         "![alt](https://example.com/i.png)\n",
     );
     ws.editor.edit.renderer.touch_mode = true;
@@ -2266,7 +2263,7 @@ fn caret_bordering_embeds_spans_their_height() {
 
     // image: caret at the image's start spans its (test-embed 200pt) height
     let (mut ws, _embeds) = TestEditor::with_test_embeds(
-        super::harness::build_lb(),
+        super::harness::in_memory_core(),
         "![alt](https://example.com/i.png)\n",
     );
     ws.enter_frame();
@@ -2330,7 +2327,7 @@ fn phone_toolbar_never_pushed_off_screen() {
     use crate::link_preview::LinkMeta;
     use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 
-    let lb = super::harness::build_lb();
+    let lb = super::harness::in_memory_core();
     let ctx = crate::tab::markdown_editor::test_egui_ctx();
     ctx.set_os(egui::os::OperatingSystem::IOS);
     ctx.set_pixels_per_point(3.0); // fractional row geometry, like a real phone
@@ -2889,7 +2886,7 @@ fn line_moves_from_a_soft_wrapped_row_end_keep_the_column() {
 
 /// The first image's rect and the baseline of the first text beside it.
 fn image_and_baseline(md: &str) -> (egui::Rect, f32) {
-    let (mut ws, embeds) = TestEditor::with_test_embeds(super::harness::build_lb(), md);
+    let (mut ws, embeds) = TestEditor::with_test_embeds(super::harness::in_memory_core(), md);
     embeds.complete("https://x.test/a.png", egui::vec2(60.0, 60.0));
     ws.enter_frame();
     let fragments = &ws.editor.edit.renderer.fragments;
@@ -2928,7 +2925,7 @@ fn an_image_in_a_heading_measures_against_the_headings_text() {
 /// and returns that image's rect, the note's right edge, the caret's top and
 /// bottom, and the caret's top before typing.
 fn spaces_typed(md: &str, at: usize) -> (egui::Rect, f32, [egui::Pos2; 2], egui::Pos2) {
-    let (mut ws, embeds) = TestEditor::with_test_embeds(super::harness::build_lb(), md);
+    let (mut ws, embeds) = TestEditor::with_test_embeds(super::harness::in_memory_core(), md);
     embeds.complete("https://x.test/a.png", egui::vec2(4000.0, 100.0));
     let at = Location::Grapheme(Grapheme(at));
     ws.push(Event::Select { region: Region::BetweenLocations { start: at, end: at } });

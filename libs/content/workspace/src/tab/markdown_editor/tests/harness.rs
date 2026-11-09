@@ -16,28 +16,11 @@ use crate::workspace::WsPersistentStore;
 use egui::{Pos2, RawInput, Rect, Ui, Vec2};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::model::core_config::ClientType;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
-/// `Lb::init` is heavy (network probe, on-disk store setup); property
-/// tests should call this once and reuse the result via
-/// [`TestEditor::with_lb`].
-pub fn build_lb() -> Lb {
-    Lb::init(lb_rs::model::core_config::Config {
-        writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-        logs: false,
-        stdout_logs: false,
-        colored_logs: false,
-        background_work: false,
-        client_name: "tests".into(),
-        build_info: None,
-        client_type: ClientType::Unknown,
-        ..Default::default()
-    })
-    .unwrap()
-}
+pub use crate::test_utils::in_memory_core;
 
 const SCREEN_SIZE: Vec2 = Vec2::new(800., 600.);
 
@@ -52,11 +35,11 @@ pub struct TestEditor {
 
 impl TestEditor {
     pub fn new(md: &str) -> Self {
-        Self::with_lb(build_lb(), md)
+        Self::with_lb(in_memory_core(), md)
     }
 
     /// Reuses a caller-provided `Lb` so property-test loops avoid the
-    /// per-iteration `Lb::init` cost.
+    /// per-iteration core setup.
     pub fn with_lb(lb: Lb, md: &str) -> Self {
         Self::with_embeds(lb, md, Box::new(()))
     }
@@ -85,7 +68,7 @@ impl TestEditor {
             MdResources {
                 ctx,
                 previews,
-                core: build_lb(),
+                core: in_memory_core(),
                 persistence,
                 link_resolver: Box::new(TestLinks),
                 embeds: Box::new(()),
@@ -122,7 +105,7 @@ impl TestEditor {
         // tabs share the workspace's settings and its previews
         let renderer = &other.editor.edit.renderer;
         let shared = (other.editor.persistence.clone(), renderer.previews.clone());
-        Self::from_editor(build_editor(build_lb(), md, Box::new(()), ctx, Some(shared)))
+        Self::from_editor(build_editor(in_memory_core(), md, Box::new(()), ctx, Some(shared)))
     }
 
     /// Build as the note `file_id` in `files`, resolving links against them.
@@ -138,7 +121,7 @@ impl TestEditor {
             MdResources {
                 ctx: ctx.clone(),
                 previews,
-                core: build_lb(),
+                core: in_memory_core(),
                 persistence,
                 link_resolver: Box::new(resolver),
                 embeds: Box::new(()),
@@ -374,8 +357,7 @@ impl LinkResolver for TestLinks {
 
 /// A fresh settings store and the link previews that read it.
 pub fn store_and_previews(ctx: &egui::Context) -> (WsPersistentStore, LinkPreviews) {
-    let persistence =
-        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let persistence = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
     let previews = LinkPreviews::new(ctx.clone(), Default::default(), persistence.clone());
     (persistence, previews)
 }

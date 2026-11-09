@@ -7,7 +7,7 @@ use comrak::Arena;
 use egui::{Pos2, RawInput, Rect, UiBuilder, Vec2};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use super::harness::{TestEditor, build_lb};
+use super::harness::{TestEditor, in_memory_core};
 use super::render_props::test_renderer;
 use crate::test_utils::byte_source::ByteSource;
 
@@ -16,7 +16,7 @@ const LINK_DOC: &str = "This paragraph exists to exercise every flavor of link t
 const PLAIN_DOC: &str = "This paragraph exists to exercise every flavor of text the markdown editor knows how to render and route, starting with bare URLs like example.com and news ycombinator com which would fetch titles asynchronously and swap in once the fetch returns, then inline notes with text like example example com and empty-text inline notes whose URL bytes swap for the fetched title like en wikipedia org wiki Markdown, a mailto note test example com and an in-document anchor note top that should both resolve as External, wikinotes across every shape including bare like scratch-test and with a disambiguating path like imports pasted_image_2026-05-11_18-38-14 and with an explicit md like scratch-test md and case-insensitive like SCRATCH-TEST, an absolute path note tests scratch-test svg and a relative one scratch-test svg and an ascending facts profiles mom md and a percent-encoded path tests scratch-test svg that should resolve identically to its raw form tests scratch-test svg, then the negative cases — an excessive dot dot path foo md that must NOT silently saturate at root, a folder path tests that must NOT resolve since folders aren't documents, a missing file never exists md, and a synthetic bad uuid 00000000-0000-0000-0000-000000000000 — all of which should render red Broken with a tooltip on cmd-hover, plus a cross-tree case to exercise the yellow Warning state by noting from a pending-share tree paste a real uuid from a not-yet-accepted share here REPLACE-WITH-PENDING-SHARE-UUID, and finally inline images covering each path shape: a sibling image black-standard-schnauzer png, an absolute reference tests black-standard-schnauzer png, a nested import imports pasted_image_2026-05-11_18-38-14 png, an external URL placehold co 120x60, an empty-alt image whose alt text should swap for any fetched title placehold co 100x40, and a broken image nope missing png which should render with the broken-image affordance.";
 
 fn bench(label: &str, md: &str, frames: usize) {
-    let lb = build_lb();
+    let lb = in_memory_core();
     let mut h = TestEditor::with_lb(lb, md);
     for _ in 0..5 {
         h.enter_frame();
@@ -46,7 +46,7 @@ const LONG_DOC_PREFIX: &str = "Lorem ipsum dolor sit amet, consectetur adipiscin
 #[test]
 #[ignore]
 fn link_profile() {
-    let lb = build_lb();
+    let lb = in_memory_core();
     let mut h = TestEditor::with_lb(lb, LINK_DOC);
     for _ in 0..10 {
         h.enter_frame();

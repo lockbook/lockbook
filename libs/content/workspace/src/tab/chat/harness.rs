@@ -606,28 +606,9 @@ fn preamble() -> String {
 mod tests {
     use std::time::{Duration, Instant};
 
-    use lb_rs::model::core_config::{ClientType, Config};
-
     use super::super::openai::mock::{SSE_HELLO, serve_once, serve_seq};
     use super::*;
-
-    /// An offline core — enough to construct the harness. Tool dispatch
-    /// against it (no account) returns steering errors, which is all these
-    /// tests need.
-    fn offline_core() -> lb_rs::blocking::Lb {
-        lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", lb_rs::Uuid::new_v4()),
-            logs: false,
-            stdout_logs: false,
-            colored_logs: false,
-            background_work: false,
-            client_name: "tests".into(),
-            build_info: None,
-            client_type: ClientType::Unknown,
-            ..Default::default()
-        })
-        .unwrap()
-    }
+    use crate::test_utils::in_memory_core;
 
     /// A turn granted the whole lockbook — the tests below aren't exercising
     /// scope itself (see `gate_routes_by_scope` / the `request_access_*`
@@ -663,8 +644,12 @@ mod tests {
     /// with usage → idle.
     #[test]
     fn say_streams_a_reply() {
-        let mut harness =
-            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+        let mut harness = Harness::new(
+            egui::Context::default(),
+            in_memory_core(),
+            Vec::new(),
+            Buffers::default(),
+        );
 
         harness.say("hi".into(), provider(serve_once(SSE_HELLO)), None, TurnAccess::default());
         assert!(harness.busy);
@@ -704,8 +689,12 @@ mod tests {
     #[test]
     fn edit_runs_in_scope_without_card() {
         let base = serve_seq(vec![SSE_EDIT_CALL, SSE_HELLO]);
-        let mut harness =
-            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+        let mut harness = Harness::new(
+            egui::Context::default(),
+            in_memory_core(),
+            Vec::new(),
+            Buffers::default(),
+        );
         harness.say("edit my note".into(), provider(base), None, full_scope());
 
         // Drains to completion unattended — a card would block the turn on a
@@ -730,8 +719,12 @@ mod tests {
     #[test]
     fn edit_out_of_scope_steers_without_card() {
         let base = serve_seq(vec![SSE_EDIT_CALL, SSE_HELLO]);
-        let mut harness =
-            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+        let mut harness = Harness::new(
+            egui::Context::default(),
+            in_memory_core(),
+            Vec::new(),
+            Buffers::default(),
+        );
         harness.say("do it".into(), provider(base), None, TurnAccess::default());
 
         let updates = drain(&mut harness);
@@ -759,8 +752,12 @@ mod tests {
              data: {\"choices\":[],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":1}}\n\n\
              data: [DONE]\n\n";
         let base = serve_seq(vec![SSE_LIST_CALL, SSE_HELLO]);
-        let mut harness =
-            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+        let mut harness = Harness::new(
+            egui::Context::default(),
+            in_memory_core(),
+            Vec::new(),
+            Buffers::default(),
+        );
         harness.say("what's in my vault?".into(), provider(base), None, full_scope());
 
         // Drain to completion: a tool row, then the reply — no decision step.
@@ -823,8 +820,12 @@ mod tests {
     #[test]
     fn request_access_grant_flow() {
         let base = serve_seq(vec![SSE_REQUEST_CALL, SSE_HELLO]);
-        let mut harness =
-            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+        let mut harness = Harness::new(
+            egui::Context::default(),
+            in_memory_core(),
+            Vec::new(),
+            Buffers::default(),
+        );
         harness.say("summarize my notes".into(), provider(base), None, TurnAccess::default());
 
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -862,8 +863,12 @@ mod tests {
     #[test]
     fn request_access_deny_flow() {
         let base = serve_seq(vec![SSE_REQUEST_CALL, SSE_HELLO]);
-        let mut harness =
-            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+        let mut harness = Harness::new(
+            egui::Context::default(),
+            in_memory_core(),
+            Vec::new(),
+            Buffers::default(),
+        );
         harness.say("summarize my notes".into(), provider(base), None, TurnAccess::default());
 
         let deadline = Instant::now() + Duration::from_secs(5);

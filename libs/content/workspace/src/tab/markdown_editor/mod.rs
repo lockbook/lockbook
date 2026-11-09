@@ -21,8 +21,6 @@ use input::cursor::CursorState;
 use input::mutation::EventState;
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-#[cfg(test)]
-use lb_rs::model::core_config::ClientType;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Byte, Grapheme};
@@ -1288,18 +1286,7 @@ impl Editor {
     pub(crate) fn test(md: &str) -> Self {
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let ctx = test_egui_ctx();
-        let core = Lb::init(lb_rs::model::core_config::Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-            logs: false,
-            stdout_logs: false,
-            colored_logs: false,
-            background_work: false,
-            client_name: "tests".into(),
-            build_info: None,
-            client_type: ClientType::Unknown,
-            ..Default::default()
-        })
-        .unwrap();
+        let core = crate::test_utils::in_memory_core();
         Self::new(
             md,
             Uuid::new_v4(),
@@ -1308,11 +1295,7 @@ impl Editor {
                 previews: LinkPreviews::offline(ctx.clone()),
                 ctx,
                 core,
-                persistence: WsPersistentStore::new(
-                    false,
-                    format!("/tmp/{}", Uuid::new_v4()).into(),
-                    true,
-                ),
+                persistence: WsPersistentStore::new(false, std::path::PathBuf::new(), false),
                 link_resolver: Box::new(()),
                 embeds: Box::new(()),
                 files,

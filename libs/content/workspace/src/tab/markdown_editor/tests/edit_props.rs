@@ -493,7 +493,7 @@ fn ime_composition_matches_replace_check(buf: &[u8]) -> Result<(), String> {
 
     let mut src = ByteSource::new(buf);
     let initial = gen_doc(&mut src, &Features::all());
-    let lb = super::harness::build_lb();
+    let lb = super::harness::in_memory_core();
     let mut ime = TestEditor::with_lb(lb.clone(), &initial);
     let mut twin = TestEditor::with_lb(lb, &initial);
     let len = cursor_and_len(&ime).1;
@@ -933,7 +933,7 @@ where
     let initial = initial_buffer(&mut src);
     let n = event_count(&mut src);
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let lb = super::harness::build_lb();
+        let lb = super::harness::in_memory_core();
         let (mut ws, embeds) = TestEditor::with_test_embeds(lb, &initial);
         for _ in 0..n {
             f(&mut ws, &embeds, &mut src);

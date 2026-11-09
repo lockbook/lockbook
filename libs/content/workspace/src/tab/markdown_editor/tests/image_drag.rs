@@ -8,13 +8,13 @@ use lb_rs::model::text::offset_types::Grapheme;
 
 use super::super::input::Event;
 use super::super::widget::utils::wrap_layout::FragmentContent;
-use super::harness::{TestEditor, build_lb};
+use super::harness::{TestEditor, in_memory_core};
 use super::tables::table_ranges_check_md;
 
 const IMAGE: &str = "https://x.test/a.png";
 
 fn editor(md: &str) -> TestEditor {
-    let (mut ws, embeds) = TestEditor::with_test_embeds(build_lb(), md);
+    let (mut ws, embeds) = TestEditor::with_test_embeds(in_memory_core(), md);
     embeds.complete(IMAGE, egui::vec2(40.0, 40.0));
     ws.enter_frame();
     ws

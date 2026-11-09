@@ -1,6 +1,7 @@
 use super::path::split_path;
 use super::{ContentMatch, SearchFilter, SearchResult, build_descendants};
 use crate::blocking::Lb;
+use crate::io::server::Server;
 use crate::model::file::File;
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
@@ -28,7 +29,7 @@ pub struct ContentSearcher {
 }
 
 impl ContentSearcher {
-    pub fn new(lb: &Lb) -> Self {
+    pub fn new<S: Server + Send + Sync>(lb: &Lb<S>) -> Self {
         let start = Instant::now();
         let metas = lb.list_metadatas().unwrap_or_default();
         let paths = Arc::new(lb.list_paths_with_ids(None).unwrap_or_default());
