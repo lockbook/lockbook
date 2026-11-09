@@ -163,11 +163,8 @@ pub(super) fn test_renderer(md: &str) -> MdRender {
     let mut r = MdRender::test(md);
     // every web link the generator writes has a preview, so its chips and
     // cards lay out; seeded, so nothing is fetched
-    let mut persistence = crate::workspace::WsPersistentStore::new(
-        false,
-        format!("/tmp/{}", lb_rs::Uuid::new_v4()).into(),
-        false,
-    );
+    let mut persistence =
+        crate::workspace::WsPersistentStore::new(false, std::path::PathBuf::new(), false);
     persistence.set_contact_linked_sites(true);
     r.previews =
         crate::link_preview::LinkPreviews::new(r.ctx.clone(), Default::default(), persistence);

@@ -775,7 +775,6 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use egui::{Color32, ImageData, RawInput, TextureId};
-    use lb_rs::Uuid;
 
     use super::{ImageCache, ImageKey, bytes_look_like_svg, rasterize_svg};
     use crate::file_cache::FileCache;
@@ -814,8 +813,7 @@ mod tests {
         ];
         for (repeat, plays, stops) in cases {
             let ctx = crate::tab::markdown_editor::test_egui_ctx();
-            let persistence =
-                WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+            let persistence = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
             let images = ImageCache::new(
                 ctx.clone(),
                 Default::default(),

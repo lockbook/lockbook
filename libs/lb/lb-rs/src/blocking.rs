@@ -3,6 +3,8 @@ use std::{future::Future, path::PathBuf};
 use tokio::sync::broadcast::Receiver;
 use uuid::Uuid;
 
+use crate::io::network::Network;
+use crate::io::server::Server;
 use crate::model::account::{Account, Username};
 use crate::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo,
@@ -27,8 +29,8 @@ use {std::sync::Arc, tokio::runtime::Runtime};
 use crate::service::debug::DebugInfo;
 
 #[derive(Clone)]
-pub struct Lb {
-    lb: crate::Lb,
+pub struct Lb<S = Network> {
+    lb: crate::Lb<S>,
     #[cfg(not(target_family = "wasm"))]
     rt: Arc<Runtime>,
 }
@@ -38,6 +40,30 @@ impl Lb {
     pub fn init(config: Config) -> LbResult<Self> {
         let lb = crate::Lb::init_dummy(config)?;
         Ok(Self { lb })
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    pub fn init(config: Config) -> LbResult<Self> {
+        let rt = Arc::new(Runtime::new().unwrap());
+        let lb = rt.block_on(crate::Lb::init(config))?;
+        Ok(Self { rt, lb })
+    }
+}
+
+impl<S: Server> Lb<S> {
+    /// The blocking twin of [`crate::Lb::in_memory`].
+    #[cfg(target_family = "wasm")]
+    pub fn in_memory(config: Config, server: S) -> LbResult<Self> {
+        let lb = futures::executor::block_on(crate::Lb::in_memory(config, server))?;
+        Ok(Self { lb })
+    }
+
+    /// The blocking twin of [`crate::Lb::in_memory`].
+    #[cfg(not(target_family = "wasm"))]
+    pub fn in_memory(config: Config, server: S) -> LbResult<Self> {
+        let rt = Arc::new(Runtime::new().unwrap());
+        let lb = rt.block_on(crate::Lb::in_memory(config, server))?;
+        Ok(Self { rt, lb })
     }
 
     #[cfg(target_family = "wasm")]
@@ -56,17 +82,10 @@ impl Lb {
         self.rt.block_on(future)
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub fn init(config: Config) -> LbResult<Self> {
-        let rt = Arc::new(Runtime::new().unwrap());
-        let lb = rt.block_on(crate::Lb::init(config))?;
-        Ok(Self { rt, lb })
-    }
-
     /// The underlying async [`crate::Lb`], for callers that run their own
     /// runtime (the blocking methods `block_on` this wrapper's runtime, which
     /// panics when called from inside another).
-    pub fn async_lb(&self) -> &crate::Lb {
+    pub fn async_lb(&self) -> &crate::Lb<S> {
         &self.lb
     }
 
@@ -313,10 +332,6 @@ impl Lb {
         self.block_on(self.lb.search_accepted(id))
     }
 
-    pub fn content_searcher(&self) -> crate::search::ContentSearcher {
-        crate::search::ContentSearcher::new(self)
-    }
-
     pub fn validate(&self) -> LbResult<Vec<Warning>> {
         self.block_on(self.lb.test_repo_integrity(true))
     }
@@ -426,5 +441,11 @@ impl Lb {
     #[cfg(not(target_family = "wasm"))]
     pub fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {
         self.block_on(self.lb.write_panic_to_file(error_header, bt))
+    }
+}
+
+impl<S: Server + Send + Sync> Lb<S> {
+    pub fn content_searcher(&self) -> crate::search::ContentSearcher {
+        crate::search::ContentSearcher::new(self)
     }
 }

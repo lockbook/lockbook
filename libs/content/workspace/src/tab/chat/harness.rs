@@ -615,8 +615,7 @@ mod tests {
     /// against it (no account) returns steering errors, which is all these
     /// tests need.
     fn offline_core() -> lb_rs::blocking::Lb {
-        lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", lb_rs::Uuid::new_v4()),
+        let config = Config {
             logs: false,
             stdout_logs: false,
             colored_logs: false,
@@ -625,8 +624,10 @@ mod tests {
             build_info: None,
             client_type: ClientType::Unknown,
             ..Default::default()
-        })
-        .unwrap()
+        };
+        let network =
+            lb_rs::io::network::Network { client_type: config.client_type, ..Default::default() };
+        lb_rs::blocking::Lb::in_memory(config, network).unwrap()
     }
 
     /// A turn granted the whole lockbook — the tests below aren't exercising

@@ -27,8 +27,7 @@ pub fn test_lb() -> Lb {
 }
 
 fn blank_lb() -> Lb {
-    Lb::init(Config {
-        writeable_path: format!("/tmp/lb-ws-test/{}", Uuid::new_v4()),
+    let config = Config {
         logs: false,
         stdout_logs: false,
         colored_logs: false,
@@ -37,8 +36,10 @@ fn blank_lb() -> Lb {
         build_info: None,
         client_type: lb_rs::model::core_config::ClientType::Unknown,
         ..Default::default()
-    })
-    .unwrap()
+    };
+    let network =
+        lb_rs::io::network::Network { client_type: config.client_type, ..Default::default() };
+    Lb::in_memory(config, network).unwrap()
 }
 
 fn api_url() -> String {

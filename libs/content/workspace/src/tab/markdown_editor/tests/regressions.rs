@@ -62,8 +62,7 @@ fn withheld_embeds_leave_image_cache_alone() {
 
     let (cache, [note, _, private, ..]) = alice();
     let files = Arc::new(RwLock::new(cache));
-    let persistence =
-        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let persistence = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
     let images = ImageCache::new(
         crate::tab::markdown_editor::test_egui_ctx(),
         super::super::HttpClient::default(),
@@ -139,7 +138,7 @@ fn same_image_path_in_two_folders_shows_two_files() {
         super::super::HttpClient::default(),
         super::harness::build_lb(),
         Arc::new(RwLock::new(files)),
-        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true),
+        WsPersistentStore::new(false, std::path::PathBuf::new(), false),
     );
 
     ImageEmbedResolver::new(images.clone(), note_a).prefetch("photo.png");
@@ -166,8 +165,7 @@ fn inline_image_advance_matches_rendered_width() {
     ctx.set_pixels_per_point(2.0);
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
-    let mut persistence =
-        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let mut persistence = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
     persistence.set_contact_linked_sites(true);
     let image_cache =
         ImageCache::new(ctx.clone(), client, lb.clone(), files.clone(), persistence.clone());
@@ -1362,8 +1360,7 @@ fn image_load_layout_consistent() {
     let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
-    let persistence =
-        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let persistence = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
 
     let image_cache =
         ImageCache::new(ctx.clone(), client, lb.clone(), files.clone(), persistence.clone());

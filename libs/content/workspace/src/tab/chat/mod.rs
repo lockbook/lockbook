@@ -1696,8 +1696,7 @@ mod tests {
     #[test]
     fn turn_rows_chain_instead_of_forking() {
         use lb_rs::model::core_config::{ClientType, Config};
-        let core = lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+        let config = Config {
             logs: false,
             stdout_logs: false,
             colored_logs: false,
@@ -1706,8 +1705,10 @@ mod tests {
             build_info: None,
             client_type: ClientType::Unknown,
             ..Default::default()
-        })
-        .unwrap();
+        };
+        let network =
+            lb_rs::io::network::Network { client_type: config.client_type, ..Default::default() };
+        let core = lb_rs::blocking::Lb::in_memory(config, network).unwrap();
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let mut chat = Chat::new(
             b"",
@@ -1750,8 +1751,7 @@ mod tests {
     #[test]
     fn regenerate_reruns_from_turn_root() {
         use lb_rs::model::core_config::{ClientType, Config};
-        let core = lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+        let config = Config {
             logs: false,
             stdout_logs: false,
             colored_logs: false,
@@ -1760,8 +1760,10 @@ mod tests {
             build_info: None,
             client_type: ClientType::Unknown,
             ..Default::default()
-        })
-        .unwrap();
+        };
+        let network =
+            lb_rs::io::network::Network { client_type: config.client_type, ..Default::default() };
+        let core = lb_rs::blocking::Lb::in_memory(config, network).unwrap();
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let mut chat = Chat::new(
             b"",
@@ -1803,8 +1805,7 @@ mod tests {
     #[test]
     fn delete_cascade_nukes_subtree_and_siblings() {
         use lb_rs::model::core_config::{ClientType, Config};
-        let core = lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+        let config = Config {
             logs: false,
             stdout_logs: false,
             colored_logs: false,
@@ -1813,8 +1814,10 @@ mod tests {
             build_info: None,
             client_type: ClientType::Unknown,
             ..Default::default()
-        })
-        .unwrap();
+        };
+        let network =
+            lb_rs::io::network::Network { client_type: config.client_type, ..Default::default() };
+        let core = lb_rs::blocking::Lb::in_memory(config, network).unwrap();
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let mut chat = Chat::new(
             b"",
@@ -1866,8 +1869,7 @@ mod tests {
     fn new_chat_uses_sticky_default() {
         use lb_rs::model::chat::ModelSelection;
         use lb_rs::model::core_config::{ClientType, Config};
-        let core = lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+        let config = Config {
             logs: false,
             stdout_logs: false,
             colored_logs: false,
@@ -1876,8 +1878,10 @@ mod tests {
             build_info: None,
             client_type: ClientType::Unknown,
             ..Default::default()
-        })
-        .unwrap();
+        };
+        let network =
+            lb_rs::io::network::Network { client_type: config.client_type, ..Default::default() };
+        let core = lb_rs::blocking::Lb::in_memory(config, network).unwrap();
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let mut chat = Chat::new(
             b"",
@@ -2064,8 +2068,7 @@ mod tests {
     #[test]
     fn scope_grants_fold_dedupe_and_revoke() {
         use lb_rs::model::core_config::{ClientType, Config};
-        let core = lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+        let config = Config {
             logs: false,
             stdout_logs: false,
             colored_logs: false,
@@ -2074,8 +2077,10 @@ mod tests {
             build_info: None,
             client_type: ClientType::Unknown,
             ..Default::default()
-        })
-        .unwrap();
+        };
+        let network =
+            lb_rs::io::network::Network { client_type: config.client_type, ..Default::default() };
+        let core = lb_rs::blocking::Lb::in_memory(config, network).unwrap();
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let mut chat = Chat::new(
             b"",

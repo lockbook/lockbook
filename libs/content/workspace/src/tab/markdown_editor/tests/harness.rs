@@ -21,12 +21,10 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
-/// `Lb::init` is heavy (network probe, on-disk store setup); property
-/// tests should call this once and reuse the result via
-/// [`TestEditor::with_lb`].
+/// A core in memory. Each starts its own runtime, so property tests should
+/// call this once and reuse the result via [`TestEditor::with_lb`].
 pub fn build_lb() -> Lb {
-    Lb::init(lb_rs::model::core_config::Config {
-        writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+    let config = lb_rs::model::core_config::Config {
         logs: false,
         stdout_logs: false,
         colored_logs: false,
@@ -35,8 +33,10 @@ pub fn build_lb() -> Lb {
         build_info: None,
         client_type: ClientType::Unknown,
         ..Default::default()
-    })
-    .unwrap()
+    };
+    let network =
+        lb_rs::io::network::Network { client_type: config.client_type, ..Default::default() };
+    Lb::in_memory(config, network).unwrap()
 }
 
 const SCREEN_SIZE: Vec2 = Vec2::new(800., 600.);
@@ -56,7 +56,7 @@ impl TestEditor {
     }
 
     /// Reuses a caller-provided `Lb` so property-test loops avoid the
-    /// per-iteration `Lb::init` cost.
+    /// per-iteration core setup.
     pub fn with_lb(lb: Lb, md: &str) -> Self {
         Self::with_embeds(lb, md, Box::new(()))
     }
@@ -374,8 +374,7 @@ impl LinkResolver for TestLinks {
 
 /// A fresh settings store and the link previews that read it.
 pub fn store_and_previews(ctx: &egui::Context) -> (WsPersistentStore, LinkPreviews) {
-    let persistence =
-        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+    let persistence = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
     let previews = LinkPreviews::new(ctx.clone(), Default::default(), persistence.clone());
     (persistence, previews)
 }
