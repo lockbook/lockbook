@@ -618,9 +618,12 @@ impl<S: Server> Lb<S> {
 
                         // rename due to path conflict
                         if let Some(&rename_increment) = rename_increments.get(&id) {
-                            let name = NameComponents::from(&local_name)
-                                .generate_incremented(rename_increment)
-                                .to_name();
+                            let name = if local_file.is_folder() {
+                                NameComponents::folder(&local_name)
+                            } else {
+                                NameComponents::from(&local_name)
+                            };
+                            let name = name.numbered(rename_increment + 1);
                             merge.rename_unvalidated(&id, &name, &self.keychain)?;
                         }
 
@@ -755,15 +758,8 @@ impl<S: Server> Lb<S> {
                                                     (duplicate_id, duplicate_key)
                                                 };
 
-                                            let mut merge_name = merge_name;
-                                            merge_name = NameComponents::from(&merge_name)
-                                                .generate_incremented(
-                                                    rename_increments
-                                                        .get(&duplicate_id)
-                                                        .copied()
-                                                        .unwrap_or_default(),
-                                                )
-                                                .to_name();
+                                            let merge_name = NameComponents::from(&merge_name)
+                                                .copy(rename_increments[&duplicate_id]);
 
                                             merge.create_unvalidated(
                                                 duplicate_id,

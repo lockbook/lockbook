@@ -1573,16 +1573,12 @@ impl Workspace {
     pub fn create_doc_at(&mut self, is_drawing: bool, parent: Uuid) {
         let file_format = if is_drawing { "svg" } else { "md" };
         let date = Local::now().format("%Y-%m-%d");
-        let mut new_file = NameComponents {
-            name: date.to_string(),
-            variant: None,
-            extension: Some(file_format.into()),
-        };
-        new_file.next_in_children(self.core.get_children(&parent).unwrap());
+        let name = NameComponents::from(&format!("{date}.{file_format}"))
+            .free_number_in(&self.core.get_children(&parent).unwrap());
 
         let result = self
             .core
-            .create_file(new_file.to_name().as_str(), &parent, FileType::Document)
+            .create_file(&name, &parent, FileType::Document)
             .map_err(|err| format!("{err:?}"));
 
         if let Ok(file) = &result {
@@ -1635,13 +1631,12 @@ impl Workspace {
 
     pub fn create_folder_at(&mut self, parent: Uuid) {
         let date = Local::now().format("%Y-%m-%d");
-        let mut new_file =
-            NameComponents { name: date.to_string(), variant: None, extension: None };
-        new_file.next_in_children(self.core.get_children(&parent).unwrap());
+        let name = NameComponents::folder(&date.to_string())
+            .free_number_in(&self.core.get_children(&parent).unwrap());
 
         let result = self
             .core
-            .create_file(new_file.to_name().as_str(), &parent, FileType::Folder)
+            .create_file(&name, &parent, FileType::Folder)
             .map_err(|err| format!("{err:?}"));
 
         if let Ok(file) = &result {

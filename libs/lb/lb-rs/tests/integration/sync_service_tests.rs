@@ -23,7 +23,7 @@ async fn test_path_conflict() {
             .map(|file| file.name.clone())
             .sorted()
             .collect::<Vec<String>>(),
-        ["new-1.md", "new.md"]
+        ["new 2.md", "new.md"]
     )
 }
 
@@ -46,7 +46,7 @@ async fn test_path_conflict2() {
             .map(|file| file.name.clone())
             .sorted()
             .collect::<Vec<String>>(),
-        ["new-1.md", "new-2.md"]
+        ["new-1 2.md", "new-1.md"]
     )
 }
 

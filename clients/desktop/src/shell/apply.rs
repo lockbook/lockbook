@@ -1154,11 +1154,8 @@ pub(crate) struct RenameLive {
     pub can_commit: bool,
 }
 
-/// Suggested create name: local calendar date + unique variant
-/// under `parent` via [`lb::model::filename::NameComponents`].
-///
-/// Note: NameComponents currently treats the day of `YYYY-MM-DD` as a variant
-/// (`2026-08-05` → `2026-08-5`). Accept that until NameComponents is fixed.
+/// Suggested create name: local calendar date, numbered until no file
+/// under `parent` has it, via [`lb::model::filename::NameComponents`].
 fn suggested_create_name(app: &ShellApp, parent: Option<Uuid>, kind: CreateKind) -> String {
     let date = chrono::Local::now().format("%Y-%m-%d").to_string();
     let ext = kind.ext().unwrap_or("");
@@ -1169,9 +1166,7 @@ fn suggested_create_name(app: &ShellApp, parent: Option<Uuid>, kind: CreateKind)
     let files = r.workspace.files.read().unwrap();
     let parent = parent.unwrap_or_else(|| files.root().id);
     let kids: Vec<_> = files.children(parent).into_iter().cloned().collect();
-    let mut nc = lb::model::filename::NameComponents::from(&desired);
-    nc.next_in_children(kids);
-    let full = nc.to_name();
+    let full = lb::model::filename::NameComponents::from(&desired).free_number_in(&kids);
     // Sheet shows stem; extension is a static trailing label.
     if let Some(e) = kind.ext() { full.strip_suffix(e).unwrap_or(&full).to_owned() } else { full }
 }

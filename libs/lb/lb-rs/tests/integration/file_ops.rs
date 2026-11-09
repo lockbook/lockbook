@@ -179,7 +179,7 @@ async fn duplicate() {
 
     let dupe = core.duplicate_file(&id).await.unwrap();
 
-    assert_eq!(dupe.name, "doc-1.md");
+    assert_eq!(dupe.name, "doc copy.md");
     assert_ne!(dupe.id, id);
     assert_eq!(core.read_document(dupe.id, false).await.unwrap(), b"content");
 
@@ -192,18 +192,18 @@ async fn duplicate_repeatedly() {
     let core = test_core_with_account().await;
     let id = core.create_at_path("doc.md").await.unwrap().id;
 
-    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc-1.md");
-    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc-2.md");
-    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc-3.md");
+    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc copy.md");
+    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc copy 2.md");
+    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc copy 3.md");
 }
 
 #[tokio::test]
 async fn duplicate_a_duplicate() {
     let core = test_core_with_account().await;
     core.create_at_path("doc.md").await.unwrap();
-    let id = core.create_at_path("doc-4.md").await.unwrap().id;
+    let id = core.create_at_path("doc copy 4.md").await.unwrap().id;
 
-    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc-5.md");
+    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc copy 5.md");
 }
 
 #[tokio::test]
@@ -211,7 +211,17 @@ async fn duplicate_no_extension() {
     let core = test_core_with_account().await;
     let id = core.create_at_path("doc").await.unwrap().id;
 
-    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc-1");
+    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc copy");
+}
+
+#[tokio::test]
+async fn duplicate_keeps_dates_and_dots() {
+    let core = test_core_with_account().await;
+    let dated = core.create_at_path("2026-11-07.md").await.unwrap().id;
+    let titled = core.create_at_path("Dr. Smith").await.unwrap().id;
+
+    assert_eq!(core.duplicate_file(&dated).await.unwrap().name, "2026-11-07 copy.md");
+    assert_eq!(core.duplicate_file(&titled).await.unwrap().name, "Dr. Smith copy");
 }
 
 #[tokio::test]

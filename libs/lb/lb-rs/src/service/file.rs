@@ -99,11 +99,11 @@ impl<S: Server> Lb<S> {
 
         let content = self.read_document(source.id, false).await?;
 
-        let mut name = NameComponents::from(&source.name);
-        name.next_in_children(self.get_children(&source.parent).await?);
+        let name = NameComponents::from(&source.name)
+            .free_copy_in(&self.get_children(&source.parent).await?);
 
         let new_file = self
-            .create_file(&name.to_name(), &source.parent, FileType::Document)
+            .create_file(&name, &source.parent, FileType::Document)
             .await?;
         self.write_document(new_file.id, &content).await?;
 
