@@ -828,3 +828,69 @@ async fn reject_share_with_unsynced_create_inside_it() {
     owner.sync().await.unwrap();
     assert::all_paths(&owner, &["/", "/folder/"]).await;
 }
+
+/// Deleting a note and then moving its folder into someone else's share syncs both changes.
+#[tokio::test]
+async fn delete_then_move_folder_into_share() {
+    let owner = test_core_with_account().await;
+    let collaborator = test_core_with_account().await;
+    let collaborator_name = collaborator.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &collaborator_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    collaborator.sync().await.unwrap();
+    collaborator
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    collaborator.create_at_path("/notes/old.md").await.unwrap();
+    collaborator.sync().await.unwrap();
+
+    delete_path(&collaborator, "/notes/old.md").await.unwrap();
+    move_by_path(&collaborator, "/notes/", "/team/")
+        .await
+        .unwrap();
+    collaborator.sync().await.unwrap();
+
+    owner.sync().await.unwrap();
+    assert::all_paths(&owner, &["/", "/team/", "/team/notes/"]).await;
+}
+
+/// Moving a folder out into someone else's share and then deleting the folder it left syncs both
+/// changes.
+#[tokio::test]
+async fn move_folder_into_share_then_delete_its_old_parent() {
+    let owner = test_core_with_account().await;
+    let collaborator = test_core_with_account().await;
+    let collaborator_name = collaborator.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &collaborator_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    collaborator.sync().await.unwrap();
+    collaborator
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    collaborator
+        .create_at_path("/old/notes/drafts/")
+        .await
+        .unwrap();
+    collaborator.sync().await.unwrap();
+
+    move_by_path(&collaborator, "/old/notes/", "/team/")
+        .await
+        .unwrap();
+    delete_path(&collaborator, "/old/").await.unwrap();
+    collaborator.sync().await.unwrap();
+
+    owner.sync().await.unwrap();
+    assert::all_paths(&owner, &["/", "/team/", "/team/notes/", "/team/notes/drafts/"]).await;
+}
