@@ -108,8 +108,17 @@ enum Step {
 }
 
 // few names, so devices collide on paths
-const NAMES: [&str; 3] = ["a.md", "b.md", "c"];
-const CONTENTS: [&str; 3] = ["one", "two\nlines", ""];
+const NAMES: [&str; 4] = ["a.md", "b.md", "c", "d.json"];
+// the JSON documents share keys, so concurrent writes to one merge
+const CONTENTS: [&str; 7] = [
+    "one",
+    "two\nlines",
+    "",
+    r#"{"a":1,"b":"x"}"#,
+    r#"{"a":2,"b":"x"}"#,
+    r#"{"a":1,"tags":["p","q"],"tasks":{"t1":{"done":false},"t2":{"done":false}}}"#,
+    r#"{"a":1,"tags":["q","r"],"tasks":{"t1":{"done":true}}}"#,
+];
 
 fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
     let mut src = ByteSource::new(bytes);
@@ -125,10 +134,16 @@ fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
             match src.bias(&[3, 1, 3, 2, 3, 2, 2, 1, shares, shares, shares, shares]) {
                 0 => Step::Sync { device },
                 1 => Step::SyncAll { device },
-                2 => Step::CreateDocument { device, parent: src.draw(8), name: src.draw(3) },
-                3 => Step::CreateFolder { device, parent: src.draw(8), name: src.draw(3) },
-                4 => Step::Write { device, file: src.draw(8), content: src.draw(3) },
-                5 => Step::Rename { device, file: src.draw(8), name: src.draw(3) },
+                2 => Step::CreateDocument {
+                    device,
+                    parent: src.draw(8),
+                    name: src.draw(NAMES.len()),
+                },
+                3 => {
+                    Step::CreateFolder { device, parent: src.draw(8), name: src.draw(NAMES.len()) }
+                }
+                4 => Step::Write { device, file: src.draw(8), content: src.draw(CONTENTS.len()) },
+                5 => Step::Rename { device, file: src.draw(8), name: src.draw(NAMES.len()) },
                 6 => Step::Move { device, file: src.draw(8), parent: src.draw(8) },
                 7 => Step::Delete { device, file: src.draw(8) },
                 8 => Step::Share {
@@ -137,7 +152,7 @@ fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
                     to: src.draw(tier.accounts),
                     write: src.draw(2) == 1,
                 },
-                9 => Step::Accept { device, pending: src.draw(8), name: src.draw(3) },
+                9 => Step::Accept { device, pending: src.draw(8), name: src.draw(NAMES.len()) },
                 10 => Step::Reject { device, pending: src.draw(8) },
                 _ => Step::Unshare { device, file: src.draw(8), from: src.draw(4) },
             }
