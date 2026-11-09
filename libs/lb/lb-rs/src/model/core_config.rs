@@ -64,6 +64,9 @@ pub struct Config {
     /// [ClientType::Ui] doesn't mean the host has a frame budget.
     #[serde(default)]
     pub lock_budget: bool,
+
+    #[serde(default)]
+    pub read_only: bool,
 }
 
 impl Default for Config {
@@ -81,6 +84,7 @@ impl Default for Config {
             colored_logs: false,
             client_type: ClientType::Unknown,
             lock_budget: false,
+            read_only: false,
         }
     }
 }

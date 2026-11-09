@@ -56,6 +56,31 @@ pub extern "C" fn lb_init(
         ..Default::default()
     };
 
+    init_res(config)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_init_read_only(
+    writeable_path: *const c_char, client_name: *const c_char, build_info: *const c_char,
+    logs: bool,
+) -> LbInitRes {
+    let config = Config {
+        client_name: r_opt_str(client_name).unwrap_or_default().to_owned(),
+        build_info: r_opt_str(build_info).map(str::to_owned),
+        os_version: host_os_version(),
+        writeable_path: rstring(writeable_path),
+        logs,
+        stdout_logs: true,
+        colored_logs: false,
+        client_type: ClientType::Ui,
+        read_only: true,
+        ..Default::default()
+    };
+
+    init_res(config)
+}
+
+fn init_res(config: Config) -> LbInitRes {
     match Lb::init(config) {
         Ok(lb) => {
             let lb = Box::into_raw(Box::new(lb));
