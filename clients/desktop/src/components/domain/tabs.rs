@@ -12,7 +12,7 @@ use egui::{
 };
 use lb::Uuid;
 use workspace_rs::file_cache::{FileCache, FilesExt};
-use workspace_rs::tab::Destination;
+use workspace_rs::tab::{Destination, Place};
 
 use crate::components::{
     FG_HOVER, FG_PRESS, Radius, STROKE_HAIRLINE, Space, Theme, TypeRole, claim, context_menu,
@@ -67,9 +67,9 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 .iter()
                 .enumerate()
                 .map(|(i, slot)| {
-                    let title = tab_label(&files, &slot.dest);
+                    let title = tab_label(&files, &slot.place.dest);
                     let active = current == Some(slot.id);
-                    let file_id = match &slot.dest {
+                    let file_id = match &slot.place.dest {
                         Destination::File(id) => Some(*id),
                         _ => None,
                     };
@@ -82,7 +82,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                         file_id,
                         pinned,
                         in_files,
-                        dest: slot.dest.clone(),
+                        place: slot.place.clone(),
                     }
                 })
                 .collect();
@@ -256,7 +256,7 @@ struct TabInfo {
     pinned: bool,
     /// The file is in the Files tree, not a share waiting to be saved there.
     in_files: bool,
-    dest: Destination,
+    place: Place,
 }
 
 #[derive(Clone, Copy)]
@@ -307,7 +307,7 @@ fn apply_tab_out(queue: &mut Vec<Action>, tab: &TabInfo, out: TabOut) {
             TabMenu::Move => queue.extend(tab.file_id.map(|id| A::OpenMove(vec![id]))),
             TabMenu::Duplicate => queue.extend(tab.file_id.map(|id| A::Duplicate(vec![id]))),
             TabMenu::Share => queue.extend(tab.file_id.map(A::OpenShare)),
-            TabMenu::CopyLink => queue.extend(tab.file_id.map(A::CopyLink)),
+            TabMenu::CopyLink => queue.push(A::CopyLink(tab.place.clone())),
             TabMenu::Export => queue.extend(tab.file_id.map(|id| A::Export(vec![id]))),
         }
         return;
@@ -368,7 +368,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
     // Inactive tabs are still readable — state is plate/hover, not ghost ink.
     let ink = t.neutral_fg();
 
-    let icon = tab_icon(&tab.dest, name);
+    let icon = tab_icon(&tab.place.dest, name);
     let icon_g =
         ui.painter()
             .layout_no_wrap(icon.into(), crate::components::phosphor_ui_font_id(), ink);
@@ -460,6 +460,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
     }
 
     let is_file = tab.file_id.is_some();
+    let has_link = tab.place.to_url().is_some();
     let menu = context_menu::show(&resp, t, |m| {
         m.item(phosphor::X, "Close", TabMenu::Close);
         if tab_count >= 2 {
@@ -472,7 +473,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             m.item(phosphor::CARET_RIGHT, "Close to the Right", TabMenu::CloseRight);
         }
         m.item(phosphor::TABS, "Close All", TabMenu::CloseAll);
-        if is_file || can_reopen {
+        if is_file || has_link || can_reopen {
             m.separator();
         }
         if is_file {
@@ -489,11 +490,15 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             }
             m.separator();
             m.item(phosphor::USERS, "Share…", TabMenu::Share);
+        }
+        if has_link {
             m.item(phosphor::LINK, "Copy Link", TabMenu::CopyLink);
+        }
+        if is_file {
             m.item(phosphor::DOWNLOAD_SIMPLE, "Export…", TabMenu::Export);
         }
         if can_reopen {
-            if is_file {
+            if is_file || has_link {
                 m.separator();
             }
             m.item(phosphor::ARROWS_CLOCKWISE, "Reopen Closed Tab", TabMenu::ReopenClosed);

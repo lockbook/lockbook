@@ -233,11 +233,12 @@ impl Workspace {
 
         open_sessions.into_iter().for_each(|session| {
             let exists = session
+                .place
                 .dest
                 .backing_file()
                 .is_none_or(|id| core.get_file_by_id(id).is_ok());
             if exists {
-                info!(dest = ?session.dest, "opening persisted session");
+                info!(dest = ?session.place.dest, "opening persisted session");
                 ws.resume_session(session, false);
             }
         });
@@ -293,7 +294,7 @@ impl Workspace {
             .tab_strip
             .iter()
             .find(|s| s.id == tab_id)
-            .and_then(|s| s.fragment.clone())
+            .and_then(|s| s.place.fragment.clone())
             .map(|fragment| Reveal { fragment: Some(fragment), flash: false });
         self.tabs.insert(tab_id, tab);
         if needs_load {
@@ -309,7 +310,7 @@ impl Workspace {
 
     /// Resume a persisted or recently-closed session in a new tab.
     pub fn resume_session(&mut self, session: Session, make_current: bool) {
-        let dest = session.dest.clone();
+        let dest = session.place.dest.clone();
         let tab_id = session.id;
         self.tab_strip.push(session);
         self.open_dest(tab_id, &dest);
@@ -334,7 +335,7 @@ impl Workspace {
     /// The current session left its fragment: the user scrolled or edited.
     fn leave_fragment(&mut self, tab_id: SessionId) {
         if let Some(session) = self.tab_strip.iter_mut().find(|s| s.id == tab_id) {
-            if session.fragment.take().is_some() {
+            if session.place.fragment.take().is_some() {
                 self.sessions_changed = true;
             }
         }
@@ -425,7 +426,10 @@ impl Workspace {
 
     pub fn current_dest(&self) -> Option<&Destination> {
         let id = self.current_tab?;
-        self.tab_strip.iter().find(|s| s.id == id).map(|s| &s.dest)
+        self.tab_strip
+            .iter()
+            .find(|s| s.id == id)
+            .map(|s| &s.place.dest)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -577,7 +581,7 @@ impl Workspace {
     pub fn make_current(&mut self, i: usize) -> bool {
         let Some(slot) = self.tab_strip.get(i) else { return false };
         let tab_id = slot.id;
-        let dest = slot.dest.clone();
+        let dest = slot.place.dest.clone();
         // Tab content may only live in the previous-frame buffer after close.
         self.tabs.promote(&tab_id);
         if self.tabs.get(&tab_id).is_none() {
@@ -628,7 +632,7 @@ impl Workspace {
             .tab_strip
             .iter()
             .enumerate()
-            .filter(|(_, s)| s.dest.id() == dest_id)
+            .filter(|(_, s)| s.place.dest.id() == dest_id)
             .map(|(i, _)| i)
             .rev()
             .collect();
@@ -712,7 +716,7 @@ impl Workspace {
     /// `in_new_tab` is the explicit "open in new tab" request.
     fn tab_action_for_open(&self, dest: &Destination, in_new_tab: bool) -> TabAction {
         tab_action_for_open(
-            self.tab_strip.iter().any(|s| &s.dest == dest),
+            self.tab_strip.iter().any(|s| &s.place.dest == dest),
             in_new_tab,
             self.desktop_tab_policy,
             self.cfg.get_open_in_new_tab(),
@@ -764,7 +768,7 @@ impl Workspace {
 
     fn create_session(&mut self, place: Place, make_current: bool) {
         let session = Session::at(place);
-        let (tab_id, fragment) = (session.id, session.fragment.clone());
+        let (tab_id, fragment) = (session.id, session.place.fragment.clone());
         self.resume_session(session, make_current);
         if fragment.is_some() {
             self.land(tab_id, fragment, true);
@@ -784,7 +788,7 @@ impl Workspace {
         };
         let tab_id = self.tab_strip[slot_idx].id;
         let fragment = place.fragment.clone();
-        if self.tab_strip[slot_idx].dest == place.dest
+        if self.tab_strip[slot_idx].place.dest == place.dest
             && self.tab_strip[slot_idx].back.is_empty()
             && self.tab_strip[slot_idx].forward.is_empty()
         {
@@ -820,7 +824,7 @@ impl Workspace {
             self.create_session(place, true);
             return;
         };
-        if self.tab_strip[slot_idx].dest == place.dest && place.fragment.is_none() {
+        if self.tab_strip[slot_idx].place.dest == place.dest && place.fragment.is_none() {
             self.make_current(slot_idx);
             return;
         }
@@ -832,7 +836,7 @@ impl Workspace {
     /// Moves session `i` to `place` with history, and lands there.
     fn navigate_session(&mut self, i: usize, place: Place) {
         let tab_id = self.tab_strip[i].id;
-        let here = match self.tab_strip[i].dest == place.dest {
+        let here = match self.tab_strip[i].place.dest == place.dest {
             true => self.tabs.get_mut(&tab_id).and_then(|t| t.here()),
             false => None,
         };
@@ -848,8 +852,8 @@ impl Workspace {
     /// Opens session `i`'s current place after a move through its history.
     /// Within one dest that's a landing; the start stands for no fragment.
     fn open_history_place(&mut self, i: usize) {
-        let (tab_id, dest) = (self.tab_strip[i].id, self.tab_strip[i].dest.clone());
-        let fragment = self.tab_strip[i].fragment.clone();
+        let tab_id = self.tab_strip[i].id;
+        let Place { dest, fragment } = self.tab_strip[i].place.clone();
         let same = self
             .tabs
             .get(&tab_id)
@@ -908,7 +912,7 @@ impl Workspace {
             self.last_search = state.clone();
         }
         let Some(i) = self.current_slot_index() else { return };
-        let Destination::Search(saved) = &self.tab_strip[i].dest else { return };
+        let Destination::Search(saved) = &self.tab_strip[i].place.dest else { return };
         if saved == state {
             return;
         }
@@ -916,7 +920,7 @@ impl Workspace {
         if saved.scope_path != state.scope_path {
             self.tab_strip[i].navigate(dest.clone());
         } else {
-            self.tab_strip[i].dest = dest.clone();
+            self.tab_strip[i].place.dest = dest.clone();
         }
         let tab_id = self.tab_strip[i].id;
         if let Some(tab) = self.tabs.get_mut(&tab_id) {
@@ -1054,7 +1058,7 @@ impl Workspace {
         let right = self.tab_strip.get(i + 1).map(|s| s.id);
 
         let closed_slot = self.tab_strip.remove(i);
-        info!(?tab_id, dest = ?closed_slot.dest, tabs = self.tab_strip.len(), "closed tab");
+        info!(?tab_id, dest = ?closed_slot.place.dest, tabs = self.tab_strip.len(), "closed tab");
         self.out.tabs_changed = true;
         self.activation_history.retain(|id| *id != tab_id);
         self.closed_tabs.retain(|c| c.slot.id != tab_id);
@@ -1146,7 +1150,7 @@ impl Workspace {
     }
 
     fn restore_closed_tab(&mut self, closed: ClosedTab) -> bool {
-        let dest = closed.slot.dest.clone();
+        let dest = closed.slot.place.dest.clone();
         let tab_id = closed.slot.id;
         if self.tab_strip.iter().any(|s| s.id == tab_id) {
             return false;
@@ -1205,7 +1209,7 @@ impl Workspace {
         self.previews.bump();
         let mut ids_to_delete = vec![];
         for slot in &self.tab_strip {
-            if let Destination::File(id) = slot.dest {
+            if let Destination::File(id) = slot.place.dest {
                 // A background snapshot can predate a newly opened file.
                 if files.get_by_id(id).is_none() && self.core.get_file_by_id(id).is_err() {
                     info!(%id, "file gone after cache refresh");
@@ -1236,7 +1240,7 @@ impl Workspace {
                                 Actor::User(origin) => origin,
                             };
                             for session in &self.tab_strip {
-                                if session.dest.backing_file() != Some(id) {
+                                if session.place.dest.backing_file() != Some(id) {
                                     continue;
                                 }
                                 if event_origin == Some(session.id.as_uuid()) {
@@ -1268,7 +1272,7 @@ impl Workspace {
                         Event::MetadataChanged(_) => self.reload_chat_configs(),
                         Event::IpcChangesApplied => {
                             for session in &self.tab_strip {
-                                if let Some(id) = session.dest.backing_file() {
+                                if let Some(id) = session.place.dest.backing_file() {
                                     self.tasks.queue_load(LoadRequest {
                                         id,
                                         tab_created: false,
@@ -1701,7 +1705,7 @@ impl Workspace {
         if let Some(i) = self
             .tab_strip
             .iter()
-            .position(|s| matches!(s.dest, Destination::MindMap(_)))
+            .position(|s| matches!(s.place.dest, Destination::MindMap(_)))
         {
             self.make_current(i);
         } else {
@@ -1760,7 +1764,7 @@ impl Workspace {
         if let Some(i) = self
             .tab_strip
             .iter()
-            .position(|s| matches!(s.dest, Destination::SpaceInspector(_)))
+            .position(|s| matches!(s.place.dest, Destination::SpaceInspector(_)))
         {
             self.make_current(i);
             self.navigate_to(dest);
@@ -1793,7 +1797,7 @@ impl Workspace {
         let tab_ids: Vec<_> = self
             .tab_strip
             .iter()
-            .filter(|s| s.dest.id() == id)
+            .filter(|s| s.place.dest.id() == id)
             .map(|s| s.id)
             .collect();
         for tab_id in tab_ids {
@@ -2247,13 +2251,13 @@ impl WsPersistentStore {
         let mut data_lock = self.data.write().unwrap();
         data_lock.last_search.clone_from(last_search);
         data_lock.sessions = tab_strip.to_vec();
-        data_lock.open_tabs = tab_strip.iter().map(|s| s.dest.clone()).collect();
+        data_lock.open_tabs = tab_strip.iter().map(|s| s.place.dest.clone()).collect();
         data_lock.current_tab_index =
             current_tab.and_then(|id| tab_strip.iter().position(|s| s.id == id));
         data_lock.current_tab = data_lock
             .current_tab_index
             .and_then(|i| tab_strip.get(i))
-            .map(|s| s.dest.clone());
+            .map(|s| s.place.dest.clone());
         self.write_to_file();
     }
 
@@ -2277,7 +2281,7 @@ impl WsPersistentStore {
             data_lock
                 .current_tab
                 .as_ref()
-                .and_then(|d| sessions.iter().position(|s| &s.dest == d))
+                .and_then(|d| sessions.iter().position(|s| &s.place.dest == d))
         });
         (sessions, current_index)
     }
@@ -2527,7 +2531,7 @@ mod fragment_tests {
         t.ws.open_link(id, Some("far".into()), false);
         t.settle();
         let session = &t.ws.tab_strip[1];
-        assert_eq!(session.fragment, Some(Fragment::Heading("far".into())));
+        assert_eq!(session.place.fragment, Some(Fragment::Heading("far".into())));
         assert_eq!(session.back.len(), 1);
         assert_ne!(offset(&mut t, second), at_top);
         t.ws.make_current_by_session(first);
@@ -2537,12 +2541,12 @@ mod fragment_tests {
         t.ws.make_current_by_session(second);
         t.ws.back();
         t.settle();
-        assert_eq!(t.ws.tab_strip[1].fragment, None);
+        assert_eq!(t.ws.tab_strip[1].place.fragment, None);
         assert_eq!(offset(&mut t, second), at_top);
 
         t.ws.forward();
         t.settle();
-        assert!(t.ws.tab_strip[1].fragment.is_some());
+        assert!(t.ws.tab_strip[1].place.fragment.is_some());
         let wheel = egui::Event::MouseWheel {
             unit: egui::MouseWheelUnit::Point,
             delta: egui::vec2(0.0, -40.0),
@@ -2552,7 +2556,7 @@ mod fragment_tests {
         };
         t.frame_with(vec![egui::Event::PointerMoved(egui::pos2(400.0, 300.0)), wheel]);
         t.settle();
-        assert_eq!(t.ws.tab_strip[1].fragment, None);
+        assert_eq!(t.ws.tab_strip[1].place.fragment, None);
     }
 
     /// A click that moves the caret leaves the place too, so a reopened tab
@@ -2566,7 +2570,7 @@ mod fragment_tests {
         t.settle();
         t.ws.open_link(id, Some("far".into()), false);
         t.settle();
-        assert!(t.ws.tab_strip[0].fragment.is_some());
+        assert!(t.ws.tab_strip[0].place.fragment.is_some());
         let at = egui::pos2(400.0, 400.0);
         let button = |pressed| egui::Event::PointerButton {
             pos: at,
@@ -2577,7 +2581,7 @@ mod fragment_tests {
         t.frame_with(vec![egui::Event::PointerMoved(at), button(true)]);
         t.frame_with(vec![button(false)]);
         t.settle();
-        assert_eq!(t.ws.tab_strip[0].fragment, None);
+        assert_eq!(t.ws.tab_strip[0].place.fragment, None);
     }
 }
 

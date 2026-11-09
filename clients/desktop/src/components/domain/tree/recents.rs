@@ -4,6 +4,7 @@ use egui::{Id, Rect, ScrollArea, Sense, Ui, pos2, vec2};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 use workspace_rs::style::home_crumb;
+use workspace_rs::tab::{Destination, Place};
 
 use crate::components::domain::pins;
 use crate::components::{
@@ -202,7 +203,8 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                                     FileCmd::Move => queue.push(Action::OpenMove(vec![*id])),
                                     FileCmd::Duplicate => queue.push(Action::Duplicate(vec![*id])),
                                     FileCmd::Share => queue.push(Action::OpenShare(*id)),
-                                    FileCmd::CopyLink => queue.push(Action::CopyLink(*id)),
+                                    FileCmd::CopyLink => queue
+                                        .push(Action::CopyLink(Place::new(Destination::File(*id)))),
                                     FileCmd::Export => queue.push(Action::Export(vec![*id])),
                                     FileCmd::Delete => queue.push(Action::OpenDelete(vec![*id])),
                                     _ => {}

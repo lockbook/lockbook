@@ -957,7 +957,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
         .workspace
         .tab_strip
         .iter()
-        .map(|s| format!("{} {}", s.id.as_uuid(), s.dest.id()));
+        .map(|s| format!("{} {}", s.id.as_uuid(), s.place.dest.id()));
 
     let string_class = env.find_class("java/lang/String").unwrap();
 
