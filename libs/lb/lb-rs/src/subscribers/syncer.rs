@@ -1307,10 +1307,6 @@ impl<S: Server> Lb<S> {
         validate::is_document(file)?;
         let hmac = file.document_hmac().copied();
 
-        if tree.calculate_deleted(&id)? {
-            return Err(LbErrKind::FileNonexistent.into());
-        }
-
         let doc = match hmac {
             Some(hmac) => {
                 let doc = self.docs.get(id, Some(hmac)).await?;
