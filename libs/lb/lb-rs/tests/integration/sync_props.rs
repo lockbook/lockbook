@@ -129,9 +129,39 @@ enum Step {
     Unshare { device: usize, file: usize, from: usize },
 }
 
-// few names, so devices collide on paths
-const NAMES: [&str; 3] = ["a.md", "b.md", "c"];
-const CONTENTS: [&str; 3] = ["one", "two\nlines", ""];
+// few names, so devices collide on paths; mostly text, as people's files are
+const NAMES: [&str; 5] = ["a.md", "b.md", "c", "d.json", "e.svg"];
+const NAME_WEIGHTS: [u32; 5] = [27, 27, 26, 10, 10];
+
+const TEXTS: [&str; 3] = ["one", "two\nlines", ""];
+// each kind shares a base with its siblings, so concurrent writes merge; "one" isn't valid
+const JSONS: [&str; 5] = [
+    r#"{"a":1,"b":"x"}"#,
+    r#"{"a":2,"b":"x"}"#,
+    r#"{"a":1,"tags":["p","q"],"tasks":{"t1":{"done":false},"t2":{"done":false}}}"#,
+    r#"{"a":1,"tags":["q","r"],"tasks":{"t1":{"done":true}}}"#,
+    "one",
+];
+// strokes 1 and 2, then: add 3, add 4, move 1, delete 1
+const DRAWINGS: [&str; 6] = [
+    r#"<svg xmlns="http://www.w3.org/2000/svg"><path id="01010101-0101-0101-0101-010101010101" d="M 1 0 L 1 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/><path id="02020202-0202-0202-0202-020202020202" d="M 2 0 L 2 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/></svg>"#,
+    r#"<svg xmlns="http://www.w3.org/2000/svg"><path id="01010101-0101-0101-0101-010101010101" d="M 1 0 L 1 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/><path id="02020202-0202-0202-0202-020202020202" d="M 2 0 L 2 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/><path id="03030303-0303-0303-0303-030303030303" d="M 3 0 L 3 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/></svg>"#,
+    r#"<svg xmlns="http://www.w3.org/2000/svg"><path id="01010101-0101-0101-0101-010101010101" d="M 1 0 L 1 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/><path id="02020202-0202-0202-0202-020202020202" d="M 2 0 L 2 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/><path id="04040404-0404-0404-0404-040404040404" d="M 4 0 L 4 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/></svg>"#,
+    r#"<svg xmlns="http://www.w3.org/2000/svg"><path id="01010101-0101-0101-0101-010101010101" d="M 5 0 L 5 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/><path id="02020202-0202-0202-0202-020202020202" d="M 2 0 L 2 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/></svg>"#,
+    r#"<svg xmlns="http://www.w3.org/2000/svg"><path id="02020202-0202-0202-0202-020202020202" d="M 2 0 L 2 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/></svg>"#,
+    "one",
+];
+
+/// The contents a write may give the document named `name`.
+fn contents(name: &str) -> &'static [&'static str] {
+    if name.ends_with(".json") {
+        &JSONS
+    } else if name.ends_with(".svg") {
+        &DRAWINGS
+    } else {
+        &TEXTS
+    }
+}
 
 fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
     let mut src = ByteSource::new(bytes);
@@ -147,10 +177,18 @@ fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
             match src.bias(&[3, 1, 3, 2, 3, 2, 2, 1, shares, shares, shares, shares]) {
                 0 => Step::Sync { device },
                 1 => Step::SyncAll { device },
-                2 => Step::CreateDocument { device, parent: src.draw(8), name: src.draw(3) },
-                3 => Step::CreateFolder { device, parent: src.draw(8), name: src.draw(3) },
-                4 => Step::Write { device, file: src.draw(8), content: src.draw(3) },
-                5 => Step::Rename { device, file: src.draw(8), name: src.draw(3) },
+                2 => Step::CreateDocument {
+                    device,
+                    parent: src.draw(8),
+                    name: src.bias(&NAME_WEIGHTS),
+                },
+                3 => Step::CreateFolder {
+                    device,
+                    parent: src.draw(8),
+                    name: src.bias(&NAME_WEIGHTS),
+                },
+                4 => Step::Write { device, file: src.draw(8), content: src.draw(8) },
+                5 => Step::Rename { device, file: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
                 6 => Step::Move { device, file: src.draw(8), parent: src.draw(8) },
                 7 => Step::Delete { device, file: src.draw(8) },
                 8 => Step::Share {
@@ -159,7 +197,7 @@ fn steps(tier: Tier, bytes: &[u8]) -> Vec<Step> {
                     to: src.draw(tier.accounts),
                     write: src.draw(2) == 1,
                 },
-                9 => Step::Accept { device, pending: src.draw(8), name: src.draw(3) },
+                9 => Step::Accept { device, pending: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
                 10 => Step::Reject { device, pending: src.draw(8) },
                 _ => Step::Unshare { device, file: src.draw(8), from: src.draw(4) },
             }
@@ -323,8 +361,12 @@ impl World {
                 let Some(file) = pick(device, reach, file, Kind::Document).await else {
                     return false;
                 };
+                let Ok(name) = device.get_file_by_id(file).await.map(|f| f.name) else {
+                    return false;
+                };
+                let contents = contents(&name);
                 device
-                    .write_document(file, CONTENTS[content].as_bytes())
+                    .write_document(file, contents[content % contents.len()].as_bytes())
                     .await
                     .is_ok()
             }

@@ -36,6 +36,7 @@ use crate::{
         file_like::FileLike,
         file_metadata::{DocumentHmac, FileDiff, FileType, Owner},
         filename::{DocumentType, NameComponents},
+        json,
         lazy::LazyTree,
         signed_meta::SignedMeta,
         staged::StagedTreeLikeMut,
@@ -732,7 +733,23 @@ impl<S: Server> Lb<S> {
                                         let hmac = merge.find(&id)?.document_hmac().copied();
                                         self.docs.insert(id, hmac, &encrypted_document).await?;
                                     }
-                                    DocumentType::Other => {
+                                    DocumentType::Json
+                                        if let Some(merged_document) = json::merge(
+                                            &base_document,
+                                            &local_document,
+                                            &remote_document,
+                                        ) =>
+                                    {
+                                        let encrypted_document = merge
+                                            .update_document_unvalidated(
+                                                &id,
+                                                &merged_document,
+                                                &self.keychain,
+                                            )?;
+                                        let hmac = merge.find(&id)?.document_hmac().copied();
+                                        self.docs.insert(id, hmac, &encrypted_document).await?;
+                                    }
+                                    DocumentType::Json | DocumentType::Other => {
                                         // duplicate file, in the document's folder if this device
                                         // may write there, otherwise beside its link; with no
                                         // link there's nowhere to put it

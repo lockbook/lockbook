@@ -8,6 +8,7 @@ pub enum DocumentType {
     Text,
     Drawing,
     Chat,
+    Json,
     Other,
 }
 
@@ -18,6 +19,7 @@ impl DocumentType {
             Some("md") | Some("txt") => DocumentType::Text,
             Some("svg") => DocumentType::Drawing,
             Some("chat") => DocumentType::Chat,
+            Some("json") => DocumentType::Json,
             _ => DocumentType::Other,
         }
     }
