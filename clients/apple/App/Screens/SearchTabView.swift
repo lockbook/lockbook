@@ -158,14 +158,14 @@
                                     }
                                 }
                                 .confirmationDialog(
-                                    "Delete \"\(deleteTarget?.name ?? "")\"? This cannot be undone.",
+                                    removePrompt ?? "Delete \"\(deleteTarget?.name ?? "")\"? This cannot be undone.",
                                     isPresented: Binding(
                                         get: { deleteTarget?.id == result.id },
                                         set: { if !$0 { deleteTarget = nil } }
                                     ),
                                     titleVisibility: .visible
                                 ) {
-                                    Button("Delete", role: .destructive) {
+                                    Button(removePrompt == nil ? "Delete" : "Remove", role: removePrompt == nil ? .destructive : nil) {
                                         if let file = filesModel.idsToFiles[result.id] {
                                             filesModel.deleteFiles([file], notifying: workspaceInput)
                                         }
@@ -183,6 +183,10 @@
                 scrollToSelection(in: results)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+
+        private var removePrompt: String? {
+            filesModel.removePrompt(deleteTarget.map { [$0] } ?? [])
         }
 
         private func selectionBackground(_ index: Int) -> Color {

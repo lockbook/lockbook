@@ -168,7 +168,11 @@ struct FileMenuItems: View {
 
         Divider()
 
-        contextMenuItem("Delete", systemImage: "trash", role: .destructive, action: onDelete)
+        if filesModel.isSavedShare(file) {
+            contextMenuItem("Remove from Files", systemImage: "folder.badge.minus", action: onDelete)
+        } else {
+            contextMenuItem("Delete", systemImage: "trash", role: .destructive, action: onDelete)
+        }
     }
 
     private var supportsMultipleWindows: Bool {
@@ -268,14 +272,18 @@ struct SelectableRowModifier: ViewModifier {
             }
         }
         .confirmationDialog(
-            "Delete \"\(file?.name ?? "")\"? This cannot be undone.",
+            removePrompt ?? "Delete \"\(file?.name ?? "")\"? This cannot be undone.",
             isPresented: $confirmDelete,
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
+            Button(removePrompt == nil ? "Delete" : "Remove", role: removePrompt == nil ? .destructive : nil) {
                 deleteFile()
             }
         }
+    }
+
+    private var removePrompt: String? {
+        filesModel.removePrompt(file.map { [$0] } ?? [])
     }
 
     @ViewBuilder
@@ -580,11 +588,12 @@ struct SelectionCommandsModifier: ViewModifier {
         .disabled(selectedFiles.isEmpty)
         .keyboardShortcut(.delete, modifiers: .command)
         .confirmationDialog(
-            "\(deleteCountLabel)? This cannot be undone.",
+            filesModel.removePrompt(selectedFiles) ?? "\(deleteCountLabel)? This cannot be undone.",
             isPresented: $confirmDelete,
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive) {
+            let removing = filesModel.removePrompt(selectedFiles) != nil
+            Button(removing ? "Remove" : "Delete", role: removing ? nil : .destructive) {
                 deleteSelectedFiles()
             }
         }
