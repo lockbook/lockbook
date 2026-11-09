@@ -36,6 +36,13 @@ pub type InMemoryServer = ServerState<Nop, Nop, Nop, InMemDocuments>;
 impl InMemoryServer {
     /// An empty server that accepts new accounts and has no admins.
     pub fn in_memory() -> Self {
+        ServerState::with_documents(InMemDocuments::default())
+    }
+}
+
+impl<D: DocumentService> ServerState<Nop, Nop, Nop, D> {
+    /// [`InMemoryServer::in_memory`] with `documents` as its document store.
+    pub fn with_documents(documents: D) -> Self {
         let config = in_process_config();
         let index_db = ServerDb::init(&db_rs::config::Config::in_memory())
             .expect("an in-memory database initializes");
@@ -45,7 +52,7 @@ impl InMemoryServer {
             stripe_client: Nop {},
             google_play_client: Nop {},
             app_store_client: Nop {},
-            document_service: InMemDocuments::default(),
+            document_service: documents,
             discord_client: Default::default(),
             recent_new_account_ips: Default::default(),
             clock: Default::default(),
