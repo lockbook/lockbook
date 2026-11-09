@@ -189,6 +189,46 @@ impl Place {
         }
         Some(Self::new(Destination::Search(state)))
     }
+
+    /// The link [`Self::from_url`] reads back as this place, with only the
+    /// fragments a link writes down: a heading that reads as something else
+    /// is left off. None for a destination no link names.
+    pub fn to_url(&self) -> Option<String> {
+        match &self.dest {
+            Destination::File(id) => {
+                let fragment = match self.fragment.as_ref().filter(|f| f.persists()) {
+                    // a heading written like a page or an entry would read back as one
+                    Some(Fragment::Heading(slug))
+                        if Fragment::from_url(slug).as_ref() == self.fragment.as_ref() =>
+                    {
+                        format!("#{slug}")
+                    }
+                    Some(Fragment::Page(page)) => format!("#page={}", page.saturating_add(1)),
+                    Some(Fragment::Entry(entry)) => format!("#{entry}"),
+                    _ => String::new(),
+                };
+                Some(format!("lb://{id}{fragment}"))
+            }
+            Destination::Search(state) => {
+                let mut query = url::form_urlencoded::Serializer::new(String::new());
+                if !state.query.is_empty() {
+                    query.append_pair("q", &state.query);
+                }
+                let search_type = match state.search_type {
+                    SearchType::Path => "path",
+                    SearchType::Content => "content",
+                };
+                query.append_pair("type", search_type);
+                if !state.scope_path.is_empty() {
+                    query.append_pair("scope", &state.scope_path);
+                }
+                Some(format!("lb://search?{}", query.finish()))
+            }
+            Destination::MindMap(_) | Destination::SpaceInspector(_) | Destination::Diagram(_) => {
+                None
+            }
+        }
+    }
 }
 
 /// A persistable navigation journey: the current place plus back/forward stacks.
@@ -1543,6 +1583,7 @@ pub fn imported_image_link(cache: &FileCache, target: Uuid, file: &File) -> Resu
 #[cfg(test)]
 mod nav_tests {
     use super::*;
+    use crate::test_utils::byte_source::ByteSource;
 
     fn file(n: u8) -> Destination {
         let mut bytes = [0u8; 16];
@@ -1706,6 +1747,84 @@ mod nav_tests {
         for bad in ["lb://search?type=fuzzy", "lb://search/plan", "lb://mindmap", "https://x.com"] {
             assert_eq!(Place::from_url(bad), None, "{bad}");
         }
+    }
+
+    #[test]
+    fn places_to_urls() {
+        let id = Uuid::from_u128(2);
+        let at = |fragment| Place::at(Destination::File(id), Some(fragment)).to_url();
+        assert_eq!(Place::new(Destination::File(id)).to_url(), Some(format!("lb://{id}")));
+        assert_eq!(
+            at(Fragment::Heading("next-steps".into())),
+            Some(format!("lb://{id}#next-steps"))
+        );
+        assert_eq!(at(Fragment::Page(2)), Some(format!("lb://{id}#page=3")));
+        assert_eq!(at(Fragment::Entry(id)), Some(format!("lb://{id}#{id}")));
+        assert_eq!(at(Fragment::Text(3..9)), Some(format!("lb://{id}")));
+        for heading in ["page=2", "#x", "deadbeefdeadbeefdeadbeefdeadbeef"] {
+            assert_eq!(at(Fragment::Heading(heading.into())), Some(format!("lb://{id}")));
+        }
+        let state = SearchState {
+            search_type: SearchType::Content,
+            scope_path: "/my notes/".into(),
+            query: "q3 plan".into(),
+        };
+        assert_eq!(
+            Place::new(Destination::Search(state)).to_url().as_deref(),
+            Some("lb://search?q=q3+plan&type=content&scope=%2Fmy+notes%2F")
+        );
+        assert_eq!(Place::new(search("")).to_url().as_deref(), Some("lb://search?type=path"));
+        assert_eq!(Place::new(Destination::MindMap(id)).to_url(), None);
+    }
+
+    /// A place with a link: no text ranges, and headings as a link or the
+    /// outline may hold them.
+    fn gen_linked_place(src: &mut ByteSource) -> Place {
+        fn id(src: &mut ByteSource) -> Uuid {
+            Uuid::from_bytes(std::array::from_fn(|_| src.draw(256) as u8))
+        }
+        fn text(src: &mut ByteSource, chars: &[char], min: usize) -> String {
+            let len = min + src.draw(40 - min);
+            (0..len).map(|_| chars[src.draw(chars.len())]).collect()
+        }
+        const HEADING: &[char] =
+            &['a', 'f', '0', '9', '-', '_', ' ', '#', '=', '?', 'p', 'g', 'e', 'é', '日'];
+        const ANY: &[char] =
+            &['a', 'Z', '1', ' ', '/', '&', '=', '#', '%', '+', '?', ';', 'é', '日', '\0'];
+        if src.draw(2) == 0 {
+            let fragment = match src.draw(4) {
+                0 => None,
+                1 => Some(Fragment::Heading(text(src, HEADING, 1))),
+                2 => Some(Fragment::Page(src.draw(256) * 256 + src.draw(256))),
+                _ => Some(Fragment::Entry(id(src))),
+            };
+            return Place::at(Destination::File(id(src)), fragment);
+        }
+        let search_type = [SearchType::Path, SearchType::Content][src.draw(2)];
+        let query = text(src, ANY, 0);
+        let scope_path = text(src, ANY, 0);
+        Place::new(Destination::Search(SearchState { search_type, scope_path, query }))
+    }
+
+    #[test]
+    fn place_url_round_trip() {
+        crate::test_utils::prop::run(
+            1000,
+            64,
+            |b| {
+                let place = gen_linked_place(&mut ByteSource::new(b));
+                let url = place
+                    .to_url()
+                    .ok_or_else(|| format!("{place:?} has no url"))?;
+                let dropped = Place::new(place.dest.clone());
+                let heading = matches!(place.fragment, Some(Fragment::Heading(_)));
+                match Place::from_url(&url) {
+                    Some(read) if read == place || (heading && read == dropped) => Ok(()),
+                    read => Err(format!("{url} read back as {read:?}")),
+                }
+            },
+            |b| format!("{:?}", gen_linked_place(&mut ByteSource::new(b))),
+        );
     }
 
     #[test]
