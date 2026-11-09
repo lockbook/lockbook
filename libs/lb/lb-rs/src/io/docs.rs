@@ -142,6 +142,8 @@ impl AsyncDocs {
             .open(path)
             .await?;
         f.write_all(value).await?;
+        // tokio finishes the write on a blocking thread; wait so promote renames a complete file
+        f.flush().await?;
         let final_path = key_path(location, id, hmac);
         Ok(PendingDocument::File { path: path_str, final_path })
     }
