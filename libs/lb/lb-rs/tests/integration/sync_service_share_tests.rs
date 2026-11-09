@@ -971,3 +971,40 @@ async fn delete_note_then_move_its_folder_out_of_a_deleted_one_into_share() {
         assert::all_paths(&owner, &["/", "/team/", "/team/notes/"]).await;
     }
 }
+
+/// A collaborator who moves a folder out of a share and then leaves it keeps the folder, and a
+/// file shared from inside it still syncs.
+#[tokio::test]
+async fn move_folder_out_of_share_then_leave_and_share_inside() {
+    let owner = test_core_with_account().await;
+    let friend = test_core_with_account().await;
+    let other = test_core_with_account().await;
+    let friend_name = friend.get_account().unwrap().username.clone();
+    let other_name = other.get_account().unwrap().username.clone();
+
+    let trip = owner.create_at_path("/trip/").await.unwrap();
+    let flights = owner.create_at_path("/trip/flights/").await.unwrap();
+    owner
+        .share_file(trip.id, &friend_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    friend.sync().await.unwrap();
+    friend.create_link_at_path("/trip", trip.id).await.unwrap();
+    friend.sync().await.unwrap();
+
+    let friend_root = friend.root().await.unwrap().id;
+    friend.move_file(&flights.id, &friend_root).await.unwrap();
+    friend.reject_share(&trip.id).await.unwrap();
+    let note = friend.create_at_path("/flights/note.md").await.unwrap();
+    friend
+        .share_file(note.id, &other_name, ShareMode::Read)
+        .await
+        .unwrap();
+
+    friend.sync().await.unwrap();
+    friend.sync().await.unwrap();
+    assert::all_paths(&friend, &["/", "/flights/", "/flights/note.md"]).await;
+    owner.sync().await.unwrap();
+    assert::all_paths(&owner, &["/", "/trip/"]).await;
+}
