@@ -191,10 +191,44 @@ impl SVGEditor {
             crate::tab::input_controller::InputControllerEvent::ToolCancel,
             &mut ctx,
         );
-        let selected = self.toolbar.selection.select_at(position, &mut self.buffer);
+        // Empty space between selected elements still belongs to the selection.
+        // Preserve the group before falling back to individual element hit-testing.
+        let inside_selection = !self.current_context_selection().is_empty()
+            && self
+                .toolbar
+                .selection
+                .get_container_rect(&self.buffer)
+                .contains(position);
+        let selected =
+            inside_selection || self.toolbar.selection.select_at(position, &mut self.buffer);
         if selected {
             self.toolbar.active_tool = Tool::Selection;
         }
+        self.toolbar.selection.contextual_menu = true;
+        self.context_menu.position = map_position(
+            self.viewport_settings
+                .master_transform
+                .invert()
+                .unwrap_or_default(),
+            position,
+        );
+        self.context_menu.selection = self.current_context_selection();
+        self.context_menu.tool = self.toolbar.active_tool;
+        self.present_quick_context_menu(ui.ctx());
+    }
+
+    /// Lasso completion already resolved the selection. Do not hit-test the
+    /// release point, which is usually outside the selected elements.
+    pub(super) fn request_selection_context_menu(&mut self, ui: &mut egui::Ui, position: Pos2) {
+        if ui.ctx().os() != egui::os::OperatingSystem::IOS
+            || self.current_context_selection().is_empty()
+        {
+            return;
+        }
+        self.dismiss_context_menu(ui.ctx(), "lasso selection completed");
+        self.toolbar
+            .close_all_popovers(&mut self.settings, &mut self.cfg);
+        self.toolbar.selection.dismiss_popover();
         self.toolbar.selection.contextual_menu = true;
         self.context_menu.position = map_position(
             self.viewport_settings

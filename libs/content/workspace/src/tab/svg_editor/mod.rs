@@ -38,7 +38,9 @@ use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
+use tools::InputControllerTool;
 use tools::pen::PenSettings;
+use tools::selection::SelectionEvent;
 use tracing::info;
 
 pub struct SVGEditor {
@@ -398,6 +400,18 @@ impl SVGEditor {
             if selection_seen_tool_run && matches!(event, InputControllerEvent::ToolRun(..)) {
                 continue;
             }
+            let lasso_end = match event {
+                InputControllerEvent::ToolEnd(payload)
+                    if self.toolbar.active_tool == Tool::Selection
+                        && matches!(
+                            self.toolbar.selection.controller_event_to_tool_event(event),
+                            Some(SelectionEvent::EndLaso)
+                        ) =>
+                {
+                    Some(payload.pos)
+                }
+                _ => None,
+            };
             let mut tool_context = ToolContext {
                 painter: &mut self.painter,
                 buffer: &mut self.buffer,
@@ -429,6 +443,9 @@ impl SVGEditor {
                     event,
                     &mut tool_context,
                 ),
+            }
+            if let Some(position) = lasso_end {
+                self.request_selection_context_menu(ui, position);
             }
             if self.toolbar.active_tool == Tool::Selection
                 && matches!(event, InputControllerEvent::ToolRun(..))
