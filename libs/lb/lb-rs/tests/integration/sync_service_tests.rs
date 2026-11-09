@@ -425,3 +425,29 @@ async fn delete_note_move_its_folder_out_then_delete_the_old_parent() {
         assert_eq!(paths.into_iter().sorted().collect::<Vec<_>>(), ["/", "/y/"]);
     }
 }
+
+/// Editing a note and deleting its folder on one device, after another device moved the note out
+/// of that folder, keeps the note with both edits.
+#[tokio::test]
+async fn edit_and_delete_folder_of_note_moved_out_elsewhere() {
+    let core = test_core_with_account().await;
+    let note = core.create_at_path("/notes/note.md").await.unwrap();
+    core.write_document(note.id, b"one").await.unwrap();
+    core.sync().await.unwrap();
+    let other_device = another_client(&core).await;
+    other_device.sync().await.unwrap();
+
+    move_by_path(&core, "/notes/note.md", "/").await.unwrap();
+    core.write_document(note.id, b"one\ntwo").await.unwrap();
+    core.sync().await.unwrap();
+
+    other_device
+        .write_document(note.id, b"zero\none")
+        .await
+        .unwrap();
+    delete_path(&other_device, "/notes/").await.unwrap();
+    other_device.sync().await.unwrap();
+    assert::all_paths(&other_device, &["/", "/note.md"]).await;
+    let content = other_device.read_document(note.id, false).await.unwrap();
+    assert_eq!(String::from_utf8_lossy(&content), "zero\none\ntwo");
+}
