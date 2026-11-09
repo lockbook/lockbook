@@ -48,6 +48,7 @@ impl InMemoryServer {
             document_service: InMemDocuments::default(),
             discord_client: Default::default(),
             recent_new_account_ips: Default::default(),
+            clock: Default::default(),
         }
     }
 }

@@ -57,7 +57,7 @@ where
             }
         }
 
-        let mut tree = tree.stage_diff_v2(updates.clone())?;
+        let mut tree = tree.stage_diff_v2(updates.clone(), self.clock.now().0 as u64)?;
         tree.validate(req_owner)?;
 
         for id in tree.ids() {
@@ -89,7 +89,7 @@ where
             .to_lazy();
 
             let old_usage = tree.calculate_usage(owner)?;
-            let mut tree = tree.stage_unvalidated(updates.clone());
+            let mut tree = tree.stage_unvalidated(updates.clone(), self.clock.now().0 as u64);
             let new_usage = tree.calculate_usage(owner)?;
 
             debug!(?owner, ?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
@@ -109,7 +109,7 @@ where
         )?
         .to_lazy();
 
-        let tree = tree.stage_unvalidated(updates.clone());
+        let tree = tree.stage_unvalidated(updates.clone(), self.clock.now().0 as u64);
         let tree = tree.promote()?;
 
         for id in tree.ids() {
@@ -173,7 +173,7 @@ where
 
         let requester = Owner(context.public_key);
         let id = *diff.id();
-        let new_meta = diff.new.clone().add_time(get_time().0 as u64);
+        let new_meta = diff.new.clone().add_time(self.clock.now().0 as u64);
 
         // phase 1: validate request before io
         let mut lock = self.index_db.lock().await;
@@ -454,7 +454,7 @@ where
         }
 
         Ok(GetUpdatesResponseV2 {
-            as_of_metadata_version: get_time().0 as u64,
+            as_of_metadata_version: self.clock.now().0 as u64,
             file_metadata: tree
                 .all_files()?
                 .into_iter()
