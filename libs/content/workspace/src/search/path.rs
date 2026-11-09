@@ -8,7 +8,7 @@ use crate::{
     search::{SearchExecutor, SearchType},
     show::InputStateExt,
     style::{
-        FileRow, Space, ThemeExt, TypeRole, file_row_icon, parent_crumbs, phosphor,
+        FileRow, Space, ThemeExt, TypeRole, file_row_icon, path_crumbs, phosphor,
         phosphor_ui_font_id, with_overlay_scroll,
     },
 };
@@ -280,7 +280,7 @@ impl PathSearch {
             if row.is_folder { phosphor::FOLDER } else { file_row_icon(&row.filename, false) };
         let resp = FileRow::new(&t, &row.filename)
             .icon(icon)
-            .subtitle(parent_crumbs(&row.parent_path))
+            .subtitle(path_crumbs(&row.parent_path))
             .selected(selected)
             .trail_reserve(trail)
             .show(ui, Id::unique("search_row").with(row.id));
