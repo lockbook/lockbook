@@ -161,3 +161,41 @@ async fn same_edit_uploaded_twice_at_once_stays_readable() {
     third.sync().await.unwrap();
     assert_eq!(third.read_document(doc, false).await.unwrap(), b"after");
 }
+
+/// An edit undone while its upload is still in flight stays undone once the device syncs again.
+#[tokio::test]
+async fn undo_during_content_upload_keeps_the_undo() {
+    let server = gated_server();
+    let gate = server.document_service.clone();
+
+    let writer = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    writer
+        .create_account(&random_name(), "", false)
+        .await
+        .unwrap();
+    let doc = writer.create_at_path("note.md").await.unwrap().id;
+    writer.write_document(doc, b"before").await.unwrap();
+    writer.sync().await.unwrap();
+
+    writer.write_document(doc, b"after").await.unwrap();
+    gate.armed.store(true, Ordering::SeqCst);
+    let undo_mid_upload = async {
+        gate.entered.notified().await;
+        writer.write_document(doc, b"before").await.unwrap();
+        gate.release.notify_one();
+    };
+    let both = async { tokio::join!(writer.sync(), undo_mid_upload) };
+    let (pushed, ()) = tokio::time::timeout(Duration::from_secs(10), both)
+        .await
+        .expect("the writer's sync uploads the edit");
+    pushed.unwrap();
+
+    writer.sync().await.unwrap();
+    assert_eq!(writer.read_document(doc, false).await.unwrap(), b"before");
+
+    let reader = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let key = writer.export_account_private_key().unwrap();
+    reader.import_account(&key, None).await.unwrap();
+    reader.sync().await.unwrap();
+    assert_eq!(reader.read_document(doc, false).await.unwrap(), b"before");
+}
