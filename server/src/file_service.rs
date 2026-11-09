@@ -281,6 +281,7 @@ where
                 return Err(ClientError(UsageIsOverDataCap));
             }
             tree.promote()?;
+            db.scheduled_file_cleanups.remove(&(id, hmac_bytes))?;
 
             if let Some(old_hmac) = diff.old.and_then(|old| old.document_hmac().copied()) {
                 db.scheduled_file_cleanups
@@ -295,9 +296,26 @@ where
         let result = result.await;
 
         if result.is_err() {
-            // Cleanup the NEW file created if, for some reason, the tx failed
-            self.document_service.delete(&id, &hmac_bytes).await?;
-            debug!(?id, ?hmac, "Cleaned up new document contents after failed metadata update");
+            // Identical uploads share this key, so deleting it here could remove bytes another
+            // upload has committed or is about to commit. Schedule it instead, unless the file
+            // already carries it; an upload of the same bytes unschedules it on store and commit.
+            let mut lock = self.index_db.lock().await;
+            let mut tx = ServerTx::begin(&mut lock)?;
+            let db = &mut *tx;
+            let committed_hmac = db
+                .metas
+                .get(&id)
+                .and_then(|meta| meta.document_hmac().copied());
+            if committed_hmac != Some(hmac_bytes) {
+                db.scheduled_file_cleanups
+                    .insert((id, hmac_bytes), get_time().0)?;
+                debug!(
+                    ?id,
+                    ?hmac,
+                    "Scheduled cleanup of new document contents after failed metadata update"
+                );
+            }
+            tx.end()?;
         }
 
         result?;
