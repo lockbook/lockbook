@@ -1312,9 +1312,10 @@ impl Workspace {
     pub fn process_clip_events(&mut self) {
         let Some(file_id) = self.current_tab().and_then(|tab| {
             let md = tab.markdown()?;
-            // an embed with the caret takes the image beside its own note
-            if let Some(id) = md.edit.renderer.tab_embeds.focused_file(&self.ctx) {
-                return Some(id);
+            // an embed with the caret takes the image beside its own note, if it
+            // takes images at all
+            if let Some((id, images)) = md.edit.renderer.tab_embeds.focused_file(&self.ctx) {
+                return images.then_some(id);
             }
             // image paste inserts `![](…)` markdown
             if md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {

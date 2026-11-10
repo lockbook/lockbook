@@ -241,14 +241,18 @@ impl TabEmbeds {
         self.focused_file(ctx).is_some()
     }
 
-    /// The file of the embedded editor that has the caret, at any depth.
-    pub fn focused_file(&self, ctx: &egui::Context) -> Option<Uuid> {
+    /// The file of the embedded editor that has the caret, at any depth, and
+    /// whether a pasted image goes in as a link there: a markdown note that
+    /// takes typing.
+    pub fn focused_file(&self, ctx: &egui::Context) -> Option<(Uuid, bool)> {
         let slots = self.slots.borrow();
         slots.values().find_map(|slot| {
             let SlotState::Open(tab) = &slot.state else { return None };
             let md = tab.markdown()?;
             let nested = md.edit.renderer.tab_embeds.focused_file(ctx);
-            nested.or_else(|| md.focused(ctx).then_some(md.edit.file_id))
+            let r = &md.edit.renderer;
+            let images = r.kind == crate::tab::markdown_editor::Syntax::Markdown && r.edits_text();
+            nested.or_else(|| md.focused(ctx).then_some((md.edit.file_id, images)))
         })
     }
 

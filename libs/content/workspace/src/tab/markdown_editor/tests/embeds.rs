@@ -599,3 +599,35 @@ fn a_previews_embeds_edit_nothing() {
     frames_until(&mut t, |t| t.ws.current_tab().and_then(edits).is_some());
     assert_eq!(t.ws.current_tab().and_then(edits), Some(true));
 }
+
+/// An image pasted with the caret in an embed lands beside that note and as
+/// a link in it, where it is a markdown note; in a plain text file it goes
+/// nowhere, as in that file's own tab.
+#[test]
+fn an_image_pasted_in_an_embed_goes_to_its_note() {
+    use crate::tab::{ClipContent, Event as TabEvent, ExtendedInput as _};
+    let png = {
+        let mut bytes = std::io::Cursor::new(vec![]);
+        image::RgbaImage::new(1, 1)
+            .write_to(&mut bytes, image::ImageFormat::Png)
+            .unwrap();
+        bytes.into_inner()
+    };
+    for (name, linked) in [("Plan.md", true), ("notes.txt", false)] {
+        let mut t = TestWs::new();
+        t.doc(name, "Ship it.\n");
+        let note = t.doc("note.md", &format!("![[{name}]]\n"));
+        open(&mut t, note, 0);
+        frames_until(&mut t, |t| !md(t).edit.renderer.tab_embeds.shown_words().is_empty());
+        t.frame();
+        let end = after_word(&mut t, "it.");
+        click(&mut t, end);
+        let content = vec![ClipContent::Image(png.clone())];
+        t.ctx.push_event(TabEvent::Paste { content, position: end });
+        t.frame();
+        t.frame();
+        let shown = md(&mut t).edit.renderer.tab_embeds.shown_texts();
+        assert_eq!(shown[0].contains("]("), linked, "{name}: {shown:?}");
+        assert_eq!(text(&mut t), format!("![[{name}]]\n"), "{name}");
+    }
+}
