@@ -509,3 +509,28 @@ fn a_platform_driven_drop_lands_where_the_finger_let_go() {
     ws.enter_frame();
     assert_eq!(ws.get_text(), format!("caret\n\n|  | b |\n| - | - |\n| c | d![a]({IMAGE}) |\n"));
 }
+
+#[test]
+fn an_image_dropped_in_a_table_without_pipes_writes_only_itself() {
+    // comrak reads a line over `--` as a one-column table
+    let md = format!("![a]({IMAGE})\n\nbar baz\n--\n");
+    let mut ws = editor(&md);
+
+    let (from, to) = (image_center(&ws), after(&ws, "\n\n"));
+    drag(&mut ws, from, to);
+
+    let moved = format!("\n\n![a]({IMAGE})bar baz\n--\n");
+    assert_eq!(ws.get_text(), moved);
+    assert_eq!(table_ranges_check_md(&moved), Ok(1));
+
+    // nor where the cell already starts with something other than a letter
+    let md = format!("![a]({IMAGE})\n\n$x$ bar baz\n--\n");
+    let mut ws = editor(&md);
+
+    let (from, to) = (image_center(&ws), after(&ws, "$x$ bar"));
+    drag(&mut ws, from, to);
+
+    let moved = format!("\n\n$x$ bar![a]({IMAGE}) baz\n--\n");
+    assert_eq!(ws.get_text(), moved);
+    assert_eq!(table_ranges_check_md(&moved), Ok(1));
+}

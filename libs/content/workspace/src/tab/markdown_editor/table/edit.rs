@@ -3,7 +3,7 @@
 //! deleted in a cell stays in the cell, a selection of whole cells clears
 //! them, and a selection of whole rows removes their lines.
 
-use comrak::nodes::TableAlignment;
+use comrak::nodes::{NodeValue, TableAlignment};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -26,16 +26,19 @@ pub(super) struct CellText {
     pub closing_pipe: bool,
 }
 
-/// Whether a line that starts with `text` is a row whatever follows on it:
-/// a letter starts no other block, nor does a number that is not a list
-/// item's.
-fn starts_a_row(text: &str) -> bool {
-    let rest = text.trim_start_matches(|c: char| c.is_ascii_digit());
-    let mut after = rest.chars();
-    let numbered = rest.len() < text.len()
-        && matches!(after.next(), Some('.' | ')'))
-        && after.next().is_none_or(char::is_whitespace);
-    text.starts_with(char::is_alphanumeric) && !numbered
+/// Whether a line that starts with `text`, then its pipe if `closed`, is a
+/// row: alone it parses as one paragraph, so it starts no other block, and
+/// it opens with neither a pipe of its own, nor indentation, nor a tag the
+/// rest of the line could finish into a block of HTML.
+fn starts_a_row(text: &str, closed: bool) -> bool {
+    let line = format!("{text}{}\n", if closed { "|" } else { "" });
+    let arena = comrak::Arena::new();
+    let root = comrak::parse_document(&arena, &line, &MdRender::comrak_options());
+    let mut blocks = root
+        .children()
+        .map(|block| matches!(block.data.borrow().value, NodeValue::Paragraph));
+    let paragraph = blocks.next() == Some(true) && blocks.next().is_none();
+    !text.starts_with(|c: char| c == '|' || c == '<' || c.is_whitespace()) && paragraph
 }
 
 /// Makes `text` safe as a cell's whole span, keeping `caret` (a byte index
@@ -107,7 +110,7 @@ pub(super) fn cell_text(text: &str, caret: usize, opened: bool, closed: bool) ->
     }
     let first = out.chars().next();
     let last = out.chars().next_back();
-    let opening_pipe = !opened && (blank || !starts_a_row(&out));
+    let opening_pipe = !opened && (blank || !starts_a_row(&out, closed));
     let closing_pipe = !closed && blank;
     if (opened || opening_pipe) && matches!(first, Some('|' | '\'')) {
         out.insert(0, ' ');
