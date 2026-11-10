@@ -2105,15 +2105,15 @@ impl MdRender {
                     let shaped_left = buf.shaped_left(ppi);
                     let shaped = buf.shaped_size(ppi);
                     drop(buf);
-                    // Fold chips: larger glyph, original capsule. Glyphon
-                    // paints at `left` with scale 1, so expanding the rect
-                    // without recentering left-aligns the dots in the pill.
+                    // Fold chips: larger glyph, original capsule. The icon's
+                    // line box is centered on the capsule both ways, not set
+                    // on the note font's baseline.
                     let paint_rect = if frag.style_stack.last().is_some_and(chip_is_icon) {
                         let cap_h = screen_rect.height() + 2.0 * inline_pad;
                         let x =
                             glyph_origin.x + (screen_rect.width() - shaped.x) * 0.5 - shaped_left;
                         Rect::from_min_size(
-                            Pos2::new(x, glyph_origin.y - inline_pad),
+                            Pos2::new(x, screen_rect.min.y - inline_pad),
                             vec2(shaped.x, cap_h),
                         )
                     } else {
