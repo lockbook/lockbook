@@ -151,18 +151,44 @@ mod test {
     }
 
     #[test]
+    fn diff_insert_after_emoji() {
+        assert_round_trip("foo 👋 foo\n", "foo 👋foo  foo\n");
+    }
+
+    #[test]
     fn diff_fuzz() {
-        let mut count = 0;
         let mut rng = StdRng::seed_from_u64(0);
-        loop {
-            let from: String = rand_str(&mut rng, rand::random::<usize>() % 10);
-            let to: String = rand_str(&mut rng, rand::random::<usize>() % 10);
-            let _ = super::diff(&from, &to);
-            count += 1;
-            if count == 1000 {
-                break;
-            }
+        for _ in 0..1000 {
+            let len = rng.gen_range(0..10);
+            let from = rand_str(&mut rng, len);
+            let len = rng.gen_range(0..10);
+            let to = rand_str(&mut rng, len);
+            assert_round_trip(&from, &to);
         }
+        // few distinct words, so the diff keeps runs equal
+        let words = ["foo", "bar", " ", "  ", "\n", "👋", "Ж", "é", "🇸🇺"];
+        for _ in 0..10000 {
+            let words_str = |rng: &mut StdRng| -> String {
+                let len = rng.gen_range(0..12);
+                (0..len)
+                    .map(|_| words[rng.gen_range(0..words.len())])
+                    .collect()
+            };
+            let from = words_str(&mut rng);
+            let to = words_str(&mut rng);
+            assert_round_trip(&from, &to);
+        }
+    }
+
+    /// `diff(from, to)` applied to `from` gives `to`.
+    fn assert_round_trip(from: &str, to: &str) {
+        let segs = super::unicode_segs::calc(from);
+        let mut applied = from.to_string();
+        for op in super::diff(from, to).iter().rev() {
+            let (start, end) = segs.range_to_byte(op.range);
+            applied.replace_range(start.0..end.0, &op.text);
+        }
+        assert_eq!(applied, to, "diff({from:?}, {to:?})");
     }
 
     fn rand_str(rng: &mut StdRng, length: usize) -> String {
