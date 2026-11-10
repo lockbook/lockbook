@@ -24,7 +24,6 @@ enum Prop {
 }
 
 #[test]
-#[ignore = "the word diff misplaces an insert after an emoji"]
 fn reading_shows_the_latest_version() {
     run(Prop::ShowsDisk, 300);
 }
@@ -187,7 +186,7 @@ fn next_version(
 
 /// The shortest case behind each ignored row, against the buffer alone.
 #[test]
-#[ignore = "the word diff misplaces an insert after an emoji, and a second reload over unsaved edits lands early"]
+#[ignore = "a second reload over unsaved edits lands early"]
 fn reload_cases() {
     use lb_rs::model::text::buffer::Buffer;
     use lb_rs::model::text::operation_types::{Operation, Replace};
