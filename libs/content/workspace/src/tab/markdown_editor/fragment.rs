@@ -89,7 +89,9 @@ pub fn document_headings(md: &str) -> Vec<Heading> {
 
 /// Which of `headings` a fragment names: a slug first, so `#foo-1` is the
 /// second "Foo" and never a heading titled "foo-1"; then the first heading
-/// with that text. Case doesn't count; percent-escapes are decoded.
+/// with that text, its quotes, dashes and ellipses spelled either way, so a
+/// phone's `Don’t` finds `Don't`. Case doesn't count; percent-escapes are
+/// decoded.
 pub fn find_heading(headings: &[Heading], fragment: &str) -> Option<usize> {
     let fragment = urlencoding::decode(fragment).map_or(fragment.into(), |f| f.into_owned());
     let fragment = fragment.trim().to_lowercase();
@@ -104,6 +106,29 @@ pub fn find_heading(headings: &[Heading], fragment: &str) -> Option<usize> {
                 .iter()
                 .position(|h| h.text.to_lowercase() == fragment)
         })
+        .or_else(|| {
+            let fragment = typed(&fragment);
+            headings
+                .iter()
+                .position(|h| typed(&h.text.to_lowercase()) == fragment)
+        })
+}
+
+/// `text` with typographic quotes, dashes and ellipses as they're typed on
+/// a keyboard without them.
+fn typed(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '‘' | '’' => out.push('\''),
+            '“' | '”' => out.push('"'),
+            '–' => out.push_str("--"),
+            '—' => out.push_str("---"),
+            '…' => out.push_str("..."),
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 /// What a wiki link puts after `#`: the heading's text, unless that names an
