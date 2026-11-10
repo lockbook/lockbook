@@ -336,3 +336,24 @@ fn typing_in_an_embed_of_another_note_saves_it() {
     frames_until(&mut t, |t| disk(t, plan) == "Ship it. Today.\n");
     assert_eq!(text(&mut t), "above\n\n![[Plan]]\n\nbelow\n");
 }
+
+/// The toolbar acts on the embed with the caret: what it inserts lands at
+/// the card's caret, and its undo takes it back in the note's history.
+#[test]
+fn the_toolbar_acts_on_the_card_with_the_caret() {
+    use crate::tab::markdown_editor::input::Region;
+    let mut t = TestWs::new();
+    board(&mut t);
+    let end = after_word(&mut t, "blue");
+    click(&mut t, end);
+    let text_in =
+        Event::Replace { region: Region::Selection, text: "s".into(), advance_cursor: true };
+    t.ctx.push_markdown_event(text_in);
+    t.frame();
+    t.frame();
+    assert!(text(&mut t).contains("two blues\n"), "{}", text(&mut t));
+    t.ctx.push_markdown_event(Event::Undo);
+    t.frame();
+    t.frame();
+    assert_eq!(text(&mut t), BOARD);
+}

@@ -1568,6 +1568,9 @@ impl Editor {
         // the context's queued events are the host's, gestures included
         if !self.embedded {
             let workspace_events = self.edit.drain_workspace_events(ui.ctx());
+            // the toolbar's, while an embed has the caret, are the embed's
+            let embeds = &self.edit.renderer.tab_embeds;
+            let workspace_events = embeds.give_focused(ui.ctx(), workspace_events);
             self.edit.event.internal_events.extend(workspace_events);
         }
 

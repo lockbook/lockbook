@@ -258,6 +258,21 @@ impl TabEmbeds {
         texts.collect()
     }
 
+    /// Hands `events` to the embedded editor that has the caret, at any
+    /// depth; what's left when none has it.
+    pub fn give_focused(&self, ctx: &egui::Context, events: Vec<Event>) -> Vec<Event> {
+        let mut events = events;
+        for slot in self.slots.borrow_mut().values_mut() {
+            let SlotState::Open(tab) = &mut slot.state else { continue };
+            let Some(md) = tab.markdown_mut() else { continue };
+            events = md.edit.renderer.tab_embeds.give_focused(ctx, events);
+            if md.focused(ctx) {
+                md.edit.event.internal_events.append(&mut events);
+            }
+        }
+        events
+    }
+
     /// Whether `slot` shows a heading of the note these embeds are in: its
     /// tab mirrors the note's buffer and hands its edits to it.
     fn own(&self, slot: &Slot) -> bool {
