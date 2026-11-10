@@ -200,10 +200,10 @@ impl LbFuse {
             }
         }
         let hmac = self.lb.document_hmac(id).map_err(errno)?;
-        if let Some((cached, size)) = self.state().sizes.get(&id) {
-            if *cached == hmac {
-                return Ok(*size);
-            }
+        if let Some((cached, size)) = self.state().sizes.get(&id)
+            && *cached == hmac
+        {
+            return Ok(*size);
         }
         let (hmac, doc) = self.lb.read_document_with_hmac(id, false).map_err(errno)?;
         let size = doc.len() as u64;
