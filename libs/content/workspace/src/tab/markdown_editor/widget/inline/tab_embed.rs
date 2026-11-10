@@ -20,10 +20,12 @@ use super::link::LinkMenuAction;
 use super::link::hover::{CARD_PAD, CARD_RADIUS, FILE_CARD, ink_secondary};
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
 use crate::resolvers::image_embed::wiki_embed_key;
+use crate::resolvers::link::rich_spans;
 use crate::show::ElapsedHumanString as _;
 use crate::style::button::Button;
 use crate::style::tree_metrics::INDENT_BASE;
 use crate::style::{FileRow, ROW_H, Space, TypeRole, file_row_icon, parent_crumbs};
+use crate::tab::markdown_editor::fragment::{document_headings, find_heading};
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
@@ -223,15 +225,22 @@ impl TabEmbeds {
     }
 
     /// The height a slot reserves inside its frame at content width `width`:
-    /// the open tab's measured region, else the region's remembered height,
-    /// else a skeleton's.
-    fn content_height(&self, url: &str, place: &Place, width: f32, card: bool) -> f32 {
+    /// the open tab's measured region or the message in its place, else the
+    /// region's remembered height, else a skeleton's.
+    fn content_height(
+        &self, ctx: &egui::Context, url: &str, place: &Place, width: f32, card: bool,
+    ) -> f32 {
         let key = SlotKey { url: url.into(), nth: 0, card };
-        let measured = self.slots.borrow_mut().get_mut(&key).and_then(|slot| {
-            let SlotState::Open(tab) = &mut slot.state else { return None };
-            slot.shown
-                .then(|| tab.region_height(place.fragment.as_ref(), width))?
+        let message = |msg: &str| failed_label(msg, width, egui::Color32::WHITE).build(ctx);
+        let mut slots = self.slots.borrow_mut();
+        let measured = slots.get_mut(&key).and_then(|slot| match &mut slot.state {
+            SlotState::Open(tab) => slot
+                .shown
+                .then(|| tab.region_height(place.fragment.as_ref(), width))?,
+            SlotState::Failed(msg) => Some(message(msg).size.y),
+            SlotState::Loading(_) => None,
         });
+        drop(slots);
         let remembered = || {
             let res = self.res.as_ref()?;
             res.remembered_height(&place.dest, place.fragment.as_ref(), width)
@@ -252,7 +261,14 @@ impl TabEmbeds {
         }
         slot.touched = true;
         slot.rect = rect;
+        let failed = |slot: &Slot| matches!(slot.state, SlotState::Failed(_));
+        let was_failed = failed(slot);
         slot.poll(&res, &self.path, key.card);
+        // the slot takes its message's height
+        if failed(slot) && !was_failed {
+            self.seq.set(self.seq.get() + 1);
+            ui.ctx().request_repaint();
+        }
 
         let t = ui.ctx().get_lb_theme();
         // a card's frame pads it; a slot pads itself
@@ -313,15 +329,9 @@ impl TabEmbeds {
                 ui.ctx().request_repaint();
             }
             SlotState::Failed(msg) => {
-                let font = egui::FontId::proportional(crate::style::TypeRole::Body.size());
-                let color = t.neutral_fg_secondary();
-                ui.painter().text(
-                    inner.left_top(),
-                    egui::Align2::LEFT_TOP,
-                    msg.as_str(),
-                    font,
-                    color,
-                );
+                let label = failed_label(msg, inner.width(), t.neutral_fg_secondary());
+                let size = label.measure(ui);
+                ui.put(Rect::from_min_size(inner.left_top(), size), label);
             }
         }
         if !key.card {
@@ -426,23 +436,41 @@ impl Slot {
     fn poll(&mut self, res: &TabResources, path: &[Uuid], card: bool) {
         if let Some(Ok(Ok(Some(doc)))) = self.reload.as_ref().map(|rx| rx.try_recv()) {
             self.reload = None;
-            if let SlotState::Open(tab) = &mut self.state {
-                if let ContentState::Open(content) = &mut tab.content {
-                    if content.reload(doc.hmac, &doc.bytes) {
-                        self.measured = false;
-                    } else {
-                        *self = Self::open(res, self.place.clone());
+            match &mut self.state {
+                SlotState::Open(tab) => {
+                    if let ContentState::Open(content) = &mut tab.content {
+                        if !content.reload(doc.hmac, &doc.bytes) {
+                            *self = Self::open(res, self.place.clone());
+                        } else if let Some(msg) = missing_heading(&self.place, content, card) {
+                            self.state = SlotState::Failed(msg);
+                        } else {
+                            self.measured = false;
+                        }
                     }
                 }
+                SlotState::Failed(_) => self.state = self.opened(res, path, card, Ok(Some(doc))),
+                SlotState::Loading(_) => {}
             }
         }
         let SlotState::Loading(rx) = &self.state else { return };
         let Ok(doc) = rx.try_recv() else { return };
+        self.state = self.opened(res, path, card, doc);
+    }
+
+    /// What the slot shows of `doc` as read: its tab, or why there is none.
+    fn opened(
+        &self, res: &TabResources, path: &[Uuid], card: bool, doc: Result<Option<Doc>, TabFailure>,
+    ) -> SlotState {
         let dest = &self.place.dest;
         let salt = egui::Id::unique(Uuid::new_v4());
         let content = doc.and_then(|doc| TabContent::open(dest, doc, res, salt, true));
-        self.state = match content {
-            Ok(mut content) => {
+        let missing = content
+            .as_ref()
+            .ok()
+            .and_then(|c| missing_heading(&self.place, c, card));
+        match (content, missing) {
+            (_, Some(msg)) => SlotState::Failed(msg),
+            (Ok(mut content), None) => {
                 if let TabContent::Markdown(md) = &mut content {
                     let mut nested = path.to_vec();
                     nested.extend(dest.backing_file());
@@ -454,9 +482,20 @@ impl Slot {
                 tab.reveal = Some(Reveal { fragment: self.place.fragment.clone(), flash: false });
                 SlotState::Open(Box::new(tab))
             }
-            Err(failure) => SlotState::Failed(failure.msg()),
-        };
+            (Err(failure), None) => SlotState::Failed(failure.msg()),
+        }
     }
+}
+
+/// What an embed of `place` says in place of a note without the heading it
+/// names. A card shows the note, as opening the link does.
+fn missing_heading(place: &Place, content: &TabContent, card: bool) -> Option<String> {
+    let Some(Fragment::Heading(heading)) = &place.fragment else { return None };
+    let TabContent::Markdown(md) = content else { return None };
+    let headings = document_headings(&md.edit.renderer.buffer.current.text);
+    let missing = !card && find_heading(&headings, heading).is_none();
+    let heading = urlencoding::decode(heading).map_or(heading.clone(), |h| h.into_owned());
+    missing.then(|| format!("This note has no heading named **{heading}**."))
 }
 
 impl<'ast> MdRender {
@@ -488,7 +527,7 @@ impl<'ast> MdRender {
         }
         let height = self
             .tab_embeds
-            .content_height(&title, &place, width - pad, false);
+            .content_height(&self.ctx, &title, &place, width - pad, false);
         let band = self.tab_embed_band_height(&place);
         Some((place, vec2(width, band + height + pad)))
     }
@@ -630,7 +669,7 @@ impl<'ast> MdRender {
                 let folder = self.card_folder(&place);
                 let height = self
                     .tab_embeds
-                    .content_height(url, &place, width, true)
+                    .content_height(ui.ctx(), url, &place, width, true)
                     .min(card_view_height(folder.is_some()));
                 ui.set_width(width);
                 ui.spacing_mut().item_spacing.y = HEADER_GAP.pts();
@@ -796,6 +835,14 @@ fn open_button(ui: &mut egui::Ui, title: Rect, place: &Place) {
         };
         ui.ctx().open_link(id, heading, new_tab);
     }
+}
+
+/// What a slot says in place of a tab it can't show, `width` wide.
+fn failed_label(msg: &str, width: f32, ink: egui::Color32) -> GlyphonLabel<'_> {
+    GlyphonLabel::new_rich(rich_spans(msg), ink)
+        .font_size(TypeRole::Body.size())
+        .line_height(TypeRole::Body.line_height())
+        .max_width(width)
 }
 
 /// Faint bars standing in for the content while the tab loads.
