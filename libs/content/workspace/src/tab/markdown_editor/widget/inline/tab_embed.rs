@@ -679,11 +679,21 @@ fn left_section(ctx: &egui::Context, md: &Markdown, place: &Place, moved: bool) 
     let text = &r.buffer.current.text;
     let after = segs.offset_to_byte(heading_end).0;
     let blank = text[after..].len() - text[after..].trim_start().len();
-    let first = segs.byte_to_char_floor(lb_rs::model::text::offset_types::Byte(after + blank));
+    // from the start of the line its first text is on, indentation and all
+    let line = text[..after + blank]
+        .rfind('\n')
+        .map_or(after, |nl| nl + 1)
+        .max(after);
+    let first = segs.byte_to_char_floor(lb_rs::model::text::offset_types::Byte(line));
     let next = headings[i + 1..]
         .iter()
         .find(|(_, h)| h.level <= infos[i].level)
         .map(|(node, _)| r.node_range(node).0);
+    // a section with no text shows its first blank line, for the caret to start it
+    let first = match next {
+        Some(next) if first >= next => first.min(heading_end + 1),
+        _ => first,
+    };
     let (a, b) = r.buffer.current.selection;
     let (start, end) = (a.min(b), a.max(b));
     if start < first {

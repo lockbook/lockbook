@@ -602,7 +602,7 @@ fn a_previews_embeds_edit_nothing() {
 
 /// An image pasted with the caret in an embed lands beside that note and as
 /// a link in it, where it is a markdown note; in a plain text file it goes
-/// nowhere, as in that file's own tab.
+/// nowhere, as in that file's own tab, not even into the note later.
 #[test]
 fn an_image_pasted_in_an_embed_goes_to_its_note() {
     use crate::tab::{ClipContent, Event as TabEvent, ExtendedInput as _};
@@ -628,6 +628,12 @@ fn an_image_pasted_in_an_embed_goes_to_its_note() {
         t.frame();
         let shown = md(&mut t).edit.renderer.tab_embeds.shown_texts();
         assert_eq!(shown[0].contains("]("), linked, "{name}: {shown:?}");
+        // back in the note, nothing left over from the paste lands there
+        t.frame_with(vec![key(egui::Key::Escape, Modifiers::NONE)]);
+        for _ in 0..3 {
+            t.frame();
+        }
+        assert!(host_focused(&mut t), "{name}");
         assert_eq!(text(&mut t), format!("![[{name}]]\n"), "{name}");
     }
 }
