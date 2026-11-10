@@ -85,6 +85,14 @@ impl Schema for CoreV5 {
     }
 }
 
+pub fn init_read_only(path: &Path) -> MigrationResult<CoreDb> {
+    Ok(CoreDb::init(
+        &Config::default()
+            .log_location(path.join("CoreV5"))
+            .read_only(),
+    )?)
+}
+
 pub fn init_with_migration(path: &Path) -> MigrationResult<CoreDb> {
     let directory = path.join("CoreV5");
     fs::create_dir_all(&directory)?;
