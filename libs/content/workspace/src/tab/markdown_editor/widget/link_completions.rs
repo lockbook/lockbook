@@ -917,10 +917,6 @@ impl LinkCompletions {
                 }
             }
         }
-        // a note embedding itself cycles and shows as a link
-        if mode == CompletionMode::WikiEmbed {
-            notes.retain(|(id, _)| *id != file_id);
-        }
         // a note's name, or its shortest title where two names are the same
         let stem = |id: Uuid| {
             cache
