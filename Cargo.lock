@@ -1888,9 +1888,9 @@ dependencies = [
 
 [[package]]
 name = "db-rs"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98cfb6b0b375c94ad2e67f4358a1ac60437a223c5a80a0be83018a672d810eb7"
+checksum = "75fc967b4d54e2b0c5fe69eaa4af4fece84447d97a1b8985b83d1af83a9cd6f1"
 dependencies = [
  "bincode 2.0.1",
  "serde",
@@ -4292,7 +4292,7 @@ dependencies = [
  "criterion",
  "crossbeam",
  "db-rs 0.3.7",
- "db-rs 0.4.3",
+ "db-rs 0.4.4",
  "db-rs-derive",
  "flate2",
  "futures",
@@ -4578,7 +4578,7 @@ dependencies = [
  "bincode 1.3.3",
  "constant_time_eq 0.2.6",
  "db-rs 0.3.7",
- "db-rs 0.4.3",
+ "db-rs 0.4.4",
  "db-rs-derive",
  "futures",
  "google-androidpublisher3",
