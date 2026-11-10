@@ -901,6 +901,45 @@ mod tests {
         Some((slot.rect, texts.collect()))
     }
 
+    /// `![[#Chairs]]` embeds the note's own heading, as `![[Board#Chairs]]` does.
+    #[test]
+    fn a_heading_alone_embeds_the_notes_own_heading() {
+        let mut t = TestWs::new();
+        let board = t.doc("Board.md", "# Chairs\n\nfour\n\n# Tables\n\n![[#Chairs]]\n");
+        t.ws.open_file(board, true, true);
+        frames_until(&mut t, |t| {
+            t.ws.current_tab_mut()
+                .and_then(|tab| tab.markdown_mut())
+                .is_some()
+        });
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        let r = &md.edit.renderer;
+        let named = r.tab_embeds.place(r, "Board#Chairs");
+        assert!(named.is_some());
+        assert_eq!(r.tab_embeds.place(r, "#Chairs"), named);
+    }
+
+    /// A `#` that is part of a file's name names no heading.
+    #[test]
+    fn a_hash_in_a_files_name_is_no_heading() {
+        let mut t = TestWs::new();
+        t.doc("Plan.md", "# Q1\n");
+        let named = t.doc("Plan#Q1.md", "body\n");
+        let note = t.doc("note.md", "![[Plan#Q1]]\n");
+        t.ws.open_file(note, true, true);
+        frames_until(&mut t, |t| {
+            t.ws.current_tab_mut()
+                .and_then(|tab| tab.markdown_mut())
+                .is_some()
+        });
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        let r = &md.edit.renderer;
+        assert_eq!(
+            r.tab_embeds.place(r, "Plan#Q1"),
+            Some(Place::at(Destination::File(named), None))
+        );
+    }
+
     /// A width after the pipe sizes a note embed, as it does an image.
     #[test]
     fn a_width_after_the_pipe_sizes_an_embed() {
