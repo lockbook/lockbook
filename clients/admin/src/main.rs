@@ -1,132 +1,172 @@
 mod account;
 mod disappear;
-mod error;
-mod indexes;
 mod info;
 mod validate;
 
-use clap::{Parser, Subcommand};
+use cli_rs::arg::Arg;
+use cli_rs::cli_error::{CliResult, Exit};
+use cli_rs::command::Command;
+use cli_rs::flag::Flag;
+use cli_rs::parser::Cmd;
 use lb::Uuid;
 use lb::blocking::Lb;
-use lb::model::api::UnixTimeMillis;
+use lb::model::api::{
+    AdminSetUserTierInfo, AppStoreAccountState, GooglePlayAccountState, ServerIndex,
+};
 use lb::model::core_config::Config;
 
-use crate::error::Error;
-use crate::indexes::CliIndex;
-
-#[derive(Debug, PartialEq, Eq, Parser)]
-pub enum Admin {
-    /// Disappear a user
-    ///
-    /// Frees up their username
-    DisappearAccount { username: String },
-
-    /// Disappear a file
-    ///
-    /// When you delete a file you flip that file's is_deleted flag to false. In a disaster recovery
-    /// scenario, you may want to *disappear* a file so that it never existed. This is useful in a
-    /// scenario where your server let in an invalid file.
-    DisappearFile { id: Uuid },
-
-    /// Validates file trees of all users on the server and prints any failures
-    ValidateAccount { username: String },
-
-    /// Performs server-wide integrity checks
-    ValidateServer,
-
-    /// List all users
-    ListUsers {
-        #[structopt(short, long)]
-        premium: bool,
-
-        #[structopt(short, long)]
-        app_store_premium: bool,
-
-        #[structopt(short, long)]
-        google_play_premium: bool,
-
-        #[structopt(short, long)]
-        stripe_premium: bool,
-    },
-
-    /// Get a user's info. This includes their username, public key, and payment platform.
-    AccountInfo {
-        #[structopt(short, long)]
-        username: Option<String>,
-
-        // A base 64 encoded and compressed public key
-        #[structopt(short, long)]
-        public_key: Option<String>,
-    },
-
-    #[command(subcommand)]
-    RebuildIndex(CliIndex),
-
-    /// Prints information about a file as it appears on the server
-    FileInfo { id: Uuid },
-
-    /// Manually set a user's tier and their subscription information
-    #[command(subcommand)]
-    SetUserTier(SetUserTier),
+fn main() {
+    Command::name("admin")
+        .description("Lockbook server administration, as the admin account the CLI is signed in to.")
+        .with_completions()
+        .subcommand(
+            Command::name("disappear-account")
+                .description("Disappear a user, freeing up their username")
+                .input(Arg::str("username"))
+                .handler(|username| disappear::account(&core()?, username.get())),
+        )
+        .subcommand(
+            Command::name("disappear-file")
+                .description("Disappear a file so that it never existed, for when the server let in an invalid file")
+                .input(Arg::<Uuid>::name("id"))
+                .handler(|id| disappear::file(&core()?, id.get())),
+        )
+        .subcommand(
+            Command::name("validate-account")
+                .description("Validate a user's file tree and print any failures")
+                .input(Arg::str("username"))
+                .handler(|username| validate::account(&core()?, username.get())),
+        )
+        .subcommand(
+            Command::name("validate-server")
+                .description("Perform server-wide integrity checks")
+                .handler(|| validate::server(&core()?)),
+        )
+        .subcommand(
+            Command::name("list-users")
+                .description("List all users, or only premium ones")
+                .input(Flag::bool("premium"))
+                .input(Flag::bool("app-store-premium"))
+                .input(Flag::bool("google-play-premium"))
+                .input(Flag::bool("stripe-premium"))
+                .handler(|premium, app_store, google_play, stripe| {
+                    account::list(
+                        &core()?,
+                        premium.get(),
+                        app_store.get(),
+                        google_play.get(),
+                        stripe.get(),
+                    )
+                }),
+        )
+        .subcommand(
+            Command::name("account-info")
+                .description("Print a user's username, root, payment platform, usage, creation and last-seen dates, and whether they deleted their account")
+                .input(Flag::<String>::new("username"))
+                .input(
+                    Flag::<String>::new("public-key")
+                        .description("base64 encoded and compressed"),
+                )
+                .handler(|username, public_key| {
+                    account::info(&core()?, username.get(), public_key.get())
+                }),
+        )
+        .subcommand(
+            Command::name("rebuild-index")
+                .description("Rebuild one of the server's indexes")
+                .subcommand(
+                    Command::name("owned-files")
+                        .handler(|| rebuild_index(ServerIndex::OwnedFiles)),
+                )
+                .subcommand(
+                    Command::name("shared-files")
+                        .handler(|| rebuild_index(ServerIndex::SharedFiles)),
+                )
+                .subcommand(
+                    Command::name("file-children")
+                        .handler(|| rebuild_index(ServerIndex::FileChildren)),
+                ),
+        )
+        .subcommand(
+            Command::name("file-info")
+                .description("Print a file as it appears on the server")
+                .input(Arg::<Uuid>::name("id"))
+                .handler(|id| info::file(&core()?, id.get())),
+        )
+        .subcommand(
+            Command::name("set-user-tier")
+                .description("Manually set a user's tier and their subscription information")
+                .subcommand(
+                    Command::name("stripe")
+                        .description("asks for the Stripe details one at a time")
+                        .input(Arg::str("username"))
+                        .handler(|username| account::set_stripe_tier(&core()?, username.get())),
+                )
+                .subcommand(
+                    Command::name("google-play")
+                        .input(Arg::str("username"))
+                        .input(Arg::str("purchase-token"))
+                        .input(Arg::<u64>::name("expiration-time"))
+                        .input(Arg::<GooglePlayAccountState>::name("account-state"))
+                        .handler(|username, purchase_token, expiration_time, account_state| {
+                            account::set_user_tier(
+                                &core()?,
+                                username.get(),
+                                AdminSetUserTierInfo::GooglePlay {
+                                    purchase_token: purchase_token.get(),
+                                    expiration_time: expiration_time.get(),
+                                    account_state: account_state.get(),
+                                },
+                            )
+                        }),
+                )
+                .subcommand(
+                    Command::name("app-store")
+                        .input(Arg::str("username"))
+                        .input(Arg::str("account-token"))
+                        .input(Arg::str("original-transaction-id"))
+                        .input(Arg::<u64>::name("expiration-time"))
+                        .input(Arg::<AppStoreAccountState>::name("account-state"))
+                        .handler(
+                            |username,
+                             account_token,
+                             original_transaction_id,
+                             expiration_time,
+                             account_state| {
+                                account::set_user_tier(
+                                    &core()?,
+                                    username.get(),
+                                    AdminSetUserTierInfo::AppStore {
+                                        account_token: account_token.get(),
+                                        original_transaction_id: original_transaction_id.get(),
+                                        expiration_time: expiration_time.get(),
+                                        account_state: account_state.get(),
+                                    },
+                                )
+                            },
+                        ),
+                )
+                .subcommand(
+                    Command::name("free")
+                        .input(Arg::str("username"))
+                        .handler(|username| {
+                            account::set_user_tier(
+                                &core()?,
+                                username.get(),
+                                AdminSetUserTierInfo::Free,
+                            )
+                        }),
+                ),
+        )
+        .parse()
+        .exit();
 }
 
-#[derive(Debug, PartialEq, Eq, Subcommand)]
-pub enum SetUserTier {
-    Stripe {
-        username: String,
-        customer_id: String,
-        customer_name: Uuid,
-        payment_method_id: String,
-        last_4: String,
-        subscription_id: String,
-        expiration_time: UnixTimeMillis,
-        account_state: String,
-    },
-
-    GooglePlay {
-        username: String,
-        purchase_token: String,
-        expiration_time: UnixTimeMillis,
-        account_state: String,
-    },
-
-    AppStore {
-        username: String,
-        account_token: String,
-        original_transaction_id: String,
-        expiration_time: UnixTimeMillis,
-        account_state: String,
-    },
-
-    Free {
-        username: String,
-    },
+fn core() -> CliResult<Lb> {
+    Ok(Lb::init(Config { client_name: "admin".into(), ..Config::cli_config("cli") })?)
 }
 
-type Res<T> = Result<T, Error>;
-
-pub fn main() {
-    let core = Lb::init(Config {
-        client_name: "admin".into(),
-        ..Config::cli_config("cli") // use the cli account
-    })
-    .unwrap();
-
-    let result = match Admin::parse() {
-        Admin::DisappearAccount { username } => disappear::account(&core, username),
-        Admin::ListUsers { premium, app_store_premium, google_play_premium, stripe_premium } => {
-            account::list(&core, premium, app_store_premium, google_play_premium, stripe_premium)
-        }
-        Admin::AccountInfo { username, public_key } => account::info(&core, username, public_key),
-        Admin::DisappearFile { id } => disappear::file(&core, id),
-        Admin::ValidateAccount { username } => validate::account(&core, username),
-        Admin::ValidateServer => validate::server(&core),
-        Admin::FileInfo { id } => info::file(&core, id),
-        Admin::RebuildIndex(index) => indexes::rebuild(&core, index),
-        Admin::SetUserTier(info) => account::set_user_tier(&core, info),
-    };
-
-    if result.is_err() {
-        panic!("unsuccessful completion")
-    }
+fn rebuild_index(index: ServerIndex) -> CliResult<()> {
+    core()?.admin_rebuild_index(index)?;
+    Ok(())
 }
