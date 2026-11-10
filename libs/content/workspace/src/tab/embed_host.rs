@@ -18,7 +18,8 @@ use egui::{Rect, UiBuilder};
 
 use crate::show::DocType;
 use crate::tab::markdown_editor::input::Event;
-use lb_rs::model::text::operation_types::Replace;
+use lb_rs::model::text::offset_types::Grapheme;
+use lb_rs::model::text::operation_types::{Operation, Replace};
 
 use crate::tab::markdown_editor::fragment::{find_heading, headings_in};
 use crate::tab::markdown_editor::widget::inline::tab_embed::{
@@ -263,12 +264,16 @@ impl EmbedHost {
             if !shown {
                 child.set_invisible();
             }
+            let before = tab.markdown().map(|md| {
+                let r = &md.edit.renderer;
+                (r.text_seq, r.buffer.current.selection)
+            });
             let resp = match res.watched {
                 true => res.guard.show(tab, |tab| tab.show(child)),
                 false => tab.show(child),
             };
-            if let (true, Some(host_tab)) = (own, host_tab) {
-                hand_over(ui.ctx(), tabs, session, host_tab, request);
+            if let (Some(before), Some(host_tab)) = (before, host_tab) {
+                hand_over(ui.ctx(), tabs, session, host_tab, request, own, before);
             }
             let Some(tab) = tabs.get_any_mut(&session) else { continue };
             if let Some(id) = resp.open_file {
@@ -326,9 +331,7 @@ impl EmbedHost {
     /// The task checkboxes the shown embeds' tabs draw, top to bottom: the
     /// mark each toggles, and a point on the box.
     #[cfg(test)]
-    pub fn shown_checkboxes(
-        &self, tabs: &TabCache,
-    ) -> Vec<(lb_rs::model::text::offset_types::Grapheme, egui::Pos2)> {
+    pub fn shown_checkboxes(&self, tabs: &TabCache) -> Vec<(Grapheme, egui::Pos2)> {
         use crate::tab::markdown_editor::TouchTarget;
         let mut boxes = vec![];
         for embed in self.embeds.values().filter(|e| e.shown && e.drawn) {
@@ -500,23 +503,34 @@ impl Embed {
     }
 }
 
-/// Hands the note `host` what its embed `session`, of a heading of it, did
-/// this frame: its edits, which the note makes at the same offsets and keeps
-/// in its history, and the caret, if it left the heading's section.
+/// Hands the note `host` what its embed `session` did this frame, given its
+/// text's seq and selection `before`: the caret, if it left the embed, and,
+/// for an `own` heading of the note, its edits, which the note makes at the
+/// same offsets and keeps in its history. An embed of another note's heading
+/// takes back an edit that lost the heading.
 fn hand_over(
     ctx: &egui::Context, tabs: &mut TabCache, session: SessionId, host: SessionId,
-    request: &EmbedRequest,
+    request: &EmbedRequest, own: bool, before: (u64, (Grapheme, Grapheme)),
 ) {
     let (Some(host_text), Some(typed)) = (text_of(tabs, &host), text_of(tabs, &session)) else {
         return;
     };
-    let host_text = (host_text != typed).then(|| host_text.clone());
+    let host_text = (own && host_text != typed).then(|| host_text.clone());
     let Some(md) = tabs.get_any_mut(&session).and_then(Tab::markdown_mut) else { return };
-    let mut handed = take_edits(md);
-    if let Some(host_text) = host_text {
-        handed.extend(take_typing(md, &request.place, host_text));
+    let (text_seq, selection) = before;
+    let edited = md.edit.renderer.text_seq != text_seq;
+    let mut handed = vec![];
+    if own {
+        handed = take_edits(md);
+        if let Some(host_text) = host_text {
+            handed.extend(take_typing(md, &request.place, host_text, selection));
+        }
+    } else if edited && lacks_heading(&request.place, &md.edit.renderer.buffer.current.text) {
+        // the edit took the heading the embed names: it goes back
+        md.edit.event.internal_events.push(Event::Undo);
     }
-    let left = left_section(ctx, md, &request.place);
+    let moved = edited || md.edit.renderer.buffer.current.selection != selection;
+    let left = left_section(ctx, md, &request.place, moved);
     if left.is_some() {
         md.surrender_focus(ctx);
     }
@@ -559,7 +573,9 @@ fn take_edits(md: &mut Markdown) -> Vec<Event> {
 /// this frame, as the note's replacements of its own text. An edit that
 /// leaves the note without the heading `place` names is refused: the card's
 /// heading is its band, retitled in the note itself.
-fn take_typing(md: &mut Markdown, place: &Place, host: String) -> Vec<Event> {
+fn take_typing(
+    md: &mut Markdown, place: &Place, host: String, selection: (Grapheme, Grapheme),
+) -> Vec<Event> {
     let buffer = &mut md.edit.renderer.buffer;
     let typed = buffer.current.text.clone();
     // the card's next edits build on what it has now
@@ -568,6 +584,11 @@ fn take_typing(md: &mut Markdown, place: &Place, host: String) -> Vec<Event> {
     if lacks_heading(place, &typed) {
         let hmac = md.hmac();
         md.reload(host, hmac);
+        // the caret stays where the refused edit found it
+        let r = &mut md.edit.renderer;
+        let now = r.now();
+        r.buffer.queue(vec![Operation::Select(selection)], now);
+        r.buffer.update();
         return vec![];
     }
     // last first, so each range is still the note's when it lands
@@ -580,9 +601,12 @@ fn take_typing(md: &mut Markdown, place: &Place, host: String) -> Vec<Event> {
     ops.into_iter().rev().map(replace).collect()
 }
 
-/// Whether the caret in `md`, a focused card of a heading of its host, left
-/// the heading's section this frame, and which way.
-fn left_section(ctx: &egui::Context, md: &mut Markdown, place: &Place) -> Option<Leave> {
+/// Whether the caret in `md`, a focused embed, left it this frame, and which
+/// way: Escape, or a caret that `moved` out of the heading's section an
+/// embed of a heading shows.
+fn left_section(
+    ctx: &egui::Context, md: &mut Markdown, place: &Place, moved: bool,
+) -> Option<Leave> {
     if !md.focused(ctx) {
         return None;
     }
@@ -590,6 +614,9 @@ fn left_section(ctx: &egui::Context, md: &mut Markdown, place: &Place) -> Option
         return Some(Leave::Select);
     }
     let Some(Fragment::Heading(slug)) = &place.fragment else { return None };
+    if !moved {
+        return None;
+    }
     let r = &mut md.edit.renderer;
     let arena = crate::tab::markdown_editor::Arena::new();
     let root = r.parse(&arena);
