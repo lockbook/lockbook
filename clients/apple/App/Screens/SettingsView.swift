@@ -240,7 +240,7 @@ import SwiftWorkspace
     struct SettingsEditorView: View {
         @AppStorage("contactLinkedSites") private var contactLinkedSites: Bool = false
         @AppStorage("spellCheck") private var spellCheck: Bool = true
-        @AppStorage("columnWidth") private var columnWidth: Double = 800
+        @AppStorage("columnWidth") private var columnWidth: Double = 900
 
         var body: some View {
             Form {
@@ -256,8 +256,8 @@ import SwiftWorkspace
                     Toggle("Check spelling", isOn: $spellCheck)
                     Picker("Text width", selection: $columnWidth) {
                         Text("Narrow").tag(600.0)
-                        Text("Medium").tag(800.0)
-                        Text("Wide").tag(1000.0)
+                        Text("Medium").tag(900.0)
+                        Text("Wide").tag(1200.0)
                     }
                     .pickerStyle(.segmented)
                 }
