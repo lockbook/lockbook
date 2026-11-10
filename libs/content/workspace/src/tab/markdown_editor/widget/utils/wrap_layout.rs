@@ -2159,8 +2159,10 @@ impl MdRender {
 
                     // The embed's opaque fill hides the selection slot behind it,
                     // so tint it when the selection covers it (a partial overlap
-                    // reveals it to raw text instead). iOS draws this natively.
-                    if ui.ctx().os() != egui::os::OperatingSystem::IOS {
+                    // reveals it to raw text instead). iOS draws this natively;
+                    // an embed with the caret shows its own selection instead.
+                    let caret_inside = self.tab_embeds.has_caret(ui.ctx());
+                    if ui.ctx().os() != egui::os::OperatingSystem::IOS && !caret_inside {
                         use crate::theme::palette_v2::ThemeExt as _;
                         let sel = self
                             .in_progress_selection

@@ -231,6 +231,11 @@ impl TabEmbeds {
         }
     }
 
+    /// Whether an embedded editor here, at any depth, has the caret.
+    pub fn has_caret(&self, ctx: &egui::Context) -> bool {
+        self.focused_file(ctx).is_some()
+    }
+
     /// The file of the embedded editor that has the caret, at any depth.
     pub fn focused_file(&self, ctx: &egui::Context) -> Option<Uuid> {
         let slots = self.slots.borrow();
@@ -628,13 +633,19 @@ fn left_section(ctx: &egui::Context, md: &Markdown, place: &Place, moved: bool) 
     let infos: Vec<_> = headings.iter().map(|(_, h)| h.clone()).collect();
     let i = find_heading(&infos, slug)?;
     let heading_end = r.node_range(headings[i].0).1;
+    // the section shows from its first text: blank lines under the heading are spacing
+    let segs = &r.buffer.current.segs;
+    let text = &r.buffer.current.text;
+    let after = segs.offset_to_byte(heading_end).0;
+    let blank = text[after..].len() - text[after..].trim_start().len();
+    let first = segs.byte_to_char_floor(lb_rs::model::text::offset_types::Byte(after + blank));
     let next = headings[i + 1..]
         .iter()
         .find(|(_, h)| h.level <= infos[i].level)
         .map(|(node, _)| r.node_range(node).0);
     let (a, b) = r.buffer.current.selection;
     let (start, end) = (a.min(b), a.max(b));
-    if start <= heading_end {
+    if start < first {
         Some(Leave::Before)
     } else if next.is_some_and(|next| end >= next) {
         Some(Leave::After)

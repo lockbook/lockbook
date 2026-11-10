@@ -294,7 +294,8 @@ fn a_heading_card_keeps_its_heading() {
 }
 
 /// Up from a card's first line puts the caret before the embed in the note,
-/// down from its last after it, and Escape selects the embed.
+/// down from its last after it, and Escape selects the embed: each in one
+/// press.
 #[test]
 fn the_caret_leaves_a_heading_card_around_its_embed() {
     let embed = Grapheme(BOARD.find("![[").unwrap());
@@ -308,13 +309,9 @@ fn the_caret_leaves_a_heading_card_around_its_embed() {
         board(&mut t);
         let at = after_word(&mut t, word);
         click(&mut t, at);
-        for _ in 0..2 {
-            t.frame_with(vec![key(key_pressed, Modifiers::NONE)]);
-            t.frame();
-            if host_focused(&mut t) {
-                break;
-            }
-        }
+        // one press: the blank line under the heading isn't shown, so it's no stop
+        t.frame_with(vec![key(key_pressed, Modifiers::NONE)]);
+        t.frame();
         assert!(host_focused(&mut t), "{key_pressed:?}");
         assert_eq!(selection(&mut t), want, "{key_pressed:?}");
         assert_eq!(text(&mut t), BOARD);

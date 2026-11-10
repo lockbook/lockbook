@@ -1254,6 +1254,10 @@ impl MdEdit {
             let sel_color = color.lerp_to_gamma(theme.neutral_bg(), 0.7);
             let mut rects = self.range_rects(selection);
             rects.extend(self.renderer.table_cell_rects_taken_whole(selection));
+            // the caret is in an embed: the selection there is the one to see
+            if self.renderer.tab_embeds.has_caret(ui.ctx()) {
+                rects.clear();
+            }
             let highlight = |rects: &mut dyn Iterator<Item = Rect>| {
                 egui::Shape::Vec(
                     rects
