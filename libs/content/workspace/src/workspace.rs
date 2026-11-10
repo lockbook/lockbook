@@ -2147,9 +2147,7 @@ pub struct WsPresistentData {
     /// arrived via a shared note). Routed through `crate::egress`.
     #[serde(default)]
     contact_linked_sites: bool,
-    /// Desktop: file tree / pins / recents / shared-with-me / create open in
-    /// a new tab. Ignored when `desktop_tab_policy` is false, which always
-    /// replaces.
+    /// File tree / pins / recents / shared-with-me / create open in a new tab.
     #[serde(default = "default_open_in_new_tab")]
     open_in_new_tab: bool,
     /// Where the next new search starts.

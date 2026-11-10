@@ -12,6 +12,9 @@ struct LockbookApp: App {
     @Environment(\.openWindow) private var openWindow
 
     init() {
+        #if os(iOS)
+            UserDefaults.standard.register(defaults: ["openInNewTab": UIDevice.current.userInterfaceIdiom != .phone])
+        #endif
         if !isPreviewEnvironmentKey.defaultValue {
             crashReporter.start()
         }

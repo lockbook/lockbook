@@ -400,18 +400,18 @@ pub enum TabAction {
 }
 
 /// `in_new_tab` is the explicit menu/cmd-click request. `desktop_tab_policy`
-/// is activate-if-open / honor the open-in-new-tab setting. Desktop with the
-/// setting off navigates in the current session so back still works.
+/// is activate-if-open. Desktop with the setting off navigates in the current
+/// session so back still works.
 pub fn tab_action_for_open(
     dest_already_open: bool, in_new_tab: bool, desktop_tab_policy: bool, open_in_new_tab: bool,
 ) -> TabAction {
     if in_new_tab {
         return TabAction::Create;
     }
-    if desktop_tab_policy && dest_already_open {
+    if (desktop_tab_policy || open_in_new_tab) && dest_already_open {
         return TabAction::Activate;
     }
-    if desktop_tab_policy && open_in_new_tab {
+    if open_in_new_tab {
         return TabAction::Create;
     }
     if desktop_tab_policy {
@@ -1693,8 +1693,14 @@ mod nav_tests {
     }
 
     #[test]
-    fn tab_action_mobile_replaces_even_if_dest_open() {
-        assert_eq!(tab_action_for_open(true, false, false, true), TabAction::Replace);
+    fn tab_action_mobile_setting_off_replaces_even_if_dest_open() {
+        assert_eq!(tab_action_for_open(true, false, false, false), TabAction::Replace);
+    }
+
+    #[test]
+    fn tab_action_mobile_setting_on_activates_or_creates() {
+        assert_eq!(tab_action_for_open(true, false, false, true), TabAction::Activate);
+        assert_eq!(tab_action_for_open(false, false, false, true), TabAction::Create);
     }
 
     #[test]
