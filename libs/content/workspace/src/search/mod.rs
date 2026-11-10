@@ -822,7 +822,8 @@ impl Workspace {
                             let resp = self.open_guard.show(tab, |tab| tab.show(ui));
                             let requests = tab.embed_requests();
                             let targets =
-                                self.embeds.draw(ui, host, requests, &mut self.tabs, &res);
+                                self.embeds
+                                    .draw(ui, host, None, requests, &mut self.tabs, &res);
                             let tab = self.preview.as_mut().expect("checked");
                             tab.paint_embed_overs(ui);
                             tab.embed_targets(targets);

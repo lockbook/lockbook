@@ -130,7 +130,7 @@ impl<'ast> MdRender {
                 .bounds
                 .table_at(self.node_range(node).start())
                 .is_some_and(|t| self.bounds.source_lines[t.lines().1 - 1].end() == last);
-            if trailing && !self.readonly {
+            if trailing && self.edits_text() {
                 let x = ui.max_rect().x_range();
                 let below = Rect::from_x_y_ranges(x, table.bottom()..=table.bottom() + 100_000.0);
                 let region = Region::Location(Location::Pos(below.left_top() + Vec2::splat(1.0)));

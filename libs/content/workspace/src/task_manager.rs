@@ -96,7 +96,7 @@ pub struct LoadRequest {
     pub target: Option<crate::tab::SessionId>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SaveRequest {
     pub id: Uuid,
     pub origin: SessionId,
@@ -235,7 +235,7 @@ impl TaskManager {
         tasks.queued_saves.is_empty() && tasks.in_progress_saves.is_empty()
     }
 
-    pub fn queue_save(&mut self, request: SaveRequest) {
+    pub fn queue_save(&self, request: SaveRequest) {
         trace!("queued save of file {}", request.id);
         self.tasks
             .lock()
@@ -274,25 +274,27 @@ impl TaskManager {
         self.tasks.lock().unwrap().busy(id)
     }
 
+    /// When the save `request` names was queued, if one is pending: a file
+    /// two editors write has one queue per editor.
     #[allow(clippy::manual_map)] // manual map clarifies overall fn structure
-    pub fn save_queued_at(&self, id: Uuid) -> Option<Instant> {
+    pub fn save_queued_at(&self, request: &SaveRequest) -> Option<Instant> {
         let tasks = self.tasks.lock().unwrap();
         if let Some(queued_save) = tasks
             .queued_saves
             .iter()
-            .find(|queued_save| queued_save.request.id == id)
+            .find(|queued_save| queued_save.request == *request)
         {
             Some(queued_save.timing.queued_at)
         } else if let Some(in_progress_save) = tasks
             .in_progress_saves
             .iter()
-            .find(|in_progress_save| in_progress_save.request.id == id)
+            .find(|in_progress_save| in_progress_save.request == *request)
         {
             Some(in_progress_save.timing.queued_at)
         } else if let Some(completed_save) = tasks
             .completed_saves
             .iter()
-            .find(|completed_save| completed_save.request.id == id)
+            .find(|completed_save| completed_save.request == *request)
         {
             Some(completed_save.timing.queued_at)
         } else {
@@ -368,7 +370,10 @@ impl TaskManager {
             }
         }
         for save in mem::take(&mut tasks.queued_saves) {
-            if ids_to_save.contains(&save.request.id) {
+            // one save of a file at a time: another editor's waits its turn
+            let launching = saves_to_launch.get(&save.request.id);
+            let other_editor = launching.is_some_and(|l: &QueuedSave| l.request != save.request);
+            if ids_to_save.contains(&save.request.id) && !other_editor {
                 saves_to_launch.insert(save.request.id, save); // use latest of duplicate ids
             } else {
                 tasks.queued_saves.push(save); // put back the ones we're not launching

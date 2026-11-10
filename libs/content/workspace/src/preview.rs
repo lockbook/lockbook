@@ -197,7 +197,8 @@ impl Headless {
                             // a printed note's embeds print with it
                             let print = tab.presentation == crate::tab::Presentation::Print;
                             crate::print_while(&ui.ctx().clone(), print, || {
-                                let targets = embeds.draw(ui, host, requests, embed_tabs, res);
+                                let targets =
+                                    embeds.draw(ui, host, None, requests, embed_tabs, res);
                                 tab.paint_embed_overs(ui);
                                 tab.embed_targets(targets);
                             });

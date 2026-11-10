@@ -15,6 +15,7 @@ use std::sync::mpsc::{self, Receiver};
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{CornerRadius, Rect, Sense, UiBuilder, Vec2, pos2, vec2};
 use lb_rs::Uuid;
+use lb_rs::model::access_info::UserAccessMode;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
@@ -74,6 +75,10 @@ pub struct EmbedRequest {
     /// The slot's own rect, which what hangs past the content may reach.
     pub clip: Rect,
     pub layer: egui::LayerId,
+    /// Its tab may edit what it shows, where that is text.
+    pub writable: bool,
+    /// What the tab embeds in turn may be edited, as [`TabEmbeds::edits`].
+    pub edits: bool,
 }
 
 /// What the workspace knows of an embed's tab, for its note to lay out.
@@ -109,6 +114,9 @@ pub struct TabEmbeds {
     /// The files from the outermost note to this one: an embed among them
     /// cycles, and the length is the depth.
     pub path: Vec<Uuid>,
+    /// Whether what these embeds show may be edited where this account can
+    /// write it: on in a note open in a tab, off in a preview.
+    pub edits: bool,
     /// Hover cards' tabs, by the url their links name.
     slots: RefCell<HashMap<String, Slot>>,
     /// The embeds' tabs as the workspace last measured them.
@@ -262,6 +270,13 @@ impl TabEmbeds {
         self.slots.borrow_mut().retain(|_, slot| slot.touched);
     }
 
+    /// Whether `place` is a heading of the note these embeds are in: its tab
+    /// shows the note's buffer and hands its edits to it.
+    pub(crate) fn owns(&self, place: &Place) -> bool {
+        let file = place.dest.backing_file();
+        file.is_some() && file == self.path.last().copied()
+    }
+
     /// The place `title` embeds, if it can: a document past no cycle and
     /// within the depth, while something can build its tab. A note shows a
     /// heading of its own once: the copy shows none of itself.
@@ -335,8 +350,12 @@ impl TabEmbeds {
     /// Asks for the tab of the embed `key` names, drawn into `rect` `band`
     /// lower than the slot's pad: a skeleton stands in until it settles, a
     /// message in place of one that can't show. A slot asks every frame it
-    /// lays out, message or not: one that stops asking is closed.
-    fn request(&self, ui: &mut egui::Ui, key: EmbedKey, place: Place, rect: Rect, band: f32) {
+    /// lays out, message or not: one that stops asking is closed. A
+    /// `readonly` note's own headings show as they are.
+    fn request(
+        &self, ui: &mut egui::Ui, key: EmbedKey, place: Place, rect: Rect, band: f32,
+        readonly: bool,
+    ) {
         let inner = rect.shrink(CARD_PAD.pts());
         let inner = inner.with_min_y(inner.top() + band);
         match self.states.get(&key) {
@@ -354,7 +373,14 @@ impl TabEmbeds {
         }
         let clip = rect.intersect(ui.clip_rect());
         let (path, layer) = (self.path.clone(), ui.layer_id());
-        let request = EmbedRequest { key, place, path, rect: inner, clip, layer };
+        // a heading of the note edits the note's text; another note is its own file
+        let allowed = match self.owns(&place) {
+            true => !readonly,
+            false => self.res.as_ref().is_some_and(|res| writable(res, &place)),
+        };
+        let (writable, edits) = (self.edits && allowed, self.edits);
+        let rect = inner;
+        let request = EmbedRequest { key, place, path, rect, clip, layer, writable, edits };
         self.requests.borrow_mut().push(request);
     }
 
@@ -588,6 +614,13 @@ impl Slot {
     }
 }
 
+/// Whether this account can write the document `place` names.
+fn writable(res: &TabResources, place: &Place) -> bool {
+    let Some(id) = place.dest.backing_file() else { return false };
+    let files = res.files.read().unwrap();
+    files.get_by_id(id).is_some() && files.access(id, &res.account) != UserAccessMode::Read
+}
+
 /// What an embed of `place` says in place of a note without the heading it
 /// names. A hover card shows the note, as opening the link does.
 pub(crate) fn missing_heading(place: &Place, content: &TabContent) -> Option<String> {
@@ -754,7 +787,9 @@ impl<'ast> MdRender {
         if self.lifted_embed == Some(at) && !self.painting_drag_float {
             return;
         }
-        self.tab_embeds.request(ui, key, place.clone(), rect, band);
+        let readonly = self.readonly;
+        self.tab_embeds
+            .request(ui, key, place.clone(), rect, band, readonly);
         let (clip, layer) = (rect.intersect(ui.clip_rect()), ui.layer_id());
         let over = Over { rect, band: title, place, clip, layer, selected: false, open: show_open };
         self.tab_embeds.overs.borrow_mut().push(over);

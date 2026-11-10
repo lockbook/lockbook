@@ -5,12 +5,19 @@
 //! note is done. Each frame, before a note draws, its embeds are measured at
 //! the widths it last asked for, deepest first, so it lays out at their
 //! heights; what changes them while they draw shows the frame after.
+//!
+//! An embed of a note this account can write edits it: its tab saves like
+//! any other, and one whose note closes with edits unsaved stays in the cache
+//! until they are. An embed of a heading of the note it's in shows the note's
+//! buffer instead, and hands what it edits to the note.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;
 
 use egui::{Rect, UiBuilder};
 
+use crate::show::DocType;
+use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::widget::inline::tab_embed::{
     EmbedKey, EmbedRequest, EmbedState, load, missing_heading,
 };
@@ -33,6 +40,8 @@ pub struct EmbedHost {
     asked: HashMap<Host, Vec<EmbedRequest>>,
     /// The embed the last press landed in: its selection is what Copy takes.
     active: Option<SessionId>,
+    /// Tabs of embeds no note shows any more, kept until their edits save.
+    orphans: Vec<SessionId>,
     /// Documents written, so the tabs showing them reload.
     #[cfg(not(target_family = "wasm"))]
     writes: Option<lb_rs::service::events::Receiver<lb_rs::service::events::Event>>,
@@ -42,6 +51,10 @@ struct Embed {
     /// Where its tab is in the cache.
     session: SessionId,
     place: Place,
+    /// Its tab opened to edit what it shows.
+    writable: bool,
+    /// It shows a heading of the note it's in.
+    own: bool,
     load: Option<Read>,
     /// A newer version of the document, to take in place.
     reload: Option<Read>,
@@ -73,10 +86,11 @@ impl EmbedHost {
                 hosts.extend(tabs.get_any(&embed.session).and_then(Tab::embed_host));
             }
         }
+        let orphans = &mut self.orphans;
         self.embeds.retain(|(host, _), embed| {
             let keep = kept.contains(host);
             if !keep {
-                tabs.remove(&embed.session);
+                embed.close(tabs, orphans);
             }
             keep
         });
@@ -84,6 +98,8 @@ impl EmbedHost {
         for embed in self.embeds.values() {
             tabs.promote(&embed.session);
         }
+        // the cache keeps an unsaved tab, and drops it once it's saved
+        self.orphans.retain(|session| tabs.contains_key(session));
         #[cfg(not(target_family = "wasm"))]
         self.reload_written(res);
         self.copy(ctx, tabs);
@@ -94,12 +110,14 @@ impl EmbedHost {
 
     #[cfg(not(target_family = "wasm"))]
     fn reload_written(&mut self, res: &TabResources) {
-        use lb_rs::service::events::Event;
+        use lb_rs::service::events::{Actor, Event};
         let writes = self.writes.get_or_insert_with(|| res.core.subscribe());
         while let Ok(event) = writes.try_recv() {
-            let Event::DocumentWritten(id, _) = event else { continue };
+            let Event::DocumentWritten(id, actor) = event else { continue };
             for embed in self.embeds.values_mut() {
-                if embed.place.dest.backing_file() == Some(id) {
+                let own_write = actor == Actor::User(Some(embed.session.as_uuid()));
+                // a heading of the note shows the note's buffer, not its disk
+                if embed.place.dest.backing_file() == Some(id) && !own_write && !embed.own {
                     embed.reload = Some(load(res, embed.place.dest.clone()));
                 }
             }
@@ -172,16 +190,18 @@ impl EmbedHost {
 
     /// Draws the tabs `host` asked for this frame into their slots, theirs
     /// after each, then has each paint over its own slots. Returns where the
-    /// tabs have targets of their own, for `host`'s touches.
+    /// tabs have targets of their own, for `host`'s touches. `host_tab` is
+    /// the session of the note asking, whose own headings show its buffer.
     pub fn draw(
-        &mut self, ui: &mut egui::Ui, host: Host, requests: Vec<EmbedRequest>, tabs: &mut TabCache,
-        res: &TabResources,
+        &mut self, ui: &mut egui::Ui, host: Host, host_tab: Option<SessionId>,
+        requests: Vec<EmbedRequest>, tabs: &mut TabCache, res: &TabResources,
     ) -> Vec<Rect> {
         let asked: HashSet<&EmbedKey> = requests.iter().map(|r| &r.key).collect();
+        let orphans = &mut self.orphans;
         self.embeds.retain(|(h, key), embed| {
             let keep = *h != host || asked.contains(key);
             if !keep {
-                tabs.remove(&embed.session);
+                embed.close(tabs, orphans);
             }
             keep
         });
@@ -191,15 +211,20 @@ impl EmbedHost {
         let drawn = requests.iter().enumerate().filter(|(i, r)| last(*i, r));
         for (_, request) in drawn {
             let key = (host, request.key.clone());
-            let embed = self
-                .embeds
-                .entry(key.clone())
-                .or_insert_with(|| Embed::open(res, request.place.clone()));
-            if embed.place != request.place {
-                tabs.remove(&embed.session);
-                *embed = Embed::open(res, request.place.clone());
+            let own = request.place.dest.backing_file() == Some(host.1);
+            let open = || Embed::open(res, request.place.clone(), request.writable, own);
+            let embed = self.embeds.entry(key.clone()).or_insert_with(open);
+            // a share granted or taken while it shows opens it again, as it now may be
+            if embed.place != request.place || embed.writable != request.writable {
+                embed.close(tabs, &mut self.orphans);
+                *embed = open();
             }
             embed.poll(tabs, res, request);
+            if own {
+                if let Some(host_tab) = host_tab {
+                    embed.mirror(tabs, host_tab);
+                }
+            }
             let (session, shown) = (embed.session, embed.shown);
             embed.rect = request.clip;
             tabs.promote(&session);
@@ -226,13 +251,24 @@ impl EmbedHost {
                 true => res.guard.show(tab, |tab| tab.show(child)),
                 false => tab.show(child),
             };
+            // what a heading of the note edits, the note makes, at the same offsets
+            let handed = match own {
+                true => tab.markdown_mut().map(take_edits).unwrap_or_default(),
+                false => vec![],
+            };
+            let host_md = host_tab.and_then(|h| tabs.get_any_mut(&h)?.markdown_mut());
+            if let (false, Some(host_md)) = (handed.is_empty(), host_md) {
+                host_md.edit.event.internal_events.extend(handed);
+                ui.ctx().request_repaint();
+            }
+            let Some(tab) = tabs.get_any_mut(&session) else { continue };
             if let Some(id) = resp.open_file {
                 ui.ctx().open_file(id, false);
             }
             let settled = !shown && tab.settled();
             let (inner, inner_host) = (tab.embed_requests(), tab.embed_host());
             let inner = match inner_host {
-                Some(inner_host) => self.draw(ui, inner_host, inner, tabs, res),
+                Some(inner_host) => self.draw(ui, inner_host, Some(session), inner, tabs, res),
                 None => vec![],
             };
             let Some(tab) = tabs.get_mut(&session) else { continue };
@@ -262,6 +298,46 @@ impl EmbedHost {
         targets
     }
 
+    /// The sessions of the tabs embeds edit and save: those shown, and
+    /// those whose notes closed with their edits unsaved.
+    pub fn saving(&self) -> Vec<SessionId> {
+        let shown = self.embeds.values().filter(|e| e.writable && !e.own);
+        shown
+            .map(|e| e.session)
+            .chain(self.orphans.iter().copied())
+            .collect()
+    }
+
+    /// The task checkboxes the shown embeds' tabs draw, top to bottom: the
+    /// mark each toggles, and a point on the box.
+    #[cfg(test)]
+    pub fn shown_checkboxes(
+        &self, tabs: &TabCache,
+    ) -> Vec<(lb_rs::model::text::offset_types::Grapheme, egui::Pos2)> {
+        use crate::tab::markdown_editor::TouchTarget;
+        let mut boxes = vec![];
+        for embed in self.embeds.values().filter(|e| e.shown && e.drawn) {
+            let Some(md) = tabs.get_any(&embed.session).and_then(Tab::markdown) else { continue };
+            for (rect, target) in &md.edit.renderer.touch_targets {
+                if let TouchTarget::Tap(Event::ToggleTask { check }) = target {
+                    // the finger's target reaches 11 left of the box and 4 right
+                    boxes.push((*check, rect.center() + egui::vec2(3.5, 0.0)));
+                }
+            }
+        }
+        boxes.sort_by(|a, b| a.1.y.total_cmp(&b.1.y));
+        boxes
+    }
+
+    /// The text of each shown embed's tab.
+    #[cfg(test)]
+    pub fn shown_texts(&self, tabs: &TabCache) -> Vec<String> {
+        let shown = self.embeds.values().filter(|e| e.shown && e.drawn);
+        let md = |e: &Embed| tabs.get_any(&e.session).and_then(Tab::markdown);
+        let texts = shown.filter_map(|e| Some(md(e)?.edit.renderer.buffer.current.text.clone()));
+        texts.collect()
+    }
+
     /// What Copy takes from the embed last pressed.
     #[cfg(test)]
     pub fn copied(&self, tabs: &mut TabCache) -> Option<String> {
@@ -281,11 +357,13 @@ impl EmbedHost {
 
 impl Embed {
     /// Reads the document on a thread; the tab builds when it lands.
-    fn open(res: &TabResources, place: Place) -> Self {
+    fn open(res: &TabResources, place: Place, writable: bool, own: bool) -> Self {
         let load = Some(load(res, place.dest.clone()));
         Self {
             session: SessionId::new(),
             place,
+            writable,
+            own,
             load,
             reload: None,
             failed: None,
@@ -304,7 +382,7 @@ impl Embed {
                 Some(ContentState::Open(content)) => {
                     if !content.reload(doc.hmac, &doc.bytes) {
                         tabs.remove(&self.session);
-                        *self = Self::open(res, self.place.clone());
+                        *self = Self::open(res, self.place.clone(), self.writable, self.own);
                         return;
                     }
                     self.failed = missing_heading(&self.place, content);
@@ -326,7 +404,13 @@ impl Embed {
     ) {
         let dest = &self.place.dest;
         let salt = egui::Id::unique(lb_rs::Uuid::new_v4());
-        let content = doc.and_then(|doc| TabContent::open(dest, doc, res, salt, true));
+        // what an embed edits is text: a drawing or a chat in one stays as it is
+        let text = |doc: &Option<Doc>| {
+            let kind = doc.as_ref().map(|doc| DocType::from_name(&doc.name));
+            matches!(kind, Some(DocType::Markdown | DocType::PlainText | DocType::Code))
+        };
+        let read_only = !self.writable || !doc.as_ref().is_ok_and(text);
+        let content = doc.and_then(|doc| TabContent::open(dest, doc, res, salt, read_only));
         let mut content = match content {
             Ok(content) => content,
             Err(failure) => {
@@ -339,10 +423,58 @@ impl Embed {
             let mut nested = request.path.clone();
             nested.extend(dest.backing_file());
             md.edit.renderer.tab_embeds.path = nested;
+            md.edit.renderer.tab_embeds.edits = request.edits;
         }
-        let mut tab = Tab::new(dest.clone(), ContentState::Open(content), salt, true);
+        // a heading of the note is the note's to save
+        let tab_read_only = read_only || self.own;
+        let mut tab = Tab::new(dest.clone(), ContentState::Open(content), salt, tab_read_only);
         tab.presentation = Presentation::Embedded;
         tab.reveal = Some(Reveal { fragment: self.place.fragment.clone(), flash: false });
         tabs.insert(self.session, tab);
     }
+}
+
+impl Embed {
+    /// Closes its tab, or leaves it in the cache, which keeps it while its
+    /// edits save.
+    fn close(&self, tabs: &mut TabCache, orphans: &mut Vec<SessionId>) {
+        let unsaved = |tab: &Tab| tab.last_changed > tab.last_saved;
+        if !self.own && tabs.get_any(&self.session).is_some_and(unsaved) {
+            orphans.push(self.session);
+        } else {
+            tabs.remove(&self.session);
+        }
+    }
+
+    /// Shows the buffer of the note `host` in this embed of a heading of it,
+    /// so the two share offsets, and says so if the heading is gone.
+    fn mirror(&mut self, tabs: &mut TabCache, host: SessionId) {
+        let host_md = tabs.get_any(&host).and_then(Tab::markdown);
+        let Some(host_md) = host_md else { return };
+        let toggled = host_md.edit.renderer.task_toggled;
+        let text = &host_md.edit.renderer.buffer.current.text;
+        let md = tabs.get_any(&self.session).and_then(Tab::markdown);
+        let Some(md) = md else { return };
+        let changed = (md.edit.renderer.buffer.current.text != *text).then(|| text.clone());
+        let Some(tab) = tabs.get_any_mut(&self.session) else { return };
+        let ContentState::Open(content) = &mut tab.content else { return };
+        let TabContent::Markdown(md) = content else { return };
+        md.edit.renderer.task_toggled = toggled;
+        if let Some(text) = changed {
+            let hmac = md.hmac();
+            md.reload(text, hmac);
+            self.failed = missing_heading(&self.place, content);
+        }
+    }
+}
+
+/// The edits `md`, a heading of the note it's in, queued this frame: the note
+/// makes them.
+fn take_edits(md: &mut crate::tab::Markdown) -> Vec<Event> {
+    let queued = std::mem::take(&mut md.edit.event.internal_events);
+    let (edits, kept) = queued
+        .into_iter()
+        .partition(|event| matches!(event, Event::ToggleTask { .. }));
+    md.edit.event.internal_events = kept;
+    edits
 }

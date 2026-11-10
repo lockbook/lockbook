@@ -275,7 +275,9 @@ impl Workspace {
             let resp = self.open_guard.show(tab, |tab| tab.show(ui));
             let requests = tab.embed_requests();
             if let (Some(sid), Some(host)) = (session, host) {
-                let targets = self.embeds.draw(ui, host, requests, &mut self.tabs, &res);
+                let targets = self
+                    .embeds
+                    .draw(ui, host, Some(sid), requests, &mut self.tabs, &res);
                 if let Some(tab) = self.tabs.get_mut(&sid) {
                     tab.paint_embed_overs(ui);
                     tab.embed_targets(targets);
