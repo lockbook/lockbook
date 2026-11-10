@@ -6,9 +6,9 @@
 
 use fuser::{
     Config as FuseConfig, Errno, FileAttr, FileHandle, FileType as Kind, Filesystem, FopenFlags,
-    Generation, INodeNo, LockOwner, MountOption, Notifier, OpenFlags, RenameFlags, ReplyAttr,
-    ReplyCreate, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyStatfs,
-    ReplyWrite, Request, Session, TimeOrNow, WriteFlags,
+    Generation, INodeNo, InitFlags, KernelConfig, LockOwner, MountOption, Notifier, OpenAccMode,
+    OpenFlags, RenameFlags, ReplyAttr, ReplyCreate, ReplyData, ReplyDirectory, ReplyEmpty,
+    ReplyEntry, ReplyOpen, ReplyStatfs, ReplyWrite, Request, Session, TimeOrNow, WriteFlags,
 };
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
@@ -43,8 +43,10 @@ struct State {
     next_ino: u64,
     /// The names each directory last showed the kernel, to invalidate what sync changes.
     listed: HashMap<u64, HashMap<String, u64>>,
-    /// The content version each document last showed the kernel, with its plaintext size.
-    seen: HashMap<Uuid, (Option<DocumentHmac>, u64)>,
+    /// Plaintext sizes by content version, and the versions sync has to compare against.
+    sizes: HashMap<Uuid, (Option<DocumentHmac>, u64)>,
+    /// The version each process last read, which its temp-file-and-rename saves are based on.
+    served: HashMap<(u32, Uuid), Option<DocumentHmac>>,
     handles: HashMap<u64, Handle>,
     next_fh: u64,
     last_active: Option<Instant>,
@@ -54,6 +56,8 @@ struct Handle {
     id: Uuid,
     base: Option<DocumentHmac>,
     buf: Vec<u8>,
+    pid: u32,
+    writable: bool,
     dirty: bool,
 }
 
@@ -96,6 +100,18 @@ fn errno(err: LbErr) -> Errno {
             Errno::EIO
         }
     }
+}
+
+/// The process behind a request; FUSE reports the calling thread, and GIO saves on a worker.
+fn process(req: &Request) -> u32 {
+    let tid = req.pid();
+    std::fs::read_to_string(format!("/proc/{tid}/status"))
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find_map(|l| l.strip_prefix("Tgid:")?.trim().parse().ok())
+        })
+        .unwrap_or(tid)
 }
 
 fn time(ms: u64) -> SystemTime {
@@ -184,14 +200,14 @@ impl LbFuse {
             }
         }
         let hmac = self.lb.document_hmac(id).map_err(errno)?;
-        if let Some((seen, size)) = self.state().seen.get(&id) {
-            if *seen == hmac {
+        if let Some((cached, size)) = self.state().sizes.get(&id) {
+            if *cached == hmac {
                 return Ok(*size);
             }
         }
         let (hmac, doc) = self.lb.read_document_with_hmac(id, false).map_err(errno)?;
         let size = doc.len() as u64;
-        self.state().seen.insert(id, (hmac, size));
+        self.state().sizes.insert(id, (hmac, size));
         Ok(size)
     }
 
@@ -228,6 +244,7 @@ impl LbFuse {
             if !h.dirty {
                 return Ok(());
             }
+            info!(op = "commit", fh, len = h.buf.len(), base = ?h.base.map(|b| b[0]));
             (h.id, h.base, h.buf.clone())
         };
         let len = buf.len() as u64;
@@ -251,7 +268,11 @@ impl LbFuse {
             Err(err) => return Err(errno(err)),
         };
         let mut state = self.state();
-        state.seen.insert(id, (Some(hmac), len));
+        state.sizes.insert(id, (Some(hmac), len));
+        let pid = state.handles.get(&fh).map(|h| h.pid);
+        if let Some(pid) = pid {
+            state.served.insert((pid, id), Some(hmac));
+        }
         if let Some(h) = state.handles.get_mut(&fh) {
             h.id = id;
             h.base = Some(hmac);
@@ -260,34 +281,46 @@ impl LbFuse {
         Ok(())
     }
 
-    fn open_handle(&self, id: Uuid, truncate: bool) -> Result<u64, Errno> {
-        let (base, mut buf) = self.lb.read_document_with_hmac(id, true).map_err(errno)?;
+    fn open_handle(
+        &self, id: Uuid, truncate: bool, writable: bool, pid: u32,
+    ) -> Result<u64, Errno> {
+        let (current, mut buf) = self.lb.read_document_with_hmac(id, true).map_err(errno)?;
         let mut state = self.state();
-        state.seen.insert(id, (base, buf.len() as u64));
+        state.sizes.insert(id, (current, buf.len() as u64));
+        // an in-place save writes what the process read earlier, not what this open sees
+        let base = match state.served.get(&(pid, id)) {
+            Some(read) if writable => *read,
+            _ => current,
+        };
+        state.served.insert((pid, id), base);
         let dirty = truncate && !buf.is_empty();
         if truncate {
             buf.clear();
         }
         state.next_fh += 1;
         let fh = state.next_fh;
-        state.handles.insert(fh, Handle { id, base, buf, dirty });
+        state
+            .handles
+            .insert(fh, Handle { id, base, buf, dirty, pid, writable });
         Ok(fh)
     }
 
     /// Replaces `to`'s content with `from`'s and deletes `from`, keeping `to`'s id so shares and
     /// history follow the file. This is how most editors save (write a temp file, rename over).
-    fn overwrite(&self, from: &File, to: &File, from_ino: u64) -> Result<(), Errno> {
+    fn overwrite(&self, from: &File, to: &File, from_ino: u64, pid: u32) -> Result<(), Errno> {
         let content = self.lb.read_document(from.id, false).map_err(errno)?;
         let len = content.len() as u64;
-        let base = match self.state().seen.get(&to.id) {
-            Some((hmac, _)) => *hmac,
+        let served = self.state().served.get(&(pid, to.id)).copied();
+        let base = match served {
+            Some(hmac) => hmac,
             None => self.lb.document_hmac(to.id).map_err(errno)?,
         };
         match self.lb.safe_write(to.id, base, content, None) {
             Ok(hmac) => {
                 self.lb.delete_file(&from.id).map_err(errno)?;
                 let mut state = self.state();
-                state.seen.insert(to.id, (Some(hmac), len));
+                state.sizes.insert(to.id, (Some(hmac), len));
+                state.served.insert((pid, to.id), Some(hmac));
                 // the kernel now maps the new name to from's inode
                 if let Some(old) = state.inos.insert(to.id, from_ino) {
                     state.ids.remove(&old);
@@ -310,6 +343,12 @@ impl LbFuse {
 }
 
 impl Filesystem for LbFuse {
+    fn init(&mut self, _req: &Request, config: &mut KernelConfig) -> std::io::Result<()> {
+        // O_TRUNC comes with open instead of as a separate truncation
+        let _ = config.add_capabilities(InitFlags::FUSE_ATOMIC_O_TRUNC);
+        Ok(())
+    }
+
     fn lookup(&self, _req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEntry) {
         self.touch();
         let result = self
@@ -340,14 +379,24 @@ impl Filesystem for LbFuse {
         _chgtime: Option<SystemTime>, _bkuptime: Option<SystemTime>,
         _flags: Option<fuser::BsdFileFlags>, reply: ReplyAttr,
     ) {
+        info!(op = "setattr", ino = ino.0, ?size, fh = ?fh.map(|f| f.0));
         let result = (|| {
             let id = self.id(ino)?;
             if let Some(size) = size {
+                // ftruncate arrives without a handle, so it lands in this file's open writers
                 let mut state = self.state();
-                match fh.and_then(|fh| state.handles.get_mut(&fh.0)) {
-                    Some(h) => {
-                        h.buf.resize(size as usize, 0);
-                        h.dirty = true;
+                let mut writers = state
+                    .handles
+                    .iter_mut()
+                    .filter(|(k, h)| h.id == id && h.writable && fh.is_none_or(|fh| fh.0 == **k))
+                    .map(|(_, h)| h)
+                    .peekable();
+                match writers.peek() {
+                    Some(_) => {
+                        for h in writers {
+                            h.buf.resize(size as usize, 0);
+                            h.dirty = true;
+                        }
                     }
                     None => {
                         drop(state);
@@ -369,10 +418,15 @@ impl Filesystem for LbFuse {
         }
     }
 
-    fn open(&self, _req: &Request, ino: INodeNo, flags: OpenFlags, reply: ReplyOpen) {
+    fn open(&self, req: &Request, ino: INodeNo, flags: OpenFlags, reply: ReplyOpen) {
         self.touch();
         let truncate = flags.0 & libc::O_TRUNC != 0;
-        match self.id(ino).and_then(|id| self.open_handle(id, truncate)) {
+        let writable = flags.acc_mode() != OpenAccMode::O_RDONLY;
+        info!(op = "open", ino = ino.0, flags = format!("{:o}", flags.0), pid = process(req));
+        match self
+            .id(ino)
+            .and_then(|id| self.open_handle(id, truncate, writable, process(req)))
+        {
             // no FOPEN_KEEP_CACHE: every open rereads, so synced content shows on reopen
             Ok(fh) => reply.opened(FileHandle(fh), FopenFlags::empty()),
             Err(e) => reply.error(e),
@@ -395,6 +449,7 @@ impl Filesystem for LbFuse {
         _write_flags: WriteFlags, _flags: OpenFlags, _lock_owner: Option<LockOwner>,
         reply: ReplyWrite,
     ) {
+        info!(op = "write", fh = fh.0, offset, len = data.len());
         let mut state = self.state();
         let Some(h) = state.handles.get_mut(&fh.0) else { return reply.error(Errno::EBADF) };
         let end = offset as usize + data.len();
@@ -429,6 +484,7 @@ impl Filesystem for LbFuse {
         &self, _req: &Request, _ino: INodeNo, fh: FileHandle, _flags: OpenFlags,
         _lock_owner: Option<LockOwner>, _flush: bool, reply: ReplyEmpty,
     ) {
+        info!(op = "release", fh = fh.0);
         let result = self.commit(fh.0);
         self.state().handles.remove(&fh.0);
         match result {
@@ -476,9 +532,10 @@ impl Filesystem for LbFuse {
     }
 
     fn create(
-        &self, _req: &Request, parent: INodeNo, name: &OsStr, _mode: u32, _umask: u32, _flags: i32,
+        &self, req: &Request, parent: INodeNo, name: &OsStr, _mode: u32, _umask: u32, _flags: i32,
         reply: ReplyCreate,
     ) {
+        info!(op = "create", ?name, pid = process(req));
         let result = (|| {
             let pid = self.id(parent)?;
             let name = name.to_str().ok_or(Errno::EINVAL)?;
@@ -487,7 +544,7 @@ impl Filesystem for LbFuse {
                 .create_file(name, &pid, FileType::Document)
                 .map_err(errno)?;
             let attr = self.entry(parent, &file)?;
-            let fh = self.open_handle(file.id, false)?;
+            let fh = self.open_handle(file.id, false, true, process(req))?;
             Ok::<_, Errno>((attr, fh))
         })();
         match result {
@@ -549,9 +606,10 @@ impl Filesystem for LbFuse {
     }
 
     fn rename(
-        &self, _req: &Request, parent: INodeNo, name: &OsStr, newparent: INodeNo, newname: &OsStr,
+        &self, req: &Request, parent: INodeNo, name: &OsStr, newparent: INodeNo, newname: &OsStr,
         flags: RenameFlags, reply: ReplyEmpty,
     ) {
+        info!(op = "rename", ?name, ?newname, pid = process(req));
         let result = (|| {
             if flags.contains(RenameFlags::RENAME_EXCHANGE) {
                 return Err(Errno::EINVAL);
@@ -567,7 +625,7 @@ impl Filesystem for LbFuse {
                 Ok(_) if flags.contains(RenameFlags::RENAME_NOREPLACE) => Err(Errno::EEXIST),
                 Ok(to) if from.is_document() && to.is_document() => {
                     let from_ino = self.state().ino(from.id, parent.0);
-                    self.overwrite(&from, &to, from_ino)
+                    self.overwrite(&from, &to, from_ino, process(req))
                 }
                 Ok(to) if from.is_folder() && to.is_folder() => {
                     if !self.lb.get_children(&to.id).map_err(errno)?.is_empty() {
@@ -639,9 +697,9 @@ fn invalidate_on_change(lb: Lb, state: Arc<Mutex<State>>, notifier: Notifier) {
 }
 
 fn refresh(lb: &Lb, state: &Mutex<State>, notifier: &Notifier) {
-    let (listed, seen, ids) = {
+    let (listed, sizes, ids) = {
         let s = state.lock().unwrap();
-        (s.listed.clone(), s.seen.clone(), s.ids.clone())
+        (s.listed.clone(), s.sizes.clone(), s.ids.clone())
     };
     let mut stale_entries = vec![];
     let mut stale_inodes = vec![];
@@ -672,9 +730,9 @@ fn refresh(lb: &Lb, state: &Mutex<State>, notifier: &Notifier) {
         }
     }
     let mut s = state.lock().unwrap();
-    for (id, (hmac, _)) in seen {
+    for (id, (hmac, _)) in sizes {
         if lb.document_hmac(id).ok() != Some(hmac) {
-            s.seen.remove(&id);
+            s.sizes.remove(&id);
             if let Some(ino) = s.inos.get(&id) {
                 stale_inodes.push(*ino);
             }
