@@ -1312,13 +1312,15 @@ impl Workspace {
     pub fn process_clip_events(&mut self) {
         let Some(file_id) = self.current_tab().and_then(|tab| {
             let md = tab.markdown()?;
+            // an embed with the caret takes the image beside its own note
+            if let Some(id) = md.edit.renderer.tab_embeds.focused_file(&self.ctx) {
+                return Some(id);
+            }
             // image paste inserts `![](…)` markdown
             if md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {
                 None
             } else {
-                // an embed with the caret takes the image beside its own note
-                let embeds = &md.edit.renderer.tab_embeds;
-                Some(embeds.focused_file(&self.ctx).unwrap_or(md.edit.file_id))
+                Some(md.edit.file_id)
             }
         }) else {
             return;
@@ -1453,6 +1455,10 @@ impl Workspace {
                         }
                     }
                     tab.first_draw = true;
+                    // a preview's embeds show; a tab's edit where they're writable
+                    if let Some(md) = tab.markdown_mut() {
+                        md.edit.renderer.tab_embeds.edits = !is_preview;
+                    }
 
                     if is_preview {
                         if let Some(md) = tab.markdown_mut() {

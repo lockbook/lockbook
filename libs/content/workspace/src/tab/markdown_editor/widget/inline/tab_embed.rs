@@ -61,6 +61,9 @@ pub struct TabEmbeds {
     /// The files from the outermost note to this one: an embed among them
     /// cycles, and the length is the depth.
     pub path: Vec<Uuid>,
+    /// Whether what these embeds show may be edited where this account can
+    /// write it: on in a note open in a tab, off in a preview or a card.
+    pub edits: bool,
     slots: RefCell<HashMap<SlotKey, Slot>>,
     /// Changes when a slot takes a new height.
     seq: Cell<u64>,
@@ -89,6 +92,8 @@ struct Slot {
     place: Place,
     /// What the tab's saves carry, so the slot knows its own writes.
     session: SessionId,
+    /// Whether its tab opened to edit what it shows.
+    writable: bool,
     state: SlotState,
     /// A newer version of the document being read, to take in place.
     reload: Option<Receiver<Result<Option<Doc>, TabFailure>>>,
@@ -285,6 +290,28 @@ impl TabEmbeds {
         words
     }
 
+    /// Where a fragment of text containing `word` shows in a shown slot at
+    /// any depth, deepest first.
+    #[cfg(test)]
+    pub(crate) fn nested_word(&self, word: &str) -> Option<Rect> {
+        let slots = self.slots.borrow();
+        slots.values().filter(|slot| slot.shown).find_map(|slot| {
+            let SlotState::Open(tab) = &slot.state else { return None };
+            let md = tab.markdown()?;
+            let r = &md.edit.renderer;
+            r.tab_embeds.nested_word(word).or_else(|| {
+                let inside = r
+                    .fragments
+                    .iter()
+                    .filter(|f| slot.rect.contains_rect(f.rect));
+                inside
+                    .filter(|f| r.buffer[f.source_range].contains(word))
+                    .map(|f| f.rect)
+                    .next()
+            })
+        })
+    }
+
     /// The text of each shown slot's tab.
     #[cfg(test)]
     pub(crate) fn shown_texts(&self) -> Vec<String> {
@@ -315,8 +342,13 @@ impl TabEmbeds {
     /// Whether `slot` shows a heading of the note these embeds are in: its
     /// tab mirrors the note's buffer and hands its edits to it.
     fn own(&self, slot: &Slot) -> bool {
-        slot.place.dest.backing_file().is_some()
-            && slot.place.dest.backing_file() == self.path.last().copied()
+        self.owns(&slot.place)
+    }
+
+    /// Whether `place` is a heading of the note these embeds are in.
+    fn owns(&self, place: &Place) -> bool {
+        let file = place.dest.backing_file();
+        file.is_some() && file == self.path.last().copied()
     }
 
     /// Each tab here that saves its own document, nested ones included, with
@@ -396,20 +428,23 @@ impl TabEmbeds {
     ) -> Vec<Event> {
         let mut handed = vec![];
         let Some(res) = self.res.clone() else { return handed };
+        let own = self.owns(&place);
+        // a heading of the note edits the note's text; another note is its own file
+        let allowed = if own { !host.readonly } else { writable(&res, &place) };
+        let writable = !key.card && self.edits && allowed;
         let mut slots = self.slots.borrow_mut();
         let slot = slots
             .entry(key.clone())
-            .or_insert_with(|| Slot::open(&res, place.clone()));
-        if slot.place != place {
-            *slot = Slot::open(&res, place.clone());
+            .or_insert_with(|| Slot::open(&res, place.clone(), writable));
+        // a share granted or taken while it shows opens it again, as it now may be
+        if slot.place != place || slot.writable != writable {
+            *slot = Slot::open(&res, place.clone(), writable);
         }
         slot.touched = true;
         slot.rect = rect;
-        let own = self.own(slot);
         let failed = |slot: &Slot| matches!(slot.state, SlotState::Failed(_));
         let was_failed = failed(slot);
-        let writable = !key.card && !host.readonly && writable(&res, &place);
-        slot.poll(&res, &self.path, key.card, writable);
+        slot.poll(&res, &self.path, key.card, self.edits);
         // a heading of the note comes and goes with the note's own text
         if own && !key.card && slot.heading_seq != Some(host.seq) {
             slot.heading_seq = Some(host.seq);
@@ -419,7 +454,9 @@ impl TabEmbeds {
                     let message = missing_heading_message(&place);
                     slot.state = SlotState::Failed(message);
                 }
-                SlotState::Failed(_) if !missing => *slot = Slot::open(&res, place.clone()),
+                SlotState::Failed(_) if !missing => {
+                    *slot = Slot::open(&res, place.clone(), writable)
+                }
                 _ => {}
             }
         }
@@ -768,12 +805,13 @@ impl Slot {
     }
 
     /// Reads the document on a thread; the tab builds when it lands.
-    fn open(res: &TabResources, place: Place) -> Self {
+    fn open(res: &TabResources, place: Place, writable: bool) -> Self {
         let state = SlotState::Loading(load(res, place.dest.clone()));
         let (rect, session) = (Rect::NOTHING, SessionId::new());
         Self {
             place,
             session,
+            writable,
             state,
             reload: None,
             shown: false,
@@ -786,7 +824,8 @@ impl Slot {
 
     /// Builds the tab once its document has been read, and takes a newer
     /// version in place.
-    fn poll(&mut self, res: &TabResources, path: &[Uuid], card: bool, writable: bool) {
+    fn poll(&mut self, res: &TabResources, path: &[Uuid], card: bool, edits: bool) {
+        let writable = self.writable;
         if let Some(Ok(Ok(Some(doc)))) = self.reload.as_ref().map(|rx| rx.try_recv()) {
             self.reload = None;
             match &mut self.state {
@@ -794,7 +833,7 @@ impl Slot {
                     let unsaved = tab.last_changed > tab.last_saved;
                     if let ContentState::Open(content) = &mut tab.content {
                         if !content.reload(doc.hmac, &doc.bytes) {
-                            *self = Self::open(res, self.place.clone());
+                            *self = Self::open(res, self.place.clone(), writable);
                             return;
                         }
                         // edits of its own the newer version lacks are still to save
@@ -813,19 +852,19 @@ impl Slot {
                     }
                 }
                 SlotState::Failed(_) => {
-                    self.state = self.opened(res, path, card, writable, Ok(Some(doc)))
+                    self.state = self.opened(res, path, card, writable, edits, Ok(Some(doc)))
                 }
                 SlotState::Loading(_) => {}
             }
         }
         let SlotState::Loading(rx) = &self.state else { return };
         let Ok(doc) = rx.try_recv() else { return };
-        self.state = self.opened(res, path, card, writable, doc);
+        self.state = self.opened(res, path, card, writable, edits, doc);
     }
 
     /// What the slot shows of `doc` as read: its tab, or why there is none.
     fn opened(
-        &self, res: &TabResources, path: &[Uuid], card: bool, writable: bool,
+        &self, res: &TabResources, path: &[Uuid], card: bool, writable: bool, edits: bool,
         doc: Result<Option<Doc>, TabFailure>,
     ) -> SlotState {
         let dest = &self.place.dest;
@@ -850,6 +889,8 @@ impl Slot {
                     nested.extend(dest.backing_file());
                     md.edit.renderer.tab_embeds.path = nested;
                     md.edit.renderer.tab_embeds.res = (!card).then(|| res.clone());
+                    // nested embeds are edited by their own files' permission
+                    md.edit.renderer.tab_embeds.edits = edits && !card;
                 }
                 let mut tab = Tab::new(dest.clone(), ContentState::Open(content), salt, read_only);
                 tab.presentation = if card { Presentation::Card } else { Presentation::Embedded };
