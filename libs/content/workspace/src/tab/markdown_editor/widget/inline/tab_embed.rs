@@ -920,6 +920,28 @@ mod tests {
         assert_eq!(r.tab_embeds.place(r, "#Chairs"), named);
     }
 
+    /// An embed of a heading the note doesn't have says so instead of
+    /// showing the whole note.
+    #[test]
+    fn a_missing_heading_embeds_a_message() {
+        let mut t = TestWs::new();
+        t.doc("Plan.md", "# Goals\n\nShip it.\n");
+        let note = t.doc("note.md", "above\n\n![[Plan#Gone]]\n\nbelow\n");
+        t.ws.open_file(note, true, true);
+        let state = |t: &mut TestWs| {
+            let md = t.ws.current_tab_mut()?.markdown_mut()?;
+            let slots = md.edit.renderer.tab_embeds.slots.borrow();
+            match &slots.values().next()?.state {
+                SlotState::Loading(_) => None,
+                SlotState::Failed(msg) => Some(Some(msg.clone())),
+                SlotState::Open(_) => Some(None),
+            }
+        };
+        frames_until(&mut t, |t| state(t).is_some());
+        let msg = state(&mut t).unwrap();
+        assert_eq!(msg.as_deref(), Some("This note has no heading named **Gone**."));
+    }
+
     /// A `#` that is part of a file's name names no heading.
     #[test]
     fn a_hash_in_a_files_name_is_no_heading() {
