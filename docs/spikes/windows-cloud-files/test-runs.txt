@@ -1,0 +1,266 @@
+===== t1.ps1 (script) =====
+. \\Mac\lockbook\vm-scratch\cfapi\lib.ps1
+$A = 'C:\Users\travis\Lockbook-alice\Team\plan.md'; $B = 'C:\Users\travis\Lockbook-bob\Team\plan.md'
+function L($m) { Log 't1.ps1' $m }
+$j = Start-Job { Get-Content 'C:\Users\travis\Lockbook-bob\Team\plan.md' -Raw }
+if (Wait-Job $j -Timeout 20) { L "bob reads: $(Receive-Job $j)" } else { L 'bob read HUNG' }
+Add-Content $A '- alice: edited from Windows'
+L "alice file now: $(Get-Content $A -Raw)"
+Start-Sleep 10
+$j = Start-Job { Get-Content 'C:\Users\travis\Lockbook-bob\Team\plan.md' -Raw }
+if (Wait-Job $j -Timeout 20) { L "bob after sync: $(Receive-Job $j)" } else { L 'bob read 2 HUNG' }
+L '--- alice log'; Get-Content C:\Users\travis\cf-alice.log -Tail 8 | ForEach-Object { L $_ }
+L '--- bob log'; Get-Content C:\Users\travis\cf-bob.log -Tail 8 | ForEach-Object { L $_ }
+Done 't1.ps1'
+
+===== t1.ps1 (guest log) =====
+22:39:45 bob reads: # Team plan
+
+- ship the Windows spike
+
+22:39:45 alice file now: # Team plan
+
+- ship the Windows spike
+- alice: edited from Windows
+
+22:39:55 bob after sync: # Team plan
+
+- ship the Windows spike
+- alice: edited from Windows
+
+22:39:55 --- alice log
+22:39:55 [81637.744] connected C:\Users\travis\Lockbook-alice as cfalice2233
+22:39:55 [81637.747] placeholder Team
+22:39:55 [81637.748] placeholder Team\plan.md
+22:39:55 [81985.199] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (41 bytes)
+22:39:55 [81985.682] local edit Team\plan.md (71 bytes)
+22:39:55 --- bob log
+22:39:55 [81644.393] connected C:\Users\travis\Lockbook-bob as cfbob2233
+22:39:55 [81644.396] placeholder Team
+22:39:55 [81644.398] placeholder Team\plan.md
+22:39:55 [81984.491] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (41 bytes)
+22:39:55 [81988.594] remote edit Team\plan.md (71 bytes)
+22:39:55 [81995.491] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (71 bytes)
+
+===== t2.ps1 (script) =====
+. \\Mac\lockbook\vm-scratch\cfapi\lib.ps1
+$A = 'C:\Users\travis\Lockbook-alice\Team'; $B = 'C:\Users\travis\Lockbook-bob\Team'
+function L($m) { Log 't2.ps1' $m }
+function R($p) { $j = Start-Job -ArgumentList $p { param($p) Get-Content $p -Raw }; if (Wait-Job $j -Timeout 20) { Receive-Job $j } else { 'HUNG' } }
+function Tree($d) { (Get-ChildItem -Recurse $d | ForEach-Object { $_.FullName.Substring($d.Length) }) -join ', ' }
+# B -> A edit
+Add-Content "$B\plan.md" '- bob: edited from Windows'
+Start-Sleep 9
+L "B->A edit, alice reads: $(R "$A\plan.md")"
+# B creates a folder and a file in it, A creates a file
+New-Item -ItemType Directory "$B\Notes" | Out-Null
+Set-Content "$B\Notes\idea.txt" 'bob idea'
+Set-Content "$A\todo.md" '# todo from alice'
+Start-Sleep 10
+L "after creates, alice tree: $(Tree $A)"
+L "after creates, bob tree: $(Tree $B)"
+L "alice reads idea: $(R "$A\Notes\idea.txt")"
+# A renames, B moves, then A deletes
+Rename-Item "$A\todo.md" 'todo-renamed.md'
+Move-Item "$B\Notes\idea.txt" "$B\idea.txt"
+Start-Sleep 10
+L "after rename/move, alice tree: $(Tree $A)"
+L "after rename/move, bob tree: $(Tree $B)"
+Remove-Item "$A\Notes" -Recurse
+Start-Sleep 10
+L "after delete, alice tree: $(Tree $A)"
+L "after delete, bob tree: $(Tree $B)"
+L '--- alice log'; Get-Content C:\Users\travis\cf-alice.log -Tail 14 | ForEach-Object { L $_ }
+L '--- bob log'; Get-Content C:\Users\travis\cf-bob.log -Tail 14 | ForEach-Object { L $_ }
+Done 't2.ps1'
+
+===== t2.ps1 (guest log) =====
+22:40:20 B->A edit, alice reads: 
+22:40:30 after creates, alice tree: \Notes, \plan.md, \todo.md, \Notes\idea.txt
+22:40:30 after creates, bob tree: \Notes, \plan.md, \todo.md, \Notes\idea.txt
+22:40:30 alice reads idea: 
+22:40:40 after rename/move, alice tree: \Notes, \idea.txt, \plan.md, \todo-renamed.md
+22:40:40 after rename/move, bob tree: \Notes, \idea.txt, \plan.md, \todo-renamed.md
+22:41:05 after delete, alice tree: \idea.txt, \plan.md, \todo-renamed.md
+22:41:05 after delete, bob tree: \idea.txt, \plan.md, \todo-renamed.md
+22:41:06 --- alice log
+22:41:06 [81637.744] connected C:\Users\travis\Lockbook-alice as cfalice2233
+22:41:07 [81637.747] placeholder Team
+22:41:07 [81637.748] placeholder Team\plan.md
+22:41:07 [81985.199] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (41 bytes)
+22:41:07 [81985.682] local edit Team\plan.md (71 bytes)
+22:41:07 [82014.012] remote edit Team\plan.md (99 bytes)
+22:41:07 [82020.814] local create Team\todo.md
+22:41:07 [82020.840] local edit Team\todo.md (19 bytes)
+22:41:07 [82021.352] placeholder Team\Notes
+22:41:08 [82021.362] placeholder Team\Notes\idea.txt
+22:41:08 [82030.450] local rename 5e241b31-5733-41fa-8106-e153de02b8fb -> C:\Users\travis\Lockbook-alice\Team\todo-renamed.md
+22:41:08 [82030.942] local edit Team\todo-renamed.md (19 bytes)
+22:41:08 [82034.122] remote move Team\Notes\idea.txt -> Team\idea.txt: Ok(())
+22:41:09 [82040.522] local delete 27d8f93c-c9d6-4b7c-bfa4-a2ce26722f72
+22:41:09 --- bob log
+22:41:10 [81644.396] placeholder Team
+22:41:11 [81644.398] placeholder Team\plan.md
+22:41:11 [81984.491] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (41 bytes)
+22:41:11 [81988.594] remote edit Team\plan.md (71 bytes)
+22:41:12 [81995.491] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (71 bytes)
+22:41:13 [82011.430] local edit Team\plan.md (99 bytes)
+22:41:15 [82020.817] local create Team\Notes
+22:41:17 [82020.834] local create Team\Notes\idea.txt
+22:41:17 [82020.852] local edit Team\Notes\idea.txt (10 bytes)
+22:41:18 [82021.358] placeholder Team\todo.md
+22:41:18 [82030.455] local rename 32c43e26-6306-4f10-a569-541b68702c2b -> C:\Users\travis\Lockbook-bob\Team\idea.txt
+22:41:19 [82030.946] local edit Team\idea.txt (10 bytes)
+22:41:20 [82034.120] remote move Team\todo.md -> Team\todo-renamed.md: Ok(())
+22:41:20 [82044.339] remote delete Team\Notes: Ok(())
+
+===== t3.ps1 (script) =====
+. \\Mac\lockbook\vm-scratch\cfapi\lib.ps1
+$ErrorActionPreference = 'Stop'
+$PA = 'C:\Users\travis\Lockbook-alice\Team\plan.md'; $PB = 'C:\Users\travis\Lockbook-bob\Team\plan.md'
+function L($m) { Log 't3.ps1' $m }
+function ReadText($p) { [IO.File]::ReadAllText($p) }
+try {
+[IO.File]::WriteAllText($PA, "# Team plan`r`n`r`n- ship the Windows spike`r`n- alice: edited from Windows`r`n- bob: edited from Windows`r`n")
+Start-Sleep 9
+# 1. simultaneous: both editors start from the same text, both save before either syncs
+$base = ReadText $PA; $null = ReadText $PB
+L "base: $base"
+$ta = $base.Replace('# Team plan', '# Team plan (alice retitled)')
+$tb = $base + "- bob: added at the same time`r`n"
+[IO.File]::WriteAllText($PA, $ta); [IO.File]::WriteAllText($PB, $tb)
+Start-Sleep 14
+L "simultaneous -> alice: $(ReadText $PA)"
+L "simultaneous -> bob: $(ReadText $PB)"
+# 2. stale editor: bob's buffer predates alice's save, which lands on bob's disk first
+$stale = ReadText $PB
+[IO.File]::WriteAllText($PA, (ReadText $PA) + "- alice: second edit`r`n")
+Start-Sleep 9
+L "bob disk before his save: $(ReadText $PB)"
+[IO.File]::WriteAllText($PB, $stale.Replace('ship the Windows spike', 'ship the Windows spike (bob, stale buffer)'))
+Start-Sleep 12
+L "stale -> alice: $(ReadText $PA)"
+L "stale -> bob: $(ReadText $PB)"
+} catch { L "ERR $($_.Exception.Message) at $($_.InvocationInfo.ScriptLineNumber)" }
+L '--- alice log'; Get-Content C:\Users\travis\cf-alice.log -Tail 10 | ForEach-Object { L $_ }
+L '--- bob log'; Get-Content C:\Users\travis\cf-bob.log -Tail 10 | ForEach-Object { L $_ }
+Done 't3.ps1'
+
+===== t3.ps1 (guest log) =====
+22:47:14 base: # Team plan
+
+- ship the Windows spike
+- alice: edited from Windows
+- bob: edited from Windows
+
+22:47:28 simultaneous -> alice: # Team plan (alice retitled)
+
+- ship the Windows spike
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+
+22:47:28 simultaneous -> bob: # Team plan (alice retitled)
+
+- ship the Windows spike
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+
+22:47:37 bob disk before his save: # Team plan (alice retitled)
+
+- ship the Windows spike
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+- alice: second edit
+
+22:47:52 stale -> alice: # Team plan (alice retitled)
+
+- ship the Windows spike (bob, stale buffer)
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+
+22:47:53 stale -> bob: # Team plan (alice retitled)
+
+- ship the Windows spike (bob, stale buffer)
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+
+22:47:53 --- alice log
+22:47:57   29: <unknown>
+22:47:58   30: <unknown>
+22:47:58   31: <unknown>
+22:47:59   32: BaseThreadInitThunk
+22:47:59   33: RtlUserThreadStart
+22:48:00 [82438.446] remote edit Team\plan.md (147 bytes)
+22:48:00 [82448.783] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (147 bytes)
+22:48:00 [82449.321] local edit Team\plan.md (169 bytes)
+22:48:00 [82458.806] remote edit Team\plan.md (167 bytes)
+22:48:00 [82471.952] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (167 bytes)
+22:48:00 --- bob log
+22:48:00 [82383.627] remote edit Team\plan.md (99 bytes)
+22:48:00 [82398.244] local delete 1fb27303-2390-4b06-aeb3-d41243ae2599
+22:48:00 [82427.526] placeholder Team\plan.md
+22:48:00 [82434.664] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (99 bytes)
+22:48:00 [82435.208] local edit Team\plan.md (130 bytes)
+22:48:00 [82441.513] remote edit Team\plan.md (147 bytes)
+22:48:00 [82448.807] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (147 bytes)
+22:48:00 [82452.481] remote edit Team\plan.md (169 bytes)
+22:48:00 [82457.862] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (169 bytes)
+22:48:00 [82458.383] local edit Team\plan.md (167 bytes)
+
+===== t5.ps1 (script) =====
+. \\Mac\lockbook\vm-scratch\cfapi\lib.ps1
+$ErrorActionPreference = 'Stop'
+$PA = 'C:\Users\travis\Lockbook-alice\Team\plan.md'; $PB = 'C:\Users\travis\Lockbook-bob\Team\plan.md'
+function L($m) { Log 't5.ps1' $m }
+function ReadText($p) { [IO.File]::ReadAllText($p) }
+try {
+$stale = ReadText $PB
+L "bob's editor loads: $stale"
+[IO.File]::WriteAllText($PA, (ReadText $PA) + "- alice: third edit`r`n")
+Start-Sleep 9
+[IO.File]::WriteAllText($PB, $stale + "- bob: saved from a stale buffer`r`n")
+Start-Sleep 12
+L "stale -> alice: $(ReadText $PA)"
+L "stale -> bob: $(ReadText $PB)"
+} catch { L "ERR $($_.Exception.Message) at $($_.InvocationInfo.ScriptLineNumber)" }
+L '--- bob log'; Get-Content C:\Users\travis\cf-bob.log -Tail 5 | ForEach-Object { L $_ }
+Done 't5.ps1'
+
+===== t5.ps1 (guest log) =====
+22:48:29 bob's editor loads: # Team plan (alice retitled)
+
+- ship the Windows spike (bob, stale buffer)
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+
+22:48:50 stale -> alice: # Team plan (alice retitled)
+
+- ship the Windows spike (bob, stale buffer)
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+- bob: saved from a stale buffer
+- alice: third edit
+
+22:48:50 stale -> bob: # Team plan (alice retitled)
+
+- ship the Windows spike (bob, stale buffer)
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+- bob: saved from a stale buffer
+- alice: third edit
+
+22:48:50 --- bob log
+22:48:50 [82457.862] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (169 bytes)
+22:48:50 [82458.383] local edit Team\plan.md (167 bytes)
+22:48:50 [82512.985] remote edit Team\plan.md (188 bytes)
+22:48:50 [82518.910] merged Team\plan.md with a newer version
+22:48:50 [82519.118] local edit Team\plan.md (222 bytes)
+

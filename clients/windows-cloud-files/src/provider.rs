@@ -62,7 +62,11 @@ static PROVIDER: OnceLock<Provider> = OnceLock::new();
 
 pub fn main() -> Res<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let arg = |i: usize| args.get(i).cloned().ok_or_else(|| "missing argument".to_string());
+    let arg = |i: usize| {
+        args.get(i)
+            .cloned()
+            .ok_or_else(|| "missing argument".to_string())
+    };
     let config = Config {
         client_name: "cloud-files".into(),
         writeable_path: Config::writeable_path("egui"),
@@ -92,7 +96,8 @@ pub fn main() -> Res<()> {
         }
         "share" => {
             let file = lb.get_by_path(&arg(1)?).map_err(e)?;
-            lb.share_file(file.id, &arg(2)?, ShareMode::Write).map_err(e)?;
+            lb.share_file(file.id, &arg(2)?, ShareMode::Write)
+                .map_err(e)?;
             lb.sync().map_err(e)?;
         }
         "accept" => {
@@ -190,7 +195,11 @@ fn merge(name: &str, base: &[u8], ours: &[u8], theirs: &[u8]) -> Option<Vec<u8>>
     match DocumentType::from_file_name_using_extension(name) {
         DocumentType::Text => {
             let text = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
-            Some(Buffer::from(text(base).as_str()).merge(text(ours), text(theirs)).into_bytes())
+            Some(
+                Buffer::from(text(base).as_str())
+                    .merge(text(ours), text(theirs))
+                    .into_bytes(),
+            )
         }
         _ => None,
     }
@@ -208,7 +217,10 @@ impl Provider {
 
     /// Lockbook's view of the tree, keyed by id, with paths relative to the sync root.
     fn tree(&self) -> Res<HashMap<Uuid, Entry>> {
-        let files = self.lb.get_and_get_children_recursively(&self.root).map_err(e)?;
+        let files = self
+            .lb
+            .get_and_get_children_recursively(&self.root)
+            .map_err(e)?;
         let by_id: HashMap<Uuid, _> = files.iter().map(|f| (f.id, f)).collect();
         let mut out = HashMap::new();
         'files: for f in &files {
@@ -250,8 +262,10 @@ impl Provider {
         let tree = self.tree()?;
         let snapshot: HashMap<Uuid, Known> = self.known.lock().unwrap().clone();
 
-        let mut gone: Vec<(&Uuid, &Known)> =
-            snapshot.iter().filter(|(id, _)| !tree.contains_key(id)).collect();
+        let mut gone: Vec<(&Uuid, &Known)> = snapshot
+            .iter()
+            .filter(|(id, _)| !tree.contains_key(id))
+            .collect();
         gone.sort_by_key(|(_, k)| k.path.components().count());
         for (id, k) in gone {
             let abs = self.dir.join(&k.path);
@@ -287,22 +301,33 @@ impl Provider {
                         self.ours.lock().unwrap().insert(*id);
                         let result = std::fs::rename(self.dir.join(&k.path), &abs);
                         self.ours.lock().unwrap().remove(id);
-                        log!("remote move {} -> {}: {result:?}", k.path.display(), entry.path.display());
+                        log!(
+                            "remote move {} -> {}: {result:?}",
+                            k.path.display(),
+                            entry.path.display()
+                        );
                         if result.is_ok() {
                             self.moved(&k.path, &entry.path);
                         }
                     }
                     if !entry.folder && k.hmac != entry.hmac {
                         if let Some((_, true)) = cf::placeholder(&abs) {
-                            let (hmac, doc) = self.lb.read_document_with_hmac(*id, false).map_err(e)?;
+                            let (hmac, doc) =
+                                self.lb.read_document_with_hmac(*id, false).map_err(e)?;
                             match cf::replace_content(&abs, doc.len() as u64) {
                                 Ok(()) => {
-                                    log!("remote edit {} ({} bytes)", entry.path.display(), doc.len());
+                                    log!(
+                                        "remote edit {} ({} bytes)",
+                                        entry.path.display(),
+                                        doc.len()
+                                    );
                                     if let Some(k) = self.known.lock().unwrap().get_mut(id) {
                                         k.hmac = hmac;
                                     }
                                 }
-                                Err(err) => log!("remote edit {} deferred: {err:?}", entry.path.display()),
+                                Err(err) => {
+                                    log!("remote edit {} deferred: {err:?}", entry.path.display())
+                                }
                             }
                         }
                     }
@@ -356,7 +381,10 @@ impl Provider {
             }
             return;
         }
-        if rel.components().any(|c| ignored(&c.as_os_str().to_string_lossy())) {
+        if rel
+            .components()
+            .any(|c| ignored(&c.as_os_str().to_string_lossy()))
+        {
             return;
         }
         let Ok(meta) = std::fs::symlink_metadata(abs) else { return };
@@ -379,7 +407,9 @@ impl Provider {
             return Ok(id);
         }
         self.reconcile(dir);
-        cf::placeholder(dir).map(|(id, _)| id).ok_or_else(|| format!("{} untracked", dir.display()))
+        cf::placeholder(dir)
+            .map(|(id, _)| id)
+            .ok_or_else(|| format!("{} untracked", dir.display()))
     }
 
     /// A plain file or folder: new, or an app's save that replaced the placeholder.
@@ -391,7 +421,9 @@ impl Provider {
             .get_children(&parent)
             .map_err(e)?
             .into_iter()
-            .find(|f| f.name.eq_ignore_ascii_case(&name) && (f.file_type == FileType::Folder) == folder);
+            .find(|f| {
+                f.name.eq_ignore_ascii_case(&name) && (f.file_type == FileType::Folder) == folder
+            });
         let typ = if folder { FileType::Folder } else { FileType::Document };
         let id = match existing {
             Some(f) => f.id,
@@ -444,11 +476,17 @@ impl Provider {
                 // Not mergeable: keep theirs here and ours beside it.
                 let parent = self.lb.get_file_by_id(id).map_err(e)?.parent;
                 let copy = format!("{name} (Windows copy)");
-                let file = self.lb.create_file(&copy, &parent, FileType::Document).map_err(e)?;
+                let file = self
+                    .lb
+                    .create_file(&copy, &parent, FileType::Document)
+                    .map_err(e)?;
                 self.lb.write_document(file.id, &ours).map_err(e)?;
                 log!("kept both {} and {copy}", rel.display());
                 theirs.clone()
             };
+            if out == theirs {
+                break (out, current);
+            }
             match self.lb.safe_write(id, current, out.clone(), None) {
                 Ok(hmac) => break (out, Some(hmac)),
                 Err(err) if matches!(err.kind, LbErrKind::ReReadRequired) => continue,
@@ -553,19 +591,25 @@ fn provider() -> &'static Provider {
     PROVIDER.get().expect("callback before init")
 }
 
-unsafe extern "system" fn on_fetch(info: *const CF_CALLBACK_INFO, _: *const CF_CALLBACK_PARAMETERS) {
+unsafe extern "system" fn on_fetch(
+    info: *const CF_CALLBACK_INFO, _: *const CF_CALLBACK_PARAMETERS,
+) {
     if let Err(err) = provider().fetch(unsafe { &*info }) {
         log!("fetch failed: {err}");
     }
 }
 
-unsafe extern "system" fn on_delete(info: *const CF_CALLBACK_INFO, _: *const CF_CALLBACK_PARAMETERS) {
+unsafe extern "system" fn on_delete(
+    info: *const CF_CALLBACK_INFO, _: *const CF_CALLBACK_PARAMETERS,
+) {
     if let Err(err) = provider().delete(unsafe { &*info }) {
         log!("delete failed: {err}");
     }
 }
 
-unsafe extern "system" fn on_rename(info: *const CF_CALLBACK_INFO, params: *const CF_CALLBACK_PARAMETERS) {
+unsafe extern "system" fn on_rename(
+    info: *const CF_CALLBACK_INFO, params: *const CF_CALLBACK_PARAMETERS,
+) {
     if let Err(err) = provider().rename(unsafe { &*info }, unsafe { &*params }) {
         log!("rename failed: {err}");
     }

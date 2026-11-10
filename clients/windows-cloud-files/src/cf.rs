@@ -5,15 +5,15 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 
 use lb_rs::Uuid;
-use windows::core::{HSTRING, PCWSTR, PWSTR, Result};
 use windows::Storage::Provider::*;
 use windows::Storage::StorageFolder;
 use windows::Win32::Foundation::*;
 use windows::Win32::Security::Authorization::ConvertSidToStringSidW;
-use windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
+use windows::Win32::Security::{GetTokenInformation, TOKEN_QUERY, TOKEN_USER, TokenUser};
 use windows::Win32::Storage::CloudFilters::*;
 use windows::Win32::Storage::FileSystem::*;
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+use windows::core::{HSTRING, PCWSTR, PWSTR, Result};
 
 pub const STATUS_OK: NTSTATUS = NTSTATUS(0);
 pub const STATUS_FAIL: NTSTATUS = NTSTATUS(0xC000_0001_u32 as i32);
@@ -33,11 +33,8 @@ impl Drop for Handle {
 
 /// Opens files and directories alike, without hydrating.
 pub fn open(path: &Path, write: bool) -> Result<Handle> {
-    let access = if write {
-        FILE_GENERIC_READ.0 | FILE_GENERIC_WRITE.0
-    } else {
-        FILE_READ_ATTRIBUTES.0
-    };
+    let access =
+        if write { FILE_GENERIC_READ.0 | FILE_GENERIC_WRITE.0 } else { FILE_READ_ATTRIBUTES.0 };
     let w = wide(path);
     let h = unsafe {
         CreateFileW(
@@ -83,7 +80,9 @@ pub fn register(dir: &Path, account: &str) -> Result<()> {
     info.SetDisplayNameResource(&HSTRING::from(format!("Lockbook ({account})")))?;
     info.SetIconResource(&HSTRING::from("%SystemRoot%\\system32\\imageres.dll,-1043"))?;
     info.SetHydrationPolicy(StorageProviderHydrationPolicy::Full)?;
-    info.SetHydrationPolicyModifier(StorageProviderHydrationPolicyModifier::AutoDehydrationAllowed)?;
+    info.SetHydrationPolicyModifier(
+        StorageProviderHydrationPolicyModifier::AutoDehydrationAllowed,
+    )?;
     info.SetPopulationPolicy(StorageProviderPopulationPolicy::AlwaysFull)?;
     info.SetInSyncPolicy(StorageProviderInSyncPolicy::PreserveInsyncForSyncEngine)?;
     info.SetHardlinkPolicy(StorageProviderHardlinkPolicy::None)?;
@@ -97,7 +96,8 @@ pub fn unregister(account: &str) -> Result<()> {
     StorageProviderSyncRootManager::Unregister(&sync_root_id(account)?)
 }
 
-pub type Callback = unsafe extern "system" fn(*const CF_CALLBACK_INFO, *const CF_CALLBACK_PARAMETERS);
+pub type Callback =
+    unsafe extern "system" fn(*const CF_CALLBACK_INFO, *const CF_CALLBACK_PARAMETERS);
 
 pub fn connect(
     dir: &Path, fetch: Callback, delete: Callback, rename: Callback,
@@ -128,7 +128,11 @@ fn metadata(size: u64, folder: bool) -> CF_FS_METADATA {
             LastAccessTime: now,
             LastWriteTime: now,
             ChangeTime: now,
-            FileAttributes: if folder { FILE_ATTRIBUTE_DIRECTORY.0 } else { FILE_ATTRIBUTE_NORMAL.0 },
+            FileAttributes: if folder {
+                FILE_ATTRIBUTE_DIRECTORY.0
+            } else {
+                FILE_ATTRIBUTE_NORMAL.0
+            },
         },
         FileSize: size as i64,
     }
@@ -142,7 +146,9 @@ fn lb_now_filetime() -> i64 {
     (unix.as_nanos() / 100) as i64 + 116_444_736_000_000_000
 }
 
-pub fn create_placeholder(parent: &Path, name: &str, id: Uuid, folder: bool, size: u64) -> Result<()> {
+pub fn create_placeholder(
+    parent: &Path, name: &str, id: Uuid, folder: bool, size: u64,
+) -> Result<()> {
     let name: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
     let mut flags = CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC;
     if folder {
@@ -166,8 +172,14 @@ pub fn placeholder(path: &Path) -> Option<(Uuid, bool)> {
     let h = open(path, false).ok()?;
     let mut buf = [0u8; std::mem::size_of::<CF_PLACEHOLDER_BASIC_INFO>() + 32];
     unsafe {
-        CfGetPlaceholderInfo(h.0, CF_PLACEHOLDER_INFO_BASIC, buf.as_mut_ptr() as _, buf.len() as u32, None)
-            .ok()?;
+        CfGetPlaceholderInfo(
+            h.0,
+            CF_PLACEHOLDER_INFO_BASIC,
+            buf.as_mut_ptr() as _,
+            buf.len() as u32,
+            None,
+        )
+        .ok()?;
         let info = &*(buf.as_ptr() as *const CF_PLACEHOLDER_BASIC_INFO);
         if info.FileIdentityLength != 16 {
             return None;
@@ -277,9 +289,5 @@ pub fn identity(info: &CF_CALLBACK_INFO) -> Option<Uuid> {
 }
 
 pub fn pcwstr(s: PCWSTR) -> String {
-    if s.is_null() {
-        String::new()
-    } else {
-        unsafe { s.to_string().unwrap_or_default() }
-    }
+    if s.is_null() { String::new() } else { unsafe { s.to_string().unwrap_or_default() } }
 }

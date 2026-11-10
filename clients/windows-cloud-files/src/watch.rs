@@ -3,10 +3,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
-use windows::core::PCWSTR;
 use windows::Win32::Storage::FileSystem::*;
+use windows::core::PCWSTR;
 
-use crate::cf::{wide, Handle};
+use crate::cf::{Handle, wide};
 
 pub fn spawn(dir: PathBuf, tx: Sender<PathBuf>) {
     std::thread::spawn(move || {
