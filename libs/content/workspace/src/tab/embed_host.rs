@@ -209,6 +209,11 @@ impl EmbedHost {
             keep
         });
         let mut targets = vec![];
+        // what the note was sent while an embed had the caret, that embed's
+        let mut to_focused = host_md(tabs, host_tab)
+            .map(|md| md.edit.renderer.tab_embeds.to_focused.take())
+            .unwrap_or_default();
+        let mut caret = false;
         // a tab draws once a frame: a lifted embed's last ask, under the pointer, wins
         let last = |i: usize, r: &EmbedRequest| !requests[i + 1..].iter().any(|n| n.key == r.key);
         let drawn = requests.iter().enumerate().filter(|(i, r)| last(*i, r));
@@ -241,6 +246,14 @@ impl EmbedHost {
                 true => Presentation::Print,
                 false => Presentation::Embedded,
             };
+            if let Some(md) = tab.markdown_mut() {
+                if !to_focused.is_empty() && md.focused(ui.ctx()) {
+                    md.edit.event.internal_events.append(&mut to_focused);
+                } else if md.edit.renderer.tab_embeds.has_caret() {
+                    let nested = &md.edit.renderer.tab_embeds.to_focused;
+                    nested.borrow_mut().append(&mut to_focused);
+                }
+            }
             let builder = UiBuilder::new()
                 .max_rect(request.rect)
                 .layer_id(request.layer)
@@ -268,6 +281,9 @@ impl EmbedHost {
                 None => vec![],
             };
             let Some(tab) = tabs.get_mut(&session) else { continue };
+            caret |= tab
+                .markdown()
+                .is_some_and(|md| md.focused(ui.ctx()) || md.edit.renderer.tab_embeds.has_caret());
             tab.paint_embed_overs(ui);
             tab.embed_targets(inner);
             // a tab drawn hidden while it settles takes no touches
@@ -289,6 +305,9 @@ impl EmbedHost {
                 }
                 ui.ctx().request_repaint();
             }
+        }
+        if let Some(md) = host_md(tabs, host_tab) {
+            md.edit.renderer.tab_embeds.caret.set(caret);
         }
         self.asked.insert(host, requests);
         targets
@@ -514,6 +533,10 @@ fn hand_over(
         host_md.edit.event.internal_events.extend(handed);
         ctx.request_repaint();
     }
+}
+
+fn host_md(tabs: &mut TabCache, host: Option<SessionId>) -> Option<&mut Markdown> {
+    tabs.get_any_mut(&host?)?.markdown_mut()
 }
 
 fn text_of<'a>(tabs: &'a TabCache, session: &SessionId) -> Option<&'a String> {

@@ -131,6 +131,11 @@ pub struct TabEmbeds {
     /// A heading card the caret left last frame, by where its embed starts,
     /// for the note to take the caret back.
     pub(crate) left: Cell<Option<(Grapheme, Leave)>>,
+    /// An embed's editor, at any depth, had the caret when they last drew.
+    pub(crate) caret: Cell<bool>,
+    /// What the toolbar and the workspace sent this frame while an embed had
+    /// the caret, for the workspace to hand it.
+    pub(crate) to_focused: RefCell<Vec<Event>>,
     /// A slot settled since the last frame: the next one draws it.
     settling: Cell<bool>,
     /// Documents written, so the tabs showing them reload.
@@ -160,6 +165,11 @@ enum SlotState {
 }
 
 impl TabEmbeds {
+    /// Whether an embed's editor, at any depth, has the caret.
+    pub fn has_caret(&self) -> bool {
+        self.caret.get()
+    }
+
     pub fn seq(&self) -> u64 {
         self.seq.get()
     }
