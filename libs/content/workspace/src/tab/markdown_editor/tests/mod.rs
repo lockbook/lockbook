@@ -36,6 +36,7 @@ mod ios_host;
 mod link_card;
 mod links;
 mod regressions;
+mod reload_props;
 mod render_props;
 mod source;
 mod spelling;
