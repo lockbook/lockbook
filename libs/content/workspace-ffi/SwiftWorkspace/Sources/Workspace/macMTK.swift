@@ -508,7 +508,13 @@
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
             set_spell_check(wsHandle, UserDefaults.standard.object(forKey: "spellCheck") as? Bool ?? true)
-            set_column_width(wsHandle, Float(UserDefaults.standard.object(forKey: "columnWidth") as? Double ?? 800))
+            var columnWidth = UserDefaults.standard.object(forKey: "columnWidth") as? Double ?? 900
+            // Medium and Wide were 800 and 1000; a saved width lands on the preset it was.
+            if let preset = [800.0: 900.0, 1000.0: 1200.0][columnWidth] {
+                columnWidth = preset
+                UserDefaults.standard.set(preset, forKey: "columnWidth")
+            }
+            set_column_width(wsHandle, Float(columnWidth))
             set_scale(wsHandle, scale)
             let key = window?.isKeyWindow ?? false
             if key != windowKey {
