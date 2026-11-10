@@ -1330,9 +1330,11 @@ mod tests {
             [row("Floor plan", "Kitchen", "Floor plan#Kitchen", 1)]
         );
         assert!(!rows("editing#", CompletionMode::WikiLink).is_empty());
-        for query in ["#", "editing#"] {
-            assert!(rows(query, CompletionMode::WikiEmbed).is_empty(), "{query} embeds itself");
-        }
+        assert_eq!(
+            rows("#op", CompletionMode::WikiEmbed),
+            [row("editing", "Open", "#Open", 3)],
+            "a note embeds a heading of its own"
+        );
         assert!(rows("Roadmap#", CompletionMode::WikiLink).is_empty(), "not read yet");
         assert!(rows("Nowhere#x", CompletionMode::WikiLink).is_empty());
     }
