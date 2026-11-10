@@ -192,3 +192,147 @@ fn a_tap_on_a_checkbox_in_an_embed_checks_it_on_touch() {
         assert!(text(&mut t).starts_with("# Chairs\n\n- [x] four\n"), "{os:?}");
     }
 }
+
+fn key(key: egui::Key, modifiers: Modifiers) -> Egui {
+    Egui::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }
+}
+
+/// A point just past the end of the embed's word `word`.
+fn after_word(t: &mut TestWs, word: &str) -> Pos2 {
+    let words = md(t).edit.renderer.tab_embeds.shown_words();
+    let (_, rect) = words
+        .iter()
+        .find(|(text, _)| text.ends_with(word))
+        .unwrap_or_else(|| panic!("no {word} in {words:?}"));
+    rect.right_center() + egui::vec2(1.0, 0.0)
+}
+
+/// Just inside the start of the embed's word `word`.
+fn before_word(t: &mut TestWs, word: &str) -> Pos2 {
+    let words = md(t).edit.renderer.tab_embeds.shown_words();
+    let (_, rect) = words
+        .iter()
+        .find(|(text, _)| text.starts_with(word))
+        .unwrap();
+    rect.left_center() + egui::vec2(1.0, 0.0)
+}
+
+fn host_focused(t: &mut TestWs) -> bool {
+    let id = md(t).id();
+    t.ctx.memory(|m| m.focused()) == Some(id)
+}
+
+fn selection(t: &mut TestWs) -> (Grapheme, Grapheme) {
+    md(t).edit.renderer.buffer.current.selection
+}
+
+const BOARD: &str = "# Chairs\n\nfour oak\n\ntwo blue\n\n# Board\n\n![[#Chairs]]\n";
+
+/// Opens a board whose card shows its Chairs section.
+fn board(t: &mut TestWs) {
+    let board = t.doc("Board.md", BOARD);
+    open(t, board, 0);
+    frames_until(t, |t| md(t).edit.renderer.tab_embeds.shown_words().len() >= 2);
+    t.frame();
+}
+
+/// Typing in a heading card is typing in the note: the same text as the
+/// same keys typed at that place in the note, and undone as one history,
+/// from the card.
+#[test]
+fn typing_in_a_heading_card_types_in_the_note() {
+    let mut t = TestWs::new();
+    board(&mut t);
+    let end = after_word(&mut t, "blue");
+    click(&mut t, end);
+    assert!(!host_focused(&mut t), "the card has the caret");
+    t.frame_with(vec![Egui::Text(" chairs".into())]);
+    t.frame();
+    let typed = text(&mut t);
+
+    let direct = {
+        let mut d = TestWs::new();
+        let board = d.doc("Board.md", BOARD);
+        d.ws.open_file(board, true, true);
+        d.settle();
+        let at = Grapheme(BOARD.find("two blue").unwrap() + "two blue".len());
+        d.ctx
+            .push_markdown_event(Event::Select { region: (at, at).into() });
+        d.frame();
+        d.frame_with(vec![Egui::Text(" chairs".into())]);
+        d.frame();
+        text(&mut d)
+    };
+    assert_eq!(typed, direct);
+    assert_eq!(md(&mut t).edit.renderer.tab_embeds.shown_texts(), vec![typed.clone()]);
+
+    t.frame_with(vec![key(egui::Key::Z, Modifiers::COMMAND)]);
+    t.frame();
+    t.frame();
+    assert_eq!(text(&mut t), BOARD);
+    assert_eq!(md(&mut t).edit.renderer.tab_embeds.shown_texts(), vec![BOARD.to_string()]);
+}
+
+/// Backspace can't join a card's text into its heading: the heading is the
+/// card's band, retitled in the note.
+#[test]
+fn a_heading_card_keeps_its_heading() {
+    let mut t = TestWs::new();
+    board(&mut t);
+    let start = before_word(&mut t, "four");
+    click(&mut t, start);
+    let backspace = || key(egui::Key::Backspace, Modifiers::NONE);
+    for _ in 0..4 {
+        t.frame_with(vec![backspace()]);
+    }
+    t.frame();
+    let after = text(&mut t);
+    assert!(after.starts_with("# Chairs\n"), "{after:?}");
+    assert!(after.contains("four oak"), "{after:?}");
+    assert_eq!(md(&mut t).edit.renderer.tab_embeds.shown_texts(), vec![after]);
+}
+
+/// Up from a card's first line puts the caret before the embed in the note,
+/// down from its last after it, and Escape selects the embed.
+#[test]
+fn the_caret_leaves_a_heading_card_around_its_embed() {
+    let embed = Grapheme(BOARD.find("![[").unwrap());
+    let embed_end = Grapheme(BOARD.len() - 1);
+    for (word, key_pressed, want) in [
+        ("four", egui::Key::ArrowUp, (embed, embed)),
+        ("blue", egui::Key::ArrowDown, (embed_end, embed_end)),
+        ("blue", egui::Key::Escape, (embed, embed_end)),
+    ] {
+        let mut t = TestWs::new();
+        board(&mut t);
+        let at = after_word(&mut t, word);
+        click(&mut t, at);
+        for _ in 0..2 {
+            t.frame_with(vec![key(key_pressed, Modifiers::NONE)]);
+            t.frame();
+            if host_focused(&mut t) {
+                break;
+            }
+        }
+        assert!(host_focused(&mut t), "{key_pressed:?}");
+        assert_eq!(selection(&mut t), want, "{key_pressed:?}");
+        assert_eq!(text(&mut t), BOARD);
+    }
+}
+
+/// Typing in an embed of another note edits that note and saves it, as its
+/// own tab would.
+#[test]
+fn typing_in_an_embed_of_another_note_saves_it() {
+    let mut t = TestWs::new();
+    let plan = t.doc("Plan.md", "Ship it.\n");
+    let note = t.doc("note.md", "above\n\n![[Plan]]\n\nbelow\n");
+    open(&mut t, note, 0);
+    frames_until(&mut t, |t| !md(t).edit.renderer.tab_embeds.shown_words().is_empty());
+    t.frame();
+    let end = after_word(&mut t, "it.");
+    click(&mut t, end);
+    t.frame_with(vec![Egui::Text(" Today.".into())]);
+    frames_until(&mut t, |t| disk(t, plan) == "Ship it. Today.\n");
+    assert_eq!(text(&mut t), "above\n\n![[Plan]]\n\nbelow\n");
+}

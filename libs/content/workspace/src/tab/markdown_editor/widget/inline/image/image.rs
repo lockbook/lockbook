@@ -470,22 +470,32 @@ impl<'ast> MdEdit {
         }
         // a note embed, by its title, as a mouse drags an image
         let r = &self.renderer;
-        let held: Vec<((Grapheme, Grapheme), egui::Rect)> = r
+        let held: Vec<((Grapheme, Grapheme), egui::Rect, String)> = r
             .fragments
             .iter()
             .filter_map(|f| match &f.content {
                 FragmentContent::Embed { kind: EmbedKind::Tab, url } => {
-                    Some((f.source_range, r.tab_embed_band(url, f.rect)?))
+                    Some((f.source_range, r.tab_embed_band(url, f.rect)?, url.clone()))
                 }
                 _ => None,
             })
             .collect();
-        for (range, band) in held {
+        for (range, band, title) in held {
+            // a click selects the embed, or opens it with command held
             let resp = ui.interact(
                 band,
                 ui.scope_id().with(("md_embed_band", range)),
-                egui::Sense::drag(),
+                egui::Sense::click_and_drag(),
             );
+            if resp.clicked() {
+                if ui.input(|i| i.modifiers.command) {
+                    self.renderer.open_dest(&title, true, ui.ctx());
+                } else {
+                    ui.memory_mut(|m| m.request_focus(id));
+                    let select = Event::Select { region: range.into() };
+                    self.calc_operations(ui.ctx(), root, select, ops);
+                }
+            }
             if resp.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
             }

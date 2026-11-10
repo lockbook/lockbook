@@ -524,6 +524,9 @@ impl<'ast> MdEdit {
 
                 operations.push(Operation::Select(current_selection));
             }
+            Event::Undo | Event::Redo if self.hosted_history => {
+                self.renderer.render_events.push(event);
+            }
             Event::Undo => {
                 response |= self.renderer.buffer.undo();
             }

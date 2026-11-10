@@ -480,9 +480,10 @@ pub enum Presentation {
     /// As the tab strip shows it, chrome and all.
     #[default]
     Full,
-    /// The content alone, still interactive: no toolbars, sidebars,
-    /// composer, or caret; its checkboxes check where it is writable. It never takes focus, reports no text
-    /// interaction rect, and doesn't scroll: a slot shows its region whole.
+    /// The content alone: no toolbars, sidebars, or composer, and it doesn't
+    /// scroll: a slot shows its region whole. Where it is writable, on a
+    /// desktop, a click gives it a caret; elsewhere it never takes focus,
+    /// and its checkboxes are what it edits.
     Embedded,
     /// Embedded in a hover card: it takes the wheel, so what doesn't fit
     /// scrolls.
@@ -919,7 +920,10 @@ impl TabContent {
             TabContent::Markdown(md) => {
                 md.embedded = embedded;
                 md.in_card = presentation == Presentation::Card;
-                md.edit.renderer.takes_focus = !embedded;
+                let r = &md.edit.renderer;
+                let typed_in =
+                    presentation == Presentation::Embedded && !r.readonly && !r.touch_mode;
+                md.edit.renderer.takes_focus = !embedded || typed_in;
                 md.edit.clip_to_host = embedded;
                 md.edit.renderer.interactive = !embedded;
             }

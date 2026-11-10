@@ -423,6 +423,9 @@ pub struct MdEdit {
     /// Paints within its host's clip, not its own rect: an embed's pad takes
     /// what hangs past it, like a list's numbers.
     pub clip_to_host: bool,
+    /// Undo and redo are the host's to make: this shows a heading of the
+    /// note it sits in, whose buffer holds the history.
+    pub hosted_history: bool,
 
     /// Document identity — link completions resolve relative paths against
     /// the current file's parent.
@@ -506,6 +509,7 @@ impl MdEdit {
             scroll_area_velocity: Default::default(),
             moved_after_paint: false,
             clip_to_host: false,
+            hosted_history: false,
             file_id,
             emoji_completions: Default::default(),
             language_completions: Default::default(),
@@ -1226,6 +1230,7 @@ impl Editor {
                 scroll_area_velocity: Default::default(),
                 moved_after_paint: false,
                 clip_to_host: false,
+                hosted_history: false,
                 file_id,
                 emoji_completions: Default::default(),
                 language_completions: Default::default(),
