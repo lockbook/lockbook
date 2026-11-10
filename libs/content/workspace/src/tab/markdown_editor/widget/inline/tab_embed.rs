@@ -209,9 +209,10 @@ impl TabEmbeds {
     /// The document `title` names, for a card, which nests nothing.
     fn reach(&self, renderer: &MdRender, title: &str) -> Option<Place> {
         let res = self.res.as_ref()?;
-        let (file, fragment) = wiki_fragment(title);
-        let id = renderer.resolve_wikilink(file)?;
-        self.place_of(res, id, fragment)
+        let id = renderer.resolve_wikilink(title)?;
+        let named_whole = res.files.read().unwrap().wiki_file_part(title) == title;
+        let heading = wiki_fragment(title).1.filter(|_| !named_whole);
+        self.place_of(res, id, heading)
     }
 
     fn place_of(&self, res: &TabResources, id: Uuid, fragment: Option<&str>) -> Option<Place> {
