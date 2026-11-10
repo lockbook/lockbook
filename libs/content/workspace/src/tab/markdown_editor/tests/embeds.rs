@@ -175,3 +175,20 @@ fn a_checkbox_in_a_heading_embed_in_a_table_checks_the_note() {
     click(&mut t, boxes[0]);
     assert!(text(&mut t).ends_with("# Chairs\n\n- [x] four\n"), "{}", text(&mut t));
 }
+
+/// On touch a tap on an embed's checkbox is egui's, not the platform text
+/// view's, and checks it: nothing native is involved.
+#[test]
+fn a_tap_on_a_checkbox_in_an_embed_checks_it_on_touch() {
+    use crate::tab::markdown_editor::TouchTarget;
+    for os in [egui::os::OperatingSystem::IOS, egui::os::OperatingSystem::Android] {
+        let mut t = TestWs::new();
+        t.ctx.set_os(os);
+        let board = t.doc("Board.md", "# Chairs\n\n- [ ] four\n\n# Board\n\n![[#Chairs]]\n");
+        let boxes = open(&mut t, board, 1);
+        let target = md(&mut t).edit.touch_target_at(boxes[0]);
+        assert!(matches!(target, Some(TouchTarget::Popup)), "{os:?}: {target:?}");
+        click(&mut t, boxes[0]);
+        assert!(text(&mut t).starts_with("# Chairs\n\n- [x] four\n"), "{os:?}");
+    }
+}
