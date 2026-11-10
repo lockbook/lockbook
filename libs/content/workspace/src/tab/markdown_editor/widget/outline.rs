@@ -3,8 +3,9 @@
 //! where the window is too narrow; on touch, a sheet from the bottom with
 //! rows sized for a thumb. A row jumps to its heading, closing a floating
 //! card or sheet. The current section is marked, and brought into view only
-//! when out of it. Under the outline, the card lists the notes that link to
-//! this one, each link with the words around it.
+//! when out of it. A caret folds a heading's section in the note, and a
+//! folded section's headings hide here too. Under the outline, the card
+//! lists the notes that link to this one, each link with the words around it.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -40,7 +41,22 @@ pub struct OutlineRow {
     pub start: Grapheme,
     /// Where its text starts and ends, to find where it's drawn.
     pub span: (Grapheme, Grapheme),
+    /// Its section's fold in the note, for a heading that folds.
+    pub fold: Option<HeadingFold>,
+    /// Whether a folded section in the note hides it.
+    pub hidden: bool,
 }
+
+/// A heading's fold in the note.
+#[derive(Clone, Copy)]
+pub struct HeadingFold {
+    pub folded: bool,
+    /// Folded, but shown while the selection is in it.
+    pub revealed: bool,
+}
+
+/// A fold toggle's glyph, a step under the row's text like a caption's.
+const CARET_GLYPH: f32 = TypeRole::Caption.size();
 
 /// The outline's rows, and what it says when there are none.
 #[derive(Clone, Copy)]
@@ -78,6 +94,8 @@ pub enum Choice {
     Note { id: Uuid, span: Option<Range<usize>>, new_tab: bool },
     /// Copy the link to a row of the outline.
     CopyHeadingLink(usize),
+    /// Fold or unfold a row's section in the note.
+    ToggleFold(usize),
     /// Copy the link to a note.
     CopyLink(Uuid),
 }
@@ -421,7 +439,7 @@ impl Scroll {
             let on = measured.current == Some(i);
             let hover = ui.ctx().animate_bool_with_time(
                 id.with(("row", i)),
-                resp.hovered(),
+                resp.contains_pointer(),
                 crate::style::chrome::HOVER_ANIM_SECS,
             );
             if on || hover > 0.0 {
@@ -430,7 +448,7 @@ impl Scroll {
                 painter.rect_filled(rect, Radius::Sm.corner(), wash);
             }
             let text_rect = Rect::from_min_max(
-                pos2(rect.left() + Space::Sm.pts() + m.indent, rect.top()),
+                pos2(rect.left() + Space::Sm.pts() + m.indent + measured.gutter, rect.top()),
                 pos2(rect.right() - Space::Sm.pts(), rect.bottom()),
             );
             let at = Align2::LEFT_CENTER.align_size_within_rect(m.label.size, text_rect);
@@ -439,7 +457,23 @@ impl Scroll {
             if m.label.elided {
                 tip_text(ui.ctx(), &resp, m.tip.clone());
             }
-            if resp.clicked() {
+            // as in the note: shown on hover, on touch, and while folded
+            let toggled = m.fold.and_then(|(at, fold)| {
+                let shown = fold.folded || measured.touch || ui.rect_contains_pointer(clip);
+                let caret_left = text_rect.left() - measured.gutter - Space::Xxs.pts();
+                // a finger's target reaches back over the indent
+                let left = if measured.touch { rect.left() } else { caret_left };
+                let slot = Rect::from_min_max(
+                    pos2(left, rect.top()),
+                    pos2(text_rect.left(), rect.bottom()),
+                );
+                let caret = slot.with_min_x(caret_left);
+                fold_toggle(ui, id.with(("fold", at)), slot, caret, clip, fold, shown)
+                    .then_some(Choice::ToggleFold(at))
+            });
+            if let Some(toggle) = toggled {
+                chosen = Some(toggle);
+            } else if resp.clicked() {
                 chosen = Some(m.choice.clone());
             }
             if let Some(c) = row_menu(&resp, &t, &m.menu) {
@@ -474,6 +508,45 @@ impl Scroll {
     }
 }
 
+/// A row's fold toggle, taking clicks in `slot` and drawn centered in
+/// `caret`, as the note draws its own: a caret down while its section shows,
+/// a caret right while folded, in the accent unless revealed. Returns
+/// whether it was clicked.
+fn fold_toggle(
+    ui: &mut Ui, id: Id, slot: Rect, caret: Rect, clip: Rect, fold: HeadingFold, shown: bool,
+) -> bool {
+    let HeadingFold { folded, revealed } = fold;
+    let t = ui.ctx().get_lb_theme();
+    let resp = ui.interact(slot.intersect(clip), id, Sense::click());
+    if !shown && !resp.hovered() {
+        return false;
+    }
+    let glyph = if folded { phosphor::CARET_RIGHT } else { phosphor::CARET_DOWN };
+    let color = if folded && !revealed {
+        t.accent()
+    } else if resp.hovered() {
+        t.neutral_fg()
+    } else {
+        t.neutral_fg_secondary()
+    };
+    let painter = ui.painter_at(clip);
+    let g = painter.layout_no_wrap(
+        glyph.into(),
+        crate::style::phosphor_font_id(CARET_GLYPH),
+        Color32::PLACEHOLDER,
+    );
+    let at = caret.center() - g.size() / 2.0;
+    if resp.hovered() {
+        let pad = vec2(Space::Xxs.pts(), Space::Xxs.pts());
+        let well = Rect::from_center_size(caret.center(), g.size() + 2.0 * pad);
+        let wash = t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER);
+        painter.rect_filled(well, Radius::Sm.corner(), wash);
+    }
+    painter.galley(at, g, color);
+    tip_text(ui.ctx(), &resp, if folded { "Show Contents" } else { "Hide Contents" });
+    resp.clicked()
+}
+
 /// A row laid out: its text, its height, how far it indents, what it says
 /// when cut short, and what a click on it asks for.
 struct MeasuredRow {
@@ -484,6 +557,8 @@ struct MeasuredRow {
     choice: Choice,
     /// What a right click or a long press on it offers.
     menu: Vec<MenuItem>,
+    /// The heading's place and whether it's folded, for a row that folds.
+    fold: Option<(usize, HeadingFold)>,
 }
 
 /// A context menu row: its icon, its label, and what it asks for; `None`
@@ -553,6 +628,16 @@ struct Measured {
     current: Option<usize>,
     empty: Option<Arc<Galley>>,
     empty_menu: Vec<MenuItem>,
+    /// Room each row keeps for its fold toggle.
+    gutter: f32,
+    /// Rows sized for a thumb, whose fold toggles always show.
+    touch: bool,
+}
+
+/// The room a row keeps for a fold toggle: none when no heading folds.
+fn fold_gutter(headings: Headings) -> f32 {
+    let folds = headings.rows.iter().any(|r| r.fold.is_some());
+    if folds { Space::Md.pts() + Space::Xxs.pts() } else { 0.0 }
 }
 
 impl Measured {
@@ -566,7 +651,7 @@ impl Measured {
                 at
             })
             .collect();
-        Self { rows, tops, current, empty, empty_menu: vec![] }
+        Self { rows, tops, current, empty, empty_menu: vec![], gutter: 0.0, touch: false }
     }
 
     fn height(&self) -> f32 {
@@ -589,12 +674,16 @@ fn measure_headings(
 ) -> Measured {
     let rows = headings.rows;
     let t = ctx.get_lb_theme();
-    let measured = rows
+    let gutter = fold_gutter(headings);
+    let visible: Vec<usize> = (0..rows.len()).filter(|&i| !rows[i].hidden).collect();
+    let current_shown = current.and_then(|c| visible.iter().rposition(|&i| i <= c));
+    let current = current_shown.map(|p| visible[p]);
+    let measured = visible
         .iter()
-        .enumerate()
+        .map(|&i| (i, &rows[i]))
         .map(|(i, row)| {
             let indent = row.level.saturating_sub(1).min(5) as f32 * Space::Md.pts();
-            let text_w = (width - indent - 2.0 * Space::Sm.pts()).max(1.0);
+            let text_w = (width - indent - gutter - 2.0 * Space::Sm.pts()).max(1.0);
             let color = if current == Some(i) { t.accent() } else { t.neutral_fg() };
             let label = GlyphonLabel::new(&row.text, color.gamma_multiply(shown));
             let label = shape(ctx, label, text_w, if touch { 2 } else { 1 });
@@ -602,13 +691,16 @@ fn measure_headings(
             let height = min_h.max(label.size.y + 2.0 * Space::Xs.pts());
             let tip = row.text.clone();
             let menu = heading_menu(headings, i);
-            MeasuredRow { label, height, indent, tip, choice: Choice::Heading(i), menu }
+            let fold = row.fold.map(|fold| (i, fold));
+            MeasuredRow { label, height, indent, tip, choice: Choice::Heading(i), menu, fold }
         })
         .collect();
     let empty = rows
         .is_empty()
         .then(|| quiet_text(ctx, headings.empty, width));
-    let mut measured = Measured::new(measured, current, empty);
+    let mut measured = Measured::new(measured, current_shown, empty);
+    measured.gutter = gutter;
+    measured.touch = touch;
     measured.empty_menu = note_menu(headings.note);
     measured
 }
@@ -639,6 +731,7 @@ fn measure_linked(
             tip: note.title.clone(),
             choice: Choice::Note { id: note.id, span: None, new_tab: false },
             menu: linked_menu(note.id, None),
+            fold: None,
         });
         let indent = Space::Md.pts();
         for m in &note.links {
@@ -659,6 +752,7 @@ fn measure_linked(
                 tip: m.context.clone(),
                 choice: Choice::Note { id: note.id, span: Some(m.span.clone()), new_tab: false },
                 menu: linked_menu(note.id, Some(m.span.clone())),
+                fold: None,
             });
         }
     }
