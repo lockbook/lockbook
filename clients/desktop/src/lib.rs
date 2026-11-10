@@ -62,7 +62,7 @@ impl WgpuLockbook<'_> {
         self.app.ui(&self.renderer.context);
         let enforced = lb::service::budget::ENFORCED && self.app.is_dev();
         self.renderer
-            .set_frame_budget(enforced.then_some(lb::service::budget::FRAME_BUDGET));
+            .set_frame_budget(lb::service::budget::frame_budget().filter(|_| enforced));
         self.renderer.prepare_frame()
     }
 
