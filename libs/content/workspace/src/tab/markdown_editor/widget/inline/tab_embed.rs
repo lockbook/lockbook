@@ -75,6 +75,8 @@ pub struct EmbedRequest {
     /// The slot's own rect, which what hangs past the content may reach.
     pub clip: Rect,
     pub layer: egui::LayerId,
+    /// Where the embed's source starts in the note.
+    pub at: Grapheme,
     /// Its tab may edit what it shows, where that is text.
     pub writable: bool,
     /// What the tab embeds in turn may be edited, as [`TabEmbeds::edits`].
@@ -126,6 +128,9 @@ pub struct TabEmbeds {
     overs: RefCell<Vec<Over>>,
     /// Changes when a slot takes a new height.
     seq: Cell<u64>,
+    /// A heading card the caret left last frame, by where its embed starts,
+    /// for the note to take the caret back.
+    pub(crate) left: Cell<Option<(Grapheme, Leave)>>,
     /// A slot settled since the last frame: the next one draws it.
     settling: Cell<bool>,
     /// Documents written, so the tabs showing them reload.
@@ -347,43 +352,6 @@ impl TabEmbeds {
         measured.or_else(remembered).unwrap_or(SKELETON_HEIGHT)
     }
 
-    /// Asks for the tab of the embed `key` names, drawn into `rect` `band`
-    /// lower than the slot's pad: a skeleton stands in until it settles, a
-    /// message in place of one that can't show. A slot asks every frame it
-    /// lays out, message or not: one that stops asking is closed. A
-    /// `readonly` note's own headings show as they are.
-    fn request(
-        &self, ui: &mut egui::Ui, key: EmbedKey, place: Place, rect: Rect, band: f32,
-        readonly: bool,
-    ) {
-        let inner = rect.shrink(CARD_PAD.pts());
-        let inner = inner.with_min_y(inner.top() + band);
-        match self.states.get(&key) {
-            Some(EmbedState::Failed(msg)) => {
-                let t = ui.ctx().get_lb_theme();
-                let label = failed_label(msg, inner.width(), t.neutral_fg_secondary());
-                let size = label.measure(ui);
-                ui.put(Rect::from_min_size(inner.left_top(), size), label);
-            }
-            Some(EmbedState::Open { shown: true, .. }) => {}
-            _ => {
-                paint_skeleton(ui, inner);
-                ui.ctx().request_repaint();
-            }
-        }
-        let clip = rect.intersect(ui.clip_rect());
-        let (path, layer) = (self.path.clone(), ui.layer_id());
-        // a heading of the note edits the note's text; another note is its own file
-        let allowed = match self.owns(&place) {
-            true => !readonly,
-            false => self.res.as_ref().is_some_and(|res| writable(res, &place)),
-        };
-        let (writable, edits) = (self.edits && allowed, self.edits);
-        let rect = inner;
-        let request = EmbedRequest { key, place, path, rect, clip, layer, writable, edits };
-        self.requests.borrow_mut().push(request);
-    }
-
     /// Draws the tab of the hover card for `url` into `rect`, opening it
     /// first.
     fn paint_card(&self, ui: &mut egui::Ui, url: &str, place: Place, rect: Rect) {
@@ -480,9 +448,21 @@ impl<'ast> MdEdit {
     ) {
         let open = self.embed_tap_opens(ui);
         let click = EmbedClick::take(ui.ctx());
+        let left = self.renderer.tab_embeds.left.take();
         for node in root.descendants() {
             let Some(title) = tab_embed_title(node) else { continue };
             let range = self.renderer.node_range(node);
+            // the caret, leaving a heading card, comes back around its embed
+            if let Some((_, leave)) = left.filter(|(at, _)| *at == range.0) {
+                ui.memory_mut(|m| m.request_focus(id));
+                let region = match leave {
+                    Leave::Before => (range.0, range.0),
+                    Leave::After => (range.1, range.1),
+                    Leave::Select => range,
+                };
+                let select = Event::Select { region: region.into() };
+                self.calc_operations(ui.ctx(), root, select, ops);
+            }
             let salt = MdRender::tab_embed_interaction_id_salt(range);
             self.handle_embed_tap(root, node, ui, id, ops, &wiki_embed_key(&title), salt, open);
             // a click on the tab's body, which its editor handed on
@@ -624,12 +604,37 @@ fn writable(res: &TabResources, place: &Place) -> bool {
 /// What an embed of `place` says in place of a note without the heading it
 /// names. A hover card shows the note, as opening the link does.
 pub(crate) fn missing_heading(place: &Place, content: &TabContent) -> Option<String> {
-    let Some(Fragment::Heading(heading)) = &place.fragment else { return None };
     let TabContent::Markdown(md) = content else { return None };
-    let headings = document_headings(&md.edit.renderer.buffer.current.text);
-    let missing = find_heading(&headings, heading).is_none();
-    let heading = urlencoding::decode(heading).map_or(heading.clone(), |h| h.into_owned());
-    missing.then(|| format!("This note has no heading named **{heading}**."))
+    let text = &md.edit.renderer.buffer.current.text;
+    lacks_heading(place, text).then(|| missing_heading_message(place))
+}
+
+/// Whether `text` lacks the heading `place` names.
+pub(crate) fn lacks_heading(place: &Place, text: &str) -> bool {
+    let Some(Fragment::Heading(heading)) = &place.fragment else { return false };
+    find_heading(&document_headings(text), heading).is_none()
+}
+
+/// What an embed of `place` says in place of a note without the heading it
+/// names.
+fn missing_heading_message(place: &Place) -> String {
+    let heading = match &place.fragment {
+        Some(Fragment::Heading(heading)) => heading.clone(),
+        _ => String::new(),
+    };
+    let heading = urlencoding::decode(&heading).map_or(heading.clone(), |h| h.into_owned());
+    format!("This note has no heading named **{heading}**.")
+}
+
+/// Where a caret that left a heading card goes in the note around it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Leave {
+    /// Just before the embed: it went up out of the section.
+    Before,
+    /// Just after it: down out of the section.
+    After,
+    /// Onto the embed, selected: Escape.
+    Select,
 }
 
 impl<'ast> MdRender {
@@ -665,6 +670,43 @@ impl<'ast> MdRender {
             .embed_height(&self.ctx, &key, &place, width - pad);
         let band = self.tab_embed_band_height(&place);
         Some((place, vec2(width, band + height + pad)))
+    }
+
+    /// Asks for the tab of the embed `key` names, drawn into `rect` `band`
+    /// lower than the slot's pad: a skeleton stands in until it settles, a
+    /// message in place of one that can't show. A slot asks every frame it
+    /// lays out, message or not: one that stops asking is closed. `at` is
+    /// where the embed's source starts.
+    fn request_tab_embed(
+        &self, ui: &mut egui::Ui, key: EmbedKey, place: Place, rect: Rect, band: f32, at: Grapheme,
+    ) {
+        let embeds = &self.tab_embeds;
+        let inner = rect.shrink(CARD_PAD.pts());
+        let inner = inner.with_min_y(inner.top() + band);
+        match embeds.states.get(&key) {
+            Some(EmbedState::Failed(msg)) => {
+                let t = ui.ctx().get_lb_theme();
+                let label = failed_label(msg, inner.width(), t.neutral_fg_secondary());
+                let size = label.measure(ui);
+                ui.put(Rect::from_min_size(inner.left_top(), size), label);
+            }
+            Some(EmbedState::Open { shown: true, .. }) => {}
+            _ => {
+                paint_skeleton(ui, inner);
+                ui.ctx().request_repaint();
+            }
+        }
+        let clip = rect.intersect(ui.clip_rect());
+        let (path, layer) = (embeds.path.clone(), ui.layer_id());
+        // a heading of the note edits the note's text; another note is its own file
+        let allowed = match embeds.owns(&place) {
+            true => !self.readonly,
+            false => embeds.res.as_ref().is_some_and(|res| writable(res, &place)),
+        };
+        let (writable, edits) = (embeds.edits && allowed, embeds.edits);
+        let rect = inner;
+        let request = EmbedRequest { key, place, path, rect, clip, layer, at, writable, edits };
+        embeds.requests.borrow_mut().push(request);
     }
 
     /// What heads a note embed: its file's row, as its hover card shows it,
@@ -787,9 +829,7 @@ impl<'ast> MdRender {
         if self.lifted_embed == Some(at) && !self.painting_drag_float {
             return;
         }
-        let readonly = self.readonly;
-        self.tab_embeds
-            .request(ui, key, place.clone(), rect, band, readonly);
+        self.request_tab_embed(ui, key, place.clone(), rect, band, at);
         let (clip, layer) = (rect.intersect(ui.clip_rect()), ui.layer_id());
         let over = Over { rect, band: title, place, clip, layer, selected: false, open: show_open };
         self.tab_embeds.overs.borrow_mut().push(over);
@@ -891,6 +931,8 @@ impl<'ast> MdRender {
             .icon(file_row_icon(&file.name, false))
             .subtitle(under)
             .interactive(false)
+            // a click on it is the embed's, which it heads
+            .sense(Sense::hover())
             .paint_at_hit(ui, row, row, ui.scope_id().with("card_header"));
     }
 
@@ -1064,13 +1106,18 @@ mod tests {
     }
 
     fn click(t: &mut TestWs, pos: egui::Pos2) {
+        click_with(t, pos, Default::default());
+    }
+
+    fn click_with(t: &mut TestWs, pos: egui::Pos2, modifiers: egui::Modifiers) {
         let button = |pressed| egui::Event::PointerButton {
             pos,
             button: egui::PointerButton::Primary,
             pressed,
-            modifiers: Default::default(),
+            modifiers,
         };
-        t.frame_with(vec![egui::Event::PointerMoved(pos), button(true), button(false)]);
+        let held = egui::Event::ModifiersChanged(modifiers);
+        t.frame_with(vec![held, egui::Event::PointerMoved(pos), button(true), button(false)]);
         t.frame();
     }
 
@@ -1201,13 +1248,15 @@ mod tests {
         assert_eq!(rect.width(), 200.0);
     }
 
-    /// A click on a note embed's body, away from its links, selects the embed.
+    /// A click on a note embed's title band selects the embed: its body is
+    /// the embedded note's, a click there giving it a caret.
     #[test]
-    fn click_on_an_embed_selects_it() {
+    fn click_on_an_embeds_band_selects_it() {
         let mut t = TestWs::new();
         embed_of_a_link(&mut t);
         let (rect, _) = shown(&mut t).unwrap();
-        click(&mut t, rect.center_bottom() - vec2(0.0, 20.0));
+        let pos = rect.left_top() + vec2(40.0, 12.0);
+        click(&mut t, pos);
         let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
         assert_eq!(md.edit.renderer.buffer.current.selection, (Grapheme(7), Grapheme(16)));
     }
@@ -1270,7 +1319,8 @@ mod tests {
         assert!(copied.as_ref().is_some_and(|text| text.contains("Ship")), "{copied:?}");
     }
 
-    /// A link in an embed still opens: the embed's click sits beneath it.
+    /// A link in an embed opens with command held, as in the note itself:
+    /// the embed's click sits beneath it.
     #[test]
     fn link_in_an_embed_opens() {
         let mut t = TestWs::new();
@@ -1280,7 +1330,7 @@ mod tests {
             .iter()
             .find(|(text, _)| text.contains("Other"))
             .unwrap();
-        click(&mut t, link.center());
+        click_with(&mut t, link.center(), egui::Modifiers::COMMAND);
         frames_until(&mut t, |t| {
             t.ws.current_tab()
                 .and_then(|tab| tab.destination.backing_file())

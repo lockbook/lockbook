@@ -564,6 +564,9 @@ impl<'ast> MdEdit {
 
                 operations.push(Operation::Select(current_selection));
             }
+            Event::Undo | Event::Redo if self.hosted_history => {
+                self.renderer.render_events.push(event);
+            }
             Event::Undo | Event::Redo => {
                 self.in_progress_image_drag = None;
                 let undone = if matches!(event, Event::Undo) {

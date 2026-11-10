@@ -18,12 +18,15 @@ use egui::{Rect, UiBuilder};
 
 use crate::show::DocType;
 use crate::tab::markdown_editor::input::Event;
+use lb_rs::model::text::operation_types::Replace;
+
+use crate::tab::markdown_editor::fragment::{find_heading, headings_in};
 use crate::tab::markdown_editor::widget::inline::tab_embed::{
-    EmbedKey, EmbedRequest, EmbedState, load, missing_heading,
+    EmbedKey, EmbedRequest, EmbedState, Leave, lacks_heading, load, missing_heading,
 };
 use crate::tab::{
-    ContentState, Doc, ExtendedOutput as _, Place, Presentation, Reveal, SessionId, Tab,
-    TabContent, TabFailure, TabResources,
+    ContentState, Doc, ExtendedOutput as _, Fragment, Markdown, Place, Presentation, Reveal,
+    SessionId, Tab, TabContent, TabFailure, TabResources,
 };
 use crate::widgets::tab_cache::TabCache;
 
@@ -251,15 +254,8 @@ impl EmbedHost {
                 true => res.guard.show(tab, |tab| tab.show(child)),
                 false => tab.show(child),
             };
-            // what a heading of the note edits, the note makes, at the same offsets
-            let handed = match own {
-                true => tab.markdown_mut().map(take_edits).unwrap_or_default(),
-                false => vec![],
-            };
-            let host_md = host_tab.and_then(|h| tabs.get_any_mut(&h)?.markdown_mut());
-            if let (false, Some(host_md)) = (handed.is_empty(), host_md) {
-                host_md.edit.event.internal_events.extend(handed);
-                ui.ctx().request_repaint();
+            if let (true, Some(host_tab)) = (own, host_tab) {
+                hand_over(ui.ctx(), tabs, session, host_tab, request);
             }
             let Some(tab) = tabs.get_any_mut(&session) else { continue };
             if let Some(id) = resp.open_file {
@@ -327,6 +323,22 @@ impl EmbedHost {
         }
         boxes.sort_by(|a, b| a.1.y.total_cmp(&b.1.y));
         boxes
+    }
+
+    /// The shown embeds' fragments of text, on screen.
+    #[cfg(test)]
+    pub fn shown_words(&self, tabs: &TabCache) -> Vec<(String, Rect)> {
+        let mut words = vec![];
+        for embed in self.embeds.values().filter(|e| e.shown && e.drawn) {
+            let Some(md) = tabs.get_any(&embed.session).and_then(Tab::markdown) else { continue };
+            let r = &md.edit.renderer;
+            let inside = r
+                .fragments
+                .iter()
+                .filter(|f| embed.rect.contains_rect(f.rect));
+            words.extend(inside.map(|f| (r.buffer[f.source_range].to_string(), f.rect)));
+        }
+        words
     }
 
     /// The text of each shown embed's tab.
@@ -424,6 +436,7 @@ impl Embed {
             nested.extend(dest.backing_file());
             md.edit.renderer.tab_embeds.path = nested;
             md.edit.renderer.tab_embeds.edits = request.edits;
+            md.edit.hosted_history = self.own;
         }
         // a heading of the note is the note's to save
         let tab_read_only = read_only || self.own;
@@ -468,13 +481,110 @@ impl Embed {
     }
 }
 
+/// Hands the note `host` what its embed `session`, of a heading of it, did
+/// this frame: its edits, which the note makes at the same offsets and keeps
+/// in its history, and the caret, if it left the heading's section.
+fn hand_over(
+    ctx: &egui::Context, tabs: &mut TabCache, session: SessionId, host: SessionId,
+    request: &EmbedRequest,
+) {
+    let (Some(host_text), Some(typed)) = (text_of(tabs, &host), text_of(tabs, &session)) else {
+        return;
+    };
+    let host_text = (host_text != typed).then(|| host_text.clone());
+    let Some(md) = tabs.get_any_mut(&session).and_then(Tab::markdown_mut) else { return };
+    let mut handed = take_edits(md);
+    if let Some(host_text) = host_text {
+        handed.extend(take_typing(md, &request.place, host_text));
+    }
+    let left = left_section(ctx, md, &request.place);
+    if left.is_some() {
+        md.surrender_focus(ctx);
+    }
+    let Some(host_md) = tabs.get_any_mut(&host).and_then(Tab::markdown_mut) else { return };
+    if let Some(leave) = left {
+        host_md
+            .edit
+            .renderer
+            .tab_embeds
+            .left
+            .set(Some((request.at, leave)));
+    }
+    if !handed.is_empty() || left.is_some() {
+        host_md.edit.event.internal_events.extend(handed);
+        ctx.request_repaint();
+    }
+}
+
+fn text_of<'a>(tabs: &'a TabCache, session: &SessionId) -> Option<&'a String> {
+    let md = tabs.get_any(session).and_then(Tab::markdown)?;
+    Some(&md.edit.renderer.buffer.current.text)
+}
+
 /// The edits `md`, a heading of the note it's in, queued this frame: the note
-/// makes them.
-fn take_edits(md: &mut crate::tab::Markdown) -> Vec<Event> {
+/// makes them, and keeps their history.
+fn take_edits(md: &mut Markdown) -> Vec<Event> {
     let queued = std::mem::take(&mut md.edit.event.internal_events);
     let (edits, kept) = queued
         .into_iter()
-        .partition(|event| matches!(event, Event::ToggleTask { .. }));
+        .partition(|event| matches!(event, Event::ToggleTask { .. } | Event::Undo | Event::Redo));
     md.edit.event.internal_events = kept;
     edits
+}
+
+/// What was typed into `md`, a heading of the note whose text is `host`,
+/// this frame, as the note's replacements of its own text. An edit that
+/// leaves the note without the heading `place` names is refused: the card's
+/// heading is its band, retitled in the note itself.
+fn take_typing(md: &mut Markdown, place: &Place, host: String) -> Vec<Event> {
+    let buffer = &mut md.edit.renderer.buffer;
+    let typed = buffer.current.text.clone();
+    // the card's next edits build on what it has now
+    buffer.flush();
+    buffer.saved(typed.clone());
+    if lacks_heading(place, &typed) {
+        let hmac = md.hmac();
+        md.reload(host, hmac);
+        return vec![];
+    }
+    // last first, so each range is still the note's when it lands
+    let ops = lb_rs::model::text::diff(&host, &typed);
+    let replace = |op: Replace| Event::Replace {
+        region: op.range.into(),
+        text: op.text,
+        advance_cursor: false,
+    };
+    ops.into_iter().rev().map(replace).collect()
+}
+
+/// Whether the caret in `md`, a focused card of a heading of its host, left
+/// the heading's section this frame, and which way.
+fn left_section(ctx: &egui::Context, md: &mut Markdown, place: &Place) -> Option<Leave> {
+    if !md.focused(ctx) {
+        return None;
+    }
+    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        return Some(Leave::Select);
+    }
+    let Some(Fragment::Heading(slug)) = &place.fragment else { return None };
+    let r = &mut md.edit.renderer;
+    let arena = crate::tab::markdown_editor::Arena::new();
+    let root = r.parse(&arena);
+    let headings = headings_in(root);
+    let infos: Vec<_> = headings.iter().map(|(_, h)| h.clone()).collect();
+    let i = find_heading(&infos, slug)?;
+    let heading_end = r.node_range(headings[i].0).1;
+    let next = headings[i + 1..]
+        .iter()
+        .find(|(_, h)| h.level <= infos[i].level)
+        .map(|(node, _)| r.node_range(node).0);
+    let (a, b) = r.buffer.current.selection;
+    let (start, end) = (a.min(b), a.max(b));
+    if start <= heading_end {
+        Some(Leave::Before)
+    } else if next.is_some_and(|next| end >= next) {
+        Some(Leave::After)
+    } else {
+        None
+    }
 }
