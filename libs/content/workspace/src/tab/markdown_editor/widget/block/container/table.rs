@@ -98,8 +98,8 @@ impl<'ast> MdRender {
                     let content = content + inside.width() - table.width();
                     self.row_scroll_chrome(ui, key, inside, clip, content, &bands);
                 }
-                // the rules between rows run edge to edge over the fades, as
-                // the border stays put; a drag float paints no fades
+                // the rules between rows run edge to edge, under the fades;
+                // a drag float paints no fades
                 if !self.painting_drag_float {
                     let stroke = egui::Stroke::new(1., theme.neutral_bg_tertiary());
                     let span = inside.x_range().intersection(clip.x_range());

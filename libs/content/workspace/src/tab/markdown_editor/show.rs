@@ -1349,19 +1349,19 @@ impl MdEdit {
                 ));
         }
 
-        // a scrolled block's rows fade out at an edge, text and all
-        for (rect, left, right) in std::mem::take(&mut self.renderer.edge_fades) {
-            crate::style::paint_fade(ui.painter(), rect, left, right, false);
-        }
         for shape in std::mem::take(&mut self.renderer.over_text) {
             ui.painter().add(shape);
-        }
-        for button in std::mem::take(&mut self.renderer.copy_buttons) {
-            button.paint(ui);
         }
         // strikethroughs and underlines painted on top of text
         for deco in std::mem::take(&mut self.renderer.deco_lines) {
             deco.paint(ui.painter());
+        }
+        // a scrolled block's rows fade out at an edge, rules and lines and all
+        for (rect, left, right) in std::mem::take(&mut self.renderer.edge_fades) {
+            crate::style::paint_fade(ui.painter(), rect, left, right, false);
+        }
+        for button in std::mem::take(&mut self.renderer.copy_buttons) {
+            button.paint(ui);
         }
 
         // A reorder selects the dragged section; its handles would clutter
