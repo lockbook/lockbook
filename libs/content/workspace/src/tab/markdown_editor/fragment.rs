@@ -174,6 +174,42 @@ mod tests {
         assert_eq!(slugify("नमस्ते दुनिया"), "नमस्ते-दुनिया");
     }
 
+    /// A heading's text and slug are what was typed, as the screen shows it:
+    /// `Don't` is found by `Don't`, by GitHub's `dont-panic`, and by the
+    /// `Don’t` a phone keyboard types.
+    #[test]
+    fn punctuation_is_as_typed() {
+        let md = "# Don't panic\n\n# \"Quoted\" words\n\n# Before -- after\n\n# One --- two\n\n# Wait...\n";
+        let headings = document_headings(md);
+        let flat: Vec<(&str, &str)> = headings
+            .iter()
+            .map(|h| (h.text.as_str(), h.slug.as_str()))
+            .collect();
+        assert_eq!(
+            flat,
+            [
+                ("Don't panic", "dont-panic"),
+                ("\"Quoted\" words", "quoted-words"),
+                ("Before -- after", "before----after"),
+                ("One --- two", "one-----two"),
+                ("Wait...", "wait"),
+            ]
+        );
+        assert_eq!(find_heading(&headings, "Don't panic"), Some(0));
+        assert_eq!(find_heading(&headings, "Don’t panic"), Some(0));
+        assert_eq!(find_heading(&headings, "“Quoted” words"), Some(1));
+        assert_eq!(find_heading(&headings, "Wait…"), Some(4));
+        assert_eq!(find_heading(&headings, "Before – after"), Some(2), "an earlier wiki token");
+        assert_eq!(find_heading(&headings, "One — two"), Some(3), "a phone's dash");
+        let typed_on_a_phone = document_headings("# One — two\n");
+        assert_eq!(find_heading(&typed_on_a_phone, "One --- two"), Some(0));
+        let langs = document_headings("# C\n");
+        assert_eq!(find_heading(&langs, "C++"), None, "a heading's punctuation counts");
+        for (i, h) in headings.iter().enumerate() {
+            assert_eq!(find_heading(&headings, &wiki_token(h)), Some(i), "{h:?}");
+        }
+    }
+
     #[test]
     fn a_slug_wins_over_text() {
         let headings = document_headings("# Foo\n\n# Foo\n\n# Foo 1\n\n# foo-1\n");
