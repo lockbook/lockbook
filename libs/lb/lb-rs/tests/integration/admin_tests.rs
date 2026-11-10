@@ -1,6 +1,41 @@
-use lb_rs::model::api::ServerIndex;
+use lb_rs::model::api::{AccountIdentifier, ServerIndex};
 use lb_rs::model::file::ShareMode;
+use test_utils::lockbook_server_lib::in_process::InMemoryServer;
 use test_utils::*;
+
+#[tokio::test]
+async fn account_info_reports_dates_and_deletion() {
+    let mut server = InMemoryServer::in_memory();
+    let admin_name = random_name();
+    server.config.admin.admins.insert(admin_name.clone());
+    let admin = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    admin.create_account(&admin_name, "", false).await.unwrap();
+
+    let customer = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let name = random_name();
+    customer.create_account(&name, "", false).await.unwrap();
+    customer.create_at_path("note.md").await.unwrap();
+    customer.sync().await.unwrap();
+
+    let info = admin
+        .get_account_info(AccountIdentifier::Username(name.clone()))
+        .await
+        .unwrap();
+    assert_eq!(info.root, Some(customer.root().await.unwrap().id));
+    assert!(info.created.is_some());
+    assert!(info.last_seen.is_some());
+    assert!(info.last_seen >= info.created);
+    assert!(!info.deleted);
+
+    customer.delete_account().await.unwrap();
+
+    let info = admin
+        .get_account_info(AccountIdentifier::Username(name))
+        .await
+        .unwrap();
+    assert_eq!(info.root, None);
+    assert!(info.deleted);
+}
 
 #[tokio::test]
 #[ignore]

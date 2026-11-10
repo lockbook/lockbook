@@ -17,7 +17,7 @@ use lb_rs::model::api::{
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, METADATA_FEE, NewAccountError,
-    NewAccountRequestV2, NewAccountResponse, PaymentPlatform,
+    NewAccountRequestV2, NewAccountResponse, PaymentPlatformV2,
 };
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
@@ -319,11 +319,15 @@ where
             .clone();
 
         let mut maybe_root = None;
+        let deleted = db
+            .owned_files
+            .get(&owner)
+            .is_none_or(|owned_ids| owned_ids.is_empty());
         if let Some(owned_ids) = db.owned_files.get(&owner) {
             for id in owned_ids {
                 if let Some(meta) = db.metas.get(id) {
                     if meta.is_root() {
-                        maybe_root = Some(*meta.id());
+                        maybe_root = Some(meta.clone());
                     }
                 } else {
                     return Err(internal!(
@@ -333,49 +337,49 @@ where
                     ));
                 }
             }
-        } else {
-            return Err(internal!("Owned files not indexed for user, owner: {:?}", owner));
         }
-        let root = if let Some(root) = maybe_root {
-            root
-        } else {
+        if !deleted && maybe_root.is_none() {
             return Err(internal!("User root not found, owner: {:?}", owner));
-        };
+        }
 
         let payment_platform = account
             .billing_info
             .billing_platform
             .map(|billing_platform| match billing_platform {
                 BillingPlatform::Stripe(user_info) => {
-                    PaymentPlatform::Stripe { card_last_4_digits: user_info.last_4 }
+                    PaymentPlatformV2::Stripe { card_last_4_digits: user_info.last_4 }
                 }
                 BillingPlatform::GooglePlay(user_info) => {
-                    PaymentPlatform::GooglePlay { account_state: user_info.account_state }
+                    PaymentPlatformV2::GooglePlay { account_state: user_info.account_state }
                 }
                 BillingPlatform::AppStore(user_info) => {
-                    PaymentPlatform::AppStore { account_state: user_info.account_state }
+                    PaymentPlatformV2::AppStore { account_state: user_info.account_state }
                 }
             });
 
-        let mut tree = ServerTree::new(
-            owner,
-            &mut db.owned_files,
-            &mut db.shared_files,
-            &mut db.file_children,
-            &mut db.metas,
-        )?
-        .to_lazy();
-
-        let usage = tree.calculate_usage(owner)?;
-
-        let usage_str = bytes_to_human(usage);
+        let usage = if deleted {
+            0
+        } else {
+            ServerTree::new(
+                owner,
+                &mut db.owned_files,
+                &mut db.shared_files,
+                &mut db.file_children,
+                &mut db.metas,
+            )?
+            .to_lazy()
+            .calculate_usage(owner)?
+        };
 
         Ok(AdminGetAccountInfoResponse {
             account: AccountInfo {
                 username: account.username,
-                root,
+                root: maybe_root.as_ref().map(|root| *root.id()),
                 payment_platform,
-                usage: usage_str,
+                usage: bytes_to_human(usage),
+                created: maybe_root.map(|root| root.file.timestamped_value.timestamp as u64),
+                last_seen: db.last_seen.get(&owner).copied(),
+                deleted,
             },
         })
     }

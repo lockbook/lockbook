@@ -4,7 +4,7 @@ version = "26.11.6"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.1.4", features = ["derive"] }
+cli-rs = "0.2.1"
 lb = { package="lb-rs", path = "../../libs/lb/lb-rs" }
 dialoguer = { version = "0.10.1", features = ["fuzzy-select"] }
 basic-human-duration = "0.2.0"

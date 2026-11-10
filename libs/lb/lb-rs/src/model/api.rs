@@ -727,9 +727,12 @@ pub struct AdminGetAccountInfoResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AccountInfo {
     pub username: String,
-    pub root: Uuid,
-    pub payment_platform: Option<PaymentPlatform>,
+    pub root: Option<Uuid>,
+    pub payment_platform: Option<PaymentPlatformV2>,
     pub usage: String,
+    pub created: Option<UnixTimeMillis>,
+    pub last_seen: Option<UnixTimeMillis>,
+    pub deleted: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
