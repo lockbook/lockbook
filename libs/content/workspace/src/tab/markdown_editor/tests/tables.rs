@@ -828,3 +828,13 @@ fn spaced_cards_stack_as_tight_as_glued_ones() {
     };
     assert_eq!(tops(" "), tops(""));
 }
+
+#[test]
+fn a_tag_typed_into_a_row_without_pipes_keeps_it_a_row() {
+    // without the pipe, the next cell finishes the tag and the line is HTML
+    let mut editor = TestEditor::new("x|y>\n-|-\n");
+    caret_at(&mut editor, 0);
+    type_text(&mut editor, "<a b=");
+    assert_eq!(editor.get_text(), "|<a b=x|y>\n-|-\n");
+    assert_eq!(table_ranges_check_md(editor.get_text()), Ok(1));
+}

@@ -58,10 +58,16 @@ impl Lb {
         logging::init(&config)?;
 
         let docs = AsyncDocs::from(&config);
-        let db = io::init_with_migration(Path::new(&config.writeable_path))
-            .map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
+        let path = Path::new(&config.writeable_path);
+        let db =
+            if config.read_only { io::init_read_only(path) } else { io::init_with_migration(path) }
+                .map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
         #[cfg(all(unix, not(target_os = "ios")))]
-        let ipc = Some(Arc::new(Ipc::new(&db, config.background_work)?));
+        let ipc = if config.read_only {
+            None
+        } else {
+            Some(Arc::new(Ipc::new(&db, config.background_work)?))
+        };
         #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
         let sync_lock = Some(Path::new(&config.writeable_path).join("sync.lock"));
         let client = Network { client_type: config.client_type, ..Network::default() };
@@ -138,7 +144,7 @@ impl<S: Server> Lb<S> {
         result.setup_ipc().await?;
 
         #[cfg(not(target_family = "wasm"))]
-        {
+        if !result.config.read_only {
             result.setup_syncer();
             result.setup_status().await?;
         }

@@ -3,11 +3,13 @@ name: Integration
 on:
   pull_request:
     branches: [ master ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
   workflow_call:
 
 jobs:
   Checks:
-    if: github.repository == 'lockbook/lockbook'
+    # a draft pull request waits until it is marked ready
+    if: github.repository == 'lockbook/lockbook' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: [self-hosted, ci]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

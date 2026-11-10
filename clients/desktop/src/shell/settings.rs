@@ -607,7 +607,7 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
 }
 
 /// The text column's widest points: Narrow, Medium, Wide.
-const COLUMN_WIDTHS: [f32; 3] = [600.0, 800.0, 1000.0];
+const COLUMN_WIDTHS: [f32; 3] = [600.0, 900.0, 1200.0];
 
 fn page_debug(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     // Integrity + panics load off-thread; Copy works without revealing the dump.

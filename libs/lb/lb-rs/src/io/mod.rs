@@ -15,7 +15,7 @@ use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
-use crate::service::budget::LOCK_BUDGET;
+use crate::service::budget::lock_budget;
 use crate::service::lb_id::LbID;
 use crate::service::lock_shame::lock_budget_destroyed;
 #[cfg(all(unix, not(target_os = "ios")))]
@@ -83,6 +83,14 @@ impl Schema for CoreV5 {
         ];
         views
     }
+}
+
+pub fn init_read_only(path: &Path) -> MigrationResult<CoreDb> {
+    Ok(CoreDb::init(
+        &Config::default()
+            .log_location(path.join("CoreV5"))
+            .read_only(),
+    )?)
 }
 
 pub fn init_with_migration(path: &Path) -> MigrationResult<CoreDb> {
@@ -166,9 +174,10 @@ pub struct LbTx<'a> {
 /// whichever thread held the lock, as a frame overrun on the UI thread does.
 fn check_hold(lock: &str, budget_start: Option<Instant>) {
     let Some(start) = budget_start else { return };
+    let Some(budget) = lock_budget() else { return };
     let held = start.elapsed();
-    if held > LOCK_BUDGET && !std::thread::panicking() {
-        let _ = std::panic::catch_unwind(|| lock_budget_destroyed(lock, held, LOCK_BUDGET));
+    if held > budget && !std::thread::panicking() {
+        let _ = std::panic::catch_unwind(|| lock_budget_destroyed(lock, held, budget));
         std::process::exit(101);
     }
 }
@@ -228,7 +237,7 @@ impl<S> Lb<S> {
     }
 
     /// With [crate::model::core_config::Config::lock_budget], dev accounts exit when they release a lock held past
-    /// [LOCK_BUDGET].
+    /// [lock_budget].
     fn budget_start(&self) -> Option<Instant> {
         let enforced = self.config.lock_budget && self.get_account().is_ok_and(Account::is_dev);
         enforced.then(Instant::now)

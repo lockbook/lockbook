@@ -1418,10 +1418,10 @@ impl Workspace {
                     let (hmac, bytes) = match content_result {
                         Ok(loaded) => loaded,
                         Err(err) => {
-                            let msg = format!("failed to load file: {err:?}");
-                            error!(msg);
-                            tab.content = ContentState::Failed(TabFailure::Unexpected(msg.clone()));
-                            self.out.failure_messages.push(msg);
+                            error!("failed to load file: {err:?}");
+                            let failure = TabFailure::from(err);
+                            self.out.failure_messages.push(failure.msg());
+                            tab.content = ContentState::Failed(failure);
                             continue;
                         }
                     };
@@ -2166,12 +2166,21 @@ pub struct WsPresistentData {
     #[serde(default = "default_spell_check")]
     spell_check: bool,
     /// The widest a note's text column gets, in points.
-    #[serde(default = "default_column_width")]
+    #[serde(default = "default_column_width", deserialize_with = "column_width_preset")]
     column_width: f32,
 }
 
 fn default_column_width() -> f32 {
-    800.0
+    900.0
+}
+
+/// Medium and Wide were 800 and 1000; a saved width lands on the preset it was.
+fn column_width_preset<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
+    Ok(match f32::deserialize(d)? {
+        800.0 => 900.0,
+        1000.0 => 1200.0,
+        w => w,
+    })
 }
 
 fn default_update_links() -> bool {

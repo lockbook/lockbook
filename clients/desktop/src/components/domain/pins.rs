@@ -7,6 +7,8 @@
 use egui::{FontFamily, FontId, Id, Ui, pos2, vec2};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
+use workspace_rs::style::file_row::CRUMB_SEP;
+use workspace_rs::style::{display_file_name, home_crumb};
 use workspace_rs::tab::{Destination, Place};
 
 use crate::components::{
@@ -46,7 +48,10 @@ enum PinCmd {
 
 struct PinRow {
     id: Uuid,
+    parent: Uuid,
     name: String,
+    /// Set when another pin shows the same name.
+    folder: Option<String>,
     is_folder: bool,
     saved_share: bool,
 }
@@ -64,7 +69,9 @@ pub fn show(
             }
             Some(PinRow {
                 id: *id,
+                parent: f.parent,
                 name: f.name.clone(),
+                folder: None,
                 is_folder: false,
                 saved_share: is_saved_share(f, files.get_by_id(f.parent), me),
             })
@@ -74,6 +81,14 @@ pub fn show(
         return;
     }
     rows.sort_by_key(|a| a.name.to_lowercase());
+    let pins: Vec<(&str, Vec<String>)> = rows
+        .iter()
+        .map(|r| (display_file_name(&r.name), folder_crumbs(&files.path(r.parent))))
+        .collect();
+    let folders = disambiguating_folders(&pins);
+    for (row, folder) in rows.iter_mut().zip(folders) {
+        row.folder = folder;
+    }
 
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
@@ -179,7 +194,7 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
         t,
         icon,
         icon_ink,
-        Some(QuietChipLabel::FileName(&row.name)),
+        Some(QuietChipLabel::FileName { name: &row.name, folder: row.folder.as_deref() }),
         QuietChipAlign::Start,
     );
 
@@ -260,5 +275,70 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
             PinCmd::Export => queue.push(A::Export(vec![row.id])),
             PinCmd::Delete => queue.push(A::OpenDelete(vec![row.id])),
         }
+    }
+}
+
+/// A folder path's crumbs, outermost first; own-tree paths start at Home.
+fn folder_crumbs(path: &str) -> Vec<String> {
+    let home = path.starts_with('/').then(home_crumb);
+    home.into_iter()
+        .chain(path.split('/').filter(|p| !p.is_empty()).map(str::to_owned))
+        .collect()
+}
+
+/// For each `(name, folder crumbs)` pin, the fewest innermost crumbs that
+/// set it apart from every other pin of the same name; `None` when no
+/// same-named pin lives in another folder.
+fn disambiguating_folders(pins: &[(&str, Vec<String>)]) -> Vec<Option<String>> {
+    let trail = |crumbs: &[String], k: usize| crumbs[crumbs.len().saturating_sub(k)..].to_vec();
+    pins.iter()
+        .enumerate()
+        .map(|(i, (name, crumbs))| {
+            let twins: Vec<&Vec<String>> = pins
+                .iter()
+                .enumerate()
+                .filter(|(j, (other, c))| *j != i && other == name && c != crumbs)
+                .map(|(_, (_, c))| c)
+                .collect();
+            if twins.is_empty() {
+                return None;
+            }
+            let k = (1..=crumbs.len())
+                .find(|&k| twins.iter().all(|c| trail(c, k) != trail(crumbs, k)))
+                .unwrap_or(crumbs.len());
+            Some(trail(crumbs, k).join(CRUMB_SEP))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pin<'a>(name: &'a str, folder: &str) -> (&'a str, Vec<String>) {
+        (name, folder_crumbs(folder))
+    }
+
+    #[test]
+    fn same_named_pins_walk_up_until_they_differ() {
+        let pins = [
+            pin("todo", "/"),
+            pin("todo", "/work/"),
+            pin("notes", "/a/x/y/"),
+            pin("notes", "/b/x/y/"),
+            pin("plan", "/work/"),
+            pin("plan", "/work/"), // plan.md beside plan.pdf
+        ];
+        assert_eq!(
+            disambiguating_folders(&pins),
+            [
+                Some(home_crumb()),
+                Some("work".into()),
+                Some("a/x/y".into()),
+                Some("b/x/y".into()),
+                None,
+                None,
+            ]
+        );
     }
 }

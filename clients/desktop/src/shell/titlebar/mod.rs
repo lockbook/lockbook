@@ -450,6 +450,13 @@ fn window_resize_edges(ctx: &egui::Context) {
             CursorIcon::ResizeNwSe,
         ),
     ];
+    // One resize per press, sent once the press is decidedly a drag, so its
+    // release (which the window manager keeps) never counts as a click.
+    let armed_id = Id::unique("shell_window_resize_armed");
+    if !ctx.input(|i| i.pointer.primary_down()) {
+        ctx.data_mut(|d| d.insert_temp(armed_id, false));
+    }
+    let decided = ctx.input(|i| i.pointer.is_decidedly_dragging());
     for (id, rect, dir, cursor) in zones {
         Area::new(Id::unique(id))
             .order(Order::Foreground)
@@ -458,7 +465,9 @@ fn window_resize_edges(ctx: &egui::Context) {
                 let resp = ui
                     .allocate_response(rect.size(), Sense::drag())
                     .on_hover_cursor(cursor);
-                if resp.drag_started_by(PointerButton::Primary) {
+                let armed = ui.data(|d| d.get_temp::<bool>(armed_id).unwrap_or(false));
+                if resp.dragged_by(PointerButton::Primary) && decided && !armed {
+                    ui.data_mut(|d| d.insert_temp(armed_id, true));
                     ui.ctx()
                         .send_viewport_cmd(ViewportCommand::BeginResize(dir));
                 }
