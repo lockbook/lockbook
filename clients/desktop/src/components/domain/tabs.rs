@@ -7,7 +7,7 @@
 //! middle-click close; active title → rename sheet; context menu.
 
 use egui::{
-    Align, CornerRadius, CursorIcon, DragAndDrop, Id, Layout, Sense, Ui, UiBuilder, pos2,
+    Align, CornerRadius, CursorIcon, DragAndDrop, Id, Layout, Sense, Ui, pos2,
     scroll_area::ScrollBarVisibility, vec2,
 };
 use lb::Uuid;
@@ -442,16 +442,18 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             let is_noop = dst == src || dst == src + 1;
             if !is_noop {
                 let x = if drop_left { body.left() } else { body.right() };
-                ui.scope_builder(
-                    UiBuilder::new().layer_id(egui::LayerId::new(
-                        egui::Order::Foreground,
-                        Id::unique("shell_tab_reorder_drop"),
-                    )),
-                    |ui| {
-                        let (top, bottom) = (pos2(x, chrome.top()), pos2(x, chrome.bottom()));
-                        workspace_rs::style::paint_drop_line(ui.painter(), top, bottom, t);
-                    },
+                let layer = egui::LayerId::new(
+                    egui::Order::Foreground,
+                    Id::unique("shell_tab_reorder_drop"),
                 );
+                // a seam at the strip's end draws whole, over the edge
+                let reach = vec2(workspace_rs::style::DROP_LINE_REACH, 0.0);
+                let painter = ui
+                    .ctx()
+                    .layer_painter(layer)
+                    .with_clip_rect(ui.clip_rect().expand2(reach));
+                let (top, bottom) = (pos2(x, chrome.top()), pos2(x, chrome.bottom()));
+                workspace_rs::style::paint_drop_line(&painter, top, bottom, t);
                 if let Some(src) = resp.dnd_release_payload::<TabReorder>() {
                     reorder = Some((src.0, dst));
                 }
