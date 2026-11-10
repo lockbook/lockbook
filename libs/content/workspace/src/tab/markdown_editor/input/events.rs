@@ -10,7 +10,8 @@ impl MdEdit {
     /// `MdEdit` so a standalone composer (chat) drains the same events the
     /// markdown editor does.
     pub(crate) fn drain_workspace_events(&self, ctx: &Context) -> Vec<Event> {
-        let readonly = self.renderer.readonly;
+        // an embed with the caret takes them, whatever this note allows
+        let readonly = self.renderer.readonly && !self.renderer.tab_embeds.has_caret(ctx);
         ctx.pop_events_where(&mut |e| {
             if readonly {
                 return matches!(e, crate::Event::Markdown(Event::Gesture(_)));

@@ -145,11 +145,11 @@ impl<'ast> MdRender {
         }
 
         // Plain inline link (labeled, or an autolink whose title hasn't
-        // resolved): cmd-click opens (desktop editor); read-only views have
-        // no cursor to place, so a plain click opens; touch taps select the
+        // resolved): cmd-click opens (desktop editor); views without a caret
+        // have none to place, so a plain click opens; touch taps select the
         // link and pop the menu — unless revealed, when taps place the
         // cursor in the raw source.
-        let clickable = self.readonly
+        let clickable = !self.edits_text()
             || self.ctx.input(|i| i.modifiers.command)
             || (self.touch_mode && !revealed);
         let salt = Self::link_interaction_id_salt(node_range);
@@ -781,7 +781,7 @@ impl<'ast> MdRender {
             let id = parent_base.with(salt);
 
             let open = Event::OpenLink { url: url.clone(), wikilink: is_wikilink };
-            let tap = if self.readonly {
+            let tap = if !self.edits_text() {
                 open.clone()
             } else {
                 Event::Select { region: self.node_range(node).into() }
@@ -810,7 +810,7 @@ impl<'ast> MdRender {
                 preview,
             );
 
-            if response.clicked() && (self.readonly || !self.touch_mode) {
+            if response.clicked() && (!self.edits_text() || !self.touch_mode) {
                 self.render_events.push(open);
                 return;
             }
@@ -1118,7 +1118,7 @@ impl<'ast> MdEdit {
     pub fn handle_link_menu_taps(
         &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
     ) {
-        if !self.renderer.touch_mode || self.renderer.readonly {
+        if !self.renderer.touch_mode || !self.renderer.edits_text() {
             return;
         }
         let parent_base = ui.scope_id();

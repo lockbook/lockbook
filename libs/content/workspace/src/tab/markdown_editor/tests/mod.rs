@@ -29,6 +29,7 @@ mod clipboard;
 mod code;
 mod diagrams;
 mod edit_props;
+mod embeds;
 mod folding;
 mod heading_links;
 mod image_drag;

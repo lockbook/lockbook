@@ -232,7 +232,7 @@ impl<'ast> MdRender {
     /// How an embed takes the pointer: a click, and where the note is
     /// editable, a mouse drag that moves it (touch lifts with a long press).
     pub fn embed_sense(&self) -> egui::Sense {
-        if self.readonly || self.touch_mode {
+        if !self.edits_text() || self.touch_mode {
             egui::Sense::click()
         } else {
             egui::Sense::click_and_drag()
@@ -324,9 +324,9 @@ impl<'ast> MdEdit {
     /// Link" action opens, except in an editor that never takes focus (an
     /// embedded note), which has no menu of its own. Shared by every embed kind.
     pub fn embed_tap_opens(&self, ui: &egui::Ui) -> bool {
-        !self.takes_focus
+        !self.renderer.takes_focus
             || !self.renderer.touch_mode
-                && (self.renderer.readonly || ui.ctx().input(|i| i.modifiers.command))
+                && (!self.renderer.edits_text() || ui.ctx().input(|i| i.modifiers.command))
     }
 
     /// Shared tap handling for one embed fragment (inline image, link card, or
@@ -363,7 +363,7 @@ impl<'ast> MdEdit {
         let withheld = is_image && self.renderer.embeds.withheld(url);
         let tap = if withheld {
             Event::LoadImage { url: url.to_string() }
-        } else if self.renderer.readonly {
+        } else if !self.renderer.edits_text() {
             Event::OpenLink { url: dest.to_string(), wikilink }
         } else {
             Event::Select { region: node_range.into() }
@@ -408,7 +408,7 @@ impl<'ast> MdEdit {
         }
 
         if !self.renderer.touch_mode {
-            let editable = !self.renderer.readonly;
+            let editable = self.renderer.edits_text();
             // cards/capsules render fetched previews; images don't
             let refreshable = !is_image
                 && !wikilink
@@ -465,27 +465,37 @@ impl<'ast> MdEdit {
             }
             self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
         }
-        if self.renderer.readonly || self.renderer.touch_mode {
+        if !self.renderer.edits_text() || self.renderer.touch_mode {
             return;
         }
         // a note embed, by its title, as a mouse drags an image
         let r = &self.renderer;
-        let held: Vec<((Grapheme, Grapheme), egui::Rect)> = r
+        let held: Vec<((Grapheme, Grapheme), egui::Rect, String)> = r
             .fragments
             .iter()
             .filter_map(|f| match &f.content {
                 FragmentContent::Embed { kind: EmbedKind::Tab, url } => {
-                    Some((f.source_range, r.tab_embed_band(url, f.rect)?))
+                    Some((f.source_range, r.tab_embed_band(url, f.rect)?, url.clone()))
                 }
                 _ => None,
             })
             .collect();
-        for (range, band) in held {
+        for (range, band, title) in held {
+            // a click selects the embed, or opens it with command held
             let resp = ui.interact(
                 band,
                 ui.scope_id().with(("md_embed_band", range)),
-                egui::Sense::drag(),
+                egui::Sense::click_and_drag(),
             );
+            if resp.clicked() {
+                if ui.input(|i| i.modifiers.command) {
+                    self.renderer.open_dest(&title, true, ui.ctx());
+                } else {
+                    ui.memory_mut(|m| m.request_focus(id));
+                    let select = Event::Select { region: range.into() };
+                    self.calc_operations(ui.ctx(), root, select, ops);
+                }
+            }
             if resp.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
             }

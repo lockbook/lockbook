@@ -29,10 +29,10 @@ impl<'ast> MdRender {
                 return;
             }
         }
-        // Read-only views have no cursor to place, so a plain click follows
+        // Views without a caret have none to place, so a plain click follows
         // the link; the editor requires cmd, and touch taps select the link
         // and pop the menu — unless revealed, when taps place the cursor.
-        let clickable = self.readonly
+        let clickable = !self.edits_text()
             || self.ctx.input(|i| i.modifiers.command)
             || (self.touch_mode && !revealed);
         let salt = Self::link_interaction_id_salt(node_range);

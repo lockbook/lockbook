@@ -10,7 +10,7 @@ use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 
 use crate::tab::svg_editor::SVGEditor;
-use crate::task_manager::TaskManager;
+use crate::task_manager::{SaveRequest, TaskManager};
 use crate::workspace::Workspace;
 
 use chrono::DateTime;
@@ -480,9 +480,10 @@ pub enum Presentation {
     /// As the tab strip shows it, chrome and all.
     #[default]
     Full,
-    /// The content alone, read-only and still interactive: no toolbars,
-    /// sidebars, composer, or caret. It never takes focus, reports no text
-    /// interaction rect, and doesn't scroll: a slot shows its region whole.
+    /// The content alone: no toolbars, sidebars, or composer, and it doesn't
+    /// scroll: a slot shows its region whole. Where it is writable, on a
+    /// desktop, a click gives it a caret; elsewhere it never takes focus,
+    /// and its checkboxes are what it edits.
     Embedded,
     /// Embedded in a hover card: it takes the wheel, so what doesn't fit
     /// scrolls.
@@ -838,8 +839,10 @@ impl Tab {
         }
     }
 
-    pub fn is_dirty(&self, tasks: &TaskManager) -> bool {
-        if let Some(queued_at) = self.id().and_then(|id| tasks.save_queued_at(id)) {
+    /// Whether the tab, open in session `origin`, has edits no save covers.
+    pub fn is_dirty(&self, origin: SessionId, tasks: &TaskManager) -> bool {
+        let request = self.id().map(|id| SaveRequest { id, origin });
+        if let Some(queued_at) = request.and_then(|r| tasks.save_queued_at(&r)) {
             self.last_changed > queued_at
         } else {
             self.last_changed > self.last_saved
@@ -917,7 +920,10 @@ impl TabContent {
             TabContent::Markdown(md) => {
                 md.embedded = embedded;
                 md.in_card = presentation == Presentation::Card;
-                md.edit.takes_focus = !embedded;
+                let r = &md.edit.renderer;
+                let typed_in =
+                    presentation == Presentation::Embedded && !r.readonly && !r.touch_mode;
+                md.edit.renderer.takes_focus = !embedded || typed_in;
                 md.edit.clip_to_host = embedded;
                 md.edit.renderer.interactive = !embedded;
             }

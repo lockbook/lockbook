@@ -650,13 +650,7 @@ impl Workspace {
     pub fn save_all_tabs(&mut self) {
         let slots: Vec<_> = self.tab_strip.clone();
         for slot in &slots {
-            if let Some(tab) = self.tabs.get(&slot.id) {
-                if let Some(id) = tab.id() {
-                    if tab.is_dirty(&self.tasks) {
-                        self.tasks.queue_save(SaveRequest { id, origin: slot.id });
-                    }
-                }
-            }
+            self.queue_save_for_session(slot.id);
         }
         self.last_save_all = Some(Instant::now());
     }
@@ -666,13 +660,21 @@ impl Workspace {
         self.queue_save_for_session(slot.id);
     }
 
+    /// Queues a save of the session's tab and of the notes embedded in it
+    /// that were edited there.
     fn queue_save_for_session(&mut self, tab_id: SessionId) {
-        if let Some(tab) = self.tabs.get(&tab_id) {
-            if let Some(id) = tab.id() {
-                if tab.is_dirty(&self.tasks) {
-                    self.tasks.queue_save(SaveRequest { id, origin: tab_id });
-                }
+        let Some(tab) = self.tabs.get(&tab_id) else { return };
+        let tasks = &self.tasks;
+        let queue = &mut |origin: SessionId, tab: &mut Tab| {
+            if let Some(id) = tab.id().filter(|_| tab.is_dirty(origin, tasks)) {
+                tasks.queue_save(SaveRequest { id, origin });
             }
+        };
+        if let Some(md) = tab.markdown() {
+            md.edit.renderer.tab_embeds.for_each_saving(queue);
+        }
+        if let Some(id) = tab.id().filter(|_| tab.is_dirty(tab_id, tasks)) {
+            tasks.queue_save(SaveRequest { id, origin: tab_id });
         }
     }
 
@@ -1308,8 +1310,24 @@ impl Workspace {
     /// other tab types (SVG, image viewer, PDF) handle clipboard events
     /// themselves. Non-clip events are left in the queue.
     pub fn process_clip_events(&mut self) {
+        let is_clip = |e: &crate::tab::Event| {
+            matches!(e, crate::tab::Event::Drop { .. } | crate::tab::Event::Paste { .. })
+        };
+        let embed = self
+            .current_tab()
+            .and_then(|tab| tab.markdown())
+            .and_then(|md| md.edit.renderer.tab_embeds.focused_file(&self.ctx));
+        // an embed with the caret that takes no images drops them, as its own tab would
+        if let Some((_, false)) = embed {
+            self.ctx.pop_events_where(&mut |e| is_clip(e));
+            return;
+        }
         let Some(file_id) = self.current_tab().and_then(|tab| {
             let md = tab.markdown()?;
+            // an embed with the caret takes the image beside its own note
+            if let Some((id, _)) = embed {
+                return Some(id);
+            }
             // image paste inserts `![](…)` markdown
             if md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {
                 None
@@ -1320,9 +1338,7 @@ impl Workspace {
             return;
         };
 
-        let events = self.ctx.pop_events_where(&mut |e| {
-            matches!(e, crate::tab::Event::Drop { .. } | crate::tab::Event::Paste { .. })
-        });
+        let events = self.ctx.pop_events_where(&mut |e| is_clip(e));
         if events.is_empty() {
             return;
         }
@@ -1449,6 +1465,10 @@ impl Workspace {
                         }
                     }
                     tab.first_draw = true;
+                    // a preview's embeds show; a tab's edit where they're writable
+                    if let Some(md) = tab.markdown_mut() {
+                        md.edit.renderer.tab_embeds.edits = !is_preview;
+                    }
 
                     if is_preview {
                         if let Some(md) = tab.markdown_mut() {
@@ -1495,6 +1515,31 @@ impl Workspace {
                         new_hmac_result,
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
+
+                    // an embed's save: a save that lost to a newer version
+                    // has its slot read that, which saves again what it lacks
+                    if self.tabs.get_any(&origin).is_none() {
+                        match new_hmac_result {
+                            Ok(hmac) => {
+                                self.tabs.with_tab_mut(&origin, |tab| {
+                                    tab.last_saved = started_at;
+                                    if let (Some(md), TabSaveContent::String(content)) =
+                                        (tab.markdown_mut(), content)
+                                    {
+                                        md.record_disk_save(hmac, seq, content);
+                                    }
+                                });
+                            }
+                            Err(_) => {
+                                for tab in self.tabs.values() {
+                                    if let Some(md) = tab.markdown() {
+                                        md.edit.renderer.tab_embeds.reread(origin);
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
 
                     let tab = self
                         .tabs
@@ -1875,7 +1920,10 @@ impl Workspace {
             if self.tasks.busy(id) {
                 continue;
             }
-            let dirty = self.tabs.get(&sid).is_some_and(|t| t.is_dirty(&self.tasks));
+            let dirty = self
+                .tabs
+                .get(&sid)
+                .is_some_and(|t| t.is_dirty(sid, &self.tasks));
             if dirty {
                 self.queue_save_for_session(sid);
             } else {

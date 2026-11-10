@@ -521,7 +521,7 @@ impl<'ast> MdEdit {
             if self.renderer.touch_mode {
                 continue;
             }
-            let editable = !self.renderer.readonly;
+            let editable = self.renderer.edits_text();
             let theme = ui.ctx().get_lb_theme();
             let action = crate::style::context_menu::show(&response, &theme, |e| {
                 e.item(phosphor::ARROW_SQUARE_OUT, "Open", DiagramMenu::Open);
