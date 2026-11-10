@@ -260,12 +260,15 @@ pub fn plate_content_shadow(
         .response
 }
 
+/// How far a drop line's mark reaches to either side of it: its dot's radius.
+pub const DROP_LINE_REACH: f32 = 4.0;
+
 /// Where a drag lands between others, from `start` to `end` along the flow
 /// (across a list, down a column or a line of text): a soft capsule, a line
 /// down its middle, and a hollow dot at `start`. One mark for every drop.
 pub fn paint_drop_line(painter: &egui::Painter, start: Pos2, end: Pos2, t: &Theme) {
     let primary = t.accent_bg();
-    let (dot, half, wash) = (4.0, 1.25, 3.0);
+    let (dot, half, wash) = (DROP_LINE_REACH, 1.25, 3.0);
     let along = (end - start).normalized();
     let across = vec2(along.y.abs(), along.x.abs());
     let capsule = Rect::from_two_pos(start, end).expand2(across * wash);
