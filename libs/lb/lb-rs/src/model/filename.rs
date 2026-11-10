@@ -1,4 +1,8 @@
 use crate::model::file::File;
+use crate::model::svg::buffer::u_transform_to_bezier;
+use crate::model::svg::element::Element;
+use crate::model::{chat, json, svg, text};
+use usvg::Transform;
 
 pub const MAX_FILENAME_LENGTH: usize = 230;
 pub const MAX_ENCRYPTED_FILENAME_LENGTH: usize = MAX_FILENAME_LENGTH + 24;
@@ -21,6 +25,45 @@ impl DocumentType {
             Some("chat") => DocumentType::Chat,
             Some("json") => DocumentType::Json,
             _ => DocumentType::Other,
+        }
+    }
+
+    /// The three-way merge sync uses for this type: `local` and `remote` both started from
+    /// `base`. None where the type has none, or where JSON changes conflict.
+    pub fn merge(&self, base: &[u8], local: &[u8], remote: &[u8]) -> Option<Vec<u8>> {
+        let text = |bytes: &[u8]| String::from_utf8_lossy(bytes).to_string();
+        match self {
+            DocumentType::Text => Some(
+                text::buffer::Buffer::from(text(base).as_str())
+                    .merge(text(local), text(remote))
+                    .into_bytes(),
+            ),
+            DocumentType::Drawing => {
+                let base_buffer = svg::buffer::Buffer::new(&text(base));
+                let remote_buffer = svg::buffer::Buffer::new(&text(remote));
+                let mut local_buffer = svg::buffer::Buffer::new(&text(local));
+                for (_, el) in local_buffer.elements.iter_mut() {
+                    if let Element::Path(path) = el {
+                        path.data
+                            .apply_transform(u_transform_to_bezier(&Transform::from(
+                                local_buffer.weak_viewport_settings.master_transform,
+                            )));
+                    }
+                }
+                svg::buffer::Buffer::reload(
+                    &mut local_buffer.elements,
+                    &mut local_buffer.weak_images,
+                    &mut local_buffer.weak_path_pressures,
+                    &mut local_buffer.weak_viewport_settings,
+                    &base_buffer,
+                    &remote_buffer,
+                );
+                Some(local_buffer.serialize().into_bytes())
+            }
+            // line-union of append-only JSONL turns
+            DocumentType::Chat => Some(chat::Buffer::merge(base, local, remote)),
+            DocumentType::Json => json::merge(base, local, remote),
+            DocumentType::Other => None,
         }
     }
 }

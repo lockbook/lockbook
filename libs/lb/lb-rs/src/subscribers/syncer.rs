@@ -15,7 +15,6 @@ use tokio::sync::Mutex;
 #[cfg(not(target_family = "wasm"))]
 use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 use tokio::time;
-use usvg::Transform;
 use uuid::Uuid;
 
 use crate::{
@@ -29,19 +28,16 @@ use crate::{
             ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
             GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
         },
-        chat,
         crypto::{AESKey, DecryptedDocument, EncryptedDocument},
         errors::{LbErr, Unexpected},
         file::ShareMode,
         file_like::FileLike,
         file_metadata::{DocumentHmac, FileDiff, FileType, Owner},
         filename::{DocumentType, NameComponents},
-        json,
         lazy::LazyTree,
         signed_meta::SignedMeta,
         staged::StagedTreeLikeMut,
-        svg::{self, buffer::u_transform_to_bezier, element::Element},
-        symkey, text,
+        symkey,
         tree_like::TreeLike,
         validate,
     },
@@ -651,79 +647,12 @@ impl<S: Server> Lb<S> {
                                 let local_document =
                                     self.read_document_helper(id, &mut local).await?;
 
-                                match document_type {
-                                    DocumentType::Text => {
-                                        // 3-way merge
-                                        // todo: a couple more clones than necessary
-                                        let base_document =
-                                            String::from_utf8_lossy(&base_document).to_string();
-                                        let remote_document =
-                                            String::from_utf8_lossy(&remote_document).to_string();
-                                        let local_document =
-                                            String::from_utf8_lossy(&local_document).to_string();
-                                        let merged_document =
-                                            text::buffer::Buffer::from(base_document.as_str())
-                                                .merge(local_document, remote_document);
-                                        let encrypted_document = merge
-                                            .update_document_unvalidated(
-                                                &id,
-                                                &merged_document.into_bytes(),
-                                                &self.keychain,
-                                            )?;
-                                        let hmac = merge.find(&id)?.document_hmac().copied();
-                                        self.docs.insert(id, hmac, &encrypted_document).await?;
-                                    }
-                                    DocumentType::Drawing => {
-                                        let base_document =
-                                            String::from_utf8_lossy(&base_document).to_string();
-                                        let remote_document =
-                                            String::from_utf8_lossy(&remote_document).to_string();
-                                        let local_document =
-                                            String::from_utf8_lossy(&local_document).to_string();
-
-                                        let base_buffer = svg::buffer::Buffer::new(&base_document);
-                                        let remote_buffer =
-                                            svg::buffer::Buffer::new(&remote_document);
-                                        let mut local_buffer =
-                                            svg::buffer::Buffer::new(&local_document);
-
-                                        for (_, el) in local_buffer.elements.iter_mut() {
-                                            if let Element::Path(path) = el {
-                                                path.data.apply_transform(u_transform_to_bezier(
-                                                    &Transform::from(
-                                                        local_buffer
-                                                            .weak_viewport_settings
-                                                            .master_transform,
-                                                    ),
-                                                ));
-                                            }
-                                        }
-                                        svg::buffer::Buffer::reload(
-                                            &mut local_buffer.elements,
-                                            &mut local_buffer.weak_images,
-                                            &mut local_buffer.weak_path_pressures,
-                                            &mut local_buffer.weak_viewport_settings,
-                                            &base_buffer,
-                                            &remote_buffer,
-                                        );
-
-                                        let merged_document = local_buffer.serialize();
-                                        let encrypted_document = merge
-                                            .update_document_unvalidated(
-                                                &id,
-                                                &merged_document.into_bytes(),
-                                                &self.keychain,
-                                            )?;
-                                        let hmac = merge.find(&id)?.document_hmac().copied();
-                                        self.docs.insert(id, hmac, &encrypted_document).await?;
-                                    }
-                                    DocumentType::Chat => {
-                                        // line-union of append-only JSONL turns
-                                        let merged_document = chat::Buffer::merge(
-                                            &base_document,
-                                            &local_document,
-                                            &remote_document,
-                                        );
+                                match document_type.merge(
+                                    &base_document,
+                                    &local_document,
+                                    &remote_document,
+                                ) {
+                                    Some(merged_document) => {
                                         let encrypted_document = merge
                                             .update_document_unvalidated(
                                                 &id,
@@ -733,23 +662,7 @@ impl<S: Server> Lb<S> {
                                         let hmac = merge.find(&id)?.document_hmac().copied();
                                         self.docs.insert(id, hmac, &encrypted_document).await?;
                                     }
-                                    DocumentType::Json
-                                        if let Some(merged_document) = json::merge(
-                                            &base_document,
-                                            &local_document,
-                                            &remote_document,
-                                        ) =>
-                                    {
-                                        let encrypted_document = merge
-                                            .update_document_unvalidated(
-                                                &id,
-                                                &merged_document,
-                                                &self.keychain,
-                                            )?;
-                                        let hmac = merge.find(&id)?.document_hmac().copied();
-                                        self.docs.insert(id, hmac, &encrypted_document).await?;
-                                    }
-                                    DocumentType::Json | DocumentType::Other => {
+                                    None => {
                                         // duplicate file, in the document's folder if this device
                                         // may write there, otherwise beside its link; with no
                                         // link there's nowhere to put it
