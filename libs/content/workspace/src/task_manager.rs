@@ -371,7 +371,10 @@ impl TaskManager {
             }
         }
         for save in mem::take(&mut tasks.queued_saves) {
-            if ids_to_save.contains(&save.request.id) {
+            // one save of a file at a time: another editor's waits its turn
+            let launching = saves_to_launch.get(&save.request.id);
+            let other_editor = launching.is_some_and(|l: &QueuedSave| l.request != save.request);
+            if ids_to_save.contains(&save.request.id) && !other_editor {
                 saves_to_launch.insert(save.request.id, save); // use latest of duplicate ids
             } else {
                 tasks.queued_saves.push(save); // put back the ones we're not launching

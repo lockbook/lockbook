@@ -99,6 +99,8 @@ struct Slot {
     /// Its rect when last painted.
     rect: Rect,
     touched: bool,
+    /// The note's `text_seq` when a heading of it was last looked for.
+    heading_seq: Option<u64>,
 }
 
 enum SlotState {
@@ -201,11 +203,43 @@ impl TabEmbeds {
     /// Closes the tabs whose slots didn't paint, near the view or not, once
     /// what was edited in them is saved.
     pub fn end_frame(&self) {
-        self.slots.borrow_mut().retain(|_, slot| {
-            let unsaved = |tab: &Tab| tab.last_changed > tab.last_saved;
-            let state = &slot.state;
-            slot.touched || matches!(state, SlotState::Open(tab) if unsaved(tab))
-        });
+        self.slots
+            .borrow_mut()
+            .retain(|_, slot| slot.touched || slot.unsaved(self.own(slot)));
+    }
+
+    /// Whether a tab here, nested ones included, has edits it hasn't saved.
+    pub fn unsaved(&self) -> bool {
+        let mut unsaved = false;
+        self.for_each_saving(&mut |_, tab| unsaved |= tab.last_changed > tab.last_saved);
+        unsaved
+    }
+
+    /// Reads again the document of the tab whose saves carry `session`, at
+    /// any depth: its save lost to a newer version, which it takes in.
+    pub fn reread(&self, session: SessionId) {
+        let Some(res) = &self.res else { return };
+        for slot in self.slots.borrow_mut().values_mut() {
+            if slot.session == session {
+                slot.reload = Some(load(res, slot.place.dest.clone()));
+            }
+            if let SlotState::Open(tab) = &slot.state {
+                if let Some(md) = tab.markdown() {
+                    md.edit.renderer.tab_embeds.reread(session);
+                }
+            }
+        }
+    }
+
+    /// The file of the embedded editor that has the caret, at any depth.
+    pub fn focused_file(&self, ctx: &egui::Context) -> Option<Uuid> {
+        let slots = self.slots.borrow();
+        slots.values().find_map(|slot| {
+            let SlotState::Open(tab) = &slot.state else { return None };
+            let md = tab.markdown()?;
+            let nested = md.edit.renderer.tab_embeds.focused_file(ctx);
+            nested.or_else(|| md.focused(ctx).then_some(md.edit.file_id))
+        })
     }
 
     /// The task checkboxes the shown slots' tabs draw, top to bottom: the
@@ -372,7 +406,8 @@ impl TabEmbeds {
         let writable = !key.card && !host.readonly && writable(&res, &place);
         slot.poll(&res, &self.path, key.card, writable);
         // a heading of the note comes and goes with the note's own text
-        if own && !key.card {
+        if own && !key.card && slot.heading_seq != Some(host.seq) {
+            slot.heading_seq = Some(host.seq);
             let missing = missing_heading(&place, host.text);
             match &slot.state {
                 SlotState::Open(_) if missing => {
@@ -402,26 +437,38 @@ impl TabEmbeds {
                 if !slot.shown {
                     child.set_invisible();
                 }
-                let text_seq = tab.markdown().map(|md| md.edit.renderer.text_seq);
                 if own {
                     if let Some(md) = tab.markdown_mut() {
                         host.mirror(md);
                     }
                 }
+                let before = tab.markdown().map(|md| {
+                    let r = &md.edit.renderer;
+                    (r.text_seq, r.buffer.current.selection)
+                });
                 let resp = match res.watched {
                     true => res.guard.show(tab, |tab| tab.show(child)),
                     false => tab.show(child),
                 };
-                if let (true, Some(md)) = (own, tab.markdown_mut()) {
-                    handed = host.take_edits(md);
-                    handed.extend(host.take_typing(md, &place));
-                    if let Some(leave) = left_section(ui.ctx(), md, &place) {
+                if let (Some(md), Some((text_seq, selection))) = (tab.markdown_mut(), before) {
+                    let edited = md.edit.renderer.text_seq != text_seq;
+                    if own {
+                        handed = host.take_edits(md);
+                        handed.extend(host.take_typing(md, &place, selection));
+                    } else if edited
+                        && missing_heading(&place, &md.edit.renderer.buffer.current.text)
+                    {
+                        // the edit took the heading the embed names: it goes back
+                        md.edit.event.internal_events.push(Event::Undo);
+                    }
+                    let moved = edited || md.edit.renderer.buffer.current.selection != selection;
+                    if let Some(leave) = left_section(ui.ctx(), md, &place, moved) {
                         md.surrender_focus(ui.ctx());
                         self.left.set(Some((host.at, leave)));
                     }
                 }
                 // an edit in it may change its height, which the note lays out
-                if tab.markdown().map(|md| md.edit.renderer.text_seq) != text_seq {
+                if tab.markdown().map(|md| md.edit.renderer.text_seq) != before.map(|b| b.0) {
                     slot.measured = false;
                     self.seq.set(self.seq.get() + 1);
                     ui.ctx().request_repaint();
@@ -485,6 +532,8 @@ impl TabEmbeds {
 pub struct Host<'a> {
     pub readonly: bool,
     pub text: &'a str,
+    /// Changes when `text` does.
+    pub seq: u64,
     pub task_toggled: Option<(Grapheme, f64)>,
     pub at: Grapheme,
 }
@@ -515,7 +564,9 @@ impl Host<'_> {
     /// note's replacements of its own text. An edit that leaves the note
     /// without the heading `place` names is refused: the card's heading is
     /// its band, retitled in the note itself.
-    fn take_typing(&self, md: &mut Markdown, place: &Place) -> Vec<Event> {
+    fn take_typing(
+        &self, md: &mut Markdown, place: &Place, selection: (Grapheme, Grapheme),
+    ) -> Vec<Event> {
         let buffer = &mut md.edit.renderer.buffer;
         if buffer.current.text == self.text {
             return vec![];
@@ -526,6 +577,12 @@ impl Host<'_> {
         if missing_heading(place, &typed) {
             let hmac = md.hmac();
             md.apply_disk_version(self.text.to_string(), hmac);
+            // the caret stays where the refused edit found it
+            md.edit
+                .renderer
+                .buffer
+                .queue(vec![Operation::Select(selection)]);
+            md.edit.renderer.buffer.update();
             return vec![];
         }
         // last first, so each range is still the note's when it lands
@@ -550,9 +607,10 @@ enum Leave {
     Select,
 }
 
-/// Whether the caret in `md`, a focused card of a heading of its host, left
-/// the heading's section this frame, and which way.
-fn left_section(ctx: &egui::Context, md: &Markdown, place: &Place) -> Option<Leave> {
+/// Whether the caret in `md`, a focused embed, left it this frame, and which
+/// way: Escape, or a caret that `moved` out of the heading's section an
+/// embed of a heading shows.
+fn left_section(ctx: &egui::Context, md: &Markdown, place: &Place, moved: bool) -> Option<Leave> {
     if !md.focused(ctx) {
         return None;
     }
@@ -560,6 +618,9 @@ fn left_section(ctx: &egui::Context, md: &Markdown, place: &Place) -> Option<Lea
         return Some(Leave::Select);
     }
     let Some(Fragment::Heading(slug)) = &place.fragment else { return None };
+    if !moved {
+        return None;
+    }
     let r = &md.edit.renderer;
     let arena = comrak::Arena::new();
     let root = r.parse(&arena);
@@ -685,6 +746,16 @@ fn load(res: &TabResources, dest: Destination) -> Receiver<Result<Option<Doc>, T
 }
 
 impl Slot {
+    /// Whether its tab, or one embedded in it, has edits it hasn't saved.
+    /// The tab of an `own` heading saves nothing: its note does.
+    fn unsaved(&self, own: bool) -> bool {
+        let SlotState::Open(tab) = &self.state else { return false };
+        let nested = tab
+            .markdown()
+            .is_some_and(|md| md.edit.renderer.tab_embeds.unsaved());
+        (!own && tab.last_changed > tab.last_saved) || nested
+    }
+
     /// Reads the document on a thread; the tab builds when it lands.
     fn open(res: &TabResources, place: Place) -> Self {
         let state = SlotState::Loading(load(res, place.dest.clone()));
@@ -698,6 +769,7 @@ impl Slot {
             measured: false,
             rect,
             touched: true,
+            heading_seq: None,
         }
     }
 
@@ -708,13 +780,24 @@ impl Slot {
             self.reload = None;
             match &mut self.state {
                 SlotState::Open(tab) => {
+                    let unsaved = tab.last_changed > tab.last_saved;
                     if let ContentState::Open(content) = &mut tab.content {
                         if !content.reload(doc.hmac, &doc.bytes) {
                             *self = Self::open(res, self.place.clone());
-                        } else if let Some(msg) = missing_heading_in(&self.place, content, card) {
-                            self.state = SlotState::Failed(msg);
-                        } else {
-                            self.measured = false;
+                            return;
+                        }
+                        // edits of its own the newer version lacks are still to save
+                        let merged = match &*content {
+                            TabContent::Markdown(md) => Some(&md.edit.renderer.buffer.current.text),
+                            _ => None,
+                        };
+                        if merged.is_some_and(|text| text.as_bytes() != doc.bytes) {
+                            tab.last_changed = web_time::Instant::now();
+                        }
+                        let missing = missing_heading_in(&self.place, content, card);
+                        match missing.filter(|_| !unsaved) {
+                            Some(msg) => self.state = SlotState::Failed(msg),
+                            None => self.measured = false,
                         }
                     }
                 }
@@ -872,6 +955,7 @@ impl<'ast> MdRender {
         Host {
             readonly: self.readonly,
             text: &self.buffer.current.text,
+            seq: self.text_seq,
             task_toggled: self.task_toggled,
             at,
         }

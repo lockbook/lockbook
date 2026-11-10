@@ -274,7 +274,7 @@ fn typing_in_a_heading_card_types_in_the_note() {
 }
 
 /// Backspace can't join a card's text into its heading: the heading is the
-/// card's band, retitled in the note.
+/// card's band, retitled in the note. The caret stays in the card.
 #[test]
 fn a_heading_card_keeps_its_heading() {
     let mut t = TestWs::new();
@@ -286,10 +286,11 @@ fn a_heading_card_keeps_its_heading() {
         t.frame_with(vec![backspace()]);
     }
     t.frame();
-    let after = text(&mut t);
-    assert!(after.starts_with("# Chairs\n"), "{after:?}");
-    assert!(after.contains("four oak"), "{after:?}");
-    assert_eq!(md(&mut t).edit.renderer.tab_embeds.shown_texts(), vec![after]);
+    // the blank line under the heading goes; the heading's own line stays
+    let after = "# Chairs\nfour oak\n\ntwo blue\n\n# Board\n\n![[#Chairs]]\n";
+    assert_eq!(text(&mut t), after);
+    assert_eq!(md(&mut t).edit.renderer.tab_embeds.shown_texts(), vec![after.to_string()]);
+    assert!(!host_focused(&mut t), "the card keeps the caret");
 }
 
 /// Up from a card's first line puts the caret before the embed in the note,
@@ -356,4 +357,49 @@ fn the_toolbar_acts_on_the_card_with_the_caret() {
     t.frame();
     t.frame();
     assert_eq!(text(&mut t), BOARD);
+}
+
+/// Closing the note right after typing in an embed of another note still
+/// saves what was typed.
+#[test]
+fn closing_the_note_saves_its_embeds() {
+    let mut t = TestWs::new();
+    let plan = t.doc("Plan.md", "Ship it.\n");
+    let note = t.doc("note.md", "![[Plan]]\n");
+    open(&mut t, note, 0);
+    frames_until(&mut t, |t| !md(t).edit.renderer.tab_embeds.shown_words().is_empty());
+    t.frame();
+    let end = after_word(&mut t, "it.");
+    click(&mut t, end);
+    t.frame_with(vec![Egui::Text(" Today.".into())]);
+    t.ws.close_tabs_for_dest(note);
+    frames_until(&mut t, |t| disk(t, plan) == "Ship it. Today.\n");
+}
+
+/// In an embed of another note's heading, the caret can't wander into the
+/// note's other sections: down out of the section it comes back to the
+/// note around the embed.
+#[test]
+fn the_caret_leaves_an_embed_of_another_notes_heading() {
+    let mut t = TestWs::new();
+    let plan = "# Goals\n\nship\n\n# Risks\n\nnone\n";
+    t.doc("Plan.md", plan);
+    let note = "above\n\n![[Plan#Goals]]\n\nbelow\n";
+    let id = t.doc("note.md", note);
+    open(&mut t, id, 0);
+    frames_until(&mut t, |t| !md(t).edit.renderer.tab_embeds.shown_words().is_empty());
+    t.frame();
+    let end = after_word(&mut t, "ship");
+    click(&mut t, end);
+    assert!(!host_focused(&mut t));
+    for _ in 0..3 {
+        t.frame_with(vec![key(egui::Key::ArrowDown, Modifiers::NONE)]);
+        t.frame();
+        if host_focused(&mut t) {
+            break;
+        }
+    }
+    assert!(host_focused(&mut t));
+    let embed_end = Grapheme(note.find("]]").unwrap() + 2);
+    assert_eq!(selection(&mut t), (embed_end, embed_end));
 }

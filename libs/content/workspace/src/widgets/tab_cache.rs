@@ -32,7 +32,10 @@ impl TabCache {
     pub fn end_frame(&mut self) {
         let mut keep = Vec::new();
         for (id, tab) in self.previous.drain() {
-            if tab.last_changed > tab.last_saved {
+            let embeds_unsaved = tab
+                .markdown()
+                .is_some_and(|md| md.edit.renderer.tab_embeds.unsaved());
+            if tab.last_changed > tab.last_saved || embeds_unsaved {
                 keep.push((id, tab));
             }
         }

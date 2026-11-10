@@ -1316,7 +1316,9 @@ impl Workspace {
             if md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {
                 None
             } else {
-                Some(md.edit.file_id)
+                // an embed with the caret takes the image beside its own note
+                let embeds = &md.edit.renderer.tab_embeds;
+                Some(embeds.focused_file(&self.ctx).unwrap_or(md.edit.file_id))
             }
         }) else {
             return;
@@ -1498,24 +1500,28 @@ impl Workspace {
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
 
-                    // an embed's save: its slot takes a newer version itself,
-                    // and a save that lost to one goes again after
+                    // an embed's save: a save that lost to a newer version
+                    // has its slot read that, which saves again what it lacks
                     if self.tabs.get_any(&origin).is_none() {
-                        self.tabs
-                            .with_tab_mut(&origin, |tab| match new_hmac_result {
-                                Ok(hmac) => {
+                        match new_hmac_result {
+                            Ok(hmac) => {
+                                self.tabs.with_tab_mut(&origin, |tab| {
                                     tab.last_saved = started_at;
                                     if let (Some(md), TabSaveContent::String(content)) =
                                         (tab.markdown_mut(), content)
                                     {
                                         md.record_disk_save(hmac, seq, content);
                                     }
+                                });
+                            }
+                            Err(_) => {
+                                for tab in self.tabs.values() {
+                                    if let Some(md) = tab.markdown() {
+                                        md.edit.renderer.tab_embeds.reread(origin);
+                                    }
                                 }
-                                Err(err) if err.kind == LbErrKind::ReReadRequired => {
-                                    tab.last_changed = Instant::now();
-                                }
-                                Err(_) => {}
-                            });
+                            }
+                        }
                         continue;
                     }
 
