@@ -198,7 +198,7 @@ fn edited_line(path: &str, before: usize, after: usize) -> String {
 
 /// Three-way merge of a sync conflict: reconcile our branch edits and the
 /// concurrent on-disk edits over their common capture base, using the editor's
-/// own merge so agent syncs behave like a human tab's save-conflict.
+/// own merge with our edits winning where they conflict.
 pub fn merge(base: &str, ours: &str, theirs: &str) -> String {
     TextBuffer::from(base).merge(ours.to_string(), theirs.to_string())
 }

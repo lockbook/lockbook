@@ -19,7 +19,8 @@ enum Prop {
     /// Reading only: after every frame the note shows the latest version.
     ShowsDisk,
     /// Typing a little between versions: the note shows the latest version
-    /// plus what was typed.
+    /// plus what was typed, less typing inside text the latest version changed.
+    /// Nothing typed shows twice.
     ShowsDiskAndTyping,
 }
 
@@ -29,7 +30,6 @@ fn reading_shows_the_latest_version() {
 }
 
 #[test]
-#[ignore = "a second reload over unsaved edits lands at stale offsets"]
 fn typing_keeps_the_latest_version_and_the_typing() {
     run(Prop::ShowsDiskAndTyping, 300);
 }
@@ -57,6 +57,7 @@ fn check(buf: &[u8], prop: Prop, log: &mut dyn FnMut(String)) -> Result<(), Stri
         log(format!("open {disk:?}"));
         let mut ws = TestEditor::with_lb(build_lb(), &disk);
         let mut seq = 0u8;
+        let mut typed = 0;
         for _ in 0..1 + src.draw(8) {
             // the agent writes one or more versions before the next frame
             let versions = 1 + src.bias(&[4, 2, 1]);
@@ -70,7 +71,7 @@ fn check(buf: &[u8], prop: Prop, log: &mut dyn FnMut(String)) -> Result<(), Stri
                 }
                 if delivered == 0 {
                     ws.enter_frame();
-                    expect(&ws, &disk, prop, log)?;
+                    expect(&ws, &disk, typed, prop, log)?;
                 }
             }
             if delivered != 0 {
@@ -79,7 +80,7 @@ fn check(buf: &[u8], prop: Prop, log: &mut dyn FnMut(String)) -> Result<(), Stri
                     if delivered == 1 { versions } else { 1 }
                 ));
                 ws.enter_frame();
-                expect(&ws, &disk, prop, log)?;
+                expect(&ws, &disk, typed, prop, log)?;
             }
             if prop == Prop::ShowsDiskAndTyping && src.bias(&[1, 1]) == 1 {
                 let len = ws
@@ -93,6 +94,7 @@ fn check(buf: &[u8], prop: Prop, log: &mut dyn FnMut(String)) -> Result<(), Stri
                     .0;
                 let at = Grapheme(src.draw(len + 1));
                 log(format!("type {TYPED:?} at {at:?}"));
+                typed += 1;
                 ws.push(Event::Replace {
                     region: Region::BetweenLocations {
                         start: Location::Grapheme(at),
@@ -116,13 +118,15 @@ fn check(buf: &[u8], prop: Prop, log: &mut dyn FnMut(String)) -> Result<(), Stri
 }
 
 fn expect(
-    ws: &TestEditor, disk: &str, prop: Prop, log: &mut dyn FnMut(String),
+    ws: &TestEditor, disk: &str, typed: usize, prop: Prop, log: &mut dyn FnMut(String),
 ) -> Result<(), String> {
     let shown = ws.get_text();
     let without_typing: String = shown.chars().filter(|c| *c != TYPED).collect();
     let ok = match prop {
         Prop::ShowsDisk => shown == disk,
-        Prop::ShowsDiskAndTyping => without_typing == disk,
+        Prop::ShowsDiskAndTyping => {
+            without_typing == disk && shown.chars().filter(|c| *c == TYPED).count() <= typed
+        }
     };
     if ok {
         return Ok(());
@@ -184,9 +188,8 @@ fn next_version(
     next
 }
 
-/// The shortest case behind each ignored row, against the buffer alone.
+/// The shortest case behind each row, against the buffer alone.
 #[test]
-#[ignore = "a second reload over unsaved edits lands early"]
 fn reload_cases() {
     use lb_rs::model::text::buffer::Buffer;
     use lb_rs::model::text::operation_types::{Operation, Replace};

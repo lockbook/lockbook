@@ -21,7 +21,7 @@ use web_time::{Duration, Instant};
 /// position of the text typed at the end of the buffer is greater when it is applied than it was when it was typed.
 ///
 /// External changes are merged by a three-way merge of text: the last external text is the base, the buffer's text
-/// is ours and the new external text is theirs, with ours winning where they conflict. The difference from the
+/// is ours and the new external text is theirs, with theirs winning where they conflict. The difference from the
 /// buffer's text to the merge is queued as one remote frame, based on the current version like any local frame.
 ///
 /// # Undo
@@ -396,10 +396,10 @@ impl Buffer {
 
     /// Loads a new string into the buffer, merging out-of-editor changes made since last load with in-editor changes
     /// made since last load. The merge is queued as a remote frame, which undo never reverts. Applies the queue, so
-    /// the next reload merges against it.
+    /// the next reload merges against it. Where both changed the same text, the new external text wins.
     pub fn reload(&mut self, text: String) -> Response {
         let merged = Buffer::from(self.external.text.as_str())
-            .merge(self.current.text.clone(), text.clone());
+            .merge(text.clone(), self.current.text.clone());
         let ops = diff(&self.current.text, &merged);
         self.push_frame(ops.into_iter().map(Operation::Replace).collect(), Instant::now(), true);
         self.external.text = text;
