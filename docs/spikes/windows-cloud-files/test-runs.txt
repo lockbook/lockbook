@@ -264,3 +264,31 @@ Done 't5.ps1'
 22:48:50 [82518.910] merged Team\plan.md with a newer version
 22:48:50 [82519.118] local edit Team\plan.md (222 bytes)
 
+
+===== demo.ps1 (Notepad save, guest log) =====
+23:33:51 before save: File ID is 0x0000000000000000000300000006d57a attrs Archive, ReparsePoint
+23:33:58 after save: File ID is 0x0000000000000000000300000006d57a attrs Archive, ReparsePoint same-file=True
+23:34:04 shot shot-2-alice-notepad-save
+23:34:16 shot shot-3-bob-notepad-sees-it
+23:34:16 titles: plan.md - Notepad |  | 
+23:34:16 bob file: # Team plan (alice retitled)
+
+* ship the Windows spike (bob, stale buffer)
+* alice: edited from Windows
+* bob: edited from Windows
+* bob: added at the same time
+* bob: saved from a stale buffer
+* alice: third edit- alice: typed in notepad and saved
+* 
+
+
+23:34:16 --- alice log
+23:34:16 [82509.890] local edit Team\plan.md (188 bytes)
+23:34:16 [82519.516] remote edit Team\plan.md (222 bytes)
+23:34:16 [82530.579] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (222 bytes)
+23:34:16 [85237.395] local edit Team\plan.md (263 bytes)
+23:34:16 --- bob log
+23:34:16 [82518.910] merged Team\plan.md with a newer version
+23:34:16 [82519.118] local edit Team\plan.md (222 bytes)
+23:34:16 [85239.005] remote edit Team\plan.md (263 bytes)
+23:34:16 [85253.096] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (263 bytes)

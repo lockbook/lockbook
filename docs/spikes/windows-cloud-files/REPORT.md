@@ -17,9 +17,12 @@ Accounts `cfalice2233` and `cfbob2233` live on the Mac's local server. alice sha
 | New folder + file, new file | created in Lockbook, converted to placeholders, appear on the other side |
 | Rename, move, delete (incl. a folder) | NOTIFY_RENAME / NOTIFY_DELETE callbacks → `rename_file` / `move_file` / `delete_file`, mirrored on the other side |
 | Simultaneous edit (alice retitles, bob appends, both save before either syncs) | both edits on both sides: lb-rs's sync merge |
+| Real Notepad save on alice | saved in place, reached bob (below) |
 | Stale editor (bob saves a buffer opened before alice's edit landed on his disk) | `merged Team\plan.md with a newer version`: both edits kept, via the provider's own three-way merge |
 
-Not shown: a real Notepad save. Notepad's restored Untitled tab took the first keystrokes, and then the Mac hit a load average of 380 (other sessions' builds), which starved the VM. All edits above went through the Win32 file APIs (`WriteAllText`, `Add-Content`) on the placeholder, so the path is the same one Notepad takes, but whether Notepad saves in place or by replacing the file is untested. A replace-style save is handled, since a plain file with a known name is matched back to its id, but it isn't verified.
+**Real Notepad save.** I typed a line into alice's `plan.md` in Notepad and pressed Ctrl+S. Notepad saves **in place**: the NTFS file id was the same before and after (`…06d57a`), and the file stayed a placeholder. The provider pushed 263 bytes, and bob's next open showed the line about 15 s later. Notepad's Markdown mode also rewrote every `-` bullet to `*` on save. That's Notepad's own formatting, and Lockbook stored exactly what it wrote.
+
+![Notepad: bob's tab of plan.md shows the line alice typed and saved in Notepad](2-notepad-save-reaches-bob.png)
 
 ## How it works
 
