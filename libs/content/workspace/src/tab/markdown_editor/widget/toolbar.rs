@@ -609,7 +609,8 @@ impl<'ast> Editor {
             persistence.table,
         ]));
 
-        let mut media = count(&[persistence.link]);
+        // link and image
+        let mut media = 2 * count(&[persistence.link]);
         if (persistence.image || is_default) && supports_attachments {
             media += 1;
         }
