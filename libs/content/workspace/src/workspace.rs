@@ -1232,6 +1232,7 @@ impl Workspace {
                 Ok(evt) => {
                     match evt {
                         Event::DocumentWritten(id, actor) => {
+                            self.images.reload(id);
                             let event_origin = match actor {
                                 Actor::Sync => {
                                     self.core.app_foregrounded();
@@ -1271,6 +1272,7 @@ impl Workspace {
                         #[cfg(not(target_family = "wasm"))]
                         Event::MetadataChanged(_) => self.reload_chat_configs(),
                         Event::IpcChangesApplied => {
+                            self.images.reload_files();
                             for session in &self.tab_strip {
                                 if let Some(id) = session.place.dest.backing_file() {
                                     self.tasks.queue_load(LoadRequest {
