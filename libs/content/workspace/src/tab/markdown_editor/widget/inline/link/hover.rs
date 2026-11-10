@@ -184,7 +184,7 @@ impl MdRender {
         let t = ui.ctx().get_lb_theme();
         ui.spacing_mut().item_spacing.x = Space::Xs.pts();
         let more = icon_button(ui, &t, DOTS_THREE, false, t.neutral_bg());
-        let editable = !self.readonly;
+        let editable = self.edits_text();
         let mut chosen = context_menu::show_click(&more, &t, |e| {
             fill_link_menu(e, false, editable, refreshable, |a| a)
         });

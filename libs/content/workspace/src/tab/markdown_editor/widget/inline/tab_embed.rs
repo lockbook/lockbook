@@ -13,6 +13,7 @@ use std::sync::mpsc::{self, Receiver};
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{CornerRadius, Rect, Sense, UiBuilder, Vec2, pos2, vec2};
 use lb_rs::Uuid;
+use lb_rs::model::access_info::UserAccessMode;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
@@ -21,7 +22,7 @@ use super::link::hover::{CARD_PAD, CARD_RADIUS, FILE_CARD, ink_secondary};
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
 use crate::resolvers::image_embed::wiki_embed_key;
 use crate::resolvers::link::rich_spans;
-use crate::show::ElapsedHumanString as _;
+use crate::show::{DocType, ElapsedHumanString as _};
 use crate::style::button::Button;
 use crate::style::tree_metrics::INDENT_BASE;
 use crate::style::{FileRow, ROW_H, Space, TypeRole, file_row_icon, parent_crumbs};
@@ -32,8 +33,8 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender, TouchTarget};
 use crate::tab::{
-    ContentState, Destination, Doc, ExtendedOutput as _, Fragment, Place, Presentation, Reveal,
-    Tab, TabContent, TabFailure, TabResources,
+    ContentState, Destination, Doc, ExtendedOutput as _, Fragment, Markdown, Place, Presentation,
+    Reveal, SessionId, Tab, TabContent, TabFailure, TabResources,
 };
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::{GlyphonLabel, TextOverflow};
@@ -83,6 +84,8 @@ struct SlotKey {
 
 struct Slot {
     place: Place,
+    /// What the tab's saves carry, so the slot knows its own writes.
+    session: SessionId,
     state: SlotState,
     /// A newer version of the document being read, to take in place.
     reload: Option<Receiver<Result<Option<Doc>, TabFailure>>>,
@@ -137,14 +140,16 @@ impl TabEmbeds {
     /// Reads again the documents written since last frame that slots show.
     #[cfg(not(target_family = "wasm"))]
     fn reload_written(&self, slots: &mut HashMap<SlotKey, Slot>) {
-        use lb_rs::service::events::Event;
+        use lb_rs::service::events::{Actor, Event};
         let Some(res) = &self.res else { return };
         let mut writes = self.writes.borrow_mut();
         let writes = writes.get_or_insert_with(|| res.core.subscribe());
         while let Ok(event) = writes.try_recv() {
-            let Event::DocumentWritten(id, _) = event else { continue };
+            let Event::DocumentWritten(id, actor) = event else { continue };
             for slot in slots.values_mut() {
-                if slot.place.dest.backing_file() == Some(id) {
+                let own_write = actor == Actor::User(Some(slot.session.as_uuid()));
+                // a heading of this note shows the note's buffer, not its disk
+                if slot.place.dest.backing_file() == Some(id) && !own_write && !self.own(slot) {
                     slot.reload = Some(load(res, slot.place.dest.clone()));
                 }
             }
@@ -190,9 +195,68 @@ impl TabEmbeds {
         targets
     }
 
-    /// Closes the tabs whose slots didn't paint, near the view or not.
+    /// Closes the tabs whose slots didn't paint, near the view or not, once
+    /// what was edited in them is saved.
     pub fn end_frame(&self) {
-        self.slots.borrow_mut().retain(|_, slot| slot.touched);
+        self.slots.borrow_mut().retain(|_, slot| {
+            let unsaved = |tab: &Tab| tab.last_changed > tab.last_saved;
+            let state = &slot.state;
+            slot.touched || matches!(state, SlotState::Open(tab) if unsaved(tab))
+        });
+    }
+
+    /// The task checkboxes the shown slots' tabs draw, top to bottom: the
+    /// mark each toggles, and a point on the box.
+    #[cfg(test)]
+    pub(crate) fn shown_checkboxes(&self) -> Vec<(Grapheme, egui::Pos2)> {
+        let slots = self.slots.borrow();
+        let mut boxes = vec![];
+        for (_, slot) in slots.iter().filter(|(key, slot)| !key.card && slot.shown) {
+            let SlotState::Open(tab) = &slot.state else { continue };
+            let Some(md) = tab.markdown() else { continue };
+            for (rect, target) in &md.edit.renderer.touch_targets {
+                if let TouchTarget::Tap(Event::ToggleTask { check }) = target {
+                    // the finger's target reaches 11 left of the box and 4 right
+                    boxes.push((*check, rect.center() + vec2(3.5, 0.0)));
+                }
+            }
+        }
+        boxes.sort_by(|a, b| a.1.y.total_cmp(&b.1.y));
+        boxes
+    }
+
+    /// The text of each shown slot's tab.
+    #[cfg(test)]
+    pub(crate) fn shown_texts(&self) -> Vec<String> {
+        let slots = self.slots.borrow();
+        let shown = slots.iter().filter(|(key, slot)| !key.card && slot.shown);
+        let texts = shown.filter_map(|(_, slot)| match &slot.state {
+            SlotState::Open(tab) => Some(tab.markdown()?.edit.renderer.buffer.current.text.clone()),
+            _ => None,
+        });
+        texts.collect()
+    }
+
+    /// Whether `slot` shows a heading of the note these embeds are in: its
+    /// tab mirrors the note's buffer and hands its edits to it.
+    fn own(&self, slot: &Slot) -> bool {
+        slot.place.dest.backing_file().is_some()
+            && slot.place.dest.backing_file() == self.path.last().copied()
+    }
+
+    /// Each tab here that saves its own document, nested ones included, with
+    /// the session its saves carry.
+    pub fn for_each_saving(&self, f: &mut dyn FnMut(SessionId, &mut Tab)) {
+        for slot in self.slots.borrow_mut().values_mut() {
+            let own = self.own(slot);
+            let SlotState::Open(tab) = &mut slot.state else { continue };
+            if let Some(md) = tab.markdown() {
+                md.edit.renderer.tab_embeds.for_each_saving(f);
+            }
+            if !own {
+                f(slot.session, tab);
+            }
+        }
     }
 
     /// The place `title` embeds, if it can: a document past no cycle and
@@ -249,9 +313,14 @@ impl TabEmbeds {
     }
 
     /// Draws the slot `key` names into `rect`, opening its tab first, the
-    /// tab `band` lower than the slot's pad for what heads the slot.
-    fn paint(&self, ui: &mut egui::Ui, key: SlotKey, place: Place, rect: Rect, band: f32) {
-        let Some(res) = self.res.clone() else { return };
+    /// tab `band` lower than the slot's pad for what heads the slot. Returns
+    /// the edits made in a heading of the `host` note, which are the host's.
+    fn paint(
+        &self, ui: &mut egui::Ui, key: SlotKey, place: Place, rect: Rect, band: f32,
+        host: &Host<'_>,
+    ) -> Vec<Event> {
+        let mut handed = vec![];
+        let Some(res) = self.res.clone() else { return handed };
         let mut slots = self.slots.borrow_mut();
         let slot = slots
             .entry(key.clone())
@@ -261,9 +330,11 @@ impl TabEmbeds {
         }
         slot.touched = true;
         slot.rect = rect;
+        let own = self.own(slot);
         let failed = |slot: &Slot| matches!(slot.state, SlotState::Failed(_));
         let was_failed = failed(slot);
-        slot.poll(&res, &self.path, key.card);
+        let writable = !key.card && !host.readonly && writable(&res, &place);
+        slot.poll(&res, &self.path, key.card, writable);
         // the slot takes its message's height
         if failed(slot) && !was_failed {
             self.seq.set(self.seq.get() + 1);
@@ -283,10 +354,20 @@ impl TabEmbeds {
                 if !slot.shown {
                     child.set_invisible();
                 }
+                if own {
+                    if let Some(md) = tab.markdown_mut() {
+                        host.mirror(md);
+                    }
+                }
                 let resp = match res.watched {
                     true => res.guard.show(tab, |tab| tab.show(child)),
                     false => tab.show(child),
                 };
+                if own {
+                    if let Some(md) = tab.markdown_mut() {
+                        handed = host.take_edits(md);
+                    }
+                }
                 if let Some(id) = resp.open_file {
                     ui.ctx().open_file(id, false);
                 }
@@ -337,7 +418,45 @@ impl TabEmbeds {
         if !key.card {
             crate::style::paint_doc_border(ui.painter(), rect, CARD_RADIUS.corner(), &t);
         }
+        handed
     }
+}
+
+/// What a slot takes from the note it sits in.
+pub struct Host<'a> {
+    pub readonly: bool,
+    pub text: &'a str,
+    pub task_toggled: Option<(Grapheme, f64)>,
+}
+
+impl Host<'_> {
+    /// Shows the note's buffer in `md`, a heading of it, so the two share
+    /// offsets.
+    fn mirror(&self, md: &mut Markdown) {
+        if md.edit.renderer.buffer.current.text != self.text {
+            let hmac = md.hmac();
+            md.apply_disk_version(self.text.to_string(), hmac);
+        }
+        md.edit.renderer.task_toggled = self.task_toggled;
+    }
+
+    /// The edits `md`, a heading of the note, queued this frame: the note
+    /// makes them, at the same offsets.
+    fn take_edits(&self, md: &mut Markdown) -> Vec<Event> {
+        let queued = std::mem::take(&mut md.edit.event.internal_events);
+        let (edits, kept) = queued
+            .into_iter()
+            .partition(|event| matches!(event, Event::ToggleTask { .. }));
+        md.edit.event.internal_events = kept;
+        edits
+    }
+}
+
+/// Whether this account can write the document `place` names.
+fn writable(res: &TabResources, place: &Place) -> bool {
+    let Some(id) = place.dest.backing_file() else { return false };
+    let files = res.files.read().unwrap();
+    files.get_by_id(id).is_some() && files.access(id, &res.account) != UserAccessMode::Read
 }
 
 impl<'ast> MdEdit {
@@ -427,13 +546,22 @@ impl Slot {
     /// Reads the document on a thread; the tab builds when it lands.
     fn open(res: &TabResources, place: Place) -> Self {
         let state = SlotState::Loading(load(res, place.dest.clone()));
-        let rect = Rect::NOTHING;
-        Self { place, state, reload: None, shown: false, measured: false, rect, touched: true }
+        let (rect, session) = (Rect::NOTHING, SessionId::new());
+        Self {
+            place,
+            session,
+            state,
+            reload: None,
+            shown: false,
+            measured: false,
+            rect,
+            touched: true,
+        }
     }
 
     /// Builds the tab once its document has been read, and takes a newer
     /// version in place.
-    fn poll(&mut self, res: &TabResources, path: &[Uuid], card: bool) {
+    fn poll(&mut self, res: &TabResources, path: &[Uuid], card: bool, writable: bool) {
         if let Some(Ok(Ok(Some(doc)))) = self.reload.as_ref().map(|rx| rx.try_recv()) {
             self.reload = None;
             match &mut self.state {
@@ -448,22 +576,31 @@ impl Slot {
                         }
                     }
                 }
-                SlotState::Failed(_) => self.state = self.opened(res, path, card, Ok(Some(doc))),
+                SlotState::Failed(_) => {
+                    self.state = self.opened(res, path, card, writable, Ok(Some(doc)))
+                }
                 SlotState::Loading(_) => {}
             }
         }
         let SlotState::Loading(rx) = &self.state else { return };
         let Ok(doc) = rx.try_recv() else { return };
-        self.state = self.opened(res, path, card, doc);
+        self.state = self.opened(res, path, card, writable, doc);
     }
 
     /// What the slot shows of `doc` as read: its tab, or why there is none.
     fn opened(
-        &self, res: &TabResources, path: &[Uuid], card: bool, doc: Result<Option<Doc>, TabFailure>,
+        &self, res: &TabResources, path: &[Uuid], card: bool, writable: bool,
+        doc: Result<Option<Doc>, TabFailure>,
     ) -> SlotState {
         let dest = &self.place.dest;
         let salt = egui::Id::unique(Uuid::new_v4());
-        let content = doc.and_then(|doc| TabContent::open(dest, doc, res, salt, true));
+        // what an embed edits is text: a drawing or a chat in one stays as it is
+        let text = |doc: &Option<Doc>| {
+            let kind = doc.as_ref().map(|doc| DocType::from_name(&doc.name));
+            matches!(kind, Some(DocType::Markdown | DocType::PlainText | DocType::Code))
+        };
+        let read_only = !writable || !doc.as_ref().is_ok_and(text);
+        let content = doc.and_then(|doc| TabContent::open(dest, doc, res, salt, read_only));
         let missing = content
             .as_ref()
             .ok()
@@ -477,7 +614,7 @@ impl Slot {
                     md.edit.renderer.tab_embeds.path = nested;
                     md.edit.renderer.tab_embeds.res = (!card).then(|| res.clone());
                 }
-                let mut tab = Tab::new(dest.clone(), ContentState::Open(content), salt, true);
+                let mut tab = Tab::new(dest.clone(), ContentState::Open(content), salt, read_only);
                 tab.presentation = if card { Presentation::Card } else { Presentation::Embedded };
                 tab.reveal = Some(Reveal { fragment: self.place.fragment.clone(), flash: false });
                 SlotState::Open(Box::new(tab))
@@ -572,6 +709,15 @@ impl<'ast> MdRender {
         true
     }
 
+    /// What this note's embed slots take from it.
+    fn embed_host(&self) -> Host<'_> {
+        Host {
+            readonly: self.readonly,
+            text: &self.buffer.current.text,
+            task_toggled: self.task_toggled,
+        }
+    }
+
     pub fn tab_embed_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
         egui::Id::unique(("md_tab_embed", node_range))
     }
@@ -638,7 +784,11 @@ impl<'ast> MdRender {
         self.card_header(header_ui, &place, heading, folder, header.width());
         let rule = egui::Stroke::new(1.0, t.neutral_bg_tertiary());
         ui.painter().hline(rect.x_range(), title.bottom(), rule);
-        self.tab_embeds.paint(ui, key, place.clone(), rect, band);
+        let host = self.embed_host();
+        let handed = self
+            .tab_embeds
+            .paint(ui, key, place.clone(), rect, band, &host);
+        self.render_events.extend(handed);
         if show_open {
             open_button(ui, title, &place);
         }
@@ -678,7 +828,9 @@ impl<'ast> MdRender {
                 ui.spacing_mut().item_spacing.y = Space::Sm.pts();
                 let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
                 let key = SlotKey { url: url.into(), nth: 0, card: true };
-                self.tab_embeds.paint(ui, key, place.clone(), rect, 0.0);
+                let host = self.embed_host();
+                self.tab_embeds
+                    .paint(ui, key, place.clone(), rect, 0.0, &host);
                 if let Some(action) = self.card_file_footer(ui, &place) {
                     *self.card_action.borrow_mut() = Some((url.to_string(), action));
                     crate::style::dismiss_tip(ui.ctx());

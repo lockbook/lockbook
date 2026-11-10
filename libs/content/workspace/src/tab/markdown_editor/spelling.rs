@@ -14,7 +14,7 @@ use crate::theme::palette_v2::ThemeExt as _;
 impl MdRender {
     /// Whether spelling is marked: on, editable, and not the drag card.
     pub fn spelling_marked(&self) -> bool {
-        self.spell_check && !self.readonly && !self.painting_drag_float
+        self.spell_check && self.edits_text() && !self.painting_drag_float
     }
 
     pub fn note_typing(&mut self, text_updated: bool, selection_moved: bool) {

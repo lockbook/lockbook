@@ -72,6 +72,27 @@ impl TabCache {
         }
     }
 
+    /// Runs `f` on the tab of session `id`: one in the cache, or one embedded
+    /// in a note of it, at any depth.
+    pub fn with_tab_mut<R>(&mut self, id: &SessionId, f: impl FnOnce(&mut Tab) -> R) -> Option<R> {
+        if let Some(tab) = self.get_any_mut(id) {
+            return Some(f(tab));
+        }
+        let (mut f, mut out) = (Some(f), None);
+        for tab in self.values() {
+            let Some(md) = tab.markdown() else { continue };
+            md.edit
+                .renderer
+                .tab_embeds
+                .for_each_saving(&mut |session, embed| {
+                    if session == *id {
+                        out = f.take().map(|f| f(embed));
+                    }
+                });
+        }
+        out
+    }
+
     pub fn insert(&mut self, id: SessionId, tab: Tab) -> Option<Tab> {
         self.current.insert(id, tab)
     }

@@ -247,6 +247,8 @@ pub struct MdRender {
     pub landing_heading: Option<Grapheme>,
     pub interactive: bool, // enables fold buttons
     pub readonly: bool,    // disables task checkboxes and saving
+    /// A click focuses the editor; off for one drawn inside another surface.
+    pub takes_focus: bool,
     pub view: View,
     /// Password mode: render every source byte as `*` while the buffer keeps
     /// the real text. Only meaningful for plain text shown as source —
@@ -418,8 +420,6 @@ pub struct MdEdit {
     pub scroll_area_velocity: Vec2,
     /// The view moved after this frame's rows were painted.
     pub moved_after_paint: bool,
-    /// A click focuses the editor; off for one drawn inside another surface.
-    pub takes_focus: bool,
     /// Paints within its host's clip, not its own rect: an embed's pad takes
     /// what hangs past it, like a list's numbers.
     pub clip_to_host: bool,
@@ -505,7 +505,6 @@ impl MdEdit {
             overflow_follow: (0, Default::default(), Rect::ZERO),
             scroll_area_velocity: Default::default(),
             moved_after_paint: false,
-            takes_focus: true,
             clip_to_host: false,
             file_id,
             emoji_completions: Default::default(),
@@ -806,6 +805,7 @@ impl MdRender {
             landing_heading: None,
             interactive: false,
             readonly: true,
+            takes_focus: true,
             view: View::Rendered,
             mask: false,
             single_line: false,
@@ -929,6 +929,7 @@ impl MdRender {
             landing_heading: None,
             interactive: false,
             readonly: true,
+            takes_focus: true,
             view: View::Rendered,
             mask: false,
             single_line: false,
@@ -962,6 +963,12 @@ impl MdRender {
             Syntax::Code(lang) => lang.has_definitions(),
             Syntax::Plain => false,
         }
+    }
+
+    /// Whether typing edits this view: a plain click places a caret, where
+    /// one in a view without it follows a link.
+    pub fn edits_text(&self) -> bool {
+        !self.readonly && self.takes_focus
     }
 
     /// Bump `text_seq`. Call after any buffer mutation that may change
@@ -1153,6 +1160,7 @@ impl Editor {
             landing_heading: None,
             interactive: true,
             readonly,
+            takes_focus: true,
             view,
             mask: false,
             single_line: false,
@@ -1217,7 +1225,6 @@ impl Editor {
                 overflow_follow: (0, Default::default(), Rect::ZERO),
                 scroll_area_velocity: Default::default(),
                 moved_after_paint: false,
-                takes_focus: true,
                 clip_to_host: false,
                 file_id,
                 emoji_completions: Default::default(),

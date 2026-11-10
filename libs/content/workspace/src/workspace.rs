@@ -650,13 +650,7 @@ impl Workspace {
     pub fn save_all_tabs(&mut self) {
         let slots: Vec<_> = self.tab_strip.clone();
         for slot in &slots {
-            if let Some(tab) = self.tabs.get(&slot.id) {
-                if let Some(id) = tab.id() {
-                    if tab.is_dirty(&self.tasks) {
-                        self.tasks.queue_save(SaveRequest { id, origin: slot.id });
-                    }
-                }
-            }
+            self.queue_save_for_session(slot.id);
         }
         self.last_save_all = Some(Instant::now());
     }
@@ -666,13 +660,21 @@ impl Workspace {
         self.queue_save_for_session(slot.id);
     }
 
+    /// Queues a save of the session's tab and of the notes embedded in it
+    /// that were edited there.
     fn queue_save_for_session(&mut self, tab_id: SessionId) {
-        if let Some(tab) = self.tabs.get(&tab_id) {
-            if let Some(id) = tab.id() {
-                if tab.is_dirty(&self.tasks) {
-                    self.tasks.queue_save(SaveRequest { id, origin: tab_id });
-                }
+        let Some(tab) = self.tabs.get(&tab_id) else { return };
+        let tasks = &self.tasks;
+        let queue = &mut |origin: SessionId, tab: &mut Tab| {
+            if let Some(id) = tab.id().filter(|_| tab.is_dirty(origin, tasks)) {
+                tasks.queue_save(SaveRequest { id, origin });
             }
+        };
+        if let Some(md) = tab.markdown() {
+            md.edit.renderer.tab_embeds.for_each_saving(queue);
+        }
+        if let Some(id) = tab.id().filter(|_| tab.is_dirty(tab_id, tasks)) {
+            tasks.queue_save(SaveRequest { id, origin: tab_id });
         }
     }
 
@@ -1496,6 +1498,27 @@ impl Workspace {
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
 
+                    // an embed's save: its slot takes a newer version itself,
+                    // and a save that lost to one goes again after
+                    if self.tabs.get_any(&origin).is_none() {
+                        self.tabs
+                            .with_tab_mut(&origin, |tab| match new_hmac_result {
+                                Ok(hmac) => {
+                                    tab.last_saved = started_at;
+                                    if let (Some(md), TabSaveContent::String(content)) =
+                                        (tab.markdown_mut(), content)
+                                    {
+                                        md.record_disk_save(hmac, seq, content);
+                                    }
+                                }
+                                Err(err) if err.kind == LbErrKind::ReReadRequired => {
+                                    tab.last_changed = Instant::now();
+                                }
+                                Err(_) => {}
+                            });
+                        continue;
+                    }
+
                     let tab = self
                         .tabs
                         .get_any_mut(&origin)
@@ -1875,7 +1898,10 @@ impl Workspace {
             if self.tasks.busy(id) {
                 continue;
             }
-            let dirty = self.tabs.get(&sid).is_some_and(|t| t.is_dirty(&self.tasks));
+            let dirty = self
+                .tabs
+                .get(&sid)
+                .is_some_and(|t| t.is_dirty(sid, &self.tasks));
             if dirty {
                 self.queue_save_for_session(sid);
             } else {

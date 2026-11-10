@@ -833,7 +833,7 @@ impl MdEdit {
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));
         // an embedded editor leaves touches to its host, which hands them on
-        let sense = match (self.takes_focus, self.renderer.touch_mode) {
+        let sense = match (self.renderer.takes_focus, self.renderer.touch_mode) {
             (false, true) => Sense::hover(),
             (true, true) => Sense::click(),
             (_, false) => Sense::click_and_drag(),
@@ -851,7 +851,7 @@ impl MdEdit {
 
         let response_properly_clicked = response.clicked_by(egui::PointerButton::Primary);
         // a click nothing in it took is its host's, which selects the embed
-        if !self.takes_focus && response_properly_clicked {
+        if !self.renderer.takes_focus && response_properly_clicked {
             if let Some(pos) = response.interact_pointer_pos() {
                 EmbedClick::hand_on(ui.ctx(), pos);
             }
@@ -913,7 +913,7 @@ impl MdEdit {
             let spelling = self.context_menu_spelling.clone();
             let learned = self.context_menu_learned.clone();
             let (readonly, markdown) =
-                (self.renderer.readonly, self.renderer.kind == Syntax::Markdown);
+                (!self.renderer.edits_text(), self.renderer.kind == Syntax::Markdown);
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
                 if let Some((_, _, suggestions)) = &spelling {
@@ -1177,7 +1177,7 @@ impl MdEdit {
                         // requesting focus interrupts the input method, which on X11
                         // resets it (fcitx5 back to English); a composition the click
                         // leaves interrupts it anyway (see `ime_marked_range`)
-                        if self.takes_focus && !ui.memory(|m| m.has_focus(id)) {
+                        if self.renderer.takes_focus && !ui.memory(|m| m.has_focus(id)) {
                             ui.memory_mut(|m| m.request_focus(id));
                         }
                         // a click that edits — on a cell its row lacks, or below

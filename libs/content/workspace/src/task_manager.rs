@@ -96,7 +96,7 @@ pub struct LoadRequest {
     pub target: Option<crate::tab::SessionId>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SaveRequest {
     pub id: Uuid,
     pub origin: SessionId,
@@ -236,7 +236,7 @@ impl TaskManager {
         tasks.queued_saves.is_empty() && tasks.in_progress_saves.is_empty()
     }
 
-    pub fn queue_save(&mut self, request: SaveRequest) {
+    pub fn queue_save(&self, request: SaveRequest) {
         trace!("queued save of file {}", request.id);
         self.tasks
             .lock()
@@ -275,25 +275,27 @@ impl TaskManager {
         self.tasks.lock().unwrap().busy(id)
     }
 
+    /// When the save `request` names was queued, if one is pending: a file
+    /// two editors write has one queue per editor.
     #[allow(clippy::manual_map)] // manual map clarifies overall fn structure
-    pub fn save_queued_at(&self, id: Uuid) -> Option<Instant> {
+    pub fn save_queued_at(&self, request: &SaveRequest) -> Option<Instant> {
         let tasks = self.tasks.lock().unwrap();
         if let Some(queued_save) = tasks
             .queued_saves
             .iter()
-            .find(|queued_save| queued_save.request.id == id)
+            .find(|queued_save| queued_save.request == *request)
         {
             Some(queued_save.timing.queued_at)
         } else if let Some(in_progress_save) = tasks
             .in_progress_saves
             .iter()
-            .find(|in_progress_save| in_progress_save.request.id == id)
+            .find(|in_progress_save| in_progress_save.request == *request)
         {
             Some(in_progress_save.timing.queued_at)
         } else if let Some(completed_save) = tasks
             .completed_saves
             .iter()
-            .find(|completed_save| completed_save.request.id == id)
+            .find(|completed_save| completed_save.request == *request)
         {
             Some(completed_save.timing.queued_at)
         } else {
@@ -403,34 +405,29 @@ impl TaskManager {
 
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
-            let (old_hmac, seq, content) = {
-                let Some(tab) = tabs.get_any_mut(&request.origin) else {
-                    error!("could not launch save because its tab does not exist");
-                    continue;
-                };
-
-                let start = Instant::now();
-
-                let (old_hmac, seq, content) = if let Some(md) = tab.markdown_mut() {
+            let start = Instant::now();
+            let cloned = tabs.with_tab_mut(&request.origin, |tab| {
+                if let Some(md) = tab.markdown_mut() {
                     let (hmac, text) = md.flush_for_save();
                     let seq = md.edit.renderer.buffer.current.seq;
-                    (hmac, seq, TabSaveContent::String(text))
+                    Some((hmac, seq, TabSaveContent::String(text)))
                 } else {
-                    let old_hmac = tab.hmac();
-                    let seq = tab.seq();
-                    let Some(content) = tab.clone_content() else {
-                        break;
-                    };
-                    (old_hmac, seq, content)
-                };
-
-                let time = Instant::now().duration_since(start);
-                if time > Duration::from_millis(100) {
-                    warn!("spent {time:?} on UI thread cloning content");
+                    let content = tab.clone_content()?;
+                    Some((tab.hmac(), tab.seq(), content))
                 }
-
-                (old_hmac, seq, content)
+            });
+            let (old_hmac, seq, content) = match cloned {
+                Some(Some(cloned)) => cloned,
+                Some(None) => break,
+                None => {
+                    error!("could not launch save because its tab does not exist");
+                    continue;
+                }
             };
+            let time = Instant::now().duration_since(start);
+            if time > Duration::from_millis(100) {
+                warn!("spent {time:?} on UI thread cloning content");
+            }
             let queue_time = in_progress_save
                 .timing
                 .started_at
