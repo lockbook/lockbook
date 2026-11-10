@@ -389,6 +389,15 @@ impl AppState {
                 &self.window,
                 &mut actions,
             );
+            #[cfg(target_os = "linux")]
+            if vp.commands.iter().any(|c| {
+                matches!(
+                    c,
+                    egui::ViewportCommand::StartDrag | egui::ViewportCommand::BeginResize(_)
+                )
+            }) {
+                self.end_press_taken_by_window_manager();
+            }
         }
 
         if actions
@@ -482,6 +491,27 @@ impl AppState {
             .context
             .push_event(workspace_rs::Event::Paste { content, position: self.last_pointer_pos });
         true
+    }
+
+    /// A window move or resize hands the held primary press to the window
+    /// manager (`_NET_WM_MOVERESIZE`), which keeps its release. End the press
+    /// in egui now, or egui holds the button down and swallows the next press.
+    /// winit does the same on Windows at `WM_EXITSIZEMOVE`.
+    #[cfg(target_os = "linux")]
+    fn end_press_taken_by_window_manager(&mut self) {
+        let ctx = &self.lb.renderer.context;
+        let (latest, modifiers) = ctx.input(|i| (i.pointer.latest_pos(), i.modifiers));
+        let Some(pos) = latest else {
+            return;
+        };
+        let input = self.egui_winit.egui_input_mut();
+        input.events.push(egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers,
+        });
+        self.window.request_redraw();
     }
 
     fn handle_paste(&mut self) {
