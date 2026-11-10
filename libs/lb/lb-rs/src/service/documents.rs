@@ -7,6 +7,7 @@ use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileType};
+use crate::model::filename::DocumentType;
 use crate::model::secret_filename::HmacSha256;
 use crate::model::tree_like::TreeLike;
 use crate::model::{compression_service, symkey, validate};
@@ -177,6 +178,37 @@ impl<S: Server> Lb<S> {
             .await?;
 
         Ok(hmac)
+    }
+
+    /// Writes `ours`, an edit of `base`, to a document that may have changed since `base` was
+    /// read from it. Changes made since merge in as sync would merge them; where the document's
+    /// type has no merge it's left untouched and this returns `ReReadRequired`. `ours` equal to
+    /// `base` is no edit. Returns the document's hmac after and whether there were changes to merge.
+    #[instrument(level = "debug", skip(self, base, ours), err(Debug))]
+    pub async fn write_from_base(
+        &self, id: Uuid, base: &[u8], ours: Vec<u8>, origin: Option<Uuid>,
+    ) -> LbResult<(Option<DocumentHmac>, bool)> {
+        let name = self.get_file_by_id(id).await?.name;
+        loop {
+            let (hmac, theirs) = self.read_document_with_hmac(id, false).await?;
+            if theirs == ours || ours == base {
+                return Ok((hmac, false));
+            }
+            let moved = theirs != base;
+            let content = if moved {
+                DocumentType::from_file_name_using_extension(&name)
+                    .merge(base, &ours, &theirs)
+                    .ok_or(LbErrKind::ReReadRequired)?
+            } else {
+                ours.clone()
+            };
+            match self.safe_write(id, hmac, content, origin).await {
+                Ok(hmac) => return Ok((Some(hmac), moved)),
+                // another process wrote between our read and write; merge with that too
+                Err(err) if err.kind == LbErrKind::ReReadRequired => continue,
+                Err(err) => return Err(err),
+            }
+        }
     }
 
     pub(crate) async fn cleanup(&self) -> LbResult<()> {

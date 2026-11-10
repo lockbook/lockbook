@@ -61,3 +61,4 @@ mod tree_composition_tests;
 mod tree_tests;
 mod usage_tests;
 mod validate_tests;
+mod write_from_base_tests;

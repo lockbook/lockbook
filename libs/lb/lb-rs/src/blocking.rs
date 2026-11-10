@@ -116,6 +116,12 @@ impl Lb {
         self.block_on(self.lb.safe_write(id, old_hmac, content, origin))
     }
 
+    pub fn write_from_base(
+        &self, id: Uuid, base: &[u8], ours: Vec<u8>, origin: Option<Uuid>,
+    ) -> LbResult<(Option<DocumentHmac>, bool)> {
+        self.block_on(self.lb.write_from_base(id, base, ours, origin))
+    }
+
     pub fn document_hmac(&self, id: Uuid) -> LbResult<Option<DocumentHmac>> {
         use crate::model::{file_like::FileLike, tree_like::TreeLike};
         self.block_on(async {
