@@ -690,3 +690,13 @@ pub unsafe extern "C" fn free_png(png: CPng) {
         let _ = unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(png.data, png.len)) };
     }
 }
+
+#[no_mangle]
+pub extern "C" fn icon_font() -> *const u8 {
+    workspace_rs::font::ICONS.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn icon_font_len() -> usize {
+    workspace_rs::font::ICONS.len()
+}

@@ -6,8 +6,7 @@ struct FileIcon: View {
     var systemName: String? = nil
 
     var body: some View {
-        Image(systemName: systemName ?? FileIconHelper.fileToSystemImageName(file: file))
-            .font(.system(size: 16))
+        icon
             .frame(width: 16)
             .foregroundColor(file.isFolder ? .accentColor : .secondary)
             .overlay(alignment: .bottomTrailing) {
@@ -19,6 +18,22 @@ struct FileIcon: View {
                         .offset(x: 4, y: 3)
                 }
             }
+    }
+}
+
+extension FileIcon {
+    @ViewBuilder
+    private var icon: some View {
+        let symbol = Image(systemName: systemName ?? FileIconHelper.fileToSystemImageName(file: file))
+            .font(.system(size: 16))
+        if systemName == nil {
+            symbol.hidden().overlay {
+                Text(FileIconHelper.fileToGlyph(file: file))
+                    .font(IconFont.font(size: 16))
+            }
+        } else {
+            symbol
+        }
     }
 }
 
