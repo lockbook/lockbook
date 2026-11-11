@@ -152,6 +152,21 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
         let (_, last_end) = self.renderer.node_range(last_node);
         Some(if target > last_end { DocRowId::Trailing } else { DocRowId::Leading })
     }
+
+    /// Where the text laid out in `id` starts, the blank lines before a
+    /// block included; `None` for the pads.
+    pub fn row_start(&self, id: &DocRowId) -> Option<Grapheme> {
+        match id {
+            DocRowId::Block(i) => {
+                let node = self.blocks.get(*i)?;
+                let spacing = self.renderer.pre_spacing_lines(node);
+                let (blank, _) = self.renderer.spacing_range(&spacing);
+                Some(blank.min(self.renderer.node_range(node).0))
+            }
+            DocRowId::Line(i) => self.renderer.bounds.source_lines.get(*i).map(|line| line.0),
+            DocRowId::Leading | DocRowId::Trailing => None,
+        }
+    }
 }
 
 impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {

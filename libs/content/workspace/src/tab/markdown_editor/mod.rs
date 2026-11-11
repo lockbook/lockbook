@@ -587,6 +587,14 @@ pub struct Editor {
     user_scrolled: bool,
     /// The view moved after the frame was painted: the next one shows it.
     moved_unpainted: bool,
+    /// Text a remote edit held, by its source range, its top below the
+    /// view's top, and the offset that put it there: the next paint, which
+    /// measures its row, sets it there unless another scroll moved the view.
+    held: Option<((Grapheme, Grapheme), f32, Option<DocOffset>)>,
+    /// Where the text in view was drawn before a remote edit, nearest the
+    /// reading line first, at the offset then: the next frame holds the
+    /// first the edit left unless another scroll moved the view.
+    places: Option<(Option<DocOffset>, Vec<Held>)>,
     /// Something drawn this frame was still loading.
     loads_pending: bool,
 
@@ -1262,6 +1270,8 @@ impl Editor {
             heading_flash: None,
             user_scrolled: false,
             moved_unpainted: false,
+            held: None,
+            places: None,
             loads_pending: false,
             embeds_seq: (0, 0),
             link_seq: 0,
@@ -1346,10 +1356,126 @@ impl Editor {
     /// Merge `text` into the live buffer (applies queued OT), then store
     /// `hmac` as the version of that displayed text. The two are always set
     /// together so a later save cannot clone a stale body under a new hmac.
+    /// The text in view stays where it was drawn, nearest the reading line
+    /// first.
     pub fn apply_disk_version(&mut self, text: String, hmac: Option<DocumentHmac>) {
+        if self.places.is_none() {
+            let from = self.edit.scroll_area.stored_offset();
+            self.places = Some((from, self.reading_places()));
+        }
         self.edit.renderer.buffer.reload(text);
         self.apply_pending_buffer();
         self.hmac = hmac;
+    }
+
+    /// Where the last frame drew the text in view, nearest the reading line
+    /// first.
+    fn reading_places(&mut self) -> Vec<Held> {
+        use crate::widgets::affine_scroll::Rows as _;
+        let Some((_, line_y)) = self.reading_fragment() else { return vec![] };
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        let r = &self.edit.renderer;
+        let rows =
+            scroll_content::DocScrollContent::for_frame(r, root, self.painted_canvas.height());
+        let view = self.painted_canvas;
+        let mut drawn: Vec<((Grapheme, Grapheme), f32)> = r
+            .fragments
+            .iter()
+            .filter(|f| is_text(f))
+            .filter(|f| !f.far && f.rect.bottom() > view.top() && f.rect.top() < view.bottom())
+            .map(|f| (f.source_range, f.rect.top() - view.min.y))
+            .collect();
+        drawn.sort_by(|a, b| (a.1 - line_y).abs().total_cmp(&(b.1 - line_y).abs()));
+        drawn
+            .into_iter()
+            .filter_map(|(text, y)| {
+                let at = text.0;
+                let row = rows.find_text_row(at)?;
+                let &(_, row_top) = self.painted_rows.iter().find(|(id, _)| *id == row)?;
+                let intra = y - row_top;
+                Some(Held {
+                    text,
+                    y,
+                    into_row: rows.row_start(&row).map(|start| at.0 - start.0),
+                    intra,
+                    above_end: rows.precise(&row) - intra,
+                    seq: r.buffer.current.seq,
+                })
+            })
+            .collect()
+    }
+
+    /// Scrolls so the first held text the edits left alone is drawn where
+    /// it was. Within its row it keeps its distance from the row's top, or
+    /// from the row's end when the text between the row's top and it changed.
+    fn hold<'ast>(&mut self, root: &'ast AstNode<'ast>, canvas_rect: Rect) {
+        use crate::widgets::affine_scroll::{Action, Rows as _, offset_by};
+        let Some((from, places)) = self.places.take() else { return };
+        if self.edit.scroll_area.stored_offset() != from {
+            return;
+        }
+        let buffer = &self.edit.renderer.buffer;
+        let Some((held, at)) = places.into_iter().find_map(|held| {
+            let mut text = held.text;
+            // an undo since can take the buffer back past the held text's seq
+            let carried =
+                held.seq <= buffer.current.seq && buffer.transform_range(held.seq, &mut text);
+            carried.then_some((held, text))
+        }) else {
+            return;
+        };
+        let rows = scroll_content::DocScrollContent::for_frame(
+            &self.edit.renderer,
+            root,
+            canvas_rect.height(),
+        );
+        let Some(row) = rows.find_text_row(at.0) else { return };
+        let into_row = rows.row_start(&row).map(|start| at.0.0 - start.0);
+        let intra = if into_row == held.into_row {
+            held.intra
+        } else {
+            rows.precise(&row) - held.above_end
+        };
+        let top = offset_by(&rows, Offset::new(row, intra), -held.y);
+        let state = &mut self.edit.scroll_area.state;
+        let Some(now) = state.offset(&rows) else { return };
+        // a scroll by pixels keeps a fling going
+        let Some(by) = state.precise_distance(&rows, &now, &top, f32::INFINITY) else { return };
+        if by != 0.0 {
+            state.handle(&rows, Action::ScrollByPixels(by));
+        }
+        self.held = Some((at, held.y, self.edit.scroll_area.stored_offset()));
+    }
+
+    /// Scrolls the held text to its top, now that the paint measured its
+    /// row: a table's height rests on what its paint measures.
+    fn settle_hold(&mut self, canvas_rect: Rect) {
+        use crate::widgets::affine_scroll::Action;
+        let Some((at, y, set)) = self.held.take() else { return };
+        if self.edit.scroll_area.stored_offset() != set {
+            return;
+        }
+        let r = &self.edit.renderer;
+        let mut drawn = r.fragments.iter().filter(|f| !f.far && is_text(f));
+        let Some(f) = drawn.find(|f| f.source_range == at) else { return };
+        let moved = f.rect.top() - canvas_rect.min.y - y;
+        if moved == 0.0 {
+            return;
+        }
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        let content = scroll_content::DocScrollContent::for_frame(
+            &self.edit.renderer,
+            root,
+            canvas_rect.height(),
+        );
+        self.edit
+            .scroll_area
+            .state
+            .handle(&content, Action::ScrollByPixels(moved));
+        self.moved_unpainted = true;
+        self.edit.renderer.ctx.request_repaint();
     }
 
     /// Apply queued buffer ops, then return hmac + text as one snapshot
@@ -1446,6 +1572,16 @@ impl Editor {
     /// the last line drawn at or above it, as the outline reads headings,
     /// or the first one when all are below.
     fn reading_text(&mut self) -> Option<(Grapheme, Grapheme)> {
+        let (at, _) = self.reading_fragment()?;
+        use bounds::RangesExt as _;
+        let lines = &self.edit.renderer.bounds.source_lines;
+        let (line_idx, _) = lines.find_containing(at, true, true);
+        lines.get(line_idx).copied()
+    }
+
+    /// The drawn line on the reading line, from the last frame's paint: its
+    /// start, and its top below the view's top.
+    fn reading_fragment(&mut self) -> Option<(Grapheme, f32)> {
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
         let r = &self.edit.renderer;
@@ -1461,15 +1597,11 @@ impl Editor {
         let key = |f: &&widget::utils::wrap_layout::Fragment| (f.rect.top(), f.source_range.0);
         let order =
             |a: &(f32, Grapheme), b: &(f32, Grapheme)| a.0.total_cmp(&b.0).then(b.1.cmp(&a.1));
-        let at = drawn()
+        let f = drawn()
             .filter(|f| f.rect.top() <= y + 0.5)
             .max_by(|a, b| order(&key(a), &key(b)))
-            .or_else(|| drawn().min_by(|a, b| order(&key(a), &key(b))))?
-            .source_range
-            .0;
-        use bounds::RangesExt as _;
-        let (line_idx, _) = r.bounds.source_lines.find_containing(at, true, true);
-        r.bounds.source_lines.get(line_idx).copied()
+            .or_else(|| drawn().min_by(|a, b| order(&key(a), &key(b))))?;
+        Some((f.source_range.0, f.rect.top() - self.painted_canvas.min.y))
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
@@ -2192,6 +2324,7 @@ impl Editor {
                         // entries. The immutable `DocScrollContent`
                         // borrow is released here before phase 2's
                         // mutable renderer paint.
+                        self.hold(root, canvas_rect);
                         self.land_before_paint(root, canvas_rect);
                         self.pin_region(root, canvas_rect);
                         self.edit.renderer.landing_heading = self.landing.and_then(Landing::start);
@@ -2461,6 +2594,10 @@ impl Editor {
         } else {
             // another scroll took over before the landing's row was laid out
             self.landing = None;
+        }
+
+        if let Some(canvas_rect) = captured_canvas_rect {
+            self.settle_hold(canvas_rect);
         }
     }
 
@@ -3289,6 +3426,25 @@ fn view_for(syntax: Syntax, persistence: &WsPersistentStore) -> View {
 /// it docks beside; in narrower windows it floats over the text.
 const SIDECAR_W: f32 = 260.0;
 const SIDECAR_GAP: f32 = 24.0;
+
+/// A fragment that draws text: what a reader keeps their place by.
+fn is_text(f: &widget::utils::wrap_layout::Fragment) -> bool {
+    use widget::utils::wrap_layout::FragmentContent;
+    matches!(f.content, FragmentContent::Glyphs { .. }) && f.source_range.0 < f.source_range.1
+}
+
+/// Drawn text's place, as of the buffer's `seq`: its source range `text`,
+/// its top `y` below the view's top, and its row's start `into_row`
+/// graphemes before it, `intra` below its row's top and `above_end` above
+/// its row's end.
+struct Held {
+    text: (Grapheme, Grapheme),
+    y: f32,
+    into_row: Option<usize>,
+    intra: f32,
+    above_end: f32,
+    seq: usize,
+}
 
 /// Where a heading link lands.
 #[derive(Clone, Copy)]

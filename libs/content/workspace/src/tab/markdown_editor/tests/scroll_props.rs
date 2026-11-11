@@ -2,6 +2,7 @@
 //! remote version lands at the top of a frame (`Editor::apply_disk_version`);
 //! the text on screen should stay where it was unless the edit touched it.
 
+use comrak::nodes::NodeValue;
 use egui::{Event as Egui, Modifiers, MouseWheelSource, MouseWheelUnit, Pos2, TouchPhase};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -21,8 +22,7 @@ enum Prop {
     /// Text on screen stays put under an edit wholly above or below it.
     TextStays,
     /// [`Prop::TextStays`] for edits that leave the note with as many
-    /// blocks: the scroll keeps its place by block index, so an edit that
-    /// adds or removes a block above moves the text by design.
+    /// blocks.
     TextStaysSameBlocks,
     /// A caret on screen stays on screen.
     CaretStays,
@@ -41,25 +41,21 @@ impl Prop {
 }
 
 #[test]
-#[ignore = "a block added or removed above the view moves the text by its height"]
 fn remote_edit_off_screen_leaves_the_text_in_place() {
     run(Prop::TextStays, 300);
 }
 
 #[test]
-#[ignore = "an edit in the block straddling the view's top, above the view, moves the text"]
 fn remote_edit_off_screen_with_as_many_blocks_leaves_the_text_in_place() {
     run(Prop::TextStaysSameBlocks, 300);
 }
 
 #[test]
-#[ignore = "a block added above the view can push the caret off it"]
 fn remote_edit_leaves_the_caret_on_screen() {
     run(Prop::CaretStays, 300);
 }
 
 #[test]
-#[ignore = "an edit in the block straddling the view's top can push the caret off it"]
 fn remote_edit_with_as_many_blocks_leaves_the_caret_on_screen() {
     run(Prop::CaretStaysSameBlocks, 300);
 }
@@ -122,6 +118,7 @@ struct Seen {
     source_range: (Grapheme, Grapheme),
     text: String,
     top: f32,
+    bottom: f32,
 }
 
 impl Seen {
@@ -131,6 +128,13 @@ impl Seen {
 }
 
 fn visible(ws: &TestEditor) -> Vec<Seen> {
+    let on_screen = |s: &Seen| s.top >= 0.0 && s.bottom <= VIEW.y && s.bottom > s.top;
+    laid_out(ws).into_iter().filter(on_screen).collect()
+}
+
+/// Every text fragment laid out, on screen or not, but spaces alone: a
+/// line's break can swallow one.
+fn laid_out(ws: &TestEditor) -> Vec<Seen> {
     let text = ws.get_text();
     let segs = &ws.editor.edit.renderer.buffer.current.segs;
     ws.editor
@@ -139,7 +143,6 @@ fn visible(ws: &TestEditor) -> Vec<Seen> {
         .fragments
         .iter()
         .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
-        .filter(|f| f.rect.top() >= 0.0 && f.rect.bottom() <= VIEW.y && f.rect.height() > 0.0)
         .filter(|f| !f.source_range.is_empty())
         .map(|f| {
             let (a, b) = segs.range_to_byte(f.source_range);
@@ -147,8 +150,10 @@ fn visible(ws: &TestEditor) -> Vec<Seen> {
                 source_range: f.source_range,
                 text: text[a.0..b.0].to_string(),
                 top: f.rect.top(),
+                bottom: f.rect.bottom(),
             }
         })
+        .filter(|s| !s.text.trim().is_empty())
         .collect()
 }
 
@@ -204,47 +209,104 @@ fn step(
     ));
     let shift = next.graphemes(true).count() as isize - text.graphemes(true).count() as isize;
 
+    let shifted = |r: (Grapheme, Grapheme)| {
+        let by = if above { shift } else { 0 };
+        (Grapheme((r.0.0 as isize + by) as usize), Grapheme((r.1.0 as isize + by) as usize))
+    };
+
     let before = visible(ws);
     let caret = caret_y(ws);
     let blocks = block_count(ws);
-    ws.editor.apply_disk_version(next, Some([1; 32]));
+    // a node's edge before the edit, where it is after: gone if the edit replaced it
+    let moved = |g: Grapheme| match g.0 {
+        g if g < a => Some(Grapheme(g)),
+        g if g >= b => Some(Grapheme((g as isize + shift) as usize)),
+        _ => None,
+    };
+    let nodes: Vec<Vec<_>> = before
+        .iter()
+        .map(|s| {
+            let nodes = nodes_at(ws, s.source_range.0);
+            nodes
+                .into_iter()
+                .map(|(kind, (start, end))| (kind, moved(start), moved(end)))
+                .collect()
+        })
+        .collect();
+    let leaf_blocks: Vec<_> = before
+        .iter()
+        .map(|s| leaf_block(ws, s.source_range.0))
+        .collect();
+    ws.editor.apply_disk_version(next.clone(), Some([1; 32]));
+    if ws.get_text() != next {
+        log("the buffer's merge isn't the remote text".to_string());
+        return Ok(());
+    }
     settle(ws, prop);
-    let after = visible(ws);
+    let after = laid_out(ws);
     if prop.same_blocks() && block_count(ws) != blocks {
         log(format!("the edit changed how many blocks there are: {blocks} -> {}", block_count(ws)));
+        return Ok(());
+    }
+    let reparsed = before.iter().zip(&nodes).any(|(s, nodes)| {
+        let now = nodes_at(ws, shifted(s.source_range).0);
+        let now: Vec<_> = now
+            .into_iter()
+            .map(|(kind, (start, end))| (kind, Some(start), Some(end)))
+            .collect();
+        now != *nodes
+    });
+    if reparsed {
+        log("the edit changed how the text in view parses".to_string());
         return Ok(());
     }
 
     log(format!("checked {} fragments in view", before.len()));
     match prop {
         Prop::TextStays | Prop::TextStaysSameBlocks => {
-            let shifted = |r: (Grapheme, Grapheme)| {
-                let by = if above { shift } else { 0 };
-                (Grapheme((r.0.0 as isize + by) as usize), Grapheme((r.1.0 as isize + by) as usize))
-            };
+            let edit = if above { "above" } else { "below" };
+            // each fragment's move, or None if it isn't drawn as it was, and
+            // whether any of its text is drawn
+            let mut moves = vec![];
+            let mut drawn = vec![];
             for seen in &before {
                 let now = after
                     .iter()
                     .find(|s| s.source_range == shifted(seen.source_range) && s.text == seen.text);
-                match now {
-                    Some(now) if (now.top - seen.top).abs() <= 0.5 => {}
-                    Some(now) => {
-                        return Err(format!(
-                            "{:?} moved from y {} to {} on an edit {}",
-                            seen.text,
-                            seen.top,
-                            now.top,
-                            if above { "above" } else { "below" },
-                        ));
-                    }
-                    None => {
-                        return Err(format!(
-                            "{:?} at y {} left the view on an edit {}",
-                            seen.text,
-                            seen.top,
-                            if above { "above" } else { "below" },
-                        ));
-                    }
+                moves.push(now.map(|now| now.top - seen.top));
+                drawn.push(after.iter().any(|s| {
+                    s.source_range
+                        .intersects(&shifted(seen.source_range), false)
+                }));
+            }
+            // a block the edit re-wrapped moves its pieces apart, and what
+            // follows it with them; otherwise the text moves as one
+            let rewrapped = (0..before.len()).any(|i| {
+                let block = (0..before.len()).filter(|&j| leaf_blocks[j] == leaf_blocks[i]);
+                block.into_iter().any(|j| match (moves[i], moves[j]) {
+                    (Some(a), Some(b)) => (a - b).abs() > 0.5,
+                    (None, _) => drawn[i],
+                    _ => false,
+                })
+            });
+            if rewrapped {
+                log("the edit re-wrapped text in view".to_string());
+                return Ok(());
+            }
+            for (seen, by) in before.iter().zip(moves) {
+                let Some(by) = by else {
+                    return Err(format!(
+                        "{:?} at y {} left the view on an edit {edit}",
+                        seen.text, seen.top
+                    ));
+                };
+                if by.abs() > 0.5 {
+                    return Err(format!(
+                        "{:?} moved from y {} to {} on an edit {edit}",
+                        seen.text,
+                        seen.top,
+                        seen.top + by,
+                    ));
                 }
             }
         }
@@ -263,6 +325,42 @@ fn step(
 fn block_count(ws: &mut TestEditor) -> usize {
     let arena = comrak::Arena::new();
     ws.editor.edit.renderer.reparse(&arena).children().count()
+}
+
+/// The nodes that hold `at`, outermost first: their kinds and ranges.
+fn nodes_at(
+    ws: &mut TestEditor, at: Grapheme,
+) -> Vec<(std::mem::Discriminant<NodeValue>, (Grapheme, Grapheme))> {
+    let arena = comrak::Arena::new();
+    let r = &mut ws.editor.edit.renderer;
+    let mut node = r.reparse(&arena);
+    let mut kinds = vec![];
+    while let Some(child) = node.children().find(|n| {
+        let (start, end) = r.node_range(n);
+        start <= at && at <= end
+    }) {
+        kinds.push((std::mem::discriminant(&child.data.borrow().value), r.node_range(child)));
+        node = child;
+    }
+    kinds
+}
+
+/// The range of the innermost block that holds `at`.
+fn leaf_block(ws: &mut TestEditor, at: Grapheme) -> Option<(Grapheme, Grapheme)> {
+    let arena = comrak::Arena::new();
+    let r = &mut ws.editor.edit.renderer;
+    let mut node = r.reparse(&arena);
+    let mut block = None;
+    while let Some(child) = node.children().find(|n| {
+        let (start, end) = r.node_range(n);
+        start <= at && at <= end
+    }) {
+        if child.data.borrow().value.block() {
+            block = Some(r.node_range(child));
+        }
+        node = child;
+    }
+    block
 }
 
 /// The caret's top on screen, if it's drawn in the view.
@@ -325,10 +423,10 @@ fn long_doc(src: &mut ByteSource) -> String {
     blocks.join("\n\n") + "\n"
 }
 
-/// The two ways an edit above the view moves the text on master, and the
-/// one it doesn't.
+/// Edits above the view that keep the text on screen in place: a taller
+/// first block, a paragraph added at the top, and an edit above the view
+/// in a list or code block that straddles its top.
 #[test]
-#[ignore = "a block added above, or an edit above the view in the block straddling its top, moves the text"]
 fn remote_edits_above_the_view() {
     let open = |md: &str| {
         let (mut ws, _embeds) = TestEditor::with_test_embeds(build_lb(), md);
@@ -376,6 +474,14 @@ fn remote_edits_above_the_view() {
     let next = ws
         .get_text()
         .replacen("- item1\n", &format!("- item1 {wrapping}\n"), 1);
+    land(&mut ws, next);
+    assert_eq!(top(&ws), before);
+
+    // a long code block straddles the view's top, and loses a line above it
+    let code = format!("```\n{}```\n", (0..120).map(|i| format!("line{i}\n")).collect::<String>());
+    let mut ws = open(&code);
+    let before = top(&ws);
+    let next = ws.get_text().replacen("line1\n", "", 1);
     land(&mut ws, next);
     assert_eq!(top(&ws), before);
 }
