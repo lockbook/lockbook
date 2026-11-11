@@ -126,7 +126,7 @@ impl<S: Server> Lb<S> {
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub async fn safe_write(
-        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>, origin: Option<Uuid>,
+        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: &[u8], origin: Option<Uuid>,
     ) -> LbResult<DocumentHmac> {
         // get info so we can do operations while not holding lock
         let (target_id, key) = {
@@ -146,7 +146,7 @@ impl<S: Server> Lb<S> {
         };
 
         // do the operations
-        let (hmac, encrypted) = compress_encrypt_document(&key, &content)?;
+        let (hmac, encrypted) = compress_encrypt_document(&key, content)?;
         let encrypted_size = encrypted.value.len();
         let pending = self
             .docs
@@ -195,12 +195,14 @@ impl<S: Server> Lb<S> {
                 return Ok((hmac, false));
             }
             let moved = theirs != base;
+            let merged;
             let content = if moved {
-                DocumentType::from_file_name_using_extension(&name)
+                merged = DocumentType::from_file_name_using_extension(&name)
                     .merge(base, &ours, &theirs)
-                    .ok_or(LbErrKind::ReReadRequired)?
+                    .ok_or(LbErrKind::ReReadRequired)?;
+                &merged
             } else {
-                ours.clone()
+                &ours
             };
             match self.safe_write(id, hmac, content, origin).await {
                 Ok(hmac) => return Ok((Some(hmac), moved)),

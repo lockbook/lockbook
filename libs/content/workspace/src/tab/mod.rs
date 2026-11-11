@@ -22,6 +22,7 @@ use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::path::PathBuf;
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -1040,11 +1041,11 @@ pub enum TabSaveContent {
 }
 
 impl TabSaveContent {
-    pub fn into_bytes(self) -> Vec<u8> {
+    pub fn bytes(&self) -> Cow<'_, [u8]> {
         match self {
-            TabSaveContent::Bytes(bytes) => bytes,
-            TabSaveContent::String(string) => string.into_bytes(),
-            TabSaveContent::Svg(buffer) => buffer.serialize().into_bytes(),
+            TabSaveContent::Bytes(bytes) => Cow::Borrowed(bytes),
+            TabSaveContent::String(string) => Cow::Borrowed(string.as_bytes()),
+            TabSaveContent::Svg(buffer) => Cow::Owned(buffer.serialize().into_bytes()),
         }
     }
 }

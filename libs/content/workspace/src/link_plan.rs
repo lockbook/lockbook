@@ -289,7 +289,7 @@ fn write_note(lb: &Lb, note: Uuid, mends: &[&Mend]) -> LbResult<()> {
         if mended == text {
             return Ok(());
         }
-        match lb.safe_write(note, hmac, mended.into_bytes(), None) {
+        match lb.safe_write(note, hmac, mended.as_bytes(), None) {
             Err(e) if e.kind == lb_rs::model::errors::LbErrKind::ReReadRequired => continue,
             other => return other.map(|_| ()),
         }
