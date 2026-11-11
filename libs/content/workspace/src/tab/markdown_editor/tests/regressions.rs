@@ -624,6 +624,47 @@ fn alert_after_mid_stop_tab_opens() {
     TestEditor::new("1. x\n   \t > [!NOTE]\n");
 }
 
+#[test]
+fn an_empty_note_paints_its_placeholder_at_the_caret() {
+    use crate::theme::palette_v2::ThemeExt as _;
+
+    let mut r = test_renderer("");
+    r.placeholder = Some("hint");
+    let muted = r.ctx.get_lb_theme().neutral();
+    let ppi = r.ctx.pixels_per_point();
+    render_frame(&mut r, 800.0, None, |r| {
+        let [area] = &r.text_areas[..] else { panic!("{} text areas", r.text_areas.len()) };
+        let buffer = area.buffer.read().unwrap();
+        let text: String = buffer.lines.iter().map(|line| line.text()).collect();
+        assert_eq!(text, "hint");
+        let glyph = &buffer.layout_runs().next().unwrap().glyphs[0];
+        assert_eq!(glyph.color_opt.map(|color| color.as_rgba()), Some(muted.to_array()));
+
+        let [caret] = &r.fragments[..] else { panic!("{} fragments", r.fragments.len()) };
+        assert_eq!(caret.source_range, (Grapheme(0), Grapheme(0)));
+        assert!((area.rect.left() / ppi - caret.rect.left()).abs() < 1.0);
+        assert_eq!(r.bounds.wrap_lines.len(), 1);
+    });
+}
+
+#[test]
+fn a_placeholder_is_painted_only_when_set_and_the_note_is_empty() {
+    let painted = |md: &str, placeholder| {
+        let mut r = test_renderer(md);
+        r.placeholder = placeholder;
+        render_frame(&mut r, 800.0, None, |r| {
+            let text = |area: &crate::TextBufferArea| -> String {
+                let buffer = area.buffer.read().unwrap();
+                buffer.lines.iter().map(|line| line.text()).collect()
+            };
+            r.text_areas.iter().map(text).collect::<Vec<_>>()
+        })
+    };
+    assert_eq!(painted("", Some("hint")), ["hint"]);
+    assert!(painted("", None).is_empty());
+    assert_eq!(painted("a", Some("hint")), ["a"]);
+}
+
 // ── editor ──
 
 /// Regression for #4662: arrowing up off a folded heading must walk the
@@ -3041,4 +3082,35 @@ fn task_item_markers_cover_the_brackets() {
         }
         assert_eq!(shown, paragraph_lines, "{md:?}");
     }
+}
+
+#[test]
+fn only_an_editable_markdown_note_offers_a_placeholder() {
+    let offered = |ws: &TestEditor| ws.editor.edit.renderer.placeholder.is_some();
+
+    let mut ws = TestEditor::new("");
+    assert!(offered(&ws));
+    assert_eq!(ws.editor.edit.renderer.fragments.len(), 1);
+    ws.editor.persistence.set_source(true);
+    ws.enter_frame();
+    assert!(offered(&ws));
+    assert_eq!(ws.editor.edit.renderer.fragments.len(), 1);
+
+    assert!(!offered(&TestEditor::file("", "txt")));
+    assert!(!offered(&TestEditor::file("", "rs")));
+
+    let mut ws = TestEditor::new("");
+    ws.editor.edit.renderer.readonly = true;
+    ws.enter_frame();
+    assert!(!offered(&ws));
+
+    let mut ws = TestEditor::new("");
+    ws.editor.embedded = true;
+    ws.enter_frame();
+    assert!(!offered(&ws));
+
+    let mut ws = TestEditor::new("");
+    ws.editor.in_preview = true;
+    ws.enter_frame();
+    assert!(!offered(&ws));
 }

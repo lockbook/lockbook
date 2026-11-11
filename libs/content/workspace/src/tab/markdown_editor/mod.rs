@@ -245,6 +245,7 @@ pub struct MdRender {
     /// it is, for the landing to measure. Set each frame from the editor's
     /// landing.
     pub landing_heading: Option<Grapheme>,
+    pub placeholder: Option<&'static str>,
     pub interactive: bool, // enables fold buttons
     pub readonly: bool,    // disables task checkboxes and saving
     pub view: View,
@@ -804,6 +805,7 @@ impl MdRender {
             platform_marked: None,
             preview_match: None,
             landing_heading: None,
+            placeholder: None,
             interactive: false,
             readonly: true,
             view: View::Rendered,
@@ -927,6 +929,7 @@ impl MdRender {
             platform_marked: None,
             preview_match: None,
             landing_heading: None,
+            placeholder: None,
             interactive: false,
             readonly: true,
             view: View::Rendered,
@@ -1152,6 +1155,7 @@ impl Editor {
             platform_marked: None,
             preview_match: None,
             landing_heading: None,
+            placeholder: None,
             interactive: true,
             readonly,
             view,
@@ -2078,6 +2082,11 @@ impl Editor {
 
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
+
+                let r = &mut self.edit.renderer;
+                let editable_note =
+                    r.kind == Syntax::Markdown && !r.readonly && !self.embedded && !self.in_preview;
+                r.placeholder = editable_note.then_some(PLACEHOLDER);
 
                 // Content column width caps at `max_width`; the affine
                 // widget spans the full canvas so its scrollbar lands
@@ -3289,6 +3298,8 @@ fn view_for(syntax: Syntax, persistence: &WsPersistentStore) -> View {
 /// it docks beside; in narrower windows it floats over the text.
 const SIDECAR_W: f32 = 260.0;
 const SIDECAR_GAP: f32 = 24.0;
+
+const PLACEHOLDER: &str = "Type [[ to link a note";
 
 /// Where a heading link lands.
 #[derive(Clone, Copy)]
