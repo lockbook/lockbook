@@ -36,6 +36,7 @@ use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::path_ops::Filter;
 use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::{Lb, Uuid};
+use tokio::sync::broadcast::error::RecvError;
 
 fn run() -> CliResult<()> {
     Command::name("lockbook")
@@ -359,7 +360,14 @@ async fn sync() -> CliResult<()> {
         };
 
         loop {
-            let event = receiver.recv().await.unwrap();
+            let event = match receiver.recv().await {
+                Ok(event) => event,
+                Err(RecvError::Lagged(skipped)) => {
+                    println!("{skipped} progress updates skipped");
+                    continue;
+                }
+                Err(RecvError::Closed) => return,
+            };
             if let Event::Sync(sync_increment) = event {
                 match sync_increment {
                     SyncIncrement::SyncStarted => println!("Sync Started!"),
