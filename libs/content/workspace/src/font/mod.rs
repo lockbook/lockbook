@@ -13,8 +13,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use unicode_script::Script;
 
-pub const ICONS: &[u8] = lb_fonts::NERD_FONTS_MONO_SYMBOLS;
-
 /// What text (index 0) and code (1) were asked to draw in, and what they
 /// draw in: the asked family where it's installed, else the platform's.
 struct Chosen {

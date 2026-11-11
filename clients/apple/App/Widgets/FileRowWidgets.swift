@@ -10,7 +10,7 @@ struct FileIcon: View {
             .frame(width: 16)
             .foregroundColor(file.isFolder ? .accentColor : .secondary)
             .overlay(alignment: .bottomTrailing) {
-                if file.type == .document && !file.shares.isEmpty {
+                if !file.shares.isEmpty && (systemName == nil || file.type == .document) {
                     Image(systemName: "person.crop.circle.fill")
                         .font(.system(size: 9))
                         .foregroundColor(.accentColor)

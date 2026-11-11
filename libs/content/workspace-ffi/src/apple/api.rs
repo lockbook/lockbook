@@ -693,10 +693,18 @@ pub unsafe extern "C" fn free_png(png: CPng) {
 
 #[no_mangle]
 pub extern "C" fn icon_font() -> *const u8 {
-    workspace_rs::font::ICONS.as_ptr()
+    workspace_rs::style::chrome::PHOSPHOR_FONT.as_ptr()
 }
 
 #[no_mangle]
 pub extern "C" fn icon_font_len() -> usize {
-    workspace_rs::font::ICONS.len()
+    workspace_rs::style::chrome::PHOSPHOR_FONT.len()
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn file_row_icon(name: *const c_char, is_folder: bool) -> u32 {
+    let name = CStr::from_ptr(name).to_string_lossy();
+    let icon = workspace_rs::style::file_row_icon(&name, is_folder);
+    icon.chars().next().map_or(0, u32::from)
 }

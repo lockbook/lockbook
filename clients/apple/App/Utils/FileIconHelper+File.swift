@@ -17,13 +17,6 @@ extension FileIconHelper {
     }
 
     static func fileToGlyph(file: File) -> String {
-        switch file.type {
-        case .document:
-            docNameToGlyph(name: file.name)
-        case .folder:
-            file.shares.isEmpty ? Glyph.folder : Glyph.sharedFolder
-        case .link:
-            Glyph.folder
-        }
+        IconFont.glyph(fileName: file.name, isFolder: file.type != .document)
     }
 }

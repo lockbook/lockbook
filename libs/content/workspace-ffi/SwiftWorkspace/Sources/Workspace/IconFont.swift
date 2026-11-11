@@ -14,4 +14,9 @@ public enum IconFont {
         guard let face else { return .system(size: size) }
         return Font(CTFontCreateWithGraphicsFont(face, size, nil, nil))
     }
+
+    public static func glyph(fileName: String, isFolder: Bool) -> String {
+        let scalar = fileName.withCString { file_row_icon($0, isFolder) }
+        return Unicode.Scalar(scalar).map { String($0) } ?? ""
+    }
 }

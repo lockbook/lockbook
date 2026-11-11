@@ -583,6 +583,8 @@ pub fn tab_icon(dest: &crate::tab::Destination, name: &str) -> &'static str {
 /// Font family name registered by `workspace_rs::register_fonts`.
 const PHOSPHOR_FAMILY: &str = "phosphor";
 
+pub const PHOSPHOR_FONT: &[u8] = lb_fonts::PHOSPHOR;
+
 /// Phosphor at `size` pt.
 pub fn phosphor_font_id(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name(Arc::from(PHOSPHOR_FAMILY)))
