@@ -87,6 +87,7 @@ tracing-wasm = "0.2.1"
 
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
+rustls-native-certs = "0.6.3"
 tokio = { version = "1", features = ["full"] }
 tracing-perfetto-file = "=0.1.1"
 tracing-appender = "0.2"
