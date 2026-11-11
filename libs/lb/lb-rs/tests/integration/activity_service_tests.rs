@@ -42,6 +42,33 @@ async fn suggest_docs_empty() {
 }
 
 #[tokio::test]
+async fn long_session_keeps_earlier_docs() {
+    let core: Lb = test_core().await;
+    core.create_account(&random_name(), &url(), false)
+        .await
+        .unwrap();
+
+    let earlier = core.create_at_path("earlier.md").await.unwrap();
+    core.write_document(earlier.id, "hello world".as_bytes())
+        .await
+        .unwrap();
+
+    let session = core.create_at_path("session.md").await.unwrap();
+    for _ in 0..1100 {
+        core.write_document(session.id, "hello world".as_bytes())
+            .await
+            .unwrap();
+    }
+
+    let suggestions = core
+        .suggested_docs(RankingWeights::default())
+        .await
+        .unwrap();
+
+    assert!(suggestions.contains(&earlier.id));
+}
+
+#[tokio::test]
 async fn write_count() {
     let core: Lb = test_core().await;
     core.create_account(&random_name(), &url(), false)

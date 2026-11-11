@@ -68,7 +68,7 @@ impl<S: Server> Lb<S> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
-        let max_stored_events = 1000;
+        let max_stored_events = 10_000;
         let events = &db.doc_events;
 
         if events.len() > max_stored_events {
