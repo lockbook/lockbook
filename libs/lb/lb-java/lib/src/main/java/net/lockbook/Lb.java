@@ -67,11 +67,6 @@ public class Lb {
     private static native long newPathSearcher() throws LbError;
     private static native long newContentSearcher() throws LbError;
     public static native void searchAccepted(String id) throws LbError;
-    public static native String[] suggestedDocs() throws LbError;
-
-
-    public static native void clearSuggestedId(String id) throws LbError;
-    public static native void clearSuggested() throws LbError;
 
     public static native void logout() throws LbError;
     public static native void deleteAccount() throws LbError;

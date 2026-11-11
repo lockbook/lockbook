@@ -49,7 +49,6 @@ pub struct FileCache {
     rows: Vec<File>,
     by_id: UuidMap<u32>,
     pub shared_roots: Vec<File>,
-    pub suggested: Vec<Uuid>,
     pub size_bytes_recursive: UuidMap<u64>,
     pub last_modified_recursive: UuidMap<u64>,
     /// Max last_modified across all files. Used as a cache invalidation key
@@ -95,7 +94,6 @@ impl FileCache {
         };
         Self {
             root: root.clone(),
-            suggested: vec![],
             size_bytes_recursive: Default::default(),
             last_modified_recursive: Default::default(),
             last_modified: 0,
@@ -112,12 +110,11 @@ impl FileCache {
     pub fn from_owned_and_shared(
         root: File, owned: impl IntoIterator<Item = File>, shared: impl IntoIterator<Item = File>,
     ) -> Self {
-        Self::from_rows(root, owned.into_iter().chain(shared), Vec::new(), Vec::new())
+        Self::from_rows(root, owned.into_iter().chain(shared), Vec::new())
     }
 
     fn from_rows(
         root: File, files: impl IntoIterator<Item = File>, shared_roots: Vec<File>,
-        suggested: Vec<Uuid>,
     ) -> Self {
         let mut rows: Vec<File> = files.into_iter().collect();
         if !rows.iter().any(|f| f.id == root.id) {
@@ -131,7 +128,6 @@ impl FileCache {
             rows,
             by_id,
             shared_roots,
-            suggested,
             size_bytes_recursive: uuid_map(),
             last_modified_recursive: uuid_map(),
             last_modified,
@@ -145,12 +141,10 @@ impl FileCache {
     pub fn new(lb: &Lb) -> LbResult<Self> {
         let root = lb.get_root()?;
         let files = lb.list_metadatas()?;
-        let suggested = lb.suggested_docs(Default::default())?;
         let shared = lb.get_pending_share_files()?;
         let shared_roots = lb.get_pending_shares()?;
         tracing::Span::current().record("n_files", files.len() + shared.len());
-        let mut cache =
-            Self::from_rows(root, files.into_iter().chain(shared), shared_roots, suggested);
+        let mut cache = Self::from_rows(root, files.into_iter().chain(shared), shared_roots);
         cache.fill_recursive();
         Ok(cache)
     }
@@ -320,7 +314,6 @@ impl FileCache {
             self.root.clone(),
             rows.chain(created).collect::<Vec<_>>(),
             self.shared_roots.clone(),
-            self.suggested.clone(),
         );
         after.size_bytes_recursive = self.size_bytes_recursive.clone();
         after.last_modified_recursive = self.last_modified_recursive.clone();
@@ -363,7 +356,6 @@ impl Debug for FileCache {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("FileCache")
             .field("rows.len()", &self.rows.len())
-            .field("suggested.len()", &self.suggested.len())
             .finish()
     }
 }

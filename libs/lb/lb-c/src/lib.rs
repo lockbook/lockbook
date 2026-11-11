@@ -14,7 +14,6 @@ use lb_rs::model::core_config::host_os_version;
 pub use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::filename::NameComponents;
-use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::Event;
 pub use lb_rs::*;
@@ -714,39 +713,6 @@ pub struct LbIdListRes {
     err: *mut LbFfiErr,
     ids: *mut LbUuid,
     len: usize,
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_suggested_docs(lb: *mut Lb) -> LbIdListRes {
-    let lb = rlb(lb);
-
-    match lb.suggested_docs(RankingWeights::default()) {
-        Ok(ids) => {
-            let (ids, len) = carray(ids.into_iter().map(LbUuid::from).collect());
-            LbIdListRes { err: null_mut(), ids, len }
-        }
-        Err(err) => LbIdListRes { err: lb_err(err), ids: null_mut(), len: 0 },
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_clear_suggested(lb: *mut Lb) -> *mut LbFfiErr {
-    let lb = rlb(lb);
-
-    match lb.clear_suggested() {
-        Ok(()) => null_mut(),
-        Err(err) => lb_err(err),
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_clear_suggested_id(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
-    let lb = rlb(lb);
-
-    match lb.clear_suggested_id(id.into()) {
-        Ok(()) => null_mut(),
-        Err(err) => lb_err(err),
-    }
 }
 
 #[unsafe(no_mangle)]

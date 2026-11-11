@@ -5,7 +5,6 @@ use crate::Lb;
 use crate::io::server::Server;
 use crate::model::ValidationFailure;
 use crate::model::api::METADATA_FEE;
-use crate::model::clock::get_time;
 use crate::model::crypto::AESKey;
 use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::File;
@@ -13,7 +12,6 @@ use crate::model::file_like::FileLike;
 use crate::model::file_metadata::FileType;
 use crate::model::symkey;
 use crate::model::tree_like::TreeLike;
-use crate::service::activity;
 use crate::service::documents::{compress_encrypt_document, document_hmac};
 use crate::service::events::Actor;
 use futures::StreamExt;
@@ -199,8 +197,6 @@ impl<S: Server> Lb<S> {
         self.events.meta_changed(Actor::User(None));
         if content.is_some() {
             self.events.doc_written(id, Actor::User(None));
-            self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
-                .await?;
         }
         Ok(file)
     }
