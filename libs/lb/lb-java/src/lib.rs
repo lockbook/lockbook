@@ -1264,6 +1264,19 @@ pub extern "system" fn Java_net_lockbook_Lb_deletePendingShare<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_searchAccepted<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+
+    if let Err(err) = lb.search_accepted(id) {
+        throw_err(&mut env, err);
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_suggestedDocs<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobjectArray {

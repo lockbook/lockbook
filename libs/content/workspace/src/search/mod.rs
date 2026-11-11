@@ -669,6 +669,9 @@ impl Workspace {
         let Some((id, new_tab)) = activated else {
             return;
         };
+        if let Err(err) = self.core.search_accepted(id) {
+            tracing::warn!("search result not recorded: {err}");
+        }
         if self.is_folder(id) {
             let files = self.files.read().unwrap();
             let root = files.root().id;

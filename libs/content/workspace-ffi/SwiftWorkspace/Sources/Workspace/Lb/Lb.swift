@@ -41,6 +41,7 @@ public protocol LbAPI {
     func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError>
     func getFileLinkUrl(id: UUID) -> Result<String, LbError>
     func pathSearcher() -> PathSearching
+    func searchAccepted(id: UUID) -> Result<Void, LbError>
     func contentSearcher() -> ContentSearching
     func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError>
     func cancelSubscription() -> Result<Void, LbError>
@@ -469,6 +470,17 @@ public class Lb: LbAPI {
         LbPathSearcher(lb: lb)
     }
 
+    public func searchAccepted(id: UUID) -> Result<Void, LbError> {
+        let err = lb_search_accepted(lb, id.toLbUuid())
+
+        if let err {
+            defer { lb_free_err(err) }
+            return .failure(LbError(err.pointee))
+        }
+
+        return .success(())
+    }
+
     public func contentSearcher() -> ContentSearching {
         LbContentSearcher(lb: lb)
     }
@@ -615,6 +627,7 @@ public class MockLb: LbAPI {
     public func sync() -> Result<Void, LbError> { .success(()) }
     public func appForegrounded() {}
     public func pinFile(id: UUID) -> Result<Void, LbError> { .success(()) }
+    public func searchAccepted(id _: UUID) -> Result<Void, LbError> { .success(()) }
     public func unpinFile(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func listPinned() -> Result<[UUID], LbError> { .success([file1.id]) }
     public func getUsage() -> Result<UsageMetrics, LbError> { .success(UsageMetrics(serverUsedExact: 100, serverUsedHuman: "100B", serverCapExact: 1000, serverCapHuman: "1000B")) }

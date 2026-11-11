@@ -15,6 +15,7 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.databinding.FragmentSearchDocumentsBinding
@@ -26,8 +27,11 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.listitem.ListItemLayout
 import com.google.android.material.search.SearchView
 import com.google.android.material.transition.MaterialFadeThrough
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import net.lockbook.File
 import net.lockbook.File.FileType
+import net.lockbook.Lb
 import java.lang.ref.WeakReference
 
 class SearchDocumentsFragment : Fragment() {
@@ -247,6 +251,9 @@ class SearchDocumentsFragment : Fragment() {
 
     private fun openSearchResult(file: File) {
         searchView.clearFocusAndHideKeyboard()
+        requireActivity().lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { Lb.searchAccepted(file.id) }
+        }
         when (file.type) {
             FileType.Document -> {
                 mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false))

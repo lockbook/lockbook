@@ -98,6 +98,7 @@
 
         func open(id: UUID, workspaceInput: WorkspaceInputState, match: ContentSearcherMatch? = nil) {
             guard let file = filesModel.idsToFiles[id] else { return }
+            _ = AppState.lb.searchAccepted(id: id)
             if file.type == .folder {
                 workspaceInput.selectFolder(id: id)
             } else if let match {

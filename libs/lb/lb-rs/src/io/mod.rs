@@ -65,11 +65,13 @@ pub struct CoreV5 {
     /// most recent panic file we've already uploaded. `None` means we have never
     /// sent debug info; `Some(0)` means we've sent before but no panic file existed.
     pub last_extracted_panic: DbOption<i64>,
+
+    pub searched_files: DbVec<Uuid>,
 }
 
 impl Schema for CoreV5 {
     fn views_mut(&mut self) -> impl AsMut<[&mut dyn View]> {
-        let views: [&mut dyn View; 10] = [
+        let views: [&mut dyn View; 11] = [
             &mut self.account,
             &mut self.last_synced,
             &mut self.root,
@@ -80,6 +82,7 @@ impl Schema for CoreV5 {
             &mut self.id,
             &mut self.pinned_files,
             &mut self.last_extracted_panic,
+            &mut self.searched_files,
         ];
         views
     }

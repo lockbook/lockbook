@@ -322,6 +322,10 @@ impl Lb {
         self.block_on(self.lb.path_searcher())
     }
 
+    pub fn search_accepted(&self, id: Uuid) -> LbResult<()> {
+        self.block_on(self.lb.search_accepted(id))
+    }
+
     pub fn content_searcher(&self) -> crate::search::ContentSearcher {
         crate::search::ContentSearcher::new(self)
     }

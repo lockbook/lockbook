@@ -750,6 +750,16 @@ pub extern "C" fn lb_clear_suggested_id(lb: *mut Lb, id: LbUuid) -> *mut LbFfiEr
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn lb_search_accepted(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.search_accepted(id.into()) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_pin_file(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
