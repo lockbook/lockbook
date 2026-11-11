@@ -1,5 +1,4 @@
 mod account_service_tests;
-mod activity_service_tests;
 mod admin_tests;
 mod api_auth_tests;
 mod api_billing_tests;

@@ -22,7 +22,6 @@ use lb_rs::search::{
     ContentMatch as NativeContentMatch, ContentSearcher, PathSearcher,
     SearchResult as NativeSearcherResult,
 };
-use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::{Event, Receiver, SyncIncrement};
 pub use lb_rs::*;
@@ -938,22 +937,6 @@ pub extern "system" fn Java_net_lockbook_Lb_getSubscriptionInfo<'local>(
     .into_raw()
 }
 
-fn jids<'local>(env: &mut JNIEnv<'local>, ids: Vec<Uuid>) -> JObjectArray<'local> {
-    let string_class = env.find_class("java/lang/String").unwrap();
-
-    let arr = env
-        .new_object_array(ids.len() as i32, string_class, JObject::null())
-        .unwrap();
-
-    for (i, id) in ids.iter().enumerate() {
-        let id = env.new_string(id.to_string()).unwrap();
-        env.set_object_array_element(&arr, i as i32, JObject::from(id))
-            .unwrap();
-    }
-
-    arr
-}
-
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_listMetadatas<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
@@ -1272,42 +1255,6 @@ pub extern "system" fn Java_net_lockbook_Lb_searchAccepted<'local>(
     let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
 
     if let Err(err) = lb.search_accepted(id) {
-        throw_err(&mut env, err);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_net_lockbook_Lb_suggestedDocs<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jobjectArray {
-    let lb = rlb(&mut env, &class);
-
-    match lb.suggested_docs(RankingWeights::default()) {
-        Ok(suggested_docs) => jids(&mut env, suggested_docs).into_raw(),
-        Err(err) => throw_err(&mut env, err).into_raw(),
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_net_lockbook_Lb_clearSuggested<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>,
-) {
-    let lb = rlb(&mut env, &class);
-
-    if let Err(err) = lb.clear_suggested() {
-        throw_err(&mut env, err);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_net_lockbook_Lb_clearSuggestedId<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
-) {
-    let lb = rlb(&mut env, &class);
-
-    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
-
-    if let Err(err) = lb.clear_suggested_id(id) {
         throw_err(&mut env, err);
     }
 }

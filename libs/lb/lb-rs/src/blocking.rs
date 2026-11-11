@@ -14,7 +14,6 @@ use crate::model::errors::{LbResult, Warning};
 use crate::model::file::{File, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
-use crate::service::activity::RankingWeights;
 
 use crate::service::events::Event;
 use crate::service::import_export::{Existing, ExportFileInfo, ImportPlan, ImportStatus};
@@ -258,18 +257,6 @@ impl Lb {
 
     pub fn get_timestamp_human_string(&self, timestamp: i64) -> String {
         self.lb.get_timestamp_human_string(timestamp)
-    }
-
-    pub fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
-        self.block_on(self.lb.suggested_docs(settings))
-    }
-
-    pub fn clear_suggested(&self) -> LbResult<()> {
-        self.block_on(self.lb.clear_suggested())
-    }
-
-    pub fn clear_suggested_id(&self, target_id: Uuid) -> LbResult<()> {
-        self.block_on(self.lb.clear_suggested_id(target_id))
     }
 
     pub fn pin_file(&self, id: Uuid) -> LbResult<()> {

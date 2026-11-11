@@ -2,7 +2,6 @@ use crate::io::server::Server;
 use std::collections::HashSet;
 
 use crate::Lb;
-use crate::model::clock::get_time;
 use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
@@ -14,7 +13,6 @@ use crate::model::{compression_service, symkey, validate};
 use hmac::{Mac, NewMac};
 use uuid::Uuid;
 
-use super::activity;
 use super::events::Actor;
 
 impl<S: Server> Lb<S> {
@@ -59,8 +57,6 @@ impl<S: Server> Lb<S> {
         }
 
         self.events.doc_written(id, Actor::User(None));
-        self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
-            .await?;
 
         Ok(())
     }
@@ -116,11 +112,6 @@ impl<S: Server> Lb<S> {
             }
         };
 
-        if user_activity {
-            self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                .await?;
-        }
-
         Ok((hmac, doc))
     }
 
@@ -174,8 +165,6 @@ impl<S: Server> Lb<S> {
         }
 
         self.events.doc_written(target_id, Actor::User(origin));
-        self.add_doc_event(activity::DocEvent::Write(target_id, get_time().0))
-            .await?;
 
         Ok(hmac)
     }
