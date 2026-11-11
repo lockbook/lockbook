@@ -49,6 +49,7 @@ pub struct PathSearcher {
     descendants: HashMap<Uuid, Vec<Uuid>>,
     path_to_id: HashMap<String, Uuid>,
     filter_ids: Option<HashSet<Uuid>>,
+    searched: Vec<Uuid>,
 }
 
 impl PathSearcher {
@@ -56,11 +57,14 @@ impl PathSearcher {
         let files = lb.list_metadatas().await.unwrap_or_default();
         let paths = lb.list_paths_with_ids(None).await.unwrap_or_default();
         let by_id: HashMap<Uuid, File> = files.into_iter().map(|f| (f.id, f)).collect();
-        Self::from_files(
+        let mut searcher = Self::from_files(
             paths
                 .into_iter()
                 .filter_map(|(id, path)| by_id.get(&id).cloned().map(|file| (file, path))),
-        )
+        );
+        searcher.searched = lb.ro_tx().await.db().searched_files.as_slice().to_vec();
+        searcher.rebuild();
+        searcher
     }
 
     /// Build a path index from an in-memory file list (`File` + path string).
@@ -104,6 +108,7 @@ impl PathSearcher {
             descendants,
             path_to_id,
             filter_ids: None,
+            searched: Vec::new(),
         };
         searcher.query("");
         searcher
@@ -146,7 +151,10 @@ impl PathSearcher {
                         .is_none_or(|ids| ids.contains(&e.file.id))
                 })
                 .collect();
-            entries.sort_by_key(|e| Reverse(e.file.last_modified));
+            entries.sort_by_cached_key(|e| {
+                let searched = self.searched.iter().rposition(|id| *id == e.file.id);
+                (Reverse(searched), Reverse(e.file.last_modified))
+            });
             self.results.extend(
                 entries
                     .into_iter()

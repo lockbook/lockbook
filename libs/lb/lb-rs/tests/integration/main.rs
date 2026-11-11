@@ -34,6 +34,7 @@ mod path_service_tests;
 mod path_tests;
 mod pin_service_tests;
 mod read_only_tests;
+mod search_tests;
 mod sharing_contacts_tests;
 mod sharing_tests;
 mod svg_merge_tests;
