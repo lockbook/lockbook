@@ -4,6 +4,7 @@ use lb_rs::model::text::offset_types::Grapheme;
 
 use super::super::input::{Event, Location, Region};
 use super::harness::TestEditor;
+use crate::tab::markdown_editor::Arena;
 
 /// `doc` with its `|` as the caret (or two `|`s as a selection), as a note
 /// or, given an extension, a file.
@@ -161,7 +162,7 @@ fn shrink_forgets_a_moved_selection() {
 fn brackets_pair_past_strings() {
     let doc = "```js\nf(\")\", [1])|\n```";
     let mut ws = editor(doc, None);
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let root = ws.editor.edit.renderer.reparse(&arena);
     let pair = ws.editor.edit.bracket_pair(root).unwrap();
     let open = doc.find("f(").unwrap() + 1;
@@ -306,7 +307,7 @@ fn code_block_chord_fences_a_task_under_its_checkbox() {
 fn code_block_button_lights_inside_a_code_block() {
     let lit = |doc: &str| {
         let mut ws = editor(doc, None);
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = ws.editor.edit.renderer.reparse(&arena);
         let style = comrak::nodes::NodeValue::CodeBlock(Default::default());
         ws.editor.edit.unapply_block(root, &style)

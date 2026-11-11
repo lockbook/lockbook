@@ -1,7 +1,6 @@
 pub(crate) mod card;
 pub(crate) mod hover;
 
-use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
@@ -20,7 +19,7 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     BG_ROW_GAP, CHIP_SIDE_PAD, Format, FragmentContent, Layout, StyleInfo, chip_of,
 };
-use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Arena, MdEdit, MdRender};
 use crate::tab::markdown_editor::{Syntax, View};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
 use crate::theme::palette_v2::{ThemeExt as _, readable_on};

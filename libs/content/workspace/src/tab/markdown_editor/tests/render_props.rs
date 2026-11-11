@@ -9,7 +9,7 @@
 use std::cell::OnceCell;
 use std::sync::{Arc, Mutex};
 
-use comrak::Arena;
+use crate::tab::markdown_editor::Arena;
 use egui::{Pos2, RawInput, Rect, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt};
 

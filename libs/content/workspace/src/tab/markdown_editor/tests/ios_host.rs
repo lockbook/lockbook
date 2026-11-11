@@ -5,6 +5,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use super::super::input::{Event, Location, Region};
 use super::harness::TestEditor;
+use crate::tab::markdown_editor::Arena;
 
 fn select(ws: &mut TestEditor, g: usize) {
     ws.push(Event::Select {
@@ -56,7 +57,7 @@ fn tap_past_line_end_lands_after_trailing_space() {
 fn scroll_to_bottom(ws: &mut TestEditor) {
     use super::super::scroll_content::DocScrollContent;
     use crate::widgets::affine_scroll::Action;
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let root = ws.editor.edit.renderer.reparse(&arena);
     let content = DocScrollContent::for_frame(
         &ws.editor.edit.renderer,

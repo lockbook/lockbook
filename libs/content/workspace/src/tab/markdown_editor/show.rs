@@ -12,7 +12,6 @@
 //!   `show` returns so popup callbacks land on a later glyphon layer and
 //!   outside any scroll-area clip.
 
-use comrak::Arena;
 use egui::os::OperatingSystem;
 use egui::{
     Context, EventFilter, Id, ImeEvent, Key, Pos2, Rect, Sense, Ui, UiBuilder, ViewportCommand,
@@ -32,7 +31,7 @@ use super::widget::block::drag::{BlockBox, BlockDragAction, DragUnit, TouchReord
 use super::widget::block::leaf::diagram::Picture;
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use super::widget::inline::tab_embed::EmbedClick;
-use super::{ImeMarked, MdEdit, MdRender};
+use super::{Arena, ImeMarked, MdEdit, MdRender};
 
 #[derive(Clone)]
 enum EditorMenuCmd {
@@ -657,7 +656,7 @@ impl MdEdit {
             self.renderer.reveal_along_row(pointer);
         }
 
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
         let content = DocScrollContent::for_frame(&self.renderer, root, viewport.height());
         let Some(top) = self

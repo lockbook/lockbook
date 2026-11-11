@@ -15,7 +15,7 @@ use crate::style::{context_menu, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::block::drag::{BlockDrag, DragUnit, DropGap};
-use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Arena, MdEdit, MdRender};
 use crate::theme::palette_v2::ThemeExt as _;
 
 /// A row's handle; a column's is as long and lies along the top border.
@@ -398,7 +398,7 @@ impl MdEdit {
     pub fn move_table_part(
         &mut self, drag: BlockDrag, insert_offset: Grapheme,
     ) -> buffer::Response {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         self.renderer.reparse(&arena);
         let r = &self.renderer;
 

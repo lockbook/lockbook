@@ -1,6 +1,7 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::mem;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
@@ -9,8 +10,8 @@ use crate::link_preview::LinkPreviews;
 use crate::resolvers::{EmbedResolver, LinkResolver};
 use bounds::Bounds;
 use colored::Colorize as _;
+use comrak::Options;
 use comrak::nodes::{Ast, AstNode, LineColumn, NodeValue};
-use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::os::OperatingSystem;
 use egui::{
@@ -151,6 +152,7 @@ pub struct MdRender {
     /// row and starts the next; downstream at any other offset.
     pub caret_affinity: (Grapheme, Affinity),
     pub text_seq: u64, // buffer.seq includes selection changes
+    tree: Option<Rc<Tree>>,
 
     pub bounds: Bounds,
     pub bounds_seq: u64,
@@ -299,6 +301,48 @@ pub struct MdRender {
     pub debug: bool,
     pub frame_times: [Instant; 100],
     pub frame_times_idx: usize,
+}
+
+#[derive(Default)]
+pub struct Arena {
+    trees: RefCell<Vec<Rc<Tree>>>,
+}
+
+impl Arena {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn hold<'a>(&'a self, tree: Rc<Tree>) -> &'a AstNode<'a> {
+        let root = tree.root.get().cast::<AstNode<'a>>();
+        self.trees.borrow_mut().push(tree);
+        unsafe { &*root }
+    }
+}
+
+struct Tree {
+    text_seq: u64,
+    nodes: comrak::Arena<'static>,
+    root: Cell<*const AstNode<'static>>,
+}
+
+impl Tree {
+    fn parse(text_seq: u64, text: &str, markdown: bool) -> Rc<Self> {
+        let tree = Rc::new(Self {
+            text_seq,
+            nodes: comrak::Arena::new(),
+            root: Cell::new(std::ptr::null()),
+        });
+        let nodes: &'static comrak::Arena<'static> = unsafe { &*std::ptr::from_ref(&tree.nodes) };
+        let root = if markdown {
+            comrak::parse_document(nodes, &format!("{text}\n"), &MdRender::comrak_options())
+        } else {
+            let doc = Ast::new(NodeValue::Document, LineColumn { line: 1, column: 1 });
+            nodes.alloc(AstNode::new(RefCell::new(doc)))
+        };
+        tree.root.set(root);
+        tree
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -816,6 +860,7 @@ impl MdRender {
             entered_atom: None,
             reveal_seq: 0,
             text_seq: 0,
+            tree: None,
             search_range: None,
             ime_marked: None,
             embeds: Box::new(()),
@@ -946,6 +991,7 @@ impl MdRender {
             viewport_height: Default::default(),
             reveal_seq: 0,
             text_seq: 0,
+            tree: None,
             bounds_seq: 0,
             ws_seq,
             debug: false,
@@ -977,11 +1023,11 @@ impl MdRender {
         self.caret_affinity = Default::default();
     }
 
-    /// Re-parse the buffer into a fresh AST and rebuild all text-derived
-    /// bounds (source lines, words, inline paragraphs). The caller owns the
-    /// [`Arena`] — comrak's AST is arena-allocated. Callers who need heights
-    /// also invoke [`MdRender::height`] on the returned root.
-    pub fn reparse<'a>(&mut self, arena: &'a Arena<'a>) -> &'a AstNode<'a> {
+    /// The buffer's AST, parsed again only when the text changed, with all
+    /// text-derived bounds (source lines, words, inline paragraphs) rebuilt
+    /// to match. The caller's [`Arena`] keeps the tree alive. Callers who
+    /// need heights also invoke [`MdRender::height`] on the returned root.
+    pub fn reparse<'a>(&mut self, arena: &'a Arena) -> &'a AstNode<'a> {
         // Width / link / embed / reveal invalidation flows through
         // dep-stamp mismatch in the height + spacing caches. Text changes
         // can affect any entry (fold-tag-driven cascades, sourcepos shifts),
@@ -1035,13 +1081,17 @@ impl MdRender {
 
     /// The text's markdown tree; a file that isn't markdown has a document
     /// with no children. Source mode draws source lines either way.
-    pub fn parse<'a>(&self, arena: &'a Arena<'a>) -> &'a AstNode<'a> {
-        if self.kind != Syntax::Markdown {
-            let doc = Ast::new(NodeValue::Document, LineColumn { line: 1, column: 1 });
-            return arena.alloc(AstNode::new(RefCell::new(doc)));
-        }
-        let text_with_newline = format!("{}\n", self.buffer.current.text);
-        comrak::parse_document(arena, &text_with_newline, &Self::comrak_options())
+    pub fn parse<'a>(&mut self, arena: &'a Arena) -> &'a AstNode<'a> {
+        let tree = match &self.tree {
+            Some(tree) if tree.text_seq == self.text_seq => tree.clone(),
+            _ => {
+                let markdown = self.kind == Syntax::Markdown;
+                let tree = Tree::parse(self.text_seq, &self.buffer.current.text, markdown);
+                self.tree = Some(tree.clone());
+                tree
+            }
+        };
+        arena.hold(tree)
     }
 
     pub fn comrak_options() -> Options<'static> {
@@ -1181,6 +1231,7 @@ impl Editor {
             viewport_height: Default::default(),
             reveal_seq: 0,
             text_seq: 0,
+            tree: None,
             bounds_seq: 0,
             ws_seq,
 
@@ -1600,8 +1651,7 @@ impl Editor {
         let start = web_time::Instant::now();
 
         // --- draw phase (back to front) ---------------------------------------
-        // Re-parse for render. handle_input parsed its own; that arena has
-        // been dropped. The parse is assumed cheap (~1 ms).
+        // handle_input's tree, unless the text changed since.
         let arena = Arena::new();
         let root = {
             let _parse = tracing::trace_span!("MarkdownEditor::parse").entered();
@@ -2988,9 +3038,7 @@ impl Editor {
 
     /// The heading `fragment` names: where its text starts (its markup may
     /// be hidden, with nothing laid out to scroll to) and where it ends.
-    fn find_heading<'a>(
-        &mut self, arena: &'a Arena<'a>, fragment: &str,
-    ) -> Option<(Grapheme, Grapheme)> {
+    fn find_heading(&mut self, arena: &Arena, fragment: &str) -> Option<(Grapheme, Grapheme)> {
         let root = self.edit.renderer.reparse(arena);
         let (nodes, headings): (Vec<_>, Vec<_>) = fragment::headings_in(root).into_iter().unzip();
         let node = nodes[fragment::find_heading(&headings, fragment)?];

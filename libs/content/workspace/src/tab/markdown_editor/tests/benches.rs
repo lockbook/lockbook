@@ -3,7 +3,7 @@
 
 use std::time::Instant;
 
-use comrak::Arena;
+use crate::tab::markdown_editor::Arena;
 use egui::{Pos2, RawInput, Rect, UiBuilder, Vec2};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
@@ -147,7 +147,7 @@ fn bench_render_warm() {
         ctx.run_pass(RawInput::default(), |ctx| {
             ctx.root_ui(|ui| {
                 egui::CentralPanel::default().show(ui, |ui| {
-                    let arena = comrak::Arena::new();
+                    let arena = Arena::new();
                     let root = r.reparse(&arena);
                     let height = r.height(root);
                     let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
@@ -164,7 +164,7 @@ fn bench_render_warm() {
         ctx.run_pass(RawInput::default(), |ctx| {
             ctx.root_ui(|ui| {
                 egui::CentralPanel::default().show(ui, |ui| {
-                    let arena = comrak::Arena::new();
+                    let arena = Arena::new();
                     let root = r.reparse(&arena);
                     let height = r.height(root);
                     let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
@@ -239,7 +239,7 @@ fn bench_render_cold() {
         ctx.run_pass(RawInput::default(), |ctx| {
             ctx.root_ui(|ui| {
                 egui::CentralPanel::default().show(ui, |ui| {
-                    let arena = comrak::Arena::new();
+                    let arena = Arena::new();
                     let root = r.reparse(&arena);
                     let height = r.height(root);
                     let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));

@@ -5,7 +5,7 @@ use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
     NodeValueExt as _, leading_indent_cols, leading_indent_range, wrap_layout,
 };
-use crate::tab::markdown_editor::{Affinity, MdEdit, MdRender};
+use crate::tab::markdown_editor::{Affinity, Arena, MdEdit, MdRender};
 use crate::tab::{CopiedRendered, ExtendedOutput as _};
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
@@ -33,7 +33,7 @@ impl MdEdit {
     pub fn move_block(
         &mut self, section_range: (Grapheme, Grapheme), insert_offset: Grapheme,
     ) -> buffer::Response {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
         let Some(plan) = self
             .renderer

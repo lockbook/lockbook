@@ -4,8 +4,8 @@
 //! specific outcome (often a shipped bug fix). Render-side tests reuse the
 //! property `_check` helpers exposed by [`super::render_props`].
 
+use crate::tab::markdown_editor::Arena;
 use crate::tab::markdown_editor::{Syntax, View};
-use comrak::Arena;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt};
 
 use super::super::input::{Advance, Bound, Event, Increment, Location, Region};
@@ -759,7 +759,7 @@ fn scroll_stable_after_reveal_arrow() {
     ws.enter_frame();
 
     {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = ws.editor.edit.renderer.reparse(&arena);
         let content = DocScrollContent::for_frame(
             &ws.editor.edit.renderer,
@@ -820,7 +820,7 @@ fn layout_cache_consistent_under_link_title() {
         .insert(url, crate::link_preview::LinkMeta { title: "ok".into(), ..Default::default() });
     ws.enter_frame();
 
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let root = ws.editor.edit.renderer.reparse(&arena);
     let nodes: Vec<_> = root.descendants().collect();
     let snapshot: Vec<_> = nodes
@@ -868,7 +868,7 @@ fn layout_cache_consistent_under_embed() {
     embeds.complete("https://x.test/i.png", egui::Vec2::new(300.0, 500.0));
     ws.enter_frame();
 
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let root = ws.editor.edit.renderer.reparse(&arena);
     let nodes: Vec<_> = root.descendants().collect();
     let snapshot: Vec<_> = nodes
@@ -929,7 +929,7 @@ fn layout_cache_consistent_under_reveal() {
     });
     ws.enter_frame();
 
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let root = ws.editor.edit.renderer.reparse(&arena);
     let nodes: Vec<_> = root.descendants().collect();
     let snapshot: Vec<_> = nodes
@@ -995,7 +995,7 @@ fn fold_toggle_does_not_jump_scroll_regression() {
 
     // Scroll back toward the middle so the cursor is offscreen below.
     {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = ws.editor.edit.renderer.reparse(&arena);
         let content = DocScrollContent::for_frame(
             &ws.editor.edit.renderer,
@@ -1415,7 +1415,7 @@ fn image_load_layout_consistent() {
     ws.enter_frame();
     ws.enter_frame();
 
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let root = ws.editor.edit.renderer.reparse(&arena);
     let image_paragraph = root.children().next().expect("image paragraph");
     let cached_height = ws.editor.edit.renderer.height(image_paragraph);
@@ -3041,4 +3041,19 @@ fn task_item_markers_cover_the_brackets() {
         }
         assert_eq!(shown, paragraph_lines, "{md:?}");
     }
+}
+
+#[test]
+fn unchanged_text_is_not_parsed_again() {
+    let mut ws = TestEditor::new("# title\n\nbody");
+    ws.enter_frame();
+    let arena = Arena::new();
+    let first = ws.editor.edit.renderer.reparse(&arena);
+    ws.enter_frame();
+    assert!(first.same_node(ws.editor.edit.renderer.reparse(&arena)));
+
+    ws.push(Event::Replace { region: Region::Selection, text: "!".into(), advance_cursor: true });
+    ws.enter_frame();
+    assert!(!first.same_node(ws.editor.edit.renderer.reparse(&arena)));
+    assert_eq!(first.children().count(), 2);
 }

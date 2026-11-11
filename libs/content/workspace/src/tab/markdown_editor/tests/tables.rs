@@ -2,7 +2,7 @@
 //! generated tables, and the examples that only a test would catch:
 //! shapes dogfooding does not reach, where a break is silent.
 
-use comrak::Arena;
+use crate::tab::markdown_editor::Arena;
 use comrak::nodes::{AstNode, NodeValue, TableAlignment};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
@@ -702,7 +702,7 @@ fn a_gesture_begun_on_text_leaves_its_sideways_travel_to_the_workspace() {
 fn column_widths(md: &str) -> Vec<f32> {
     let mut editor = TestEditor::new(md);
     editor.enter_frame();
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let r = &mut editor.editor.edit.renderer;
     let root = r.reparse(&arena);
     let table = root
@@ -734,7 +734,7 @@ fn the_caret_in_a_cell_leaves_its_column_alone() {
     let mut editor = TestEditor::new(md);
     editor.enter_frame();
     let widths = |editor: &mut TestEditor| {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let r = &mut editor.editor.edit.renderer;
         let root = r.reparse(&arena);
         let table = root
