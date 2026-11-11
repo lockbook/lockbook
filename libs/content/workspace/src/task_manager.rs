@@ -514,7 +514,7 @@ impl TaskManager {
         let new_hmac_result = self.core.safe_write(
             request.id,
             old_hmac,
-            content.clone().into_bytes(), // todo: unnecessary clone
+            &content.bytes(),
             Some(request.origin.as_uuid()),
         );
 

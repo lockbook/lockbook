@@ -55,11 +55,7 @@ pub unsafe extern "C" fn lb_read_document_versioned(
 pub extern "C" fn lb_write_document_versioned(
     lb: *mut Lb, id: LbUuid, version: LbDocumentVersion, content: *const u8, len: usize,
 ) -> LbDocumentVersionRes {
-    let content = if len == 0 {
-        vec![]
-    } else {
-        unsafe { std::slice::from_raw_parts(content, len) }.to_vec()
-    };
+    let content = if len == 0 { &[] } else { unsafe { std::slice::from_raw_parts(content, len) } };
     let hmac = version.present.then_some(version.hmac);
     match rlb(lb).safe_write(id.into(), hmac, content, None) {
         Ok(hmac) => LbDocumentVersionRes { err: null_mut(), version: Some(hmac).into() },
