@@ -999,6 +999,18 @@ mod test {
     }
 
     #[test]
+    fn a_reload_keeps_a_combining_mark_typed_onto_its_neighbor() {
+        // the mark fuses into "*", so the edit that wrote it spans no grapheme of its own
+        let mut buffer = Buffer::from("*abc\n");
+        let mark = Replace { range: (Grapheme(1), Grapheme(4)), text: "\u{94d}".into() };
+        buffer.queue(vec![Operation::Replace(mark)]);
+        buffer.update();
+        buffer.reload("Z*abc\n".into());
+        buffer.update();
+        assert_eq!(buffer.current.text, "Z*\u{94d}\n");
+    }
+
+    #[test]
     fn undo_takes_back_a_combining_mark_typed_after_its_letter() {
         let mut buffer = Buffer::from("xxxxx doc");
         let mark = Replace { range: (Grapheme(1), Grapheme(1)), text: "\u{948}".into() };
