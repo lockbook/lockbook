@@ -1,126 +1,102 @@
-//! Property tests over a note another program keeps rewriting while it's
-//! open. Each new version on disk reaches the editor through
-//! `Editor::reload` at the top of a frame, as a finished load
-//! does; the task manager may collapse several into the latest.
+//! A note another program keeps rewriting while it's open. Each new version
+//! on disk reaches the editor through `Editor::reload` at the top of a
+//! frame, as a finished load does; the task manager may collapse several
+//! into the latest. Nothing here saves or undoes: from [`Events::Typing`]
+//! the reader types one letter between versions.
 
 use lb_rs::model::text::offset_types::Grapheme;
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use super::super::input::{Event, Location, Region};
-use super::doc_gen::{Features, gen_doc};
-use super::harness::{TestEditor, in_memory_core};
+use super::super::super::input::{Event, Location, Region};
+use super::super::doc_gen::{Features, gen_doc};
+use super::super::harness::TestEditor;
+use super::{Events, lb};
 use crate::test_utils::byte_source::ByteSource;
 
 /// What a reader types between versions; nothing on disk has it.
 const TYPED: char = 'Ж';
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum Prop {
-    /// Reading only: after every frame the note shows the latest version.
-    ShowsDisk,
-    /// Typing a little between versions: each version lands as a merge with
-    /// the note's text. Edits apart from each other both land, inserts at the
-    /// same spot in either order; where they overlap the note keeps its own.
-    ShowsDiskAndTyping,
-}
-
-#[test]
-fn reading_shows_the_latest_version() {
-    run(Prop::ShowsDisk, 300);
-}
-
-#[test]
-fn typing_keeps_the_latest_version_and_the_typing() {
-    run(Prop::ShowsDiskAndTyping, 300);
-}
-
-fn run(prop: Prop, seeds: u64) {
-    crate::test_utils::prop::run(
-        seeds,
-        512,
-        |b| check(b, prop, &mut |_| {}),
-        |b| {
-            let mut log = vec![];
-            let result = check(b, prop, &mut |line| log.push(line));
-            format!("{}\n=> {result:?}", log.join("\n"))
-        },
+/// After every frame the note shows the latest version, merged from
+/// [`Events::Typing`] with what was typed: edits apart from each other both
+/// land, inserts at the same spot in either order, and where they overlap
+/// the note keeps its own.
+pub(super) fn run(features: Features, events: Events, seeds: u64) {
+    assert!(
+        (Events::Reading..=Events::Typing).contains(&events),
+        "only versions and typing land here"
     );
+    super::run(seeds, 512, |b, log| check(b, &features, events, log));
 }
 
-fn check(buf: &[u8], prop: Prop, log: &mut dyn FnMut(String)) -> Result<(), String> {
-    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        // the run's choices come first: docs may use up the rest
-        let (choices, docs) = buf.split_at(buf.len().min(96));
-        let mut src = ByteSource::new(choices);
-        let mut docs = ByteSource::new(docs);
-        let mut disk = gen_doc(&mut docs, &Features::all());
-        log(format!("open {disk:?}"));
-        let mut ws = TestEditor::with_lb(in_memory_core(), &disk);
-        let (mut landed, mut want) = (disk.clone(), disk.clone());
-        let mut seq = 0u8;
-        for _ in 0..1 + src.draw(8) {
-            // the agent writes one or more versions before the next frame
-            let versions = 1 + src.bias(&[4, 2, 1]);
-            let delivered = src.bias(&[3, 1, 1]);
-            for v in 0..versions {
-                disk = next_version(&disk, &mut src, &mut docs, log);
-                // 0: each lands; 1: all land in one frame; 2: collapsed to the last
-                if delivered != 2 || v + 1 == versions {
-                    seq = seq.wrapping_add(1);
-                    let before = ws.get_text().to_string();
-                    ws.editor.reload(disk.clone(), Some([seq; 32]));
-                    let merges = merges(&landed, &before, &disk);
-                    if !merges.iter().any(|m| m == ws.get_text()) {
-                        return fail(ws.get_text(), &merges, log);
-                    }
-                    (landed, want) = (disk.clone(), ws.get_text().to_string());
+fn check(
+    buf: &[u8], features: &Features, events: Events, log: &mut dyn FnMut(String),
+) -> Result<(), String> {
+    // the run's choices come first: docs may use up the rest
+    let (choices, docs) = buf.split_at(buf.len().min(96));
+    let mut src = ByteSource::new(choices);
+    let mut docs = ByteSource::new(docs);
+    let mut disk = gen_doc(&mut docs, features);
+    log(format!("open {disk:?}"));
+    let mut ws = TestEditor::with_lb(lb(), &disk);
+    let (mut landed, mut want) = (disk.clone(), disk.clone());
+    let mut seq = 0u8;
+    for _ in 0..1 + src.draw(8) {
+        // the agent writes one or more versions before the next frame
+        let versions = 1 + src.bias(&[4, 2, 1]);
+        let delivered = src.bias(&[3, 1, 1]);
+        for v in 0..versions {
+            disk = next_version(&disk, &mut src, &mut docs, features, log);
+            // 0: each lands; 1: all land in one frame; 2: collapsed to the last
+            if delivered != 2 || v + 1 == versions {
+                seq = seq.wrapping_add(1);
+                let before = ws.get_text().to_string();
+                ws.editor.reload(disk.clone(), Some([seq; 32]));
+                let merges = merges(&landed, &before, &disk);
+                if !merges.iter().any(|m| m == ws.get_text()) {
+                    return fail(ws.get_text(), &merges, log);
                 }
-                if delivered == 0 {
-                    ws.enter_frame();
-                    expect(&ws, &want, log)?;
-                }
+                (landed, want) = (disk.clone(), ws.get_text().to_string());
             }
-            if delivered != 0 {
-                log(format!(
-                    "{} versions land in one frame",
-                    if delivered == 1 { versions } else { 1 }
-                ));
+            if delivered == 0 {
                 ws.enter_frame();
                 expect(&ws, &want, log)?;
             }
-            if prop == Prop::ShowsDiskAndTyping && src.bias(&[1, 1]) == 1 {
-                let len = ws
-                    .editor
-                    .edit
-                    .renderer
-                    .buffer
-                    .current
-                    .segs
-                    .last_cursor_position()
-                    .0;
-                let at = Grapheme(src.draw(len + 1));
-                log(format!("type {TYPED:?} at {at:?}"));
-                ws.push(Event::Replace {
-                    region: Region::BetweenLocations {
-                        start: Location::Grapheme(at),
-                        end: Location::Grapheme(at),
-                    },
-                    text: TYPED.to_string(),
-                    advance_cursor: true,
-                });
-                ws.enter_frame();
-                want = ws.get_text().to_string();
-            }
         }
-        let (_, saved) = ws.editor.flush_for_save();
-        log(format!("a save would write {saved:?}"));
-        Ok(())
-    }));
-    caught.unwrap_or_else(|panic| {
-        let message = panic.downcast_ref::<String>().map(String::as_str);
-        let message = message.or(panic.downcast_ref::<&str>().copied());
-        Err(format!("panicked: {}", message.unwrap_or("with no message")))
-    })
+        if delivered != 0 {
+            log(format!(
+                "{} versions land in one frame",
+                if delivered == 1 { versions } else { 1 }
+            ));
+            ws.enter_frame();
+            expect(&ws, &want, log)?;
+        }
+        if events >= Events::Typing && src.bias(&[1, 1]) == 1 {
+            let len = ws
+                .editor
+                .edit
+                .renderer
+                .buffer
+                .current
+                .segs
+                .last_cursor_position()
+                .0;
+            let at = Grapheme(src.draw(len + 1));
+            log(format!("type {TYPED:?} at {at:?}"));
+            ws.push(Event::Replace {
+                region: Region::BetweenLocations {
+                    start: Location::Grapheme(at),
+                    end: Location::Grapheme(at),
+                },
+                text: TYPED.to_string(),
+                advance_cursor: true,
+            });
+            ws.enter_frame();
+            want = ws.get_text().to_string();
+        }
+    }
+    let (_, saved) = ws.editor.flush_for_save();
+    log(format!("a save would write {saved:?}"));
+    Ok(())
 }
 
 fn expect(ws: &TestEditor, want: &str, log: &mut dyn FnMut(String)) -> Result<(), String> {
@@ -191,7 +167,8 @@ fn merges(base: &str, local: &str, remote: &str) -> Vec<String> {
 
 /// The agent's next version of `disk`.
 fn next_version(
-    disk: &str, src: &mut ByteSource, docs: &mut ByteSource, log: &mut dyn FnMut(String),
+    disk: &str, src: &mut ByteSource, docs: &mut ByteSource, features: &Features,
+    log: &mut dyn FnMut(String),
 ) -> String {
     let bounds: Vec<usize> = disk
         .grapheme_indices(true)
@@ -229,7 +206,7 @@ fn next_version(
             out.concat()
         }
         // the whole file rewritten
-        4 => gen_doc(docs, &Features::all()),
+        4 => gen_doc(docs, features),
         // the whole file rewritten, keeping the same words in a new order
         _ => {
             let mut words: Vec<&str> = disk.split_word_bounds().collect();
@@ -242,19 +219,13 @@ fn next_version(
     next
 }
 
-/// The shortest case behind each row, against the buffer alone.
+/// Typing at the start of a note whose versions repeat one word: the typed
+/// letter stays in front of every word the versions add.
 #[test]
-fn reload_cases() {
+fn a_letter_typed_at_the_start_stays_there_through_reloads() {
     use lb_rs::model::text::buffer::Buffer;
     use lb_rs::model::text::operation_types::{Operation, Replace};
 
-    // reading only: one new version
-    let mut b = Buffer::from("foo 👋 foo\n");
-    b.reload("foo 👋foo  foo\n".into());
-    b.update();
-    assert_eq!(b.current.text, "foo 👋foo  foo\n");
-
-    // typing one letter between versions
     let mut b = Buffer::from("foo\n");
     for v in ["foo foo\n", "foo foo foo\n"] {
         b.reload(v.into());

@@ -4,6 +4,7 @@
 //! [`Events`] tier, the highest where it holds.
 
 mod interleave;
+mod reload;
 mod scroll;
 
 use std::sync::OnceLock;
@@ -14,7 +15,9 @@ use super::doc_gen::Features;
 use super::harness::in_memory_core;
 
 /// What happens to the open note besides its document. Each tier adds to
-/// the one below, so a property that holds at a tier holds below it.
+/// the one below, so a property that holds at a tier holds below it. Only
+/// the interleave driver saves; the others leave the note unedited until
+/// [`Events::Typing`], as a save would.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 enum Events {
     /// Typing, deletes, selections and undo.
@@ -46,22 +49,27 @@ fn lb() -> Lb {
 
 #[test]
 fn undo_then_redo_restores_the_text() {
-    interleave::run(interleave::Prop::UndoRedo, Features::all(), Events::Reading, 2000);
+    interleave::run(interleave::Prop::UndoRedo, Features::all(), Events::Undo, 1000);
 }
 
 #[test]
 fn the_outline_matches_a_fresh_open() {
-    interleave::run(interleave::Prop::OutlineFresh, Features::all(), Events::Reading, 1000);
+    interleave::run(interleave::Prop::OutlineFresh, Features::all(), Events::Undo, 600);
+}
+
+#[test]
+fn the_note_shows_the_latest_version() {
+    reload::run(Features::all(), Events::Typing, 300);
 }
 
 #[test]
 fn text_on_screen_stays_put() {
-    scroll::run(scroll::Prop::TextStays, Features::all(), Events::Undo, 300);
+    scroll::run(scroll::Prop::TextStays, Features::all(), Events::Held, 300);
 }
 
 #[test]
 fn the_caret_stays_on_screen() {
-    scroll::run(scroll::Prop::CaretStays, Features::all(), Events::Undo, 300);
+    scroll::run(scroll::Prop::CaretStays, Features::all(), Events::Held, 300);
 }
 
 /// Runs `check` under the shared seed loop; a failure reproduces with the
