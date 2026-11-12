@@ -79,6 +79,12 @@ fn pasted_id_links_are_written_for_the_note() {
     assert_eq!(paste("see ", (4, 4), "https://lockbook.net"), "see https://lockbook.net");
 }
 
+#[test]
+fn pasted_url_links_a_selection_ending_at_a_link() {
+    let pasted = paste("hello\n\n[x](y)", (2, 7), "https://lockbook.net");
+    assert!(pasted.contains("](https://lockbook.net)"), "{pasted:?}");
+}
+
 /// Whether completions are open after typing `typed` at `caret` in `md`,
 /// one grapheme a frame, in `/project/notes.md`.
 fn completes(md: &str, caret: usize, typed: &str) -> bool {
