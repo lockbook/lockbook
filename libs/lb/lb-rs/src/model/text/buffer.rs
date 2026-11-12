@@ -927,6 +927,22 @@ mod test {
     }
 
     #[test]
+    fn buffer_merge_insert_before_replace() {
+        let base_content = "one two three";
+        let local_content = "one and two three";
+        let remote_content = "one dos three";
+
+        assert_eq!(
+            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
+            "one and dos three"
+        );
+        assert_eq!(
+            Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
+            "one and dos three"
+        );
+    }
+
+    #[test]
     fn buffer_merge_delete_beside_insert() {
         let base_content = "aa bb";
         let local_content = "aa bb R";
