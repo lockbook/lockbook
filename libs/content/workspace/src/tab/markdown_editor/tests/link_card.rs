@@ -4,7 +4,7 @@
 //! stays clean, portable markdown — the trigger is positional, not a syntax
 //! suffix — so these pin exactly which links qualify.
 
-use comrak::Arena;
+use crate::tab::markdown_editor::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::RangeExt as _;
 

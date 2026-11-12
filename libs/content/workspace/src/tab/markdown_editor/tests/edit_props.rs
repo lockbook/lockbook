@@ -8,6 +8,7 @@ use super::super::widget::toolbar::MarkdownToolbarAction as ToolbarAction;
 use super::super::widget::utils::NodeValueExt as _;
 use super::doc_gen::{self, Features, ScriptFeatures, WhitespaceFeatures, gen_doc};
 use super::harness::TestEditor;
+use crate::tab::markdown_editor::Arena;
 use crate::tab::markdown_editor::MdRender;
 use crate::test_utils::byte_source::ByteSource;
 use comrak::nodes::{AstNode, NodeValue};
@@ -379,7 +380,7 @@ fn doc_with_selection(src: &mut ByteSource) -> TestEditor {
 fn count_nodes(
     ws: &mut TestEditor, f: impl for<'a> Fn(&MdRender, &'a AstNode<'a>) -> bool,
 ) -> usize {
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let root = ws.editor.edit.renderer.reparse(&arena);
     root.descendants()
         .filter(|&node| f(&ws.editor.edit.renderer, node))
@@ -1267,7 +1268,7 @@ fn layout_cache_consistent_check(buf: &[u8]) -> Result<(), &'static str> {
         let w = widths[src.bias(&[6, 1, 1, 1]) % widths.len()];
         ws.enter_frame_at(egui::Vec2::new(w, 600.0));
 
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = ws.editor.edit.renderer.reparse(&arena);
         let nodes: Vec<_> = root.descendants().collect();
         let r = &ws.editor.edit.renderer;
@@ -1381,7 +1382,7 @@ fn fold_toggle_does_not_jump_scroll_check(buf: &[u8]) -> Result<(), &'static str
         ws.enter_frame(); // settle scroll-to-cursor
         // Scroll toward the top.
         {
-            let arena = comrak::Arena::new();
+            let arena = Arena::new();
             let root = ws.editor.edit.renderer.reparse(&arena);
             let content = DocScrollContent::for_frame(
                 &ws.editor.edit.renderer,
@@ -1444,7 +1445,7 @@ fn opened_heading_is_scrolled_to_check(buf: &[u8]) -> Result<(), String> {
     ws.editor.persistence.set_source(src.draw(2) == 1);
     ws.enter_frame_at(size);
     let slugs: Vec<String> = {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = ws.editor.edit.renderer.reparse(&arena);
         headings_in(root).into_iter().map(|(_, h)| h.slug).collect()
     };
@@ -1454,7 +1455,7 @@ fn opened_heading_is_scrolled_to_check(buf: &[u8]) -> Result<(), String> {
         for _ in 0..3 {
             ws.enter_frame_at(size);
         }
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = ws.editor.edit.renderer.reparse(&arena);
         let state = &ws.editor.edit.scroll_area.state;
         let view = state.viewport_height;
@@ -1484,7 +1485,7 @@ fn source_round_trip_keeps_heading_check(buf: &[u8]) -> Result<(), String> {
     let mut ws = TestEditor::new(&md);
     ws.enter_frame_at(size);
     let slugs: Vec<String> = {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = ws.editor.edit.renderer.reparse(&arena);
         headings_in(root).into_iter().map(|(_, h)| h.slug).collect()
     };
@@ -1494,7 +1495,7 @@ fn source_round_trip_keeps_heading_check(buf: &[u8]) -> Result<(), String> {
         ws.enter_frame_at(size);
     }
     let scrolled = |ws: &mut TestEditor| {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = ws.editor.edit.renderer.reparse(&arena);
         ws.editor.scrolled_to_heading(root)
     };
@@ -1519,7 +1520,7 @@ fn source_round_trip_keeps_heading_check(buf: &[u8]) -> Result<(), String> {
 fn scrolls(ws: &mut TestEditor) -> bool {
     use super::super::scroll_content::DocScrollContent;
     use crate::widgets::affine_scroll::{Offset, Rows as _};
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let root = ws.editor.edit.renderer.reparse(&arena);
     let state = &ws.editor.edit.scroll_area.state;
     let view = state.viewport_height;
@@ -1534,7 +1535,7 @@ fn landings_in_order(ws: &mut TestEditor) -> Result<(), String> {
     use super::super::heading_scroll;
     use super::super::scroll_content::{DocRowId, DocScrollContent};
     use crate::widgets::affine_scroll::{Offset, Rows as _, offset_by};
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let root = ws.editor.edit.renderer.reparse(&arena);
     let state = &ws.editor.edit.scroll_area.state;
     let view = state.viewport_height;
@@ -2091,7 +2092,7 @@ fn table_survives_edits_check(md: &str, choices: &[usize]) -> Result<(), String>
             .map_err(|reason| format!("{reason}: {context}"))?;
         let r = &ws.editor.edit.renderer;
         let mut fresh = super::render_props::test_renderer(&text);
-        fresh.reparse(&comrak::Arena::new());
+        fresh.reparse(&Arena::new());
         if r.bounds.tables != fresh.bounds.tables {
             return Err(format!("the table's ranges are stale: {context}"));
         }
@@ -2724,7 +2725,6 @@ fn no_panic_typing_triple_backtick_check(buf: &[u8]) -> Result<(), &'static str>
 }
 
 fn line_kinds(ws: &mut TestEditor) -> Vec<Option<&'static str>> {
-    use comrak::Arena;
     use comrak::nodes::NodeValue;
     use lb_rs::model::text::offset_types::RangeExt as _;
     let arena = Arena::new();
@@ -2819,7 +2819,6 @@ fn indent_doesnt_break_document_check(buf: &[u8]) -> Result<(), &'static str> {
 /// misses it. Empty-content items are excluded: an empty marker can't
 /// interrupt a paragraph either, so indenting one legitimately collapses it.
 fn item_begin_lines(ws: &mut TestEditor) -> Vec<bool> {
-    use comrak::Arena;
     use comrak::nodes::NodeValue;
     use lb_rs::model::text::offset_types::RangeExt as _;
     let arena = Arena::new();
@@ -2900,7 +2899,6 @@ fn indent_preserves_marker_check(buf: &[u8], f: &Features) -> Result<(), String>
 /// tab-indent direction is never actually applicable here — testing it would
 /// be vacuous.
 fn indent_is_permissive_check(buf: &[u8]) -> Result<(), &'static str> {
-    use comrak::Arena;
     use comrak::nodes::NodeValue;
     use lb_rs::model::text::offset_types::RangeExt as _;
 

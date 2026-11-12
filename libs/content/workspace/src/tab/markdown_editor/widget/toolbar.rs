@@ -2,7 +2,6 @@ use std::mem;
 use std::sync::Arc;
 use web_time::{Duration, Instant};
 
-use comrak::Arena;
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeList, NodeValue, TableAlignment};
 use egui::scroll_area::{ScrollBarVisibility, ScrollSource};
 use egui::{
@@ -19,7 +18,7 @@ use crate::style::{
 };
 use crate::tab::markdown_editor::table::TableAction;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
-use crate::tab::markdown_editor::{MdRender, TouchTarget};
+use crate::tab::markdown_editor::{Arena, MdRender, TouchTarget};
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 
 use crate::tab::markdown_editor::{self, Editor};
@@ -1766,7 +1765,7 @@ impl<'ast> Editor {
         self.edit.renderer.buffer.update();
 
         // parse
-        let arena = Arena::new();
+        let arena = comrak::Arena::new();
         let options = MdRender::comrak_options();
         let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
@@ -1803,7 +1802,7 @@ impl<'ast> Editor {
         self.edit.renderer.buffer.update();
 
         // parse
-        let arena = Arena::new();
+        let arena = comrak::Arena::new();
         let options = MdRender::comrak_options();
         let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
         let root = comrak::parse_document(&arena, &text_with_newline, &options);

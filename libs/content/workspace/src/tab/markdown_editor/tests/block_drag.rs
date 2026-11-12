@@ -7,7 +7,7 @@
 //! Style: self-referential invariants (round trip, conservation,
 //! multiset) over a differential oracle.
 
-use comrak::Arena;
+use crate::tab::markdown_editor::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 

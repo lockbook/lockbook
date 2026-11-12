@@ -4,7 +4,7 @@ use std::mem;
 use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
-use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Arena, MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -309,7 +309,7 @@ impl MdEdit {
             self.renderer.layout.row_spacing / 2.0
         };
 
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
         let content = DocScrollContent::for_frame(&self.renderer, root, canvas_rect.height());
 

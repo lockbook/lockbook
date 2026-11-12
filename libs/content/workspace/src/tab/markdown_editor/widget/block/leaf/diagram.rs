@@ -16,7 +16,7 @@ use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     EmbedKind, EmbedSpec, Layout, WrapUnitLayout,
 };
-use crate::tab::markdown_editor::{MdEdit, MdRender, TouchTarget, View};
+use crate::tab::markdown_editor::{Arena, MdEdit, MdRender, TouchTarget, View};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::diagram_cache::DiagramSize;
@@ -419,14 +419,14 @@ impl<'ast> MdRender {
     /// Whether the platform edit menu offers "Open": the selection is a
     /// collapsed diagram.
     pub fn selection_has_diagram(&mut self) -> bool {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = self.reparse(&arena);
         matches!(self.selected_picture(root), Some(Picture::Diagram(_)))
     }
 
     /// Whether the platform edit menu offers "Copy Image".
     pub fn selection_has_picture(&mut self) -> bool {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = self.reparse(&arena);
         self.selected_picture(root).is_some()
     }

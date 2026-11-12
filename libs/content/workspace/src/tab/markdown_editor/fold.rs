@@ -10,7 +10,6 @@
 //! it, you replace/delete/copy the content. This is accomplished in the logic
 //! that handles those operations.
 
-use comrak::Arena;
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
@@ -24,7 +23,7 @@ use crate::tab::markdown_editor::input::{Advance, Bound, Increment, Region};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FontFamily, Format, Layout, StyleInfo,
 };
-use crate::tab::markdown_editor::{Event, MdEdit, MdRender};
+use crate::tab::markdown_editor::{Arena, Event, MdEdit, MdRender};
 
 pub const FOLD_TAG: &str = "<!-- {\"fold\":true} -->";
 
@@ -304,8 +303,8 @@ impl<'ast> MdEdit {
     /// Selections are snapped out of fold sections, but an edit can still
     /// leave one inside, e.g. indenting an item into a folded item; after
     /// an edit or a user move, unfold around it.
-    pub fn unfold_after_edit<'a>(
-        &mut self, arena: &'a Arena<'a>, edited: bool, undo_redo: bool,
+    pub fn unfold_after_edit(
+        &mut self, arena: &Arena, edited: bool, undo_redo: bool,
     ) -> buffer::Response {
         if edited && !undo_redo && !self.renderer.readonly && self.renderer.view == View::Rendered {
             self.unfold_at_selection(arena)
@@ -316,7 +315,7 @@ impl<'ast> MdEdit {
 
     /// Apply [`MdRender::unfold_ops_for_selection`], reparsing on
     /// change so this frame renders the unfolded state.
-    pub fn unfold_at_selection<'a>(&mut self, arena: &'a Arena<'a>) -> buffer::Response {
+    pub fn unfold_at_selection(&mut self, arena: &Arena) -> buffer::Response {
         let ops = self.renderer.unfold_ops_for_selection();
         if ops.is_empty() {
             return buffer::Response::default();

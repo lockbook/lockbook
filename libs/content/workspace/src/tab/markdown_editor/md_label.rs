@@ -7,14 +7,12 @@
 //! is replaced each time, which invalidates the text-change cache inside
 //! `LayoutCache`, but that's inherent to label-style use.
 
-use comrak::Arena;
-
 use egui::{Pos2, Rect, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::buffer::Buffer;
 
 use crate::TextBufferArea;
 
-use super::MdRender;
+use super::{Arena, MdRender};
 
 pub struct MdLabel {
     pub renderer: MdRender,
