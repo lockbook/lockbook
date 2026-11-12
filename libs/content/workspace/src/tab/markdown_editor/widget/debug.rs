@@ -18,13 +18,14 @@ impl MdRender {
         let debug_text = format!("{:.0} fps", fps);
         let rect = ui.max_rect();
         let pos = rect.right_top() + Vec2::new(-60., 5.);
-        ui.painter().text(
-            pos,
-            egui::Align2::RIGHT_TOP,
-            debug_text,
-            egui::FontId::monospace(14.),
-            self.ctx.get_lb_theme().accent(),
-        );
+        let label =
+            crate::widgets::GlyphonLabel::new(&debug_text, self.ctx.get_lb_theme().accent())
+                .font_size(14.)
+                .mono()
+                .interface()
+                .build(ui.ctx());
+        let at = pos - egui::vec2(label.size.x, 0.);
+        label.paint(ui.painter(), at);
     }
 
     pub fn show_debug_block_highlight<'ast>(
