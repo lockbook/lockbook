@@ -181,6 +181,15 @@ pub unsafe extern "C" fn set_column_width(obj: *mut c_void, value: f32) {
     obj.workspace.cfg.set_column_width(value);
 }
 
+/// The platform's text size setting, as a multiple of its default.
+///
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn set_system_text_scale(obj: *mut c_void, scale: f32) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.cfg.set_system_text_scale(scale);
+}
+
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn set_open_in_new_tab(obj: *mut c_void, value: bool) {

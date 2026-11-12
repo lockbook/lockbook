@@ -2177,6 +2177,10 @@ pub struct WsPresistentData {
     /// How far apart notes' lines sit.
     #[serde(default, deserialize_with = "line_spacing_or_default")]
     line_spacing: LineSpacing,
+    /// The platform's text size as a multiple of its default, where it has
+    /// a setting for one: what the text size is until one is chosen.
+    #[serde(skip)]
+    system_text_scale: Option<f32>,
 }
 
 fn default_column_width() -> f32 {
@@ -2233,6 +2237,7 @@ impl Default for WsPresistentData {
             column_width: default_column_width(),
             text_size: None,
             line_spacing: LineSpacing::default(),
+            system_text_scale: None,
         }
     }
 }
@@ -2448,8 +2453,19 @@ impl WsPersistentStore {
 
     pub fn get_text_size(&self) -> f32 {
         let data = self.data.read().unwrap();
-        let size = data.text_size.unwrap_or(DEFAULT_TEXT_SIZE);
+        let scale = data.system_text_scale.unwrap_or(1.0);
+        let size = data
+            .text_size
+            .unwrap_or((DEFAULT_TEXT_SIZE * scale).round());
         if size.is_finite() { size.clamp(MIN_TEXT_SIZE, MAX_TEXT_SIZE) } else { DEFAULT_TEXT_SIZE }
+    }
+
+    /// The host reports its text size setting, `scale` times its default.
+    pub fn set_system_text_scale(&mut self, scale: f32) {
+        if self.data.read().unwrap().system_text_scale == Some(scale) {
+            return; // hosts push this every frame
+        }
+        self.data.write().unwrap().system_text_scale = Some(scale);
     }
 
     pub fn set_text_size(&mut self, text_size: f32) {

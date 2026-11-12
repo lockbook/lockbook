@@ -11,6 +11,7 @@ mod link_inbox;
 mod perf;
 mod settings;
 pub mod shell;
+mod system_text;
 mod util;
 
 pub use crate::settings::Settings;
