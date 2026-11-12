@@ -950,7 +950,7 @@ impl TabContent {
         match self {
             // an embed shows its region from the region's top, unwashed
             TabContent::Markdown(md) if md.embedded => {
-                md.region = reveal
+                md.edit.renderer.region = reveal
                     .fragment
                     .clone()
                     .filter(|f| matches!(f, Fragment::Heading(_)));

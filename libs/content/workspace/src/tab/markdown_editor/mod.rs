@@ -241,6 +241,10 @@ pub struct MdRender {
     /// Read-only search-preview highlight: the snippet range to reveal,
     /// scroll to, and box-highlight. Independent of the find feature.
     pub preview_match: Option<(Grapheme, Grapheme)>,
+    /// What an embed shows of the note: a heading's section, or all of it.
+    pub region: Option<crate::tab::Fragment>,
+    /// The region heading's contents, shown open whatever its fold.
+    pub region_reveal: Option<(Grapheme, Grapheme)>,
     /// Where a heading being landed on starts: its line is laid out wherever
     /// it is, for the landing to measure. Set each frame from the editor's
     /// landing.
@@ -545,8 +549,6 @@ pub struct Editor {
     region_scrolled: bool,
     /// A card's view has been put at its region's start.
     region_placed: bool,
-    /// What an embed shows of the note: a heading's section, or all of it.
-    pub region: Option<crate::tab::Fragment>,
     /// The region's rows this frame, first and last; only they paint.
     region_bounds: Option<(DocRowId, DocRowId)>,
     /// Version of the *displayed* buffer. Only written with the matching
@@ -803,6 +805,8 @@ impl MdRender {
             find_current_match: None,
             platform_marked: None,
             preview_match: None,
+            region: None,
+            region_reveal: None,
             landing_heading: None,
             interactive: false,
             readonly: true,
@@ -926,6 +930,8 @@ impl MdRender {
             find_current_match: None,
             platform_marked: None,
             preview_match: None,
+            region: None,
+            region_reveal: None,
             landing_heading: None,
             interactive: false,
             readonly: true,
@@ -1014,6 +1020,7 @@ impl MdRender {
             // from compute_bounds_block_pre_spacing) queries
             // hidden_by_fold, which now expects every node already
             // cached.
+            self.reveal_region(root);
             self.populate_hidden_by_fold(root);
             self.compute_bounds(root);
             self.bounds.inline_paragraphs.sort();
@@ -1027,10 +1034,29 @@ impl MdRender {
             // Still call populate — its own deps check skips when
             // text+reveal haven't moved, but this catches reveal-only
             // changes (text seq same, reveal_seq advanced).
+            self.reveal_region(root);
             self.populate_hidden_by_fold(root);
         }
 
         root
+    }
+
+    /// Opens the region's heading, which an embed names to show its section.
+    fn reveal_region<'a>(&mut self, root: &'a AstNode<'a>) {
+        let reveal = match &self.region {
+            Some(crate::tab::Fragment::Heading(slug)) => {
+                let (nodes, headings): (Vec<_>, Vec<_>) =
+                    fragment::headings_in(root).into_iter().unzip();
+                fragment::find_heading(&headings, slug).map(|i| self.heading_contents(nodes[i]))
+            }
+            _ => None,
+        };
+        if reveal != self.region_reveal {
+            self.region_reveal = reveal;
+            self.reveal_seq = self
+                .ws_seq
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 
     /// The text's markdown tree; a file that isn't markdown has a document
@@ -1150,6 +1176,8 @@ impl Editor {
             find_current_match: None,
             platform_marked: None,
             preview_match: None,
+            region: None,
+            region_reveal: None,
             landing_heading: None,
             interactive: true,
             readonly,
@@ -1244,7 +1272,6 @@ impl Editor {
             in_card: false,
             region_scrolled: false,
             region_placed: false,
-            region: None,
             region_bounds: None,
             hmac,
             initialized: Default::default(),
@@ -2855,7 +2882,7 @@ impl Editor {
         &self, rows: &scroll_content::DocScrollContent<'_, 'a>, root: &'a AstNode<'a>,
     ) -> Option<(DocOffset, f32)> {
         use crate::widgets::affine_scroll::Rows as _;
-        let (first, last) = self.region_rows(rows, root, self.region.as_ref())?;
+        let (first, last) = self.region_rows(rows, root, self.edit.renderer.region.as_ref())?;
         let above = match first {
             DocRowId::Block(i) => root
                 .children()
@@ -2883,15 +2910,15 @@ impl Editor {
             .min(self.edit.renderer.layout.max_width)
             .max(0.0);
         self.edit.renderer.set_width(col);
+        let region = std::mem::replace(&mut self.edit.renderer.region, fragment.cloned());
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
         let viewport = self.edit.scroll_area.state.viewport_height;
         // measured over the whole note, whatever region the view is held to
         let bounds = self.edit.renderer.scroll_bounds.take();
         let rows = scroll_content::DocScrollContent::for_frame(&self.edit.renderer, root, viewport);
-        let region = std::mem::replace(&mut self.region, fragment.cloned());
         let height = self.region_span(&rows, root).map_or(0.0, |(_, h)| h);
-        self.region = region;
+        self.edit.renderer.region = region;
         self.edit.renderer.scroll_bounds = bounds;
         height
     }
@@ -2907,7 +2934,7 @@ impl Editor {
         }
         let rows =
             scroll_content::DocScrollContent::for_frame(&self.edit.renderer, root, canvas.height());
-        self.region_bounds = self.region_rows(&rows, root, self.region.as_ref());
+        self.region_bounds = self.region_rows(&rows, root, self.edit.renderer.region.as_ref());
         let Some((start, height)) = self.region_span(&rows, root) else { return };
         if self.in_card {
             self.edit.renderer.scroll_bounds = self.region_bounds;
