@@ -933,6 +933,17 @@ pub unsafe extern "C" fn set_ws_inset(obj: *mut c_void, inset: f32) {
     obj.renderer.bottom_inset = Some(inset as u32);
 }
 
+/// How far above the workspace a finger still reaches, over the native
+/// title strip, in points.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn set_ws_top_reach(obj: *mut c_void, reach: f32) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    workspace_rs::safe_area::set_top_reach(&obj.renderer.context, reach);
+}
+
 /// UIKit's tokenizer, answered from the editor's text units in place. See
 /// [`workspace_rs::tab::markdown_editor::text_units`].
 fn unit_of(granularity: CTextGranularity) -> Unit {

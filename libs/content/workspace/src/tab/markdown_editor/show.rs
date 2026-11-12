@@ -69,6 +69,10 @@ pub struct Applied {
     pub moved: bool,
 }
 
+/// How deep into the note a drag's edge-scroll zone reaches, in rows: the
+/// 57 pt that felt right on an iPhone, a 16 pt row and a 41 pt lift.
+const DRAG_SCROLL_ROWS: f32 = 3.5;
+
 impl MdEdit {
     /// Applies the edits the last frame queued for this one: a let-go block
     /// drag's move and the internal events. Their offsets are aimed at the
@@ -698,42 +702,45 @@ impl MdEdit {
         }
     }
 
-    /// Edge-scroll while a drag is in flight: reveal the pointer padded by
-    /// `row_height` on each side. The pointer y is clamped to the viewport
-    /// so dragging past the toolbar / window edge still scrolls at full
-    /// rate. `sideways`, for a drag that drops along a table's rows, a
-    /// block wider than the note under the pointer scrolls the same way.
+    /// Edge-scroll while a drag is in flight. Each edge's zone reaches
+    /// [`DRAG_SCROLL_ROWS`] rows into the note past the host's title strip
+    /// ([`safe_area::top_reach`]), which the finger reaches over at the top.
+    /// The note scrolls toward an edge faster the deeper the finger goes, up
+    /// to a row per 60th of a second (master's top speed on a 60 Hz screen)
+    /// at the zone's far end. `sideways`, for a drag that drops along a
+    /// table's rows, a block wider than the note under the pointer scrolls
+    /// the same way.
+    ///
+    /// [`safe_area::top_reach`]: crate::safe_area::top_reach
     pub(crate) fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui, sideways: bool) {
         use crate::tab::markdown_editor::scroll_content::DocScrollContent;
-        use crate::widgets::affine_scroll::{Align, Reveal};
+        use crate::widgets::affine_scroll::Action;
 
         let Some(pointer) = self.drag_pointer(ui) else { return };
         let viewport = ui.clip_rect();
-        let viewport_y = (pointer.y - viewport.min.y).clamp(0.0, viewport.height());
-        let pad = self.renderer.layout.row_height;
+        let reach = crate::safe_area::top_reach(ui.ctx());
+        let row = self.renderer.layout.row_height;
+        let zone = reach + row * DRAG_SCROLL_ROWS;
         if sideways {
             self.renderer.reveal_along_row(pointer);
         }
 
+        let (top, bottom) = (viewport.top() - reach, viewport.bottom());
+        let y = pointer.y.clamp(top, bottom);
+        let up = (top + zone - y).max(0.0);
+        let down = (y - (bottom - zone)).max(0.0);
+        if up == down {
+            return;
+        }
+        let speed = row * 60.0 * ((down - up) / zone).clamp(-1.0, 1.0);
+        let dt = ui.input(|i| i.stable_dt);
+
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
         let content = DocScrollContent::for_frame(&self.renderer, root, viewport.height());
-        let Some(top) = self
-            .scroll_area
-            .state
-            .offset_at_viewport_y(&content, viewport_y - pad)
-        else {
-            return;
-        };
-        let Some(bottom) = self
-            .scroll_area
-            .state
-            .offset_at_viewport_y(&content, viewport_y + pad)
-        else {
-            return;
-        };
         self.scroll_area
-            .reveal(&content, Reveal { top, bottom }, Align::Nearest);
+            .state
+            .handle(&content, Action::ScrollByPixels(speed * dt));
     }
 
     /// Drop indicator + source cutout + floating card. Must run after

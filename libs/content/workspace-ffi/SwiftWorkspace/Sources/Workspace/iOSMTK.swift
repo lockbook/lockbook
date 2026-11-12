@@ -395,6 +395,7 @@
                 overlap = max(overlap, mtkView.safeAreaInsets.bottom)
             }
             set_ws_inset(wsHandle, Float(overlap * scale()))
+            set_ws_top_reach(wsHandle, Float(mtkView.convert(mtkView.bounds.origin, to: nil).y))
 
             handle(ios_frame(wsHandle))
 
