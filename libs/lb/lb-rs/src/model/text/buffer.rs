@@ -20,26 +20,13 @@ use web_time::{Duration, Instant};
 /// must be re-interpreted. For example, if text is typed at the beginning then end of a buffer in one frame, the
 /// position of the text typed at the end of the buffer is greater when it is applied than it was when it was typed.
 ///
-/// External changes are merged into the buffer by creating a set of operations that would transform the buffer from
-/// the last external state to the current state. These operations, based on the version of the buffer at the last
-/// successful save or load, must be transformed by all operations that have been applied since (this means we must
-/// preserve the undo history for at least that long; if this presents performance issues, we can always save). Each
-/// operation that is transforming the new operations will match the base of the new operations at the time of
-/// transformation. Finally, the operations will need to transform each other just like any other set of operations
-/// made in a single frame/made based on the same version of the buffer.
+/// External changes are merged by a three-way merge of text: the last external text is the base, the buffer's text
+/// is ours and the new external text is theirs, with ours winning where they conflict. The difference from the
+/// buffer's text to the merge is queued as one external frame, based on the current version like any local frame.
 ///
-/// # Undo (work in progress)
-/// Undo should revert local changes only, leaving external changes in-tact, so that when all local changes are undone,
-/// the buffer is in a state reflecting external changes only. This is complicated by the fact that external changes
-/// may have been based on local changes that were synced to another client. To undo an operation that had an external
-/// change based on it, we have to interpret the external change in the absence of local changes that were present when
-/// it was created. This is the opposite of interpreting the external change in the presence of local changes that were
-/// not present when it was created i.e. the normal flow of merging external changes. Here, we are removing a local
-/// operation from the middle of the chain of operations that led to the current state of the buffer.
-///
-/// To do this, we perform the dance of transforming operations in reverse, taking a chain of operations each based on
-/// the prior and transforming them into a set of operations based on the same base as the operation to be undone. Then
-/// we remove the operation to be undone and apply the remaining operations with the forward transformation flow.
+/// # Undo
+/// Undo reverts local changes only. External frames are never undone, and undo stops at the last one: local changes
+/// from before it stay.
 ///
 /// Operations are not invertible i.e. you cannot construct an inverse operation that will perfectly cancel out the
 /// effect of another operation regardless of the time of interpretation. For example, with a text replacement, you can
@@ -171,17 +158,22 @@ impl Ops {
         self.all.len()
     }
 
+    /// Whether the ops at `a` and `b` came from the same `queue` or `reload` call.
+    fn same_frame(&self, a: usize, b: usize) -> bool {
+        let (a, b) = (&self.meta[a], &self.meta[b]);
+        a.base == b.base && a.external == b.external
+    }
+
     /// Returns the half-open `[start, end)` index range of the frame
     /// containing `idx` (a frame is a contiguous run of ops sharing
     /// the same `base`, set by a single `queue` call).
     fn frame_at(&self, idx: usize) -> (usize, usize) {
-        let base = self.meta[idx].base;
         let mut start = idx;
-        while start > 0 && self.meta[start - 1].base == base {
+        while start > 0 && self.same_frame(start - 1, idx) {
             start -= 1;
         }
         let mut end = idx + 1;
-        while end < self.len() && self.meta[end].base == base {
+        while end < self.len() && self.same_frame(end, idx) {
             end += 1;
         }
         (start, end)
@@ -252,8 +244,13 @@ impl Ops {
         }
 
         // within a single frame, never a checkpoint
-        if self.meta[idx].base == self.meta[idx - 1].base {
+        if self.same_frame(idx - 1, idx) {
             return false;
+        }
+
+        // external frames are never undone, so no unit spans one
+        if self.meta[idx].external || self.meta[idx - 1].external {
+            return true;
         }
 
         // current-frame analysis
@@ -306,11 +303,6 @@ struct External {
     /// Text last loaded into the editor. Used as a reference point for merging out-of-editor changes with in-editor
     /// changes, similar to a base in a 3-way merge. May be a state that never appears in the buffer's history.
     text: String,
-
-    /// Index of the last external operation referenced when merging changes. May be ahead of current.seq if there has
-    /// not been a call to `update()` (updates current.seq) since the last call to `reload()` (assigns new greatest seq
-    /// to `external_seq`).
-    seq: usize,
 }
 
 #[derive(Default)]
@@ -353,6 +345,9 @@ struct OpMeta {
     /// transformation, both when applying multiple operations in one frame and when merging out-of-editor changes.
     /// The magic happens here.
     pub base: usize,
+
+    /// Whether this operation came from `reload`. External operations are never undone.
+    pub external: bool,
 }
 
 impl Buffer {
@@ -360,7 +355,6 @@ impl Buffer {
     /// for batches of internal operations produced from a single input event e.g. multi-line list identation.
     pub fn queue(&mut self, mut ops: Vec<Operation>) {
         let timestamp = Instant::now();
-        let base = self.current.seq;
 
         // combine adjacent replacements
         let mut combined_ops = Vec::new();
@@ -389,58 +383,47 @@ impl Buffer {
             }
         }
 
+        self.push_frame(combined_ops, timestamp, false);
+    }
+
+    fn push_frame(&mut self, ops: Vec<Operation>, timestamp: Instant, external: bool) {
+        let base = self.current.seq;
         self.ops
             .meta
-            .extend(combined_ops.iter().map(|_| OpMeta { timestamp, base }));
-        self.ops.all.extend(combined_ops);
+            .extend(ops.iter().map(|_| OpMeta { timestamp, base, external }));
+        self.ops.all.extend(ops);
     }
 
     /// Loads a new string into the buffer, merging out-of-editor changes made since last load with in-editor changes
-    /// made since last load. The buffer's undo history is preserved; undo'ing will revert in-editor changes only.
-    /// Exercising undo's may put the buffer in never-before-seen states and exercising all undo's will revert the
-    /// buffer to the most recently loaded state (undo limit permitting).
-    /// Note: undo behavior described here is aspirational and not yet implemented.
-    pub fn reload(&mut self, text: String) {
-        let timestamp = Instant::now();
-        let base = self.external.seq;
-        let ops = diff(&self.external.text, &text);
-
-        self.ops
-            .meta
-            .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
-        self.ops.all.extend(ops.into_iter().map(Operation::Replace));
-
+    /// made since last load. The merge is queued as an external frame, which undo never reverts. Applies the queue, so
+    /// the next reload merges against it.
+    pub fn reload(&mut self, text: String) -> Response {
+        let merged = Buffer::from(self.external.text.as_str())
+            .merge(self.current.text.clone(), text.clone());
+        let ops = diff(&self.current.text, &merged);
+        self.push_frame(ops.into_iter().map(Operation::Replace).collect(), Instant::now(), true);
         self.external.text = text;
-        self.external.seq = self.base.seq + self.ops.all.len();
+        self.update()
     }
 
-    /// Indicates to the buffer the changes that have been saved outside the editor. This will serve as the new base
-    /// for merging external changes. The sequence number should be taken from `current.seq` of the buffer when the
-    /// buffer's contents are read for saving.
-    pub fn saved(&mut self, external_seq: usize, external_text: String) {
+    /// Indicates to the buffer the text that has been saved outside the editor. This will serve as the new base for
+    /// merging external changes.
+    pub fn saved(&mut self, external_text: String) {
         self.external.text = external_text;
-        self.external.seq = external_seq;
     }
 
+    /// Three-way merge of two versions of the buffer's external text, with `external_text_a` winning conflicts.
     pub fn merge(mut self, external_text_a: String, external_text_b: String) -> String {
         let ops_a = diff(&self.external.text, &external_text_a);
         let ops_b = diff(&self.external.text, &external_text_b);
 
         let timestamp = Instant::now();
-        let base = self.external.seq;
-        self.ops
-            .meta
-            .extend(ops_a.iter().map(|_| OpMeta { timestamp, base }));
-        self.ops
-            .meta
-            .extend(ops_b.iter().map(|_| OpMeta { timestamp, base }));
-
-        self.ops
-            .all
-            .extend(ops_a.into_iter().map(Operation::Replace));
-        self.ops
-            .all
-            .extend(ops_b.into_iter().map(Operation::Replace));
+        let ops = ops_a
+            .into_iter()
+            .chain(ops_b)
+            .map(Operation::Replace)
+            .collect();
+        self.push_frame(ops, timestamp, false);
 
         self.update();
         self.current.text
@@ -534,8 +517,21 @@ impl Buffer {
         self.current.seq < self.ops.processed_seq
     }
 
+    /// Undo stops at the last external frame, so it never reverts an edit made outside the editor. Selection-only frames above it
+    /// belong to it, as they belong to the frame below them anywhere else.
     pub fn can_undo(&self) -> bool {
-        self.current.seq > self.base.seq
+        let mut idx = self.current_idx();
+        while idx > 0 {
+            let (start, end) = self.ops.frame_at(idx - 1);
+            if self.ops.meta[start].external {
+                return false;
+            }
+            if self.ops.frame_has_replace(start, end) {
+                return true;
+            }
+            idx = start;
+        }
+        self.current_idx() > 0
     }
 
     pub fn redo(&mut self) -> Response {
@@ -571,20 +567,26 @@ impl Buffer {
     pub fn undo(&mut self) -> Response {
         let mut response = Response::default();
         while self.can_undo() {
-            self.current.seq -= 1;
-            // Clone so we can mutate `self.current` while reading the inverse.
-            let op = self.ops.transformed_inverted[self.current_idx()].clone();
-
-            if let Some(replace) = &op.replace {
-                let (resp, _) = self.current.apply_replace(replace);
-                response |= resp;
-            }
-            response |= self.current.apply_select(op.select);
-
+            response |= self.step_back();
             if self.ops.is_undo_checkpoint(self.current_idx()) {
                 break;
             }
         }
+        response
+    }
+
+    /// Reverts the last applied operation.
+    fn step_back(&mut self) -> Response {
+        let mut response = Response::default();
+        self.current.seq -= 1;
+        // Clone so we can mutate `self.current` while reading the inverse.
+        let op = self.ops.transformed_inverted[self.current_idx()].clone();
+
+        if let Some(replace) = &op.replace {
+            let (resp, _) = self.current.apply_replace(replace);
+            response |= resp;
+        }
+        response |= self.current.apply_select(op.select);
         response
     }
 

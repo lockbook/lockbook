@@ -201,7 +201,6 @@ pub struct CompletedLoad {
 
 pub struct CompletedSave {
     pub request: SaveRequest,
-    pub seq: usize,
     pub content: TabSaveContent,
     pub new_hmac_result: LbResult<DocumentHmac>,
 
@@ -403,7 +402,7 @@ impl TaskManager {
 
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
-            let (old_hmac, seq, content) = {
+            let (old_hmac, content) = {
                 let Some(tab) = tabs.get_any_mut(&request.origin) else {
                     error!("could not launch save because its tab does not exist");
                     continue;
@@ -411,17 +410,15 @@ impl TaskManager {
 
                 let start = Instant::now();
 
-                let (old_hmac, seq, content) = if let Some(md) = tab.markdown_mut() {
+                let (old_hmac, content) = if let Some(md) = tab.markdown_mut() {
                     let (hmac, text) = md.flush_for_save();
-                    let seq = md.edit.renderer.buffer.current.seq;
-                    (hmac, seq, TabSaveContent::String(text))
+                    (hmac, TabSaveContent::String(text))
                 } else {
                     let old_hmac = tab.hmac();
-                    let seq = tab.seq();
                     let Some(content) = tab.clone_content() else {
                         break;
                     };
-                    (old_hmac, seq, content)
+                    (old_hmac, content)
                 };
 
                 let time = Instant::now().duration_since(start);
@@ -429,7 +426,7 @@ impl TaskManager {
                     warn!("spent {time:?} on UI thread cloning content");
                 }
 
-                (old_hmac, seq, content)
+                (old_hmac, content)
             };
             let queue_time = in_progress_save
                 .timing
@@ -441,7 +438,7 @@ impl TaskManager {
             tasks.in_progress_saves.push(in_progress_save);
 
             let self_clone = self.clone();
-            spawn!(self_clone.background_save(request, old_hmac, seq, content));
+            spawn!(self_clone.background_save(request, old_hmac, content));
         }
 
         if any_to_launch {
@@ -507,8 +504,7 @@ impl TaskManager {
     /// Move a request to in-progress, then call this from a background thread
     #[instrument(level = "trace", skip(self, content, request), fields(id = %request.id))]
     fn background_save(
-        &self, request: SaveRequest, old_hmac: Option<DocumentHmac>, seq: usize,
-        content: TabSaveContent,
+        &self, request: SaveRequest, old_hmac: Option<DocumentHmac>, content: TabSaveContent,
     ) {
         let id = request.id;
         let new_hmac_result = self.core.safe_write(
@@ -544,7 +540,6 @@ impl TaskManager {
 
             let completed_save = CompletedSave {
                 request: in_progress_save.request,
-                seq,
                 content,
                 new_hmac_result,
                 timing,
