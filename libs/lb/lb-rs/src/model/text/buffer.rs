@@ -605,10 +605,13 @@ impl Buffer {
     }
 
     /// Transforms a range through all replacements applied between
-    /// `since_seq` and the current sequence. Returns `None` if the range
+    /// `since_seq` and the current sequence. Returns `false` if the range
     /// intersected a replacement (i.e. the content it referred to was
-    /// modified).
+    /// modified) or an undo took the current sequence below `since_seq`.
     pub fn transform_range(&self, since_seq: usize, range: &mut (Grapheme, Grapheme)) -> bool {
+        if since_seq > self.current.seq {
+            return false;
+        }
         let start = since_seq.saturating_sub(self.base.seq);
         let end = self.current_idx();
         for (i, op) in self.ops.transformed[start..end].iter().enumerate() {
