@@ -64,11 +64,13 @@ pub struct LinkPreviews {
 }
 
 impl LinkPreviews {
+    /// A cache that fetches previews from linked sites when the reader allows it.
     pub fn new(ctx: Context, client: HttpClient, persistence: WsPersistentStore) -> Self {
         Self { client, persistence: Some(persistence), ..Self::offline(ctx) }
     }
 
-    /// A cache that never contacts a site, for markdown shown outside a note.
+    /// A cache that never contacts a site, for markdown shown outside a note:
+    /// it shows only the previews put in it. See [`Self::is_offline`].
     pub fn offline(ctx: Context) -> Self {
         Self {
             entries: Default::default(),
@@ -78,6 +80,12 @@ impl LinkPreviews {
             client: Default::default(),
             persistence: None,
         }
+    }
+
+    /// Made by [`Self::offline`]: no site is ever contacted, and only previews
+    /// put in it are shown.
+    fn is_offline(&self) -> bool {
+        self.persistence.is_none()
     }
 
     /// Whether the reader lets linked sites be contacted.
@@ -102,6 +110,11 @@ impl LinkPreviews {
     /// failure's retry time has passed, and only when the reader lets sites
     /// be contacted. A loaded one stays for the session.
     pub fn get(&self, url: &str) -> Preview {
+        if self.is_offline() {
+            return self
+                .loaded(url)
+                .map_or(Preview::Unavailable, |meta| Preview::Loaded(Box::new(meta)));
+        }
         // what came from a site isn't shown once the reader turns sites off
         if !self.contact() {
             return Preview::Unavailable;

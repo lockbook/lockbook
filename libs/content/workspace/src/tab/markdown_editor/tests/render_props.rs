@@ -162,12 +162,8 @@ fn cached_font_system() -> Arc<Mutex<glyphon::FontSystem>> {
 pub(super) fn test_renderer(md: &str) -> MdRender {
     let mut r = MdRender::test(md);
     // every web link the generator writes has a preview, so its chips and
-    // cards lay out; seeded, so nothing is fetched
-    let mut persistence =
-        crate::workspace::WsPersistentStore::new(false, std::path::PathBuf::new(), false);
-    persistence.set_contact_linked_sites(true);
-    r.previews =
-        crate::link_preview::LinkPreviews::new(r.ctx.clone(), Default::default(), persistence);
+    // cards lay out; offline, so a link edited into another is not fetched
+    r.previews = crate::link_preview::LinkPreviews::offline(r.ctx.clone());
     r.contact_linked_sites = true;
     for (url, title) in [
         ("https://x.test", "A title long enough that its chip is cut short and fades out"),
