@@ -91,14 +91,14 @@ impl Snapshot {
     }
 
     /// Captures the inverse-relevant state from the buffer *before* an op is
-    /// applied. Combined with the actual replacement length (only knowable
-    /// post-apply) by `PartialInverse::finalize` to produce the full inverse.
+    /// applied. Combined with the text after apply by
+    /// `PartialInverse::finalize` to produce the full inverse.
     fn invert_pre(&self, op: &Operation) -> PartialInverse {
         let mut partial = PartialInverse { select: self.selection, replace: None };
-        if let Operation::Replace(Replace { range, text: _ }) = op {
+        if let Operation::Replace(Replace { range, text }) = op {
             let byte_range = self.segs.range_to_byte(*range);
             let replaced_text = self[byte_range].into();
-            partial.replace = Some((range.start(), replaced_text));
+            partial.replace = Some((byte_range.start(), text.len(), replaced_text));
         }
         partial
     }
@@ -106,19 +106,25 @@ impl Snapshot {
 
 struct PartialInverse {
     select: (Grapheme, Grapheme),
-    /// (start, replaced_text) — the inverse range's end is `start +
-    /// actual_len`, which `finalize` fills in once apply has measured the
-    /// buffer delta.
-    replace: Option<(Grapheme, String)>,
+    /// (start byte, inserted bytes, replaced_text) of the replacement.
+    replace: Option<(Byte, usize, String)>,
 }
 
 impl PartialInverse {
-    fn finalize(self, actual_len: Graphemes) -> InverseOperation {
+    /// The inverse against `after`, the text once the op applied. It spans
+    /// whole graphemes of `after`: text that fused into a neighbor, like a
+    /// combining mark after its letter, comes back out with the neighbor.
+    fn finalize(self, after: &Snapshot) -> InverseOperation {
         InverseOperation {
             select: self.select,
-            replace: self.replace.map(|(start, replaced_text)| Replace {
-                range: (start, start + actual_len),
-                text: replaced_text,
+            replace: self.replace.map(|(start, inserted, replaced_text)| {
+                let end = Byte(start.0 + inserted);
+                let range =
+                    (after.segs.byte_to_char_floor(start), after.segs.byte_to_char_ceil(end));
+                let (lo, hi) = after.segs.range_to_byte(range);
+                let text =
+                    [&after.text[lo.0..start.0], &replaced_text, &after.text[end.0..hi.0]].concat();
+                Replace { range, text }
             }),
         }
     }
@@ -602,9 +608,7 @@ impl Buffer {
             let mut op = self.ops.all[idx].clone();
             let meta = &self.ops.meta[idx];
             self.transform(&mut op, meta);
-            // Capture inverse-relevant state before apply (it needs the
-            // pre-apply text); finalize once redo's apply has measured the
-            // actual contribution and stored it in `transformed_actual_len`.
+            // the inverse needs the text before apply and after it
             let partial_inverse = self.current.invert_pre(&op);
             self.ops.transformed.push(op.clone());
             self.ops.transformed_actual_len.push(Graphemes::default());
@@ -612,10 +616,9 @@ impl Buffer {
 
             result |= self.redo();
 
-            let actual_len = *self.ops.transformed_actual_len.last().unwrap();
             self.ops
                 .transformed_inverted
-                .push(partial_inverse.finalize(actual_len));
+                .push(partial_inverse.finalize(&self.current));
         }
 
         result.seq_after = self.current.seq;
