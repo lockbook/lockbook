@@ -598,20 +598,36 @@ pub fn phosphor_ui_font_id() -> FontId {
 }
 
 /// Centered Phosphor spinner + muted caption. Call every frame while waiting.
+/// egui draws it, for the turn glyphon can't: print waits for what loads.
 pub fn loading_indicator(ui: &mut Ui) {
     let t = ui.ctx().get_lb_theme();
     ui.ctx().request_repaint();
     let angle = (ui.input(|i| i.time) * std::f64::consts::TAU) as f32;
-    centered_status(ui, phosphor::SPINNER_GAP, "Loading…", t.accent(), angle);
+    spinner_status(ui, phosphor::SPINNER_GAP, "Loading…", t.accent(), angle);
 }
 
 /// Centered muted Phosphor mark + caption (failed loads, empty states).
 pub fn message_indicator(ui: &mut Ui, icon: &'static str, caption: &str) {
-    let t = ui.ctx().get_lb_theme();
-    centered_status(ui, icon, caption, t.neutral_fg_secondary(), 0.0);
+    let ink = ui.ctx().get_lb_theme().neutral_fg_secondary();
+    let rect = ui.available_rect_before_wrap();
+    let icon = crate::widgets::GlyphonLabel::icon(icon, ink, TypeRole::Body.size()).build(ui.ctx());
+    let caption = crate::widgets::GlyphonLabel::new(caption, ink)
+        .role(TypeRole::Body)
+        .interface()
+        .centered()
+        .max_width(rect.width())
+        .max_lines(usize::MAX)
+        .build(ui.ctx());
+    let gap = Space::Xs.pts();
+    let top = (rect.center().y - (icon.size.y + gap + caption.size.y) / 2.0).max(rect.top());
+    let icon_at = pos2(rect.center().x, top + icon.size.y / 2.0);
+    let caption_at = pos2(rect.center().x, top + icon.size.y + gap + caption.size.y / 2.0);
+    icon.paint_centered(ui.painter(), icon_at);
+    caption.paint_centered(ui.painter(), caption_at);
+    let _ = ui.allocate_rect(rect, Sense::hover());
 }
 
-fn centered_status(ui: &mut Ui, icon: &'static str, caption: &str, ink: Color32, angle: f32) {
+fn spinner_status(ui: &mut Ui, icon: &'static str, caption: &str, ink: Color32, angle: f32) {
     let t = ui.ctx().get_lb_theme();
     let g = ui
         .painter()

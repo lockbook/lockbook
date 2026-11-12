@@ -25,7 +25,7 @@ use crate::style::interact::sense_click;
 use crate::style::space::Space;
 use crate::style::tree_metrics::{ICON_SLOT, INDENT_BASE, INDENT_STEP, ROW_H};
 use crate::style::typography::TypeRole;
-use crate::widgets::glyphon_label::{GlyphonLabel, TextOverflow};
+use crate::widgets::glyphon_label::{GlyphonLabel, ShapedLabel, TextOverflow};
 
 /// Secondary path line under the name (Recents crumbs).
 const SUB_SIZE: f32 = 12.0;
@@ -325,19 +325,20 @@ impl<'a> FileRow<'a> {
         };
         let text_x = icon_x + icon_col;
 
-        if !hanging {
+        if !hanging && self.spinning {
+            // glyphon can't rotate; a spinner never prints
             let ig = painter.layout_no_wrap(self.icon.into(), phosphor_ui_font_id(), icon_ink);
             let at = pos2(icon_x, icon_cy - ig.size().y / 2.0);
-            if self.spinning {
-                ui.ctx().request_repaint();
-                let angle = (ui.input(|i| i.time) * std::f64::consts::TAU) as f32;
-                painter.add(
-                    egui::epaint::TextShape::new(at, ig, icon_ink)
-                        .with_angle_and_anchor(angle, egui::Align2::CENTER_CENTER),
-                );
-            } else {
-                painter.galley(at, ig, icon_ink);
-            }
+            ui.ctx().request_repaint();
+            let angle = (ui.input(|i| i.time) * std::f64::consts::TAU) as f32;
+            painter.add(
+                egui::epaint::TextShape::new(at, ig, icon_ink)
+                    .with_angle_and_anchor(angle, egui::Align2::CENTER_CENTER),
+            );
+        } else if !hanging && !self.icon.is_empty() {
+            let ig = icon_glyph(ui.ctx(), self.icon, icon_ink);
+            let pos = pos2(icon_x, icon_cy - ig.size.y / 2.0);
+            ig.paint(&painter, pos);
         }
 
         // Trailing marks from the right: end pad · pin? · share?
@@ -356,16 +357,9 @@ impl<'a> FileRow<'a> {
 
         if hanging {
             let cy = paint_rect.center().y;
-            let mark = if self.icon != phosphor::FILE {
-                Some(painter.layout_no_wrap(
-                    self.icon.into(),
-                    phosphor_ui_font_id(),
-                    t.neutral_fg_secondary(),
-                ))
-            } else {
-                None
-            };
-            let mark_w = mark.as_ref().map(|g| g.size().x).unwrap_or(0.0);
+            let mark = (self.icon != phosphor::FILE)
+                .then(|| icon_glyph(ui.ctx(), self.icon, t.neutral_fg_secondary()));
+            let mark_w = mark.as_ref().map(|g| g.size.x).unwrap_or(0.0);
             let mark_gap = if mark.is_some() { Space::Xs.pts() } else { 0.0 };
             let label_w = if self.caption.is_none() && !self.label.is_empty() {
                 file_name::measure_sized(ui, &self.label, SUB_SIZE, SUB_LINE_H, f32::MAX)
@@ -380,8 +374,8 @@ impl<'a> FileRow<'a> {
                 text_x
             };
             if let Some(ig) = mark {
-                let mark_sz = ig.size();
-                painter.galley(pos2(body_x, cy - mark_sz.y / 2.0), ig, t.neutral_fg_secondary());
+                let mark_sz = ig.size;
+                ig.paint(&painter, pos2(body_x, cy - mark_sz.y / 2.0));
                 body_x += mark_sz.x + mark_gap;
             }
             let hang_w = (content_right - body_x).max(Space::Sm.pts());
@@ -444,35 +438,26 @@ impl<'a> FileRow<'a> {
         let trail_end = Space::Xs.pts();
         let mut tx = content_right - trail_end;
         if self.pinned {
-            let pin_g = painter.layout_no_wrap(
-                phosphor::PUSH_PIN.into(),
-                phosphor_ui_font_id(),
-                t.neutral_fg_secondary(),
-            );
-            tx -= pin_g.size().x;
-            painter.galley(
-                pos2(tx.max(text_x), name_cy - pin_g.size().y / 2.0),
-                pin_g,
-                t.neutral_fg_secondary(),
-            );
+            let pin_g = icon_glyph(ui.ctx(), phosphor::PUSH_PIN, t.neutral_fg_secondary());
+            tx -= pin_g.size.x;
+            let pos = pos2(tx.max(text_x), name_cy - pin_g.size.y / 2.0);
+            pin_g.paint(&painter, pos);
             tx -= Space::Xs.pts();
         }
         if self.shared {
-            let g = painter.layout_no_wrap(
-                phosphor::USERS.into(),
-                phosphor_ui_font_id(),
-                t.neutral_fg_secondary(),
-            );
-            tx -= g.size().x;
-            painter.galley(
-                pos2(tx.max(text_x), name_cy - g.size().y / 2.0),
-                g,
-                t.neutral_fg_secondary(),
-            );
+            let g = icon_glyph(ui.ctx(), phosphor::USERS, t.neutral_fg_secondary());
+            tx -= g.size.x;
+            let pos = pos2(tx.max(text_x), name_cy - g.size.y / 2.0);
+            g.paint(&painter, pos);
         }
 
         resp
     }
+}
+
+/// A row's Phosphor `glyph` at body size, as the row's text paints.
+fn icon_glyph(ctx: &egui::Context, glyph: &str, color: Color32) -> ShapedLabel {
+    GlyphonLabel::icon(glyph, color, TypeRole::Body.size()).build(ctx)
 }
 
 fn paint_caption(

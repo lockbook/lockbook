@@ -1,15 +1,16 @@
 use std::ops::Deref as _;
 
 use egui::os::OperatingSystem;
-use egui::{Align2, Color32, CornerRadius, Pos2, Rect, Ui, Vec2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Ui, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 
 use crate::file_cache::{FilesExt as _, Reach, web_link};
 use crate::resolvers::EmbedResolver;
+use crate::style::TypeRole;
 use crate::style::chrome::phosphor;
-use crate::style::{TypeRole, phosphor_font_id};
 use crate::theme::palette_v2::ThemeExt as _;
+use crate::widgets::GlyphonLabel;
 use crate::widgets::image_cache::{ImageCache, ImageKey, ImageState};
 
 /// The url of the image a wiki embed names (`![[photo.png]]`): its title in
@@ -193,14 +194,17 @@ fn paint_icon_caption(
     painter: &egui::Painter, rect: Rect, icon: &str, caption: &str, ink: Color32,
 ) {
     let glyph = (rect.width().min(rect.height()) * 0.3).clamp(14.0, 32.0);
-    let galley = painter.layout_no_wrap(caption.into(), TypeRole::Mono.font_id(), ink);
-    let fits = galley.size().x <= rect.width() - 12.0 && rect.height() >= glyph * 2.4;
+    let label = GlyphonLabel::new(caption, ink)
+        .role(TypeRole::Mono)
+        .interface()
+        .build(painter.ctx());
+    let fits = label.size.x <= rect.width() - 12.0 && rect.height() >= glyph * 2.4;
     let icon_at = if fits { rect.center() - Vec2::new(0.0, glyph * 0.4) } else { rect.center() };
-    painter.text(icon_at, Align2::CENTER_CENTER, icon, phosphor_font_id(glyph), ink);
+    GlyphonLabel::icon(icon, ink, glyph)
+        .build(painter.ctx())
+        .paint_centered(painter, icon_at);
     if fits {
-        let at =
-            rect.center() + Vec2::new(-galley.size().x / 2.0, glyph * 0.6 - galley.size().y / 2.0);
-        painter.galley(at, galley, ink);
+        label.paint_centered(painter, rect.center() + Vec2::new(0.0, glyph * 0.6));
     }
 }
 

@@ -60,6 +60,8 @@ pub struct GlyphonLabel<'a> {
     interface_size: bool,
     /// Lines as tall as the face's ascent and descent, in whole pixels.
     face_lines: bool,
+    /// Wrapped lines centered under one another.
+    centered: bool,
 }
 
 /// The result of shaping a [`GlyphonLabel`]. Contains the sized glyphon buffers
@@ -179,6 +181,7 @@ impl<'a> GlyphonLabel<'a> {
             sense: Sense::hover(),
             interface_size: false,
             face_lines: false,
+            centered: false,
         }
     }
 
@@ -205,6 +208,7 @@ impl<'a> GlyphonLabel<'a> {
             sense: Sense::hover(),
             interface_size: false,
             face_lines: false,
+            centered: false,
         }
     }
 
@@ -226,6 +230,7 @@ impl<'a> GlyphonLabel<'a> {
             sense: Sense::hover(),
             interface_size: false,
             face_lines: false,
+            centered: false,
         }
     }
 
@@ -294,6 +299,11 @@ impl<'a> GlyphonLabel<'a> {
         Self { interface_size: true, face_lines: true, ..self }
     }
 
+    /// Centers each wrapped line in the label's width.
+    pub fn centered(self) -> Self {
+        Self { centered: true, ..self }
+    }
+
     /// Returns the rendered size in logical pixels without placing the widget.
     pub fn measure(&self, ui: &egui::Ui) -> egui::Vec2 {
         self.build(ui.ctx()).size
@@ -326,7 +336,7 @@ impl<'a> GlyphonLabel<'a> {
             .map(|span| (span.text.as_str(), span.style))
             .collect();
 
-        let main = Self::shape_buffer(
+        let mut main = Self::shape_buffer(
             ctx,
             ppi,
             &span_refs,
@@ -335,6 +345,19 @@ impl<'a> GlyphonLabel<'a> {
             line_height,
             self.max_width,
         );
+        // centered in its widest line, so the label's box stays the text's
+        if self.centered && main.size.y > line_height * 1.5 {
+            main = Self::shape_aligned(
+                ctx,
+                ppi,
+                &span_refs,
+                self.color,
+                self.font_size,
+                line_height,
+                main.size.x + 1.0 / ppi,
+                true,
+            );
+        }
 
         let hint = self.hint.map(|(text, color)| {
             let hint_font_size = self.font_size - 2.0;
@@ -553,6 +576,14 @@ impl<'a> GlyphonLabel<'a> {
         ctx: &egui::Context, ppi: f32, spans: &[(&str, SpanStyle)], color: egui::Color32,
         font_size: f32, line_height: f32, max_width: f32,
     ) -> ShapedBuffer {
+        Self::shape_aligned(ctx, ppi, spans, color, font_size, line_height, max_width, false)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn shape_aligned(
+        ctx: &egui::Context, ppi: f32, spans: &[(&str, SpanStyle)], color: egui::Color32,
+        font_size: f32, line_height: f32, max_width: f32, centered: bool,
+    ) -> ShapedBuffer {
         let cache_key = GlyphonCacheKey {
             spans: spans
                 .iter()
@@ -571,6 +602,7 @@ impl<'a> GlyphonLabel<'a> {
             font_size_bits: (font_size * ppi).to_bits(),
             line_height_bits: (line_height * ppi).to_bits(),
             width_bits: (max_width * ppi).to_bits(),
+            centered,
         };
 
         let font_system = ctx
@@ -618,7 +650,7 @@ impl<'a> GlyphonLabel<'a> {
                     }),
                     &base,
                     Shaping::Advanced,
-                    None,
+                    centered.then_some(glyphon::cosmic_text::Align::Center),
                 );
                 buf.shape_until_scroll(&mut fs, false);
                 buf
