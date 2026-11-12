@@ -20,9 +20,7 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{Layer, filter, fmt};
 
 use pagerduty_rs::eventsv2async::EventsV2;
-use pagerduty_rs::types::{
-    AlertTrigger, AlertTriggerPayload, Change, ChangePayload, Event as PagerEvent, Severity,
-};
+use pagerduty_rs::types::{AlertTrigger, AlertTriggerPayload, Event as PagerEvent, Severity};
 
 use crate::CARGO_PKG_VERSION;
 use crate::config::Config;
@@ -138,25 +136,25 @@ fn send_to_pagerduty(handle: &Handle, env: String, api_key: &str, alert: AlertDe
     });
 }
 
-pub fn record_startup(config: &Config) {
-    let Some(api_key) = config.server.pd_api_key.clone() else { return };
-    let source = Some(config.server.env.to_string());
-    let summary = format!("lockbook-server {CARGO_PKG_VERSION} started");
-    tokio::spawn(async move {
-        let events = EventsV2::new(api_key, Some("lockbook-server".to_string())).unwrap();
-        let change = Change {
-            payload: ChangePayload::<()> {
-                summary,
-                timestamp: SystemTime::now().into(),
-                source,
-                custom_details: None,
-            },
-            links: None,
-        };
-        if let Err(err) = events.event(PagerEvent::Change(change)).await {
-            eprintln!("Failed reporting event to PagerDuty! {err}");
-        }
-    });
+pub fn log_startup(config: &Config, url: &str) {
+    tracing::warn!("{}", startup_message(config, url));
+}
+
+fn startup_message(config: &Config, url: &str) -> String {
+    let commit = lb_rs::get_code_commit().unwrap_or("unknown");
+    let server = &config.server;
+    format!(
+        "lockbook-server {CARGO_PKG_VERSION} ({commit}) started on {url}, env: {}, min core version: {}, max auth delay: {}ms, db: {}, files: {}, logs: {}, metrics: {}, admins: {}, features: {:?}",
+        server.env,
+        server.min_core_version,
+        server.max_auth_delay,
+        config.index_db.db_location,
+        config.files.path.display(),
+        server.log_path,
+        config.metrics.addr,
+        config.admin.admins.len(),
+        config.features,
+    )
 }
 
 #[derive(Serialize, Default, Clone)]
@@ -206,4 +204,29 @@ fn panic_hook() {
         let bt = Backtrace::force_capture();
         tracing::error!("panic detected: {panic_info} {}", bt);
     }));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::in_process::in_process_config;
+
+    #[test]
+    fn startup_message_names_the_build_and_leaves_secrets_out() {
+        let mut config = in_process_config();
+        config.server.pd_api_key = Some("pd-secret".to_string());
+        config.server.discord_webhook_url = Some("discord-secret".to_string());
+        config.billing.stripe.stripe_secret = "stripe-secret".to_string();
+        config.billing.stripe.signing_secret = "signing-secret".to_string();
+        config.billing.google.pubsub_token = "pubsub-secret".to_string();
+        config.billing.apple.iap_key = "apple-secret".to_string();
+        config.billing.apple.asc_shared_secret = "shared-secret".to_string();
+
+        let message = startup_message(&config, "https://0.0.0.0:443");
+
+        assert!(message.starts_with(&format!("lockbook-server {CARGO_PKG_VERSION} (")));
+        assert!(message.contains("started on https://0.0.0.0:443, env: Local"));
+        assert!(message.contains("new_accounts: true"));
+        assert!(!message.contains("secret"));
+    }
 }
