@@ -996,6 +996,20 @@ mod test {
     }
 
     #[test]
+    fn undo_takes_back_a_combining_mark_typed_after_its_letter() {
+        let mut buffer = Buffer::from("xxxxx doc");
+        let mark = Replace { range: (Grapheme(1), Grapheme(1)), text: "\u{948}".into() };
+        buffer.queue(vec![Operation::Replace(mark)]);
+        buffer.update();
+        assert_eq!(buffer.current.text, "x\u{948}xxxx doc");
+
+        buffer.undo();
+        assert_eq!(buffer.current.text, "xxxxx doc");
+        buffer.redo();
+        assert_eq!(buffer.current.text, "x\u{948}xxxx doc");
+    }
+
+    #[test]
     fn type_into_forward_selection() {
         let mut buffer = Buffer::from("hello");
         buffer.current.selection = (Grapheme(0), Grapheme(5));
