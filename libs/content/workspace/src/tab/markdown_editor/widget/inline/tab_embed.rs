@@ -1097,4 +1097,24 @@ mod tests {
         }
         assert_eq!(embedded_page(&mut t), Some(1));
     }
+
+    /// An embed of a folded section shows the section, under a folded heading
+    /// too, with the folds inside it kept; the note keeps its folds.
+    #[test]
+    fn embed_of_a_folded_section_shows_it() {
+        let fold = crate::tab::markdown_editor::fold::FOLD_TAG;
+        let mut t = TestWs::new();
+        let plan = format!(
+            "# Project {fold}\n\n## Goals {fold}\n\nShip it.\n\n### Later {fold}\n\nhidden\n"
+        );
+        let plan_id = t.doc("Plan.md", &plan);
+        let note = t.doc("note.md", "above\n\n![[Plan#Goals]]\n\nbelow\n");
+        t.ws.open_file(note, true, true);
+        frames_until(&mut t, |t| shown(t).is_some());
+        t.frame();
+        let (_, texts) = shown(&mut t).unwrap();
+        assert!(texts.iter().any(|(text, _)| text.contains("Ship")));
+        assert!(!texts.iter().any(|(text, _)| text.contains("hidden")));
+        assert_eq!(t.ws.core.read_document(plan_id, false).unwrap(), plan.as_bytes());
+    }
 }
