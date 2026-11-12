@@ -343,10 +343,15 @@ impl External {
             return remote;
         }
 
-        // each pending edit is taken from `local`, the text before it, to `theirs`, that text plus the remote edits
+        // each pending edit is taken from `local`, the text before it, to `theirs`, that text plus the remote edits,
+        // which wrote the ranges in `written`
         let segs = unicode_segs::calc(&base);
         let mut local = Snapshot { text: base, segs, ..Default::default() };
-        let mut theirs = applied(&local.text, &remote);
+        let (mut theirs, mut written) = {
+            let applied = applied(&local.text, &remote);
+            let written = applied.written();
+            (applied.current, written)
+        };
         for p in &mut self.pending {
             let (_, len) = local.apply_replace(p);
 
@@ -379,33 +384,55 @@ impl External {
                     (!lost).then_some(before)
                 })
                 .collect();
-            let before: Vec<bool> = sides.iter().flatten().copied().collect();
 
-            // in the remote text the region also covers what the dropped edits wrote
+            // in the remote text the region also covers what the dropped edits wrote; the kept ones stay outside it
+            let chain = || {
+                remote
+                    .iter()
+                    .zip(&written)
+                    .map(|(r, w)| ((w.0, w.0 + r.range.len()), w.len()))
+            };
             let theirs_region = (
-                theirs.map(region.0, |j| sides[j].unwrap_or(false)),
-                theirs.map(region.1, |j| sides[j].unwrap_or(true)),
+                map(chain(), region.0, |j| sides[j].unwrap_or(false)),
+                map(chain(), region.1, |j| sides[j].unwrap_or(true)),
             );
-            let next = applied(&local.text, &kept);
-            let next_region =
-                (next.map(local_region.0, |j| before[j]), next.map(local_region.1, |j| before[j]));
-            *p = Replace { range: theirs_region, text: next[next_region].into() };
-            debug_assert_eq!(
-                {
-                    let mut check = Buffer::from(theirs.current.text.as_str()).current;
-                    check.apply_replace(p);
-                    check.text
-                },
-                next.current.text,
-                "a rebased edit gives the merged text"
-            );
-
-            theirs = next;
+            *p = Replace { range: theirs_region, text: local[local_region].into() };
+            let (_, rebased_len) = theirs.apply_replace(p);
+            written = written
+                .iter()
+                .zip(&sides)
+                .filter_map(|(w, side)| {
+                    let mut w = *w;
+                    let before = (*side)?;
+                    adjust_subsequent_range(p.range, rebased_len, !before, &mut w);
+                    Some(w)
+                })
+                .collect();
             remote = kept;
+            if cfg!(debug_assertions) {
+                let merged = applied(&local.text, &remote);
+                assert_eq!(
+                    theirs.text, merged.current.text,
+                    "a rebased edit gives the merged text"
+                );
+                assert_eq!(written, merged.written(), "the remote edits stay where they wrote");
+            }
         }
         debug_assert_eq!(local.text, current, "the pending edits give the buffer's text");
         remote
     }
+}
+
+/// Maps a position through `chain`, replacements applied in order with the graphemes each contributed, advancing past
+/// the `j`th if `advance(j)`.
+fn map(
+    chain: impl Iterator<Item = ((Grapheme, Grapheme), Graphemes)>, mut position: Grapheme,
+    advance: impl Fn(usize) -> bool,
+) -> Grapheme {
+    for (j, (range, len)) in chain.enumerate() {
+        adjust_subsequent_position(range, len, advance(j), &mut position);
+    }
+    position
 }
 
 /// A buffer of `text` that has applied `frame`, edits of `text` as one frame.
@@ -606,15 +633,20 @@ impl Buffer {
         }
     }
 
-    /// Maps a position through the replacements this buffer applied, advancing past the `j`th if `advance(j)`.
-    fn map(&self, mut position: Grapheme, advance: impl Fn(usize) -> bool) -> Grapheme {
-        for (j, op) in self.ops.transformed.iter().enumerate() {
-            if let Operation::Replace(Replace { range, .. }) = op {
-                let len = self.ops.transformed_actual_len[j];
-                adjust_subsequent_position(*range, len, advance(j), &mut position);
-            }
-        }
-        position
+    /// The ranges the applied replacements wrote, each in the text after all of them, which is so when each applied
+    /// one lies after those before it.
+    fn written(&self) -> Vec<(Grapheme, Grapheme)> {
+        self.ops
+            .transformed
+            .iter()
+            .zip(&self.ops.transformed_actual_len)
+            .filter_map(|(op, len)| match op {
+                Operation::Replace(Replace { range, .. }) => {
+                    Some((range.start(), range.start() + *len))
+                }
+                Operation::Select(_) => None,
+            })
+            .collect()
     }
 
     pub fn can_redo(&self) -> bool {
