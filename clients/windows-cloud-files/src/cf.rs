@@ -31,10 +31,10 @@ impl Drop for Handle {
     }
 }
 
-/// Opens files and directories alike, without hydrating.
+/// Opens files and directories alike, without hydrating. cldapi's writes need WRITE_DATA or
+/// WRITE_DAC; WRITE_DAC also opens read-only files, like git's objects.
 pub fn open(path: &Path, write: bool) -> Result<Handle> {
-    let access =
-        if write { FILE_GENERIC_READ.0 | FILE_GENERIC_WRITE.0 } else { FILE_READ_ATTRIBUTES.0 };
+    let access = if write { FILE_READ_ATTRIBUTES.0 | WRITE_DAC.0 } else { FILE_READ_ATTRIBUTES.0 };
     let w = wide(path);
     let h = unsafe {
         CreateFileW(
@@ -170,13 +170,14 @@ pub fn create_placeholder(
 /// The Lockbook id and whether the item is in sync, or None for a plain file.
 pub fn placeholder(path: &Path) -> Option<(Uuid, bool)> {
     let h = open(path, false).ok()?;
-    let mut buf = [0u8; std::mem::size_of::<CF_PLACEHOLDER_BASIC_INFO>() + 32];
+    // u64s keep the struct's i64 fields aligned
+    let mut buf = [0u64; std::mem::size_of::<CF_PLACEHOLDER_BASIC_INFO>() / 8 + 4];
     unsafe {
         CfGetPlaceholderInfo(
             h.0,
             CF_PLACEHOLDER_INFO_BASIC,
             buf.as_mut_ptr() as _,
-            buf.len() as u32,
+            std::mem::size_of_val(&buf) as u32,
             None,
         )
         .ok()?;
@@ -219,7 +220,7 @@ pub fn replace_content(path: &Path, size: u64) -> Result<()> {
             None,
             0,
             Some(&[CF_FILE_RANGE { StartingOffset: 0, Length: -1 }]),
-            CF_UPDATE_FLAG_DEHYDRATE | CF_UPDATE_FLAG_MARK_IN_SYNC,
+            CF_UPDATE_FLAG_VERIFY_IN_SYNC | CF_UPDATE_FLAG_DEHYDRATE | CF_UPDATE_FLAG_MARK_IN_SYNC,
             None,
             None,
         )

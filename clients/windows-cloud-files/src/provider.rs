@@ -8,8 +8,6 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
-use lb_rs::model::filename::DocumentType;
-use lb_rs::model::text::buffer::Buffer;
 use lb_rs::{LbErrKind, Uuid};
 use windows::Win32::Storage::CloudFilters::*;
 
@@ -191,20 +189,6 @@ fn ignored(name: &str) -> bool {
         || lower == "thumbs.db"
 }
 
-fn merge(name: &str, base: &[u8], ours: &[u8], theirs: &[u8]) -> Option<Vec<u8>> {
-    match DocumentType::from_file_name_using_extension(name) {
-        DocumentType::Text => {
-            let text = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
-            Some(
-                Buffer::from(text(base).as_str())
-                    .merge(text(ours), text(theirs))
-                    .into_bytes(),
-            )
-        }
-        _ => None,
-    }
-}
-
 impl Provider {
     fn rel(&self, abs: &Path) -> Option<PathBuf> {
         let abs = abs.to_string_lossy();
@@ -269,7 +253,9 @@ impl Provider {
         gone.sort_by_key(|(_, k)| k.path.components().count());
         for (id, k) in gone {
             let abs = self.dir.join(&k.path);
-            if std::fs::symlink_metadata(&abs).is_ok() {
+            if std::fs::symlink_metadata(&abs).is_ok() && !all_in_sync(&abs) {
+                log!("remote delete {} kept: it has unsynced local changes", k.path.display());
+            } else if std::fs::symlink_metadata(&abs).is_ok() {
                 let ids: Vec<Uuid> = snapshot
                     .iter()
                     .filter(|(_, d)| d.path.starts_with(&k.path))
@@ -461,19 +447,21 @@ impl Provider {
         let ours = ours.ok_or("file stayed locked")?;
         let name = abs.file_name().unwrap().to_string_lossy().into_owned();
         let known = self.known.lock().unwrap().get(&id).cloned();
-        let (written, hmac) = loop {
-            let (current, theirs) = self.lb.read_document_with_hmac(id, false).map_err(e)?;
-            let (base, base_hmac) = match &known {
-                Some(k) => (k.base.clone(), k.base_hmac),
-                None => (theirs.clone(), current),
-            };
-            let out = if base_hmac == current || theirs == ours {
-                ours.clone()
-            } else if let Some(merged) = merge(&name, &base, &ours, &theirs) {
+        let base = match known {
+            Some(k) => k.base,
+            None => self.lb.read_document(id, false).map_err(e)?,
+        };
+        if ours == base {
+            return cf::mark_in_sync(abs).map_err(e);
+        }
+        let (hmac, written) = match self.lb.write_from_base(id, &base, ours.clone(), None) {
+            Ok((hmac, false)) => (hmac, ours.clone()),
+            Ok((_, true)) => {
                 log!("merged {} with a newer version", rel.display());
-                merged
-            } else {
-                // Not mergeable: keep theirs here and ours beside it.
+                self.lb.read_document_with_hmac(id, false).map_err(e)?
+            }
+            Err(err) if matches!(err.kind, LbErrKind::ReReadRequired) => {
+                // No merge for this type: keep theirs here and ours beside it.
                 let parent = self.lb.get_file_by_id(id).map_err(e)?.parent;
                 let copy = format!("{name} (Windows copy)");
                 let file = self
@@ -482,16 +470,9 @@ impl Provider {
                     .map_err(e)?;
                 self.lb.write_document(file.id, &ours).map_err(e)?;
                 log!("kept both {} and {copy}", rel.display());
-                theirs.clone()
-            };
-            if out == theirs {
-                break (out, current);
+                self.lb.read_document_with_hmac(id, false).map_err(e)?
             }
-            match self.lb.safe_write(id, current, out.clone(), None) {
-                Ok(hmac) => break (out, Some(hmac)),
-                Err(err) if matches!(err.kind, LbErrKind::ReReadRequired) => continue,
-                Err(err) => return Err(e(err)),
-            }
+            Err(err) => return Err(e(err)),
         };
         if written != ours {
             std::fs::write(abs, &written).map_err(e)?;
@@ -585,6 +566,15 @@ impl Provider {
         log!("local rename {id} -> {}", target.display());
         Ok(())
     }
+}
+
+/// Whether every item at and under `path` is a placeholder matching Lockbook.
+fn all_in_sync(path: &Path) -> bool {
+    if !matches!(cf::placeholder(path), Some((_, true))) {
+        return false;
+    }
+    let children = std::fs::read_dir(path).into_iter().flatten().flatten();
+    children.into_iter().all(|child| all_in_sync(&child.path()))
 }
 
 fn provider() -> &'static Provider {
