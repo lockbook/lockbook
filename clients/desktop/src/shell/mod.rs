@@ -110,6 +110,8 @@ pub struct ShellApp {
     pub toasts: ToastHost,
     /// In-flight system file/folder picker (import / export).
     pub(crate) native_dialog_rx: Option<mpsc::Receiver<apply::NativeDialogResult>>,
+    /// In-flight PDF export, once its destination is picked.
+    pub(crate) pdf_export_rx: Option<mpsc::Receiver<Result<(), String>>>,
     /// Auto-import worker (paste / complete key). Failures do not surface.
     pub(crate) onboard_auto_rx: Option<mpsc::Receiver<apply_onboard::AutoOnboard>>,
     /// After a successful create, show the account-key backup sheet.
@@ -186,6 +188,7 @@ impl Default for ShellApp {
             }),
             toasts: ToastHost::default(),
             native_dialog_rx: None,
+            pdf_export_rx: None,
             onboard_auto_rx: None,
             onboard_backup_pending: false,
             incoming_link: None,
@@ -347,6 +350,7 @@ impl ShellApp {
         }
         apply_onboard::poll_auto_import(self, ctx);
         apply::poll_native_dialog(self, ctx);
+        apply::poll_pdf_export(self);
         apply::poll_incoming_link(self, ctx);
         if let Session::Ready(r) = &self.session {
             if self.lb_rx.is_none() {

@@ -75,6 +75,10 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                     };
                     let pinned = file_id.is_some_and(|id| crate::shell::ops::is_pinned(ready, id));
                     let in_files = file_id.is_some_and(in_files);
+                    let note = file_id.and_then(|id| files.get_by_id(id)).is_some_and(|f| {
+                        workspace_rs::show::DocType::from_name(&f.name)
+                            == workspace_rs::show::DocType::Markdown
+                    });
                     TabInfo {
                         idx: i,
                         title,
@@ -82,6 +86,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                         file_id,
                         pinned,
                         in_files,
+                        note,
                         place: slot.place.clone(),
                     }
                 })
@@ -257,6 +262,8 @@ struct TabInfo {
     pinned: bool,
     /// The file is in the Files tree, not a share waiting to be saved there.
     in_files: bool,
+    /// A note, which exports as a PDF.
+    note: bool,
     place: Place,
 }
 
@@ -275,6 +282,7 @@ enum TabMenu {
     Share,
     CopyLink,
     Export,
+    ExportPdf,
     ReopenClosed,
 }
 
@@ -310,6 +318,7 @@ fn apply_tab_out(queue: &mut Vec<Action>, tab: &TabInfo, out: TabOut) {
             TabMenu::Share => queue.extend(tab.file_id.map(A::OpenShare)),
             TabMenu::CopyLink => queue.push(A::CopyLink(tab.place.clone())),
             TabMenu::Export => queue.extend(tab.file_id.map(|id| A::Export(vec![id]))),
+            TabMenu::ExportPdf => queue.extend(tab.file_id.map(A::ExportPdf)),
         }
         return;
     }
@@ -499,6 +508,9 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
         }
         if is_file {
             m.item(phosphor::DOWNLOAD_SIMPLE, "Export…", TabMenu::Export);
+            if tab.note {
+                m.item(phosphor::FILE_PDF, "Export as PDF…", TabMenu::ExportPdf);
+            }
         }
         if can_reopen {
             if is_file || has_link {
