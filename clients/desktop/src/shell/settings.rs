@@ -27,6 +27,7 @@ use egui::{
     Align, Area, CornerRadius, Id, Label, Layout, Order, Pos2, Rect, ScrollArea, Sense, Stroke,
     TextWrapMode, Ui, UiBuilder, vec2,
 };
+use workspace_rs::tab::markdown_editor::{DEFAULT_TEXT_SIZE, LineSpacing};
 
 use workspace_rs::style::swatches::swatches;
 use workspace_rs::theme::palette_v2::Palette;
@@ -383,6 +384,39 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         if let Some(family) = code_font_picker(ui, t, &app.settings.code_font) {
             queue.push(A::SetCodeFont(family));
         }
+        let size = app
+            .session
+            .ready()
+            .map(|r| r.workspace.cfg.get_text_size())
+            .unwrap_or(DEFAULT_TEXT_SIZE);
+        // the platform's size shows where it falls between the offered ones
+        let mut sizes = TEXT_SIZES.to_vec();
+        if !sizes.contains(&size) {
+            sizes.push(size);
+            sizes.sort_by(f32::total_cmp);
+        }
+        let names: Vec<String> = sizes.iter().map(|s| format!("{s} pt")).collect();
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        let mut pick = sizes.iter().position(|s| *s == size).unwrap_or_default();
+        if form_picker(ui, t, "Text size", &names, &mut pick)
+            .response
+            .changed()
+        {
+            queue.push(A::SetPrefTextSize(sizes[pick]));
+        }
+        let spacing = app
+            .session
+            .ready()
+            .map(|r| r.workspace.cfg.get_line_spacing())
+            .unwrap_or_default();
+        let names = LineSpacing::ALL.map(LineSpacing::name);
+        let mut pick = LineSpacing::ALL
+            .iter()
+            .position(|s| *s == spacing)
+            .unwrap_or(1);
+        if form_segmented(ui, t, "Line spacing", &names, &mut pick).changed() {
+            queue.push(A::SetPrefLineSpacing(LineSpacing::ALL[pick]));
+        }
     });
 
     ui.add(Spacer::new(Space::Lg));
@@ -605,6 +639,9 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
         }
     });
 }
+
+/// The text sizes notes offer, in points.
+const TEXT_SIZES: [f32; 12] = [12., 13., 14., 15., 16., 17., 18., 20., 22., 24., 28., 32.];
 
 /// The text column's widest points: Narrow, Medium, Wide.
 const COLUMN_WIDTHS: [f32; 3] = [600.0, 900.0, 1200.0];
