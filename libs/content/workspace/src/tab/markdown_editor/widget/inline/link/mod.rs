@@ -768,17 +768,27 @@ impl<'ast> MdRender {
     ) {
         let parent_base = ui.scope_id();
         for node in root.descendants() {
-            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
-                NodeValue::Link(nl) => (nl.url.clone(), false, false),
-                NodeValue::Image(nl) => (nl.url.clone(), false, true),
-                _ => continue,
-            };
+            if !matches!(
+                node.data.borrow().value,
+                NodeValue::WikiLink(_) | NodeValue::Link(_) | NodeValue::Image(_)
+            ) {
+                continue;
+            }
             let salt = match chips {
                 true => Self::link_capsule_id_salt(self.node_range(node)),
                 false => Self::link_interaction_id_salt(self.node_range(node)),
             };
             let id = parent_base.with(salt);
+            // not drawn this frame
+            if !self.interaction_responses.contains_key(&id) {
+                continue;
+            }
+            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                NodeValue::Link(nl) => (nl.url.clone(), false, false),
+                NodeValue::Image(nl) => (nl.url.clone(), false, true),
+                _ => unreachable!(),
+            };
 
             let open = Event::OpenLink { url: url.clone(), wikilink: is_wikilink };
             let tap = if self.readonly {

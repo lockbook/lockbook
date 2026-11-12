@@ -1187,8 +1187,12 @@ impl<'ast> MdEdit {
     pub fn inline_styled(
         &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), style: &NodeValue,
     ) -> bool {
+        // a style with a payload, as a pasted link's url, matches no node
+        if style.node_type() != *style {
+            return false;
+        }
         for node in root.descendants() {
-            if &node.node_type() == style
+            if node.is_type(style)
                 && self
                     .renderer
                     .node_range(node)
@@ -1879,15 +1883,32 @@ impl<'ast> MdEdit {
 
 trait NodeType {
     fn node_type(&self) -> NodeValue;
+
+    /// `self.node_type() == style.node_type()`, without building either.
+    fn is_type(&self, style: &NodeValue) -> bool;
 }
 
 impl NodeType for AstNode<'_> {
     fn node_type(&self) -> NodeValue {
         self.data.borrow().value.node_type()
     }
+
+    fn is_type(&self, style: &NodeValue) -> bool {
+        self.data.borrow().value.is_type(style)
+    }
 }
 
 impl NodeType for NodeValue {
+    fn is_type(&self, style: &NodeValue) -> bool {
+        match (self, style) {
+            (NodeValue::List(a), NodeValue::List(b)) | (NodeValue::Item(a), NodeValue::Item(b)) => {
+                a.list_type == b.list_type && a.is_task_list == b.is_task_list
+            }
+            (NodeValue::Heading(a), NodeValue::Heading(b)) => a.level == b.level,
+            _ => std::mem::discriminant(self) == std::mem::discriminant(style),
+        }
+    }
+
     fn node_type(&self) -> NodeValue {
         match self {
             NodeValue::Document => NodeValue::Document,

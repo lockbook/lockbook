@@ -146,20 +146,30 @@ impl<'ast> MdEdit {
         let open = self.embed_tap_opens(ui);
         let mut action = self.renderer.card_action.take();
         for node in root.descendants() {
-            let (url, wikilink) = match &node.data.borrow().value {
-                NodeValue::Link(link) => (link.url.clone(), false),
-                NodeValue::WikiLink(link) => (link.url.clone(), true),
+            let data = node.data.borrow();
+            let (url, wikilink) = match &data.value {
+                NodeValue::Link(link) => (link.url.as_str(), false),
+                NodeValue::WikiLink(link) => (link.url.as_str(), true),
                 _ => continue,
             };
             // a block card's or a hover card's buttons
-            if let Some((_, chosen)) = action.take_if(|(for_url, _)| *for_url == url) {
-                self.act_on_card(root, node, ui, ops, &url, chosen);
+            if let Some((_, chosen)) = action.take_if(|(for_url, _)| for_url == url) {
+                self.act_on_card(root, node, ui, ops, url, chosen);
             }
-            if wikilink || !self.renderer.link_renders_as_card(node) {
+            if wikilink {
                 continue;
             }
             let salt = MdRender::card_interaction_id_salt(self.renderer.node_range(node));
-            self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
+            // not drawn as a card this frame
+            if !self
+                .renderer
+                .interaction_responses
+                .contains_key(&ui.scope_id().with(salt))
+                || !self.renderer.link_renders_as_card(node)
+            {
+                continue;
+            }
+            self.handle_embed_tap(root, node, ui, id, ops, url, salt, open);
         }
     }
 
@@ -202,12 +212,28 @@ impl<'ast> MdEdit {
     ) {
         let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
+            let capsule = match &node.data.borrow().value {
+                NodeValue::Link(_) => true,
+                NodeValue::WikiLink(wl) => !wl.embed,
+                _ => false,
+            };
+            if !capsule {
+                continue;
+            }
+            let salt = MdRender::link_capsule_id_salt(self.renderer.node_range(node));
+            // not drawn as a capsule this frame
+            if !self
+                .renderer
+                .interaction_responses
+                .contains_key(&ui.scope_id().with(salt))
+            {
+                continue;
+            }
             let url = match &node.data.borrow().value {
                 NodeValue::Link(link) => link.url.clone(),
-                NodeValue::WikiLink(wl) if !wl.embed => wiki_embed_key(&wl.url),
-                _ => continue,
+                NodeValue::WikiLink(wl) => wiki_embed_key(&wl.url),
+                _ => unreachable!(),
             };
-            let salt = MdRender::link_capsule_id_salt(self.renderer.node_range(node));
             self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
         }
     }
