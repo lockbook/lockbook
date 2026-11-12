@@ -499,6 +499,11 @@ impl Buffer {
                 }
 
                 match op {
+                    // an insert at a replaced range's start lies before it
+                    Operation::Replace(Replace { range, .. })
+                        if range.is_empty()
+                            && !preceding_replaced_range.is_empty()
+                            && range.start() == preceding_replaced_range.start() => {}
                     // an edit that only touches a replaced range's ends lies outside it
                     Operation::Replace(Replace { range, .. }) if !range.is_empty() => {
                         let (mut start, mut end) = (&mut range.0, &mut range.1);
