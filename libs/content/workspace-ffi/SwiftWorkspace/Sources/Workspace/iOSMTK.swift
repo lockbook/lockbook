@@ -423,8 +423,20 @@
                 mtkView.workspaceOutput?.openCamera = true
             }
 
+            let searchQuery = textFromPtr(s: output.search_query)
             if output.open_search {
-                mtkView.workspaceOutput?.openSearch = true
+                mtkView.workspaceOutput?.openSearch = SearchRequest(
+                    query: searchQuery, content: output.search_content
+                )
+            }
+
+            let linkMessage = textFromPtr(s: output.link_message)
+            if !linkMessage.isEmpty {
+                mtkView.workspaceOutput?.linkMessage = linkMessage
+            }
+
+            if output.opening_link != mtkView.workspaceOutput?.openingLink {
+                mtkView.workspaceOutput?.openingLink = output.opening_link
             }
 
             if output.mobile_toolbar_shown != mtkView.workspaceOutput?.mobileToolbarShown {

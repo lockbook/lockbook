@@ -200,12 +200,12 @@ fn toggle_link_twice_restores_text() {
     }
 }
 
-/// A search link in a note opens the search, in either style.
+/// A search link in a note goes up to the workspace, in either style, with
+/// no sheet; the workspace opens it ([`crate::Workspace::open_link_url`]).
 #[test]
 fn search_links_open_from_a_note() {
     use crate::resolvers::link::{LinkState, ResolvedLink};
-    use crate::search::SearchState;
-    use crate::tab::{Destination, ExtendedOutput as _, Place};
+    use crate::tab::ExtendedOutput as _;
     let files = shared_project();
     let note = at(&files, "/project/notes.md");
     let mut ws = TestEditor::in_files(files, note, "");
@@ -215,9 +215,15 @@ fn search_links_open_from_a_note() {
         assert!(matches!(renderer.link_state_for_url(url), LinkState::Normal), "{url}");
         renderer.open_resolved_link(url, &renderer.ctx, false);
         assert!(renderer.ctx.pop_link_sheets().is_empty(), "{url}");
-        let ferry = SearchState { query: "ferry".into(), ..Default::default() };
-        let opened = renderer.ctx.pop_open_files();
-        assert_eq!(opened, vec![(Place::new(Destination::Search(ferry)), false)], "{url}");
+        let sent = renderer.ctx.output_mut(|o| std::mem::take(&mut o.commands));
+        let sent: Vec<_> = sent
+            .into_iter()
+            .filter_map(|c| match c {
+                egui::OutputCommand::OpenUrl(u) => Some((u.url, u.new_tab)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(sent, [(url.to_string(), false)], "{url}");
     }
     // another site's `/open/` is that site's page
     let elsewhere = "https://example.com/open/search#q=ferry";

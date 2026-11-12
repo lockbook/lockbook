@@ -7,10 +7,10 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 use web_time::Instant;
 
-use crate::file_cache::{FilesExt as _, web_link};
+use crate::file_cache::FilesExt as _;
 use crate::output::Response;
 use crate::search::SearchType;
-use crate::tab::{Destination, ExtendedInput as _, ExtendedOutput as _, Place, image_viewer};
+use crate::tab::{ExtendedInput as _, ExtendedOutput as _, image_viewer};
 use crate::theme::palette_v2::ThemeExt;
 use crate::theme::visuals;
 use crate::widgets::GlyphonLabel;
@@ -50,6 +50,7 @@ impl Workspace {
         self.process_bg_tasks();
         self.process_lb_updates();
         self.process_task_updates();
+        self.poll_link_sync();
         self.refit_to_names();
         self.process_keys();
         self.process_clip_events();
@@ -97,6 +98,7 @@ impl Workspace {
         crate::widgets::diagram_cache::DiagramCache::of(ui.ctx()).end_frame();
         self.tabs.end_frame();
 
+        self.out.opening_link = self.opening_link();
         mem::take(&mut self.out)
     }
 
@@ -131,33 +133,19 @@ impl Workspace {
             ui.centered_and_justified(|ui| {
                 self.show_current_tab_content(ui);
 
-                // Links in notes open through their resolver; this catches the
-                // rest. A link to a place here opens in the app, and `lb:`
-                // never reaches the OS.
-                let mut places: Vec<(Place, bool)> = Vec::new();
-                let files = Arc::clone(&self.files);
-                let files = files.read().unwrap();
-                ui.ctx().output_mut(|w| {
-                    w.commands.retain(|c| {
-                        let egui::OutputCommand::OpenUrl(url) = c else { return true };
-                        let here = |place: &Place| match place.dest {
-                            Destination::File(id) => {
-                                files.get_by_id(id).is_some_and(|f| f.is_document())
-                            }
-                            _ => !web_link(&url.url),
-                        };
-                        match Place::from_url(&url.url) {
-                            Some(place) if here(&place) => {
-                                places.push((place, url.new_tab));
-                                false
-                            }
-                            _ => !url.url.to_ascii_lowercase().starts_with("lb:"),
-                        }
-                    });
+                // every link a tab opens: ours open here, the rest go to the OS
+                let urls = ui.ctx().output_mut(|w| {
+                    let (urls, rest) = std::mem::take(&mut w.commands)
+                        .into_iter()
+                        .partition(|c| matches!(c, egui::OutputCommand::OpenUrl(_)));
+                    w.commands = rest;
+                    urls
                 });
-                drop(files);
-                for (place, new_tab) in places {
-                    self.open_link(place, new_tab);
+                for command in urls {
+                    let egui::OutputCommand::OpenUrl(url) = command else { continue };
+                    if !self.open_link_url(&url.url, url.new_tab) {
+                        ui.ctx().open_url(url);
+                    }
                 }
                 if let Some(source) = ui.ctx().pop_open_diagram() {
                     self.navigate_to(crate::tab::Destination::Diagram(source));

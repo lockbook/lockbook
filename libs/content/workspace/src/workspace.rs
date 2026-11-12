@@ -88,6 +88,8 @@ pub struct Workspace {
     /// The sheet's keys this frame, taken before anything else sees input:
     /// Open, then Cancel.
     pub(crate) link_sheet_keys: (bool, bool),
+    /// A link to a file this device hasn't seen, waiting on a sync.
+    link_sync: Option<LinkSync>,
 
     // Files and task status
     pub tasks: TaskManager,
@@ -132,6 +134,12 @@ pub struct Workspace {
 
 #[derive(Clone, Copy)]
 struct UserPresent(bool);
+
+struct LinkSync {
+    place: Place,
+    action: Option<TabAction>,
+    synced: std::sync::mpsc::Receiver<Result<(), String>>,
+}
 
 impl Workspace {
     pub fn set_user_present(&self) {
@@ -210,6 +218,7 @@ impl Workspace {
             last_set_title: Default::default(),
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
+            link_sync: None,
             lb_rx: core.subscribe(),
             preview: None,
             preview_pending: None,
@@ -957,13 +966,99 @@ impl Workspace {
         }
     }
 
-    /// Opens a file from outside the app (an `open/` URL) at the heading its
-    /// `#fragment` names.
-    pub fn open_file_at_heading(&mut self, id: Uuid, heading: String, in_new_tab: bool) {
-        let fragment = Some(heading)
-            .filter(|h| !h.is_empty())
-            .map(Fragment::Heading);
-        self.open_place(Place::at(Destination::File(id), fragment), true, in_new_tab);
+    /// Opens a link clicked in a tab, navigating that tab unless `in_new_tab`.
+    /// False when the link isn't ours and the host should open it.
+    pub fn open_link_url(&mut self, url: &str, in_new_tab: bool) -> bool {
+        let action = if in_new_tab { TabAction::Create } else { TabAction::Navigate };
+        self.follow_url(url, Some(action))
+    }
+
+    /// Opens a link from outside the app, in a tab as the tab settings say.
+    /// False when the link isn't ours and the host should open it.
+    pub fn open_url(&mut self, url: &str) -> bool {
+        self.follow_url(url, None)
+    }
+
+    /// Opens what a link of ours names, syncing first for a file this device
+    /// hasn't seen, or says why it can't. `action` None follows the tab
+    /// settings.
+    fn follow_url(&mut self, url: &str, action: Option<TabAction>) -> bool {
+        let origin = self.core.get_link_origin().unwrap_or_default();
+        if !crate::tab::is_ours(url, &origin) {
+            return false;
+        }
+        let Some(place) = Place::from_url(url) else {
+            self.out.link_message = Some("This link doesn't name a note or a search.".into());
+            return true;
+        };
+        match place.dest.backing_file() {
+            Some(id) if self.files.read().unwrap().get_by_id(id).is_none() => {
+                self.sync_for_link(place, action)
+            }
+            _ => self.open_linked_place(place, action),
+        }
+        true
+    }
+
+    fn open_linked_place(&mut self, place: Place, action: Option<TabAction>) {
+        if let Destination::File(id) = place.dest {
+            let Some(file) = self.files.read().unwrap().get_by_id(id).cloned() else {
+                self.out.link_message =
+                    Some("This note was deleted or isn't shared with you.".into());
+                return;
+            };
+            // the host selects and reveals it; a folder only that
+            self.out.selected_file = Some(id);
+            if !file.is_document() {
+                return;
+            }
+        }
+        if let (Destination::Search(state), true) = (&place.dest, cfg!(target_os = "ios")) {
+            self.out.open_search = Some(state.clone());
+            return;
+        }
+        let action = action.unwrap_or_else(|| self.tab_action_for_open(&place.dest, false));
+        self.open_place_with(place, true, action);
+    }
+
+    fn sync_for_link(&mut self, place: Place, action: Option<TabAction>) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (core, files, ctx) = (self.core.clone(), self.files.clone(), self.ctx.clone());
+        spawn!({
+            let synced = core.sync().map(|_| ()).map_err(|err| err.to_string());
+            if let Ok(cache) = FileCache::new(&core) {
+                files.write().unwrap().replace(cache);
+            }
+            let _ = tx.send(synced);
+            ctx.request_repaint();
+        });
+        self.link_sync = Some(LinkSync { place, action, synced: rx });
+    }
+
+    pub(crate) fn opening_link(&self) -> bool {
+        self.link_sync.is_some()
+    }
+
+    /// Opens a link's file once its sync is done.
+    pub(crate) fn poll_link_sync(&mut self) {
+        let Some(sync) = &self.link_sync else { return };
+        let synced = match sync.synced.try_recv() {
+            Ok(synced) => synced,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Ok(()),
+        };
+        let LinkSync { place, action, .. } = self.link_sync.take().unwrap();
+        self.out.file_cache_updated = true;
+        let known = place
+            .dest
+            .backing_file()
+            .is_some_and(|id| self.files.read().unwrap().get_by_id(id).is_some());
+        match synced {
+            Err(err) if !known => {
+                self.out.link_message = Some(format!("Couldn't sync to find this note: {err}"))
+            }
+            _ => self.open_linked_place(place, action),
+        }
     }
 
     /// Records what the current tab reported about its fragment this frame.
@@ -1715,7 +1810,8 @@ impl Workspace {
 
     pub fn upsert_search(&mut self, search_type: Option<SearchType>) {
         if cfg!(target_os = "ios") {
-            self.out.open_search = true;
+            let search_type = search_type.unwrap_or(self.last_search.search_type);
+            self.out.open_search = Some(SearchState { search_type, ..Default::default() });
             return;
         }
         // Follows the new-tab setting, even when another tab has a search open.
@@ -2648,6 +2744,115 @@ mod rename_tests {
         until_editor(&mut t, "markdown");
         let md = t.ws.current_tab().unwrap().markdown().unwrap();
         assert_eq!(md.edit.renderer.buffer.current.text, text);
+    }
+}
+
+#[cfg(test)]
+mod link_tests {
+    use lb_rs::model::file_metadata::FileType;
+    use web_time::{Duration, Instant};
+
+    use crate::search::SearchState;
+    use crate::tab::Destination;
+    use crate::test_utils::ws::TestWs;
+
+    /// Frames until `done`, gathering the messages the workspace shows.
+    fn until(t: &mut TestWs, mut done: impl FnMut(&TestWs, &[String]) -> bool) -> Vec<String> {
+        let start = Instant::now();
+        let mut messages = vec![];
+        loop {
+            messages.extend(t.frame().link_message);
+            if done(t, &messages) {
+                return messages;
+            }
+            assert!(start.elapsed() < Duration::from_secs(10), "never done: {messages:?}");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    /// A link of ours opens here in either style, from our host or the
+    /// account's; one from another host is the OS's, and one naming nothing
+    /// says so.
+    #[test]
+    fn links_open_here_or_go_to_the_os() {
+        let mut t = TestWs::new();
+        let origin = t.ws.core.get_link_origin().unwrap();
+        let ferry =
+            Destination::Search(SearchState { query: "ferry".into(), ..Default::default() });
+        for url in [
+            "lb://search#q=ferry".to_string(),
+            "https://app.lockbook.net/open/search#q=ferry".into(),
+            "HTTPS://user@App.Lockbook.net:443/open/search#q=ferry".into(),
+            format!("{origin}/open/search#q=ferry"),
+        ] {
+            t.ws.close_all_tabs();
+            assert!(t.ws.open_url(&url), "{url}");
+            assert_eq!(t.ws.current_dest(), Some(&ferry), "{url}");
+        }
+        assert!(!t.ws.open_url("https://example.com/open/search#q=ferry"));
+        assert!(!t.ws.open_link_url("https://example.com", false));
+        assert!(t.ws.open_url("lb://nonsense"));
+        assert_eq!(
+            t.frame().link_message.as_deref(),
+            Some("This link doesn't name a note or a search.")
+        );
+    }
+
+    /// A link a tab opens goes through the workspace: ours opens here and
+    /// only the rest reach the OS.
+    #[test]
+    fn links_a_tab_opens_reach_the_os_only_when_not_ours() {
+        let mut t = TestWs::new();
+        let note = t.doc("note.md", "# Note\n");
+        t.ws.open_file(note, true, false);
+        t.settle();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, t.size)),
+            ..Default::default()
+        };
+        let ws = &mut t.ws;
+        let output = t.ctx.run_pass(input, |ctx| {
+            for url in ["lb://search#q=ferry", "https://example.com/"] {
+                ctx.open_url(egui::OpenUrl::same_tab(url));
+            }
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| ws.show(ui));
+            });
+        });
+        let to_os: Vec<_> = output
+            .platform_output
+            .commands
+            .into_iter()
+            .filter_map(|c| match c {
+                egui::OutputCommand::OpenUrl(u) => Some(u.url),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(to_os, ["https://example.com/"]);
+        let ferry =
+            Destination::Search(SearchState { query: "ferry".into(), ..Default::default() });
+        assert_eq!(t.ws.current_dest(), Some(&ferry));
+    }
+
+    /// A link to a file another device just made opens once a sync finds
+    /// it; one to a file nobody has says so after the sync.
+    #[test]
+    fn a_link_to_a_new_file_syncs_then_opens() {
+        let mut t = TestWs::new();
+        t.ws.core.sync().unwrap();
+        let other = t.other_device();
+        let root = other.get_root().unwrap().id;
+        let file = other
+            .create_file("ferry.md", &root, FileType::Document)
+            .unwrap();
+        other.sync().unwrap();
+
+        assert!(t.ws.open_url(&format!("lb://{}#Times", file.id)));
+        until(&mut t, |t, _| t.ws.current_dest() == Some(&Destination::File(file.id)));
+
+        assert!(t.ws.open_url("lb://00000000-0000-0000-0000-00000000002a"));
+        let gone = "This note was deleted or isn't shared with you.";
+        until(&mut t, |_, messages| messages.iter().any(|m| m == gone));
     }
 }
 

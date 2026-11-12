@@ -258,6 +258,24 @@ fn link_place(url: &str) -> Option<&str> {
     rest.split_once('/')?.1.strip_prefix("open/")
 }
 
+/// Whether `url` is written in one of our link styles: `lb:`, or an open
+/// link from `app.lockbook.net` or the account's `origin`. It may still
+/// name nothing.
+pub fn is_ours(url: &str, origin: &str) -> bool {
+    if strip_prefix_ci(url, "lb:").is_some() {
+        return true;
+    }
+    // `user@host:port` names the host
+    let host = |url: &str| {
+        let rest = strip_prefix_ci(url, "https://").or_else(|| strip_prefix_ci(url, "http://"))?;
+        let authority = rest.split('/').next()?;
+        let host = authority.rsplit('@').next()?.split(':').next()?;
+        Some(host.to_ascii_lowercase())
+    };
+    link_place(url).is_some()
+        && host(url).is_some_and(|h| h == "app.lockbook.net" || Some(h) == host(origin))
+}
+
 /// A persistable navigation journey: the current place plus back/forward stacks.
 /// Changes to `place` are navigation; stacks are the undo/redo of those
 /// changes. `id` identifies this session/tab instance and is not persisted.

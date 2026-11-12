@@ -3,6 +3,11 @@ import Combine
 import Foundation
 import Observation
 
+public struct SearchRequest: Equatable {
+    public let query: String
+    public let content: Bool
+}
+
 @Observable public class WorkspaceOutputState {
     public var openDoc: UUID? = nil
     public var currentSession: UUID? = nil
@@ -14,7 +19,12 @@ import Observation
     public var tabCount: Int = 0
 
     public var openCamera: Bool = false
-    public var openSearch: Bool = false
+    /// iOS shows search itself; a link's query fills it in.
+    public var openSearch: SearchRequest? = nil
+    /// Why a link didn't open, for an alert.
+    public var linkMessage: String? = nil
+    /// A link waits on a sync to find its file.
+    public var openingLink: Bool = false
     /// The open note has headings: native chrome offers its outline.
     public var outlineAvailable: Bool = false
     /// The outline sheet is up: floating buttons would cover it.
@@ -37,17 +47,22 @@ import Observation
             set_sidebar_open(wsHandle, nativeSidebarOpen)
             set_desktop_tab_policy(wsHandle, desktopTabPolicy)
 
-            guard !pendingOpens.isEmpty else { return }
             let queued = pendingOpens
             pendingOpens = []
-            for (id, heading) in queued {
-                openFile(id: id, heading: heading)
+            for id in queued {
+                openFile(id: id)
+            }
+            let links = pendingLinks
+            pendingLinks = []
+            for url in links {
+                _ = openUrl(url)
             }
         }
     }
 
     @ObservationIgnored private var nativeSidebarOpen = false
-    @ObservationIgnored private var pendingOpens: [(UUID, String?)] = []
+    @ObservationIgnored private var pendingOpens: [UUID] = []
+    @ObservationIgnored private var pendingLinks: [URL] = []
     @ObservationIgnored private var desktopTabPolicy = false
 
     @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
@@ -89,7 +104,7 @@ import Observation
             pendingFocusDoc = id
         }
         guard let wsHandle else {
-            pendingOpens.append((id, nil))
+            pendingOpens.append(id)
             return
         }
 
@@ -101,20 +116,18 @@ import Observation
         //        focus.send(())
     }
 
-    /// Opens a file at the heading a link's `#fragment` names.
-    public func openFile(id: UUID, heading: String?) {
-        guard let heading, !heading.isEmpty else {
-            openFile(id: id)
-            return
-        }
+    /// Opens a link from outside the app; false when it isn't ours. One that
+    /// arrives before the workspace is up waits for it.
+    public func openUrl(_ url: URL) -> Bool {
         guard let wsHandle else {
-            pendingOpens.append((id, heading))
-            return
+            pendingLinks.append(url)
+            return true
         }
 
         no_folder_selected(wsHandle)
-        open_file_at_heading(wsHandle, CUuid(_0: id.uuid), heading, false)
+        let opened = open_url(wsHandle, url.absoluteString)
         redraw.send(())
+        return opened
     }
 
     public func navigateToFile(id: UUID) {

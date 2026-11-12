@@ -132,9 +132,9 @@ class MainScreenActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val launchFileId =
+        val launchLink =
             if (savedInstanceState == null && intent.action == Intent.ACTION_VIEW) {
-                parseOpenLink(intent, coldStart = true) ?: return
+                linkToOpen(intent, coldStart = true) ?: return
             } else {
                 null
             }
@@ -394,67 +394,40 @@ class MainScreenActivity : AppCompatActivity() {
             }
         }
 
-        launchFileId?.let { openLinkedFile(it, intent.dataString?.let(OpenLinkParser::heading)) }
+        launchLink?.let(::openLink)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.action == Intent.ACTION_VIEW) {
-            parseOpenLink(intent, coldStart = false)?.let {
-                openLinkedFile(it, intent.dataString?.let(OpenLinkParser::heading))
-            }
+            linkToOpen(intent, coldStart = false)?.let(::openLink)
         }
     }
 
-    private fun parseOpenLink(
+    /** The link an intent carries, once there is an account to open it in. */
+    private fun linkToOpen(
         intent: Intent,
         coldStart: Boolean,
     ): String? {
-        val fileId = intent.dataString?.let(OpenLinkParser::parse)
-        if (fileId == null) {
-            MaterialAlertDialogBuilder(this)
-                .setMessage(R.string.invalid_lockbook_link)
-                .setPositiveButton(android.R.string.ok) { _, _ -> if (coldStart) finish() }
-                .setOnCancelListener { if (coldStart) finish() }
-                .show()
+        val url = intent.dataString
+        if (url == null) {
+            if (coldStart) finish()
             return null
         }
-
         try {
             Lb.getAccount()
         } catch (_: LbError) {
             if (coldStart) finish()
             return null
         }
-
-        return fileId
+        return url
     }
 
-    private fun openLinkedFile(
-        fileId: String,
-        heading: String?,
-    ) {
-        lifecycleScope.launch {
-            try {
-                val snapshot = FileMetadataStore.awaitLoaded()
-                if (snapshot.idsAndFiles.containsKey(fileId)) {
-                    workspaceModel.openFile(
-                        OpenFileRequest(
-                            id = fileId,
-                            newFile = false,
-                            presentation = OpenFilePresentation.ShowDetail,
-                            heading = heading,
-                        ),
-                    )
-                    mainScreenModel.navigate(MainNavigationAction.FocusDetail)
-                } else {
-                    alertModel.notify(getString(R.string.open_link_not_found))
-                }
-            } catch (error: LbError) {
-                alertModel.notifyError(error)
-            }
-        }
+    /** The workspace reads the link and says why if it can't open it. */
+    private fun openLink(url: String) {
+        workspaceModel.openUrl(url)
+        mainScreenModel.navigate(MainNavigationAction.FocusDetail)
     }
 
     private fun renderExport(state: ExportState) {

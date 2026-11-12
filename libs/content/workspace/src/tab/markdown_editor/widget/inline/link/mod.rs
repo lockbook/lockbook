@@ -539,7 +539,7 @@ impl<'ast> MdRender {
     pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context, new_tab: bool) {
         match self.resolve_link(url) {
             Some(ResolvedLink::File(file_id)) => self.open_linked_file(url, file_id, ctx, new_tab),
-            Some(ResolvedLink::Place(place)) => ctx.open_link(place, new_tab),
+            Some(ResolvedLink::Place) => ctx.open_url(egui::OpenUrl { url: url.into(), new_tab }),
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
@@ -727,7 +727,7 @@ impl<'ast> MdRender {
 
             match self.resolve_link(&url) {
                 Some(ResolvedLink::File(id)) => linked.push((url, id)),
-                Some(ResolvedLink::Place(place)) => places.push(place),
+                Some(ResolvedLink::Place) => places.push(url),
                 Some(ResolvedLink::External(url)) => {
                     urls.push(egui::OpenUrl { url, new_tab: false });
                 }
@@ -752,8 +752,8 @@ impl<'ast> MdRender {
         for (url, id) in linked {
             self.open_linked_file(&url, id, ctx, new_tab);
         }
-        for place in places {
-            ctx.open_link(place, new_tab);
+        for url in places {
+            ctx.open_url(egui::OpenUrl { url, new_tab });
         }
         if new_tab {
             for url in &mut urls {
@@ -863,7 +863,7 @@ impl<'ast> MdRender {
             {
                 url
             }
-            ResolvedLink::Place(_) | ResolvedLink::External(_) => {
+            ResolvedLink::Place | ResolvedLink::External(_) => {
                 return LinkMetaLookup::Unavailable;
             }
         };

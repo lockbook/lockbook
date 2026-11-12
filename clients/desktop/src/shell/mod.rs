@@ -347,7 +347,7 @@ impl ShellApp {
         }
         apply_onboard::poll_auto_import(self, ctx);
         apply::poll_native_dialog(self, ctx);
-        apply::poll_incoming_link(self, ctx);
+        apply::poll_incoming_link(self);
         if let Session::Ready(r) = &self.session {
             if self.lb_rx.is_none() {
                 self.lb_rx = Some(r.workspace.core.subscribe());
