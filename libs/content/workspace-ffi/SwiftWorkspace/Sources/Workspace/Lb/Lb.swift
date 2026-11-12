@@ -31,6 +31,7 @@ public protocol LbAPI {
     func getPendingShareFiles() -> Result<[File], LbError>
     func deletePendingShare(id: UUID) -> Result<Void, LbError>
     func debugInfo() -> String
+    func writePanicToFile(info: String, backtrace: String) -> Result<Void, LbError>
     func sync() -> Result<Void, LbError>
     func appForegrounded()
     func pinFile(id: UUID) -> Result<Void, LbError>
@@ -352,6 +353,17 @@ public class Lb: LbAPI {
         return String(cString: debugInfo!)
     }
 
+    public func writePanicToFile(info: String, backtrace: String) -> Result<Void, LbError> {
+        let err = lb_write_panic_to_file(lb, info, backtrace)
+
+        if let err {
+            defer { lb_free_err(err) }
+            return .failure(LbError(err.pointee))
+        }
+
+        return .success(())
+    }
+
     class UpdateSyncStatus {
         let closure: ((UInt, UInt, UUID, String) -> Void)?
 
@@ -624,6 +636,7 @@ public class MockLb: LbAPI {
     public func getPendingShareFiles() -> Result<[File], LbError> { .success([file1, file1, file1, file1, file1]) }
     public func deletePendingShare(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func debugInfo() -> String { "No debug info. This is a preview." }
+    public func writePanicToFile(info: String, backtrace: String) -> Result<Void, LbError> { .success(()) }
     public func sync() -> Result<Void, LbError> { .success(()) }
     public func appForegrounded() {}
     public func pinFile(id: UUID) -> Result<Void, LbError> { .success(()) }

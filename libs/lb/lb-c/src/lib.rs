@@ -647,6 +647,18 @@ pub extern "C" fn lb_get_local_changes(lb: *mut Lb) -> LbIdListRes {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn lb_write_panic_to_file(
+    lb: *mut Lb, error_header: *const c_char, backtrace: *const c_char,
+) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.write_panic_to_file(rstring(error_header), rstring(backtrace)) {
+        Ok(_) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_debug_info(lb: *mut Lb) -> *mut c_char {
     let lb = rlb(lb);
 
