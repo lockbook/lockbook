@@ -534,3 +534,81 @@ fn an_image_dropped_in_a_table_without_pipes_writes_only_itself() {
     assert_eq!(ws.get_text(), moved);
     assert_eq!(table_ranges_check_md(&moved), Ok(1));
 }
+
+/// The image lifted, a key typed and deleted, the image dropped below
+/// "end", and the image lifted again.
+fn held_again_after_a_drop(md: &str) -> TestEditor {
+    let mut ws = editor(md);
+    let button = |pos, pressed| Egui::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    let lift = |ws: &mut TestEditor| {
+        let from = image_center(ws);
+        ws.enter_frame_with_input(vec![Egui::PointerMoved(from)]);
+        ws.enter_frame_with_input(vec![button(from, true)]);
+        ws.enter_frame_with_input(vec![Egui::PointerMoved(from + egui::vec2(20.0, 20.0))]);
+        assert!(ws.editor.edit.in_progress_image_drag.is_some(), "it lifted");
+    };
+
+    lift(&mut ws);
+    ws.push(type_at(0, 0, "x"));
+    ws.enter_frame();
+    ws.push(type_at(0, 1, ""));
+    ws.enter_frame();
+    let to = after(&ws, "end");
+    let grab = ws
+        .editor
+        .edit
+        .in_progress_image_drag
+        .as_ref()
+        .unwrap()
+        .grab_offset;
+    let down = egui::vec2(0.0, grab.y + ws.editor.edit.renderer.drop_lift());
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(to)]);
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(to + down)]);
+    ws.enter_frame_with_input(vec![button(to + down, false)]);
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), format!("abc\n\n\n\nend![a]({IMAGE}) here\n"));
+    lift(&mut ws);
+    ws
+}
+
+fn type_at(start: usize, end: usize, text: &str) -> Event {
+    use super::super::input::{Location, Region};
+    Event::Replace {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(start)),
+            end: Location::Grapheme(Grapheme(end)),
+        },
+        text: text.into(),
+        advance_cursor: true,
+    }
+}
+
+/// An undo while an image is held puts the last drop back and lets go of
+/// the image.
+#[test]
+fn an_undo_during_a_drag_puts_the_last_drop_back() {
+    let md = format!("abc\n\n![a]({IMAGE})\n\nend here\n");
+    let mut ws = held_again_after_a_drop(&md);
+    ws.push(Event::Undo);
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), md);
+    assert!(ws.editor.edit.in_progress_image_drag.is_none(), "the image is let go");
+}
+
+/// An undo and a key in one frame while an image is held: both land, and
+/// the image is let go.
+#[test]
+fn an_undo_and_a_key_in_one_frame_let_go_of_the_image() {
+    let md = format!("abc\n\n![a]({IMAGE})\n\nend here\n");
+    let mut ws = held_again_after_a_drop(&md);
+    ws.push(Event::Undo);
+    ws.push(type_at(0, 0, "q"));
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), format!("q{md}"));
+    assert!(ws.editor.edit.in_progress_image_drag.is_none(), "the image is let go");
+}
