@@ -2,6 +2,7 @@ use std::convert::Infallible;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::Arc;
 use std::{env, fs};
 
 use cli_rs::cli_error::{CliError, CliResult};
@@ -9,8 +10,10 @@ use cli_rs::flag::Flag;
 use lb_rs::{Lb, Uuid};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::runtime::Handle;
+use tokio::sync::Mutex;
 
 use crate::input::find_file;
+use crate::stream::write_merging;
 use crate::{core, ensure_account_and_root};
 
 #[tokio::main]
@@ -31,7 +34,8 @@ pub async fn edit(editor: Editor, target: String) -> CliResult<()> {
     file_handle.write_all(&file_content)?;
     file_handle.sync_all()?;
 
-    let maybe_watcher = set_up_auto_save(lb, f.id, &temp_file_path);
+    let base = Arc::new(Mutex::new(file_content));
+    let maybe_watcher = set_up_auto_save(lb, f.id, &temp_file_path, &base);
     let edit_was_successful = edit_file_with_editor(editor, &temp_file_path);
 
     if let Some(mut watcher) = maybe_watcher {
@@ -41,9 +45,13 @@ pub async fn edit(editor: Editor, target: String) -> CliResult<()> {
     }
 
     if edit_was_successful {
-        match save_temp_file_contents(lb.clone(), f.id, &temp_file_path).await {
+        match save_temp_file_contents(lb.clone(), f.id, &temp_file_path, &base).await {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
-            Err(err) => eprintln!("{err:?}"),
+            Err(err) => {
+                eprintln!("{err:?}");
+                let kept = temp_file_path.display();
+                return Err(CliError::from(format!("your copy is kept at {kept}")));
+            }
         }
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
@@ -187,8 +195,11 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
         .success()
 }
 
-fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<RecommendedWatcher> {
+fn set_up_auto_save<P: AsRef<Path>>(
+    core: &Lb, id: Uuid, path: P, base: &Arc<Mutex<Vec<u8>>>,
+) -> Option<RecommendedWatcher> {
     let core = core.clone();
+    let base = base.clone();
     let watched_path = path.as_ref().to_path_buf();
     let handle = Handle::current();
     let watcher = notify::recommended_watcher(move |event: notify::Result<Event>| match event {
@@ -196,7 +207,7 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<Reco
             if matches!(event.kind, EventKind::Modify(_)) {
                 // This callback runs on notify's thread; finish one save before starting another.
                 if let Err(error) =
-                    handle.block_on(save_temp_file_contents(core.clone(), id, &watched_path))
+                    handle.block_on(save_temp_file_contents(core.clone(), id, &watched_path, &base))
                 {
                     eprintln!("autosave failed: {error:?}");
                 }
@@ -219,8 +230,10 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<Reco
     }
 }
 
+/// Saves the editor's copy over the document, merging changes made elsewhere since `base`, the
+/// editor's copy as last saved.
 async fn save_temp_file_contents<P: AsRef<Path>>(
-    lb: Lb, id: Uuid, path: P,
+    lb: Lb, id: Uuid, path: P, base: &Mutex<Vec<u8>>,
 ) -> Result<(), CliError> {
     let secret = fs::read_to_string(&path)
         .map_err(|err| {
@@ -232,7 +245,10 @@ async fn save_temp_file_contents<P: AsRef<Path>>(
         })?
         .into_bytes();
 
-    lb.write_document(id, &secret).await?;
+    // held through the write, so a save still running sets the base the next one merges from
+    let mut last_saved = base.lock().await;
+    write_merging(&lb, id, &last_saved, secret.clone()).await?;
+    *last_saved = secret;
     Ok(())
 }
 

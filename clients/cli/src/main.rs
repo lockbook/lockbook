@@ -188,7 +188,8 @@ fn run() -> CliResult<()> {
                 .input(Arg::str("target").description("lockbook file path or ID")
                     .completor(|prompt| input::file_completor(prompt, None)))
                 .input(Flag::bool("append").description("don't overwrite the specified lb file, append to it"))
-                .handler(|target, append| stream::stdin(target.get(), append.get()))
+                .input(Flag::<PathBuf>::new("base").description("a copy of the document as you read it, e.g. --base=read.md; changes made since then are merged with yours, or nothing is written if they can't be"))
+                .handler(|target, append, base| stream::stdin(target.get(), append.get(), base.value.clone()))
         )
         .subcommand(
             Command::name("rename").description("rename a file")
