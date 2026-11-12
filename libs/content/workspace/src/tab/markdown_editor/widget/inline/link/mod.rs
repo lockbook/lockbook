@@ -22,7 +22,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
 };
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::markdown_editor::{Syntax, View};
-use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
+use crate::tab::{ContextMenuTarget, Destination, ExtendedOutput as _, Fragment, LinkSheet, Place};
 use crate::theme::palette_v2::{ThemeExt as _, readable_on};
 use unicode_segmentation::UnicodeSegmentation as _;
 
@@ -539,6 +539,7 @@ impl<'ast> MdRender {
     pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context, new_tab: bool) {
         match self.resolve_link(url) {
             Some(ResolvedLink::File(file_id)) => self.open_linked_file(url, file_id, ctx, new_tab),
+            Some(ResolvedLink::Place(place)) => ctx.open_link(place, new_tab),
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
@@ -566,41 +567,40 @@ impl<'ast> MdRender {
             return self.explain_unopenable(&shown, self.link_state_for_wikilink(title), ctx);
         };
         // the slug, as copying this link writes it
-        let heading = wiki_fragment(title).1.map(slugify);
+        let heading = wiki_fragment(title)
+            .1
+            .map(slugify)
+            .filter(|h| !h.is_empty());
+        let place = Place::at(Destination::File(file_id), heading.map(Fragment::Heading));
         match self.link_resolver.wikilink_confirmation(title) {
-            Some(reason) => self.ask_to_open(file_id, heading.as_deref(), new_tab, reason, ctx),
-            None => ctx.open_link(file_id, heading, new_tab),
+            Some(reason) => self.ask_to_open(place, new_tab, reason, ctx),
+            None => ctx.open_link(place, new_tab),
         }
     }
 
     /// Opens the file `url` resolved to, behind a confirmation when the link
     /// means different files to different readers.
     fn open_linked_file(&self, url: &str, file_id: Uuid, ctx: &egui::Context, new_tab: bool) {
-        let heading = split_fragment(url).1;
+        let fragment = split_fragment(url).1.and_then(Fragment::from_url);
+        let place = Place::at(Destination::File(file_id), fragment);
         match self.link_resolver.confirmation(url) {
-            Some(reason) => self.ask_to_open(file_id, heading, new_tab, reason, ctx),
-            None => ctx.open_link(file_id, heading.map(Into::into), new_tab),
+            Some(reason) => self.ask_to_open(place, new_tab, reason, ctx),
+            None => ctx.open_link(place, new_tab),
         }
     }
 
-    fn ask_to_open(
-        &self, file_id: Uuid, heading: Option<&str>, new_tab: bool, reason: String,
-        ctx: &egui::Context,
-    ) {
-        let shown = self.files.read().unwrap().path(file_id);
-        let heading = heading.map(String::from);
-        ctx.show_link_sheet(LinkSheet {
-            open: Some((file_id, new_tab)),
-            heading,
-            shown,
-            message: reason,
-        });
+    fn ask_to_open(&self, place: Place, new_tab: bool, reason: String, ctx: &egui::Context) {
+        let shown = match place.dest {
+            Destination::File(id) => self.files.read().unwrap().path(id),
+            _ => String::new(),
+        };
+        ctx.show_link_sheet(LinkSheet { open: Some((place, new_tab)), shown, message: reason });
     }
 
     /// Says why a link that names nothing the reader can see doesn't open.
     fn explain_unopenable(&self, shown: &str, state: LinkState, ctx: &egui::Context) {
         if let LinkState::Broken { message } = state {
-            let sheet = LinkSheet { open: None, heading: None, shown: shown.into(), message };
+            let sheet = LinkSheet { open: None, shown: shown.into(), message };
             ctx.show_link_sheet(sheet);
         }
     }
@@ -616,11 +616,14 @@ impl<'ast> MdRender {
     /// The external URL of file `id`, which means the file wherever it is
     /// pasted.
     pub fn external_url(&self, id: Uuid) -> String {
-        let origin = self
-            .open_origin
+        format!("{}/open/{id}", self.open_origin())
+    }
+
+    /// Where this account's open links point.
+    pub fn open_origin(&self) -> &str {
+        self.open_origin
             .as_deref()
-            .unwrap_or("https://app.lockbook.net");
-        format!("{origin}/open/{id}")
+            .unwrap_or("https://app.lockbook.net")
     }
 
     /// What copying a link puts on the clipboard. A link to a file copies as
@@ -693,6 +696,7 @@ impl<'ast> MdRender {
 
         let mut wikilinks = vec![];
         let mut linked = vec![];
+        let mut places = vec![];
         let mut urls = vec![];
         let mut broken = vec![];
 
@@ -723,6 +727,7 @@ impl<'ast> MdRender {
 
             match self.resolve_link(&url) {
                 Some(ResolvedLink::File(id)) => linked.push((url, id)),
+                Some(ResolvedLink::Place(place)) => places.push(place),
                 Some(ResolvedLink::External(url)) => {
                     urls.push(egui::OpenUrl { url, new_tab: false });
                 }
@@ -730,7 +735,7 @@ impl<'ast> MdRender {
             }
         }
 
-        let opening = wikilinks.len() + linked.len() + urls.len();
+        let opening = wikilinks.len() + linked.len() + places.len() + urls.len();
         if opening == 0 {
             // nothing opens: say why the first link doesn't
             match broken.first() {
@@ -746,6 +751,9 @@ impl<'ast> MdRender {
         }
         for (url, id) in linked {
             self.open_linked_file(&url, id, ctx, new_tab);
+        }
+        for place in places {
+            ctx.open_link(place, new_tab);
         }
         if new_tab {
             for url in &mut urls {
@@ -855,7 +863,9 @@ impl<'ast> MdRender {
             {
                 url
             }
-            ResolvedLink::External(_) => return LinkMetaLookup::Unavailable,
+            ResolvedLink::Place(_) | ResolvedLink::External(_) => {
+                return LinkMetaLookup::Unavailable;
+            }
         };
 
         match self.previews.get(&resolved_url) {

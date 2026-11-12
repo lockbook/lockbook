@@ -1,4 +1,4 @@
-use crate::file_cache::{FileCache, FilesExt, link_id, split_fragment};
+use crate::file_cache::{FileCache, FilesExt, strip_prefix_ci};
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
 use crate::search::{Search, SearchState, SearchType};
@@ -161,20 +161,24 @@ impl Place {
         Self { dest, fragment }
     }
 
-    /// The place a link names: a file by its id link (`lb://<id>#heading`, or
-    /// the external URL), or a search: `lb://search?q=…&type=content&scope=/notes`.
+    /// The place a link names, in either of its styles: `lb://<place>`, or
+    /// the open link `https://<host>/open/<place>` that also works outside
+    /// the app. The path names the place, a file by id or a kind like
+    /// `search`; what the reader wrote rides in the fragment, which never
+    /// reaches a server: `<id>#heading`, `<id>#page=3`,
+    /// `search#q=…&type=content&scope=/notes`.
     pub fn from_url(url: &str) -> Option<Self> {
-        if let Some(id) = link_id(url) {
-            let fragment = split_fragment(url).1.and_then(Fragment::from_url);
-            return Some(Self::at(Destination::File(id), fragment));
+        let place = link_place(url)?;
+        let (place, fragment) = place.split_once('#').unwrap_or((place, ""));
+        let name = place.split('?').next()?.trim_end_matches('/');
+        if let Ok(id) = Uuid::parse_str(name) {
+            return Some(Self::at(Destination::File(id), Fragment::from_url(fragment)));
         }
-        let url = url::Url::parse(url).ok().filter(|u| u.scheme() == "lb")?;
-        let is_search = url.host_str()?.eq_ignore_ascii_case("search");
-        if !is_search || !url.path().trim_matches('/').is_empty() {
+        if !name.eq_ignore_ascii_case("search") {
             return None;
         }
         let mut state = SearchState::default();
-        for (key, value) in url.query_pairs() {
+        for (key, value) in url::form_urlencoded::parse(fragment.as_bytes()) {
             match &*key {
                 "q" => state.query = value.into(),
                 "scope" => state.scope_path = value.into(),
@@ -191,16 +195,22 @@ impl Place {
         Some(Self::new(Destination::Search(state)))
     }
 
-    /// The link [`Self::from_url`] reads back as this place, with only the
-    /// fragments a link writes down: a heading that reads as something else
-    /// is left off. None for a destination no link names.
+    /// The `lb://` link [`Self::from_url`] reads back as this place. None
+    /// for a destination no link names.
     pub fn to_url(&self) -> Option<String> {
-        self.to_url_with(|id| Some(format!("lb://{id}")))
+        Some(format!("lb://{}", self.link_place()?))
     }
 
-    /// [`Self::to_url`] with a file's link from `file_url`, such as the
-    /// external URL anyone the file is shared with can open.
-    pub fn to_url_with(&self, file_url: impl FnOnce(Uuid) -> Option<String>) -> Option<String> {
+    /// The open link at `origin` (`https://app.lockbook.net`) that
+    /// [`Self::from_url`] reads back as this place.
+    pub fn to_open_url(&self, origin: &str) -> Option<String> {
+        Some(format!("{}/open/{}", origin.trim_end_matches('/'), self.link_place()?))
+    }
+
+    /// What both link styles write after their prefix, with only the
+    /// fragments a link writes down: a heading that reads as something else
+    /// is left off. What the reader wrote goes in the fragment.
+    fn link_place(&self) -> Option<String> {
         match &self.dest {
             Destination::File(id) => {
                 let fragment = match self.fragment.as_ref().filter(|f| f.persists()) {
@@ -214,7 +224,7 @@ impl Place {
                     Some(Fragment::Entry(entry)) => format!("#{entry}"),
                     _ => String::new(),
                 };
-                Some(format!("{}{fragment}", file_url(*id)?))
+                Some(format!("{id}{fragment}"))
             }
             Destination::Search(state) => {
                 let mut query = url::form_urlencoded::Serializer::new(String::new());
@@ -229,13 +239,23 @@ impl Place {
                 if !state.scope_path.is_empty() {
                     query.append_pair("scope", &state.scope_path);
                 }
-                Some(format!("lb://search?{}", query.finish()))
+                Some(format!("search#{}", query.finish()))
             }
             Destination::MindMap(_) | Destination::SpaceInspector(_) | Destination::Diagram(_) => {
                 None
             }
         }
     }
+}
+
+/// What a Lockbook link names past its style's prefix: `lb://` or
+/// `http(s)://<host>/open/`.
+fn link_place(url: &str) -> Option<&str> {
+    if let Some(place) = strip_prefix_ci(url, "lb://") {
+        return Some(place);
+    }
+    let rest = strip_prefix_ci(url, "https://").or_else(|| strip_prefix_ci(url, "http://"))?;
+    rest.split_once('/')?.1.strip_prefix("open/")
 }
 
 /// A persistable navigation journey: the current place plus back/forward stacks.
@@ -1171,9 +1191,9 @@ pub trait ExtendedOutput {
     fn set_context_menu(&self, pos: egui::Pos2, target: ContextMenuTarget);
     fn pop_context_menu(&self) -> Option<(egui::Pos2, ContextMenuTarget)>;
     fn open_file(&self, id: Uuid, new_tab: bool);
-    /// Open a file a link names, at the heading its `#fragment` names.
-    fn open_link(&self, id: Uuid, heading: Option<String>, new_tab: bool);
-    fn pop_open_files(&self) -> Vec<(Uuid, Option<String>, bool)>;
+    /// Open the place a link names.
+    fn open_link(&self, place: Place, new_tab: bool);
+    fn pop_open_files(&self) -> Vec<(Place, bool)>;
     /// Open a file with the selection over `byte_range` (e.g. a placeholder
     /// to type over).
     fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool);
@@ -1212,11 +1232,9 @@ pub struct CopiedRendered {
 /// for others, with an Open action, or why it can't open at all.
 #[derive(Clone, Debug)]
 pub struct LinkSheet {
-    /// The file to open on confirmation, and whether in a new tab; None when
-    /// the link can't open.
-    pub open: Option<(Uuid, bool)>,
-    /// The `#fragment` naming the heading to open at.
-    pub heading: Option<String>,
+    /// The place to open on confirmation, and whether in a new tab; None
+    /// when the link can't open.
+    pub open: Option<(Place, bool)>,
     /// What the link reaches or names: a path, or the destination as written.
     pub shown: String,
     /// Why, then the fix on the next line when the reader can act on it.
@@ -1263,16 +1281,16 @@ impl ExtendedOutput for egui::Context {
     }
 
     fn open_file(&self, id: Uuid, new_tab: bool) {
-        self.open_link(id, None, new_tab)
+        self.open_link(Place::new(Destination::File(id)), new_tab)
     }
 
-    fn open_link(&self, id: Uuid, heading: Option<String>, new_tab: bool) {
+    fn open_link(&self, place: Place, new_tab: bool) {
         self.memory_mut(|m| {
-            let mut files: Vec<(Uuid, Option<String>, bool)> = m
+            let mut files: Vec<(Place, bool)> = m
                 .data
                 .get_temp(Id::unique("open_files"))
                 .unwrap_or_default();
-            files.push((id, heading, new_tab));
+            files.push((place, new_tab));
             m.data.insert_temp(Id::unique("open_files"), files);
         })
     }
@@ -1285,10 +1303,10 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| m.data.remove_temp(Id::unique("open_diagram")))
     }
 
-    fn pop_open_files(&self) -> Vec<(Uuid, Option<String>, bool)> {
+    fn pop_open_files(&self) -> Vec<(Place, bool)> {
         self.memory_mut(|m| {
             m.data
-                .remove_temp::<Vec<(Uuid, Option<String>, bool)>>(Id::unique("open_files"))
+                .remove_temp::<Vec<(Place, bool)>>(Id::unique("open_files"))
                 .unwrap_or_default()
         })
     }
@@ -1758,12 +1776,12 @@ mod nav_tests {
         };
         assert_eq!(
             Place::from_url(
-                "LB://Search?q=q3%20plan&type=content&scope=/my%20notes/&utm_source=mail"
+                "LB://Search?utm_source=mail#q=q3%20plan&type=content&scope=/my%20notes/"
             ),
             Some(Place::new(Destination::Search(state)))
         );
         assert_eq!(Place::from_url("lb://search"), Some(Place::new(search(""))));
-        for bad in ["lb://search?type=fuzzy", "lb://search/plan", "lb://mindmap", "https://x.com"] {
+        for bad in ["lb://search#type=fuzzy", "lb://search/plan", "lb://mindmap", "https://x.com"] {
             assert_eq!(Place::from_url(bad), None, "{bad}");
         }
     }
@@ -1790,15 +1808,20 @@ mod nav_tests {
         };
         assert_eq!(
             Place::new(Destination::Search(state)).to_url().as_deref(),
-            Some("lb://search?q=q3+plan&type=content&scope=%2Fmy+notes%2F")
+            Some("lb://search#q=q3+plan&type=content&scope=%2Fmy+notes%2F")
         );
-        assert_eq!(Place::new(search("")).to_url().as_deref(), Some("lb://search?type=path"));
+        assert_eq!(Place::new(search("")).to_url().as_deref(), Some("lb://search#type=path"));
         assert_eq!(Place::new(Destination::MindMap(id)).to_url(), None);
 
         let page = Place::at(Destination::File(id), Some(Fragment::Page(2)));
-        let shared = page.to_url_with(|id| Some(format!("https://app.lockbook.net/open/{id}")));
+        let shared = page.to_open_url("https://app.lockbook.net/");
         assert_eq!(shared, Some(format!("https://app.lockbook.net/open/{id}#page=3")));
-        assert_eq!(Place::from_url(&shared.unwrap()), Some(page));
+        let ferry = SearchState { query: "ferry".into(), ..Default::default() };
+        let search = Place::new(Destination::Search(ferry));
+        assert_eq!(
+            search.to_open_url("https://app.lockbook.net").as_deref(),
+            Some("https://app.lockbook.net/open/search#q=ferry&type=path")
+        );
     }
 
     /// A place with a link: no text ranges, and headings as a link or the
@@ -1837,15 +1860,16 @@ mod nav_tests {
             64,
             |b| {
                 let place = gen_linked_place(&mut ByteSource::new(b));
-                let url = place
-                    .to_url()
-                    .ok_or_else(|| format!("{place:?} has no url"))?;
                 let dropped = Place::new(place.dest.clone());
                 let heading = matches!(place.fragment, Some(Fragment::Heading(_)));
-                match Place::from_url(&url) {
-                    Some(read) if read == place || (heading && read == dropped) => Ok(()),
-                    read => Err(format!("{url} read back as {read:?}")),
+                for url in [place.to_url(), place.to_open_url("https://app.lockbook.net")] {
+                    let url = url.ok_or_else(|| format!("{place:?} has no url"))?;
+                    match Place::from_url(&url) {
+                        Some(read) if read == place || (heading && read == dropped) => {}
+                        read => return Err(format!("{url} read back as {read:?}")),
+                    }
                 }
+                Ok(())
             },
             |b| format!("{:?}", gen_linked_place(&mut ByteSource::new(b))),
         );

@@ -187,7 +187,7 @@ impl TabContent {
             DocType::PDF => {
                 let mut pdf = PdfViewer::new(id, bytes, &res.ctx);
                 pdf.salt = salt;
-                pdf.link_url = res.core.get_file_link_url(id).ok();
+                pdf.open_origin = res.core.get_link_origin().ok();
                 Ok(TabContent::Pdf(pdf))
             }
             DocType::SVG => Ok(TabContent::Svg(SVGEditor::new(

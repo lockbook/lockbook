@@ -569,7 +569,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::CopyLink(place) => {
             if let Some(r) = app.session.ready() {
                 let core = &r.workspace.core;
-                if let Some(url) = place.to_url_with(|id| core.get_file_link_url(id).ok()) {
+                if let Some(url) = core
+                    .get_link_origin()
+                    .ok()
+                    .and_then(|o| place.to_open_url(&o))
+                {
                     ctx.copy_text(url);
                 }
             }

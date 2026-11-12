@@ -215,14 +215,18 @@ impl<S: Server> Lb<S> {
         // Ensure file exists
         let id = tree.find(&id)?.id();
 
+        Ok(format!("{}/open/{}", self.get_link_origin()?, id))
+    }
+
+    /// Where this account's open links (`<origin>/open/…`) point.
+    pub fn get_link_origin(&self) -> LbResult<String> {
         let account = self.get_account()?;
-        let link_url = match account.api_url.as_str() {
+        let origin = match account.api_url.as_str() {
             // Use a more user-friendly link for prod API - both route to the same place
             "https://api.prod.lockbook.net" => "https://app.lockbook.net",
             other => other,
         };
-
-        Ok(format!("{}/open/{}", link_url.trim_end_matches('/'), id))
+        Ok(origin.trim_end_matches('/').to_string())
     }
 
     pub async fn local_changes(&self) -> Vec<Uuid> {

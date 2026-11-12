@@ -177,7 +177,7 @@ fn read_only_pill_opens_on_click() {
     ws.enter_frame_with_input(vec![button(true)]);
     ws.enter_frame_with_input(vec![button(false)]);
     let opened = ws.editor.edit.renderer.ctx.pop_open_files();
-    assert_eq!(opened.first().map(|o| o.0), Some(plan));
+    assert_eq!(opened.first().map(|o| o.0.dest.clone()), Some(crate::tab::Destination::File(plan)));
 }
 
 /// #5109
@@ -203,8 +203,9 @@ fn toggle_link_twice_restores_text() {
 /// A search link in a note opens the search, in either style.
 #[test]
 fn search_links_open_from_a_note() {
-    use crate::resolvers::link::LinkState;
-    use crate::tab::ExtendedOutput as _;
+    use crate::resolvers::link::{LinkState, ResolvedLink};
+    use crate::search::SearchState;
+    use crate::tab::{Destination, ExtendedOutput as _, Place};
     let files = shared_project();
     let note = at(&files, "/project/notes.md");
     let mut ws = TestEditor::in_files(files, note, "");
@@ -214,5 +215,27 @@ fn search_links_open_from_a_note() {
         assert!(matches!(renderer.link_state_for_url(url), LinkState::Normal), "{url}");
         renderer.open_resolved_link(url, &renderer.ctx, false);
         assert!(renderer.ctx.pop_link_sheets().is_empty(), "{url}");
+        let ferry = SearchState { query: "ferry".into(), ..Default::default() };
+        let opened = renderer.ctx.pop_open_files();
+        assert_eq!(opened, vec![(Place::new(Destination::Search(ferry)), false)], "{url}");
     }
+    // another site's `/open/` is that site's page
+    let elsewhere = "https://example.com/open/search#q=ferry";
+    let resolved = ws.editor.edit.renderer.resolve_link(elsewhere);
+    assert!(matches!(resolved, Some(ResolvedLink::External(_))));
+}
+
+/// A relative link to a pdf's page opens on that page.
+#[test]
+fn pdf_page_links_open_on_the_page() {
+    use crate::tab::{Destination, ExtendedOutput as _, Fragment, Place};
+    let files = cache(tree("alice", &["/notes.md", "/report.pdf"]));
+    let note = at(&files, "/notes.md");
+    let report = at(&files, "/report.pdf");
+    let mut ws = TestEditor::in_files(files, note, "");
+    ws.enter_frame();
+    let renderer = &ws.editor.edit.renderer;
+    renderer.open_resolved_link("report.pdf#page=2", &renderer.ctx, false);
+    let page = Place::at(Destination::File(report), Some(Fragment::Page(1)));
+    assert_eq!(renderer.ctx.pop_open_files(), vec![(page, false)]);
 }

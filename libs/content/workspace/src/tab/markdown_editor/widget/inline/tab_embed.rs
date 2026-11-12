@@ -789,11 +789,8 @@ fn open_button(ui: &mut egui::Ui, title: Rect, place: &Place) {
     }
     if resp.clicked() {
         let new_tab = ui.input(|i| i.modifiers.command);
-        let heading = match &place.fragment {
-            Some(Fragment::Heading(slug)) => Some(slug.clone()),
-            _ => None,
-        };
-        ui.ctx().open_link(id, heading, new_tab);
+        ui.ctx()
+            .open_link(Place::at(Destination::File(id), place.fragment.clone()), new_tab);
     }
 }
 

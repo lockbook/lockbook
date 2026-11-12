@@ -941,21 +941,16 @@ impl Workspace {
         self.navigate_to_place(Place::at(Destination::File(id), fragment));
     }
 
-    /// Opens a file a link names, with the heading its `#fragment` names at
-    /// the top of the view. In place unless `in_new_tab`, so Back returns.
-    pub fn open_link(&mut self, id: Uuid, heading: Option<String>, in_new_tab: bool) {
-        let fragment = heading.filter(|h| !h.is_empty()).map(Fragment::Heading);
-        self.follow_link(Place::at(Destination::File(id), fragment), in_new_tab);
-    }
-
     /// Opens note `id` landing on the link at `byte_range`, as a heading
     /// link lands. In place unless `in_new_tab`, so Back returns.
     pub fn open_link_at(&mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool) {
         let fragment = Some(Fragment::Text(byte_range));
-        self.follow_link(Place::at(Destination::File(id), fragment), in_new_tab);
+        self.open_link(Place::at(Destination::File(id), fragment), in_new_tab);
     }
 
-    fn follow_link(&mut self, place: Place, in_new_tab: bool) {
+    /// Opens the place a link names, a file at the fragment's heading at the
+    /// top of the view. In place unless `in_new_tab`, so Back returns.
+    pub fn open_link(&mut self, place: Place, in_new_tab: bool) {
         match in_new_tab {
             true => self.open_place_with(place, true, TabAction::Create),
             false => self.navigate_to_place(place),
@@ -2535,7 +2530,13 @@ mod fragment_tests {
         let (first, second) = (t.ws.tab_strip[0].id, t.ws.tab_strip[1].id);
         let at_top = offset(&mut t, second);
 
-        t.ws.open_link(id, Some("far".into()), false);
+        t.ws.open_link(
+            crate::tab::Place::at(
+                crate::tab::Destination::File(id),
+                Some(Fragment::Heading("far".into())),
+            ),
+            false,
+        );
         t.settle();
         let session = &t.ws.tab_strip[1];
         assert_eq!(session.place.fragment, Some(Fragment::Heading("far".into())));
@@ -2575,7 +2576,13 @@ mod fragment_tests {
         let id = t.doc("a.md", &text);
         t.ws.open_file(id, true, false);
         t.settle();
-        t.ws.open_link(id, Some("far".into()), false);
+        t.ws.open_link(
+            crate::tab::Place::at(
+                crate::tab::Destination::File(id),
+                Some(Fragment::Heading("far".into())),
+            ),
+            false,
+        );
         t.settle();
         assert!(t.ws.tab_strip[0].place.fragment.is_some());
         let at = egui::pos2(400.0, 400.0);

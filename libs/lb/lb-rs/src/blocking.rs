@@ -305,6 +305,10 @@ impl Lb {
         self.block_on(self.lb.get_file_link_url(id))
     }
 
+    pub fn get_link_origin(&self) -> LbResult<String> {
+        self.lb.get_link_origin()
+    }
+
     pub fn path_searcher(&self) -> crate::search::PathSearcher {
         self.block_on(self.lb.path_searcher())
     }
