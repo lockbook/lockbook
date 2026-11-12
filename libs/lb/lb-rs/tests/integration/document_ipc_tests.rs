@@ -4,6 +4,9 @@ use test_utils::http::test_core_with_account;
 
 #[tokio::test]
 async fn reads_catch_up_when_another_instance_replaces_the_document() {
+    if test_utils::without_server() {
+        return;
+    }
     let writer = test_core_with_account().await;
     let id = writer.create_at_path("doc.md").await.unwrap().id;
     writer.write_document(id, b"old").await.unwrap();
@@ -28,6 +31,9 @@ async fn reads_catch_up_when_another_instance_replaces_the_document() {
 
 #[tokio::test]
 async fn missing_version_catches_up_to_document_deletion() {
+    if test_utils::without_server() {
+        return;
+    }
     let writer = test_core_with_account().await;
     let id = writer.create_at_path("doc.md").await.unwrap().id;
     writer.write_document(id, b"old").await.unwrap();
@@ -42,6 +48,9 @@ async fn missing_version_catches_up_to_document_deletion() {
 
 #[tokio::test]
 async fn missing_version_is_fetched_from_the_server_after_catch_up() {
+    if test_utils::without_server() {
+        return;
+    }
     let core = test_core_with_account().await;
     let id = core.create_at_path("doc.md").await.unwrap().id;
     core.write_document(id, b"content").await.unwrap();

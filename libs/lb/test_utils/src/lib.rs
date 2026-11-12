@@ -89,6 +89,16 @@ async fn with_account<S: Server>(core: lb_rs::Lb<S>) -> lb_rs::Lb<S> {
     core
 }
 
+/// Whether a test that needs a server at [url] should return without running. With
+/// `LB_TEST_IN_PROCESS` set, only the tests that run in this process run.
+pub fn without_server() -> bool {
+    let skip = env::var_os("LB_TEST_IN_PROCESS").is_some();
+    if skip {
+        eprintln!("skipped: this test needs a server and LB_TEST_IN_PROCESS is set");
+    }
+    skip
+}
+
 pub fn url() -> String {
     env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
 }

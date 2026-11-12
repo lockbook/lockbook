@@ -5,6 +5,9 @@ use test_utils::{random_name, url};
 
 #[tokio::test]
 async fn catch_up_emits_an_ipc_event_for_document_changes() {
+    if test_utils::without_server() {
+        return;
+    }
     let writer = test_core_with_account().await;
     let id = writer.create_at_path("doc.md").await.unwrap().id;
     let reader = Lb::init(writer.config.clone()).await.unwrap();
@@ -31,6 +34,9 @@ async fn catch_up_emits_an_ipc_event_for_document_changes() {
 
 #[tokio::test]
 async fn catch_up_populates_the_account_keychain_before_returning() {
+    if test_utils::without_server() {
+        return;
+    }
     let reader = test_core().await;
     let writer = Lb::init(reader.config.clone()).await.unwrap();
     let mut events = reader.subscribe();
@@ -48,6 +54,9 @@ async fn catch_up_populates_the_account_keychain_before_returning() {
 
 #[tokio::test]
 async fn reading_in_another_instance_does_not_trigger_reload_notifications() {
+    if test_utils::without_server() {
+        return;
+    }
     let writer = test_core_with_account().await;
     let id = writer.create_at_path("doc.md").await.unwrap().id;
     writer.write_document(id, b"content").await.unwrap();
@@ -64,6 +73,9 @@ async fn reading_in_another_instance_does_not_trigger_reload_notifications() {
 
 #[tokio::test]
 async fn local_writes_keep_their_existing_notifications() {
+    if test_utils::without_server() {
+        return;
+    }
     let core = test_core_with_account().await;
     let mut events = core.subscribe();
 
