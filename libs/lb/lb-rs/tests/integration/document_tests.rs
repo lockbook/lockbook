@@ -163,6 +163,9 @@ async fn insert_delete() {
 
 #[tokio::test]
 async fn sync_ignores_foreign_files_in_documents_dir() {
+    if test_utils::without_server() {
+        return;
+    }
     let core = test_utils::http::test_core_with_account().await;
     let doc = core.create_at_path("/a.md").await.unwrap();
     core.write_document(doc.id, b"hello").await.unwrap();

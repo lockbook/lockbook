@@ -12,6 +12,9 @@ static CODE_VERSION: fn() -> &'static str = || "0.0.0";
 
 #[tokio::test]
 async fn forced_upgrade() {
+    if test_utils::without_server() {
+        return;
+    }
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
 
@@ -34,6 +37,9 @@ static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(get_time().0 - 3600000);
 
 #[tokio::test]
 async fn expired_request() {
+    if test_utils::without_server() {
+        return;
+    }
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
 
@@ -52,6 +58,9 @@ async fn expired_request() {
 
 #[tokio::test]
 async fn invalid_url() {
+    if test_utils::without_server() {
+        return;
+    }
     let core = test_core_with_account().await;
     let mut account = core.get_account().unwrap().clone();
     account.api_url = String::from("not a url");
@@ -65,6 +74,9 @@ async fn invalid_url() {
 
 #[tokio::test]
 async fn wrong_url() {
+    if test_utils::without_server() {
+        return;
+    }
     let core = test_core_with_account().await;
     let mut account = core.get_account().unwrap().clone();
     account.api_url = String::from("http://google.com");
