@@ -338,12 +338,31 @@ impl External {
         self.pending = kept.into_iter().map(|(p, _)| p).collect();
     }
 
+    /// Splits each pending edit into what it changes: the pieces a diff of what it replaced and what it wrote finds,
+    /// last first so each piece's range is still where the diff put it. Only what changed wins conflicts: text an
+    /// edit writes back as it was is no longer its own, and an edit that changes nothing is gone.
+    fn split_pending(&mut self) {
+        let segs = unicode_segs::calc(&self.text);
+        let mut text = Snapshot { text: self.text.clone(), segs, ..Default::default() };
+        let mut pieces = vec![];
+        for p in self.pending.drain(..) {
+            let start = p.range.start();
+            for mut piece in diff(&text[p.range], &p.text).into_iter().rev() {
+                piece.range = (start + piece.range.0.0, start + piece.range.1.0);
+                text.apply_replace(&piece);
+                pieces.push(piece);
+            }
+        }
+        self.pending = pieces;
+    }
+
     /// Rebases the local edits onto `text`, the new external text, and returns the external changes as one frame on
     /// `current`, the buffer's text. Local edits win conflicts: an external change overlapping one is dropped, and the
     /// local edit, rebased, replaces what it wrote.
     fn reload(&mut self, text: String, current: &str) -> Vec<Replace> {
         let mut remote = diff(&self.text, &text);
         self.drop_reverted();
+        self.split_pending();
         let base = std::mem::replace(&mut self.text, text);
         if self.pending.is_empty() {
             return remote;
