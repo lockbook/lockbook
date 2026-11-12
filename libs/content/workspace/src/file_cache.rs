@@ -21,8 +21,9 @@ use crate::tab::{Destination, Place};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolvedLink {
     File(Uuid),
-    /// A place in the app that isn't a file, such as a search.
-    Place(Place),
+    /// A place in the app that isn't a file, such as a search; the
+    /// workspace opens it.
+    Place,
     External(String),
 }
 
@@ -573,7 +574,7 @@ pub trait FilesExt {
         }
         match Place::from_url(url) {
             Some(place) if !matches!(place.dest, Destination::File(_)) && !web_link(url) => {
-                Some(ResolvedLink::Place(place))
+                Some(ResolvedLink::Place)
             }
             _ => web_link(url).then(|| ResolvedLink::External(url.to_string())),
         }

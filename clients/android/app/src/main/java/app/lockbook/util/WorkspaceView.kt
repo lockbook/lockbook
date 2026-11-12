@@ -86,6 +86,7 @@ class WorkspaceView(
 
     // The fragment may request a file before SurfaceView creates its native workspace.
     private var deferredOpenDoc: OpenFileRequest? = null
+    private var deferredOpenUrl: String? = null
     private var safeInsets = Insets.NONE
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
@@ -320,6 +321,7 @@ class WorkspaceView(
         requestFocus()
 
         deferredOpenDoc?.let(::openDoc)
+        deferredOpenUrl?.let(::openUrl)
         publishOpenTabCount()
     }
 
@@ -685,13 +687,21 @@ class WorkspaceView(
         }
 
         deferredOpenDoc = null
-        val heading = request.heading
-        if (heading.isNullOrEmpty()) {
-            Workspace.openDoc(wgpuObj, request.id, request.newFile)
-        } else {
-            Workspace.openDocAtHeading(wgpuObj, request.id, heading)
-        }
+        Workspace.openDoc(wgpuObj, request.id, request.newFile)
         model.recordTabCloseBehavior(Workspace.currentTab(wgpuObj).toModelTab().sessionId, request.closeDetailOnBack)
+        publishOpenTabCount()
+        invalidate()
+    }
+
+    /** Opens a link from outside the app; only ours arrive here. */
+    fun openUrl(url: String) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            deferredOpenUrl = url
+            return
+        }
+
+        deferredOpenUrl = null
+        Workspace.openUrl(wgpuObj, url)
         publishOpenTabCount()
         invalidate()
     }

@@ -271,8 +271,12 @@ struct HomeView: View {
                 applyDesktopTabPolicy()
             }
             .onChange(of: workspaceOutput.openSearch) { _, openSearch in
-                guard openSearch else { return }
-                workspaceOutput.openSearch = false
+                guard let openSearch else { return }
+                workspaceOutput.openSearch = nil
+                if !openSearch.query.isEmpty {
+                    searchModel.input = openSearch.query
+                    searchModel.mode = openSearch.content ? .content : .path
+                }
                 searchEverywhere()
             }
         #endif
@@ -369,7 +373,7 @@ struct HomeView: View {
     }
 
     private var hudState: HUDState? {
-        if homeState.openingLink {
+        if workspaceOutput.openingLink {
             .openingLink
         } else if filesModel.importsInProgress > 0 {
             .importing

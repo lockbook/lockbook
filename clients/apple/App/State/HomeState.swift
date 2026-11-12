@@ -12,8 +12,6 @@ import SwiftUI
         }
     }
 
-    var openingLink = false
-
     var explicitSyncCount = 0
 
     init() {

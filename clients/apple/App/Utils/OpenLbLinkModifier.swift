@@ -2,8 +2,6 @@ import SwiftUI
 import SwiftWorkspace
 
 struct OpenLbLinkModifier: ViewModifier {
-    static let trustedHost = "app.lockbook.net"
-    static let openRoute = "open"
     static let sharedFilesHost = "sharedFiles"
     static let appGroupId = "group.app.lockbook"
 
@@ -30,44 +28,27 @@ struct OpenLbLinkModifier: ViewModifier {
                 }
 
                 for url in urls {
-                    open(url)
+                    openURL(url)
                 }
 
                 workspaceOutput.urlsOpened = []
             }
+            .onChange(of: workspaceOutput.linkMessage) { _, message in
+                guard let message else { return }
+                workspaceOutput.linkMessage = nil
+                AppState.shared.error = .custom(title: message, msg: "")
+            }
     }
 
+    /// The workspace reads every link; only shared files are the app's own.
     private func open(_ url: URL) {
-        if url.scheme == "lb" {
-            if url.host() == Self.sharedFilesHost {
-                importSharedFiles(url)
-                return
-            }
-
-            if url.host() == "search" {
-                #if os(iOS)
-                    workspaceOutput.openSearch = true
-                #else
-                    workspaceInput.showSearch()
-                #endif
-                return
-            }
-
-            guard let host = url.host(), let id = UUID(uuidString: host) else {
-                AppState.shared.error = .custom(title: "Could not open link", msg: "Invalid link")
-                return
-            }
-
-            syncAndOpen(id: id, heading: url.fragment)
+        if url.scheme == "lb", url.host() == Self.sharedFilesHost {
+            importSharedFiles(url)
             return
         }
 
-        if url.host() == Self.trustedHost,
-           url.pathComponents.count > 2,
-           url.pathComponents[1] == Self.openRoute,
-           let id = UUID(uuidString: url.pathComponents[2])
-        {
-            syncAndOpen(id: id, heading: url.fragment)
+        if workspaceInput.openUrl(url) {
+            homeState.compactColumn = .detail
             return
         }
 
@@ -104,35 +85,6 @@ struct OpenLbLinkModifier: ViewModifier {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             importWhenRootLoads(urls)
-        }
-    }
-
-    private func syncAndOpen(id: UUID, heading: String?) {
-        homeState.openingLink = true
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let syncResult = AppState.lb.sync()
-            let file = AppState.lb.getFile(id: id)
-
-            DispatchQueue.main.async {
-                homeState.openingLink = false
-                filesModel.loadFiles()
-
-                switch file {
-                case let .success(file):
-                    workspaceInput.openFile(id: file.id, heading: heading)
-                    homeState.compactColumn = .detail
-                case .failure:
-                    if case let .failure(err) = syncResult {
-                        AppState.shared.error = .lb(error: err)
-                    } else {
-                        AppState.shared.error = .custom(
-                            title: "Could not open link",
-                            msg: "This file was deleted or isn't shared with you."
-                        )
-                    }
-                }
-            }
         }
     }
 }
