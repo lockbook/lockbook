@@ -80,21 +80,26 @@ impl<'ast> MdRender {
 
 impl MdRender {
     /// Ranges that reveal *folded contents* without unfolding: the
-    /// current find match and preview. The selection is deliberately
+    /// current find match and preview, and an embed's section, which opens
+    /// the folds around it. The selection is deliberately
     /// excluded — a selection endpoint landing in folded contents
     /// unfolds for real instead ([`Self::unfold_ops_for_selection`]).
     pub fn fold_reveal_ranges(&self) -> impl Iterator<Item = (Grapheme, Grapheme)> + '_ {
         self.find_current_match
             .into_iter()
             .chain(self.preview_match)
+            .chain(self.region_reveal)
     }
 
-    /// Returns true if `range` contains any fold-reveal range.
+    /// Returns true if `range` contains any fold-reveal range, or is the
+    /// section an embed shows, whose own fold opens too.
     pub fn range_contains_fold_revealed(
         &self, range: (Grapheme, Grapheme), allow_empty_range: bool, allow_empty_selection: bool,
     ) -> bool {
-        self.fold_reveal_ranges()
-            .any(|rr| range.contains_range(&rr, allow_empty_range, allow_empty_selection))
+        self.region_reveal == Some(range)
+            || self
+                .fold_reveal_ranges()
+                .any(|rr| range.contains_range(&rr, allow_empty_range, allow_empty_selection))
     }
 
     /// Returns true if a fold-reveal range force-reveals this fold's
