@@ -245,10 +245,10 @@ pub struct MdRender {
     pub region: Option<crate::tab::Fragment>,
     /// The region heading's contents, shown open whatever its fold.
     pub region_reveal: Option<(Grapheme, Grapheme)>,
-    /// Where a heading being landed on starts: its line is laid out wherever
+    /// Where the text being landed on starts: its line is laid out wherever
     /// it is, for the landing to measure. Set each frame from the editor's
     /// landing.
-    pub landing_heading: Option<Grapheme>,
+    pub landing_text: Option<Grapheme>,
     pub interactive: bool, // enables fold buttons
     pub readonly: bool,    // disables task checkboxes and saving
     pub view: View,
@@ -353,8 +353,9 @@ pub enum ScrollTarget {
     FindMatch,
     /// Read-only search-preview snippet (see [`MdRender::preview_match`]).
     Preview,
-    /// The caret's line at the top of the view, where a heading link lands.
-    Heading,
+    /// The [`Editor`]'s landing: a heading link's line at the top of the
+    /// view, or reading text where it was drawn.
+    Landing,
 }
 
 /// Editing primitive — an [`MdRender`] plus the interactive state needed to
@@ -613,8 +614,9 @@ pub struct Editor {
     linked: Option<(u64, Vec<widget::outline::LinkedNote>)>,
     /// Where the outline card stands this frame; None once it has faded out.
     card: Option<widget::outline::CardPlace>,
-    /// Where a heading link lands, at the top of the view. Its row is laid
-    /// out with the frame's rows wherever it is, so the scroll is exact.
+    /// Where a heading link lands, at the top of the view, or where reading
+    /// text returns to. Its row is laid out with the frame's rows wherever it
+    /// is, so the scroll is exact.
     landing: Option<Landing>,
     /// The rows painted this frame and their tops in the canvas, visible or
     /// laid out off-screen.
@@ -631,6 +633,8 @@ pub struct Editor {
     heading_flash: Option<((Grapheme, Grapheme), web_time::Instant)>,
     /// The user scrolled this frame.
     user_scrolled: bool,
+    /// How far the user scrolled this frame, down positive.
+    user_scrolled_by: f32,
     /// The view moved after the frame was painted: the next one shows it.
     moved_unpainted: bool,
     /// Something drawn this frame was still loading.
@@ -851,7 +855,7 @@ impl MdRender {
             preview_match: None,
             region: None,
             region_reveal: None,
-            landing_heading: None,
+            landing_text: None,
             interactive: false,
             readonly: true,
             view: View::Rendered,
@@ -977,7 +981,7 @@ impl MdRender {
             preview_match: None,
             region: None,
             region_reveal: None,
-            landing_heading: None,
+            landing_text: None,
             interactive: false,
             readonly: true,
             view: View::Rendered,
@@ -1228,7 +1232,7 @@ impl Editor {
             preview_match: None,
             region: None,
             region_reveal: None,
-            landing_heading: None,
+            landing_text: None,
             interactive: true,
             readonly,
             view,
@@ -1339,6 +1343,7 @@ impl Editor {
             outline_follows_caret: false,
             heading_flash: None,
             user_scrolled: false,
+            user_scrolled_by: 0.0,
             moved_unpainted: false,
             loads_pending: false,
             embeds_seq: (0, 0),
@@ -1409,11 +1414,59 @@ impl Editor {
     /// Merge `text` into the live buffer (applies queued OT), then store
     /// `hmac` as the version of that displayed text. The two are always set
     /// together so a later save cannot clone a stale body under a new hmac.
+    /// The reading text stays where it was drawn.
     pub fn reload(&mut self, text: String, hmac: Option<DocumentHmac>) {
+        let idle =
+            self.landing.is_none() && self.edit.pending_scroll.is_none() && !self.moved_unpainted;
+        let drawn = if idle { self.drawn_texts() } else { Vec::new() };
+        let seq = self.edit.renderer.buffer.current.seq;
         if self.edit.renderer.buffer.reload(text).text_updated {
             self.edit.renderer.bump_text_seq();
         }
         self.hmac = hmac;
+        self.carry_landing(seq, drawn);
+    }
+
+    /// Carries the landing through the edits since `seq`, dropping it if
+    /// they touched its text. With none, lands the first of the `drawn`
+    /// texts they left alone where it was drawn.
+    fn carry_landing(&mut self, seq: usize, drawn: Vec<((Grapheme, Grapheme), f32)>) {
+        let buffer = &self.edit.renderer.buffer;
+        let carry = |mut text| buffer.transform_range(seq, &mut text).then_some(text);
+        self.landing = match self.landing {
+            Some(Landing::Top) => Some(Landing::Top),
+            Some(Landing::Heading(text)) => carry(text).map(Landing::Heading),
+            Some(Landing::Drawn { text, y }) => carry(text).map(|text| Landing::Drawn { text, y }),
+            None => {
+                let Some(landing) = drawn
+                    .into_iter()
+                    .find_map(|(text, y)| carry(text).map(|text| Landing::Drawn { text, y }))
+                else {
+                    return;
+                };
+                self.edit.pending_scroll = Some(ScrollTarget::Landing);
+                self.edit.renderer.ctx.request_repaint();
+                Some(landing)
+            }
+        };
+    }
+
+    /// The text drawn in view in the last frame, nearest the reading line
+    /// first: each piece's source range and top below the view's top.
+    fn drawn_texts(&mut self) -> Vec<((Grapheme, Grapheme), f32)> {
+        let Some((_, line_y)) = self.reading_fragment() else { return Vec::new() };
+        let view = self.painted_canvas;
+        let mut drawn: Vec<_> = self
+            .edit
+            .renderer
+            .fragments
+            .iter()
+            .filter(|f| is_text(f))
+            .filter(|f| !f.far && f.rect.bottom() > view.top() && f.rect.top() < view.bottom())
+            .map(|f| (f.source_range, f.rect.top() - view.min.y))
+            .collect();
+        drawn.sort_by(|a, b| (a.1 - line_y).abs().total_cmp(&(b.1 - line_y).abs()));
+        drawn
     }
 
     /// Apply queued buffer ops, then return hmac + text as one snapshot
@@ -1502,7 +1555,7 @@ impl Editor {
             .set_offset(&content, Offset::at_top_of(row));
         if let Some(range) = reading {
             self.landing = Some(Landing::Heading(range));
-            self.edit.pending_scroll = Some(ScrollTarget::Heading);
+            self.edit.pending_scroll = Some(ScrollTarget::Landing);
         }
         self.edit.renderer.ctx.request_repaint();
     }
@@ -1511,6 +1564,16 @@ impl Editor {
     /// the last line drawn at or above it, as the outline reads headings,
     /// or the first one when all are below.
     fn reading_text(&mut self) -> Option<(Grapheme, Grapheme)> {
+        let (at, _) = self.reading_fragment()?;
+        use bounds::RangesExt as _;
+        let lines = &self.edit.renderer.bounds.source_lines;
+        let (line_idx, _) = lines.find_containing(at, true, true);
+        lines.get(line_idx).copied()
+    }
+
+    /// The drawn line on the reading line, from the last frame's paint: its
+    /// start, and its top below the view's top.
+    fn reading_fragment(&mut self) -> Option<(Grapheme, f32)> {
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
         let r = &self.edit.renderer;
@@ -1526,15 +1589,11 @@ impl Editor {
         let key = |f: &&widget::utils::wrap_layout::Fragment| (f.rect.top(), f.source_range.0);
         let order =
             |a: &(f32, Grapheme), b: &(f32, Grapheme)| a.0.total_cmp(&b.0).then(b.1.cmp(&a.1));
-        let at = drawn()
+        let f = drawn()
             .filter(|f| f.rect.top() <= y + 0.5)
             .max_by(|a, b| order(&key(a), &key(b)))
-            .or_else(|| drawn().min_by(|a, b| order(&key(a), &key(b))))?
-            .source_range
-            .0;
-        use bounds::RangesExt as _;
-        let (line_idx, _) = r.bounds.source_lines.find_containing(at, true, true);
-        r.bounds.source_lines.get(line_idx).copied()
+            .or_else(|| drawn().min_by(|a, b| order(&key(a), &key(b))))?;
+        Some((f.source_range.0, f.rect.top() - self.painted_canvas.min.y))
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
@@ -2258,7 +2317,7 @@ impl Editor {
                         // mutable renderer paint.
                         self.land_before_paint(root, canvas_rect);
                         self.pin_region(root, canvas_rect);
-                        self.edit.renderer.landing_heading = self.landing.and_then(Landing::start);
+                        self.edit.renderer.landing_text = self.landing.and_then(Landing::start);
                         let (visible, neighbors, far, scrollbar_grab) = {
                             use crate::widgets::affine_scroll::{Offset, Rows as _, VisibleRow};
 
@@ -2267,7 +2326,16 @@ impl Editor {
                                 root,
                                 canvas_rect.height(),
                             );
+                            let before = self.edit.scroll_area.state.offset(&content);
                             let resp = self.edit.scroll_area.finish(ui, begun, &content);
+                            let after = self.edit.scroll_area.state.offset(&content);
+                            let state = &self.edit.scroll_area.state;
+                            self.user_scrolled_by = match (before, after) {
+                                (Some(a), Some(b)) if resp.user_scrolled => state
+                                    .precise_distance(&content, &a, &b, state.viewport_height)
+                                    .unwrap_or_default(),
+                                _ => 0.0,
+                            };
                             if resp.user_scrolled {
                                 self.outline_follows_caret = false;
                                 self.user_scrolled = true;
@@ -2522,10 +2590,10 @@ impl Editor {
             }
         }
 
-        if matches!(self.edit.pending_scroll, Some(ScrollTarget::Heading)) {
+        if matches!(self.edit.pending_scroll, Some(ScrollTarget::Landing)) {
             self.edit.pending_scroll = None;
             if let Some(canvas_rect) = captured_canvas_rect {
-                self.scroll_to_heading(canvas_rect);
+                self.scroll_to_landing(canvas_rect);
             }
         } else {
             // another scroll took over before the landing's row was laid out
@@ -2814,7 +2882,7 @@ impl Editor {
             .byte_to_char_ceil(Byte(byte_range.end))
             .clamp(0.into(), last);
         let arena = Arena::new();
-        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        self.edit.pending_scroll = Some(ScrollTarget::Landing);
         let reading = self.edit.renderer.touch_mode && !self.keyboard_shown();
         let prior = self.edit.renderer.buffer.current.selection;
         self.select_from_outside((start, end));
@@ -2837,7 +2905,7 @@ impl Editor {
 
     /// Lands on a definition a code file's outline lists, `span` its name.
     fn open_at_definition(&mut self, span: (Grapheme, Grapheme)) {
-        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        self.edit.pending_scroll = Some(ScrollTarget::Landing);
         if !(self.edit.renderer.touch_mode && !self.keyboard_shown()) {
             self.select_from_outside((span.0, span.0));
         }
@@ -2852,7 +2920,7 @@ impl Editor {
     /// a browser does.
     pub fn open_at_heading(&mut self, fragment: &str) {
         let arena = Arena::new();
-        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        self.edit.pending_scroll = Some(ScrollTarget::Landing);
         let Some((mut start, mut caret)) = self.find_heading(&arena, fragment) else {
             self.landing = Some(Landing::Top);
             return;
@@ -3018,7 +3086,7 @@ impl Editor {
 
     /// Lands at the note's top, as a link to a heading it lacks does.
     pub fn open_at_top(&mut self) {
-        self.edit.pending_scroll = Some(ScrollTarget::Heading);
+        self.edit.pending_scroll = Some(ScrollTarget::Landing);
         self.landing = Some(Landing::Top);
     }
 
@@ -3184,12 +3252,26 @@ impl Editor {
         Some(Offset::new(row, intra))
     }
 
+    /// Where the text piece drawn holding `at` is in the note: its row, and
+    /// its top in that row as the last frame painted it.
+    fn text_point(
+        &self, rows: &scroll_content::DocScrollContent<'_, '_>, at: Grapheme,
+    ) -> Option<DocOffset> {
+        let row = rows.find_text_row(at)?;
+        let &(_, row_top) = self.painted_rows.iter().find(|(id, _)| *id == row)?;
+        let holds = |f: &&widget::utils::wrap_layout::Fragment| {
+            is_text(f) && f.source_range.0 <= at && at < f.source_range.1
+        };
+        let f = self.edit.renderer.fragments.iter().find(holds)?;
+        Some(Offset::new(row, f.rect.top() - self.painted_canvas.min.y - row_top))
+    }
+
     /// Lands where it can without painting: the note's top, or a heading that
     /// is a block of its own, whose line starts below its row's spacing. The
     /// frame then paints there once; any other landing waits for its row.
     fn land_before_paint<'ast>(&mut self, root: &'ast AstNode<'ast>, canvas_rect: Rect) {
         use scroll_content::DocRowId;
-        if !matches!(self.edit.pending_scroll, Some(ScrollTarget::Heading)) {
+        if !matches!(self.edit.pending_scroll, Some(ScrollTarget::Landing)) {
             return;
         }
         let Some(landing) = self.landing else { return };
@@ -3215,6 +3297,7 @@ impl Editor {
                 let intra = self.edit.renderer.block_pre_spacing_height(node);
                 heading_scroll(&self.edit.scroll_area.state, &content, Offset::new(row, intra))
             }
+            Landing::Drawn { .. } => return,
         };
         self.landing = None;
         self.edit.pending_scroll = None;
@@ -3223,10 +3306,12 @@ impl Editor {
             .reveal(&content, Reveal::point_at(target), Align::Top);
     }
 
-    /// The landing's line on the reading line, with room above it so it
-    /// clears the chrome. Its row is laid out this frame wherever it is; a
-    /// landing set after that waits a frame rather than scroll by estimate.
-    fn scroll_to_heading(&mut self, canvas_rect: Rect) {
+    /// A heading's line on the reading line, with room above it so it
+    /// clears the chrome, or drawn text back at its top, moved by the user's
+    /// scroll this frame. Its row is laid out this frame wherever it is; a
+    /// heading landing set after that waits a frame rather than scroll by
+    /// estimate.
+    fn scroll_to_landing(&mut self, canvas_rect: Rect) {
         let Some(landing) = self.landing else { return };
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
@@ -3237,26 +3322,62 @@ impl Editor {
         );
         let target = match landing {
             Landing::Top => Offset::at_top_of(scroll_content::DocRowId::Leading),
-            Landing::Heading(range) => {
+            Landing::Heading(range) | Landing::Drawn { text: range, .. } => {
                 let at = range.0;
                 let Some(row) = content.find_text_row(at) else {
                     self.landing = None;
                     return;
                 };
                 if !self.painted_rows.iter().any(|(id, _)| *id == row) {
-                    self.edit.pending_scroll = Some(ScrollTarget::Heading);
+                    if matches!(landing, Landing::Drawn { .. }) {
+                        self.landing = None;
+                        return;
+                    }
+                    self.edit.pending_scroll = Some(ScrollTarget::Landing);
                     self.edit.renderer.ctx.request_repaint();
                     return;
                 }
-                let Some(point) = self.heading_point(&content, range) else { return };
-                heading_scroll(&self.edit.scroll_area.state, &content, point)
+                match landing {
+                    Landing::Drawn { y, .. } => {
+                        let Some(point) = self.text_point(&content, at) else {
+                            self.landing = None;
+                            return;
+                        };
+                        let y = y - self.user_scrolled_by;
+                        crate::widgets::affine_scroll::offset_by(&content, point, -y)
+                    }
+                    _ => {
+                        let Some(point) = self.heading_point(&content, range) else { return };
+                        heading_scroll(&self.edit.scroll_area.state, &content, point)
+                    }
+                }
             }
         };
         self.landing = None;
         self.moved_unpainted = true;
-        self.edit
-            .scroll_area
-            .reveal(&content, Reveal::point_at(target), Align::Top);
+        let state = &mut self.edit.scroll_area.state;
+        match landing {
+            Landing::Drawn { .. } => Self::scroll_by_pixels_to(state, &content, target),
+            _ => self
+                .edit
+                .scroll_area
+                .reveal(&content, Reveal::point_at(target), Align::Top),
+        }
+    }
+
+    /// Scrolls to `target` by pixels, so a fling keeps going, or jumps to it
+    /// when it's more than a screen away.
+    fn scroll_by_pixels_to(
+        state: &mut crate::widgets::affine_scroll::ScrollArea<DocRowId>,
+        content: &scroll_content::DocScrollContent<'_, '_>, target: DocOffset,
+    ) {
+        use crate::widgets::affine_scroll::Action;
+        let Some(now) = state.offset(content) else { return };
+        match state.precise_distance(content, &now, &target, state.viewport_height) {
+            Some(by) if by != 0.0 => state.handle(content, Action::ScrollByPixels(by)),
+            Some(_) => {}
+            None => state.set_offset(content, target),
+        }
     }
 
     pub fn preview_navigate(&mut self, byte_range: Option<std::ops::Range<usize>>) {
@@ -3357,23 +3478,33 @@ fn view_for(syntax: Syntax, persistence: &WsPersistentStore) -> View {
 const SIDECAR_W: f32 = 260.0;
 const SIDECAR_GAP: f32 = 24.0;
 
-/// Where a heading link lands.
+/// Where a landing puts text.
 #[derive(Clone, Copy)]
 enum Landing {
     /// The note's top, for a heading that isn't there.
     Top,
-    /// Text from its start to its end: a heading's, or a link's.
+    /// Text from its start to its end on the reading line: a heading's, or a
+    /// link's.
     Heading((Grapheme, Grapheme)),
+    /// Reading text back at its top `y` below the view's top, where it was
+    /// drawn before a reload.
+    Drawn { text: (Grapheme, Grapheme), y: f32 },
 }
 
 impl Landing {
-    /// Where a heading landed on starts.
+    /// Where the text landed on starts.
     fn start(self) -> Option<Grapheme> {
         match self {
             Landing::Top => None,
-            Landing::Heading((at, _)) => Some(at),
+            Landing::Heading((at, _)) | Landing::Drawn { text: (at, _), .. } => Some(at),
         }
     }
+}
+
+/// A fragment that draws text: what a reader keeps their place by.
+fn is_text(f: &widget::utils::wrap_layout::Fragment) -> bool {
+    use widget::utils::wrap_layout::FragmentContent;
+    matches!(f.content, FragmentContent::Glyphs { .. }) && f.source_range.0 < f.source_range.1
 }
 
 /// Room above a landed heading. Android's status and app bars cover more

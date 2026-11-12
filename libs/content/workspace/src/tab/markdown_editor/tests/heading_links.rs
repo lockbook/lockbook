@@ -20,7 +20,7 @@ fn opening_at_a_heading() {
     ws.editor.open_at_heading("next-steps");
     let caret = Grapheme(md.find("Next steps").unwrap() + "Next steps".len());
     assert_eq!(selection(&ws), (caret, caret));
-    assert_eq!(ws.editor.edit.pending_scroll, Some(ScrollTarget::Heading));
+    assert_eq!(ws.editor.edit.pending_scroll, Some(ScrollTarget::Landing));
     assert_eq!(ws.get_text().matches(FOLD_TAG).count(), 2, "its own fold stays");
 
     ws.editor.open_at_heading("Inner");
@@ -32,7 +32,7 @@ fn opening_at_a_heading() {
     ws.editor.edit.pending_scroll = None;
     ws.editor.open_at_heading("nowhere");
     assert_eq!(selection(&ws), (caret, caret));
-    assert_eq!(ws.editor.edit.pending_scroll, Some(ScrollTarget::Heading));
+    assert_eq!(ws.editor.edit.pending_scroll, Some(ScrollTarget::Landing));
 }
 
 /// A heading lands at one spot below the top of the view whether it starts
