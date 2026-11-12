@@ -901,6 +901,20 @@ mod test {
     }
 
     #[test]
+    fn buffer_merge_edits_touching_a_replaced_word() {
+        // an insert at a replaced word's start, a replace ending at it, a replace starting at it
+        for (base, local, remote, merged) in [
+            ("bar foo foo\n", "Жbar foo foo\n", "foo bar foo foo\n", "foo Жbar foo foo\n"),
+            ("aa bb", "aa Жbb", "aa  bb", "aa  Жbb"),
+            ("one two three", "one 2 three", "one and two three", "one and 2 three"),
+        ] {
+            let merge = |a: &str, b: &str| Buffer::from(base).merge(a.into(), b.into());
+            assert_eq!(merge(local, remote), merged);
+            assert_eq!(merge(remote, local), merged);
+        }
+    }
+
+    #[test]
     // this test case documents behavior moreso than asserting target state
     fn buffer_merge_insert_replace() {
         let base_content = "content";
