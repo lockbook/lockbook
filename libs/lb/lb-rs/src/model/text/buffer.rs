@@ -1519,6 +1519,27 @@ mod reload_tests {
     }
 
     #[test]
+    fn a_reload_lands_beside_a_move() {
+        let image = "![a](https://x.test/a.png)";
+        let disk = format!("{image}\n\nab\n\nfoo\n");
+        let mut buf = Buffer::from(disk.as_str());
+        let end = Grapheme(image.len() + 9);
+        buf.queue(vec![
+            Operation::Replace(Replace {
+                range: (Grapheme(0), Grapheme(image.len())),
+                text: "".into(),
+            }),
+            Operation::Replace(Replace { range: (end, end), text: image.into() }),
+        ]);
+        buf.update();
+        let disk = disk.replace("ab", "a⟦1⟧b");
+        reload(&mut buf, &disk);
+        assert_eq!(buf.current.text, format!("\n\na⟦1⟧b\n\nfoo{image}\n"));
+        reload(&mut buf, &disk.replace("foo", "fo⟦2⟧o"));
+        assert_eq!(buf.current.text, format!("\n\na⟦1⟧b\n\nfo⟦2⟧o{image}\n"));
+    }
+
+    #[test]
     fn reload_after_an_undo_at_a_reload() {
         let mut buf = Buffer::from("aa bb cc");
         reload(&mut buf, "aa bb cc R");
