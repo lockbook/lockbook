@@ -114,6 +114,57 @@ fn outside_click_consumes_press_move_release_without_a_stroke() {
 }
 
 #[test]
+fn outside_touch_dismisses_without_drawing_or_firing_a_gesture() {
+    let ctx = context();
+    let mut svg = editor(&ctx, EMPTY);
+    open(&ctx, &mut svg, pos2(400., 300.));
+    let touch = |phase, pos| Event::Touch {
+        device_id: egui::TouchDeviceId(0),
+        id: egui::TouchId(1),
+        phase,
+        pos,
+        force: None,
+    };
+    frame(&ctx, vec![touch(egui::TouchPhase::Start, pos2(80., 400.))], |ui| svg.process_events(ui));
+    assert!(!svg.has_visible_context_menu());
+    frame(&ctx, vec![touch(egui::TouchPhase::Move, pos2(140., 420.))], |ui| svg.process_events(ui));
+    frame(&ctx, vec![touch(egui::TouchPhase::End, pos2(140., 420.))], |ui| svg.process_events(ui));
+    assert!(svg.buffer.elements.is_empty());
+    assert!(!svg.history.has_undo());
+    frame(&ctx, vec![touch(egui::TouchPhase::Start, pos2(80., 400.))], |ui| svg.process_events(ui));
+    frame(&ctx, vec![touch(egui::TouchPhase::End, pos2(140., 420.))], |ui| svg.process_events(ui));
+    assert!(svg.history.has_undo());
+}
+
+#[test]
+fn toolbar_popover_uses_the_same_outside_press_dismissal() {
+    let ctx = context();
+    let mut svg = editor(&ctx, EMPTY);
+    svg.toolbar.show_tool_popover = true;
+    let pos = pos2(80., 400.);
+    frame(&ctx, vec![button(pos, PointerButton::Primary, true)], |ui| svg.process_events(ui));
+    assert!(!svg.toolbar.has_visible_popover());
+    frame(
+        &ctx,
+        vec![Event::PointerMoved(pos2(140., 420.)), button(pos, PointerButton::Primary, false)],
+        |ui| svg.process_events(ui),
+    );
+    assert!(svg.buffer.elements.is_empty());
+    assert!(!svg.history.has_undo());
+}
+
+#[test]
+fn selection_popover_rect_is_an_overlay_for_dismissal() {
+    let ctx = context();
+    let mut svg = editor(&ctx, DRAWING);
+    open(&ctx, &mut svg, pos2(120., 120.));
+    let pos = pos2(80., 400.);
+    svg.toolbar.selection.layout.popover = Some(Rect::from_center_size(pos, vec2(40., 40.)));
+    frame(&ctx, vec![button(pos, PointerButton::Primary, true)], |ui| svg.process_events(ui));
+    assert!(svg.has_visible_context_menu());
+}
+
+#[test]
 fn escape_focus_loss_and_zoom_dismiss_without_editing() {
     let ctx = context();
     let mut svg = editor(&ctx, EMPTY);

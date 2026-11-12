@@ -496,21 +496,18 @@ impl SVGEditor {
         {
             return true;
         }
-        let islands = [
-            self.toolbar.layout.history_island,
-            self.toolbar.layout.overlay_toggle,
-            self.toolbar.layout.tool_popover,
-            self.toolbar.layout.tools_island,
-            self.toolbar.layout.zoom_pct_btn,
-            self.toolbar.layout.zoom_stops_popover,
-            self.toolbar.layout.viewport_island,
-            self.toolbar.layout.viewport_popover,
-            self.toolbar.layout.mini_map,
-        ];
-        for island in islands.iter() {
-            if island.unwrap_or(egui::Rect::ZERO).contains(pointer) {
-                return true;
-            }
+        if self
+            .toolbar
+            .get_rects()
+            .iter()
+            .any(|rect| rect.contains(pointer))
+            || self
+                .toolbar
+                .layout
+                .mini_map
+                .is_some_and(|rect| rect.contains(pointer))
+        {
+            return true;
         }
 
         false

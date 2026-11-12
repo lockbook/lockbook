@@ -452,6 +452,10 @@ impl SVGEditor {
         }
     }
 
+    pub(super) fn has_visible_context_menu(&self) -> bool {
+        self.context_menu.quick || self.context_menu.advanced || self.context_menu.native
+    }
+
     pub(super) fn handle_context_menu_input(&mut self, ui: &mut egui::Ui) {
         self.validate_context_menu(ui.ctx());
         if self.context_menu.cancel_tool {
@@ -476,16 +480,6 @@ impl SVGEditor {
                     ?event, "canvas menu input while open");
             }
         }
-        let outside_press = events.iter().any(|e| match e {
-            egui::Event::Touch { phase: egui::TouchPhase::Start, pos, .. }
-            | egui::Event::PointerButton {
-                button: egui::PointerButton::Primary,
-                pressed: true,
-                pos,
-                ..
-            } => !self.context_menu.rect.is_some_and(|r| r.contains(*pos)),
-            _ => false,
-        });
         // Trackpads can send phase-only Start/End notifications after a
         // secondary click. Those do not move the viewport or dismiss the menu.
         let viewport_change = events.iter().any(|e| match e {
@@ -508,9 +502,9 @@ impl SVGEditor {
         // Empty-space menus are transient and close when navigating the canvas.
         let selection_menu = !self.context_menu.selection.is_empty();
         let dismiss_for_navigation = !selection_menu && (viewport_change || multi_touch);
-        if outside_press || focus_lost || dismiss_for_navigation || escape {
+        if focus_lost || dismiss_for_navigation || escape {
             tracing::info!(target: "workspace::canvas_context_menu",
-                outside_press, focus_lost, viewport_change, multi_touch, selection_menu, escape,
+                focus_lost, viewport_change, multi_touch, selection_menu, escape,
                 "canvas menu input dismissal");
             for event in ui.ctx().read_events() {
                 if let crate::Event::MultiTouchGesture {
@@ -527,9 +521,6 @@ impl SVGEditor {
             }
             self.dismiss_context_menu(ui.ctx(), "input dismissal");
             self.cancel_context_tool(ui);
-            if outside_press {
-                self.input_controller.suppress_context_press(&events);
-            }
             ui.ctx().request_repaint();
         }
     }
@@ -545,7 +536,7 @@ impl SVGEditor {
         }
     }
 
-    fn cancel_context_tool(&mut self, ui: &mut egui::Ui) {
+    pub(super) fn cancel_context_tool(&mut self, ui: &mut egui::Ui) {
         self.toolbar.active_tool_mut().process_controller_event(
             ui,
             crate::tab::input_controller::InputControllerEvent::ToolCancel,

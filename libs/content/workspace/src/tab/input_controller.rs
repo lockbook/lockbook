@@ -13,12 +13,13 @@ use crate::{
     },
 };
 
+// Tap and long-press gestures share a cumulative movement budget, in points.
+const GESTURE_MOVEMENT_THRESHOLD: f32 = 5.0;
+const LONG_PRESS_DURATION: Duration = Duration::from_millis(500);
+
 #[derive(Debug)]
 pub struct InputController {
     touches: Vec<TouchInfo>,
-    context_press: Option<(TouchId, Pos2, Instant)>,
-    context_touch: Option<TouchId>,
-    suppress_mouse: bool,
     buttons: HashMap<MouseProps, (Instant, egui::Pos2)>, // track the start pos
     tool_running: Option<Instant>,
     mouse_hover_pos: Option<egui::Pos2>,
@@ -70,10 +71,19 @@ impl Default for ScrollUnits {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LongPressState {
+    Ineligible,
+    Pending,
+    Consumed,
+}
+
 #[derive(Clone, Copy, Debug)]
 struct TouchInfo {
     id: egui::TouchId,
     start: Instant,
+    start_pos: Pos2,
+    long_press: LongPressState,
     is_active: bool,
     has_force: bool,
     lifetime_distance: f32,
@@ -86,6 +96,8 @@ impl TouchInfo {
         Self {
             id,
             start: Instant::now(),
+            start_pos: pos,
+            long_press: LongPressState::Ineligible,
             is_active: true,
             has_force: force.is_some(),
             lifetime_distance: 0.0,
@@ -209,9 +221,6 @@ impl InputController {
     pub fn new(config: InputControllerConfig) -> Self {
         Self {
             touches: Vec::new(),
-            context_press: None,
-            context_touch: None,
-            suppress_mouse: false,
             buttons: HashMap::new(),
             tool_running: None,
             viewport_changing: None,
@@ -241,12 +250,13 @@ impl InputController {
 
         controller_events.extend(extended_controller_events);
 
-        if let Some((id, pos, start)) = self.context_press {
-            let remaining = Duration::from_millis(500).saturating_sub(start.elapsed());
+        if let Some(mut touch) = self.long_press_touch() {
+            let remaining = LONG_PRESS_DURATION.saturating_sub(touch.start.elapsed());
             if remaining.is_zero() {
                 self.reset_state();
-                self.context_touch = Some(id);
-                controller_events.push(InputControllerEvent::ContextMenuRequested(pos));
+                touch.long_press = LongPressState::Consumed;
+                self.touches.push(touch);
+                controller_events.push(InputControllerEvent::ContextMenuRequested(touch.start_pos));
             } else {
                 ui.ctx().request_repaint_after(remaining);
             }
@@ -304,7 +314,7 @@ impl InputController {
                 center_pos,
             } => {
                 if !translation_delta.eq(&egui::Vec2::ZERO) || *zoom_factor != 1.0 {
-                    self.context_press = None;
+                    self.cancel_long_press();
                 }
                 let invalid_touch_positions = start_positions.iter().any(|pos| {
                     pos_collides_with_layout(*pos, ctx) || !ctx.draw_area.contains(*pos)
@@ -404,12 +414,6 @@ impl InputController {
                         over_overlay = pos_collides_with_layout(pos, ctx),
                         "canvas right-click received by input controller");
                 }
-                if self.suppress_mouse && button == egui::PointerButton::Primary {
-                    if !pressed {
-                        self.suppress_mouse = false;
-                    }
-                    return None;
-                }
                 if !self.touches.is_empty() || self.is_touch_frame {
                     return None;
                 }
@@ -440,9 +444,6 @@ impl InputController {
                 None
             }
             egui::Event::PointerMoved(pos) => {
-                if self.suppress_mouse {
-                    return None;
-                }
                 if !self.touches.is_empty() || self.is_touch_frame {
                     return None;
                 }
@@ -473,7 +474,7 @@ impl InputController {
             }
             egui::Event::PointerGone => None,
             egui::Event::MouseWheel { unit, delta, modifiers, .. } => {
-                self.context_press = None;
+                self.cancel_long_press();
                 if !self.can_viewport_change(self.mouse_hover_pos, ctx) {
                     return None;
                 }
@@ -498,37 +499,20 @@ impl InputController {
             }
             egui::Event::Touch { device_id, id, phase, pos, force } => {
                 self.is_touch_frame = true;
-                if let Some(context_id) = self.context_touch {
-                    if id == context_id && matches!(phase, TouchPhase::End | TouchPhase::Cancel) {
-                        self.context_touch = None;
+                if self
+                    .touches
+                    .iter()
+                    .any(|t| t.long_press == LongPressState::Consumed)
+                {
+                    if matches!(phase, TouchPhase::End | TouchPhase::Cancel) {
+                        self.touches.retain(|t| t.id != id);
                     }
                     return None;
-                }
-                match phase {
-                    TouchPhase::Start => {
-                        self.context_press = if self.touches.is_empty()
-                            && force.is_none()
-                            && ctx.draw_area.contains(pos)
-                            && !pos_collides_with_layout(pos, ctx)
-                        {
-                            Some((id, pos, Instant::now()))
-                        } else {
-                            None
-                        };
-                    }
-                    TouchPhase::Move => {
-                        if self.context_press.is_some_and(|(start_id, start, _)| {
-                            id != start_id || start.distance(pos) > 8.0 || force.is_some()
-                        }) {
-                            self.context_press = None;
-                        }
-                    }
-                    TouchPhase::End | TouchPhase::Cancel => self.context_press = None,
                 }
                 self.touch_to_controller_event(device_id, id, pos, phase, force, ctx)
             }
             egui::Event::Zoom(..) => {
-                self.context_press = None;
+                self.cancel_long_press();
                 if !self.can_viewport_change(self.mouse_hover_pos, ctx) {
                     return None;
                 }
@@ -555,27 +539,33 @@ impl InputController {
         }
     }
 
-    pub fn reset(&mut self) {
-        self.reset_state();
-        self.suppress_mouse = false;
-    }
-
-    /// Consume the entire dismissal gesture, including its later release.
-    pub fn suppress_context_press(&mut self, events: &[egui::Event]) {
-        self.reset();
-        if let Some(id) = events.iter().find_map(|e| match e {
-            egui::Event::Touch { id, phase: TouchPhase::Start, .. } => Some(*id),
+    fn long_press_touch(&self) -> Option<TouchInfo> {
+        match self.touches.as_slice() {
+            [touch]
+                if touch.long_press == LongPressState::Pending
+                    && touch.is_active
+                    && !touch.has_force
+                    && touch.lifetime_distance < GESTURE_MOVEMENT_THRESHOLD =>
+            {
+                Some(*touch)
+            }
             _ => None,
-        }) {
-            self.context_touch = Some(id);
-        } else {
-            self.suppress_mouse = true;
         }
     }
 
+    fn cancel_long_press(&mut self) {
+        for touch in &mut self.touches {
+            if touch.long_press == LongPressState::Pending {
+                touch.long_press = LongPressState::Ineligible;
+            }
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.reset_state();
+    }
+
     fn reset_state(&mut self) {
-        self.context_press = None;
-        self.context_touch = None;
         self.touches.clear();
         self.buttons.clear();
         self.tool_running = None;
@@ -596,7 +586,13 @@ impl InputController {
             egui::TouchPhase::Start => {
                 let last_touches_have_pen = self.touches.iter().any(|t| t.has_force);
                 let collides = pos_collides_with_layout(pos, ctx);
-                self.touches.push(TouchInfo::new(curr_touch_id, pos, force));
+                let mut touch = TouchInfo::new(curr_touch_id, pos, force);
+                if self.touches.is_empty() && !collides && ctx.draw_area.contains(pos) {
+                    touch.long_press = LongPressState::Pending;
+                }
+                // Joining fingers cancel the hold for the entire touch sequence.
+                self.cancel_long_press();
+                self.touches.push(touch);
                 if collides || !ctx.draw_area.contains(pos) {
                     return None;
                 }
@@ -714,7 +710,7 @@ impl InputController {
                     let touch_count = self.touches.len();
                     self.touches.clear();
 
-                    if total_distance < 5.0 {
+                    if total_distance < GESTURE_MOVEMENT_THRESHOLD {
                         return Some(InputControllerEvent::Gesture(touch_count));
                     }
                 }
@@ -1357,61 +1353,16 @@ mod tests {
     }
 
     #[test]
-    fn dismissed_mouse_and_touch_streams_do_not_start_or_end_tools() {
-        let mut controller = InputController::new(InputControllerConfig::default());
-        let pos = egui::pos2(30., 30.);
-        let events = vec![primary_button(pos, true)];
-        controller.suppress_context_press(&events);
-        assert!(
-            events
-                .process(&mut controller, &LayoutContext::default())
-                .is_empty()
-        );
-        assert!(
-            vec![egui::Event::PointerMoved(pos), primary_button(pos, false)]
-                .process(&mut controller, &LayoutContext::default())
-                .is_empty()
-        );
-        assert_eq!(
-            vec![primary_button(pos, true)]
-                .process(&mut controller, &LayoutContext::default())
-                .len(),
-            1
-        );
-        let events = start_touch(4, pos, None);
-        controller.suppress_context_press(&events);
-        assert!(
-            events
-                .process(&mut controller, &LayoutContext::default())
-                .is_empty()
-        );
-        assert!(
-            end_touch(4, pos, None)
-                .process(&mut controller, &LayoutContext::default())
-                .is_empty()
-        );
-    }
-
-    #[test]
-    fn losing_focus_clears_dismissal_and_touch_gestures() {
+    fn losing_focus_clears_touch_gestures() {
         let mut controller = InputController::new(InputControllerConfig::default());
         let layout = LayoutContext::default();
         let pos = egui::pos2(30., 30.);
-        controller.suppress_context_press(&[primary_button(pos, true)]);
-        vec![egui::Event::WindowFocused(false)].process(&mut controller, &layout);
-        assert_eq!(
-            vec![primary_button(pos, true)]
-                .process(&mut controller, &layout)
-                .len(),
-            1
-        );
-        controller.reset();
         start_touch(1, pos, None).process(&mut controller, &layout);
         assert_eq!(
             vec![egui::Event::WindowFocused(false)].process(&mut controller, &layout),
             vec![InputControllerEvent::ToolCancel]
         );
-        assert!(controller.touches.is_empty() && controller.context_press.is_none());
+        assert!(controller.touches.is_empty() && controller.long_press_touch().is_none());
         assert_eq!(
             start_touch(2, pos, None)
                 .process(&mut controller, &layout)
@@ -1422,31 +1373,102 @@ mod tests {
 
     #[test]
     fn long_press_requests_context_once_then_consumes_touch_release() {
-        let mut controller = InputController::new(InputControllerConfig::default());
-        let layout = LayoutContext::default();
-        let pos = egui::pos2(30., 30.);
-        start_touch(1, pos, None).process(&mut controller, &layout);
-        controller.context_press = Some((TouchId(1), pos, Instant::now() - Duration::from_secs(1)));
-        let ctx = egui::Context::default();
-        ctx.begin_pass(egui::RawInput::default());
-        let mut result = Vec::new();
-        ctx.root_ui(|root| {
-            egui::CentralPanel::default().show(root, |ui| result = controller.process(ui, &layout));
-        });
-        ctx.end_pass().textures_delta.clear();
-        assert_eq!(result, vec![InputControllerEvent::ContextMenuRequested(pos)]);
-        assert!(
-            end_touch(1, pos, None)
+        for ending in [TouchPhase::End, TouchPhase::Cancel] {
+            let mut controller = InputController::new(InputControllerConfig::default());
+            let layout = LayoutContext::default();
+            let pos = egui::pos2(30., 30.);
+            start_touch(1, pos, None).process(&mut controller, &layout);
+            controller.touches[0].start = Instant::now() - Duration::from_secs(1);
+            let ctx = egui::Context::default();
+            ctx.begin_pass(egui::RawInput::default());
+            let mut result = Vec::new();
+            ctx.root_ui(|root| {
+                egui::CentralPanel::default()
+                    .show(root, |ui| result = controller.process(ui, &layout));
+            });
+            ctx.end_pass().textures_delta.clear();
+            assert_eq!(result, vec![InputControllerEvent::ContextMenuRequested(pos)]);
+            assert_eq!(controller.touches.len(), 1);
+            assert!(controller.long_press_touch().is_none());
+            assert!(
+                move_touch(1, pos + egui::vec2(20., 0.), None)
+                    .process(&mut controller, &layout)
+                    .is_empty()
+            );
+            assert!(
+                start_touch(2, pos, None)
+                    .process(&mut controller, &layout)
+                    .is_empty()
+            );
+            assert!(
+                cancel_touch(2, pos, None)
+                    .process(&mut controller, &layout)
+                    .is_empty()
+            );
+            assert_eq!(controller.touches.len(), 1);
+            // Synthesized mouse input is also ignored while the consumed touch is held.
+            assert!(
+                vec![primary_button(pos, true), primary_button(pos, false)]
+                    .process(&mut controller, &layout)
+                    .is_empty()
+            );
+            assert!(
+                vec![egui::Event::Touch {
+                    device_id: TouchDeviceId(0),
+                    id: TouchId(1),
+                    phase: ending,
+                    pos,
+                    force: None,
+                }]
                 .process(&mut controller, &layout)
                 .is_empty()
-        );
-        assert!(controller.context_press.is_none());
-        assert_eq!(
-            start_touch(2, pos, None)
-                .process(&mut controller, &layout)
-                .len(),
-            1
-        );
+            );
+            assert!(controller.touches.is_empty());
+            assert_eq!(
+                start_touch(2, pos, None)
+                    .process(&mut controller, &layout)
+                    .len(),
+                1
+            );
+        }
+    }
+
+    #[test]
+    fn tap_and_long_press_share_the_cumulative_movement_threshold() {
+        let layout = LayoutContext::default();
+        let pos = egui::pos2(30., 30.);
+        for (distance, eligible) in [(4.9, true), (GESTURE_MOVEMENT_THRESHOLD, false)] {
+            let mut controller = InputController::new(InputControllerConfig::new(true, false));
+            start_touch(1, pos, None).process(&mut controller, &layout);
+            // Return to the origin: the total path, rather than displacement,
+            // determines whether this touch can still be a tap or a hold.
+            move_touch(1, pos + egui::vec2(distance / 2., 0.), None)
+                .process(&mut controller, &layout);
+            move_touch(1, pos, None).process(&mut controller, &layout);
+            assert_eq!(controller.long_press_touch().is_some(), eligible);
+            let events = end_touch(1, pos, None).process(&mut controller, &layout);
+            assert_eq!(events.contains(&InputControllerEvent::Gesture(1)), eligible);
+        }
+    }
+
+    #[test]
+    fn cancelled_long_press_cannot_resume_during_the_same_touch() {
+        let layout = LayoutContext::default();
+        let pos = egui::pos2(30., 30.);
+        let mut controller = InputController::new(InputControllerConfig::new(true, false));
+        start_touch(1, pos, None).process(&mut controller, &layout);
+        assert!(controller.long_press_touch().is_some());
+        start_touch(2, pos, None).process(&mut controller, &layout);
+        cancel_touch(2, pos, None).process(&mut controller, &layout);
+        assert_eq!(controller.touches.len(), 1);
+        assert!(controller.long_press_touch().is_none());
+
+        controller.reset();
+        start_touch(3, pos, None).process(&mut controller, &layout);
+        vec![egui::Event::Zoom(1.1)].process(&mut controller, &layout);
+        assert!(controller.long_press_touch().is_none());
+        move_touch(3, pos, None).process(&mut controller, &layout);
+        assert!(controller.long_press_touch().is_none());
     }
 
     #[test]
@@ -1455,22 +1477,22 @@ mod tests {
         let pos = egui::pos2(30., 30.);
         let layout = LayoutContext::default();
         start_touch(1, pos, Some(0.5)).process(&mut controller, &layout);
-        assert!(controller.context_press.is_none());
+        assert!(controller.long_press_touch().is_none());
         controller.reset();
         start_touch(2, pos, None).process(&mut controller, &layout);
         move_touch(2, pos + egui::vec2(20., 0.), None).process(&mut controller, &layout);
-        assert!(controller.context_press.is_none());
+        assert!(controller.long_press_touch().is_none());
         controller.reset();
         start_touch(3, pos, None).process(&mut controller, &layout);
         start_touch(4, pos, None).process(&mut controller, &layout);
-        assert!(controller.context_press.is_none());
+        assert!(controller.long_press_touch().is_none());
         controller.reset();
         let overlay = LayoutContext::new(
             egui::Rect::EVERYTHING,
             vec![egui::Rect::from_center_size(pos, egui::vec2(50., 50.))],
         );
         start_touch(5, pos, None).process(&mut controller, &overlay);
-        assert!(controller.context_press.is_none());
+        assert!(controller.long_press_touch().is_none());
     }
 
     #[test]

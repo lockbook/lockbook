@@ -333,10 +333,14 @@ impl SVGEditor {
             self.handle_clip_input(ui);
         }
 
-        let has_click_outside_islands = ui.input(|r| {
+        let press_outside_overlays = ui.input(|r| {
             r.events.iter().any(|e| match *e {
-                egui::Event::PointerButton { pos, button: _, pressed, modifiers: _ } => {
-                    pressed && !self.detect_islands_interaction(pos)
+                egui::Event::PointerButton { pos, button, pressed, .. } => {
+                    // A secondary press can replace an existing context menu.
+                    pressed
+                        && (button == egui::PointerButton::Primary
+                            || !self.has_visible_context_menu())
+                        && !self.detect_islands_interaction(pos)
                 }
                 egui::Event::Touch { device_id: _, id: _, phase, pos, force: _ } => {
                     phase == egui::TouchPhase::Start && !self.detect_islands_interaction(pos)
@@ -344,6 +348,20 @@ impl SVGEditor {
                 _ => false,
             })
         });
+
+        if press_outside_overlays
+            && (self.toolbar.has_visible_popover() || self.has_visible_context_menu())
+        {
+            self.toolbar
+                .close_all_popovers(&mut self.settings, &mut self.cfg);
+            self.dismiss_context_menu(ui.ctx(), "press outside overlays");
+            self.cancel_context_tool(ui);
+            self.input_controller.reset();
+            ui.ctx().request_repaint();
+            // Ignore the dismissal press. Without a tool/touch start, its later
+            // movement and release cannot edit the canvas either.
+            return;
+        }
 
         let mut tool_context = ToolContext {
             painter: &mut self.painter,
@@ -353,32 +371,6 @@ impl SVGEditor {
             settings: &mut self.settings,
             viewport_settings: &mut self.viewport_settings,
         };
-
-        if has_click_outside_islands && self.toolbar.has_visible_popover() {
-            if ui.input(|i| {
-                i.events.iter().any(|e| {
-                    matches!(
-                        e,
-                        egui::Event::PointerButton {
-                            button: egui::PointerButton::Secondary,
-                            pressed: true,
-                            ..
-                        }
-                    )
-                })
-            }) {
-                tracing::info!(target: "workspace::canvas_context_menu",
-                    frame = ui.ctx().cumulative_frame_nr(), pass = ui.ctx().cumulative_pass_nr(),
-                    tool = ?self.toolbar.active_tool,
-                    tool_popover = self.toolbar.show_tool_popover,
-                    viewport_popover = self.toolbar.viewport_popover.is_some(),
-                    cursor_popover = self.toolbar.show_at_cursor_tool_popover.is_some(),
-                    "canvas right-click intercepted while closing toolbar popover");
-            }
-            self.toolbar
-                .close_all_popovers(tool_context.settings, &mut self.cfg);
-            return;
-        }
 
         let mut overlay_rects = self.toolbar.get_rects();
         overlay_rects.extend(self.context_menu.rect);
