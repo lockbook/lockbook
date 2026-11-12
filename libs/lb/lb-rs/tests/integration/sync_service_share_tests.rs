@@ -894,3 +894,80 @@ async fn move_folder_into_share_then_delete_its_old_parent() {
     owner.sync().await.unwrap();
     assert::all_paths(&owner, &["/", "/team/", "/team/notes/", "/team/notes/drafts/"]).await;
 }
+
+/// A note moved into a folder that is then deleted stays deleted when its old folder moves into
+/// someone else's share.
+#[tokio::test]
+async fn move_note_into_deleted_folder_then_move_its_old_folder_into_share() {
+    let owner = test_core_with_account().await;
+    let collaborator = test_core_with_account().await;
+    let collaborator_name = collaborator.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &collaborator_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    collaborator.sync().await.unwrap();
+    collaborator
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    collaborator.create_at_path("/notes/old.md").await.unwrap();
+    collaborator.create_at_path("/trash/").await.unwrap();
+    collaborator.sync().await.unwrap();
+
+    move_by_path(&collaborator, "/notes/old.md", "/trash/")
+        .await
+        .unwrap();
+    delete_path(&collaborator, "/trash/").await.unwrap();
+    move_by_path(&collaborator, "/notes/", "/team/")
+        .await
+        .unwrap();
+    collaborator.sync().await.unwrap();
+
+    owner.sync().await.unwrap();
+    assert::all_paths(&owner, &["/", "/team/", "/team/notes/"]).await;
+}
+
+/// A deleted note stays deleted when its folder moves out of a deleted folder into someone else's
+/// share.
+#[tokio::test]
+async fn delete_note_then_move_its_folder_out_of_a_deleted_one_into_share() {
+    // the merge replays files in hash order, so each round tries another order
+    for _ in 0..20 {
+        let owner = test_core_with_account().await;
+        let collaborator = test_core_with_account().await;
+        let collaborator_name = collaborator.get_account().unwrap().username.clone();
+
+        let team = owner.create_at_path("/team/").await.unwrap();
+        owner
+            .share_file(team.id, &collaborator_name, ShareMode::Write)
+            .await
+            .unwrap();
+        owner.sync().await.unwrap();
+        collaborator.sync().await.unwrap();
+        collaborator
+            .create_link_at_path("/team", team.id)
+            .await
+            .unwrap();
+        collaborator
+            .create_at_path("/old/notes/old.md")
+            .await
+            .unwrap();
+        collaborator.sync().await.unwrap();
+
+        delete_path(&collaborator, "/old/notes/old.md")
+            .await
+            .unwrap();
+        move_by_path(&collaborator, "/old/notes/", "/team/")
+            .await
+            .unwrap();
+        delete_path(&collaborator, "/old/").await.unwrap();
+        collaborator.sync().await.unwrap();
+
+        owner.sync().await.unwrap();
+        assert::all_paths(&owner, &["/", "/team/", "/team/notes/"]).await;
+    }
+}

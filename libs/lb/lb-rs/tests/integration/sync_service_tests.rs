@@ -403,3 +403,25 @@ async fn concurrent_chat_appends_union_cleanly() {
     }
     assert::cores_equal(&c1, &c2).await;
 }
+
+#[tokio::test]
+async fn delete_note_move_its_folder_out_then_delete_the_old_parent() {
+    // the merge replays files in hash order, so each round tries another order
+    for _ in 0..20 {
+        let db = test_core_with_account().await;
+        let note = db.create_at_path("p/y/f.md").await.unwrap();
+        let y = db.get_by_path("p/y/").await.unwrap();
+        let p = db.get_by_path("p/").await.unwrap();
+        db.sync().await.unwrap();
+
+        db.delete(&note.id).await.unwrap();
+        db.move_file(&y.id, &db.root().await.unwrap().id)
+            .await
+            .unwrap();
+        db.delete(&p.id).await.unwrap();
+        db.sync().await.unwrap();
+
+        let paths = db.list_paths(None).await.unwrap();
+        assert_eq!(paths.into_iter().sorted().collect::<Vec<_>>(), ["/", "/y/"]);
+    }
+}
