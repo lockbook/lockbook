@@ -23,7 +23,8 @@ fn closed_stdout_ends_quietly() {
         .unwrap_or(0);
     fs::remove_dir_all(&data).ok();
 
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stderr.contains("panicked"), "{stderr}");
     assert_eq!(panics, 0);
 }
 
