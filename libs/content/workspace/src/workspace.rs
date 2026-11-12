@@ -1232,6 +1232,7 @@ impl Workspace {
                 Ok(evt) => {
                     match evt {
                         Event::DocumentWritten(id, actor) => {
+                            self.images.reload(id);
                             let event_origin = match actor {
                                 Actor::Sync => {
                                     self.core.app_foregrounded();
@@ -1271,6 +1272,7 @@ impl Workspace {
                         #[cfg(not(target_family = "wasm"))]
                         Event::MetadataChanged(_) => self.reload_chat_configs(),
                         Event::IpcChangesApplied => {
+                            self.images.reload_files();
                             for session in &self.tab_strip {
                                 if let Some(id) = session.place.dest.backing_file() {
                                     self.tasks.queue_load(LoadRequest {
@@ -2694,5 +2696,49 @@ mod media_tests {
 
         let content = &t.ws.current_tab().unwrap().content;
         assert!(matches!(content, ContentState::Failed(TabFailure::Refused(_))));
+    }
+}
+
+#[cfg(test)]
+mod image_embed_tests {
+    use egui::{Color32, ColorImage};
+    use web_time::{Duration, Instant};
+
+    use crate::test_utils::ws::TestWs;
+    use crate::widgets::image_cache::{ImageKey, ImageState, encode_png};
+
+    /// Frames until the embed of `key` is `want`.
+    #[track_caller]
+    fn until(t: &mut TestWs, key: &ImageKey, want: fn(&ImageState) -> bool) {
+        let start = Instant::now();
+        loop {
+            t.frame();
+            if want(&t.ws.images.get_or_load(key, false).lock().unwrap()) {
+                return;
+            }
+            assert!(start.elapsed() < Duration::from_secs(10), "embed of {key:?} never changed");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    /// An image another device writes empty, then whole, shows in the open
+    /// note once it is whole.
+    #[test]
+    fn embed_shows_an_image_written_after_it_failed() {
+        let mut t = TestWs::new();
+        let photo = t.doc("photo.png", "");
+        let note = t.doc("note.md", "![](photo.png)\n");
+        t.ws.core.sync().unwrap();
+        let other = t.other_device();
+        t.ws.open_file(note, true, false);
+        t.settle();
+        let key = ImageKey::File(photo);
+        until(&mut t, &key, |s| matches!(s, ImageState::Failed(_)));
+
+        let png = encode_png(&ColorImage::new([4, 4], vec![Color32::RED; 16])).unwrap();
+        other.write_document(photo, &png).unwrap();
+        other.sync().unwrap();
+        t.ws.core.sync().unwrap();
+        until(&mut t, &key, |s| matches!(s, ImageState::Loaded(_)));
     }
 }
