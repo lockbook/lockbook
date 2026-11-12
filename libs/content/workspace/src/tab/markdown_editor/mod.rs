@@ -722,6 +722,82 @@ impl MdLayout {
             completion_corner_radius: 4,
         }
     }
+
+    /// This layout for `size`-point text at `spacing`: what's sized by the
+    /// text scales with it, and paragraphs sit a fixed 8 points (at 16)
+    /// further apart than lines.
+    pub fn typeset(mut self, size: f32, spacing: LineSpacing) -> Self {
+        let scale = size / self.row_height;
+        self.row_height = size;
+        self.annotation_font_size *= scale;
+        self.inline_padding *= scale;
+        self.block_padding *= scale;
+        self.table_column_width *= scale;
+        self.table_column_max *= scale;
+        self.indent *= scale;
+        self.bullet_radius *= scale;
+        self.row_spacing = size * (spacing.line_height() - 1.0);
+        self.block_spacing = self.row_spacing + 8.0 * scale;
+        self
+    }
+
+    /// How far a background (inline code, a chip) reaches above and below
+    /// its text: never into the space a background on the next row needs.
+    pub fn background_pad(&self) -> f32 {
+        let gap = widget::utils::wrap_layout::BG_ROW_GAP;
+        ((self.row_spacing - gap) / 2.0).clamp(0.0, self.inline_padding - gap / 2.0)
+    }
+}
+
+/// A note's layout: the platform's, at the text size, line spacing, and
+/// (on desktop; touch keeps its own cap) text width the settings say.
+fn layout_for(touch_mode: bool, persistence: &WsPersistentStore) -> MdLayout {
+    let base = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
+    let mut layout = base.typeset(persistence.get_text_size(), persistence.get_line_spacing());
+    if !touch_mode {
+        layout.max_width = persistence.get_column_width();
+    }
+    layout
+}
+
+/// The text size notes start at, in points, where the host has no
+/// preference of its own.
+pub const DEFAULT_TEXT_SIZE: f32 = 16.0;
+
+/// The smallest and largest text sizes notes offer, in points.
+pub const MIN_TEXT_SIZE: f32 = 12.0;
+pub const MAX_TEXT_SIZE: f32 = 32.0;
+
+/// How far apart a note's lines sit.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LineSpacing {
+    Compact,
+    #[default]
+    Normal,
+    Relaxed,
+}
+
+impl LineSpacing {
+    pub const ALL: [LineSpacing; 3] =
+        [LineSpacing::Compact, LineSpacing::Normal, LineSpacing::Relaxed];
+
+    /// A line's height, top to next top, as a multiple of the text size.
+    pub fn line_height(self) -> f32 {
+        match self {
+            LineSpacing::Compact => 1.2,
+            LineSpacing::Normal => 1.5,
+            LineSpacing::Relaxed => 1.8,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            LineSpacing::Compact => "Compact",
+            LineSpacing::Normal => "Normal",
+            LineSpacing::Relaxed => "Relaxed",
+        }
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -1085,10 +1161,7 @@ impl Editor {
 
         let dark_mode = ctx.global_style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
-        let mut layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
-        if !touch_mode {
-            layout.max_width = persistence.get_column_width();
-        }
+        let layout = layout_for(touch_mode, &persistence);
 
         let client: HttpClient = Default::default();
         let ws_seq = crate::seq::ws_seq(&ctx);
@@ -1490,10 +1563,10 @@ impl Editor {
             resp.scroll_updated = true;
         }
 
-        // Desktop follows the text width setting; touch keeps its own cap.
-        if !self.edit.renderer.touch_mode {
-            self.edit.renderer.layout.max_width = self.persistence.get_column_width();
-        }
+        let layout = layout_for(self.edit.renderer.touch_mode, &self.persistence);
+        let typeset_updated = layout.row_height != self.edit.renderer.layout.row_height
+            || layout.row_spacing != self.edit.renderer.layout.row_spacing;
+        self.edit.renderer.layout = layout;
         let height = ui.available_size().y.round();
         let width = ui
             .max_rect()
@@ -1529,10 +1602,16 @@ impl Editor {
 
         let start = web_time::Instant::now();
 
-        if height_updated {
+        if height_updated || typeset_updated {
             self.edit.renderer.layout_cache.clear();
+            self.edit
+                .renderer
+                .layout_cache
+                .table_cells
+                .borrow_mut()
+                .clear();
         }
-        let fonts_updated = self.edit.renderer.follow_fonts();
+        let fonts_updated = self.edit.renderer.follow_fonts() || typeset_updated;
 
         // both stamp the workspace counter, so the larger moves when either does
         let embeds_seq = (
@@ -3789,5 +3868,25 @@ mod test {
 
         assert_eq!(ws.get_text(), "hello the world");
         assert_eq!(ws.get_selection(), (9, 9)); // cursor after "the"
+    }
+}
+
+#[cfg(test)]
+mod typeset_test {
+    use super::*;
+    use widget::utils::wrap_layout::BG_ROW_GAP;
+
+    /// Highlights on adjacent rows stay apart at every text size and spacing.
+    #[test]
+    fn backgrounds_fit_between_rows() {
+        for base in [MdLayout::desktop, MdLayout::mobile] {
+            for size in [MIN_TEXT_SIZE, DEFAULT_TEXT_SIZE, MAX_TEXT_SIZE] {
+                for spacing in LineSpacing::ALL {
+                    let layout = base().typeset(size, spacing);
+                    let needs = 2.0 * layout.background_pad() + BG_ROW_GAP;
+                    assert!(needs <= layout.row_spacing, "{size} {spacing:?}");
+                }
+            }
+        }
     }
 }

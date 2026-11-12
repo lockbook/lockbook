@@ -435,6 +435,8 @@ pub enum Action {
     /// Misspelled words are marked, from now on.
     SetPrefSpellCheck(bool),
     SetPrefColumnWidth(f32),
+    SetPrefTextSize(f32),
+    SetPrefLineSpacing(workspace_rs::tab::markdown_editor::LineSpacing),
     /// Renames and moves update the links they'd break, from now on.
     SetPrefUpdateLinks(bool),
     SetPrefOpenInNewTab(bool),
@@ -572,6 +574,8 @@ impl Action {
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
             Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",
             Self::SetPrefColumnWidth(_) => "SetPrefColumnWidth",
+            Self::SetPrefTextSize(_) => "SetPrefTextSize",
+            Self::SetPrefLineSpacing(_) => "SetPrefLineSpacing",
             Self::SetPrefUpdateLinks(_) => "SetPrefUpdateLinks",
             Self::SetPrefOpenInNewTab(_) => "SetPrefOpenInNewTab",
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",
