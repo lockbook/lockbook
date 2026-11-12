@@ -243,16 +243,22 @@
             if output.lifted {
                 liftHaptic.impactOccurred()
             }
+            // The focused field is known only once its document has loaded.
+            refreshTraits()
+            // One change, the selection pair inside the text pair as
+            // `applyHistory` sends it: the keyboard judges the text at
+            // textDidChange by the selection it has been told of.
+            let changed = output.text_updated || output.selection_updated
             if output.text_updated {
                 marked = nil
                 inputDelegate?.textWillChange(self)
-                inputDelegate?.textDidChange(self)
             }
-            // The focused field is known only once its document has loaded.
-            refreshTraits()
-            if output.text_updated || output.selection_updated {
+            if changed {
                 inputDelegate?.selectionWillChange(self)
                 inputDelegate?.selectionDidChange(self)
+            }
+            if output.text_updated {
+                inputDelegate?.textDidChange(self)
             }
 
             // Scroll and layout move geometry without UIKit knowing. While
