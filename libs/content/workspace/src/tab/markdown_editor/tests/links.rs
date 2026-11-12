@@ -128,6 +128,27 @@ fn closed_wikilinks_complete_as_typed() {
     }
 }
 
+/// The popup a `#` asked for opens once the note's headings are read, which
+/// can be frames after the `#` was typed.
+#[test]
+fn a_hash_lists_headings_read_late() {
+    let files = shared_project();
+    let note = at(&files, "/project/notes.md");
+    let plan = at(&files, "/project/design/plan.md");
+    let md = "see [[design/plan]]";
+    let mut ws = TestEditor::in_files(files, note, md);
+    ws.push(Event::Select { region: (Grapheme(17), Grapheme(17)).into() });
+    ws.enter_frame();
+    ws.push(Event::Replace { region: Region::Selection, text: "#".into(), advance_cursor: true });
+    ws.enter_frame();
+    ws.enter_frame();
+    let files = ws.editor.edit.renderer.files.clone();
+    files.write().unwrap().notes.insert(plan, crate::links::read_note("# Tent"));
+    ws.enter_frame();
+    ws.enter_frame();
+    assert!(ws.editor.edit.link_completions.active);
+}
+
 /// A link to a file is a pill unless it was given a title of its own.
 #[test]
 fn file_links_are_pills_unless_titled() {
