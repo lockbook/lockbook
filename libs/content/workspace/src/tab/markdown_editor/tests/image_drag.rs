@@ -43,6 +43,12 @@ fn after(ws: &TestEditor, needle: &str) -> Pos2 {
 /// farthest above the pointer, just above the image, so at `to`, and let go
 /// there.
 fn drag(ws: &mut TestEditor, from: Pos2, to: Pos2) {
+    let_go(ws, from, to);
+    ws.enter_frame();
+}
+
+/// [`drag`] up to the frame the button lets go in; the move applies next frame.
+fn let_go(ws: &mut TestEditor, from: Pos2, to: Pos2) {
     let button = |pos, pressed| Egui::PointerButton {
         pos,
         button: PointerButton::Primary,
@@ -62,7 +68,6 @@ fn drag(ws: &mut TestEditor, from: Pos2, to: Pos2) {
     ws.enter_frame_with_input(vec![Egui::PointerMoved(to)]);
     ws.enter_frame_with_input(vec![Egui::PointerMoved(to + lift)]);
     ws.enter_frame_with_input(vec![button(to + lift, false)]);
-    ws.enter_frame();
 }
 
 #[test]
@@ -533,6 +538,21 @@ fn an_image_dropped_in_a_table_without_pipes_writes_only_itself() {
     let moved = format!("\n\n$x$ bar![a]({IMAGE}) baz\n--\n");
     assert_eq!(ws.get_text(), moved);
     assert_eq!(table_ranges_check_md(&moved), Ok(1));
+}
+
+#[test]
+fn a_remote_version_landing_as_the_drop_lets_go_keeps_the_image() {
+    let md = format!("![a]({IMAGE})\n\nalpha beta gamma delta epsilon\n\nfoo bar\n");
+    let mut ws = editor(&md);
+
+    let (from, to) = (image_center(&ws), after(&ws, "bar"));
+    let_go(&mut ws, from, to);
+    ws.editor
+        .reload(md.replace("beta", "beta ⟦1⟧"), Some([1; 32]));
+    ws.enter_frame();
+
+    let moved = format!("\n\nalpha beta ⟦1⟧ gamma delta epsilon\n\nfoo bar![a]({IMAGE})\n");
+    assert_eq!(ws.get_text(), moved);
 }
 
 /// The image lifted, a key typed and deleted, the image dropped below
