@@ -381,6 +381,78 @@ async fn move_then_delete_old_parent() {
 }
 
 #[tokio::test]
+async fn move_then_move_edit_and_delete_new_parent() {
+    let c1 = test_core_with_account().await;
+    c1.create_at_path("/parent/").await.unwrap();
+    c1.create_at_path("/parent2/").await.unwrap();
+    c1.create_at_path("/document.md").await.unwrap();
+    c1.sync().await.unwrap();
+
+    let c2 = another_client(&c1).await;
+    c2.sync().await.unwrap();
+
+    move_by_path(&c1, "/document.md", "/parent/").await.unwrap();
+    c1.sync().await.unwrap();
+    move_by_path(&c2, "/document.md", "/parent2/")
+        .await
+        .unwrap();
+    delete_path(&c2, "/parent/").await.unwrap();
+    write_path(&c2, "/parent2/document.md", b"document content")
+        .await
+        .unwrap();
+
+    sync_and_assert(&c1, &c2).await;
+    assert::all_paths(&c2, &["/", "/parent2/"]).await;
+    assert::all_document_contents(&c2, &[]).await;
+}
+
+#[tokio::test]
+async fn move_and_delete_new_parent_then_move_edit() {
+    let c1 = test_core_with_account().await;
+    c1.create_at_path("/parent/").await.unwrap();
+    c1.create_at_path("/parent2/").await.unwrap();
+    c1.create_at_path("/document.md").await.unwrap();
+    c1.sync().await.unwrap();
+
+    let c2 = another_client(&c1).await;
+    c2.sync().await.unwrap();
+
+    move_by_path(&c1, "/document.md", "/parent/").await.unwrap();
+    delete_path(&c1, "/parent2/").await.unwrap();
+    c1.sync().await.unwrap();
+    move_by_path(&c2, "/document.md", "/parent2/")
+        .await
+        .unwrap();
+    write_path(&c2, "/parent2/document.md", b"document content")
+        .await
+        .unwrap();
+
+    sync_and_assert(&c1, &c2).await;
+    assert::all_paths(&c2, &["/", "/parent/", "/parent/document.md"]).await;
+    assert::all_document_contents(&c2, &[("/parent/document.md", b"document content")]).await;
+}
+
+#[tokio::test]
+async fn delete_grandparent_then_move_parent_out_and_document_in() {
+    let c1 = test_core_with_account().await;
+    c1.create_at_path("/grandparent/parent/").await.unwrap();
+    c1.create_at_path("/document").await.unwrap();
+    c1.sync().await.unwrap();
+
+    let c2 = another_client(&c1).await;
+    c2.sync().await.unwrap();
+
+    delete_path(&c1, "/grandparent/").await.unwrap();
+    c1.sync().await.unwrap();
+    move_by_path(&c2, "/grandparent/parent/", "").await.unwrap();
+    move_by_path(&c2, "/document", "/parent/").await.unwrap();
+
+    sync_and_assert(&c1, &c2).await;
+    assert::all_paths(&c2, &["/"]).await;
+    assert::all_document_contents(&c2, &[]).await;
+}
+
+#[tokio::test]
 async fn delete_old_parent_then_move() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
