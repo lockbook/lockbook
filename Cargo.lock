@@ -4805,6 +4805,7 @@ dependencies = [
  "wgpu",
  "windows-sys 0.52.0",
  "winit",
+ "winreg 0.52.0",
  "workspace",
  "x11rb",
 ]

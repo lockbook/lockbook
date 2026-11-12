@@ -386,6 +386,9 @@
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
             set_spell_check(wsHandle, UserDefaults.standard.object(forKey: "spellCheck") as? Bool ?? true)
+            // Dynamic Type: body text is 17 points at the default size
+            let body = UIFontMetrics(forTextStyle: .body).scaledValue(for: 17, compatibleWith: mtkView.traitCollection)
+            set_system_text_scale(wsHandle, Float(body / 17))
 
             set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
