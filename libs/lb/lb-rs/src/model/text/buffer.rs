@@ -499,8 +499,18 @@ impl Buffer {
                 }
 
                 match op {
-                    Operation::Replace(Replace { range: transformed_range, .. })
-                    | Operation::Select(transformed_range) => {
+                    // an edit that only touches a replaced range's ends lies outside it
+                    Operation::Replace(Replace { range, .. }) => {
+                        let (replaced, len) = (*preceding_replaced_range, preceding_actual_len);
+                        let at_start = !replaced.is_empty() && range.start() == replaced.start();
+                        let insert = range.is_empty();
+                        let forward = range.0 <= range.1;
+                        let (a, b) = (&mut range.0, &mut range.1);
+                        let (start, end) = if forward { (a, b) } else { (b, a) };
+                        adjust_subsequent_position(replaced, len, !(insert && at_start), start);
+                        adjust_subsequent_position(replaced, len, insert && !at_start, end);
+                    }
+                    Operation::Select(transformed_range) => {
                         adjust_subsequent_range(
                             *preceding_replaced_range,
                             preceding_actual_len,
@@ -825,6 +835,18 @@ mod test {
     }
 
     #[test]
+    fn backward_replace_beside_a_replacement() {
+        let mut buffer = Buffer::from("aa bb cc");
+        buffer.queue(vec![
+            Operation::Replace(Replace { range: (Grapheme(0), Grapheme(2)), text: "Q".into() }),
+            Operation::Select((Grapheme(2), Grapheme(2))),
+            Operation::Replace(Replace { range: (Grapheme(5), Grapheme(2)), text: "".into() }),
+        ]);
+        buffer.update();
+        assert_eq!(buffer.current.text, "Q cc");
+    }
+
+    #[test]
     fn buffer_merge_nonintersecting_replace() {
         let base_content = "base content base";
         let local_content = "local content base";
@@ -915,7 +937,6 @@ mod test {
     }
 
     #[test]
-    // this test case documents behavior moreso than asserting target state
     fn buffer_merge_insert_replace() {
         let base_content = "content";
         let local_content = "content local";
@@ -923,7 +944,7 @@ mod test {
 
         assert_eq!(
             Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "remote"
+            "remote local"
         );
         assert_eq!(
             Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
