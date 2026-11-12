@@ -2426,8 +2426,13 @@ impl Editor {
                     .show_capsule_overlays(ui, root, canvas_rect, 0);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
-                self.edit.draw_dragged_overlay(ui, root);
-                self.edit.draw_image_drag(ui);
+                // what a drag draws stays inside the note, under the toolbar
+                let mut overlay = ui.new_child(UiBuilder::new().max_rect(canvas_rect));
+                if !self.edit.clip_to_host {
+                    overlay.set_clip_rect(canvas_rect.intersect(ui.clip_rect()));
+                }
+                self.edit.draw_dragged_overlay(&mut overlay, root);
+                self.edit.draw_image_drag(&mut overlay);
                 self.show_outline(ui, root, canvas_rect);
                 ui.advance_cursor_after_rect(canvas_rect);
             });
