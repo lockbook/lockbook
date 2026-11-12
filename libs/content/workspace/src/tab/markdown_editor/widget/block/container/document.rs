@@ -193,7 +193,29 @@ impl<'ast> MdRender {
         let result = self.compute_layout_from(layout, width, self.layout.row_height);
         let h = result.height;
         self.show_wrap_layout(ui, top_left, &result);
+        if self.buffer.current.text.is_empty() {
+            self.show_placeholder(ui, top_left, width);
+        }
         h
+    }
+
+    fn show_placeholder(&mut self, ui: &mut Ui, top_left: Pos2, width: f32) {
+        let Some(text) = self.placeholder else { return };
+        let typed = match self.view {
+            View::Rendered => self.text_format_document(),
+            View::Source => self.text_format_syntax(),
+        };
+        let format = Format { color: self.ctx.get_lb_theme().neutral(), ..typed };
+        let start = (Grapheme(0), Grapheme(0));
+        let row_height = self.layout.row_height;
+        let layout =
+            self.compute_override_section_layout_new(start, text, width, row_height, format);
+
+        let fragments = self.fragments.len();
+        let wrap_lines = self.bounds.wrap_lines.len();
+        self.show_wrap_layout(ui, top_left, &layout);
+        self.fragments.truncate(fragments);
+        self.bounds.wrap_lines.truncate(wrap_lines);
     }
 
     /// Cheap height estimate for a source line — no shaping. Plaintext
