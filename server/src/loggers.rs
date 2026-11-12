@@ -1,5 +1,5 @@
 use std::backtrace::Backtrace;
-use std::fmt::{Debug, Write};
+use std::fmt::{Debug, Display, Write};
 use std::time::SystemTime;
 use std::{env, panic};
 
@@ -17,6 +17,7 @@ use tracing_gcp::GcpLayer;
 use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::prelude::*;
+use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::{Layer, filter, fmt};
 
 use pagerduty_rs::eventsv2async::EventsV2;
@@ -28,6 +29,7 @@ use crate::CARGO_PKG_VERSION;
 use crate::config::Config;
 
 static LOG_FILE: &str = "lockbook_server.log";
+static PD_FAILURE: &str = "lockbook_server_lib::pagerduty";
 
 pub fn init(config: &Config) {
     let log_level = env::var("LOG_LEVEL")
@@ -50,11 +52,7 @@ pub fn init(config: &Config) {
                 .with_filter(server_logs()),
         )
         // Logger for disaster response (any error logs sent to pagerduty)
-        .with(
-            PDLogger::new(config)
-                .with_filter(LevelFilter::ERROR)
-                .with_filter(server_logs()),
-        );
+        .with(paged(PDLogger::new(config)));
 
     tracing::subscriber::set_global_default(subscriber).unwrap();
     panic_hook();
@@ -62,6 +60,17 @@ pub fn init(config: &Config) {
 
 fn file_logger(config: &Config) -> RollingFileAppender {
     tracing_appender::rolling::never(&config.server.log_path, LOG_FILE)
+}
+
+fn paged<S, L>(layer: L) -> impl Layer<S>
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+    L: Layer<S>,
+{
+    layer
+        .with_filter(LevelFilter::ERROR)
+        .with_filter(server_logs())
+        .with_filter(filter::filter_fn(|metadata| metadata.target() != PD_FAILURE))
 }
 
 fn server_logs() -> FilterFn {
@@ -129,11 +138,11 @@ fn send_to_pagerduty(handle: &Handle, env: String, api_key: &str, alert: AlertDe
                         .event(event)
                         .await
                         .err()
-                        .map(|err| eprintln!("Failed reporting event to PagerDuty! {err}"))
+                        .map(|err| pd_failure("Failed reporting event to PagerDuty!", err))
                 })
                 .await
                 .err()
-                .map(|err| eprintln!("Failed spawning task in Tokio runtime! {err}"))
+                .map(|err| pd_failure("Failed spawning task in Tokio runtime!", err))
         })
     });
 }
@@ -154,9 +163,13 @@ pub fn record_startup(config: &Config) {
             links: None,
         };
         if let Err(err) = events.event(PagerEvent::Change(change)).await {
-            eprintln!("Failed reporting event to PagerDuty! {err}");
+            pd_failure("Failed reporting event to PagerDuty!", err);
         }
     });
+}
+
+fn pd_failure(context: &str, err: impl Display) {
+    tracing::error!(target: PD_FAILURE, "{context} {err}");
 }
 
 #[derive(Serialize, Default, Clone)]
@@ -206,4 +219,33 @@ fn panic_hook() {
         let bt = Backtrace::force_capture();
         tracing::error!("panic detected: {panic_info} {}", bt);
     }));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Pages(Arc<AtomicUsize>);
+
+    impl<S: Subscriber> Layer<S> for Pages {
+        fn on_event(&self, _event: &Event<'_>, _ctx: Context<'_, S>) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn pagerduty_failures_are_not_paged() {
+        let pages = Arc::new(AtomicUsize::new(0));
+        let subscriber = tracing_subscriber::Registry::default().with(paged(Pages(pages.clone())));
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::error!("disk full");
+            assert_eq!(pages.load(Ordering::SeqCst), 1);
+
+            pd_failure("Failed reporting event to PagerDuty!", "HttpError: 400");
+            tracing::warn!("slow request");
+            assert_eq!(pages.load(Ordering::SeqCst), 1);
+        });
+    }
 }
