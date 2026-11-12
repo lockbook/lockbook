@@ -6,7 +6,6 @@ use crate::model::file::File;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::filename::{MAX_FILENAME_LENGTH, NameComponents};
-use crate::model::symkey;
 use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
 use std::iter;
@@ -29,8 +28,8 @@ impl<S: Server> Lb<S> {
             .to_lazy();
 
         let id = tree.create(
-            Uuid::new_v4(),
-            symkey::generate_key(),
+            self.entropy.id(),
+            self.entropy.key(),
             parent,
             name,
             file_type,

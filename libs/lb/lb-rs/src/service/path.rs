@@ -18,7 +18,7 @@ impl<S> Lb<S> {
 
         let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
-        let id = tree.create_link_at_path(path, target_id, root, &self.keychain)?;
+        let id = tree.create_link_at_path(path, target_id, root, &self.keychain, &self.entropy)?;
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
@@ -38,7 +38,7 @@ impl<S> Lb<S> {
 
         let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
-        let id = tree.create_at_path(path, root, &self.keychain)?;
+        let id = tree.create_at_path(path, root, &self.keychain, &self.entropy)?;
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 

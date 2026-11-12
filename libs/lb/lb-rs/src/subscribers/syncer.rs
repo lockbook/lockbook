@@ -766,8 +766,8 @@ impl<S: Server> Lb<S> {
                                                 {
                                                     tracked
                                                 } else {
-                                                    let duplicate_id = Uuid::new_v4();
-                                                    let duplicate_key = symkey::generate_key();
+                                                    let duplicate_id = self.entropy.id();
+                                                    let duplicate_key = self.entropy.key();
                                                     duplicate_file_ids
                                                         .insert(id, (duplicate_id, duplicate_key));
                                                     rename_increments.insert(duplicate_id, 1);

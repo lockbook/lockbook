@@ -8,7 +8,6 @@ use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::meta::Meta;
-use crate::model::pubkey;
 use crate::service::events::Actor;
 use crate::{DEFAULT_API_LOCATION, Lb};
 use libsecp256k1::SecretKey;
@@ -27,7 +26,7 @@ impl<S: Server> Lb<S> {
     pub async fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {
-        self.create_account_with_key(username, api_url, pubkey::generate_key(), welcome_doc)
+        self.create_account_with_key(username, api_url, self.entropy.secret_key(), welcome_doc)
             .await
     }
 
@@ -52,7 +51,7 @@ impl<S: Server> Lb<S> {
         let account =
             Account { username: username.clone(), api_url: api_url.to_string(), private_key: key };
 
-        let root = Meta::create_root(&account)?.sign_with(&account)?;
+        let root = Meta::create_root(&account, &self.entropy)?.sign_with(&account)?;
         let root_id = *root.id();
 
         let last_synced = self

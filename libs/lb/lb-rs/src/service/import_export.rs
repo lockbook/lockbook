@@ -147,8 +147,8 @@ impl<S: Server> Lb<S> {
     async fn create_imported(
         &self, name: &str, parent: Uuid, content: Option<&[u8]>,
     ) -> LbResult<File> {
-        let id = Uuid::new_v4();
-        let key = symkey::generate_key();
+        let id = self.entropy.id();
+        let key = self.entropy.key();
         let document = match content {
             Some(content) => {
                 let (hmac, encrypted) = compress_encrypt_document(&key, content)?;

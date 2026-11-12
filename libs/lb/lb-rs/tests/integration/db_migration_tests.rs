@@ -5,6 +5,7 @@ use db_rs_old::{Config as OldConfig, Db};
 use lb_rs::Lb;
 use lb_rs::io::{self, legacy::CoreV4};
 use lb_rs::model::account::Account;
+use lb_rs::model::entropy::Entropy;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::meta::Meta;
@@ -17,7 +18,7 @@ fn copies_every_core_table_and_reopens_without_reimporting() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path();
     let account = Account::new("migration".into(), "http://localhost".into());
-    let meta = Meta::create_root(&account)
+    let meta = Meta::create_root(&account, &Entropy::default())
         .unwrap()
         .sign_with(&account)
         .unwrap();

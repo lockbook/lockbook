@@ -37,6 +37,7 @@ pub struct Lb<S = Network> {
     pub user_last_seen: Arc<RwLock<Instant>>,
     pub user_wake: Arc<Notify>,
     pub keychain: Keychain,
+    pub entropy: Entropy,
     pub db: LbDb,
     pub docs: AsyncDocs,
     pub client: S,
@@ -115,6 +116,7 @@ impl<S: Server> Lb<S> {
         >,
     ) -> LbResult<Self> {
         let keychain = Keychain::from(db.schema.account.as_ref());
+        let entropy = Entropy::new(&config);
         let db = Arc::new(RwLock::new(db));
 
         let status = StatusUpdater::default();
@@ -126,6 +128,7 @@ impl<S: Server> Lb<S> {
         let result = Self {
             config,
             keychain,
+            entropy,
             db,
             docs,
             client,
@@ -175,6 +178,7 @@ use io::docs::AsyncDocs;
 use io::network::Network;
 use io::server::Server;
 use model::core_config::Config;
+use model::entropy::Entropy;
 pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;

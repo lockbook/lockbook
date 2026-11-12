@@ -2,6 +2,7 @@ use db_rs::View;
 use db_rs::config::Config;
 use db_rs_old::{Config as OldConfig, Db};
 use lb_rs::model::account::Account as CoreAccount;
+use lb_rs::model::entropy::Entropy;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::meta::Meta;
@@ -25,7 +26,7 @@ fn copies_every_server_table_including_empty_groups() {
     let owner = Owner(account.public_key());
     let empty_owner =
         Owner(CoreAccount::new("empty".into(), "http://localhost".into()).public_key());
-    let meta = Meta::create_root(&account)
+    let meta = Meta::create_root(&account, &Entropy::default())
         .unwrap()
         .sign_with(&account)
         .unwrap()

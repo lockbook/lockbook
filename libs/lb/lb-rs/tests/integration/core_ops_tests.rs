@@ -1,4 +1,5 @@
 use lb_rs::model::account::Account;
+use lb_rs::model::entropy::Entropy;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::meta::Meta;
@@ -12,7 +13,7 @@ use uuid::Uuid;
 async fn test_create() {
     let account = &Account::new(random_name(), url());
     let keychain = Keychain::from(Some(account));
-    let root = Meta::create_root(account)
+    let root = Meta::create_root(account, &Entropy::default())
         .unwrap()
         .sign_with(account)
         .unwrap();
@@ -36,7 +37,10 @@ async fn test_create() {
 async fn test_rename() {
     let account = &Account::new(random_name(), url());
     let keychain = Keychain::from(Some(account));
-    let root = Meta::create_root(account).unwrap().sign(&keychain).unwrap();
+    let root = Meta::create_root(account, &Entropy::default())
+        .unwrap()
+        .sign(&keychain)
+        .unwrap();
     let files = vec![root.clone()].to_lazy();
     let mut files = files.stage(vec![]);
     let id = files
@@ -59,7 +63,10 @@ async fn test_rename() {
 async fn test_children_and_move() {
     let account = &Account::new(random_name(), url());
     let keychain = Keychain::from(Some(account));
-    let root = Meta::create_root(account).unwrap().sign(&keychain).unwrap();
+    let root = Meta::create_root(account, &Entropy::default())
+        .unwrap()
+        .sign(&keychain)
+        .unwrap();
 
     // Create a tree with a doc and a dir
     let tree = vec![root.clone()].to_lazy();

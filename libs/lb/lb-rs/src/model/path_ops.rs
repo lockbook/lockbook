@@ -1,10 +1,11 @@
 use crate::model::access_info::UserAccessMode;
+use crate::model::entropy::Entropy;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::lazy::{LazyStaged1, LazyTree};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
-use crate::model::{symkey, validate};
+use crate::model::validate;
 use crate::service::keychain::Keychain;
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -133,26 +134,26 @@ where
     Local: TreeLikeMut<F = Base::F>,
 {
     pub fn create_link_at_path(
-        &mut self, path: &str, target_id: Uuid, root: &Uuid, keychain: &Keychain,
+        &mut self, path: &str, target_id: Uuid, root: &Uuid, keychain: &Keychain, entropy: &Entropy,
     ) -> LbResult<Uuid> {
         validate::path(path)?;
         let file_type = FileType::Link { target: target_id };
         let path_components = split_path(path);
-        self.create_at_path_helper(file_type, path_components, root, keychain)
+        self.create_at_path_helper(file_type, path_components, root, keychain, entropy)
     }
 
     pub fn create_at_path(
-        &mut self, path: &str, root: &Uuid, keychain: &Keychain,
+        &mut self, path: &str, root: &Uuid, keychain: &Keychain, entropy: &Entropy,
     ) -> LbResult<Uuid> {
         validate::path(path)?;
         let file_type = if path.ends_with('/') { FileType::Folder } else { FileType::Document };
         let path_components = split_path(path);
-        self.create_at_path_helper(file_type, path_components, root, keychain)
+        self.create_at_path_helper(file_type, path_components, root, keychain, entropy)
     }
 
     fn create_at_path_helper(
         &mut self, file_type: FileType, path_components: Vec<&str>, root: &Uuid,
-        keychain: &Keychain,
+        keychain: &Keychain, entropy: &Entropy,
     ) -> LbResult<Uuid> {
         let mut current = *root;
 
@@ -195,8 +196,8 @@ where
                 if index != path_components.len() - 1 { FileType::Folder } else { file_type };
 
             current = self.create(
-                Uuid::new_v4(),
-                symkey::generate_key(),
+                entropy.id(),
+                entropy.key(),
                 &current,
                 path_components[index],
                 this_file_type,
