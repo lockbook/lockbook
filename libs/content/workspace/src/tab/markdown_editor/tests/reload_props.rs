@@ -30,7 +30,6 @@ fn reading_shows_the_latest_version() {
 }
 
 #[test]
-#[ignore = "a remote insert at the start of a word typed into lands after it"]
 fn typing_keeps_the_latest_version_and_the_typing() {
     run(Prop::ShowsDiskAndTyping, 300);
 }
