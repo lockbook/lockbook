@@ -133,6 +133,8 @@ pub struct MdRender {
     /// Set only while painting the floating drag-reorder card, so chrome
     /// that shouldn't travel with it (the fold button) can opt out.
     pub painting_drag_float: bool,
+    /// Where the note embed being dragged starts: only its floating copy shows its tab.
+    pub lifted_embed: Option<Grapheme>,
     /// The slug of a heading whose link was asked for this frame; the
     /// editor, which knows the note, puts the link on the clipboard.
     pub heading_copy: Option<String>,
@@ -761,6 +763,7 @@ impl MdRender {
             touch_mode,
             open_origin: None,
             painting_drag_float: false,
+            lifted_embed: None,
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
@@ -878,6 +881,7 @@ impl MdRender {
             touch_mode: false,
             open_origin: None,
             painting_drag_float: false,
+            lifted_embed: None,
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
@@ -1107,6 +1111,7 @@ impl Editor {
             touch_mode,
             open_origin: open_origin.clone(),
             painting_drag_float: false,
+            lifted_embed: None,
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
@@ -2322,6 +2327,8 @@ impl Editor {
                         // the canvas — only to register fragments and
                         // wrap-line bounds for navigation.
                         let blocks: Vec<_> = root.children().collect();
+                        let lifted = self.edit.in_progress_image_drag.as_ref();
+                        self.edit.renderer.lifted_embed = lifted.map(|drag| drag.image.0);
                         self.painted_rows.clear();
                         self.painted_canvas = canvas_rect;
                         let in_region = |id: &DocRowId| match self.region_bounds {
