@@ -1,5 +1,5 @@
-// Shadow std's print macros for every module below: a closed stdout (`lockbook list | head`) ends the CLI quietly
-// instead of panicking.
+// Shadow std's print macros for every module below: a closed stdout (`lockbook list | head`) drops output quietly
+// instead of panicking, and the command still runs to its own result.
 macro_rules! print {
     ($($arg:tt)*) => { $crate::print_out(format_args!($($arg)*)) };
 }
@@ -262,7 +262,7 @@ fn print_out(args: std::fmt::Arguments) {
     let mut stdout = std::io::stdout().lock();
     if let Err(err) = stdout.write_fmt(args).and_then(|()| stdout.flush()) {
         if err.kind() == std::io::ErrorKind::BrokenPipe {
-            std::process::exit(0);
+            return;
         }
         panic!("failed printing to stdout: {err}");
     }
