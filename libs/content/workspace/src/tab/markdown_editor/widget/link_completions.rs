@@ -12,6 +12,7 @@ use crate::file_cache::{
     FileCache, FilesExt as _, link_id, relative_path, split_fragment, strip_ext, web_link,
     wiki_fragment, wiki_title,
 };
+use crate::style::chrome::phosphor;
 use crate::style::tree_metrics::INDENT_BASE;
 use crate::style::{FileRow, Space, ThemeExt as _, TypeRole, file_row_icon, parent_crumbs};
 use crate::tab::image_viewer::is_supported_image_fmt;
@@ -76,6 +77,8 @@ pub struct LinkCompletions {
     /// query, and whether it was typed in: typing in one opens the popup,
     /// moving the caret into one doesn't.
     closed_wikilink: Option<(Grapheme, String, bool)>,
+    /// The last search named a note whose headings aren't read yet.
+    pub(crate) loading: bool,
 }
 
 impl LinkCompletions {
@@ -107,10 +110,12 @@ impl LinkCompletions {
             && last_wikilink.is_some_and(|(start, q, typed)| {
                 start == range.0 && (was_active || typed || q != query)
             });
+        let suppressed = self.is_suppressed(buffer, query);
         if closed_wikilink {
-            self.closed_wikilink = Some((range.0, query.to_string(), typed));
+            // Escape ends the typing
+            self.closed_wikilink = Some((range.0, query.to_string(), typed && !suppressed));
         }
-        if self.is_suppressed(buffer, query) {
+        if suppressed {
             return;
         }
         // past a wikilink's `|` is its display text, which nothing completes
@@ -165,7 +170,10 @@ impl LinkCompletions {
         // link rather than mid-edit).
         let cache = files.read().unwrap();
         let results = self.search(&cache, file_id, query, mode, note);
-        if results.is_empty() || (dest && results.iter().any(|r| r.insert == query)) {
+        // a caret parked in a link waits for nothing
+        let loading = self.loading && (typed || was_active);
+        let none = results.is_empty() && !loading;
+        if none || (dest && results.iter().any(|r| r.insert == query)) {
             return;
         }
 
@@ -198,15 +206,21 @@ impl LinkCompletions {
         let cache = files.read().unwrap();
         let results = self.search(&cache, file_id, &query, mode, &buffer.current.text);
         drop(cache);
-        if results.is_empty() {
-            return;
-        }
-        self.selected = self.selected.min(results.len() - 1);
-
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
             self.suppressed = Some((buffer.current.seq, query));
             return;
         }
+        if results.is_empty() {
+            // the keys that would pick a row wait with the loading one
+            if editor_focused {
+                ctx.input_mut(|i| {
+                    i.consume_key(Modifiers::NONE, Key::Enter);
+                    i.consume_key(Modifiers::NONE, Key::Tab);
+                });
+            }
+            return;
+        }
+        self.selected = self.selected.min(results.len() - 1);
 
         if !editor_focused {
             return;
@@ -802,6 +816,7 @@ impl LinkCompletions {
     fn search(
         &mut self, cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode, note: &str,
     ) -> Vec<FileResult> {
+        self.loading = false;
         let heading_query = match mode {
             CompletionMode::WikiLink | CompletionMode::WikiEmbed => wiki_fragment(query),
             CompletionMode::LinkDest => split_fragment(query),
@@ -966,7 +981,9 @@ impl LinkCompletions {
                 true => self.own_headings(note),
                 false => {
                     cache.notes.want();
-                    cache.notes.headings(*id).unwrap_or_default()
+                    let headings = cache.notes.headings(*id);
+                    self.loading |= headings.is_none() && !cache.notes.is_ready();
+                    headings.unwrap_or_default()
                 }
             })
             .collect();
@@ -1053,7 +1070,8 @@ impl MdEdit {
             .map(|f| f.name.clone())
             .unwrap_or_default();
         drop(cache);
-        if results.is_empty() {
+        let loading = self.link_completions.loading;
+        if results.is_empty() && !loading {
             return;
         }
 
@@ -1102,6 +1120,9 @@ impl MdEdit {
                 height += title_h(i);
             }
             height += row_h(r);
+        }
+        if loading {
+            height += FileRow::height_for(false);
         }
         let size = Vec2::new(POPUP_WIDTH, height);
         let popup_rect =
@@ -1153,6 +1174,18 @@ impl MdEdit {
                 clicked = Some(i);
             }
             y += row_h(r);
+        }
+        if loading {
+            let rect = Rect::from_min_max(
+                Pos2::new(left, y),
+                Pos2::new(right, y + FileRow::height_for(false)),
+            );
+            FileRow::new(&theme, "Loading…")
+                .icon(phosphor::SPINNER_GAP)
+                .spinning(true)
+                .muted(true)
+                .interactive(false)
+                .paint_at_hit(ui, rect, rect, Id::unique("link_loading"));
         }
 
         if let Some(idx) = clicked {

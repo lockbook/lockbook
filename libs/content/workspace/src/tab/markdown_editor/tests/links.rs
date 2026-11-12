@@ -126,10 +126,14 @@ fn closed_wikilinks_complete_as_typed() {
     for md in ["see [[Plan]]", "see [[plan.md]]", "see [[pla]]", "see [[]]", "see ![[chart.png]]"] {
         assert!(!completes(md, md.find("]]").unwrap(), ""), "{md}");
     }
+    // nor into a link to headings not read yet
+    for md in ["see [x](design/plan.md#)", "see [[design/plan#]]"] {
+        assert!(!completes(md, md.find('#').unwrap() + 1, ""), "{md}");
+    }
 }
 
-/// The popup a `#` asked for opens once the note's headings are read, which
-/// can be frames after the `#` was typed.
+/// A `#` opens the popup at once, loading until the note's headings are
+/// read, which can be frames after the `#` was typed.
 #[test]
 fn a_hash_lists_headings_read_late() {
     let files = shared_project();
@@ -142,11 +146,27 @@ fn a_hash_lists_headings_read_late() {
     ws.push(Event::Replace { region: Region::Selection, text: "#".into(), advance_cursor: true });
     ws.enter_frame();
     ws.enter_frame();
+    let completions = &ws.editor.edit.link_completions;
+    assert!(completions.active && completions.loading);
+    let enter = egui::Event::Key {
+        key: egui::Key::Enter,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    ws.enter_frame_with_input(vec![enter]);
+    assert_eq!(ws.get_text(), "see [[design/plan#]]", "Enter waits with the loading row");
     let files = ws.editor.edit.renderer.files.clone();
-    files.write().unwrap().notes.insert(plan, crate::links::read_note("# Tent"));
+    files
+        .write()
+        .unwrap()
+        .notes
+        .insert(plan, crate::links::read_note("# Tent"));
     ws.enter_frame();
     ws.enter_frame();
-    assert!(ws.editor.edit.link_completions.active);
+    let completions = &ws.editor.edit.link_completions;
+    assert!(completions.active && !completions.loading);
 }
 
 /// A link to a file is a pill unless it was given a title of its own.

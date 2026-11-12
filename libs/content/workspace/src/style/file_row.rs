@@ -75,6 +75,8 @@ pub struct FileRow<'a> {
     highlighted: bool,
     /// Center the hanging mark + label (content-search “Show more”).
     centered: bool,
+    /// The icon turns once a second in accent ink, as the tab's loading mark.
+    spinning: bool,
 }
 
 impl<'a> FileRow<'a> {
@@ -100,6 +102,7 @@ impl<'a> FileRow<'a> {
             muted: false,
             highlighted: false,
             centered: false,
+            spinning: false,
         }
     }
 
@@ -210,6 +213,12 @@ impl<'a> FileRow<'a> {
         self
     }
 
+    /// Turn the icon in accent ink while something loads.
+    pub fn spinning(mut self, on: bool) -> Self {
+        self.spinning = on;
+        self
+    }
+
     /// Center hanging mark + label in the row (not under the parent caption).
     pub fn centered(mut self, on: bool) -> Self {
         self.centered = on;
@@ -292,7 +301,7 @@ impl<'a> FileRow<'a> {
         let ink = if self.muted { t.neutral_fg_secondary() } else { t.neutral_fg() };
         let accent_icon =
             matches!(self.icon, phosphor::FOLDER | phosphor::FOLDER_OPEN | phosphor::HOUSE);
-        let icon_ink = if accent_icon { t.accent() } else { ink };
+        let icon_ink = if accent_icon || self.spinning { t.accent() } else { ink };
         let painter = ui
             .painter()
             .with_clip_rect(ui.clip_rect().intersect(paint_rect));
@@ -318,7 +327,17 @@ impl<'a> FileRow<'a> {
 
         if !hanging {
             let ig = painter.layout_no_wrap(self.icon.into(), phosphor_ui_font_id(), icon_ink);
-            painter.galley(pos2(icon_x, icon_cy - ig.size().y / 2.0), ig, icon_ink);
+            let at = pos2(icon_x, icon_cy - ig.size().y / 2.0);
+            if self.spinning {
+                ui.ctx().request_repaint();
+                let angle = (ui.input(|i| i.time) * std::f64::consts::TAU) as f32;
+                painter.add(
+                    egui::epaint::TextShape::new(at, ig, icon_ink)
+                        .with_angle_and_anchor(angle, egui::Align2::CENTER_CENTER),
+                );
+            } else {
+                painter.galley(at, ig, icon_ink);
+            }
         }
 
         // Trailing marks from the right: end pad · pin? · share?
