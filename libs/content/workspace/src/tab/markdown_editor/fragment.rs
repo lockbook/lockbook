@@ -89,7 +89,9 @@ pub fn document_headings(md: &str) -> Vec<Heading> {
 
 /// Which of `headings` a fragment names: a slug first, so `#foo-1` is the
 /// second "Foo" and never a heading titled "foo-1"; then the first heading
-/// with that text. Case doesn't count; percent-escapes are decoded.
+/// with that text, its quotes, dashes and ellipses spelled either way, so a
+/// phone's `Don’t` finds `Don't`. Case doesn't count; percent-escapes are
+/// decoded.
 pub fn find_heading(headings: &[Heading], fragment: &str) -> Option<usize> {
     let fragment = urlencoding::decode(fragment).map_or(fragment.into(), |f| f.into_owned());
     let fragment = fragment.trim().to_lowercase();
@@ -104,6 +106,29 @@ pub fn find_heading(headings: &[Heading], fragment: &str) -> Option<usize> {
                 .iter()
                 .position(|h| h.text.to_lowercase() == fragment)
         })
+        .or_else(|| {
+            let fragment = typed(&fragment);
+            headings
+                .iter()
+                .position(|h| typed(&h.text.to_lowercase()) == fragment)
+        })
+}
+
+/// `text` with typographic quotes, dashes and ellipses as they're typed on
+/// a keyboard without them.
+fn typed(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '‘' | '’' => out.push('\''),
+            '“' | '”' => out.push('"'),
+            '–' => out.push_str("--"),
+            '—' => out.push_str("---"),
+            '…' => out.push_str("..."),
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 /// What a wiki link puts after `#`: the heading's text, unless that names an
@@ -172,6 +197,42 @@ mod tests {
         assert_eq!(slugify("  Hello, World!  "), "hello-world");
         assert_eq!(slugify("déjà vu"), "déjà-vu");
         assert_eq!(slugify("नमस्ते दुनिया"), "नमस्ते-दुनिया");
+    }
+
+    /// A heading's text and slug are what was typed, as the screen shows it:
+    /// `Don't` is found by `Don't`, by GitHub's `dont-panic`, and by the
+    /// `Don’t` a phone keyboard types.
+    #[test]
+    fn punctuation_is_as_typed() {
+        let md = "# Don't panic\n\n# \"Quoted\" words\n\n# Before -- after\n\n# One --- two\n\n# Wait...\n";
+        let headings = document_headings(md);
+        let flat: Vec<(&str, &str)> = headings
+            .iter()
+            .map(|h| (h.text.as_str(), h.slug.as_str()))
+            .collect();
+        assert_eq!(
+            flat,
+            [
+                ("Don't panic", "dont-panic"),
+                ("\"Quoted\" words", "quoted-words"),
+                ("Before -- after", "before----after"),
+                ("One --- two", "one-----two"),
+                ("Wait...", "wait"),
+            ]
+        );
+        assert_eq!(find_heading(&headings, "Don't panic"), Some(0));
+        assert_eq!(find_heading(&headings, "Don’t panic"), Some(0));
+        assert_eq!(find_heading(&headings, "“Quoted” words"), Some(1));
+        assert_eq!(find_heading(&headings, "Wait…"), Some(4));
+        assert_eq!(find_heading(&headings, "Before – after"), Some(2), "an earlier wiki token");
+        assert_eq!(find_heading(&headings, "One — two"), Some(3), "a phone's dash");
+        let typed_on_a_phone = document_headings("# One — two\n");
+        assert_eq!(find_heading(&typed_on_a_phone, "One --- two"), Some(0));
+        let langs = document_headings("# C\n");
+        assert_eq!(find_heading(&langs, "C++"), None, "a heading's punctuation counts");
+        for (i, h) in headings.iter().enumerate() {
+            assert_eq!(find_heading(&headings, &wiki_token(h)), Some(i), "{h:?}");
+        }
     }
 
     #[test]

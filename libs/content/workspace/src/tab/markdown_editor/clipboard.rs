@@ -39,8 +39,7 @@ impl<'ast> MdRender {
     }
 
     pub fn rendered_html_of(&self, markdown: &str) -> String {
-        let mut options = Self::comrak_options();
-        options.parse.smart = false; // the plain flavor and the screen show the source characters
+        let options = Self::comrak_options();
         let html = self.diagrams_as_images(comrak::markdown_to_html(markdown, &options));
         match html
             .strip_prefix("<p>")

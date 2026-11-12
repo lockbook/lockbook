@@ -1046,7 +1046,6 @@ impl MdRender {
 
     pub fn comrak_options() -> Options<'static> {
         let mut options = Options::default();
-        options.parse.smart = true;
         options.parse.ignore_setext = true;
         options.extension.alerts = true;
         options.extension.autolink = true;
