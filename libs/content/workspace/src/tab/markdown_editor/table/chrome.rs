@@ -260,12 +260,12 @@ impl MdRender {
             drag.unit == DragUnit::Row && row.line.contains_inclusive(drag.section_range.0)
         });
         let id = row_handle_id(row.line.start());
-        // the header does not drag: its pill is plain
-        let glyph = if row.index > 0 { phosphor::DOTS_SIX_VERTICAL } else { "" };
+        // body rows reorder among themselves; a handle that can't drag is plain
+        let drags = row.index > 0 && row.of > 2;
+        let glyph = if drags { phosphor::DOTS_SIX_VERTICAL } else { "" };
         let resp = self.table_handle(ui, id, pill, glyph, dragging);
 
-        // body rows reorder among themselves
-        if row.index > 0 && row.of > 2 {
+        if drags {
             self.handle_drag_resp(ui, &resp, dragging, true, |r, origin| {
                 Some(BlockDrag {
                     section_range: row.line,
@@ -315,9 +315,11 @@ impl MdRender {
             ui.painter()
                 .rect_filled(column.rect, 0.0, theme.accent().gamma_multiply(0.12));
         }
-        let resp = self.table_handle(ui, id, pill, phosphor::DOTS_SIX, dragging);
+        let drags = column.of > 1;
+        let glyph = if drags { phosphor::DOTS_SIX } else { "" };
+        let resp = self.table_handle(ui, id, pill, glyph, dragging);
 
-        if column.of > 1 {
+        if drags {
             self.handle_drag_resp(ui, &resp, dragging, true, |r, origin| {
                 r.table_column_drag((key, column.index), origin)
             });
