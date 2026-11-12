@@ -38,7 +38,7 @@ use crate::{
         signed_meta::SignedMeta,
         staged::StagedTreeLikeMut,
         symkey,
-        tree_like::TreeLike,
+        tree_like::{TreeLike, TreeLikeMut},
         validate,
     },
     service::events::{Actor, Event, SyncIncrement},
@@ -1064,11 +1064,7 @@ impl<S: Server> Lb<S> {
         let db = tx.db();
 
         // base = local
-        (&mut db.base_metadata)
-            .to_lazy()
-            .stage(local_changes_no_digests)
-            .promote()?;
-        db.base_metadata.stage(&mut db.local_metadata).prune()?;
+        promote_pushed(&mut db.base_metadata, &mut db.local_metadata, local_changes_no_digests)?;
 
         tx.end();
 
@@ -1147,12 +1143,7 @@ impl<S: Server> Lb<S> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
         // base = local (metadata)
-        (&mut db.base_metadata)
-            .to_lazy()
-            .stage(local_changes_digests_only)
-            .promote()?;
-
-        db.base_metadata.stage(&mut db.local_metadata).prune()?;
+        promote_pushed(&mut db.base_metadata, &mut db.local_metadata, local_changes_digests_only)?;
 
         tx.end();
 
@@ -1452,6 +1443,28 @@ fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
         id = *file.parent();
     }
     Ok(remote.access_mode(me, &id)? >= Some(UserAccessMode::Write))
+}
+
+/// Promotes `pushed` into `base`, keeping local writes made during the push.
+fn promote_pushed<B, L>(base: &mut B, local: &mut L, pushed: Vec<SignedMeta>) -> LbResult<()>
+where
+    B: TreeLikeMut<F = SignedMeta>,
+    L: TreeLikeMut<F = SignedMeta>,
+{
+    // a local write can happen between push and promote
+    let local_files = {
+        let tree = base.stage(&*local);
+        pushed
+            .iter()
+            .map(|f| tree.find(f.id()).cloned())
+            .collect::<LbResult<Vec<_>>>()?
+    };
+    base.to_lazy().stage(pushed).promote()?;
+    // this ensures those writes are not lost when the push is promoted
+    for file in local_files {
+        local.insert(file)?;
+    }
+    base.stage(local).prune()
 }
 
 /// `ids` ordered so each file comes after its parent when that parent is also in `ids`.
