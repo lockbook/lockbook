@@ -674,7 +674,7 @@ fn event(src: &mut ByteSource, cursor: Grapheme, doc_len_chars: usize) -> Event 
 /// flags as the initial doc. Other event kinds (deletion, selection,
 /// navigation, indent, undo/redo) are pure mutations that don't
 /// introduce new content, so they pass through unchanged.
-fn event_with(
+pub(super) fn event_with(
     src: &mut ByteSource, cursor: Grapheme, doc_len_chars: usize, features: &Features,
 ) -> Event {
     let weights = &[
@@ -848,7 +848,7 @@ fn typed_char_with(src: &mut ByteSource, features: &Features) -> String {
 /// Number of events to generate (1–8). Each event is built lazily
 /// against the current buffer state, since the editor's contract is
 /// that offsets are valid at the event's frame start.
-fn event_count(src: &mut ByteSource) -> usize {
+pub(super) fn event_count(src: &mut ByteSource) -> usize {
     1 + src.bias(&[3, 4, 4, 3, 2, 2, 1, 1])
 }
 

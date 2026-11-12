@@ -37,6 +37,7 @@ mod link_card;
 mod links;
 mod regressions;
 mod reload_props;
+mod remote_props;
 mod render_props;
 mod source;
 mod spelling;
