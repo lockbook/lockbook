@@ -1842,6 +1842,18 @@ mod reload_tests {
     }
 
     #[test]
+    fn a_save_records_after_a_reload_lands_during_it() {
+        let mut buf = Buffer::from("a c");
+        edit(&mut buf, (0, 3), "a X c Y");
+        let (seq, written) = (buf.local_seq(), buf.current.text.clone());
+        edit(&mut buf, (7, 7), " Z");
+        reload(&mut buf, "a c");
+        buf.saved(seq, written);
+        reload(&mut buf, "R a X c Y");
+        assert_eq!(buf.current.text, "R a X c Y Z");
+    }
+
+    #[test]
     fn reload_after_an_undo_at_a_reload() {
         let mut buf = Buffer::from("aa bb cc");
         reload(&mut buf, "aa bb cc R");
