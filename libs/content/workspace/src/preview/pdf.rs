@@ -501,6 +501,7 @@ fn polyline(points: &[Pos2], closed: bool) -> Option<Path> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::preview::print::for_each_shape;
     use crate::test_utils::ws::TestWs;
 
     /// Pages hold at most a page each, run from the top to the bottom, and
@@ -543,10 +544,10 @@ mod tests {
         }
     }
 
-    /// A note with a folded heading, a wide table, a long line of code, an
-    /// emoji, and an image prints.
+    /// Everything a note shows prints: a printed note's frame holds no egui
+    /// text and no GPU callback, which the PDF leaves out.
     #[test]
-    fn a_note_prints() {
+    fn a_printed_note_paints_nothing_the_pdf_drops() {
         let mut t = TestWs::new();
         let mut png = vec![];
         image::RgbaImage::from_pixel(40, 30, image::Rgba([200, 80, 40, 255]))
@@ -554,17 +555,41 @@ mod tests {
             .unwrap();
         let picture = t.doc("picture.png", "");
         t.ws.core.write_document(picture, &png).unwrap();
+        t.doc("Plan.md", "# Plan\n\n## Goals\n\nShip the release.\n");
+        let broken = t.doc("broken.png", "");
+        t.ws.core.write_document(broken, b"not a png").unwrap();
+        let broken = t.doc("broken.pdf", "");
+        t.ws.core.write_document(broken, b"not a pdf").unwrap();
         let wide = (0..12).map(|i| format!("column {i}")).collect::<Vec<_>>();
+        let alerts = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]
+            .map(|kind| format!("> [!{kind}]\n> An alert.\n\n"))
+            .concat();
         let note = format!(
-            "# Title 🧾\n\n## Folded {fold}\n\nHidden until printed.\n\n| {} |\n|{}|\n| {} |\n\n```\n{}\n```\n\n![picture](picture.png)\n",
+            "# Title 🧾\n\n{alerts}- [ ] open\n- [x] done\n\nA [link](https://lockbook.net), a footnote[^1], `code` and $x^2$.\n\n## Folded {fold}\n\nHidden until printed.\n\n| {} |\n|{}|\n| {} |\n\n```\n{}\n```\n\n![picture](picture.png)\n\n![[Plan#Goals]]\n\n![[Plan#Gone]]\n\n![[broken.png]]\n\n![[broken.pdf]]\n\n![broken](broken.png)\n\n[^1]: The footnote.\n",
             wide.join(" | "),
-            "---|".repeat(12),
+            ["---"; 12].join("|"),
             wide.join(" | "),
             "code ".repeat(80),
             fold = crate::tab::markdown_editor::fold::FOLD_TAG,
         );
         let id = t.doc("note.md", &note);
-        let pdf = render_pdf(&t.ws.resources(), id, None, Paper::LETTER).unwrap();
+        let live = t.ws.resources();
+
+        let size = Vec2::new(Paper::LETTER.note_width(), Paper::LETTER.note_height());
+        let frame = print_frame(&live, id, None, size).unwrap();
+        let mut dropped = vec![];
+        for clipped in &frame.shapes {
+            for_each_shape(&clipped.shape, &mut |shape| match shape {
+                Shape::Text(text) => dropped.push(text.galley.text().to_string()),
+                Shape::Callback(callback) if !callback.callback.is::<PrintText>() => {
+                    dropped.push("a GPU callback".into())
+                }
+                _ => {}
+            });
+        }
+        assert_eq!(dropped, Vec::<String>::new());
+
+        let pdf = render_pdf(&live, id, None, Paper::LETTER).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
     }
 }
