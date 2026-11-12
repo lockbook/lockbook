@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use db_rs::View;
+use lb_rs::io::copy::copy_db;
 use lb_rs::io::network::ApiError;
 use lb_rs::io::server::{ApiResult, Server};
 use lb_rs::model::account::Account;
@@ -56,6 +57,28 @@ impl<D: DocumentService> ServerState<Nop, Nop, Nop, D> {
             discord_client: Default::default(),
             recent_new_account_ips: Default::default(),
             clock: Default::default(),
+        }
+    }
+}
+
+impl<D: DocumentService> ServerState<Nop, Nop, Nop, D> {
+    /// A server holding this one's index, its settings and `documents`, sharing nothing with it.
+    pub async fn copy_with<E: DocumentService>(
+        &self, documents: E,
+    ) -> ServerState<Nop, Nop, Nop, E> {
+        let index_db =
+            copy_db(&mut *self.index_db.lock().await).expect("an in-memory database copies");
+        let ips = self.recent_new_account_ips.lock().await.clone();
+        ServerState {
+            config: self.config.clone(),
+            index_db: Arc::new(tokio::sync::Mutex::new(index_db)),
+            stripe_client: Nop {},
+            google_play_client: Nop {},
+            app_store_client: Nop {},
+            document_service: documents,
+            discord_client: self.discord_client.clone(),
+            recent_new_account_ips: Arc::new(tokio::sync::Mutex::new(ips)),
+            clock: Arc::new((*self.clock).clone()),
         }
     }
 }
@@ -121,6 +144,13 @@ fn in_process_config() -> Config {
 #[derive(Clone, Default)]
 pub struct InMemDocuments {
     docs: Arc<Mutex<HashMap<(Uuid, DocumentHmac), EncryptedDocument>>>,
+}
+
+impl InMemDocuments {
+    /// A store holding these documents, sharing nothing with this one.
+    pub fn copy(&self) -> Self {
+        Self { docs: Arc::new(Mutex::new(self.docs.lock().unwrap().clone())) }
+    }
 }
 
 #[async_trait]

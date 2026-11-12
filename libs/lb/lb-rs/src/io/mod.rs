@@ -5,6 +5,7 @@
 //! suitable for a range of devices: iPhones with flaky networks to servers
 //! and workstations with excellent networks.
 
+pub mod copy;
 pub mod docs;
 pub mod legacy;
 pub mod network;
