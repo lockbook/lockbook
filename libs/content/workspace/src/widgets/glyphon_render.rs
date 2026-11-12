@@ -166,8 +166,24 @@ impl TextBufferArea {
     }
 }
 
-/// Paints `areas` as `painter` paints its shapes: at its opacity.
-pub fn paint_glyphon(painter: &egui::Painter, rect: Rect, mut areas: Vec<TextBufferArea>) {
+/// Text painted for print rather than the GPU, in paint order among the
+/// other shapes.
+pub struct PrintText(pub Vec<TextBufferArea>);
+
+/// Marks a context while a [`crate::tab::Presentation::Print`] tab draws in
+/// it: its text paints as [`PrintText`].
+#[derive(Clone, Copy)]
+pub struct Printing;
+
+/// Whether `ctx` is drawing a tab for print.
+pub fn printing(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<Printing>(egui::Id::NULL))
+        .is_some()
+}
+
+/// Paints `areas` clipped to `rect` at `painter`'s opacity: through
+/// glyphon, or as [`PrintText`] while printing.
+pub fn paint_text(painter: &egui::Painter, rect: Rect, mut areas: Vec<TextBufferArea>) {
     let opacity = painter.opacity();
     if opacity == 0.0 {
         return;
@@ -180,7 +196,14 @@ pub fn paint_glyphon(painter: &egui::Painter, rect: Rect, mut areas: Vec<TextBuf
             .map(|area| area.faded(opacity, &mut font_system))
             .collect();
     }
-    painter.add(egui_wgpu::Callback::new_paint_callback(rect, GlyphonRendererCallback::new(areas)));
+    if printing(painter.ctx()) {
+        painter.add(egui::PaintCallback { rect, callback: Arc::new(PrintText(areas)) });
+    } else {
+        painter.add(egui_wgpu::Callback::new_paint_callback(
+            rect,
+            GlyphonRendererCallback::new(areas),
+        ));
+    }
 }
 
 impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {

@@ -755,11 +755,7 @@ impl<'a> GlyphonTextEdit<'a> {
 
             // egui_wgpu clamps the callback rect to the screen and drops a zero-area result.
             let callback_rect = rect.intersect(ui.clip_rect());
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    callback_rect,
-                    crate::GlyphonRendererCallback::new(areas),
-                ));
+            crate::paint_text(ui.painter(), callback_rect, areas);
 
             if focused {
                 const CURSOR_W: f32 = 2.0;

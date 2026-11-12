@@ -12,7 +12,6 @@ use egui::{Align2, Area, Color32, Id, Order, Rect, Sense, Ui, pos2, vec2};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::Grapheme;
 
-use crate::GlyphonRendererCallback;
 use crate::style::sheet::sheet_dim;
 use crate::style::{
     CHROME_BAND_GLYPH, EDGE_FADE, FG_HOVER, Radius, Space, ThemeExt as _, TypeRole, context_menu,
@@ -178,8 +177,8 @@ impl Outline {
         let max_list = screen.height() * 0.6;
 
         let gap = Space::Md.pts();
-        let measured = measure_headings(ctx, rows, current, inner_w, true, 1.0);
-        let mentions = measure_linked(ctx, linked, inner_w, true, 1.0);
+        let measured = measure_headings(ctx, rows, current, inner_w, true);
+        let mentions = measure_linked(ctx, linked, inner_w, true);
         let room = (max_list - header - gap).max(0.0);
         let (heads_h, links_h) = split(room, measured.height(), mentions.height());
         let size = vec2(width, 2.0 * header + gap + heads_h + links_h + 2.0 * pad);
@@ -275,8 +274,8 @@ impl Outline {
             .show(ctx, |ui| {
                 ui.multiply_opacity(shown);
                 let inner_w = area.width() - 2.0 * pad;
-                let headings = measure_headings(ctx, rows, current, inner_w, false, shown);
-                let mentions = measure_linked(ctx, linked, inner_w, false, shown);
+                let headings = measure_headings(ctx, rows, current, inner_w, false);
+                let mentions = measure_linked(ctx, linked, inner_w, false);
                 let room = (area.height() - 2.0 * header - gap - 2.0 * pad).max(0.0);
                 let (heads_h, links_h) = split(room, headings.height(), mentions.height());
                 card = Rect::from_min_size(
@@ -448,10 +447,7 @@ impl Scroll {
         // glyphon shapes emoji, which egui's fonts leave out
         let visible = view.intersect(ui.clip_rect());
         if !texts.is_empty() && visible.is_positive() {
-            painter.add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                visible,
-                GlyphonRendererCallback::new(texts),
-            ));
+            crate::paint_text(&painter, visible, texts);
         }
 
         let clear = Color32::TRANSPARENT;
@@ -578,12 +574,11 @@ impl Measured {
     }
 }
 
-/// Lays out heading `rows` at `width`, `shown` faded. Touch rows are a thumb
+/// Lays out heading `rows` at `width`. Touch rows are a thumb
 /// tall and wrap a long title to two lines; mouse rows are a control tall and
 /// truncate.
 fn measure_headings(
     ctx: &egui::Context, headings: Headings, current: Option<usize>, width: f32, touch: bool,
-    shown: f32,
 ) -> Measured {
     let rows = headings.rows;
     let t = ctx.get_lb_theme();
@@ -594,7 +589,7 @@ fn measure_headings(
             let indent = row.level.saturating_sub(1).min(5) as f32 * Space::Md.pts();
             let text_w = (width - indent - 2.0 * Space::Sm.pts()).max(1.0);
             let color = if current == Some(i) { t.accent() } else { t.neutral_fg() };
-            let label = GlyphonLabel::new(&row.text, color.gamma_multiply(shown));
+            let label = GlyphonLabel::new(&row.text, color);
             let label = shape(ctx, label, text_w, if touch { 2 } else { 1 });
             let min_h = if touch { TOUCH_ROW_H } else { control_height() };
             let height = min_h.max(label.size.y + 2.0 * Space::Xs.pts());
@@ -616,19 +611,17 @@ const MENTION_LINES: usize = 3;
 /// Characters kept before a link's own words, so they show in the lines.
 const MENTION_LEAD: usize = 48;
 
-/// Lays out the notes `linked` here at `width`, `shown` faded: each note's
+/// Lays out the notes `linked` here at `width`: each note's
 /// title, then its links with the words around them, the link's own in the
 /// text color. Touch rows are at least a thumb tall, and a long title wraps to
 /// two lines.
-fn measure_linked(
-    ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch: bool, shown: f32,
-) -> Measured {
+fn measure_linked(ctx: &egui::Context, linked: &[LinkedNote], width: f32, touch: bool) -> Measured {
     let min_h = if touch { TOUCH_ROW_H } else { control_height() };
     let t = ctx.get_lb_theme();
     let text_w = |indent: f32| (width - indent - 2.0 * Space::Sm.pts()).max(1.0);
     let mut rows = vec![];
     for note in linked {
-        let label = GlyphonLabel::new(&note.title, t.neutral_fg().gamma_multiply(shown));
+        let label = GlyphonLabel::new(&note.title, t.neutral_fg());
         let label = shape(ctx, label, text_w(0.0), if touch { 2 } else { 1 });
         rows.push(MeasuredRow {
             height: min_h.max(label.size.y + 2.0 * Space::Xs.pts()),
@@ -641,13 +634,13 @@ fn measure_linked(
         let indent = Space::Md.pts();
         for m in &note.links {
             let (text, own) = lead_trimmed(&m.context, m.label.clone());
-            let quiet = Some(t.neutral_fg_secondary().gamma_multiply(shown));
+            let quiet = Some(t.neutral_fg_secondary());
             let spans = vec![
                 (&text[..own.start], quiet),
                 (&text[own.clone()], None),
                 (&text[own.end..], quiet),
             ];
-            let label = GlyphonLabel::new_colored(spans, t.neutral_fg().gamma_multiply(shown));
+            let label = GlyphonLabel::new_colored(spans, t.neutral_fg());
             let label = shape(ctx, label, text_w(indent), MENTION_LINES);
             let least = if touch { TOUCH_ROW_H } else { 0.0 };
             rows.push(MeasuredRow {

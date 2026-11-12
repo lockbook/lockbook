@@ -490,11 +490,7 @@ impl OptionLabel {
                 let top = target - shaped.baseline(ui.ctx()).unwrap_or(0.0);
                 let at = egui::Rect::from_min_size(pos2(x, top), shaped.size);
                 let area = shaped.text_area(at, ui.ctx(), clip);
-                ui.painter()
-                    .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                        clip,
-                        workspace_rs::GlyphonRendererCallback::new(vec![area]),
-                    ));
+                workspace_rs::paint_text(ui.painter(), clip, vec![area]);
             }
         }
     }

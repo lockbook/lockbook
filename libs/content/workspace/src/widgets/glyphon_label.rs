@@ -136,6 +136,9 @@ impl ShapedLabel {
     /// places a galley, in `painter`'s layer, clip and opacity, in order among its shapes.
     pub fn paint(self, painter: &egui::Painter, pos: egui::Pos2) {
         use egui::emath::GuiRounding as _;
+        if !painter.is_visible() {
+            return;
+        }
         let clip = painter.clip_rect();
         let pos = pos.round_to_pixels(painter.pixels_per_point());
         let rect = egui::Rect::from_min_size(pos, self.size);
@@ -143,7 +146,7 @@ impl ShapedLabel {
             return;
         }
         let areas = self.text_areas(rect, painter.ctx(), clip);
-        crate::widgets::glyphon_render::paint_glyphon(painter, clip, areas);
+        crate::paint_text(painter, clip, areas);
     }
 
     /// [`Self::paint`] with the label's box centered on `center`.
@@ -695,7 +698,7 @@ impl egui::Widget for GlyphonLabel<'_> {
             let areas = shaped.text_areas(rect, ui.ctx(), rect);
             // egui_wgpu clamps the callback rect to the screen and drops a zero-area result.
             let callback_rect = rect.intersect(ui.clip_rect());
-            crate::widgets::glyphon_render::paint_glyphon(ui.painter(), callback_rect, areas);
+            crate::paint_text(ui.painter(), callback_rect, areas);
         }
 
         response

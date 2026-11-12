@@ -270,11 +270,7 @@ impl<'a> Button<'a> {
                                 .text_overflow(self.text_overflow)
                                 .build(ui.ctx());
                             let text_area = shaped.text_area(text_rect, ui.ctx(), text_clip);
-                            crate::widgets::glyphon_render::paint_glyphon(
-                                ui.painter(),
-                                text_clip,
-                                vec![text_area],
-                            );
+                            crate::paint_text(ui.painter(), text_clip, vec![text_area]);
                         }
 
                         if let Some(dot_color) = self.trailing_dot {
