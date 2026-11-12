@@ -953,6 +953,25 @@ mod tests {
         Some((slot.rect, texts.collect()))
     }
 
+    /// A pointer that lands on a note embed's Open from outside the embed
+    /// gets the arrow on the first frame, not the title band's open hand.
+    #[test]
+    fn landing_on_open_shows_the_arrow() {
+        let mut t = TestWs::new();
+        embed_of_a_link(&mut t);
+        let (rect, _) = shown(&mut t).unwrap();
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        let band = md.edit.renderer.tab_embed_band("Plan", rect).unwrap();
+        let half = md.edit.renderer.open_button_width() / 2.0;
+        let open = pos2(band.right() - CARD_PAD.pts() - half, band.center().y);
+        t.frame_with(vec![egui::Event::PointerMoved(pos2(5.0, 5.0))]);
+        t.frame_with(vec![egui::Event::PointerMoved(open)]);
+        assert_eq!(t.cursor, egui::CursorIcon::Default);
+        // the rest of the title still lifts the embed
+        t.frame_with(vec![egui::Event::PointerMoved(band.left_center() + vec2(40.0, 0.0))]);
+        assert_eq!(t.cursor, egui::CursorIcon::Grab);
+    }
+
     /// `![[#Chairs]]` embeds the note's own heading, as `![[Board#Chairs]]` does.
     #[test]
     fn a_heading_alone_embeds_the_notes_own_heading() {
