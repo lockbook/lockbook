@@ -55,8 +55,13 @@ fn the_outline_matches_a_fresh_open() {
 }
 
 #[test]
+fn text_on_screen_stays_put() {
+    scroll::run(scroll::Prop::TextStays, Features::all(), Events::Undo, 300);
+}
+
+#[test]
 fn the_caret_stays_on_screen() {
-    scroll::run(Features::all(), Events::Undo, 300);
+    scroll::run(scroll::Prop::CaretStays, Features::all(), Events::Undo, 300);
 }
 
 /// Runs `check` under the shared seed loop; a failure reproduces with the

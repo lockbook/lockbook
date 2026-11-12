@@ -2,6 +2,7 @@
 //! the top of a frame (`Editor::reload`); the text on screen
 //! should stay where it was unless the edit touched it.
 
+use comrak::nodes::NodeValue;
 use egui::{Event as Egui, Modifiers, MouseWheelSource, MouseWheelUnit, Pos2, TouchPhase};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -22,17 +23,25 @@ const BLOCK: usize = 64;
 /// Enough blocks to scroll a few screens.
 const BLOCKS: usize = 16;
 
-/// A caret on screen stays on screen as remote versions land on a long
-/// note. Between them the reader types at the caret from [`Events::Typing`]
-/// and undoes from [`Events::Undo`]; the caret is placed in view from
-/// [`Events::Held`] and the view scrolled from [`Events::Scrolled`].
-pub(super) fn run(features: Features, events: Events, seeds: u64) {
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(super) enum Prop {
+    /// Text on screen stays put under an edit wholly above or below it.
+    TextStays,
+    /// A caret on screen stays on screen.
+    CaretStays,
+}
+
+/// Remote versions land on a long note. Between them the reader types at
+/// the caret from [`Events::Typing`] and undoes from [`Events::Undo`]; the
+/// caret is placed in view from [`Events::Held`] and the view scrolled from
+/// [`Events::Scrolled`].
+pub(super) fn run(prop: Prop, features: Features, events: Events, seeds: u64) {
     assert!(events >= Events::Reading, "every step lands a remote version");
-    super::run(seeds, CHOICES + BLOCK * BLOCKS, |b, log| check(b, &features, events, log));
+    super::run(seeds, CHOICES + BLOCK * BLOCKS, |b, log| check(b, prop, &features, events, log));
 }
 
 fn check(
-    buf: &[u8], features: &Features, events: Events, log: &mut dyn FnMut(String),
+    buf: &[u8], prop: Prop, features: &Features, events: Events, log: &mut dyn FnMut(String),
 ) -> Result<(), String> {
     let (choices, doc) = buf.split_at(buf.len().min(CHOICES));
     let mut src = ByteSource::new(choices);
@@ -78,7 +87,7 @@ fn check(
             ws.push(Event::Undo);
             settle(&mut ws);
         }
-        step(&mut ws, &mut src, events, log)?;
+        step(&mut ws, &mut src, prop, events, log)?;
     }
     Ok(())
 }
@@ -137,7 +146,8 @@ fn view_range(ws: &TestEditor) -> Option<(Grapheme, Grapheme)> {
 }
 
 fn step(
-    ws: &mut TestEditor, src: &mut ByteSource, events: Events, log: &mut dyn FnMut(String),
+    ws: &mut TestEditor, src: &mut ByteSource, prop: Prop, events: Events,
+    log: &mut dyn FnMut(String),
 ) -> Result<(), String> {
     let Some((lo, hi)) = view_range(ws) else { return Ok(()) };
     let text = ws.get_text().to_string();
@@ -170,16 +180,105 @@ fn step(
         &text[a_byte..b_byte],
         if above { "above" } else { "below" }
     ));
+    let shift = next.graphemes(true).count() as isize - text.graphemes(true).count() as isize;
+
+    let before = visible(ws);
     let caret = caret_y(ws);
+    // a node's edge before the edit, where it is after: gone if the edit replaced it
+    let moved = |g: Grapheme| match g.0 {
+        g if g < a => Some(Grapheme(g)),
+        g if g >= b => Some(Grapheme((g as isize + shift) as usize)),
+        _ => None,
+    };
+    let judged = if prop == Prop::TextStays { &before[..] } else { &[] };
+    let nodes: Vec<Vec<_>> = judged
+        .iter()
+        .map(|s| {
+            let nodes = nodes_at(ws, s.source_range.0);
+            nodes
+                .into_iter()
+                .map(|(kind, (start, end))| (kind, moved(start), moved(end)))
+                .collect()
+        })
+        .collect();
     ws.editor.reload(next, Some([1; 32]));
     settle(ws);
-    if let (Some(before), after) = (caret, caret_y(ws)) {
-        match after {
-            Some(y) if (0.0..=VIEW.y).contains(&y) => {}
-            _ => return Err(format!("the caret at y {before} went to {after:?}")),
+    let after = visible(ws);
+    let shifted = |r: (Grapheme, Grapheme)| {
+        let by = if above { shift } else { 0 };
+        (Grapheme((r.0.0 as isize + by) as usize), Grapheme((r.1.0 as isize + by) as usize))
+    };
+    // text whose nodes the edit reparsed may move by design; only the rest must stay
+    let reparsed = judged.iter().zip(&nodes).any(|(s, nodes)| {
+        let now = nodes_at(ws, shifted(s.source_range).0);
+        let now: Vec<_> = now
+            .into_iter()
+            .map(|(kind, (start, end))| (kind, Some(start), Some(end)))
+            .collect();
+        now != *nodes
+    });
+    if reparsed {
+        log("the edit changed how the text in view parses".to_string());
+        return Ok(());
+    }
+
+    log(format!("checked {} fragments in view", before.len()));
+    match prop {
+        Prop::TextStays => {
+            for seen in &before {
+                let now = after
+                    .iter()
+                    .find(|s| s.source_range == shifted(seen.source_range) && s.text == seen.text);
+                match now {
+                    Some(now) if (now.top - seen.top).abs() <= 0.5 => {}
+                    Some(now) => {
+                        return Err(format!(
+                            "{:?} moved from y {} to {} on an edit {}",
+                            seen.text,
+                            seen.top,
+                            now.top,
+                            if above { "above" } else { "below" },
+                        ));
+                    }
+                    None => {
+                        return Err(format!(
+                            "{:?} at y {} left the view on an edit {}",
+                            seen.text,
+                            seen.top,
+                            if above { "above" } else { "below" },
+                        ));
+                    }
+                }
+            }
+        }
+        Prop::CaretStays => {
+            if let (Some(before), after) = (caret, caret_y(ws)) {
+                match after {
+                    Some(y) if (0.0..=VIEW.y).contains(&y) => {}
+                    _ => return Err(format!("the caret at y {before} went to {after:?}")),
+                }
+            }
         }
     }
     Ok(())
+}
+
+/// The nodes that hold `at`, outermost first: their kinds and ranges.
+fn nodes_at(
+    ws: &mut TestEditor, at: Grapheme,
+) -> Vec<(std::mem::Discriminant<NodeValue>, (Grapheme, Grapheme))> {
+    let arena = comrak::Arena::new();
+    let r = &mut ws.editor.edit.renderer;
+    let mut node = r.reparse(&arena);
+    let mut kinds = vec![];
+    while let Some(child) = node.children().find(|n| {
+        let (start, end) = r.node_range(n);
+        start <= at && at <= end
+    }) {
+        kinds.push((std::mem::discriminant(&child.data.borrow().value), r.node_range(child)));
+        node = child;
+    }
+    kinds
 }
 
 /// The caret's top on screen, if it's drawn in the view.
