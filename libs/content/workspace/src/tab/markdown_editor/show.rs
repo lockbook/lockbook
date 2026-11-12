@@ -12,12 +12,14 @@
 //!   `show` returns so popup callbacks land on a later glyphon layer and
 //!   outside any scroll-area clip.
 
+use comrak::nodes::AstNode;
 use egui::os::OperatingSystem;
 use egui::{
     Context, EventFilter, Id, ImeEvent, Key, Pos2, Rect, Sense, Ui, UiBuilder, ViewportCommand,
 };
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::operation_types::Operation;
 
 use crate::style::{ThemeExt as _, phosphor};
 use crate::tab::markdown_editor::ScrollTarget;
@@ -58,7 +60,68 @@ pub struct PreRenderState {
     selection_shape: egui::layers::ShapeIdx,
 }
 
+/// Edits queued for a frame's input phase, applied: their response, and
+/// whether they held an undo or redo or a drop's move.
+#[derive(Default)]
+pub struct Applied {
+    pub resp: buffer::Response,
+    pub undo_redo: bool,
+    pub moved: bool,
+}
+
 impl MdEdit {
+    /// Applies the edits the last frame queued for this one: a let-go block
+    /// drag's move and the internal events. Their offsets are aimed at the
+    /// text on screen, so a reload applies them before it merges.
+    pub fn apply_queued(&mut self, ctx: &Context) {
+        let mut applied = std::mem::take(&mut self.applied);
+        let block = self.take_block_move();
+        if block.text_updated {
+            self.renderer.bump_text_seq();
+        }
+        applied.resp |= block;
+        if !self.event.internal_events.is_empty() {
+            let arena = Arena::new();
+            let root = self.renderer.reparse(&arena);
+            let mut ops = Vec::new();
+            self.calc_internal_events(ctx, root, &mut ops, &mut applied);
+            self.renderer.buffer.queue(ops);
+            let resp = self.renderer.buffer.update();
+            if resp.text_updated {
+                self.renderer.bump_text_seq();
+            }
+            applied.resp |= resp;
+        }
+        self.applied = applied;
+    }
+
+    /// A let-go block drag's move.
+    fn take_block_move(&mut self) -> buffer::Response {
+        if self.pending_block_move.is_some() {
+            self.in_progress_block_drag = None;
+        }
+        match self.pending_block_move.take() {
+            Some((drag, gap, _)) => match drag.unit {
+                DragUnit::Item => self.move_block(drag.section_range, gap.insert_offset),
+                DragUnit::Row | DragUnit::Column(_) => {
+                    self.move_table_part(drag, gap.insert_offset)
+                }
+            },
+            None => buffer::Response::default(),
+        }
+    }
+
+    fn calc_internal_events<'ast>(
+        &mut self, ctx: &Context, root: &'ast AstNode<'ast>, ops: &mut Vec<Operation>,
+        applied: &mut Applied,
+    ) {
+        for event in std::mem::take(&mut self.event.internal_events) {
+            applied.undo_redo |= matches!(event, Event::Undo | Event::Redo);
+            applied.moved |= matches!(event, Event::Move { .. });
+            applied.resp |= self.calc_operations(ctx, root, event, ops);
+        }
+    }
+
     /// Input phase: consume keyboard events, drain the internal event queue,
     /// and mutate the buffer. Called early — before any sibling widget's
     /// draw — so `consume_key` happens in priority order with other widgets
@@ -79,20 +142,7 @@ impl MdEdit {
             .in_progress_image_drag
             .take()
             .filter(|drag| !drag.dropped);
-        if self.pending_block_move.is_some() {
-            self.in_progress_block_drag = None;
-        }
-
-        // Deferred block reorder
-        let move_resp = match self.pending_block_move.take() {
-            Some((drag, gap, _)) => match drag.unit {
-                DragUnit::Item => self.move_block(drag.section_range, gap.insert_offset),
-                DragUnit::Row | DragUnit::Column(_) => {
-                    self.move_table_part(drag, gap.insert_offset)
-                }
-            },
-            None => buffer::Response::default(),
-        };
+        let move_resp = self.take_block_move();
 
         if focused {
             self.defer_input_after_ime(ctx);
@@ -149,19 +199,13 @@ impl MdEdit {
         // `calc_operations` instead of pushing to `ops`. Their `Response`
         // must be merged with the queued-op response so reparse & cache
         // invalidation fire when undo changes the text.
-        let mut direct_resp = buffer::Response::default();
         // Undo/redo restore the selection exactly, possibly into folded
         // contents (undoing an auto-unfold restores both the tag and the
         // triggering selection); the fold check below stands down for the
         // frame so undo isn't immediately re-undone.
-        let mut undo_redo = false;
-        let mut moved = false;
-
-        for event in std::mem::take(&mut self.event.internal_events) {
-            undo_redo |= matches!(event, Event::Undo | Event::Redo);
-            moved |= matches!(event, Event::Move { .. });
-            direct_resp |= self.calc_operations(ctx, root, event, &mut ops);
-        }
+        let mut applied = std::mem::take(&mut self.applied);
+        self.calc_internal_events(ctx, root, &mut ops, &mut applied);
+        let Applied { resp: mut direct_resp, mut undo_redo, moved } = applied;
 
         if focused {
             let filter = EventFilter {
