@@ -20,9 +20,9 @@ use web_time::{Duration, Instant};
 /// must be re-interpreted. For example, if text is typed at the beginning then end of a buffer in one frame, the
 /// position of the text typed at the end of the buffer is greater when it is applied than it was when it was typed.
 ///
-/// External changes are merged by a three-way merge of text: the last external text is the base, the buffer's text
-/// is ours and the new external text is theirs, with ours winning where they conflict. The difference from the
-/// buffer's text to the merge is queued as one external frame, based on the current version like any local frame.
+/// External changes are merged by transforming the diff from the last external text to the new one past the local
+/// replacements applied since, which win where they conflict. The result is queued as one external frame, based on the
+/// current version like any local frame, and the local replacements are rebased onto the new external text.
 ///
 /// # Undo
 /// Undo reverts local changes only. External frames are never undone, and undo stops at the last one: local changes
@@ -303,6 +303,118 @@ struct External {
     /// Text last loaded into the editor. Used as a reference point for merging out-of-editor changes with in-editor
     /// changes, similar to a base in a 3-way merge. May be a state that never appears in the buffer's history.
     text: String,
+
+    /// Local replacements applied since `text` was loaded or saved, in order, undos as the inverses they applied.
+    /// Applied to `text`, they give the buffer's text.
+    pending: Vec<Replace>,
+
+    /// Local replacements dropped from the front of `pending` by saves.
+    saved: usize,
+}
+
+impl External {
+    /// Drops each pending edit along with the one that reverts it right after, as an undo or a backspace does, so
+    /// that edits which cancel out don't win conflicts.
+    fn drop_reverted(&mut self) {
+        let segs = unicode_segs::calc(&self.text);
+        let mut text = Snapshot { text: self.text.clone(), segs, ..Default::default() };
+        let mut kept: Vec<(Replace, Replace)> = vec![];
+        for p in self.pending.drain(..) {
+            let replaced = text[p.range].to_string();
+            let start = p.range.start();
+            let (_, len) = text.apply_replace(&p);
+            if kept.last().is_some_and(|(_, inverse)| *inverse == p) {
+                kept.pop();
+            } else {
+                kept.push((p, Replace { range: (start, start + len), text: replaced }));
+            }
+        }
+        self.pending = kept.into_iter().map(|(p, _)| p).collect();
+    }
+
+    /// Rebases the local edits onto `text`, the new external text, and returns the external changes as one frame on
+    /// `current`, the buffer's text. Local edits win conflicts: an external change overlapping one is dropped, and the
+    /// local edit, rebased, replaces what it wrote.
+    fn reload(&mut self, text: String, current: &str) -> Vec<Replace> {
+        let mut remote = diff(&self.text, &text);
+        self.drop_reverted();
+        let base = std::mem::replace(&mut self.text, text);
+        if self.pending.is_empty() {
+            return remote;
+        }
+
+        // each pending edit is taken from `local`, the text before it, to `theirs`, that text plus the remote edits
+        let segs = unicode_segs::calc(&base);
+        let mut local = Snapshot { text: base, segs, ..Default::default() };
+        let mut theirs = applied(&local.text, &remote);
+        for p in &mut self.pending {
+            let (_, len) = local.apply_replace(p);
+
+            // the region the local edit takes over: its range and the remote edits it drops
+            let mut region = (p.range.start(), p.range.end());
+            let mut kept = vec![];
+            let mut dropped = vec![];
+            for r in &remote {
+                let mut op = Operation::Replace(r.clone());
+                let lost = transform_past(&mut op, p.range, len);
+                dropped.push(lost);
+                if lost {
+                    region = (region.0.min(r.range.start()), region.1.max(r.range.end()));
+                } else if let Operation::Replace(r) = op {
+                    kept.push(r);
+                }
+            }
+            let mut end = region.1;
+            adjust_subsequent_position(p.range, len, true, &mut end);
+            let local_region = (region.0, end);
+
+            // a kept remote edit precedes the region if it starts before it, or inserts where a replaced region starts
+            let sides: Vec<Option<bool>> = remote
+                .iter()
+                .zip(&dropped)
+                .map(|(r, lost)| {
+                    let start = r.range.start();
+                    let before = start < region.0
+                        || (start == region.0 && r.range.is_empty() && !region.is_empty());
+                    (!lost).then_some(before)
+                })
+                .collect();
+            let before: Vec<bool> = sides.iter().flatten().copied().collect();
+
+            // in the remote text the region also covers what the dropped edits wrote
+            let theirs_region = (
+                theirs.map(region.0, |j| sides[j].unwrap_or(false)),
+                theirs.map(region.1, |j| sides[j].unwrap_or(true)),
+            );
+            let next = applied(&local.text, &kept);
+            let next_region =
+                (next.map(local_region.0, |j| before[j]), next.map(local_region.1, |j| before[j]));
+            *p = Replace { range: theirs_region, text: next[next_region].into() };
+            debug_assert_eq!(
+                {
+                    let mut check = Buffer::from(theirs.current.text.as_str()).current;
+                    check.apply_replace(p);
+                    check.text
+                },
+                next.current.text,
+                "a rebased edit gives the merged text"
+            );
+
+            theirs = next;
+            remote = kept;
+        }
+        debug_assert_eq!(local.text, current, "the pending edits give the buffer's text");
+        remote
+    }
+}
+
+/// A buffer of `text` that has applied `frame`, edits of `text` as one frame.
+fn applied(text: &str, frame: &[Replace]) -> Buffer {
+    let mut buffer = Buffer::from(text);
+    let ops = frame.iter().cloned().map(Operation::Replace).collect();
+    buffer.push_frame(ops, Instant::now(), true);
+    buffer.update();
+    buffer
 }
 
 #[derive(Default)]
@@ -398,17 +510,26 @@ impl Buffer {
     /// made since last load. The merge is queued as an external frame, which undo never reverts. Applies the queue, so
     /// the next reload merges against it.
     pub fn reload(&mut self, text: String) -> Response {
-        let merged = Buffer::from(self.external.text.as_str())
-            .merge(self.current.text.clone(), text.clone());
-        let ops = diff(&self.current.text, &merged);
-        self.push_frame(ops.into_iter().map(Operation::Replace).collect(), Instant::now(), true);
-        self.external.text = text;
-        self.update()
+        let mut response = self.update();
+        let remote = self.external.reload(text, &self.current.text);
+        self.push_frame(remote.into_iter().map(Operation::Replace).collect(), Instant::now(), true);
+        response |= self.update();
+        response
     }
 
-    /// Indicates to the buffer the text that has been saved outside the editor. This will serve as the new base for
-    /// merging external changes.
-    pub fn saved(&mut self, external_text: String) {
+    /// Counts the local replacements kept so far. Read it with the text a save writes and pass both to `saved` before
+    /// the next reload, which may drop replacements that cancel out.
+    pub fn local_seq(&self) -> usize {
+        self.external.saved + self.external.pending.len()
+    }
+
+    /// Indicates to the buffer the text that has been saved outside the editor, which had the local replacements
+    /// counted by `local_seq`. This will serve as the new base for merging external changes.
+    pub fn saved(&mut self, local_seq: usize, external_text: String) {
+        self.external
+            .pending
+            .drain(..local_seq - self.external.saved);
+        self.external.saved = local_seq;
         self.external.text = external_text;
     }
 
@@ -477,50 +598,23 @@ impl Buffer {
     fn transform(&self, op: &mut Operation, meta: &OpMeta) {
         let base_idx = meta.base - self.base.seq;
         for transforming_idx in base_idx..self.ops.processed_seq {
-            let preceding_op = &self.ops.transformed[transforming_idx];
-            let preceding_actual_len = self.ops.transformed_actual_len[transforming_idx];
-            if let Operation::Replace(Replace {
-                range: preceding_replaced_range,
-                text: _preceding_replacement_text,
-            }) = preceding_op
+            if let Operation::Replace(Replace { range, .. }) =
+                &self.ops.transformed[transforming_idx]
             {
-                if let Operation::Replace(Replace { range: transformed_range, text }) = op {
-                    if preceding_replaced_range.intersects(transformed_range, false)
-                        && !(preceding_replaced_range.is_empty() && transformed_range.is_empty())
-                    {
-                        // concurrent replacements to intersecting ranges choose the first/local edit as the winner
-                        // this doesn't create self-conflicts during merge because merge combines adjacent replacements
-                        // this doesn't create self-conflicts for same-frame editor changes because our final condition
-                        // is that we don't simultaneously insert text for both operations, which creates un-ideal
-                        // behavior (see test buffer_merge_insert)
-                        *text = "".into();
-                        transformed_range.1 = transformed_range.0;
-                    }
-                }
-
-                match op {
-                    // an edit that only touches a replaced range's ends lies outside it
-                    Operation::Replace(Replace { range, .. }) => {
-                        let (replaced, len) = (*preceding_replaced_range, preceding_actual_len);
-                        let at_start = !replaced.is_empty() && range.start() == replaced.start();
-                        let insert = range.is_empty();
-                        let forward = range.0 <= range.1;
-                        let (a, b) = (&mut range.0, &mut range.1);
-                        let (start, end) = if forward { (a, b) } else { (b, a) };
-                        adjust_subsequent_position(replaced, len, !(insert && at_start), start);
-                        adjust_subsequent_position(replaced, len, insert && !at_start, end);
-                    }
-                    Operation::Select(transformed_range) => {
-                        adjust_subsequent_range(
-                            *preceding_replaced_range,
-                            preceding_actual_len,
-                            true,
-                            transformed_range,
-                        );
-                    }
-                }
+                transform_past(op, *range, self.ops.transformed_actual_len[transforming_idx]);
             }
         }
+    }
+
+    /// Maps a position through the replacements this buffer applied, advancing past the `j`th if `advance(j)`.
+    fn map(&self, mut position: Grapheme, advance: impl Fn(usize) -> bool) -> Grapheme {
+        for (j, op) in self.ops.transformed.iter().enumerate() {
+            if let Operation::Replace(Replace { range, .. }) = op {
+                let len = self.ops.transformed_actual_len[j];
+                adjust_subsequent_position(*range, len, advance(j), &mut position);
+            }
+        }
+        position
     }
 
     pub fn can_redo(&self) -> bool {
@@ -557,6 +651,9 @@ impl Buffer {
             let actual_len = match &op {
                 Operation::Replace(replace) => {
                     let (resp, len) = self.current.apply_replace(replace);
+                    if !self.ops.meta[idx].external {
+                        self.external.pending.push(replace.clone());
+                    }
                     response |= resp;
                     len
                 }
@@ -592,8 +689,9 @@ impl Buffer {
         // Clone so we can mutate `self.current` while reading the inverse.
         let op = self.ops.transformed_inverted[self.current_idx()].clone();
 
-        if let Some(replace) = &op.replace {
-            let (resp, _) = self.current.apply_replace(replace);
+        if let Some(replace) = op.replace {
+            let (resp, _) = self.current.apply_replace(&replace);
+            self.external.pending.push(replace);
             response |= resp;
         }
         response |= self.current.apply_select(op.select);
@@ -643,6 +741,52 @@ impl From<&str> for Buffer {
         result.external.text = value.to_string();
         result
     }
+}
+
+/// Transforms `op` past a replacement of `preceding_replaced_range` already applied, which contributed
+/// `preceding_actual_len` graphemes. Returns whether `op` lost a conflict with it and was emptied.
+fn transform_past(
+    op: &mut Operation, preceding_replaced_range: (Grapheme, Grapheme),
+    preceding_actual_len: Graphemes,
+) -> bool {
+    let mut lost = false;
+    if let Operation::Replace(Replace { range: transformed_range, text }) = op {
+        if preceding_replaced_range.intersects(transformed_range, false)
+            && !(preceding_replaced_range.is_empty() && transformed_range.is_empty())
+        {
+            // concurrent replacements to intersecting ranges choose the first/local edit as the winner
+            // this doesn't create self-conflicts during merge because merge combines adjacent replacements
+            // this doesn't create self-conflicts for same-frame editor changes because our final condition
+            // is that we don't simultaneously insert text for both operations, which creates un-ideal
+            // behavior (see test buffer_merge_insert)
+            *text = "".into();
+            transformed_range.1 = transformed_range.0;
+            lost = true;
+        }
+    }
+
+    match op {
+        // an edit that only touches a replaced range's ends lies outside it
+        Operation::Replace(Replace { range, .. }) => {
+            let (replaced, len) = (preceding_replaced_range, preceding_actual_len);
+            let at_start = !replaced.is_empty() && range.start() == replaced.start();
+            let insert = range.is_empty();
+            let forward = range.0 <= range.1;
+            let (a, b) = (&mut range.0, &mut range.1);
+            let (start, end) = if forward { (a, b) } else { (b, a) };
+            adjust_subsequent_position(replaced, len, !(insert && at_start), start);
+            adjust_subsequent_position(replaced, len, insert && !at_start, end);
+        }
+        Operation::Select(transformed_range) => {
+            adjust_subsequent_range(
+                preceding_replaced_range,
+                preceding_actual_len,
+                true,
+                transformed_range,
+            );
+        }
+    }
+    lost
 }
 
 /// Adjust a range based on a text replacement. Positions before the replacement generally are not adjusted,
@@ -1537,6 +1681,43 @@ mod reload_tests {
         assert_eq!(buf.current.text, format!("\n\na⟦1⟧b\n\nfoo{image}\n"));
         reload(&mut buf, &disk.replace("foo", "fo⟦2⟧o"));
         assert_eq!(buf.current.text, format!("\n\na⟦1⟧b\n\nfo⟦2⟧o{image}\n"));
+    }
+
+    #[test]
+    fn reloads_beside_a_local_delete() {
+        let mut buf = Buffer::from("aa bb cc dd");
+        edit(&mut buf, (3, 6), "");
+        reload(&mut buf, "aa R bb cc dd");
+        assert_eq!(buf.current.text, "aa R cc dd");
+        reload(&mut buf, "aa R bb cc dd S");
+        assert_eq!(buf.current.text, "aa R cc dd S");
+    }
+
+    #[test]
+    fn a_reload_after_typing_taken_back() {
+        let mut buf = Buffer::from("aa bbb cc");
+        edit(&mut buf, (4, 4), "x");
+        buf.undo();
+        reload(&mut buf, "aa BBB cc");
+        assert_eq!(buf.current.text, "aa BBB cc");
+
+        let mut buf = Buffer::from("aa bbb cc");
+        edit(&mut buf, (4, 4), "x");
+        edit(&mut buf, (4, 5), "");
+        reload(&mut buf, "aa BBB cc");
+        assert_eq!(buf.current.text, "aa BBB cc");
+    }
+
+    #[test]
+    fn a_reload_after_undoing_a_saved_edit() {
+        let mut buf = Buffer::from("aa bb");
+        edit(&mut buf, (0, 0), "x ");
+        buf.saved(buf.local_seq(), buf.current.text.clone());
+        edit(&mut buf, (7, 7), " y");
+        buf.undo();
+        buf.undo();
+        reload(&mut buf, "x aa R bb");
+        assert_eq!(buf.current.text, "aa R bb");
     }
 
     #[test]
