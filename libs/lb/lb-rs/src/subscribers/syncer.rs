@@ -436,8 +436,8 @@ impl<S: Server> Lb<S> {
 
             'merge_construction: loop {
                 // process just the edits which allow us to check deletions in the result
-                let mut deletions = {
-                    let mut deletions = remote_unlazy.stage(Vec::new()).to_lazy();
+                let mut remote_with_moves = {
+                    let mut remote_with_moves = remote_unlazy.stage(Vec::new()).to_lazy();
 
                     // creations
                     let mut deletion_creations = HashSet::new();
@@ -448,7 +448,7 @@ impl<S: Server> Lb<S> {
                     }
                     for id in parents_first(&local, &deletion_creations)? {
                         let local_file = local.find(&id)?.clone();
-                        deletions
+                        remote_with_moves
                             .create_unvalidated(
                                 id,
                                 symkey::generate_key(),
@@ -484,7 +484,7 @@ impl<S: Server> Lb<S> {
                                     continue;
                                 }
                                 // move
-                                deletions.move_unvalidated(
+                                remote_with_moves.move_unvalidated(
                                     &id,
                                     local_file.parent(),
                                     &self.keychain,
@@ -502,10 +502,10 @@ impl<S: Server> Lb<S> {
                             && may_write_in(&local, &remote, me, &parent)?
                         {
                             // delete
-                            deletions.delete_unvalidated(&id, &self.keychain)?;
+                            remote_with_moves.delete_unvalidated(&id, &self.keychain)?;
                         }
                     }
-                    deletions
+                    remote_with_moves
                 };
 
                 // process all edits, dropping non-deletion edits for files that will be implicitly deleted
@@ -515,12 +515,17 @@ impl<S: Server> Lb<S> {
                     // creations and edits of created documents
                     let mut creations = HashSet::new();
                     for id in db.local_metadata.ids() {
-                        if deletions.maybe_find(&id).is_some()
-                            && !deletions.calculate_deleted(&id)?
+                        if remote_with_moves.maybe_find(&id).is_some()
+                            && !remote_with_moves.calculate_deleted(&id)?
                             && remote.maybe_find(&id).is_none()
                             && !links_to_delete.contains(&id)
                             && !lost_access(&local, me, &id)?
-                            && may_write_in(&local, &deletions, me, local.find(&id)?.parent())?
+                            && may_write_in(
+                                &local,
+                                &remote_with_moves,
+                                me,
+                                local.find(&id)?.parent(),
+                            )?
                         {
                             creations.insert(id);
                         }
@@ -545,12 +550,12 @@ impl<S: Server> Lb<S> {
                     // the merge too, since moves skip deleted files but may lift live ones
                     for id in db.local_metadata.ids() {
                         if db.base_metadata.maybe_find(&id).is_none()
-                            || !deletions.calculate_deleted(&id)?
+                            || !remote_with_moves.calculate_deleted(&id)?
                             || remote.calculate_deleted(&id)?
                         {
                             continue;
                         }
-                        let deleted = deletions.find(&id)?;
+                        let deleted = remote_with_moves.find(&id)?;
                         if deleted.explicitly_deleted()
                             || deleted.parent() != merge.find(&id)?.parent()
                         {
@@ -574,8 +579,8 @@ impl<S: Server> Lb<S> {
                     let mut replayed = Vec::new();
                     for id in db.local_metadata.ids() {
                         if merge.maybe_find(&id).is_some()
-                            && deletions.maybe_find(&id).is_some()
-                            && !deletions.calculate_deleted(&id)?
+                            && remote_with_moves.maybe_find(&id).is_some()
+                            && !remote_with_moves.calculate_deleted(&id)?
                             && !(remote.maybe_find(&id).is_some()
                                 && remote.calculate_deleted(&id)?)
                             && !links_to_delete.contains(&id)
@@ -623,7 +628,12 @@ impl<S: Server> Lb<S> {
                             // rename
                             if local_name != base_name
                                 && remote_name == base_name
-                                && may_write_in(&local, &deletions, me, merge.find(&id)?.parent())?
+                                && may_write_in(
+                                    &local,
+                                    &remote_with_moves,
+                                    me,
+                                    merge.find(&id)?.parent(),
+                                )?
                             {
                                 merge.rename_unvalidated(&id, &local_name, &self.keychain)?;
                             }
@@ -632,7 +642,7 @@ impl<S: Server> Lb<S> {
                         // share: replay what this device changed about each recipient's share;
                         // when the server changed it too, this device wins if either side unshared,
                         // otherwise the higher mode
-                        let writable = may_write_in(&local, &deletions, me, &id)?;
+                        let writable = may_write_in(&local, &remote_with_moves, me, &id)?;
                         let base_keys = shares_by_recipient(maybe_base_file.as_ref());
                         let remote_keys = shares_by_recipient(maybe_remote_file.as_ref());
                         let owner = merge.find(&id)?.owner();
@@ -688,7 +698,9 @@ impl<S: Server> Lb<S> {
                         let remote_hmac =
                             maybe_remote_file.and_then(|f| f.document_hmac().cloned());
                         let local_hmac = local_file.document_hmac().cloned();
-                        if may_write_in(&local, &deletions, me, &id)? && local_hmac != base_hmac {
+                        if may_write_in(&local, &remote_with_moves, me, &id)?
+                            && local_hmac != base_hmac
+                        {
                             if remote_hmac != base_hmac && remote_hmac != local_hmac {
                                 // merge
                                 let merge_name = merge.name(&id, &self.keychain)?;
@@ -725,7 +737,12 @@ impl<S: Server> Lb<S> {
                                         // link there's nowhere to put it
                                         let parent = *merge.find(&id)?.parent();
                                         let writable = merge.maybe_find(&parent).is_some()
-                                            && may_write_in(&local, &deletions, me, &parent)?;
+                                            && may_write_in(
+                                                &local,
+                                                &remote_with_moves,
+                                                me,
+                                                &parent,
+                                            )?;
                                         let copy_parent = if writable {
                                             Some(parent)
                                         } else if let Some(link) = merge.linked_by(&id)? {
@@ -1458,8 +1475,8 @@ impl<S: Server> Lb<S> {
 
 /// Whether this device may still change `id` or what's in it: write is granted at the nearest file
 /// `remote` has, at or above `id` in this device's tree, by a share this device hasn't declined,
-/// and in this device's own tree. `remote` is the server's tree, or the deletions tree once this
-/// device's moves are in it, so shares are read where each file ends up, not the merge's.
+/// and in this device's own tree. `remote` is the server's tree, with this device's kept moves
+/// applied once they are, so shares are read where each file ends up, not the merge's.
 fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<bool> {
