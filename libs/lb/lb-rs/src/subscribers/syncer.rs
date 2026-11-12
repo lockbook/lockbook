@@ -460,12 +460,15 @@ impl<S: Server> Lb<S> {
                             .map_err(orphaned_creation(id))?;
                     }
 
-                    // moves (creations happen first in case a file is moved into a new folder)
+                    // moves (creations happen first in case a file is moved into a new folder);
+                    // as in the merge, skipping files the server moved or deleted
                     for id in db.local_metadata.ids() {
                         let local_file = local.find(&id)?.clone();
                         if let Some(base_file) = db.base_metadata.maybe_find(&id).cloned() {
                             if !local_file.explicitly_deleted()
                                 && local_file.parent() != base_file.parent()
+                                && remote.find(&id)?.parent() == base_file.parent()
+                                && !remote.calculate_deleted(&id)?
                                 && !files_to_unmove.contains(&id)
                             {
                                 // a move this device may no longer make is undone
