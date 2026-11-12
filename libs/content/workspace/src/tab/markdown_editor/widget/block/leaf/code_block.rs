@@ -8,7 +8,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt};
 
 use comrak::nodes::NodeValue;
 
-use crate::style::{FG_HOVER, Radius, phosphor, phosphor_font_id, tip_text};
+use crate::style::{FG_HOVER, Radius, control_cursor, phosphor, phosphor_font_id, tip_text};
 use crate::syntax::{Highlights, Lang, Role, agreeing, roles_in};
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::row_scroll::RowScroller;
@@ -449,6 +449,7 @@ impl<'ast> MdRender {
 
         let copy = Event::CopyCode { node: range };
         let resp = ui.interact(button, ui.scope_id().with("code_copy"), Sense::click());
+        control_cursor(ui, button);
         if resp.clicked() {
             self.render_events.push(copy.clone());
         }

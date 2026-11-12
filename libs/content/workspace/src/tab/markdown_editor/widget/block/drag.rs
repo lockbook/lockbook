@@ -178,7 +178,7 @@ impl<'ast> MdRender {
         let pointer = ui.input(|i| i.pointer.latest_pos());
         if resp.dragged() || dragging_this {
             ui.output_mut(|o| o.cursor_icon = CursorIcon::Grabbing);
-        } else if grab_on_hover && resp.hovered() {
+        } else if grab_on_hover && crate::style::pointer_on(ui, resp.rect) {
             ui.output_mut(|o| o.cursor_icon = CursorIcon::Grab);
         }
         if resp.drag_started() {

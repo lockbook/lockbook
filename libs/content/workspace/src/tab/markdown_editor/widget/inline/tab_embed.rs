@@ -828,9 +828,7 @@ fn open_button(ui: &mut egui::Ui, title: Rect, place: &Place) {
     let layout = egui::Layout::right_to_left(egui::Align::Center);
     let ui = &mut ui.new_child(UiBuilder::new().max_rect(area).layout(layout));
     let resp = Button::quiet(&t, "Open").show(ui);
-    if resp.hovered() {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
-    }
+    crate::style::control_cursor(ui, resp.rect);
     if resp.clicked() {
         let new_tab = ui.input(|i| i.modifiers.command);
         let heading = match &place.fragment {

@@ -11,7 +11,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use super::structure::ColumnEdit;
 use super::{CellBounds, TableAction, TableCellBox};
-use crate::style::{context_menu, phosphor, phosphor_font_id};
+use crate::style::{context_menu, control_cursor, phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::block::drag::{BlockDrag, DragUnit, DropGap};
@@ -369,6 +369,7 @@ impl MdRender {
         &mut self, ui: &mut Ui, id: Id, pill: Rect, glyph: &'static str, dragging: bool,
     ) -> egui::Response {
         let resp = ui.interact(pill.expand(3.0), id, Sense::click_and_drag());
+        control_cursor(ui, resp.rect);
         let pressed = ui.input(|i| i.pointer.press_start_time());
         if let Some(pressed) = pressed.filter(|_| resp.is_pointer_button_down_on()) {
             ui.data_mut(|d| d.insert_temp(Id::unique("table_handle_held"), (id, pressed)));
