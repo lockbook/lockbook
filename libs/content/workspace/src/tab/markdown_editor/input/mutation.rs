@@ -525,9 +525,11 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(current_selection));
             }
             Event::Undo => {
+                self.in_progress_image_drag = None;
                 response |= self.renderer.buffer.undo();
             }
             Event::Redo => {
+                self.in_progress_image_drag = None;
                 response |= self.renderer.buffer.redo();
             }
             Event::Cut => {
