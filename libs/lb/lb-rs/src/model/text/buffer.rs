@@ -916,6 +916,38 @@ mod test {
     }
 
     #[test]
+    fn buffer_merge_delete_beside_insert() {
+        let base_content = "aa bb";
+        let local_content = "aa bb R";
+        let remote_content = "aa";
+
+        assert_eq!(
+            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
+            "aa R"
+        );
+        assert_eq!(
+            Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
+            "aa R"
+        );
+    }
+
+    #[test]
+    fn buffer_merge_delete_beside_replace() {
+        let base_content = "aa bb";
+        let local_content = "aa cc";
+        let remote_content = "bb";
+
+        assert_eq!(
+            Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
+            "cc"
+        );
+        assert_eq!(
+            Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
+            "cc"
+        );
+    }
+
+    #[test]
     // this test case used to crash `merge`
     fn buffer_merge_crash() {
         let base_content = "con tent";
@@ -1408,5 +1440,101 @@ mod undo_unit_tests {
         assert_eq!(buf.current.text, mid); // tab reverted
         buf.undo();
         assert_eq!(buf.current.text, "  foo\n  bar\n"); // shift-tab reverted
+    }
+}
+
+#[cfg(test)]
+mod reload_tests {
+    //! Remote versions arriving through `reload` around local edits and
+    //! undo. Undo never reverts a remote version and stops at the last one,
+    //! and a reload lands where the other device put it.
+
+    use super::Buffer;
+    use crate::model::text::offset_types::Grapheme;
+    use crate::model::text::operation_types::{Operation, Replace};
+
+    fn edit(buf: &mut Buffer, (start, end): (usize, usize), text: &str) {
+        let range = (Grapheme(start), Grapheme(end));
+        buf.queue(vec![Operation::Replace(Replace { range, text: text.into() })]);
+        buf.update();
+    }
+
+    fn reload(buf: &mut Buffer, text: &str) {
+        buf.reload(text.into());
+        buf.update();
+    }
+
+    #[test]
+    fn undo_stops_at_a_remote_edit() {
+        let mut buf = Buffer::from("aa bb cc");
+        edit(&mut buf, (0, 0), "x ");
+        reload(&mut buf, "aa bb cc R");
+        assert!(!buf.can_undo());
+        buf.undo();
+        assert_eq!(buf.current.text, "x aa bb cc R");
+    }
+
+    #[test]
+    fn undo_stops_at_a_remote_edit_before_a_click() {
+        let mut buf = Buffer::from("aa bb");
+        edit(&mut buf, (0, 0), "x ");
+        reload(&mut buf, "aa bb R");
+        buf.queue(vec![Operation::Select((Grapheme(1), Grapheme(1)))]);
+        buf.update();
+        assert!(!buf.can_undo());
+    }
+
+    #[test]
+    fn undo_after_typing_and_a_remote_edit() {
+        let mut buf = Buffer::from("aa bb");
+        for (i, c) in ["x", "y", "z"].into_iter().enumerate() {
+            edit(&mut buf, (i, i), c);
+        }
+        reload(&mut buf, "aa bb R");
+        buf.undo();
+        assert_eq!(buf.current.text, "xyzaa bb R");
+    }
+
+    #[test]
+    fn two_reloads_before_an_update() {
+        let mut buf = Buffer::from("a");
+        buf.reload("aR".into());
+        buf.reload("a".into());
+        buf.update();
+        assert_eq!(buf.current.text, "a");
+    }
+
+    #[test]
+    fn second_reload_over_unsaved_edits_lands_where_it_was_put() {
+        let mut buf = Buffer::from("aa bb cc dd");
+        edit(&mut buf, (0, 3), "");
+        reload(&mut buf, "aa bb cc dd R");
+        reload(&mut buf, "aa bb S cc dd R");
+        assert_eq!(buf.current.text, "bb S cc dd R");
+    }
+
+    #[test]
+    fn reload_after_an_undo_at_a_reload() {
+        let mut buf = Buffer::from("aa bb cc");
+        reload(&mut buf, "aa bb cc R");
+        buf.undo();
+        reload(&mut buf, "aa bb cc R S");
+        assert_eq!(buf.current.text, "aa bb cc R S");
+    }
+
+    #[test]
+    fn undo_and_redo_after_a_remote_edit_round_trip() {
+        let mut buf = Buffer::from("aa bb cc");
+        edit(&mut buf, (0, 0), "x ");
+        reload(&mut buf, "aa bb R cc");
+        edit(&mut buf, (12, 12), " y");
+        let edited = buf.current.text.clone();
+        assert_eq!(edited, "x aa bb R cc y");
+
+        buf.undo();
+        assert_eq!(buf.current.text, "x aa bb R cc");
+        assert!(!buf.can_undo());
+        buf.redo();
+        assert_eq!(buf.current.text, edited);
     }
 }
