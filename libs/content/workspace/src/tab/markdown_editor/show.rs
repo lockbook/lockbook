@@ -305,8 +305,23 @@ impl MdEdit {
         self.renderer.caret_moved |= buf_resp.selection_user_moved;
         self.renderer
             .note_typing(buf_resp.text_updated, buf_resp.selection_user_moved);
+        self.carry_block_drag();
 
         buf_resp
+    }
+
+    /// A held block drag's ranges follow the edits since it was carried
+    /// last, a sync's or a key's; the drag ends if one touched what it holds.
+    fn carry_block_drag(&mut self) {
+        let Some(mut drag) = self.in_progress_block_drag else { return };
+        let buffer = &self.renderer.buffer;
+        // up to the held text, so an edit at the list's or table's start touches it
+        let mut parent = (drag.parent_start, drag.section_range.0);
+        let carried = buffer.transform_range(drag.seq, &mut drag.section_range)
+            && buffer.transform_range(drag.seq, &mut drag.grabbed)
+            && buffer.transform_range(drag.seq, &mut parent);
+        (drag.parent_start, drag.seq) = (parent.0, buffer.current.seq);
+        self.in_progress_block_drag = carried.then_some(drag);
     }
 
     /// Desktop IME composition: the preedit sits in the buffer as the marked

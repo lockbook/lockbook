@@ -70,6 +70,8 @@ pub struct BlockDrag {
     /// invariant, so `pointer - grab_offset` tracks the floating card.
     pub grab_offset: Vec2,
     pub unit: DragUnit,
+    /// The buffer's seq the ranges are offsets into.
+    pub seq: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -160,6 +162,7 @@ impl<'ast> MdRender {
                 parent_start,
                 grab_offset: origin - span_top_left,
                 unit: DragUnit::Item,
+                seq: r.buffer.current.seq,
             })
         });
     }
@@ -226,6 +229,7 @@ impl<'ast> MdRender {
             parent_start: b.parent_start,
             grab_offset: pos - b.rect.left_top(),
             unit: b.unit,
+            seq: self.buffer.current.seq,
         })
     }
 
