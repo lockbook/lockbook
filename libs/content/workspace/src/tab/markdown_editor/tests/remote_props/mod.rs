@@ -31,7 +31,8 @@ enum Events {
     Typing,
     /// Undo and redo reach back across remote versions.
     Undo,
-    /// A caret placed on screen is held while remote versions land.
+    /// An image drag, or a caret placed on screen, is held while remote
+    /// versions land.
     Held,
     /// The view is scrolled down a tall note and remote versions land above it.
     Scrolled,
@@ -49,12 +50,17 @@ fn lb() -> Lb {
 
 #[test]
 fn undo_then_redo_restores_the_text() {
-    interleave::run(interleave::Prop::UndoRedo, Features::all(), Events::Undo, 1000);
+    interleave::run(interleave::Prop::UndoRedo, Features::all(), Events::Held, 1000);
 }
 
 #[test]
 fn the_outline_matches_a_fresh_open() {
-    interleave::run(interleave::Prop::OutlineFresh, Features::all(), Events::Undo, 600);
+    interleave::run(interleave::Prop::OutlineFresh, Features::all(), Events::Held, 600);
+}
+
+#[test]
+fn a_drop_moves_only_the_image() {
+    interleave::run(interleave::Prop::DropMovesImage, Features::all(), Events::Held, 2000);
 }
 
 #[test]

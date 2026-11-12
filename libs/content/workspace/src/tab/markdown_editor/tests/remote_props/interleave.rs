@@ -10,13 +10,16 @@
 //! [`Editor::reload`]: super::super::Editor::reload
 //! [`Editor::saved`]: super::super::Editor::saved
 
+use egui::{Event as Egui, Modifiers, PointerButton, Pos2};
+use lb_rs::model::text::offset_types::Grapheme;
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::super::super::input::Event;
+use super::super::super::widget::utils::wrap_layout::FragmentContent;
 use super::super::doc_gen::{Features, gen_doc};
 use super::super::edit_props::{event_count, event_with};
 use super::super::harness::TestEditor;
-use super::{Events, lb};
+use super::{Events, IMAGE, lb};
 use crate::test_utils::byte_source::ByteSource;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -25,10 +28,14 @@ pub(super) enum Prop {
     UndoRedo,
     /// The outline lists what a fresh open of the same text lists.
     OutlineFresh,
+    /// A drop moves only the image: same characters, same images.
+    DropMovesImage,
 }
 
+/// From [`Events::Held`] the note has images, and one is lifted and held
+/// through local and remote edits, then dropped.
 pub(super) fn run(prop: Prop, features: Features, events: Events, seeds: u64) {
-    assert!(events <= Events::Undo, "nothing here is held or scrolls");
+    assert!(events <= Events::Held, "nothing here scrolls");
     super::run(seeds, 256, |b, log| check(b, prop, &features, events, log));
 }
 
@@ -78,9 +85,14 @@ fn check(
     buf: &[u8], prop: Prop, features: &Features, events: Events, log: &mut dyn FnMut(String),
 ) -> Result<(), String> {
     let mut src = ByteSource::new(buf);
-    let md = gen_doc(&mut src, features);
+    let md = if events >= Events::Held {
+        doc_with_images(&mut src, features)
+    } else {
+        gen_doc(&mut src, features)
+    };
     log(format!("doc {md:?}"));
-    let mut ws = TestEditor::with_lb(lb(), &md);
+    let (mut ws, embeds) = TestEditor::with_test_embeds(lb(), &md);
+    embeds.complete(IMAGE, egui::vec2(40.0, 40.0));
     if prop == Prop::OutlineFresh {
         ws.editor.toggle_outline();
     }
@@ -130,6 +142,7 @@ fn step(
             }
             Ok(())
         }
+        4 if s.events >= Events::Held => drag(s, src, prop, log),
         _ => {
             log("frame".into());
             s.ws.enter_frame();
@@ -218,6 +231,108 @@ fn save(s: &mut Session, log: &mut dyn FnMut(String)) -> Result<(), String> {
     }
     s.ws.enter_frame();
     Ok(())
+}
+
+/// Lifts an image with the mouse, holds it through local edits, saves and
+/// remote versions, and drops it somewhere.
+fn drag(
+    s: &mut Session, src: &mut ByteSource, prop: Prop, log: &mut dyn FnMut(String),
+) -> Result<(), String> {
+    let Some(from) = image_center(&s.ws, src) else { return Ok(()) };
+    let button = |pos, pressed| Egui::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    log(format!("drag lifts the image at {from:?}"));
+    s.ws.enter_frame_with_input(vec![Egui::PointerMoved(from)]);
+    s.ws.enter_frame_with_input(vec![button(from, true)]);
+    s.ws.enter_frame_with_input(vec![Egui::PointerMoved(from + egui::vec2(20.0, 20.0))]);
+    let Some(grab) =
+        s.ws.editor
+            .edit
+            .in_progress_image_drag
+            .as_ref()
+            .map(|d| d.grab_offset)
+    else {
+        s.ws.enter_frame_with_input(vec![button(from, false)]);
+        return Ok(());
+    };
+    let lift = egui::vec2(0.0, grab.y + s.ws.editor.edit.renderer.drop_lift());
+    log("drag holds".into());
+    for _ in 0..src.draw(4) {
+        match src.bias(&[1, 1, 1]) {
+            0 => remote(s, src, log)?,
+            1 => save(s, log)?,
+            _ => local(s, src, log)?,
+        }
+    }
+    let len =
+        s.ws.editor
+            .edit
+            .renderer
+            .buffer
+            .current
+            .segs
+            .last_cursor_position()
+            .0;
+    let at = Grapheme(src.draw(len + 1));
+    let to =
+        s.ws.editor
+            .edit
+            .cursor_line(at)
+            .map(|[top, bot]| Pos2::new(top.x - 1.0, (top.y + bot.y) / 2.0))
+            .unwrap_or(from);
+    log(format!("drag drops at offset {at:?}"));
+    s.ws.enter_frame_with_input(vec![Egui::PointerMoved(to)]);
+    s.ws.enter_frame_with_input(vec![Egui::PointerMoved(to + lift)]);
+    let before = s.ws.get_text().to_string();
+    s.ws.enter_frame_with_input(vec![button(to + lift, false)]);
+    s.ws.enter_frame();
+    let after = s.ws.get_text();
+    if after != before {
+        log("the drop moved the image".into());
+    }
+    if prop == Prop::DropMovesImage {
+        let token = format!("![a]({IMAGE})");
+        let sorted = |t: &str| {
+            let mut c: Vec<char> = t.chars().collect();
+            c.sort_unstable();
+            c
+        };
+        if sorted(&before) != sorted(after)
+            || before.matches(&token).count() != after.matches(&token).count()
+        {
+            return Err(format!("the drop turned {before:?} into {after:?}"));
+        }
+    }
+    Ok(())
+}
+
+/// The center of one of the drawn images, if any draws.
+fn image_center(ws: &TestEditor, src: &mut ByteSource) -> Option<Pos2> {
+    let images: Vec<Pos2> = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .filter(|f| matches!(f.content, FragmentContent::Embed { .. }))
+        .map(|f| f.rect.center())
+        .collect();
+    (!images.is_empty()).then(|| images[src.draw(images.len())])
+}
+
+/// A generated note with up to two images as paragraphs of their own.
+fn doc_with_images(src: &mut ByteSource, features: &Features) -> String {
+    let doc = gen_doc(src, features);
+    let mut blocks: Vec<String> = doc.split("\n\n").map(str::to_string).collect();
+    for _ in 0..src.draw(3) {
+        let at = src.draw(blocks.len() + 1);
+        blocks.insert(at, format!("![a]({IMAGE})"));
+    }
+    blocks.join("\n\n")
 }
 
 /// The outline as kept through every change equals the outline of a fresh
