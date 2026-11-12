@@ -479,6 +479,8 @@ impl MdEdit {
         // Floating card; the header's fill and the rows' rules go with it.
         let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = src_rect.translate(offset);
+        let mut painter = painter.clone();
+        painter.multiply_opacity(crate::style::DRAG_OPACITY);
         painter.rect_filled(card, card_corner, fill);
         for cell_box in &cells {
             let cell = cell_box.rect.translate(offset);

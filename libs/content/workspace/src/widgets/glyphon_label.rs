@@ -4,11 +4,11 @@ use egui::{Response, Sense, Ui};
 use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Weight};
 use unicode_segmentation::UnicodeSegmentation as _;
 
+use crate::TextBufferArea;
 use crate::style::TypeRole;
 use crate::widgets::glyphon_cache::{
     GlyphonCache, GlyphonCacheKey, GlyphonCacheSpan, GlyphonFontFamily,
 };
-use crate::{GlyphonRendererCallback, TextBufferArea};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum TextOverflow {
@@ -586,11 +586,7 @@ impl egui::Widget for GlyphonLabel<'_> {
             let areas = shaped.text_areas(rect, ui.ctx(), rect);
             // egui_wgpu clamps the callback rect to the screen and drops a zero-area result.
             let callback_rect = rect.intersect(ui.clip_rect());
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    callback_rect,
-                    GlyphonRendererCallback::new(areas),
-                ));
+            crate::widgets::glyphon_render::paint_glyphon(ui.painter(), callback_rect, areas);
         }
 
         response

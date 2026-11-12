@@ -701,12 +701,16 @@ impl<'ast> MdEdit {
             crate::style::paint_inset_shadow(ui.painter(), slot, corner, &theme);
         }
         let card = egui::Rect::from_min_size(drag.pointer - drag.grab_offset, drag.size);
-        ui.painter()
-            .add(crate::style::overlay_shadow(&theme).as_shape(card, corner));
         let float_ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(card));
+        float_ui.multiply_opacity(crate::style::DRAG_OPACITY);
+        float_ui
+            .painter()
+            .add(crate::style::overlay_shadow(&theme).as_shape(card, corner));
         match kind {
             EmbedKind::Tab => {
-                ui.painter().rect_filled(card, corner, theme.neutral_bg());
+                float_ui
+                    .painter()
+                    .rect_filled(card, corner, theme.neutral_bg());
                 // the floating copy only paints
                 self.renderer.painting_drag_float = true;
                 self.renderer

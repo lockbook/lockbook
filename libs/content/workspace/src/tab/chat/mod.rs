@@ -27,7 +27,6 @@ use lb_rs::model::chat::{Buffer, Message, ToolRecord};
 use lb_rs::model::file_metadata::DocumentHmac;
 use serde_json::json;
 
-use crate::GlyphonRendererCallback;
 use crate::file_cache::{FileCache, FilesExt};
 use crate::resolvers::FileCacheLinkResolver;
 use crate::tab::markdown_editor::{MdEdit, MdLabel};

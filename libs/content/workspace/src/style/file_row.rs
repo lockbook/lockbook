@@ -477,11 +477,7 @@ fn paint_caption(
     let clip = text_rect.intersect(ui.clip_rect()).intersect(slot);
     if clip.width() > 0.5 && clip.height() > 0.5 && ui.is_rect_visible(clip) {
         let area = shaped.text_area(text_rect, ui.ctx(), clip);
-        ui.painter()
-            .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                clip,
-                crate::GlyphonRendererCallback::new(vec![area]),
-            ));
+        crate::widgets::glyphon_render::paint_glyphon(ui.painter(), clip, vec![area]);
     }
 }
 
