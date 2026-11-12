@@ -532,6 +532,36 @@ impl<S: Server> Lb<S> {
                             .map_err(orphaned_creation(id))?;
                     }
 
+                    // deletes
+                    // before moves, so a moved folder leaves the files this device deleted as they
+                    // were; a file is deleted itself unless its parent is deleted and holds it in
+                    // the merge too, since moves skip deleted files but may lift live ones
+                    for id in db.local_metadata.ids() {
+                        if db.base_metadata.maybe_find(&id).is_none()
+                            || !deletions.calculate_deleted(&id)?
+                            || remote.calculate_deleted(&id)?
+                        {
+                            continue;
+                        }
+                        let deleted = deletions.find(&id)?;
+                        if deleted.explicitly_deleted()
+                            || deleted.parent() != merge.find(&id)?.parent()
+                        {
+                            // delete
+                            merge.delete_unvalidated(&id, &self.keychain)?;
+                        }
+                    }
+                    for &id in &links_to_delete {
+                        // delete
+                        if merge.maybe_find(&id).is_some()
+                            && !merge.find(&id)?.explicitly_deleted()
+                            && !(remote.maybe_find(&id).is_some()
+                                && remote.calculate_deleted(&id)?)
+                        {
+                            merge.delete_unvalidated(&id, &self.keychain)?;
+                        }
+                    }
+
                     // moves, renames, edits, and shares
                     // creations happen first in case a file is moved into a new folder
                     for id in db.local_metadata.ids() {
@@ -728,24 +758,6 @@ impl<S: Server> Lb<S> {
                                     &self.keychain,
                                 )?;
                             }
-                        }
-                    }
-
-                    // deletes
-                    // moves happen first in case a file is moved into a deleted folder
-                    for id in db.local_metadata.ids() {
-                        if db.base_metadata.maybe_find(&id).is_some()
-                            && deletions.calculate_deleted(&id)?
-                            && !merge.calculate_deleted(&id)?
-                        {
-                            // delete
-                            merge.delete_unvalidated(&id, &self.keychain)?;
-                        }
-                    }
-                    for &id in &links_to_delete {
-                        // delete
-                        if merge.maybe_find(&id).is_some() && !merge.calculate_deleted(&id)? {
-                            merge.delete_unvalidated(&id, &self.keychain)?;
                         }
                     }
 

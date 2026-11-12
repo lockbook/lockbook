@@ -180,8 +180,14 @@ where
         let file = file.sign(keychain)?;
 
         let mut result = vec![file];
-        for id in self.descendants(id)? {
-            if self.calculate_deleted(&id)? {
+        let moved = *id;
+        for id in self.descendants(&moved)? {
+            // deleted after the move: deleted inside the moved file, not above it
+            let mut file = self.find(&id)?;
+            while !file.explicitly_deleted() && *file.parent() != moved {
+                file = self.find(file.parent())?;
+            }
+            if file.explicitly_deleted() {
                 continue;
             }
             let mut descendant = self.find(&id)?.timestamped_value.value.clone();
