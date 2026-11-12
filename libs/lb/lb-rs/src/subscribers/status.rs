@@ -131,7 +131,9 @@ impl<S: Server> Lb<S> {
 
     pub async fn set_initial_state(&self) -> LbResult<()> {
         if self.get_account().is_ok() {
-            self.spawn_compute_usage().await;
+            if self.config.background_work {
+                self.spawn_compute_usage().await;
+            }
             let mut current = self.status.current_status.write().await;
             current.dirty_locally = self.local_changes().await;
             if current.dirty_locally.is_empty() {
