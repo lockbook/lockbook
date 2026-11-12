@@ -1347,8 +1347,9 @@ impl Editor {
     /// `hmac` as the version of that displayed text. The two are always set
     /// together so a later save cannot clone a stale body under a new hmac.
     pub fn apply_disk_version(&mut self, text: String, hmac: Option<DocumentHmac>) {
-        self.edit.renderer.buffer.reload(text);
-        self.apply_pending_buffer();
+        if self.edit.renderer.buffer.reload(text).text_updated {
+            self.edit.renderer.bump_text_seq();
+        }
         self.hmac = hmac;
     }
 
@@ -1360,8 +1361,8 @@ impl Editor {
     }
 
     /// Record a successful CAS: this hmac is the on-disk version of `content`.
-    pub fn record_disk_save(&mut self, hmac: DocumentHmac, seq: usize, content: String) {
-        self.edit.renderer.buffer.saved(seq, content);
+    pub fn record_disk_save(&mut self, hmac: DocumentHmac, content: String) {
+        self.edit.renderer.buffer.saved(content);
         self.hmac = Some(hmac);
     }
 
