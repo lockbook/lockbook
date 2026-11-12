@@ -30,6 +30,13 @@ struct SharedFlat {
 
 pub fn show_shared(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     app.ensure_shared_cache();
+    if app
+        .session
+        .ready()
+        .is_some_and(|r| r.workspace.has_unseen_shares())
+    {
+        queue.push(Action::MarkSharesSeen);
+    }
     let pending = app.shared_cache.pending.clone();
 
     if pending.is_empty() {

@@ -29,7 +29,7 @@ use egui::Sense;
 use egui::{Area, Id, Order, Rect, pos2, vec2};
 
 use crate::components::{
-    Theme, claim, icon_button_glyph, phosphor, phosphor_font_id, place_at, tip_text,
+    Theme, claim, icon_button_glyph, icon_plate, phosphor, phosphor_font_id, place_at, tip_text,
 };
 use egui::{Align, Layout};
 
@@ -254,6 +254,10 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
         .ready()
         .map(|r| (r.workspace.can_back(), r.workspace.can_forward()))
         .unwrap_or((false, false));
+    let unseen_shares = app
+        .session
+        .ready()
+        .is_some_and(|r| r.workspace.has_unseen_shares());
 
     Area::new(Id::unique("shell_sidebar_toolbar"))
         .order(Order::Foreground)
@@ -272,6 +276,10 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
                 let (resp, _) = place_at(ui, slot, Layout::top_down(Align::Min), |ui| {
                     titlebar_icon(ui, t, pane.icon(), active, true, ground, pane.title())
                 });
+                // An open pane marks its shares seen after the titlebar draws.
+                if *pane == SidebarPane::Shared && unseen_shares && !active {
+                    paint_badge(ui, t, resp.rect, pane.icon(), icon_plate(ui, t, &resp, ground));
+                }
                 if resp.clicked() {
                     queue.push(A::SelectPane(*pane));
                 }
@@ -373,6 +381,26 @@ fn titlebar_icon(
         tip_text(ui.ctx(), &resp, tip);
         resp
     }
+}
+
+/// Accent dot on the top-right corner of `icon`'s glyph inside `hit`, ringed
+/// in `plate` so it reads as cut out of the glyph.
+fn paint_badge(ui: &egui::Ui, t: &Theme, hit: Rect, icon: &'static str, plate: egui::Color32) {
+    const R: f32 = 3.0;
+    const RING: f32 = 1.5;
+    let painter = ui.painter();
+    let g = painter.layout_no_wrap(
+        icon.into(),
+        phosphor_font_id(titlebar_glyph()),
+        egui::Color32::PLACEHOLDER,
+    );
+    // Drawn ink, not the line box: placed the way icon_button_glyph places it.
+    let ink = g
+        .mesh_bounds
+        .translate((hit.center() - g.size() / 2.0).to_vec2());
+    let c = ink.right_top();
+    painter.circle_filled(c, R + RING, plate);
+    painter.circle_filled(c, R, t.accent());
 }
 
 #[cfg(not(target_os = "macos"))]

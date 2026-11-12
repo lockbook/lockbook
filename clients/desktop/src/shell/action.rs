@@ -360,6 +360,8 @@ pub enum Action {
         name: String,
     },
     AcceptShareDest(Uuid),
+    /// Shared with me is on screen: clears the titlebar dot.
+    MarkSharesSeen,
     ConfirmAcceptShare,
     /// Open decline confirm sheet.
     OpenDeclineShare {
@@ -533,6 +535,7 @@ impl Action {
             Self::ConfirmRename => "ConfirmRename",
             Self::OpenAcceptShare { .. } => "OpenAcceptShare",
             Self::AcceptShareDest(_) => "AcceptShareDest",
+            Self::MarkSharesSeen => "MarkSharesSeen",
             Self::ConfirmAcceptShare => "ConfirmAcceptShare",
             Self::OpenDeclineShare { .. } => "OpenDeclineShare",
             Self::ConfirmDeclineShare(_) => "ConfirmDeclineShare",
