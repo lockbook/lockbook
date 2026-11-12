@@ -199,3 +199,20 @@ fn toggle_link_twice_restores_text() {
         assert_eq!(ws.get_text(), md);
     }
 }
+
+/// A search link in a note opens the search, in either style.
+#[test]
+fn search_links_open_from_a_note() {
+    use crate::resolvers::link::LinkState;
+    use crate::tab::ExtendedOutput as _;
+    let files = shared_project();
+    let note = at(&files, "/project/notes.md");
+    let mut ws = TestEditor::in_files(files, note, "");
+    ws.enter_frame();
+    for url in ["lb://search#q=ferry", "https://app.lockbook.net/open/search#q=ferry"] {
+        let renderer = &ws.editor.edit.renderer;
+        assert!(matches!(renderer.link_state_for_url(url), LinkState::Normal), "{url}");
+        renderer.open_resolved_link(url, &renderer.ctx, false);
+        assert!(renderer.ctx.pop_link_sheets().is_empty(), "{url}");
+    }
+}
