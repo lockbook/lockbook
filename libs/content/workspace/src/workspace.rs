@@ -1207,6 +1207,10 @@ impl Workspace {
         self.landing_page.update_recent_files(&files);
         self.out.file_cache_updated = true;
         self.previews.bump();
+        let pending: Vec<Uuid> = files.shared_roots.iter().map(|f| f.id).collect();
+        let mut seen = self.cfg.get_seen_pending_shares();
+        seen.retain(|id| pending.contains(id));
+        self.cfg.set_seen_pending_shares(seen);
         let mut ids_to_delete = vec![];
         for slot in &self.tab_strip {
             if let Destination::File(id) = slot.place.dest {
@@ -2043,6 +2047,35 @@ impl Workspace {
     }
 }
 
+impl Workspace {
+    fn pending_share_ids(&self) -> Vec<Uuid> {
+        let mut ids: Vec<Uuid> = self
+            .files
+            .read()
+            .unwrap()
+            .shared_roots
+            .iter()
+            .map(|f| f.id)
+            .collect();
+        ids.sort();
+        ids
+    }
+
+    /// A share arrived since Shared with me was last shown.
+    pub fn has_unseen_shares(&self) -> bool {
+        let seen = self.cfg.get_seen_pending_shares();
+        self.pending_share_ids().iter().any(|id| !seen.contains(id))
+    }
+
+    /// Shared with me is on screen: every pending share counts as seen. A
+    /// share stops counting once a sync shows it no longer pending (see
+    /// [`Self::process_bg_tasks`]), so if it comes back it is new.
+    pub fn mark_shares_seen(&mut self) {
+        let ids = self.pending_share_ids();
+        self.cfg.set_seen_pending_shares(ids);
+    }
+}
+
 #[derive(Clone)]
 pub struct WsPersistentStore {
     pub path: PathBuf,
@@ -2168,6 +2201,9 @@ pub struct WsPresistentData {
     /// The widest a note's text column gets, in points.
     #[serde(default = "default_column_width", deserialize_with = "column_width_preset")]
     column_width: f32,
+    /// Pending share roots as of the last time Shared with me was shown.
+    #[serde(default)]
+    seen_pending_shares: Vec<Uuid>,
 }
 
 fn default_column_width() -> f32 {
@@ -2214,6 +2250,7 @@ impl Default for WsPresistentData {
             update_links: true,
             spell_check: true,
             column_width: default_column_width(),
+            seen_pending_shares: Vec::default(),
         }
     }
 }
@@ -2409,6 +2446,20 @@ impl WsPersistentStore {
             return; // no-op guard: mobile pushes this from its per-frame draw
         }
         data_lock.spell_check = spell_check;
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn get_seen_pending_shares(&self) -> Vec<Uuid> {
+        self.data.read().unwrap().seen_pending_shares.clone()
+    }
+
+    pub fn set_seen_pending_shares(&mut self, seen: Vec<Uuid>) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.seen_pending_shares == seen {
+            return;
+        }
+        data_lock.seen_pending_shares = seen;
         drop(data_lock);
         self.write_to_file();
     }
@@ -2694,5 +2745,57 @@ mod media_tests {
 
         let content = &t.ws.current_tab().unwrap().content;
         assert!(matches!(content, ContentState::Failed(TabFailure::Refused(_))));
+    }
+}
+
+#[cfg(test)]
+mod seen_share_tests {
+    use lb_rs::model::file::ShareMode;
+    use lb_rs::model::file_metadata::FileType;
+
+    use crate::file_cache::FileCache;
+    use crate::test_utils::ws::{TestWs, test_lb};
+
+    /// Syncs the workspace's account and swaps in a fresh file cache, as a sync does.
+    fn sync(t: &mut TestWs) {
+        t.ws.core.sync().unwrap();
+        let fresh = FileCache::new(&t.ws.core).unwrap();
+        t.ws.files.write().unwrap().replace(fresh);
+        t.ws.process_bg_tasks();
+    }
+
+    #[test]
+    fn unseen_until_shown_then_only_new_shares() {
+        let mut t = TestWs::new();
+        let me = t.ws.account.username.clone();
+        let sharer = test_lb();
+        let root = sharer.get_root().unwrap().id;
+        let share = |id| {
+            sharer.share_file(id, &me, ShareMode::Write).unwrap();
+            sharer.sync().unwrap();
+        };
+        let a = sharer.create_file("a", &root, FileType::Folder).unwrap().id;
+        let b = sharer.create_file("b", &root, FileType::Folder).unwrap().id;
+
+        share(a);
+        sync(&mut t);
+        assert!(t.ws.has_unseen_shares());
+
+        t.ws.mark_shares_seen();
+        assert!(!t.ws.has_unseen_shares());
+
+        share(b);
+        sync(&mut t);
+        assert!(t.ws.has_unseen_shares());
+        t.ws.mark_shares_seen();
+
+        // Declined while the pane is off screen, then shared again: new.
+        t.ws.core.delete_pending_share(&a).unwrap();
+        sync(&mut t);
+        assert!(!t.ws.has_unseen_shares());
+        sharer.sync().unwrap();
+        share(a);
+        sync(&mut t);
+        assert!(t.ws.has_unseen_shares());
     }
 }
