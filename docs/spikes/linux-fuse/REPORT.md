@@ -30,7 +30,20 @@ Bugs this spike found and fixed in its own code, each reproduced on a VM first: 
 3. **One FUSE thread.** With lazy documents (#4240), an open can fetch from the network and stall the whole mount. That needs a multi-threaded session.
 4. **Conflict rule edges.** An app that read v1 and then *appends* after a sync gets a needless conflicted copy. An app that never re-reads makes a new copy on every save until it reloads. macOS has the same shape: it rejects each save.
 5. **Idle latency.** With nobody touching the mount, lb-rs polls every 5 min, so a remote edit can take that long to arrive. That's the desktop app's policy too.
-6. **Not tested:** vim's default `backupcopy` (it renames the original away, which gives the file a new id); the snap/flatpak desktop app running next to the helper; large files; mount at a subfolder (#3960); out-of-space (#4336).
+6. **Not tested:** vim's default `backupcopy` (it renames the original away, which gives the file a new id); the snap/flatpak desktop app running next to the helper; large files; mount at a subfolder (#3960); out-of-space (#4336); two devices running git on the same repo at once.
+
+Found by an independent code review afterwards (2026-11-11). These come from reading the code; none was reproduced on a VM:
+
+7. **A huge truncate or write offset aborts the mount.** Buffers resize to whatever the kernel asks, so `truncate -s 100G` fails to allocate and every unsaved buffer is lost. Needs EFBIG above a cap.
+8. **A rename over a file that is still open with unsaved writes** reads the source's last saved content, not its buffer. The later close writes to the deleted source. GLib renames before closing when the target was empty, so a gedit save into an empty file likely loses its text.
+9. **vim's default save** (rename `x` to `x~`, create a new `x`, delete `x~`) gives the file a new id and skips the stale check.
+10. **Any read-only open by the saving process resets its base**, so `backupcopy=yes` (read, then truncate and write) overwrites a synced change. The per-process versions are never pruned, so a reused pid inherits a stale base.
+11. **A failed save at close drops the buffer.** That happens when the file was deleted remotely, at the data cap, or with two conflicted copies of one file in the same second (the name only has whole seconds).
+12. **A rename that turns into a conflicted copy reports success.** For git's `index.lock` → `index`, git would believe the index moved.
+13. **`mv a/x b/y` is a move then a rename.** It fails with EEXIST if `b/x` exists, and can leave the file in `b` under its old name.
+14. Minor: `readdir` offsets index a freshly rebuilt list (deletes in between skip entries); `getattr` decrypts a whole document for its size, which downloads files that aren't local and fails offline; a handle-less truncate resizes other processes' buffers too.
+
+**Git repos in the folder (2026-11-11, Ubuntu VM).** `git init`, commits, branches, `gc`, `fsck --full` and a `git clone` from GitHub all worked inside `~/Lockbook`. A second data directory imported the same account and synced. The exported repo there had all 7 commits and passed `git fsck --full`. Not tried: git on two devices at once. Lockbook would merge `.git/index` and refs like any other files, which is the known Dropbox-and-git hazard.
 
 ## Prior art: reused and rejected
 
