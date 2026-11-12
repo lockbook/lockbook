@@ -579,6 +579,8 @@ impl MdEdit {
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
         self.renderer.table_cell_boxes.clear();
+        self.renderer.unbreakable.clear();
+        self.renderer.print_heading_top = None;
         self.renderer.table_header_slots.clear();
         self.renderer.in_progress_block_drag = self.in_progress_block_drag;
         self.renderer.bounds.wrap_lines.clear();

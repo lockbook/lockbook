@@ -492,6 +492,9 @@ pub enum Presentation {
     /// Embedded in a hover card: it takes the wheel, so what doesn't fit
     /// scrolls.
     Card,
+    /// Embedded for print: tables share the width, folds are open, and its
+    /// text paints for a PDF, not the GPU, while it draws.
+    Print,
 }
 
 /// A place for a tab's content to show once it has loaded.
@@ -672,7 +675,17 @@ impl Tab {
         if let ContentState::Open(content) = &mut self.content {
             content.set_presentation(self.presentation);
         }
+        // the outermost printed tab marks its drawing as printing
+        let printing = self.presentation == Presentation::Print && !crate::printing(ui.ctx());
+        if printing {
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(egui::Id::NULL, crate::Printing));
+        }
         let resp = ui.push_id(self.salt, |ui| self.show_inner(ui)).inner;
+        if printing {
+            ui.ctx()
+                .data_mut(|d| d.remove::<crate::Printing>(egui::Id::NULL));
+        }
         self.first_draw = false;
         match embedded {
             // a host takes nothing from an embed but a file to open
@@ -925,6 +938,10 @@ impl TabContent {
                 md.edit.takes_focus = !embedded;
                 md.edit.clip_to_host = embedded;
                 md.edit.renderer.interactive = !embedded;
+                md.edit.renderer.print = presentation == Presentation::Print;
+                if md.edit.renderer.print {
+                    md.edit.renderer.layout.max_width = f32::INFINITY;
+                }
             }
             TabContent::Image(img) => img.embedded = embedded,
             TabContent::Pdf(pdf) => pdf.embedded = embedded,

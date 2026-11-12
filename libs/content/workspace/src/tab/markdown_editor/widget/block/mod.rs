@@ -308,6 +308,29 @@ impl<'ast> MdRender {
 
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
+        if self.print {
+            let rect = egui::Rect::from_min_size(
+                top_left,
+                egui::vec2(self.width(node), self.height(node)),
+            );
+            // a heading stays with the block after it
+            match value {
+                NodeValue::Document => {}
+                NodeValue::Heading(_) => self.print_heading_top = Some(rect.top()),
+                value if value.block() => {
+                    if let Some(top) = self.print_heading_top.take() {
+                        self.unbreakable.push(rect.with_min_y(top));
+                    }
+                }
+                _ => {}
+            }
+            if matches!(
+                value,
+                NodeValue::Table(_) | NodeValue::TableRow(_) | NodeValue::CodeBlock(_)
+            ) {
+                self.unbreakable.push(rect);
+            }
+        }
         match value {
             NodeValue::FrontMatter(_) => self.show_front_matter(ui, node, top_left),
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
@@ -527,6 +550,9 @@ impl<'ast> MdRender {
 
     /// Returns the fold node - the node that is causing this node to be folded - if there is one
     pub fn fold(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
+        if self.print {
+            return None;
+        }
         if let Some(foldable) = self.foldable(node) {
             for inline in foldable.children() {
                 if let NodeValue::HtmlInline(html) = &inline.data.borrow().value {
