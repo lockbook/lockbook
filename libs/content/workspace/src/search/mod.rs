@@ -812,8 +812,20 @@ impl Workspace {
                             .unwrap_or(0.0);
                         if pending_loading && elapsed >= LOAD_DELAY_SECS {
                             crate::style::loading_indicator(ui);
-                        } else if let Some(tab) = self.preview.as_mut() {
+                        } else if let Some(host) =
+                            self.preview.as_ref().and_then(crate::tab::Tab::embed_host)
+                        {
+                            let res = self.resources();
+                            let states = self.embeds.states(host, &mut self.tabs, &res);
+                            let tab = self.preview.as_mut().expect("checked");
+                            tab.set_embed_states(states);
                             let resp = self.open_guard.show(tab, |tab| tab.show(ui));
+                            let requests = tab.embed_requests();
+                            let targets =
+                                self.embeds.draw(ui, host, requests, &mut self.tabs, &res);
+                            let tab = self.preview.as_mut().expect("checked");
+                            tab.paint_embed_overs(ui);
+                            tab.embed_targets(targets);
                             if let Some(id) = resp.open_anyway {
                                 self.open_anyway(id, None);
                             }

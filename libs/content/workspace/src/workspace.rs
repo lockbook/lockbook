@@ -60,6 +60,8 @@ struct ClosedTab {
 pub struct Workspace {
     // User activity
     pub tabs: TabCache,
+    /// What notes' embed slots show.
+    pub embeds: crate::tab::embed_host::EmbedHost,
     pub tab_strip: Vec<Session>,
     /// Active session (not its destination — two sessions may share a dest).
     pub current_tab: Option<SessionId>,
@@ -176,6 +178,7 @@ impl Workspace {
         FileCache::keep(&files, core, ctx);
         let mut ws = Self {
             tabs: TabCache::new(),
+            embeds: Default::default(),
             tab_strip: Vec::new(),
             current_tab: None,
             activation_history: Vec::new(),

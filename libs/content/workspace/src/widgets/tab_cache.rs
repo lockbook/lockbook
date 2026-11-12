@@ -123,8 +123,10 @@ impl TabCache {
                 .get_any_mut(&sid)
                 .filter(|t| t.destination.backing_file() == Some(id));
         }
+        // an embed's tab loads only by its session
         let is_loading_file = |t: &Tab| {
             t.destination.backing_file() == Some(id)
+                && t.presentation == crate::tab::Presentation::Full
                 && matches!(t.content, crate::tab::ContentState::Loading(_))
         };
         let key = self
@@ -140,7 +142,10 @@ impl TabCache {
             })
             .or_else(|| {
                 self.iter()
-                    .find(|(_, t)| t.destination.backing_file() == Some(id))
+                    .find(|(_, t)| {
+                        t.destination.backing_file() == Some(id)
+                            && t.presentation == crate::tab::Presentation::Full
+                    })
                     .map(|(k, _)| *k)
             })?;
         self.get_any_mut(&key)

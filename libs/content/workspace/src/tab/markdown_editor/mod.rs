@@ -134,7 +134,7 @@ pub struct MdRender {
     /// Set only while painting the floating drag-reorder card, so chrome
     /// that shouldn't travel with it (the fold button) can opt out.
     pub painting_drag_float: bool,
-    /// Where the note embed being dragged starts: only its floating copy shows its tab.
+    /// Where the note embed being dragged starts: its slot stands empty.
     pub lifted_embed: Option<Grapheme>,
     /// The slug of a heading whose link was asked for this frame; the
     /// editor, which knows the note, puts the link on the clipboard.
@@ -1689,17 +1689,10 @@ impl Editor {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut resp: Response = mem::take(&mut self.next_resp);
         self.moved_unpainted = false;
-        self.edit.renderer.tab_embeds.begin_frame(ui.ctx());
+        self.edit.renderer.tab_embeds.begin_frame();
         // a formula landing mid-frame drew as its source
         let math_seq = self.edit.renderer.math.seq();
         let diagram_seq = self.edit.renderer.diagrams.seq();
-        // Copy takes the selection in the embed last pressed, if there is one
-        if ui.input(|i| i.events.contains(&egui::Event::Copy)) {
-            if let Some(text) = self.edit.renderer.tab_embeds.copy() {
-                ui.ctx().copy_text(text);
-                ui.input_mut(|i| i.events.retain(|e| *e != egui::Event::Copy));
-            }
-        }
 
         let view = view_for(self.edit.renderer.kind, &self.persistence);
         if view != self.edit.renderer.view {
@@ -2214,11 +2207,8 @@ impl Editor {
         self.initialized = true;
         resp.user_scrolled = std::mem::take(&mut self.user_scrolled);
         self.moved_unpainted |= std::mem::take(&mut self.edit.moved_after_paint);
-        // a touch on an embedded tab's own target (a link) is the tab's
-        let inner = self.edit.renderer.tab_embeds.inner_targets();
-        let inner = inner.into_iter().map(|rect| (rect, TouchTarget::Popup));
-        self.edit.renderer.touch_targets.splice(0..0, inner);
-        // a touch elsewhere on an embed is the embed's
+        // a touch on an embed is the embed's; on its tab's own targets, the
+        // workspace's (`embed_targets`)
         for rect in self.edit.renderer.tab_embeds.rects() {
             self.edit
                 .renderer
@@ -2242,6 +2232,16 @@ impl Editor {
             | (self.edit.renderer.diagrams.seq() != diagram_seq);
 
         resp
+    }
+
+    /// Where the embedded tabs drawn into this note's slots have targets of
+    /// their own, such as links: a touch there is the tab's, ahead of the
+    /// slot's, behind a hover card's.
+    pub fn embed_targets(&mut self, rects: Vec<Rect>) {
+        let card = crate::style::card_shown(&self.edit.renderer.ctx).is_some();
+        let inner = rects.into_iter().map(|rect| (rect, TouchTarget::Popup));
+        let at = usize::from(card).min(self.edit.renderer.touch_targets.len());
+        self.edit.renderer.touch_targets.splice(at..at, inner);
     }
 
     pub fn will_consume_touch(&self, pos: Pos2) -> bool {
@@ -2672,12 +2672,11 @@ impl Editor {
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 // what a drag draws stays inside the note, under the toolbar
-                let mut overlay = ui.new_child(UiBuilder::new().max_rect(canvas_rect));
-                if !self.edit.clip_to_host {
-                    overlay.set_clip_rect(canvas_rect.intersect(ui.clip_rect()));
-                }
-                self.edit.draw_dragged_overlay(&mut overlay, root);
-                self.edit.draw_image_drag(&mut overlay);
+                let clip = match self.edit.clip_to_host {
+                    true => ui.clip_rect(),
+                    false => canvas_rect.intersect(ui.clip_rect()),
+                };
+                self.edit.draw_drags(ui, root, scroll_id, clip);
                 self.show_outline(ui, root, canvas_rect);
                 ui.advance_cursor_after_rect(canvas_rect);
             });

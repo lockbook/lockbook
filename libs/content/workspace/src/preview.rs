@@ -67,6 +67,9 @@ pub struct Headless {
     pub ctx: Context,
     pub res: TabResources,
     pub tab: Tab,
+    /// What the tab's embeds show, kept apart from the live workspace's.
+    embeds: crate::tab::embed_host::EmbedHost,
+    embed_tabs: crate::widgets::tab_cache::TabCache,
     fragment: Option<crate::tab::Fragment>,
     padding: f32,
     /// The image's size in points of the private context, and its pixels per
@@ -130,6 +133,8 @@ impl Headless {
             ctx,
             res,
             tab,
+            embeds: Default::default(),
+            embed_tabs: Default::default(),
             fragment: req.place.fragment.clone(),
             padding: req.padding / look.zoom,
             points: req.size / look.zoom,
@@ -170,15 +175,33 @@ impl Headless {
         }
         self.res.images.begin_frame();
         let bg = self.ctx.get_lb_theme().neutral_bg();
-        let tab = &mut self.tab;
+        let (tab, res) = (&mut self.tab, &self.res);
+        let host = tab.embed_host();
+        let (embeds, embed_tabs) = (&mut self.embeds, &mut self.embed_tabs);
         let padding = self.padding;
         let out = self.ctx.run_pass(input, |ctx| {
+            let open: Vec<_> = host.into_iter().collect();
+            embeds.begin_frame(ctx, embed_tabs, res, &open);
+            if let Some(host) = host {
+                tab.set_embed_states(embeds.states(host, embed_tabs, res));
+            }
             ctx.root_ui(|root| {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::NONE.fill(bg))
                     .show(root, |ui| {
                         let rect = ui.max_rect().shrink(padding);
-                        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| tab.show(ui))
+                        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                            tab.show(ui);
+                            let Some(host) = host else { return };
+                            let requests = tab.embed_requests();
+                            // a printed note's embeds print with it
+                            let print = tab.presentation == crate::tab::Presentation::Print;
+                            crate::print_while(&ui.ctx().clone(), print, || {
+                                let targets = embeds.draw(ui, host, requests, embed_tabs, res);
+                                tab.paint_embed_overs(ui);
+                                tab.embed_targets(targets);
+                            });
+                        })
                     });
             });
         });

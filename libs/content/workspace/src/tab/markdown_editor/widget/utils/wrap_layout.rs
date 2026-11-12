@@ -2238,7 +2238,11 @@ impl MdRender {
                             .in_progress_selection
                             .unwrap_or(self.buffer.current.selection);
                         let sr = frag.source_range;
-                        if !sel.is_empty() && sel.contains_range(&sr, true, true) {
+                        let covered = !sel.is_empty() && sel.contains_range(&sr, true, true);
+                        // a note embed's tab draws after the note: it tints over it then
+                        if covered && *kind == EmbedKind::Tab {
+                            self.tab_embeds.tint(screen_rect);
+                        } else if covered {
                             let theme = self.ctx.get_lb_theme();
                             let accent = theme.accent_bg();
                             let tint = egui::Color32::from_rgba_unmultiplied(
