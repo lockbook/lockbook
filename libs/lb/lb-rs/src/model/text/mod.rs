@@ -32,78 +32,32 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
         .algorithm(similar::Algorithm::Myers)
         .diff_unicode_words(from.as_diffable_str(), to.as_diffable_str());
 
-    for diff_op in diff.ops().iter().cloned() {
-        match diff_op {
-            similar::DiffOp::Equal { .. } => {}
-            similar::DiffOp::Delete { old_index, old_len, .. } => {
-                let old_len = from_segs.byte_to_char_floor(from_words[old_index + old_len])
-                    - from_segs.byte_to_char_floor(from_words[old_index]);
-                let old_index = from_segs.byte_to_char_floor(from_words[old_index]);
+    // positions come from walking the ops' lengths; similar's own indices can disagree with
+    // the run before them (an insert after an equal may name the equal's first token)
+    let (mut old_token, mut new_token) = (0, 0);
+    for diff_op in diff.ops() {
+        let (tag, old_range, new_range) = diff_op.as_tag_tuple();
+        let (old_start, new_start) = (old_token, new_token);
+        old_token += old_range.len();
+        new_token += new_range.len();
+        if tag == similar::DiffTag::Equal {
+            continue;
+        }
 
-                let mut extended = false;
-                if let Some(op) = result.last_mut() {
-                    let Replace { range, .. } = op;
-                    if range.1 == old_index {
-                        range.1 = old_index + old_len;
-                        extended = true;
-                    }
-                }
+        let old_start = from_segs.byte_to_char_floor(from_words[old_start]);
+        let old_end = from_segs.byte_to_char_floor(from_words[old_token]);
+        let new_text_range = to_segs.range_to_byte((
+            to_segs.byte_to_char_floor(to_words[new_start]),
+            to_segs.byte_to_char_floor(to_words[new_token]),
+        ));
+        let new_text = &to[new_text_range.start().0..new_text_range.end().0];
 
-                if !extended {
-                    let op =
-                        Replace { range: (old_index, old_index + old_len), text: String::new() };
-                    result.push(op);
-                }
+        match result.last_mut() {
+            Some(Replace { range, text }) if range.1 == old_start => {
+                range.1 = old_end;
+                text.push_str(new_text);
             }
-            similar::DiffOp::Insert { old_index, new_index, new_len } => {
-                let old_index = from_segs.byte_to_char_floor(from_words[old_index]);
-                let new_len = to_segs.byte_to_char_floor(to_words[new_index + new_len])
-                    - to_segs.byte_to_char_floor(to_words[new_index]);
-                let new_index = to_segs.byte_to_char_floor(to_words[new_index]);
-
-                let new_text_range = to_segs.range_to_byte((new_index, new_index + new_len));
-                let new_text = to[new_text_range.start().0..new_text_range.end().0].to_string();
-
-                let mut extended = false;
-                if let Some(op) = result.last_mut() {
-                    let Replace { range, text } = op;
-                    if range.1 == old_index {
-                        text.push_str(&new_text);
-                        extended = true;
-                    }
-                }
-
-                if !extended {
-                    let op = Replace { range: (old_index, old_index), text: new_text };
-                    result.push(op);
-                }
-            }
-            similar::DiffOp::Replace { old_index, old_len, new_index, new_len } => {
-                let old_len = from_segs.byte_to_char_floor(from_words[old_index + old_len])
-                    - from_segs.byte_to_char_floor(from_words[old_index]);
-                let old_index = from_segs.byte_to_char_floor(from_words[old_index]);
-                let new_len = to_segs.byte_to_char_floor(to_words[new_index + new_len])
-                    - to_segs.byte_to_char_floor(to_words[new_index]);
-                let new_index = to_segs.byte_to_char_floor(to_words[new_index]);
-
-                let new_text_range = to_segs.range_to_byte((new_index, new_index + new_len));
-                let new_text = to[new_text_range.start().0..new_text_range.end().0].to_string();
-
-                let mut extended = false;
-                if let Some(op) = result.last_mut() {
-                    let Replace { range, text } = op;
-                    if range.1 == old_index {
-                        range.1 = old_index + old_len;
-                        text.push_str(&new_text);
-                        extended = true;
-                    }
-                }
-
-                if !extended {
-                    let op = Replace { range: (old_index, old_index + old_len), text: new_text };
-                    result.push(op);
-                }
-            }
+            _ => result.push(Replace { range: (old_start, old_end), text: new_text.into() }),
         }
     }
     result
