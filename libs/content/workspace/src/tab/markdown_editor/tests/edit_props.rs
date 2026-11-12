@@ -357,6 +357,10 @@ fn divider_adds_one_rule() {
 fn ime_composition_matches_replace() {
     run_all(ime_composition_matches_replace_check, 1000);
 }
+#[test]
+fn undo_then_ime_in_one_frame() {
+    run_all(|b| caught(|| undo_then_ime_in_one_frame_check(b)), 1000);
+}
 
 // ═══════════════════════════ implementations ═══════════════════════════
 
@@ -610,6 +614,80 @@ fn ime_composition_matches_replace_check(buf: &[u8]) -> Result<(), String> {
             if state(&ime).0 != after.0 {
                 return Err(format!("redo gives {:?}, not {:?}", state(&ime).0, after.0));
             }
+        }
+    }
+    Ok(())
+}
+
+/// `check`'s result, a panic reported as its failure so the seed shrinks.
+fn caught(check: impl FnOnce() -> Result<(), String>) -> Result<(), String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(check)).unwrap_or_else(|panic| {
+        let message = panic.downcast_ref::<String>().map(String::as_str);
+        let message = message.or(panic.downcast_ref::<&str>().copied());
+        Err(format!("panicked: {}", message.unwrap_or("with no message")))
+    })
+}
+
+/// An undo or redo and the IME events after it in one frame land as they
+/// do with the undo a frame of its own.
+fn undo_then_ime_in_one_frame_check(buf: &[u8]) -> Result<(), String> {
+    use egui::{Event as Egui, ImeEvent, Key, Modifiers};
+
+    let mut src = ByteSource::new(buf);
+    let initial = gen_doc(&mut src, &Features::all());
+    let lb = super::harness::in_memory_core();
+    let mut one = TestEditor::with_lb(lb.clone(), &initial);
+    let mut two = TestEditor::with_lb(lb, &initial);
+    let state = |ws: &TestEditor| {
+        let r = &ws.editor.edit.renderer;
+        (
+            r.buffer.current.text.clone(),
+            r.buffer.current.selection,
+            r.ime_marked.as_ref().map(|m| m.range),
+        )
+    };
+    for round in 0..1 + src.draw(4) {
+        for _ in 0..1 + src.draw(4) {
+            let (cursor, len) = cursor_and_len(&one);
+            let edit = event(&mut src, cursor, len);
+            for ws in [&mut one, &mut two] {
+                ws.push(edit.clone());
+                ws.enter_frame();
+            }
+        }
+        let redo = src.draw(3) == 0;
+        let undo = match src.draw(2) {
+            0 => vec![],
+            _ => super::harness::key_press(Key::Z, Modifiers { shift: redo, ..Modifiers::COMMAND }),
+        };
+        let mut ime = vec![];
+        for _ in 0..1 + src.draw(3) {
+            let text = match src.draw(3) {
+                0 => ["}", ")", "]"][src.draw(3)].to_string(),
+                _ => preedit_text(&mut src),
+            };
+            ime.push(if src.draw(2) == 0 { preedit(&text) } else { ImeEvent::Commit(text) });
+        }
+        let ime: Vec<_> = ime.into_iter().map(Egui::Ime).collect();
+        let before = state(&one);
+        for ws in [&mut one, &mut two] {
+            if undo.is_empty() {
+                ws.push(if redo { Event::Redo } else { Event::Undo });
+            }
+        }
+        settled_frame(&mut one, undo.iter().cloned().chain(ime.iter().cloned()).collect());
+        // as many frames as `two`, so the next round's edits group alike
+        settled_frame(&mut one, vec![]);
+        settled_frame(&mut two, undo.clone());
+        settled_frame(&mut two, ime.clone());
+        if state(&one) != state(&two) {
+            return Err(format!(
+                "round {round}: from {before:?}, {} then {ime:?} in one frame gives {:?}, \
+                 in two {:?}",
+                if redo { "redo" } else { "undo" },
+                state(&one),
+                state(&two),
+            ));
         }
     }
     Ok(())
