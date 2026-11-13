@@ -1034,6 +1034,19 @@ mod tests {
     use super::*;
     use crate::theme::palette_v2::{Mode, Theme};
 
+    /// A context with a diagram cache is freed once nothing else holds it.
+    #[test]
+    fn a_context_with_a_cache_is_freed() {
+        let ctx = Context::default();
+        let held = Arc::new(());
+        ctx.data_mut(|d| d.insert_temp(Id::unique("held"), held.clone()));
+        let weak = Arc::downgrade(&held);
+        drop(held);
+        DiagramCache::of(&ctx);
+        drop(ctx);
+        assert!(weak.upgrade().is_none(), "the context outlives its last handle");
+    }
+
     /// A frame keeps what it draws; one that doesn't use a diagram lets all
     /// but its size go; drawing it again brings it back.
     #[test]
