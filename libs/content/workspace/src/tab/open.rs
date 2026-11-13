@@ -249,7 +249,7 @@ impl TabContent {
     pub fn reload(&mut self, hmac: Option<DocumentHmac>, bytes: &[u8]) -> bool {
         match self {
             TabContent::Markdown(md) => {
-                md.apply_disk_version(String::from_utf8_lossy(bytes).into(), hmac);
+                md.reload(String::from_utf8_lossy(bytes).into(), hmac);
                 true
             }
             TabContent::Svg(svg) => {

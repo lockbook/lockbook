@@ -594,8 +594,10 @@ pub struct Editor {
     /// The region's rows this frame, first and last; only they paint.
     region_bounds: Option<(DocRowId, DocRowId)>,
     /// Version of the *displayed* buffer. Only written with the matching
-    /// text via [`Self::apply_disk_version`] / [`Self::record_disk_save`].
+    /// text via [`Self::reload`] / [`Self::saved`].
     hmac: Option<DocumentHmac>,
+    /// The buffer's local edits in the text last flushed for a save.
+    flushed_seq: usize,
     pub initialized: bool,
     /// The selection was moved between frames (a reveal); the next frame
     /// tells the platform, whose own caret would stay behind.
@@ -1323,6 +1325,7 @@ impl Editor {
             region_placed: false,
             region_bounds: None,
             hmac,
+            flushed_seq: 0,
             initialized: Default::default(),
             selection_moved: false,
             outline_offered: false,
@@ -1391,7 +1394,7 @@ impl Editor {
         self.edit.scroll_area.set_salt(self.id());
     }
 
-    /// Last disk hmac adopted with the displayed buffer.
+    /// The hmac of the version last reloaded or saved.
     pub fn hmac(&self) -> Option<DocumentHmac> {
         self.hmac
     }
@@ -1406,9 +1409,10 @@ impl Editor {
     /// Merge `text` into the live buffer (applies queued OT), then store
     /// `hmac` as the version of that displayed text. The two are always set
     /// together so a later save cannot clone a stale body under a new hmac.
-    pub fn apply_disk_version(&mut self, text: String, hmac: Option<DocumentHmac>) {
-        self.edit.renderer.buffer.reload(text);
-        self.apply_pending_buffer();
+    pub fn reload(&mut self, text: String, hmac: Option<DocumentHmac>) {
+        if self.edit.renderer.buffer.reload(text).text_updated {
+            self.edit.renderer.bump_text_seq();
+        }
         self.hmac = hmac;
     }
 
@@ -1416,12 +1420,13 @@ impl Editor {
     /// for CAS write. Side effect: mutates the buffer if ops were pending.
     pub fn flush_for_save(&mut self) -> (Option<DocumentHmac>, String) {
         self.apply_pending_buffer();
+        self.flushed_seq = self.edit.renderer.buffer.local_seq();
         (self.hmac, self.edit.renderer.buffer.current.text.clone())
     }
 
     /// Record a successful CAS: this hmac is the on-disk version of `content`.
-    pub fn record_disk_save(&mut self, hmac: DocumentHmac, seq: usize, content: String) {
-        self.edit.renderer.buffer.saved(seq, content);
+    pub fn saved(&mut self, hmac: DocumentHmac, content: String) {
+        self.edit.renderer.buffer.saved(self.flushed_seq, content);
         self.hmac = Some(hmac);
     }
 

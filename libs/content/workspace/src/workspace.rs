@@ -1492,7 +1492,6 @@ impl Workspace {
                 {
                     let CompletedSave {
                         request: SaveRequest { id, origin },
-                        seq,
                         content,
                         new_hmac_result,
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
@@ -1508,7 +1507,7 @@ impl Workspace {
                                 tab.last_saved = started_at;
                                 if let Some(md) = tab.markdown_mut() {
                                     if let TabSaveContent::String(content) = content {
-                                        md.record_disk_save(hmac, seq, content);
+                                        md.saved(hmac, content);
                                     }
                                 } else if let Some(svg) = tab.svg_mut() {
                                     if let TabSaveContent::Svg(content) = content {
