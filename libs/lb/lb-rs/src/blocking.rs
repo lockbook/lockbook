@@ -3,6 +3,7 @@ use std::{future::Future, path::PathBuf};
 use tokio::sync::broadcast::Receiver;
 use uuid::Uuid;
 
+use crate::io::network::Network;
 use crate::model::account::{Account, Username};
 use crate::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo,
@@ -60,6 +61,21 @@ impl Lb {
     pub fn init(config: Config) -> LbResult<Self> {
         let rt = Arc::new(Runtime::new().unwrap());
         let lb = rt.block_on(crate::Lb::init(config))?;
+        Ok(Self { rt, lb })
+    }
+
+    /// The blocking twin of [`crate::Lb::in_memory`].
+    #[cfg(target_family = "wasm")]
+    pub fn in_memory(config: Config, server: Network) -> LbResult<Self> {
+        let lb = futures::executor::block_on(crate::Lb::in_memory(config, server))?;
+        Ok(Self { lb })
+    }
+
+    /// The blocking twin of [`crate::Lb::in_memory`].
+    #[cfg(not(target_family = "wasm"))]
+    pub fn in_memory(config: Config, server: Network) -> LbResult<Self> {
+        let rt = Arc::new(Runtime::new().unwrap());
+        let lb = rt.block_on(crate::Lb::in_memory(config, server))?;
         Ok(Self { rt, lb })
     }
 

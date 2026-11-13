@@ -364,9 +364,9 @@ fn bold_in_a_row_with_an_empty_cell() {
 /// #5071
 #[test]
 fn an_image_is_clamped_to_its_cell() {
-    use super::harness::build_lb;
+    use super::harness::in_memory_core;
     let wide = "| a | b | c | d |\n| - | - | - | - |\n| ![big](big.png) | ![sized\\|900x300](big.png) | text text text text text text text text text text text text text text text text text | x |";
-    let (mut editor, embeds) = TestEditor::with_test_embeds(build_lb(), wide);
+    let (mut editor, embeds) = TestEditor::with_test_embeds(in_memory_core(), wide);
     embeds.complete("big.png", egui::Vec2::new(4000.0, 1000.0));
     editor.enter_frame();
     editor.enter_frame();
@@ -783,13 +783,13 @@ fn a_column_is_as_wide_as_its_widest_cell_whatever_its_neighbors() {
 
 #[test]
 fn images_with_no_space_between_wrap_like_spaced_ones() {
-    use super::harness::build_lb;
+    use super::harness::in_memory_core;
     let long = "words ".repeat(70);
     let widths = |cards: &str| {
         let md = format!(
             "| a | b | c | d | e | f | cards |\n| - | - | - | - | - | - | - |\n| {long} | {long} | {long} | {long} | {long} | {long} | {cards} |"
         );
-        let (mut editor, embeds) = TestEditor::with_test_embeds(build_lb(), &md);
+        let (mut editor, embeds) = TestEditor::with_test_embeds(in_memory_core(), &md);
         embeds.complete("card.png", egui::Vec2::new(96.0, 64.0));
         editor.enter_frame();
         editor.enter_frame();
@@ -806,11 +806,11 @@ fn images_with_no_space_between_wrap_like_spaced_ones() {
 
 #[test]
 fn spaced_cards_stack_as_tight_as_glued_ones() {
-    use super::harness::build_lb;
+    use super::harness::in_memory_core;
     let tops = |separator: &str| {
         let cards = ["![card](card.png)"; 8].join(separator);
         let md = format!("| a | b |\n| - | - |\n| {cards} | ![card](card.png) |");
-        let (mut editor, embeds) = TestEditor::with_test_embeds(build_lb(), &md);
+        let (mut editor, embeds) = TestEditor::with_test_embeds(in_memory_core(), &md);
         embeds.complete("card.png", egui::Vec2::new(96.0, 64.0));
         editor.enter_frame();
         editor.enter_frame();

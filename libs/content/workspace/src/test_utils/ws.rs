@@ -3,7 +3,6 @@
 use egui::{Context, RawInput, Rect, pos2, vec2};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::model::core_config::Config;
 use lb_rs::model::file_metadata::FileType;
 use web_time::{Duration, Instant};
 
@@ -17,28 +16,13 @@ pub struct TestWs {
 }
 
 pub fn test_lb() -> Lb {
-    let core = blank_lb();
+    let core = crate::test_utils::in_memory_core();
     let name = format!("ws{}", Uuid::new_v4().simple())
         .chars()
         .take(30)
         .collect::<String>();
     core.create_account(&name, &api_url(), false).unwrap();
     core
-}
-
-fn blank_lb() -> Lb {
-    Lb::init(Config {
-        writeable_path: format!("/tmp/lb-ws-test/{}", Uuid::new_v4()),
-        logs: false,
-        stdout_logs: false,
-        colored_logs: false,
-        background_work: false,
-        client_name: "tests".into(),
-        build_info: None,
-        client_type: lb_rs::model::core_config::ClientType::Unknown,
-        ..Default::default()
-    })
-    .unwrap()
 }
 
 fn api_url() -> String {
@@ -64,7 +48,7 @@ impl TestWs {
 
     /// Another device on this workspace's account, synced.
     pub fn other_device(&self) -> Lb {
-        let other = blank_lb();
+        let other = crate::test_utils::in_memory_core();
         let key = self.ws.core.export_account_private_key().unwrap();
         other.import_account(&key, Some(&api_url())).unwrap();
         other.sync().unwrap();
