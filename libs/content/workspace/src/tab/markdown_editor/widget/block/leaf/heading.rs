@@ -6,7 +6,8 @@ use lb_rs::model::text::offset_types::{
 
 use crate::style::chrome::HOVER_ANIM_SECS;
 use crate::style::{
-    FG_HOVER, FG_PRESS, Radius, ThemeExt as _, phosphor, phosphor_font_id, sense_click, tip_text,
+    FG_HOVER, FG_PRESS, Radius, ThemeExt as _, control_cursor, phosphor, phosphor_font_id,
+    sense_click, tip_text,
 };
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::TouchTarget;
@@ -278,6 +279,7 @@ impl<'ast> MdRender {
         }
 
         let resp = ui.interact(space, id, sense_click());
+        control_cursor(ui, space);
         let t = self.ctx.get_lb_theme();
         let hover =
             ui.ctx()
@@ -546,6 +548,7 @@ impl<'ast> MdRender {
         // (off-screen neighbor rows would displace the mobile toolbar, #4892).
         let id = ui.scope_id().with("md_fold_btn");
         let resp = ui.interact(space, id, sense_click());
+        control_cursor(ui, space);
 
         let t = self.ctx.get_lb_theme();
         let over = resp.hovered() || ui.ctx().rect_contains_pointer(ui.layer_id(), space);

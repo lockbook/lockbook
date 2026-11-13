@@ -44,8 +44,8 @@ pub use file_row::{
     crumb_label, ellipsize_path, ellipsize_path_tail, home_crumb, parent_crumbs, path_crumbs,
 };
 pub use interact::{
-    canvas_selected_fills, interact_fill, interact_fill_response, link_cursor, quiet_canvas_fills,
-    quiet_secondary_fills, sense_click,
+    canvas_selected_fills, control_cursor, interact_fill, interact_fill_response, link_cursor,
+    pointer_on, quiet_canvas_fills, quiet_secondary_fills, sense_click,
 };
 pub use layout::{
     FixedPadContent, claim, origin, place_at, remaining_height, ui_width, with_h_pad,

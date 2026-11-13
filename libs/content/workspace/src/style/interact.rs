@@ -38,6 +38,18 @@ pub fn link_cursor(ctx: &egui::Context) {
     ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
 }
 
+/// Whether the pointer is on `rect` this frame, with no drag under way.
+pub fn pointer_on(ui: &egui::Ui, rect: egui::Rect) -> bool {
+    ui.is_enabled() && ui.ctx().dragged_id().is_none() && ui.rect_contains_pointer(rect)
+}
+
+/// The arrow over a control drawn on the page, over the I-beam beneath it.
+pub fn control_cursor(ui: &egui::Ui, rect: egui::Rect) {
+    if pointer_on(ui, rect) {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
+    }
+}
+
 /// Pointer-driven control state (drives which fill is desired).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IxState {

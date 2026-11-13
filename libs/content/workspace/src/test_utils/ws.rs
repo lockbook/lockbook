@@ -13,6 +13,10 @@ pub struct TestWs {
     pub ws: Workspace,
     pub ctx: Context,
     pub size: egui::Vec2,
+    /// The cursor the last frame asked for.
+    pub cursor: egui::CursorIcon,
+    /// The text the last frame painted, a string per shape.
+    pub texts: Vec<String>,
 }
 
 pub fn test_lb() -> Lb {
@@ -43,7 +47,7 @@ impl TestWs {
     pub fn new() -> Self {
         let ctx = test_ctx();
         let ws = Workspace::new(&test_lb(), &ctx, false, None);
-        Self { ws, ctx, size: vec2(800.0, 600.0) }
+        Self { ws, ctx, size: vec2(800.0, 600.0), cursor: Default::default(), texts: vec![] }
     }
 
     /// Another device on this workspace's account, synced.
@@ -80,14 +84,17 @@ impl TestWs {
             ..Default::default()
         };
         let mut out = None;
-        self.ctx
-            .run_pass(input, |ctx| {
-                ctx.root_ui(|ui| {
-                    egui::CentralPanel::default().show(ui, |ui| out = Some(self.ws.show(ui)))
-                });
-            })
-            .textures_delta
-            .clear();
+        let mut full = self.ctx.run_pass(input, |ctx| {
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| out = Some(self.ws.show(ui)))
+            });
+        });
+        full.textures_delta.clear();
+        self.cursor = full.platform_output.cursor_icon;
+        self.texts.clear();
+        for clipped in &full.shapes {
+            texts_of(&clipped.shape, &mut self.texts);
+        }
         out.unwrap()
     }
 
@@ -113,5 +120,13 @@ impl TestWs {
             assert!(start.elapsed() < Duration::from_secs(10), "tab never settled");
             std::thread::sleep(Duration::from_millis(2));
         }
+    }
+}
+
+fn texts_of(shape: &egui::Shape, out: &mut Vec<String>) {
+    match shape {
+        egui::Shape::Text(text) => out.push(text.galley.text().to_string()),
+        egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| texts_of(s, out)),
+        _ => {}
     }
 }

@@ -27,6 +27,7 @@ mod benches;
 mod block_drag;
 mod clipboard;
 mod code;
+mod cursor;
 mod diagrams;
 mod edit_props;
 mod folding;
