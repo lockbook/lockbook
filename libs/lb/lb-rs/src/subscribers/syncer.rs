@@ -646,7 +646,17 @@ impl<S: Server> Lb<S> {
                         let base_keys = shares_by_recipient(maybe_base_file.as_ref());
                         let remote_keys = shares_by_recipient(maybe_remote_file.as_ref());
                         let owner = merge.find(&id)?.owner();
-                        for (for_, local) in shares_by_recipient(Some(&local_file)) {
+                        // in the file's order, so shares keep the order they were added in; a
+                        // recipient's last key is its share, as in shares_by_recipient
+                        let keys = local_file.user_access_keys();
+                        for (i, key) in keys.iter().enumerate() {
+                            if keys[i + 1..]
+                                .iter()
+                                .any(|k| k.encrypted_for == key.encrypted_for)
+                            {
+                                continue;
+                            }
+                            let (for_, local) = (Owner(key.encrypted_for), (key.mode, key.deleted));
                             let base = base_keys.get(&for_).copied();
                             // a move may have made the recipient the owner
                             if Some(local) == base || for_ == owner {
