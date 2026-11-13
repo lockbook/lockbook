@@ -7,9 +7,8 @@
 //! this one, each link with the words around it.
 
 use std::ops::Range;
-use std::sync::Arc;
 
-use egui::{Align2, Area, Color32, Galley, Id, Order, Rect, Sense, Ui, pos2, vec2};
+use egui::{Align2, Area, Color32, Id, Order, Rect, Sense, Ui, pos2, vec2};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::Grapheme;
 
@@ -355,8 +354,7 @@ impl Scroll {
         let t = ui.ctx().get_lb_theme();
         if let Some(empty) = &measured.empty {
             let at = pos2(view.left() + Space::Sm.pts(), view.top() + Space::Xs.pts());
-            ui.painter_at(view)
-                .galley(at, empty.clone(), Color32::PLACEHOLDER);
+            empty.clone().paint(&ui.painter_at(view), at);
             let resp = ui.interact(view, id.with("empty"), Sense::click());
             return row_menu(&resp, &t, &measured.empty_menu);
         }
@@ -551,12 +549,12 @@ struct Measured {
     rows: Vec<MeasuredRow>,
     tops: Vec<f32>,
     current: Option<usize>,
-    empty: Option<Arc<Galley>>,
+    empty: Option<ShapedLabel>,
     empty_menu: Vec<MenuItem>,
 }
 
 impl Measured {
-    fn new(rows: Vec<MeasuredRow>, current: Option<usize>, empty: Option<Arc<Galley>>) -> Self {
+    fn new(rows: Vec<MeasuredRow>, current: Option<usize>, empty: Option<ShapedLabel>) -> Self {
         let mut top = 0.0;
         let tops = rows
             .iter()
@@ -571,7 +569,7 @@ impl Measured {
 
     fn height(&self) -> f32 {
         match &self.empty {
-            Some(empty) => control_height().max(empty.size().y + 2.0 * Space::Xs.pts()),
+            Some(empty) => control_height().max(empty.size.y + 2.0 * Space::Xs.pts()),
             None => self
                 .rows
                 .last()
@@ -699,12 +697,14 @@ fn shape(
 }
 
 /// A list's empty state, laid out at `width`.
-fn quiet_text(ctx: &egui::Context, text: &str, width: f32) -> Arc<Galley> {
+fn quiet_text(ctx: &egui::Context, text: &str, width: f32) -> ShapedLabel {
     let t = ctx.get_lb_theme();
     let text_w = (width - 2.0 * Space::Sm.pts()).max(1.0);
-    ctx.fonts_mut(|f| {
-        f.layout(text.into(), TypeRole::Body.font_id(), t.neutral_fg_secondary(), text_w)
-    })
+    GlyphonLabel::new(text, t.neutral_fg_secondary())
+        .role(TypeRole::Body)
+        .interface()
+        .max_width(text_w)
+        .build(ctx)
 }
 
 /// The outline's surface, card or sheet: the sidebar's color with no border.
@@ -722,13 +722,13 @@ fn paint_surface(ui: &Ui, rect: Rect, shadow: Option<egui::Shadow>) {
 /// A section's title, in small caps as list sections are titled.
 fn paint_title(ui: &Ui, title: &str, left: f32, top: f32) {
     let t = ui.ctx().get_lb_theme();
-    let title = ui.painter().layout_no_wrap(
-        TypeRole::caps(title),
-        TypeRole::Caption.font_id(),
-        t.neutral_fg_secondary(),
-    );
-    let at = pos2(left + Space::Xs.pts(), top + (control_height() - title.size().y) / 2.0);
-    ui.painter().galley(at, title, t.neutral_fg_secondary());
+    let caps = TypeRole::caps(title);
+    let title = GlyphonLabel::new(&caps, t.neutral_fg_secondary())
+        .role(TypeRole::Caption)
+        .interface()
+        .build(ui.ctx());
+    let at = pos2(left + Space::Xs.pts(), top + (control_height() - title.size.y) / 2.0);
+    title.paint(ui.painter(), at);
 }
 
 #[cfg(test)]

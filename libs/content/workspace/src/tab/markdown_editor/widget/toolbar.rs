@@ -1,12 +1,12 @@
+use crate::widgets::GlyphonLabel;
 use std::mem;
-use std::sync::Arc;
 use web_time::{Duration, Instant};
 
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeList, NodeValue, TableAlignment};
 use egui::scroll_area::{ScrollBarVisibility, ScrollSource};
 use egui::{
-    Color32, FontId, Frame, Label, Layout, Margin, Pos2, Rect, Response, RichText, ScrollArea,
-    Separator, Stroke, StrokeKind, Ui, UiBuilder, Vec2, Widget,
+    Color32, Frame, Layout, Margin, Pos2, Rect, Response, ScrollArea, Separator, Stroke,
+    StrokeKind, Ui, UiBuilder, Vec2, Widget,
 };
 use lb_rs::model::text::offset_types::{IntoRangeExt, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::style::{
     CHROME_BAND_GLYPH, CHROME_BAND_H, STROKE_HAIRLINE, ThemeExt, control_height, icon_button_glyph,
-    icon_button_mark, phosphor, phosphor_font_id, place_at, tip_text,
+    icon_button_mark, phosphor, place_at, tip_text,
 };
 use crate::tab::markdown_editor::table::TableAction;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
@@ -136,9 +136,9 @@ impl Mark {
     fn paint(self, painter: &egui::Painter, rect: Rect, color: Color32) {
         let rows = match self {
             Mark::Glyph(icon) => {
-                let font = phosphor_font_id(CHROME_BAND_GLYPH);
-                let g = painter.layout_no_wrap(icon.into(), font, Color32::PLACEHOLDER);
-                painter.galley(rect.center() - g.size() / 2.0, g, color);
+                GlyphonLabel::icon(icon, color, CHROME_BAND_GLYPH)
+                    .build(painter.ctx())
+                    .paint_centered(painter, rect.center());
                 return;
             }
             Mark::RemoveRow => true,
@@ -309,10 +309,10 @@ fn show_table_picker(
                     None => "Table size".to_string(),
                 };
                 ui.add_space(gap);
-                ui.label(
-                    RichText::new(caption)
-                        .color(t.neutral_fg_secondary())
-                        .size(caption_size),
+                ui.add(
+                    GlyphonLabel::new(&caption, t.neutral_fg_secondary())
+                        .font_size(caption_size)
+                        .interface(),
                 );
                 // a finger slid to its size and lifted is no click to egui
                 let lifted = ui.input(|i| {
@@ -1196,11 +1196,16 @@ impl<'ast> Editor {
                             ui.add_space(MENU_SPACE);
                             top_left.y += MENU_SPACE;
 
-                            ui.vertical_centered_justified(|ui| {
-                                let font =
-                                    FontId::new(16.0, egui::FontFamily::Name(Arc::from("Bold")));
-                                Label::new(RichText::from("Show / Hide Toolbar Buttons").font(font))
-                                    .ui(ui)
+                            ui.vertical_centered(|ui| {
+                                let title = "Show / Hide Toolbar Buttons";
+                                ui.add(
+                                    GlyphonLabel::new_rich(
+                                        vec![(title, true)],
+                                        ui.visuals().text_color(),
+                                    )
+                                    .font_size(16.0)
+                                    .interface(),
+                                )
                             });
                             top_left.y += ui.text_style_height(&egui::TextStyle::Heading)
                                 + ui.spacing().item_spacing.y;

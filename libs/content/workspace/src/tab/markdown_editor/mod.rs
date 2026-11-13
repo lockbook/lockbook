@@ -3787,8 +3787,8 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 pub fn register_fonts(fonts: &mut FontDefinitions) {
     let text = crate::font::text_fonts();
     let base_scale = text.scale;
-    let mono_scale = 0.9 * base_scale;
-    let mono_y_offset_factor = 0.1;
+    let mono_scale = crate::font::MONO_SCALE * base_scale;
+    let mono_y_offset_factor = crate::font::MONO_Y_OFFSET;
 
     let super_y_offset_factor = -1. / 4.;
     let sub_y_offset_factor = 1. / 4.;

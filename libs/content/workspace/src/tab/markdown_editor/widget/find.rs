@@ -25,8 +25,8 @@
 //!   handled.
 
 use egui::{
-    Align, Align2, Color32, EventFilter, FontFamily, FontId, Frame, Id, Key, Layout, Margin,
-    Modifiers, Sense, Stroke, StrokeKind, Ui, pos2, vec2,
+    Align, Color32, EventFilter, Frame, Id, Key, Layout, Margin, Modifiers, Sense, Stroke,
+    StrokeKind, Ui, pos2, vec2,
 };
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _};
@@ -39,6 +39,7 @@ use crate::style::{
     origin, phosphor, place_at, sense_click, tip_text,
 };
 use crate::tab::ExtendedOutput as _;
+use crate::widgets::GlyphonLabel;
 use crate::widgets::GlyphonTextEdit;
 
 use super::super::input::{Event, Region};
@@ -533,7 +534,7 @@ fn find_icon(
     ui: &mut Ui, t: &crate::style::Theme, icon: &'static str, on: bool, tip: &str,
 ) -> bool {
     use crate::style::FG_HOVER;
-    use crate::style::chrome::{HOVER_ANIM_SECS, Radius, phosphor_font_id};
+    use crate::style::chrome::{HOVER_ANIM_SECS, Radius};
 
     let hit = control_height();
     let (rect, resp) = ui.allocate_exact_size(vec2(hit, hit), sense_click());
@@ -554,13 +555,9 @@ fn find_icon(
         t.neutral_fg_secondary()
             .lerp_to_gamma(t.neutral_fg(), hover)
     };
-    let g = ui.painter().layout_no_wrap(
-        icon.into(),
-        phosphor_font_id(CHROME_BAND_GLYPH),
-        Color32::PLACEHOLDER,
-    );
-    ui.painter()
-        .galley(rect.center() - g.size() / 2.0, g, color);
+    GlyphonLabel::icon(icon, color, CHROME_BAND_GLYPH)
+        .build(ui.ctx())
+        .paint_centered(ui.painter(), rect.center());
     tip_text(ui.ctx(), &resp, tip);
     resp.clicked()
 }
@@ -573,11 +570,12 @@ fn find_regex_icon(ui: &mut Ui, t: &crate::style::Theme, on: bool) -> bool {
     use crate::style::chrome::{HOVER_ANIM_SECS, Radius};
 
     let hit = control_height();
-    let font = FontId::new(CHROME_BAND_GLYPH, FontFamily::Proportional);
-    let g = ui
-        .painter()
-        .layout_no_wrap(".*".into(), font.clone(), Color32::PLACEHOLDER);
-    let w = hit.max(g.size().x + Space::Xs.pts());
+    let mark = |color| {
+        GlyphonLabel::new(".*", color)
+            .font_size(CHROME_BAND_GLYPH)
+            .interface()
+    };
+    let w = hit.max(mark(Color32::PLACEHOLDER).measure(ui).x + Space::Xs.pts());
     let (rect, resp) = ui.allocate_exact_size(vec2(w, hit), sense_click());
     let over = ui.ctx().rect_contains_pointer(ui.layer_id(), rect) || resp.hovered();
     let hover = ui
@@ -596,8 +594,9 @@ fn find_regex_icon(ui: &mut Ui, t: &crate::style::Theme, on: bool) -> bool {
         t.neutral_fg_secondary()
             .lerp_to_gamma(t.neutral_fg(), hover)
     };
-    ui.painter()
-        .text(rect.center(), Align2::CENTER_CENTER, ".*", font, color);
+    mark(color)
+        .build(ui.ctx())
+        .paint_centered(ui.painter(), rect.center());
     tip_text(ui.ctx(), &resp, "Regex");
     resp.clicked()
 }
@@ -605,17 +604,14 @@ fn find_regex_icon(ui: &mut Ui, t: &crate::style::Theme, on: bool) -> bool {
 /// Match count in the search field: same line box as the glyphon edit so it
 /// shares the field's vertical center (stock `ui.label` does not).
 fn find_count(ui: &mut Ui, t: &crate::style::Theme, label: &str) {
-    let g = ui.painter().layout_no_wrap(
-        label.to_owned(),
-        TypeRole::Mono.font_id(),
-        Color32::PLACEHOLDER,
-    );
-    let (rect, _) = ui.allocate_exact_size(vec2(g.size().x, control_line_height()), Sense::hover());
-    ui.painter().galley(
-        pos2(rect.left(), rect.center().y - g.size().y / 2.0),
-        g,
-        t.neutral_fg_secondary(),
-    );
+    let count = GlyphonLabel::new(label, t.neutral_fg_secondary())
+        .role(TypeRole::Mono)
+        .interface()
+        .build(ui.ctx());
+    let (rect, _) =
+        ui.allocate_exact_size(vec2(count.size.x, control_line_height()), Sense::hover());
+    let top = rect.center().y - count.size.y / 2.0;
+    count.paint(ui.painter(), pos2(rect.left(), top));
 }
 
 fn find_field(

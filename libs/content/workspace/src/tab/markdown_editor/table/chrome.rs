@@ -5,18 +5,19 @@
 //! long press on a body row or a header cell starts the same drags.
 
 use comrak::nodes::{AstNode, NodeValue, TableAlignment};
-use egui::{Align2, CornerRadius, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
+use egui::{CornerRadius, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use super::structure::ColumnEdit;
 use super::{CellBounds, TableAction, TableCellBox};
-use crate::style::{context_menu, control_cursor, phosphor, phosphor_font_id};
+use crate::style::{context_menu, control_cursor, phosphor};
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::block::drag::{BlockDrag, DragUnit, DropGap};
 use crate::tab::markdown_editor::{Arena, MdEdit, MdRender};
 use crate::theme::palette_v2::ThemeExt as _;
+use crate::widgets::GlyphonLabel;
 
 /// A row's handle; a column's is as long and lies along the top border.
 const HANDLE: Vec2 = Vec2::new(12.0, 20.0);
@@ -391,7 +392,9 @@ impl MdRender {
         let painter = ui.painter();
         painter.rect_filled(pill, 4.0, fill);
         painter.rect_stroke(pill, 4.0, Stroke::new(1.0_f32, edge), StrokeKind::Inside);
-        painter.text(pill.center(), Align2::CENTER_CENTER, glyph, phosphor_font_id(12.0), ink);
+        GlyphonLabel::icon(glyph, ink, 12.0)
+            .build(ui.ctx())
+            .paint_centered(painter, pill.center());
         resp
     }
 }

@@ -10,7 +10,7 @@ use lb_rs::model::text::operation_types::Operation;
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
 use crate::link_preview::{self, LinkMeta, Preview, Status};
 use crate::show::DocType;
-use crate::style::{TypeRole, file_row_icon, phosphor, phosphor_font_id};
+use crate::style::{TypeRole, file_row_icon, phosphor};
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::fragment::slugify;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
@@ -427,13 +427,9 @@ impl<'ast> MdRender {
                 let link_color = self
                     .text_format_link_pill(node.parent().unwrap(), chip.state.clone())
                     .color;
-                ui.painter().text(
-                    icon_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    glyph,
-                    phosphor_font_id(size),
-                    link_color,
-                );
+                GlyphonLabel::icon(glyph, link_color, size)
+                    .build(ui.ctx())
+                    .paint_centered(ui.painter(), icon_rect.center());
             }
             if let Some(ChipIcon::Favicon(favicon_url)) = &chip.icon {
                 let url = node_link_url(node);
@@ -460,13 +456,10 @@ impl<'ast> MdRender {
                     self.embeds
                         .show(ui, favicon_url, icon_rect, egui::CornerRadius::same(3));
                 } else {
-                    ui.painter().text(
-                        icon_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        phosphor::LINK,
-                        phosphor_font_id(size),
-                        self.ctx.get_lb_theme().neutral_fg_secondary(),
-                    );
+                    let ink = self.ctx.get_lb_theme().neutral_fg_secondary();
+                    GlyphonLabel::icon(phosphor::LINK, ink, size)
+                        .build(ui.ctx())
+                        .paint_centered(ui.painter(), icon_rect.center());
                 }
             }
             ui.set_clip_rect(row_clip);

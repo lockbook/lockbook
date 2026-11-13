@@ -1,13 +1,12 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
+use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     Grapheme, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
 use crate::style::chrome::HOVER_ANIM_SECS;
 use crate::style::{
-    FG_HOVER, FG_PRESS, Radius, ThemeExt as _, control_cursor, phosphor, phosphor_font_id,
-    sense_click, tip_text,
+    FG_HOVER, FG_PRESS, Radius, ThemeExt as _, control_cursor, phosphor, sense_click, tip_text,
 };
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::TouchTarget;
@@ -17,6 +16,7 @@ use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FragmentContent, Layout, WrapUnitLayout,
 };
+use crate::widgets::GlyphonLabel;
 
 /// How long a copied heading link shows its check.
 const COPIED_SECS: f32 = 1.5;
@@ -297,13 +297,9 @@ impl<'ast> MdRender {
                     .lerp_to_gamma(t.neutral_fg(), hover),
             )
         };
-        let galley = ui.painter().layout_no_wrap(
-            glyph.into(),
-            phosphor_font_id(size * 0.6),
-            Color32::PLACEHOLDER,
-        );
-        ui.painter()
-            .galley(space.center() - galley.size() / 2.0, galley, color);
+        GlyphonLabel::icon(glyph, color, size * 0.6)
+            .build(ui.ctx())
+            .paint_centered(ui.painter(), space.center());
         tip_text(ui.ctx(), &resp, if copied { "Copied" } else { "Copy Heading Link" });
         if copied {
             ui.ctx()
@@ -577,13 +573,9 @@ impl<'ast> MdRender {
             t.neutral_fg_secondary()
                 .lerp_to_gamma(t.neutral_fg(), hover)
         };
-        let g = ui.painter().layout_no_wrap(
-            glyph.into(),
-            phosphor_font_id(icon_size),
-            Color32::PLACEHOLDER,
-        );
-        ui.painter()
-            .galley(space.center() - g.size() / 2.0, g, color);
+        GlyphonLabel::icon(glyph, color, icon_size)
+            .build(ui.ctx())
+            .paint_centered(ui.painter(), space.center());
         tip_text(ui.ctx(), &resp, if folded { "Show Contents" } else { "Hide Contents" });
 
         if resp.clicked() {

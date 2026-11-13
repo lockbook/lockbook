@@ -56,6 +56,10 @@ pub struct GlyphonLabel<'a> {
     /// ellipsis instead of one.
     max_lines: usize,
     sense: Sense,
+    /// Drawn at [`crate::font::interface_scale`] of `font_size`.
+    interface_size: bool,
+    /// Lines as tall as the face's ascent and descent, in whole pixels.
+    face_lines: bool,
 }
 
 /// The result of shaping a [`GlyphonLabel`]. Contains the sized glyphon buffers
@@ -75,6 +79,8 @@ struct ShapedBuffer {
     buffer: Arc<RwLock<Buffer>>,
     size: egui::Vec2,
     color: glyphon::Color,
+    /// How far down from its box the text draws.
+    nudge: f32,
 }
 
 /// Gap between main text and hint in logical pixels.
@@ -86,6 +92,10 @@ impl ShapedLabel {
         let buffer = self.main.buffer.read().unwrap();
         let run = buffer.layout_runs().next()?;
         Some(run.line_y / ctx.pixels_per_point())
+    }
+
+    fn lines(&self) -> usize {
+        self.main.buffer.read().unwrap().layout_runs().count()
     }
 
     /// Size of the hint text, if any.
@@ -101,7 +111,8 @@ impl ShapedLabel {
     ) -> Vec<TextBufferArea> {
         let mut areas = Vec::with_capacity(2);
 
-        let main_rect = egui::Rect::from_min_size(rect.min, self.main.size);
+        let main_rect = egui::Rect::from_min_size(rect.min, self.main.size)
+            .translate(egui::vec2(0.0, self.main.nudge));
         areas.push(TextBufferArea::new(
             self.main.buffer,
             main_rect,
@@ -121,10 +132,31 @@ impl ShapedLabel {
         areas
     }
 
+    /// Paints the label with its top left at `pos` on the pixel grid, as egui
+    /// places a galley, in `painter`'s layer, clip and opacity, in order among its shapes.
+    pub fn paint(self, painter: &egui::Painter, pos: egui::Pos2) {
+        use egui::emath::GuiRounding as _;
+        let clip = painter.clip_rect();
+        let pos = pos.round_to_pixels(painter.pixels_per_point());
+        let rect = egui::Rect::from_min_size(pos, self.size);
+        if !clip.intersects(rect) {
+            return;
+        }
+        let areas = self.text_areas(rect, painter.ctx(), clip);
+        crate::widgets::glyphon_render::paint_glyphon(painter, clip, areas);
+    }
+
+    /// [`Self::paint`] with the label's box centered on `center`.
+    pub fn paint_centered(self, painter: &egui::Painter, center: egui::Pos2) {
+        let pos = center - self.size / 2.0;
+        self.paint(painter, pos);
+    }
+
     /// Convenience for labels without hints — returns a single [`TextBufferArea`].
     pub fn text_area(
         self, rect: egui::Rect, ctx: &egui::Context, clip_rect: egui::Rect,
     ) -> TextBufferArea {
+        let rect = rect.translate(egui::vec2(0.0, self.main.nudge));
         TextBufferArea::new(self.main.buffer, rect, self.main.color, ctx, clip_rect)
     }
 }
@@ -142,7 +174,14 @@ impl<'a> GlyphonLabel<'a> {
             text_overflow: TextOverflow::Clip,
             max_lines: 1,
             sense: Sense::hover(),
+            interface_size: false,
+            face_lines: false,
         }
+    }
+
+    /// A Phosphor icon `size` pt tall, on a line box as tall as the face.
+    pub fn icon(glyph: &'a str, color: egui::Color32, size: f32) -> Self {
+        Self { face_lines: true, ..Self::new(glyph, color).family("Phosphor").font_size(size) }
     }
 
     /// Label with mixed bold/normal spans for search match highlighting.
@@ -161,6 +200,8 @@ impl<'a> GlyphonLabel<'a> {
             text_overflow: TextOverflow::Clip,
             max_lines: 1,
             sense: Sense::hover(),
+            interface_size: false,
+            face_lines: false,
         }
     }
 
@@ -180,6 +221,8 @@ impl<'a> GlyphonLabel<'a> {
             text_overflow: TextOverflow::Clip,
             max_lines: 1,
             sense: Sense::hover(),
+            interface_size: false,
+            face_lines: false,
         }
     }
 
@@ -241,6 +284,13 @@ impl<'a> GlyphonLabel<'a> {
         Self { sense, ..self }
     }
 
+    /// Draws the text as the interface's other text draws:
+    /// [`crate::font::interface_scale`] of its size, on lines as tall as the
+    /// face's ascent and descent.
+    pub fn interface(self) -> Self {
+        Self { interface_size: true, face_lines: true, ..self }
+    }
+
     /// Returns the rendered size in logical pixels without placing the widget.
     pub fn measure(&self, ui: &egui::Ui) -> egui::Vec2 {
         self.build(ui.ctx()).size
@@ -248,6 +298,23 @@ impl<'a> GlyphonLabel<'a> {
 
     /// Shapes the text and returns the buffers + measured size for manual placement.
     pub fn build(&self, ctx: &egui::Context) -> ShapedLabel {
+        if self.interface_size || self.face_lines {
+            let mono = self.spans.iter().all(|(_, s)| s.mono);
+            let scale = match (self.interface_size, mono) {
+                (false, _) => 1.0,
+                (true, false) => crate::font::interface_scale(),
+                (true, true) => crate::font::interface_scale() * crate::font::MONO_SCALE,
+            };
+            let font_size = self.font_size * scale;
+            let plain =
+                Self { font_size, interface_size: false, face_lines: false, ..self.clone_spans() };
+            let mut shaped =
+                if self.face_lines { plain.build_face_lines(ctx) } else { plain.build(ctx) };
+            if self.interface_size && mono {
+                shaped.main.nudge = crate::font::MONO_Y_OFFSET * font_size;
+            }
+            return shaped;
+        }
         let ppi = ctx.pixels_per_point();
         let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
         let (spans, elided) = self.overflow_spans(ctx, ppi, line_height);
@@ -289,6 +356,48 @@ impl<'a> GlyphonLabel<'a> {
         };
 
         ShapedLabel { main, hint, size: egui::vec2(width, height), elided }
+    }
+
+    /// Shaped on lines as tall as the face, rounded to whole pixels as egui
+    /// rounds a row, the text at the bottom of each.
+    fn build_face_lines(&self, ctx: &egui::Context) -> ShapedLabel {
+        // one line centers the face in `2 * box - face`, which puts it at the bottom
+        let ppi = ctx.pixels_per_point();
+        let face = self.face_height(ctx);
+        let boxed = (face * ppi).round() / ppi;
+        let mut one_line =
+            Self { line_height: Some(2.0 * boxed - face), ..self.clone_spans() }.build(ctx);
+        if one_line.lines() == 1 {
+            one_line.main.size.y = boxed;
+            one_line.size.y = boxed;
+            return one_line;
+        }
+        Self { line_height: Some(boxed), ..self.clone_spans() }.build(ctx)
+    }
+
+    fn clone_spans(&self) -> Self {
+        Self { spans: self.spans.clone(), ..*self }
+    }
+
+    /// The first line's ascent plus descent, in logical pixels, or the font
+    /// size where it draws nothing.
+    fn face_height(&self, ctx: &egui::Context) -> f32 {
+        let ppi = ctx.pixels_per_point();
+        let shaped = Self::shape_buffer(
+            ctx,
+            ppi,
+            &self.spans,
+            self.color,
+            self.font_size,
+            self.font_size,
+            f32::MAX,
+        );
+        let buffer = shaped.buffer.read().unwrap();
+        let line = buffer.lines.first().and_then(|l| l.layout_opt()?.first());
+        // a line with no glyphs has no face to measure
+        line.map(|l| (l.max_ascent + l.max_descent) / ppi)
+            .filter(|h| *h > 0.0)
+            .unwrap_or(self.font_size)
     }
 
     /// The spans as drawn, and whether they were cut short.
@@ -520,7 +629,7 @@ impl<'a> GlyphonLabel<'a> {
         let size = egui::vec2(width / ppi, lines as f32 * line_height_px / ppi);
         drop(buf);
 
-        ShapedBuffer { buffer, size, color: glyphon_color(color) }
+        ShapedBuffer { buffer, size, color: glyphon_color(color), nudge: 0.0 }
     }
 }
 

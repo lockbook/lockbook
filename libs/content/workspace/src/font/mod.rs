@@ -83,6 +83,11 @@ fn settle_choice() -> bool {
     true
 }
 
+/// How much smaller than the sans at one size egui draws the monospace face,
+/// and how far it moves its glyphs down, in ems of the size drawn.
+pub const MONO_SCALE: f32 = 0.9;
+pub const MONO_Y_OFFSET: f32 = 0.1;
+
 /// How much smaller than its size the interface draws its text, which egui
 /// sizes differently from the editor.
 pub fn interface_scale() -> f32 {
