@@ -315,6 +315,30 @@ fn a_drag_past_a_wide_tables_edge_keeps_scrolling_it() {
 }
 
 #[test]
+fn a_touch_drag_aimed_at_the_bottom_edge_scrolls_the_note() {
+    let lines = (0..200)
+        .map(|i| format!("line {i}"))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let md = format!("![a]({IMAGE})\n\n{lines}\n");
+    let mut ws = editor(&md);
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+    let from = image_center(&ws);
+    assert!(ws.editor.edit.reorder_start(from));
+    ws.enter_frame();
+    aimed_at(&mut ws, from, from);
+    // two rows above the bottom, it aims a row higher still
+    let to = Pos2::new(from.x, 600.0 - 30.0);
+    let before = ws.editor.edit.scroll_area.state.stored_offset();
+    for _ in 0..5 {
+        ws.editor.edit.reorder_move(to);
+        ws.enter_frame();
+    }
+    assert_ne!(ws.editor.edit.scroll_area.state.stored_offset(), before, "it scrolled");
+}
+
+#[test]
 fn an_image_off_its_own_line_leaves_the_line_empty() {
     let md = format!("one\n![a]({IMAGE})\ntwo\n\n| b | c |\n| - | - |\n");
     let mut ws = editor(&md);
