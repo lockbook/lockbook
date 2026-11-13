@@ -148,7 +148,7 @@ thread_local! {
 fn cached_font_system() -> Arc<Mutex<glyphon::FontSystem>> {
     FONT_SYSTEM.with(|cell| {
         cell.get_or_init(|| {
-            let mut fs = crate::widgets::glyphon_render::new_font_system();
+            let mut fs = crate::widgets::glyphon_render::fixed_font_system();
             fs.db_mut().set_sans_serif_family("Noto Sans");
             fs.db_mut().set_monospace_family("Noto Sans Mono");
             Arc::new(Mutex::new(fs))

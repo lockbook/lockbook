@@ -3987,6 +3987,7 @@ pub(crate) fn test_egui_ctx() -> Context {
     ctx.set_fonts(fonts);
     // tests that check spelling install their own checker
     crate::spelling::install(&ctx, None);
+    crate::widgets::glyphon_render::register_fixed_font_system(&ctx);
     ctx
 }
 

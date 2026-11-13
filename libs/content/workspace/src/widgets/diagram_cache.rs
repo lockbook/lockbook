@@ -644,6 +644,10 @@ fn fonts(stale: bool) -> Option<Arc<Fonts>> {
 
 fn new_fonts() -> Fonts {
     let mut db = usvg::fontdb::Database::new();
+    // tests draw in the same fonts whichever fallbacks other tests read
+    #[cfg(test)]
+    crate::font::load_fixed(&mut db);
+    #[cfg(not(test))]
     crate::font::load(&mut db);
     // diagrams draw in the note's family; labels left as text fall back to serif
     let sans = crate::font::note_family(false);
