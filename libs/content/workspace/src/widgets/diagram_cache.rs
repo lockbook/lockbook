@@ -310,6 +310,33 @@ impl DiagramCache {
         shown
     }
 
+    /// The diagram's picture, while it's kept; one let go draws again.
+    pub fn tree(&self, source: &str) -> Option<Arc<usvg::Tree>> {
+        let mut inner = self.lookup();
+        let key = inner.key(source);
+        inner.used.insert(key);
+        let State::Ready { tree, rastering, .. } = inner.entries.get_mut(&key)? else {
+            return None;
+        };
+        if let Some(tree) = tree {
+            return Some(tree.clone());
+        }
+        if !std::mem::replace(rastering, true) {
+            self.queue(inner, key, source, None);
+        }
+        None
+    }
+
+    /// Whether a diagram is still drawing.
+    pub fn busy(&self) -> bool {
+        let inner = self.lock();
+        inner.rendering
+            || inner
+                .entries
+                .values()
+                .any(|s| matches!(s, State::Pending | State::Ready { rastering: true, .. }))
+    }
+
     /// The diagram on the theme background with a margin, at twice its
     /// natural size, for the clipboard; its `source_size` is that natural size.
     pub fn image(&self, source: &str) -> Option<ColorImage> {
@@ -459,6 +486,10 @@ impl DiagramCache {
         )
     }
 }
+
+/// A picture painted for print rather than the GPU, a diagram or a formula:
+/// its tree, to draw as paths across the callback's rect.
+pub struct PrintSvg(pub Arc<usvg::Tree>);
 
 /// Off the UI thread, except in tests, which want renders to land in order.
 fn run(job: impl FnOnce() + Send + 'static) {
