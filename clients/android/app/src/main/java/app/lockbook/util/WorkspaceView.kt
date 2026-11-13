@@ -787,6 +787,14 @@ class WorkspaceView(
         return Workspace.getTabs(wgpuObj)
     }
 
+    fun currentTabTitle(): String? {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            return null
+        }
+
+        return Workspace.currentTabTitle(wgpuObj)
+    }
+
     private fun publishOpenTabCount() {
         model.updateOpenTabCount(getTabs().size)
     }

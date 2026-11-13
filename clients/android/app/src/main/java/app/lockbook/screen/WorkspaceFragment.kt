@@ -630,9 +630,9 @@ class WorkspaceFragment : Fragment() {
         val nativeTabs = workspaceWrapper.workspaceView.getTabs()
 
         val files = FileMetadataStore.snapshots.value?.idsAndFiles ?: return
-        // a diagram opened from a note shows in the image viewer with no file of its own
+        // a diagram or formula opened from a note shows in the image viewer with no file of its own
         val diagram = newTab.type == WorkspaceTabType.Image && newTab.id == NULL_UUID
-        val tabTitle = if (diagram) "Diagram" else files[newTab.id]?.name
+        val tabTitle = if (diagram) workspaceWrapper.workspaceView.currentTabTitle() else files[newTab.id]?.name
 
         val openTabs =
             nativeTabs.mapNotNull { raw ->

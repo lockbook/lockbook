@@ -403,6 +403,7 @@ struct WorkspaceTabsList: View {
         case .mindMap: "point.3.connected.trianglepath.dotted"
         case .spaceInspector: "chart.pie"
         case .diagram: "point.3.filled.connected.trianglepath.dotted"
+        case .formula: "function"
         case .file: FileIconHelper.docNameToSystemImageName(name: name)
         }
     }

@@ -3148,3 +3148,22 @@ fn unchanged_text_is_not_parsed_again() {
     assert!(!first.same_node(ws.editor.edit.renderer.reparse(&arena)));
     assert_eq!(first.children().count(), 2);
 }
+
+/// The edit menu's Open on a selected formula opens it in its own tab.
+#[test]
+fn selected_math_opens_in_a_tab() {
+    use crate::tab::{Destination, ExtendedOutput as _};
+    use crate::widgets::math::Formula;
+
+    let mut ws = TestEditor::new("$$\\frac{a}{b}$$\n");
+    ws.enter_frame();
+    let math = ws.editor.edit.renderer.bounds.math[0];
+    ws.push(Event::Select { region: math.into() });
+    ws.enter_frame();
+    assert!(ws.editor.edit.renderer.selection_has_diagram(), "edit menu offers Open");
+
+    ws.push(Event::OpenDiagram);
+    ws.enter_frame();
+    let formula = Formula { latex: "\\frac{a}{b}".into(), display: true };
+    assert_eq!(ws.editor.edit.renderer.ctx.pop_open_picture(), Some(Destination::Formula(formula)));
+}

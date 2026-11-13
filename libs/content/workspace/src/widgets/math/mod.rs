@@ -11,9 +11,10 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use egui::{Color32, Context, Id, TextureHandle, TextureId, TextureOptions, Vec2};
+use egui::{Color32, ColorImage, Context, Id, TextureHandle, TextureId, TextureOptions, Vec2};
 use lb_rs::spawn;
 use resvg::usvg;
+use serde::{Deserialize, Serialize};
 use typst::diag::{FileError, FileResult};
 use typst::foundations::{Bytes, Datetime, Duration};
 use typst::layout::{Abs, Frame, FrameItem, Point};
@@ -27,7 +28,7 @@ use crate::seq::ws_seq;
 use crate::widgets::diagram_cache::{fit_width, rasterize};
 
 /// A formula by its source: `display` for `$$…$$`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Formula {
     pub latex: String,
     pub display: bool,
@@ -154,10 +155,7 @@ impl MathCache {
 
     /// The formula's size, queueing its render if it's new.
     pub fn size(&self, formula: &Formula, text_size: f32, color: Color32) -> Typeset {
-        let font_size = text_size * x_height_match();
-        let mut h = DefaultHasher::new();
-        (formula, font_size.to_bits()).hash(&mut h);
-        let key = h.finish();
+        let (key, font_size) = key(formula, text_size);
         let mut inner = self.lock();
         inner.used.insert(key);
         match inner.entries.get(&key) {
@@ -218,6 +216,31 @@ impl MathCache {
             }
         }
         shown
+    }
+
+    /// `formula` in `color` on `background` with a margin, at twice the size
+    /// it has at `text_size`, for the clipboard: from the tree its texture
+    /// came from when there is one, as a diagram's is.
+    pub fn image(
+        &self, formula: &Formula, text_size: f32, color: Color32, background: Color32,
+    ) -> Option<ColorImage> {
+        const MARGIN: f32 = 16.0;
+        let (key, font_size) = key(formula, text_size);
+        let cached = match self.lock().entries.get(&key) {
+            Some(State::Ready { size, color: c, tree: Some(tree), .. }) if *c == color => {
+                Some((tree.clone(), size.size))
+            }
+            _ => None,
+        };
+        let (tree, size) = match cached {
+            Some(cached) => cached,
+            None => render(formula, font_size, color)
+                .map(|(t, s, _)| (t, s))
+                .ok()?,
+        };
+        let width = fit_width(&tree, (size.x * 2.0) as u32, 4096);
+        let margin = (MARGIN * width as f32 / size.x).round() as u32;
+        rasterize(&tree, width, Some((background, margin))).ok()
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
@@ -369,6 +392,14 @@ fn render(
 
 /// A 1pt glyph before the formula marks the line's baseline.
 const MARKER_SIZE: f64 = 1.0;
+
+/// The cache key of `formula` at `text_size`, and the font size it sets in.
+fn key(formula: &Formula, text_size: f32) -> (u64, f32) {
+    let font_size = text_size * x_height_match();
+    let mut h = DefaultHasher::new();
+    (formula, font_size.to_bits()).hash(&mut h);
+    (h.finish(), font_size)
+}
 
 fn main_source(typst_math: &str, display: bool, font_size: f32, color: Color32) -> String {
     let math = if display { format!("display({typst_math})") } else { typst_math.into() };

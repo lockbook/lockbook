@@ -17,10 +17,11 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     EmbedKind, EmbedSpec, Layout, WrapUnitLayout,
 };
 use crate::tab::markdown_editor::{Arena, MdEdit, MdRender, TouchTarget, View};
-use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
+use crate::tab::{ContextMenuTarget, Destination, ExtendedOutput as _};
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::diagram_cache::DiagramSize;
 use crate::widgets::glyphon_label::{GlyphonLabel, ShapedLabel};
+use crate::widgets::math::{Formula, Typeset};
 
 const PENDING_HEIGHT: f32 = 120.0;
 /// How far a diagram shrinks to fit the note: its 16pt labels stay about
@@ -391,10 +392,11 @@ fn message_detail(message: &str) -> &str {
 pub enum Picture {
     Image(String),
     Diagram(String),
+    Formula(Formula),
 }
 
 impl<'ast> MdRender {
-    /// The collapsed image or diagram the selection exactly covers.
+    /// The collapsed image, diagram or formula the selection exactly covers.
     pub fn selected_picture(&self, root: &'ast AstNode<'ast>) -> Option<Picture> {
         let selection = self.buffer.current.selection;
         if selection.is_empty() || self.disable_images {
@@ -411,17 +413,23 @@ impl<'ast> MdRender {
                 NodeValue::Image(link) if !self.range_revealed_interior(selection) => {
                     Some(Picture::Image(link.url.clone()))
                 }
+                NodeValue::Math(_)
+                    if !self.range_revealed_interior(selection)
+                        && matches!(self.math_typeset(node), Some(Typeset::Ready(_))) =>
+                {
+                    Self::formula(node).map(Picture::Formula)
+                }
                 _ => None,
             }
         })
     }
 
     /// Whether the platform edit menu offers "Open": the selection is a
-    /// collapsed diagram.
+    /// collapsed diagram or a formula.
     pub fn selection_has_diagram(&mut self) -> bool {
         let arena = Arena::new();
         let root = self.reparse(&arena);
-        matches!(self.selected_picture(root), Some(Picture::Diagram(_)))
+        matches!(self.selected_picture(root), Some(Picture::Diagram(_) | Picture::Formula(_)))
     }
 
     /// Whether the platform edit menu offers "Copy Image".
@@ -440,6 +448,13 @@ impl<'ast> MdRender {
                 }
             }
             Picture::Image(url) => self.embeds.copy_image(&url, &self.ctx),
+            Picture::Formula(formula) => {
+                let theme = self.ctx.get_lb_theme();
+                let (fg, bg) = (theme.neutral_fg(), theme.neutral_bg());
+                if let Some(image) = self.math.image(&formula, self.layout.row_height, fg, bg) {
+                    self.ctx.copy_image(image);
+                }
+            }
         }
     }
 }
@@ -509,7 +524,7 @@ impl<'ast> MdEdit {
             }
             if response.clicked() && open {
                 ui.ctx()
-                    .open_diagram(self.renderer.diagram_source(node, ncb));
+                    .open_picture(Destination::Diagram(self.renderer.diagram_source(node, ncb)));
             } else if response.clicked() {
                 ui.memory_mut(|m| m.request_focus(id));
                 self.calc_operations(ui.ctx(), root, select, ops);
@@ -533,8 +548,9 @@ impl<'ast> MdEdit {
             });
             match action {
                 Some(DiagramMenu::Open) => {
-                    ui.ctx()
-                        .open_diagram(self.renderer.diagram_source(node, ncb));
+                    ui.ctx().open_picture(Destination::Diagram(
+                        self.renderer.diagram_source(node, ncb),
+                    ));
                 }
                 Some(DiagramMenu::CopyImage) => {
                     let source = self.renderer.diagram_source(node, ncb);

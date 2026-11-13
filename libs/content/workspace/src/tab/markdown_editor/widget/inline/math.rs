@@ -8,12 +8,13 @@ use crate::style::overlay_scroll::{BAR_INSET, BAR_WIDTH};
 use crate::style::phosphor;
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::row_scroll::RowScroller;
+use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     EmbedKind, EmbedSpec, Format, Layout,
 };
 use crate::tab::markdown_editor::{MdEdit, MdRender, TouchTarget};
-use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
+use crate::tab::{ContextMenuTarget, Destination, ExtendedOutput as _};
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::glyphon_label::{GlyphonLabel, ShapedLabel};
 use crate::widgets::math::{Formula, MathSize, Typeset};
@@ -211,6 +212,8 @@ impl<'ast> MdRender {
 
 #[derive(Clone)]
 enum MathMenu {
+    Open,
+    CopyImage,
     Copy,
     Edit,
 }
@@ -218,14 +221,14 @@ enum MathMenu {
 impl<'ast> MdEdit {
     /// A tap anywhere on a formula selects it, as one on a diagram does, and
     /// on touch pops the edit menu, whose Edit reveals its source
-    /// ([`Self::enter_at_math`]); on desktop, right-click offers Copy and Edit.
+    /// ([`Self::enter_at_math`]); a cmd-click opens it, as any click does
+    /// read-only, and on desktop right-click shows the menu.
     pub fn handle_math_interactions(
         &mut self, root: &'ast AstNode<'ast>, ui: &Ui, id: egui::Id, ops: &mut Vec<Operation>,
     ) {
+        let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
-            if MdRender::formula(node).is_none() {
-                continue;
-            }
+            let Some(formula) = MdRender::formula(node) else { continue };
             let range = self.renderer.node_range(node);
             let salt = MdRender::math_interaction_id_salt(range);
             let Some(response) = self
@@ -241,7 +244,12 @@ impl<'ast> MdEdit {
                 ui.scope_id().with(salt),
                 TouchTarget::Tap(select.clone()),
             );
-            if response.clicked() {
+            if open && response.hovered() {
+                crate::style::link_cursor(ui.ctx());
+            }
+            if response.clicked() && open {
+                ui.ctx().open_picture(Destination::Formula(formula.clone()));
+            } else if response.clicked() {
                 ui.memory_mut(|m| m.request_focus(id));
                 self.calc_operations(ui.ctx(), root, select, ops);
                 if self.renderer.touch_mode {
@@ -255,12 +263,16 @@ impl<'ast> MdEdit {
             let editable = !self.renderer.readonly;
             let theme = ui.ctx().get_lb_theme();
             let action = crate::style::context_menu::show(&response, &theme, |e| {
+                e.item(phosphor::ARROW_SQUARE_OUT, "Open", MathMenu::Open);
+                e.item(phosphor::IMAGE, "Copy Image", MathMenu::CopyImage);
                 e.item(phosphor::COPY, "Copy", MathMenu::Copy);
                 if editable {
                     e.item(phosphor::PENCIL, "Edit Formula", MathMenu::Edit);
                 }
             });
             match action {
+                Some(MathMenu::Open) => ui.ctx().open_picture(Destination::Formula(formula)),
+                Some(MathMenu::CopyImage) => self.renderer.copy_picture(Picture::Formula(formula)),
                 Some(MathMenu::Copy) => ui.ctx().copy_text(self.renderer.buffer[range].into()),
                 Some(MathMenu::Edit) => {
                     ui.memory_mut(|m| m.request_focus(id));

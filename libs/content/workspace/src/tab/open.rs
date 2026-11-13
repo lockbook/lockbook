@@ -153,6 +153,12 @@ impl TabContent {
                     res.images.clone(),
                 )));
             }
+            Destination::Formula(formula) => {
+                return Ok(TabContent::Image(ImageViewer::formula(
+                    formula.clone(),
+                    res.images.clone(),
+                )));
+            }
         };
         if doc.is_none() && res.is_image(id) {
             return Ok(TabContent::Image(ImageViewer::new(id, res.images.clone())));

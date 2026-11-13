@@ -579,6 +579,7 @@ pub fn tab_icon(dest: &crate::tab::Destination, name: &str) -> &'static str {
         Destination::MindMap(_) => phosphor::GRAPH,
         Destination::SpaceInspector(_) => phosphor::CHART_PIE_SLICE,
         Destination::Diagram(_) => phosphor::FLOW_ARROW,
+        Destination::Formula(_) => phosphor::FUNCTION,
         Destination::File(_) => file_row_icon(name, false),
     }
 }
