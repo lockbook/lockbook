@@ -1,14 +1,22 @@
 [Home](book.md)
 [Values](values.md)
 
-# Using Lockbook
+# Get Started
 
-- [Installing](installing.md)
-- [Account](account.md)
+- [Install](install.md)
+- [Your Account](account.md)
+- [How Lockbook Protects You](how-lockbook-protects-you.md)
+
+# Everyday Use
+
 - [File Management](file-management.md)
-- [Collaboration](collaboration.md)
-- [Editing Markdown](editor.md)
-- [Drawing](canvas.md)
+- [Writing in Markdown](the-editor.md)
+- [Formatting Reference](editor.md)
+
+# Share and Sync
+
+- [Sharing](sharing.md)
+- [Plans](plans.md)
 
 # Advanced Lockbook
 

@@ -1,7 +1,7 @@
 # CLI
 The Lockbook CLI is a terminal client for your encrypted files: edit notes, list and search the tree, sync with the server, and copy files between Lockbook and ordinary OS paths when you need plain files outside the app.
 
-Install via a [package manager](installing.md) or [build from source](building.md). Flags and arguments for any command are authoritative in the binary:
+Install via a [package manager](install.md) or [build from source](building.md). Flags and arguments for any command are authoritative in the binary:
 ```sh
 lockbook --help
 lockbook <command> --help
@@ -103,7 +103,7 @@ Supported editors for `lockbook edit` include vim, nvim, emacs, helix, nano, sub
 ## Completions
 Tab completion is how you should drive the CLI day to day: static completions for every subcommand and flag, plus **dynamic** completions that pull file paths and IDs from your Lockbook. If something feels hard to type, completions are probably not installed correctly—fix them after install.
 
-Install via your [package manager](installing.md) when possible (preferred). Design notes: [Creating a sick CLI](https://lockbook.net/blog/creating-a-sick-cli/). If shell completion is broken system-wide, see [Homebrew’s completion guide](https://docs.brew.sh/Shell-Completion).
+Install via your [package manager](install.md) when possible (preferred). Design notes: [Creating a sick CLI](https://lockbook.net/blog/creating-a-sick-cli/). If shell completion is broken system-wide, see [Homebrew’s completion guide](https://docs.brew.sh/Shell-Completion).
 
 Generate scripts manually when your package manager does not ship them:
 ```sh
