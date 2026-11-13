@@ -422,7 +422,7 @@ impl ImageViewer {
         let id = match &self.picture {
             Picture::File(id) => *id,
             Picture::Diagram(source) => {
-                if let Some((image, _)) = DiagramCache::of(ctx).image(source) {
+                if let Some(image) = DiagramCache::of(ctx).image(source) {
                     ctx.copy_image(image);
                 }
                 return;

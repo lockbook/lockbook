@@ -240,7 +240,9 @@ impl MathCache {
         };
         let width = fit_width(&tree, (size.x * 2.0) as u32, 4096);
         let margin = (MARGIN * width as f32 / size.x).round() as u32;
-        rasterize(&tree, width, Some((background, margin))).ok()
+        let mut image = rasterize(&tree, width, Some((background, margin))).ok()?;
+        image.source_size = size + Vec2::splat(2.0 * MARGIN);
+        Some(image)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {

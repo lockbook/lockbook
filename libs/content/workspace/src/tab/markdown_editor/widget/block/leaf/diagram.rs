@@ -443,7 +443,7 @@ impl<'ast> MdRender {
     pub fn copy_picture(&self, picture: Picture) {
         match picture {
             Picture::Diagram(source) => {
-                if let Some((image, _)) = self.diagrams.image(&source) {
+                if let Some(image) = self.diagrams.image(&source) {
                     self.ctx.copy_image(image);
                 }
             }

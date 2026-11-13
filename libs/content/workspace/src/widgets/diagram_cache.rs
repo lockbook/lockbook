@@ -311,8 +311,8 @@ impl DiagramCache {
     }
 
     /// The diagram on the theme background with a margin, at twice its
-    /// natural size, for the clipboard; and that picture's natural size.
-    pub fn image(&self, source: &str) -> Option<(ColorImage, Vec2)> {
+    /// natural size, for the clipboard; its `source_size` is that natural size.
+    pub fn image(&self, source: &str) -> Option<ColorImage> {
         let (cached, theme) = {
             let inner = self.lookup();
             let cached = match inner.entries.get(&inner.key(source)) {
@@ -337,8 +337,9 @@ impl DiagramCache {
         let width = fit_width(&tree, (natural.x * 2.0) as u32, 4096);
         let margin = (MARGIN * width as f32 / natural.x).round() as u32;
         let [r, g, b] = theme.background;
-        let image = rasterize(&tree, width, Some((Color32::from_rgb(r, g, b), margin))).ok()?;
-        Some((image, natural + Vec2::splat(2.0 * MARGIN)))
+        let mut image = rasterize(&tree, width, Some((Color32::from_rgb(r, g, b), margin))).ok()?;
+        image.source_size = natural + Vec2::splat(2.0 * MARGIN);
+        Some(image)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {

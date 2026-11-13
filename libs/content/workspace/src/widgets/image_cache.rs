@@ -24,10 +24,7 @@ use image::codecs::gif::GifDecoder;
 use image::codecs::png::PngDecoder;
 use image::codecs::webp::WebPDecoder;
 use image::metadata::LoopCount;
-use image::{
-    AnimationDecoder as _, DynamicImage, Frames, ImageDecoder, ImageEncoder as _, ImageFormat,
-    ImageResult,
-};
+use image::{AnimationDecoder as _, DynamicImage, Frames, ImageDecoder, ImageFormat, ImageResult};
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::{Uuid, spawn};
@@ -788,6 +785,8 @@ fn rasterize_svg(
     pix_map.encode_png().map_err(|e| e.to_string())
 }
 
+/// `color_image` as a png, at the density its `source_size` gives it: a
+/// picture rasterized at twice its size in points pastes at that size.
 pub fn encode_png(color_image: &ColorImage) -> Result<Vec<u8>, String> {
     let pixels: Vec<u8> = color_image
         .pixels
@@ -795,15 +794,26 @@ pub fn encode_png(color_image: &ColorImage) -> Result<Vec<u8>, String> {
         .flat_map(|px| px.to_srgba_unmultiplied())
         .collect();
 
+    let (width, height) = (color_image.width() as u32, color_image.height() as u32);
     let mut png = Vec::new();
-    image::codecs::png::PngEncoder::new(&mut png)
-        .write_image(
-            &pixels,
-            color_image.width() as u32,
-            color_image.height() as u32,
-            image::ExtendedColorType::Rgba8,
-        )
+    let mut encoder = png::Encoder::new(&mut png, width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    let scale = width as f32 / color_image.source_size.x;
+    if scale.is_finite() && scale > 0.0 && (scale - 1.0).abs() > 0.01 {
+        const POINTS_PER_METER: f32 = 72.0 / 0.0254;
+        let ppm = (scale * POINTS_PER_METER).round() as u32;
+        encoder.set_pixel_dims(Some(png::PixelDimensions {
+            xppu: ppm,
+            yppu: ppm,
+            unit: png::Unit::Meter,
+        }));
+    }
+    let mut writer = encoder.write_header().map_err(|e| e.to_string())?;
+    writer
+        .write_image_data(&pixels)
         .map_err(|e| e.to_string())?;
+    writer.finish().map_err(|e| e.to_string())?;
     Ok(png)
 }
 
@@ -860,6 +870,24 @@ mod tests {
         }
         drop(encoder);
         out
+    }
+
+    /// A png reads back at the size in points it was encoded with.
+    #[test]
+    fn png_keeps_its_size_in_points() {
+        for (texels, points) in [([60, 30], [30.0, 15.0]), ([60, 30], [60.0, 30.0])] {
+            let mut image = egui::ColorImage::filled(texels, Color32::RED);
+            image.source_size = points.into();
+            let png = super::encode_png(&image).unwrap();
+            let decoder = png::Decoder::new(std::io::Cursor::new(png));
+            let reader = decoder.read_info().unwrap();
+            let ppm = reader
+                .info()
+                .pixel_dims
+                .map_or(72.0 / 0.0254, |d| d.xppu as f32);
+            let read = texels[0] as f32 * (72.0 / 0.0254) / ppm;
+            assert!((read - points[0]).abs() < 0.1, "{texels:?} at {points:?} read as {read}");
+        }
     }
 
     /// A gif plays as encoded: each frame goes up once the delays before it
