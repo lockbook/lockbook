@@ -212,15 +212,14 @@ impl Inner {
 impl DiagramCache {
     pub fn of(ctx: &Context) -> Self {
         let ws_seq = ws_seq(ctx);
-        ctx.data_mut(|d| {
-            d.get_temp_mut_or_insert_with(Id::unique("diagram_cache"), || Self {
-                inner: Default::default(),
-                seq: Arc::new(AtomicU64::new(0)),
-                ws_seq,
-                ctx: ctx.clone(),
+        // the context keeps all but itself, which would keep it alive
+        let (inner, seq, ws_seq) = ctx.data_mut(|d| {
+            d.get_temp_mut_or_insert_with(Id::unique("diagram_cache"), || {
+                (Default::default(), Arc::new(AtomicU64::new(0)), ws_seq)
             })
             .clone()
-        })
+        });
+        Self { inner, seq, ws_seq, ctx: ctx.clone() }
     }
 
     /// Starts a frame: what isn't looked up or drawn by its end is let go,
@@ -1033,6 +1032,19 @@ impl Shaper {
 mod tests {
     use super::*;
     use crate::theme::palette_v2::{Mode, Theme};
+
+    /// A context with a diagram cache is freed once nothing else holds it.
+    #[test]
+    fn a_context_with_a_cache_is_freed() {
+        let ctx = Context::default();
+        let held = Arc::new(());
+        ctx.data_mut(|d| d.insert_temp(Id::unique("held"), held.clone()));
+        let weak = Arc::downgrade(&held);
+        drop(held);
+        DiagramCache::of(&ctx);
+        drop(ctx);
+        assert!(weak.upgrade().is_none(), "the context outlives its last handle");
+    }
 
     /// A frame keeps what it draws; one that doesn't use a diagram lets all
     /// but its size go; drawing it again brings it back.
