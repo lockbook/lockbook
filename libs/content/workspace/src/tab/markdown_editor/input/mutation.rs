@@ -524,13 +524,18 @@ impl<'ast> MdEdit {
 
                 operations.push(Operation::Select(current_selection));
             }
-            Event::Undo => {
+            Event::Undo | Event::Redo => {
                 self.in_progress_image_drag = None;
-                response |= self.renderer.buffer.undo();
-            }
-            Event::Redo => {
-                self.in_progress_image_drag = None;
-                response |= self.renderer.buffer.redo();
+                let undone = if matches!(event, Event::Undo) {
+                    self.renderer.buffer.undo()
+                } else {
+                    self.renderer.buffer.redo()
+                };
+                // the frame's next parse is of this text, not the one undone
+                if undone.text_updated {
+                    self.renderer.bump_text_seq();
+                }
+                response |= undone;
             }
             Event::Cut => {
                 let range = self.clipboard_range(current_selection);
