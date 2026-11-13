@@ -1,6 +1,7 @@
 //! A note drawn off screen whole, for a file: in the app's theme made light,
 //! folds open, tables and code wrapped to the width. Its text paints as
-//! [`PrintText`], for a writer to keep as text.
+//! [`PrintText`] and its formulas as [`PrintSvg`], for a writer to keep as
+//! text and paths.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use lb_rs::Uuid;
 use super::{Headless, Look, PreviewRequest};
 use crate::tab::{ContentState, Destination, Place, Presentation, TabContent, TabResources};
 use crate::theme::palette_v2::Mode;
+use crate::widgets::diagram_cache::PrintSvg;
 use crate::widgets::glyphon_render::PrintText;
 
 /// The whole note in one frame, in its own points.
@@ -19,7 +21,7 @@ pub struct PrintFrame {
     pub shapes: Vec<ClippedShape>,
     pub textures: HashMap<TextureId, Arc<ColorImage>>,
     /// Spans, top to bottom, that a break shouldn't cut: lines of text,
-    /// images, and what the renderer found unbreakable.
+    /// images, formulas, and what the renderer found unbreakable.
     pub unbreakable: Vec<(f32, f32)>,
     pub height: f32,
 }
@@ -88,6 +90,9 @@ fn unbreakable(shapes: &[ClippedShape], renderer: &[Rect]) -> Vec<(f32, f32)> {
     for clipped in shapes {
         for_each_shape(&clipped.shape, &mut |shape| match shape {
             Shape::Callback(callback) => {
+                if callback.callback.is::<PrintSvg>() {
+                    spans.push((callback.rect.top(), callback.rect.bottom()));
+                }
                 let Some(PrintText(areas)) = callback.callback.downcast_ref() else { return };
                 for area in areas {
                     let buffer = area.buffer.read().unwrap();

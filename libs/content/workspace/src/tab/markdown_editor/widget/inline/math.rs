@@ -16,6 +16,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
 use crate::tab::markdown_editor::{MdEdit, MdRender, TouchTarget};
 use crate::tab::{ContextMenuTarget, Destination, ExtendedOutput as _};
 use crate::theme::palette_v2::ThemeExt as _;
+use crate::widgets::diagram_cache::PrintSvg;
 use crate::widgets::glyphon_label::{GlyphonLabel, ShapedLabel};
 use crate::widgets::math::{Formula, MathSize, Typeset};
 
@@ -39,7 +40,12 @@ impl<'ast> MdRender {
         let cell = block.filter(|b| matches!(b.data.borrow().value, NodeValue::TableCell));
         match self.math_typeset(node)? {
             Typeset::Ready(mut size) => {
-                let room = cell.map_or(size.size.x, |b| self.embed_room(b));
+                // paper doesn't scroll: a printed formula fits its row
+                let room = match (cell, block) {
+                    (Some(cell), _) => self.embed_room(cell),
+                    (None, Some(block)) if self.print => self.width(block),
+                    _ => size.size.x,
+                };
                 if size.size.x > room {
                     let scale = room / size.size.x;
                     size.size *= scale;
@@ -165,6 +171,15 @@ impl<'ast> MdRender {
         let color = self.ctx.get_lb_theme().neutral_fg();
         let Some(natural) = self.math.natural_size(key) else { return };
         let size = natural * (window.height() / natural.y).min(1.);
+        if self.print {
+            if let Some(tree) = self.math.tree(key, color) {
+                let at = Rect::from_center_size(window.center(), size);
+                let formula = std::sync::Arc::new(PrintSvg(tree));
+                ui.painter()
+                    .add(egui::PaintCallback { rect: at, callback: formula });
+                return;
+            }
+        }
         let width_px = (size.x * ui.ctx().pixels_per_point()).round() as u32;
         let Some(texture) = self.math.texture(key, color, width_px) else { return };
         let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));

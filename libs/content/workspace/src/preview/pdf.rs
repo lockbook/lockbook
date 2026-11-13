@@ -1,6 +1,6 @@
-//! A printed note cut into pages and written as a PDF: its shapes as
-//! paths, its textures as images, and its text as text in the fonts it was
-//! shaped in, so it selects, copies, and searches.
+//! A printed note cut into pages and written as a PDF: its shapes and
+//! formulas as paths, its textures as images, and its text as text in the
+//! fonts it was shaped in, so it selects, copies, and searches.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -17,10 +17,12 @@ use krilla::page::PageSettings;
 use krilla::paint::{Fill, FillRule, Stroke};
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph, Tag};
+use krilla_svg::{SurfaceExt as _, SvgSettings};
 use lb_rs::Uuid;
 
 use super::print::{print_frame, textured};
 use crate::tab::TabResources;
+use crate::widgets::diagram_cache::PrintSvg;
 use crate::widgets::glyphon_render::{PrintText, TextBufferArea};
 
 /// Room around a page's content, in PDF points: half an inch.
@@ -171,6 +173,14 @@ impl PdfWriter {
                         if area.clip_rect.intersects(shown) {
                             self.draw_text(surface, area, shown);
                         }
+                    }
+                }
+                if let Some(PrintSvg(tree)) = callback.callback.downcast_ref() {
+                    let rect = callback.rect;
+                    if let Some(size) = Size::from_wh(rect.width(), rect.height()) {
+                        surface.push_transform(&Transform::from_translate(rect.left(), rect.top()));
+                        surface.draw_svg(tree, size, SvgSettings::default());
+                        surface.pop();
                     }
                 }
             }
@@ -565,7 +575,8 @@ mod tests {
             .map(|kind| format!("> [!{kind}]\n> An alert.\n\n"))
             .concat();
         let note = format!(
-            "# Title 🧾\n\n{alerts}- [ ] open\n- [x] done\n\nA [link](https://lockbook.net), a footnote[^1], `code` and $x^2$.\n\n## Folded {fold}\n\nHidden until printed.\n\n| {} |\n|{}|\n| {} |\n\n```\n{}\n```\n\n![picture](picture.png)\n\n![[Plan#Goals]]\n\n![[Plan#Gone]]\n\n![[broken.png]]\n\n![[broken.pdf]]\n\n![broken](broken.png)\n\n[^1]: The footnote.\n",
+            "---\ntitle: Tour\ntags: [alpha, beta]\ndone: true\n---\n\n# Title 🧾\n\n{alerts}- [ ] open\n- [x] done\n\nA [link](https://lockbook.net), a footnote[^1], `code` and $x^2$.\n\n$$\\int_0^1 x^2 \\, dx = \\frac{{1}}{{3}}$$\n\n$${}$$\n\nA broken $\\frac{{$ formula.\n\n## Folded {fold}\n\nHidden until printed.\n\n| {} |\n|{}|\n| {} |\n\n```\n{}\n```\n\n![picture](picture.png)\n\n![[Plan#Goals]]\n\n![[Plan#Gone]]\n\n![[broken.png]]\n\n![[broken.pdf]]\n\n![broken](broken.png)\n\n[^1]: The footnote.\n",
+            "a + b + c + d + e + f + ".repeat(12) + "z",
             wide.join(" | "),
             ["---"; 12].join("|"),
             wide.join(" | "),
@@ -577,17 +588,24 @@ mod tests {
 
         let size = Vec2::new(Paper::LETTER.note_width(), Paper::LETTER.note_height());
         let frame = print_frame(&live, id, None, size).unwrap();
-        let mut dropped = vec![];
+        let (mut dropped, mut images, mut svgs) = (vec![], 0, 0);
         for clipped in &frame.shapes {
             for_each_shape(&clipped.shape, &mut |shape| match shape {
+                shape if textured(shape).is_some() => images += 1,
+                Shape::Callback(callback) if callback.callback.is::<PrintSvg>() => svgs += 1,
                 Shape::Text(text) => dropped.push(text.galley.text().to_string()),
-                Shape::Callback(callback) if !callback.callback.is::<PrintText>() => {
+                Shape::Callback(callback)
+                    if !callback.callback.is::<PrintText>()
+                        && !callback.callback.is::<PrintSvg>() =>
+                {
                     dropped.push("a GPU callback".into())
                 }
                 _ => {}
             });
         }
         assert_eq!(dropped, Vec::<String>::new());
+        assert_eq!(images, 1, "the picture prints as an image");
+        assert_eq!(svgs, 3, "three formulas print as paths");
 
         let pdf = render_pdf(&live, id, None, Paper::LETTER).unwrap();
         assert!(pdf.starts_with(b"%PDF"));

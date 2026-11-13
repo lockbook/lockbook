@@ -193,6 +193,16 @@ impl MathCache {
         }
     }
 
+    /// Whether a formula is still typesetting or drawing.
+    pub fn busy(&self) -> bool {
+        let inner = self.lock();
+        inner.rendering
+            || inner
+                .entries
+                .values()
+                .any(|s| matches!(s, State::Pending | State::Ready { rendering: true, .. }))
+    }
+
     /// The texture to paint `width_px` device pixels wide in `color`, if
     /// any. One of another width or color paints while this one draws.
     pub fn texture(&self, key: u64, color: Color32, width_px: u32) -> Option<TextureId> {

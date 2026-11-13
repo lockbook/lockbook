@@ -1663,6 +1663,8 @@ impl Editor {
         let mut resp: Response = mem::take(&mut self.next_resp);
         self.moved_unpainted = false;
         self.edit.renderer.tab_embeds.begin_frame(ui.ctx());
+        // a formula landing mid-frame drew as its source
+        let math_seq = self.edit.renderer.math.seq();
         // Copy takes the selection in the embed last pressed, if there is one
         if ui.input(|i| i.events.contains(&egui::Event::Copy)) {
             if let Some(text) = self.edit.renderer.tab_embeds.copy() {
@@ -2205,7 +2207,9 @@ impl Editor {
         self.edit.renderer.tab_embeds.end_frame();
         self.loads_pending = self.edit.renderer.embeds.take_pending()
             | self.edit.renderer.previews_pending.take()
-            | self.edit.renderer.tab_embeds.pending();
+            | self.edit.renderer.tab_embeds.pending()
+            | self.edit.renderer.math.busy()
+            | (self.edit.renderer.math.seq() != math_seq);
 
         resp
     }

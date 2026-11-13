@@ -4384,6 +4384,7 @@ dependencies = [
  "pdf-writer",
  "png 0.18.1",
  "rustc-hash 2.1.3",
+ "rustybuzz",
  "siphasher 1.0.3",
  "skrifa 0.42.1",
  "smallvec",
@@ -4392,6 +4393,22 @@ dependencies = [
  "xmp-writer",
  "yoke",
  "zune-jpeg 0.5.15",
+]
+
+[[package]]
+name = "krilla-svg"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1237d7c37b16ca9fbc2e72dde13a10d321f9a44aceee35c062bc0a43bfc7ce16"
+dependencies = [
+ "flate2",
+ "fontdb",
+ "krilla",
+ "resvg",
+ "skrifa 0.42.1",
+ "smallvec",
+ "tiny-skia 0.12.0",
+ "usvg",
 ]
 
 [[package]]
@@ -11383,6 +11400,7 @@ dependencies = [
  "indexmap 2.14.2",
  "jni 0.21.1",
  "krilla",
+ "krilla-svg",
  "lazy_static",
  "lb-fonts",
  "lb-rs",
