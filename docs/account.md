@@ -20,10 +20,10 @@ Tips to not lose your key:
 1. **Memorize it.** Become inseparable from your key.
 
 ## Sign Up
-To create your Lockbook account, [install](install.md) and launch any of our apps and choose *Create account* (*Get started* on iPhone, iPad, and Android). You'll be prompted to choose a unique username and to backup your secret key, which we recommend doing right away.
+To create your Lockbook account, [install](install.md) and launch any of our apps and choose the 'Create Account' option. You'll be prompted to choose a unique username and to backup your secret key, which we recommend doing right away.
 
 ## Sign In
-To sign in, [install](install.md) and launch any of our apps and choose *Import account* (*I have an account* on iPhone, iPad, and Android). You'll need your secret key, which is available from any signed-in device through settings.
+To sign in, [install](install.md) and launch any of our apps and choose the 'Import Account' option. You'll need your secret key, which is available from any signed-in device through settings.
 
 To sign in on mobile, we recommend revealing a QR code from a signed-in device. You can scan it to transfer your key and save yourself a few moments of typing.
 
