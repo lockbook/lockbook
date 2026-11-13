@@ -6,6 +6,12 @@ on:
       release:
         type: boolean
         default: false
+      submit_ios_build:
+        description: 'Only submit for app store review: the uploaded iOS build number'
+        type: string
+      submit_macos_build:
+        description: 'Only submit for app store review: the uploaded macOS build number'
+        type: string
   workflow_call:
     inputs:
       release:
@@ -13,8 +19,24 @@ on:
         default: false
 
 jobs:
+  SubmitForReview:
+    if: github.repository == 'lockbook/lockbook' && inputs.submit_ios_build && inputs.submit_macos_build
+    runs-on: [self-hosted, macOS]
+    env:
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      IOS_BUILD: ${{ inputs.submit_ios_build }}
+      MACOS_BUILD: ${{ inputs.submit_macos_build }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Configure PATH
+      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    - name: Submit for review
+      run: cargo r -p lbdev releaser apple app-store-submit-builds "$IOS_BUILD" "$MACOS_BUILD"
+
   DeployApple:
-    if: github.repository == 'lockbook/lockbook'
+    if: github.repository == 'lockbook/lockbook' && !inputs.submit_ios_build
     runs-on: [self-hosted, macOS]
     env:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}

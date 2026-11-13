@@ -35,9 +35,14 @@ struct Claims {
 }
 
 pub fn submit_for_review() -> CliResult<()> {
+    submit_builds(archived_build_number("iOS")?, archived_build_number("macOS")?)
+}
+
+/// Submits builds already uploaded, named by build number, when their archives are gone.
+pub fn submit_builds(ios: String, macos: String) -> CliResult<()> {
     let asc = AppStoreConnectClient::new();
-    for (platform, archive) in [("IOS", "iOS"), ("MAC_OS", "macOS")] {
-        let build = asc.processed_build(platform, &archived_build_number(archive)?)?;
+    for (platform, number) in [("IOS", ios), ("MAC_OS", macos)] {
+        let build = asc.processed_build(platform, &number)?;
         let version = asc.prepare_version(platform, &build)?;
         asc.set_whats_new(&version)?;
         asc.submit(platform, &version)?;
