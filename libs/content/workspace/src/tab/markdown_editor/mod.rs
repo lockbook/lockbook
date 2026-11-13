@@ -418,6 +418,10 @@ pub struct MdEdit {
     pub pending_block_move:
         Option<(widget::block::drag::BlockDrag, widget::block::drag::DropGap, Pos2)>,
 
+    /// What a reload applied of the next frame's queued edits, for that
+    /// frame's input phase to report.
+    pub applied: show::Applied,
+
     /// Selections expand selection grew, each `(from, to)`: shrink selection
     /// goes back while the selection is the last `to`.
     pub syntax_grown: Vec<((Grapheme, Grapheme), (Grapheme, Grapheme))>,
@@ -540,6 +544,7 @@ impl MdEdit {
             touch_reorder_driven: false,
             lifted: false,
             pending_block_move: None,
+            applied: Default::default(),
             syntax_grown: Vec::new(),
             bracket_pair_at: None,
             deferred_input: Vec::new(),
@@ -1288,6 +1293,7 @@ impl Editor {
                 touch_reorder_driven: false,
                 lifted: false,
                 pending_block_move: None,
+                applied: Default::default(),
                 syntax_grown: Vec::new(),
                 bracket_pair_at: None,
                 deferred_input: Vec::new(),
@@ -1420,6 +1426,8 @@ impl Editor {
             self.landing.is_none() && self.edit.pending_scroll.is_none() && !self.moved_unpainted;
         let drawn = if idle { self.drawn_texts() } else { Vec::new() };
         let seq = self.edit.renderer.buffer.current.seq;
+        let ctx = self.edit.renderer.ctx.clone();
+        self.edit.apply_queued(&ctx);
         if self.edit.renderer.buffer.reload(text).text_updated {
             self.edit.renderer.bump_text_seq();
         }
