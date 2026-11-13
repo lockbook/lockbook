@@ -1180,11 +1180,7 @@ impl Editor {
 
         let client: HttpClient = Default::default();
         let ws_seq = crate::seq::ws_seq(&ctx);
-        // the external URL's origin, as lb-rs writes it for this account
-        let open_origin = core.get_file_link_url(file_id).ok().and_then(|url| {
-            url.strip_suffix(&format!("/open/{file_id}"))
-                .map(str::to_string)
-        });
+        let open_origin = core.get_link_origin().ok();
 
         let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
         let renderer = MdRender {
@@ -2819,7 +2815,10 @@ impl Editor {
                 let new_tab = new_tab || ui.input(|i| i.modifiers.command);
                 match span {
                     Some(span) => ui.ctx().open_link_at(id, span, new_tab),
-                    None => ui.ctx().open_link(id, None, new_tab),
+                    None => ui.ctx().open_link(
+                        crate::tab::Place::new(crate::tab::Destination::File(id)),
+                        new_tab,
+                    ),
                 }
             }
             Some(widget::outline::Choice::CopyHeadingLink(_)) => {
@@ -2829,7 +2828,7 @@ impl Editor {
             Some(widget::outline::Choice::CopyLink(id)) => {
                 let place = crate::tab::Place::new(crate::tab::Destination::File(id));
                 let render = &self.edit.renderer;
-                if let Some(url) = place.to_url_with(|id| Some(render.external_url(id))) {
+                if let Some(url) = place.to_open_url(render.open_origin()) {
                     ui.ctx().copy_text(url);
                 }
             }

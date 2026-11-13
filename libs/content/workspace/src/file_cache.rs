@@ -16,10 +16,14 @@ use tracing::instrument;
 use urlencoding::decode;
 
 use crate::note_index::NoteIndex;
+use crate::tab::{Destination, Place};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolvedLink {
     File(Uuid),
+    /// A place in the app that isn't a file, such as a search; the
+    /// workspace opens it.
+    Place,
     External(String),
 }
 
@@ -561,12 +565,18 @@ pub trait FilesExt {
     }
 
     /// Resolves the destination of a link in `note`: a document by
-    /// [`Self::locate_link`], whatever its reach, or a web URL. Returns None
+    /// [`Self::locate_link`], whatever its reach, another place in the app
+    /// ([`Place::from_url`]), or a web URL. Returns None
     /// for an internal destination that doesn't resolve.
     fn resolve_link(&self, url: &str, note: Uuid) -> Option<ResolvedLink> {
-        match self.locate_link(url, note) {
-            Some((id, _)) => Some(ResolvedLink::File(id)),
-            None => web_link(url).then(|| ResolvedLink::External(url.to_string())),
+        if let Some((id, _)) = self.locate_link(url, note) {
+            return Some(ResolvedLink::File(id));
+        }
+        match Place::from_url(url) {
+            Some(place) if !matches!(place.dest, Destination::File(_)) && !web_link(url) => {
+                Some(ResolvedLink::Place)
+            }
+            _ => web_link(url).then(|| ResolvedLink::External(url.to_string())),
         }
     }
 
@@ -1086,25 +1096,18 @@ fn has_scheme(url: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c))
 }
 
-/// The file an id link names: `lb://<uuid>`, or the external URL
-/// `http(s)://<host>/open/<uuid>`. A query or `#fragment` rides along.
+/// The file a link names, in either style ([`Place::from_url`]).
 pub fn link_id(url: &str) -> Option<Uuid> {
-    let url = url.split(['#', '?']).next()?;
-    let id = match strip_prefix_ci(url, "lb://") {
-        Some(id) => id,
-        None => {
-            let rest =
-                strip_prefix_ci(url, "https://").or_else(|| strip_prefix_ci(url, "http://"))?;
-            rest.split_once('/')?.1.strip_prefix("open/")?
-        }
-    };
-    Uuid::parse_str(id.trim_end_matches('/')).ok()
+    match Place::from_url(url)?.dest {
+        Destination::File(id) => Some(id),
+        _ => None,
+    }
 }
 
 /// Whether an unresolved destination is a URL for the host to open: a
 /// `scheme://` URL other than Lockbook's own, or `mailto:`, `tel:`, or
 /// `sms:`. A bare `word:` is a file name (`Q3:plan.md`). An
-/// external URL from `app.lockbook.net` names a file you can't see, so it
+/// open link from `app.lockbook.net` names a place in the app, so it
 /// isn't one.
 pub(crate) fn web_link(url: &str) -> bool {
     let Some((scheme, rest)) = url.split_once(':') else { return false };
@@ -1115,7 +1118,8 @@ pub(crate) fn web_link(url: &str) -> bool {
     let opaque = ["mailto", "tel", "sms"]
         .iter()
         .any(|s| scheme.eq_ignore_ascii_case(s));
-    let official = strip_prefix_ci(rest, "//app.lockbook.net/").is_some() && link_id(url).is_some();
+    let official =
+        strip_prefix_ci(rest, "//app.lockbook.net/").is_some() && Place::from_url(url).is_some();
     is_scheme
         && (rest.starts_with("//") || opaque)
         && !scheme.eq_ignore_ascii_case("lb")
@@ -1141,7 +1145,7 @@ pub fn wiki_fragment(title: &str) -> (&str, Option<&str>) {
     }
 }
 
-fn strip_prefix_ci<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
+pub(crate) fn strip_prefix_ci<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
     let head = s.get(..prefix.len())?;
     head.eq_ignore_ascii_case(prefix)
         .then(|| &s[prefix.len()..])

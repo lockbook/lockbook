@@ -17,8 +17,7 @@ use lb::Uuid;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use rfd::FileDialog;
-use workspace_rs::file_cache::{Change, FileCache, FilesExt};
-use workspace_rs::tab::{Destination, Place};
+use workspace_rs::file_cache::{Change, FilesExt};
 
 use super::ShellApp;
 use super::action::{
@@ -95,7 +94,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OpenFile(id) => open_documents(app, &[id], false),
         A::OpenFileNewTab(id) => open_documents(app, &[id], true),
         A::OpenLink(url) => {
-            app.incoming_link = Some(IncomingLink::Waiting(url));
+            app.incoming_link = Some(IncomingLink(url));
             // actions apply after the editor draws, so the next frame opens it
             ctx.request_repaint();
         }
@@ -569,7 +568,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::CopyLink(place) => {
             if let Some(r) = app.session.ready() {
                 let core = &r.workspace.core;
-                if let Some(url) = place.to_url_with(|id| core.get_file_link_url(id).ok()) {
+                if let Some(url) = core
+                    .get_link_origin()
+                    .ok()
+                    .and_then(|o| place.to_open_url(&o))
+                {
                     ctx.copy_text(url);
                 }
             }
@@ -1367,94 +1370,22 @@ pub(crate) fn native_file_dialog_open() -> bool {
     NATIVE_FILE_DIALOG.load(Ordering::SeqCst)
 }
 
-pub(crate) enum IncomingLink {
-    /// Waits for the account to load.
-    Waiting(String),
-    /// Syncs to find a file this device hasn't seen.
-    Syncing(mpsc::Receiver<LinkSynced>),
-}
+/// A link from outside the app, waiting for the account to load.
+pub(crate) struct IncomingLink(String);
 
-pub(crate) struct LinkSynced {
-    place: Place,
-    synced: Result<(), String>,
-}
-
-/// Opens the place the incoming link names once the account is ready and
-/// the file it's in, if any, is known here.
-pub(crate) fn poll_incoming_link(app: &mut ShellApp, ctx: &Context) {
+/// Opens the incoming link once the account is ready; the workspace syncs
+/// first if it names a file this device hasn't seen.
+pub(crate) fn poll_incoming_link(app: &mut ShellApp) {
     let Some(r) = app.session.ready_mut() else {
         return;
     };
-    let known = |r: &Ready, place: &Place| {
-        place
-            .dest
-            .backing_file()
-            .is_none_or(|id| r.workspace.files.read().unwrap().get_by_id(id).is_some())
-    };
-    match app.incoming_link.take() {
-        None => {}
-        Some(IncomingLink::Waiting(url)) => match Place::from_url(&url) {
-            Some(place) if known(r, &place) => open_incoming_link(r, place),
-            Some(place) => {
-                app.incoming_link = Some(IncomingLink::Syncing(sync_for_link(r, ctx, place)))
-            }
-            None => app
-                .toasts
-                .error("This link doesn't name a note or a search."),
-        },
-        Some(IncomingLink::Syncing(rx)) => match rx.try_recv() {
-            Ok(LinkSynced { place, synced }) => {
-                note_files_changed(r);
-                match (known(r, &place), synced) {
-                    (true, _) => open_incoming_link(r, place),
-                    (false, Ok(())) => app
-                        .toasts
-                        .error("This note was deleted or isn't shared with you."),
-                    (false, Err(err)) => app
-                        .toasts
-                        .error(format!("Couldn't sync to find this note: {err}")),
-                }
-            }
-            Err(mpsc::TryRecvError::Empty) => app.incoming_link = Some(IncomingLink::Syncing(rx)),
-            Err(mpsc::TryRecvError::Disconnected) => {}
-        },
-    }
-}
-
-fn sync_for_link(r: &Ready, ctx: &Context, place: Place) -> mpsc::Receiver<LinkSynced> {
-    let (tx, rx) = mpsc::channel();
-    let (core, files, ctx) = (r.workspace.core.clone(), r.workspace.files.clone(), ctx.clone());
-    thread::spawn(move || {
-        let synced = core.sync().map_err(|err| err.to_string());
-        // the cache's own refresh runs on another thread, so the check after this can't wait for it
-        if let Ok(cache) = FileCache::new(&core) {
-            files.write().unwrap().replace(cache);
-        }
-        let _ = tx.send(LinkSynced { place, synced });
-        ctx.request_repaint();
-    });
-    rx
-}
-
-/// Opens `place`. A note link also selects and reveals the note in the tree;
-/// a folder link only selects and reveals the folder.
-fn open_incoming_link(r: &mut Ready, place: Place) {
-    let Destination::File(id) = place.dest else {
-        r.workspace.open_place(place, true, false);
+    let Some(IncomingLink(url)) = app.incoming_link.take() else {
         return;
     };
-    let is_document = r
-        .workspace
-        .files
-        .read()
-        .unwrap()
-        .get_by_id(id)
-        .is_some_and(|f| f.is_document());
-    if is_document {
-        r.workspace.open_place(place, true, false);
+    if !r.workspace.open_url(&url) {
+        app.toasts
+            .error("This link doesn't name a note or a search.");
     }
-    r.select_only(id);
-    super::reveal_and_scroll(r, id);
 }
 
 /// Poll a finished system picker. Cancel (`None`) is a no-op.

@@ -7,7 +7,7 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 use web_time::Instant;
 
-use crate::file_cache::{FilesExt as _, link_id, split_fragment};
+use crate::file_cache::FilesExt as _;
 use crate::output::Response;
 use crate::search::SearchType;
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _, image_viewer};
@@ -16,7 +16,6 @@ use crate::theme::visuals;
 use crate::widgets::GlyphonLabel;
 use crate::widgets::glyphon_cache::GlyphonCache;
 use crate::workspace::Workspace;
-use lb_rs::Uuid;
 
 pub const NEW_NOTE_SHORTCUT: egui::KeyboardShortcut =
     egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::N);
@@ -51,6 +50,7 @@ impl Workspace {
         self.process_bg_tasks();
         self.process_lb_updates();
         self.process_task_updates();
+        self.poll_link_sync();
         self.refit_to_names();
         self.process_keys();
         self.process_clip_events();
@@ -98,6 +98,7 @@ impl Workspace {
         crate::widgets::diagram_cache::DiagramCache::of(ui.ctx()).end_frame();
         self.tabs.end_frame();
 
+        self.out.opening_link = self.opening_link();
         mem::take(&mut self.out)
     }
 
@@ -132,34 +133,25 @@ impl Workspace {
             ui.centered_and_justified(|ui| {
                 self.show_current_tab_content(ui);
 
-                // Links in notes open through their resolver; this catches the
-                // rest. An id link to a file here opens in the app, and `lb:`
-                // never reaches the OS.
-                let mut open_ids: Vec<(Uuid, Option<String>, bool)> = Vec::new();
-                let files = Arc::clone(&self.files);
-                let files = files.read().unwrap();
-                ui.ctx().output_mut(|w| {
-                    w.commands.retain(|c| {
-                        let egui::OutputCommand::OpenUrl(url) = c else { return true };
-                        match link_id(&url.url) {
-                            Some(id) if files.get_by_id(id).is_some_and(|f| f.is_document()) => {
-                                let heading = split_fragment(&url.url).1.map(String::from);
-                                open_ids.push((id, heading, url.new_tab));
-                                false
-                            }
-                            _ => !url.url.to_ascii_lowercase().starts_with("lb:"),
-                        }
-                    });
+                // every link a tab opens: ours open here, the rest go to the OS
+                let urls = ui.ctx().output_mut(|w| {
+                    let (urls, rest) = std::mem::take(&mut w.commands)
+                        .into_iter()
+                        .partition(|c| matches!(c, egui::OutputCommand::OpenUrl(_)));
+                    w.commands = rest;
+                    urls
                 });
-                drop(files);
-                for (id, heading, new_tab) in open_ids {
-                    self.open_link(id, heading, new_tab);
+                for command in urls {
+                    let egui::OutputCommand::OpenUrl(url) = command else { continue };
+                    if !self.open_link_url(&url.url, url.new_tab) {
+                        ui.ctx().open_url(url);
+                    }
                 }
                 if let Some(source) = ui.ctx().pop_open_diagram() {
                     self.navigate_to(crate::tab::Destination::Diagram(source));
                 }
-                for (id, heading, new_tab) in ui.ctx().pop_open_files() {
-                    self.open_link(id, heading, new_tab);
+                for (place, new_tab) in ui.ctx().pop_open_files() {
+                    self.open_link(place, new_tab);
                 }
                 for (id, range, new_tab) in ui.ctx().pop_open_ranges() {
                     if new_tab {
@@ -215,8 +207,8 @@ impl Workspace {
     fn show_link_sheet(&mut self, ctx: &egui::Context) {
         let Some(sheet) = self.link_sheets.front().cloned() else { return };
         let (open, close) = link_sheet_modal(ctx, &sheet, self.link_sheet_keys);
-        if let Some((id, new_tab)) = sheet.open.filter(|_| open) {
-            self.open_link(id, sheet.heading.clone(), new_tab);
+        if let Some((place, new_tab)) = sheet.open.clone().filter(|_| open) {
+            self.open_link(place, new_tab);
         }
         if close {
             self.link_sheets.pop_front();

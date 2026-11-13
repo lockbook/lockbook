@@ -11,7 +11,7 @@ fn main() {
              \n\
              Links:\n\
                lb://<id>#<heading>                              a note, at a heading\n\
-               lb://search?q=<query>&type=content&scope=<path>  a search"
+               lb://search#q=<query>&type=content&scope=<path>  a search"
         );
         return;
     }

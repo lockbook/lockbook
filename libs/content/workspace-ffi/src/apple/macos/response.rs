@@ -57,6 +57,10 @@ pub struct MacOSResponse {
     pub doc_created: CUuid,
     pub tabs_changed: bool,
     pub selected_folder_changed: bool,
+    /// Why a link didn't open, for an alert; empty when nothing failed.
+    pub link_message: *mut c_char,
+    /// A link waits on a sync to find its file.
+    pub opening_link: bool,
 }
 
 impl From<crate::Response> for MacOSResponse {
@@ -84,6 +88,8 @@ impl From<crate::Response> for MacOSResponse {
                     selected_folder_changed,
                     open_camera: _,
                     file_cache_updated: _,
+                    opening_link,
+                    link_message,
                     open_search: _,
                 },
             redraw_in,
@@ -138,6 +144,10 @@ impl From<crate::Response> for MacOSResponse {
                 })
                 .unwrap_or(CImeRect { min_x: 0., min_y: 0., max_x: 0., max_y: 0. }),
             selected_folder_changed,
+            link_message: CString::new(link_message.unwrap_or_default())
+                .unwrap_or_default()
+                .into_raw(),
+            opening_link,
         }
     }
 }
