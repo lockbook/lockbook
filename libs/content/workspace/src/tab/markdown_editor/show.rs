@@ -556,7 +556,7 @@ impl MdEdit {
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
         self.renderer.misspelled.clear();
-        self.renderer.diagram_errors.clear();
+        self.renderer.error_marks.clear();
         self.renderer.clear_row_scroll_frame();
         self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
@@ -942,6 +942,7 @@ impl MdEdit {
         self.handle_image_interactions(root, ui, id, &mut ops);
         self.escape_diagram_source(root, ui, id, &mut ops);
         self.handle_diagram_interactions(root, ui, id, &mut ops);
+        self.handle_math_interactions(root, ui, id, &mut ops);
         self.handle_card_interactions(root, ui, id, &mut ops);
         self.handle_tab_embed_interactions(root, ui, id, &mut ops);
         self.handle_link_capsule_interactions(root, ui, id, &mut ops);

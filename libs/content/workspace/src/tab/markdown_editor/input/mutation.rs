@@ -682,6 +682,7 @@ impl<'ast> MdEdit {
             }
             Event::EnterAtom => {
                 if !self.enter_at_diagram(root, operations)
+                    && !self.enter_at_math(root, operations)
                     && !self.enter_at_image(root, operations)
                 {
                     self.enter_at_link(root, operations);

@@ -712,10 +712,11 @@ type LinePrefixKey = (u64, (Grapheme, Grapheme));
 type TableColumns = (std::rc::Rc<[f32]>, HeightDeps);
 type LinePrefixValue = (Graphemes, bool);
 
-/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq, diagrams_seq]`. Text-
+/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq, diagrams_seq,
+/// tab_embeds_seq, math_seq]`. Text-
 /// change invalidation is handled wholesale by [`LayoutCache::ensure_text_consistent`]
 /// before any read, so text_seq isn't part of the per-entry stamp.
-pub type HeightDeps = [u64; 6];
+pub type HeightDeps = [u64; 7];
 
 /// A table cell's stamp, a width as bits, and whether it keys how wide the
 /// cell's content is within that width rather than how tall.
@@ -933,6 +934,7 @@ impl<'ast> MdRender {
             self.reveal_seq,
             self.diagrams.seq(),
             self.tab_embeds.seq(),
+            self.math.seq(),
         ]
     }
 

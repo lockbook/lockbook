@@ -328,7 +328,7 @@ fn letter_height(faces: &[FaceInfo], letter: char) -> Option<f32> {
     face_letter_height((*system::face_data(face)?).as_ref(), face.index, letter)
 }
 
-fn face_letter_height(data: &[u8], index: u32, letter: char) -> Option<f32> {
+pub(crate) fn face_letter_height(data: &[u8], index: u32, letter: char) -> Option<f32> {
     let face = ttf_parser::Face::parse(data, index).ok()?;
     let drawn = face
         .glyph_index(letter)
@@ -355,6 +355,19 @@ fn bundled_letter_height(mono: bool, letter: char) -> Option<f32> {
         [false, true].map(|mono| [measure(mono, 'x'), measure(mono, 'd')])
     });
     heights[mono as usize][(letter == 'd') as usize]
+}
+
+/// How tall text (or, for `mono`, code) draws its lowercase `x`, in em of
+/// the size asked for.
+pub fn x_height(mono: bool) -> Option<f32> {
+    let chosen = CHOSEN.read().unwrap();
+    let i = mono as usize;
+    match &chosen.drawn[i] {
+        Some(family) => family
+            .x_height
+            .map(|x| x * match_size(&chosen, family.x_height, mono)),
+        None => platform_x_height(&chosen, mono),
+    }
 }
 
 /// How tall text (or, for `mono`, code) stands from baseline to ascender

@@ -78,6 +78,11 @@ merman = { version = "0.9.1", default-features = false, features = [
     "svg",
 ] }
 resvg = "0.47.0"
+mitex = { git = "https://github.com/lockbook/mitex", rev = "68528928e847dec1a797949c4f374de422b2f5bc" }
+mitex-spec-gen = { git = "https://github.com/lockbook/mitex", rev = "68528928e847dec1a797949c4f374de422b2f5bc", features = ["prebuilt"] }
+typst = "0.15.1"
+typst-layout = "0.15.1"
+typst-svg = "0.15.1"
 roxmltree = "0.21.1"
 scraper = "0.14"
 serde = { version = "1.0.171", features = ["derive"] }

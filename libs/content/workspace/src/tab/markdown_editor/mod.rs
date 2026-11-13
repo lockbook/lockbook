@@ -166,8 +166,9 @@ pub struct MdRender {
     pub scroll_bounds: Option<(scroll_content::DocRowId, scroll_content::DocRowId)>,
     /// Words marked misspelled this frame, in source order of their units.
     pub misspelled: Vec<(Grapheme, Grapheme)>,
-    /// Where revealed diagrams' errors point this frame, marked as misspellings are.
-    pub diagram_errors: Vec<(Grapheme, Grapheme)>,
+    /// Where errors point this frame, revealed diagrams' and those of
+    /// formulas that don't typeset, marked as misspellings are.
+    pub error_marks: Vec<(Grapheme, Grapheme)>,
     /// Edge fades of scrolled tables, code blocks, and diagrams `(rect,
     /// left color, right color)`, painted over the text.
     pub edge_fades: Vec<(Rect, egui::Color32, egui::Color32)>,
@@ -207,6 +208,7 @@ pub struct MdRender {
     /// button says so.
     pub code_copied: Option<((Grapheme, Grapheme), f64)>,
     pub diagrams: crate::widgets::diagram_cache::DiagramCache,
+    pub math: crate::widgets::math::MathCache,
     /// The source each revealed diagram last rendered, by fence start, so
     /// its preview holds while edits render.
     pub diagram_previews: RefCell<HashMap<Grapheme, String>>,
@@ -810,6 +812,7 @@ impl MdRender {
         let ws_seq = crate::seq::ws_seq(&ctx);
         let previews = LinkPreviews::offline(ctx.clone());
         let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
+        let math = crate::widgets::math::MathCache::of(&ctx);
         Self {
             ctx,
             layout,
@@ -838,12 +841,13 @@ impl MdRender {
             font_seq: crate::font::chosen_seq(),
             code_copied: None,
             diagrams,
+            math,
             diagram_previews: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
             misspelled: Default::default(),
-            diagram_errors: Default::default(),
+            error_marks: Default::default(),
             edge_fades: Default::default(),
             scroll_bounds: None,
             over_text: Default::default(),
@@ -931,6 +935,7 @@ impl MdRender {
         let ws_seq = crate::seq::ws_seq(&ctx);
         let previews = LinkPreviews::offline(ctx.clone());
         let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
+        let math = crate::widgets::math::MathCache::of(&ctx);
         Self {
             ctx,
             layout: MdLayout::desktop(),
@@ -958,12 +963,13 @@ impl MdRender {
             font_seq: crate::font::chosen_seq(),
             code_copied: None,
             diagrams,
+            math,
             diagram_previews: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
             misspelled: Default::default(),
-            diagram_errors: Default::default(),
+            error_marks: Default::default(),
             edge_fades: Default::default(),
             scroll_bounds: None,
             over_text: Default::default(),
@@ -1062,11 +1068,12 @@ impl MdRender {
         if self.bounds.text_seq != self.text_seq {
             self.bounds.inline_paragraphs.clear();
             self.calc_source_lines();
-            // source shows folds open and images and diagrams as their text
+            // source shows folds open and images, diagrams and formulas as their text
             if self.view == View::Source {
                 self.bounds.folds.clear();
                 self.bounds.images.clear();
                 self.bounds.diagrams.clear();
+                self.bounds.math.clear();
             } else {
                 self.calc_fold_bounds(root);
                 self.calc_atom_bounds(root);
@@ -1187,6 +1194,7 @@ impl Editor {
         });
 
         let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
+        let math = crate::widgets::math::MathCache::of(&ctx);
         let renderer = MdRender {
             ctx,
             layout,
@@ -1216,12 +1224,13 @@ impl Editor {
             font_seq: crate::font::chosen_seq(),
             code_copied: None,
             diagrams,
+            math,
             diagram_previews: Default::default(),
             block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
             misspelled: Default::default(),
-            diagram_errors: Default::default(),
+            error_marks: Default::default(),
             edge_fades: Default::default(),
             scroll_bounds: None,
             over_text: Default::default(),
@@ -1677,7 +1686,8 @@ impl Editor {
                 .renderer
                 .embeds
                 .seq()
-                .max(self.edit.renderer.diagrams.seq()),
+                .max(self.edit.renderer.diagrams.seq())
+                .max(self.edit.renderer.math.seq()),
             self.edit.renderer.tab_embeds.seq(),
         );
         let embeds_updated = embeds_seq != self.embeds_seq;
@@ -2315,7 +2325,7 @@ impl Editor {
                         self.edit.renderer.text_areas.clear();
                         self.edit.renderer.deco_lines.clear();
                         self.edit.renderer.misspelled.clear();
-                        self.edit.renderer.diagram_errors.clear();
+                        self.edit.renderer.error_marks.clear();
                         self.edit.renderer.clear_row_scroll_frame();
 
                         // Phase 1: drive scroll math + scrollbar, and

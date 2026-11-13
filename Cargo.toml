@@ -48,3 +48,16 @@ opt-level = 1
 # most of a test build, and nothing a test or dev run does waits on it
 [profile.dev.package.async-stripe]
 opt-level = 0
+
+[patch.crates-io]
+typst = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
+typst-eval = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
+typst-html = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
+typst-layout = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
+typst-library = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
+typst-macros = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
+typst-realize = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
+typst-svg = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
+typst-syntax = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
+typst-timing = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
+typst-utils = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }

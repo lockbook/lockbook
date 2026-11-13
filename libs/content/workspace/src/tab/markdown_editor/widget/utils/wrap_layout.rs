@@ -173,9 +173,9 @@ pub enum InlineItem {
         source_range: (Grapheme, Grapheme),
         visible_byte_range: std::ops::Range<u32>,
     },
-    /// Inline embedded content (image or link card). Atomic; breaker
-    /// treats it like a `Box`.
-    Embed(EmbedSpec),
+    /// Inline embedded content (image or link card), at its byte in
+    /// `Layout::visible`. Atomic; breaker treats it like a `Box`.
+    Embed(EmbedSpec, u32),
     /// Open an inline-box style scope.
     StyleOpen(StyleInfo),
     /// Close the most recent open. AST nesting guarantees LIFO.
@@ -212,6 +212,8 @@ pub enum EmbedKind {
     Tab,
     /// A divider's rule; its url is empty.
     Rule,
+    /// A typeset formula; its url is its math cache key, in hex.
+    Math,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -300,6 +302,8 @@ pub struct WrapUnitLayout {
     pub row_height: f32,
     /// Source ranges of prose, whose words are spell checked.
     pub prose: Vec<(Grapheme, Grapheme)>,
+    /// Source ranges in error, underlined as misspellings are.
+    pub errors: Vec<(Grapheme, Grapheme)>,
 }
 
 /// Per-side padding between a fragment's outer rect and its glyph
@@ -409,6 +413,8 @@ pub struct Layout {
     tab_positions: Vec<usize>,
     /// Source ranges of prose, whose words are spell checked.
     prose: Vec<(Grapheme, Grapheme)>,
+    /// Source ranges in error, underlined as misspellings are.
+    errors: Vec<(Grapheme, Grapheme)>,
     /// Spaces past a row's end start the next row, as code needs, instead
     /// of hanging off the row's end.
     keeps_spaces: bool,
@@ -445,6 +451,7 @@ impl Layout {
             source_range,
             tab_positions: Vec::new(),
             prose: Vec::new(),
+            errors: Vec::new(),
             keeps_spaces: false,
         }
     }
@@ -459,6 +466,11 @@ impl Layout {
         if !source.is_empty() {
             self.prose.push(source);
         }
+    }
+
+    /// Marks `source` as in error.
+    pub fn push_error(&mut self, source: (Grapheme, Grapheme)) {
+        self.errors.push(source);
     }
 
     pub fn source_range(&self) -> (Grapheme, Grapheme) {
@@ -723,7 +735,15 @@ impl MdRender {
             let last = rows.last().unwrap();
             last.y_top + last.ascent + last.descent
         };
-        WrapUnitLayout { source_range, rows, height, width, row_height, prose: layout.prose }
+        WrapUnitLayout {
+            source_range,
+            rows,
+            height,
+            width,
+            row_height,
+            prose: layout.prose,
+            errors: layout.errors,
+        }
     }
 
     /// Convenience: lay out a single source range with one format
@@ -836,7 +856,7 @@ fn shape_to_items(
                 items.push(InlineItem::StyleClose);
             }
             FlowEvent::Embed(spec) => {
-                items.push(InlineItem::Embed(spec.clone()));
+                items.push(InlineItem::Embed(spec.clone(), p));
             }
             FlowEvent::Break(r) => {
                 items.push(InlineItem::Break { source_range: *r, visible_byte_range: p..p });
@@ -1457,11 +1477,11 @@ pub fn greedy_break(
         let effective_width =
             if bg_open(&scope_bg_stack) { width - 2.0 * inline_pad } else { width };
         match &items[i] {
-            InlineItem::Box { advance, .. } | InlineItem::Embed(EmbedSpec { advance, .. }) => {
+            InlineItem::Box { advance, .. } | InlineItem::Embed(EmbedSpec { advance, .. }, _) => {
                 let overflow = cur_width + advance > effective_width;
                 // either side of an embed is a place to break, as a space
                 // is: text touching it doesn't come along to its row
-                let embed = matches!(items[i], InlineItem::Embed(_));
+                let embed = matches!(items[i], InlineItem::Embed(..));
                 let lg = if overflow && !(embed && cur_width > 0.0) {
                     pick_wrap_point(last_whitespace_glue, last_any_glue, i, effective_width)
                 } else {
@@ -1576,7 +1596,7 @@ fn item_advance(item: &InlineItem) -> f32 {
         InlineItem::Box { advance, .. } => *advance,
         InlineItem::Glue { natural, .. } => *natural,
         InlineItem::Pad { advance, .. } => *advance,
-        InlineItem::Embed(spec) => spec.advance,
+        InlineItem::Embed(spec, _) => spec.advance,
         InlineItem::Break { .. }
         | InlineItem::StyleOpen(_)
         | InlineItem::StyleClose
@@ -1589,7 +1609,7 @@ fn item_advance(item: &InlineItem) -> f32 {
 /// `ascent`/`descent` are the max of these and the text default.
 fn item_metrics(item: &InlineItem) -> Option<(f32, f32)> {
     match item {
-        InlineItem::Embed(spec) => Some((spec.ascent, spec.descent)),
+        InlineItem::Embed(spec, _) => Some((spec.ascent, spec.descent)),
         _ => None,
     }
 }
@@ -1642,6 +1662,8 @@ pub fn build_rows(
     let mut style_stack: Vec<StyleInfo> = Vec::new();
     let mut interaction_stack: Vec<(egui::Id, egui::Sense)> = Vec::new();
     let mut y_top = 0.0f32;
+    // the source segments a row before took as its own
+    let mut held: Vec<usize> = Vec::new();
 
     for win in breaks.windows(2) {
         let (start, end) = (win[0], win[1]);
@@ -1678,6 +1700,8 @@ pub fn build_rows(
         let mut row_visible_lo: Option<u32> = None;
         let mut row_visible_hi: Option<u32> = None;
         let mut byte_x: Vec<(u32, f32)> = Vec::new();
+        // each embed's byte, source and left edge
+        let mut embed_x: Vec<(u32, (Grapheme, Grapheme), f32)> = Vec::new();
 
         // Per-row pills: if this row opens already inside a bg scope
         // (the StyleOpen was processed in a prior row), prepend a
@@ -1852,7 +1876,8 @@ pub fn build_rows(
                     });
                     x += advance;
                 }
-                InlineItem::Embed(spec) => {
+                InlineItem::Embed(spec, v) => {
+                    embed_x.push((*v, spec.source_range, x));
                     let img_top = baseline - spec.ascent;
                     let img_bottom = baseline + spec.descent;
                     let rect = Rect::from_min_max(
@@ -1950,12 +1975,28 @@ pub fn build_rows(
         // Anchors for zero-visible source segments whose visible
         // position falls within this row's covered byte range.
         let mut anchors: Vec<Anchor> = Vec::new();
-        if let (Some(lo), Some(hi)) = (row_visible_lo, row_visible_hi) {
-            for seg in &layout.source_segments {
-                if seg.visible.start != seg.visible.end {
-                    continue;
-                }
-                let v = seg.visible.start as u32;
+        for (i, seg) in layout.source_segments.iter().enumerate() {
+            if seg.visible.start != seg.visible.end || held.contains(&i) {
+                continue;
+            }
+            let v = seg.visible.start as u32;
+            // what is hidden just before an embed sits at its left, on its row
+            let before_embed = embed_x
+                .iter()
+                .find(|(b, source, _)| *b == v && seg.source.end() <= source.start());
+            if let Some(&(_, _, x)) = before_embed {
+                held.push(i);
+                src_lo = src_lo.min(seg.source.start());
+                src_hi = src_hi.max(seg.source.end());
+                anchors.push(Anchor {
+                    source_range: seg.source,
+                    x,
+                    y_top: text_top,
+                    height: text_bottom - text_top,
+                });
+                continue;
+            }
+            if let (Some(lo), Some(hi)) = (row_visible_lo, row_visible_hi) {
                 if v < lo || v > hi {
                     continue;
                 }
@@ -2015,9 +2056,10 @@ impl MdRender {
         };
         let mut misspelled = self.misspelled_words(&layout.prose);
         self.misspelled.extend_from_slice(&misspelled);
+        self.error_marks.extend_from_slice(&layout.errors);
         let unit = layout.source_range;
         let errors = self
-            .diagram_errors
+            .error_marks
             .iter()
             .filter(|e| e.intersects(&unit, false));
         misspelled.extend(errors);
@@ -2155,6 +2197,9 @@ impl MdRender {
                             frag.source_range.start(),
                         ),
                         EmbedKind::Rule => self.paint_rule(embed_ui, screen_rect),
+                        EmbedKind::Math => {
+                            self.paint_math(embed_ui, url, frag.source_range, screen_rect)
+                        }
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,
@@ -2573,14 +2618,17 @@ mod tests {
     use super::*;
 
     fn embed(advance: f32) -> InlineItem {
-        InlineItem::Embed(EmbedSpec {
-            advance,
-            ascent: advance,
-            descent: 0.0,
-            source_range: (Grapheme(0), Grapheme(0)),
-            url: String::new(),
-            kind: EmbedKind::Image,
-        })
+        InlineItem::Embed(
+            EmbedSpec {
+                advance,
+                ascent: advance,
+                descent: 0.0,
+                source_range: (Grapheme(0), Grapheme(0)),
+                url: String::new(),
+                kind: EmbedKind::Image,
+            },
+            0,
+        )
     }
 
     /// Adjacent inline images emit no separating glue. Each one that

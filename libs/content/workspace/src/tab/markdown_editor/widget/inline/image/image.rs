@@ -315,6 +315,7 @@ impl<'ast> MdRender {
         images.sort_unstable();
         self.bounds.images = images;
         self.calc_diagram_bounds(root);
+        self.calc_math_bounds(root);
     }
 }
 

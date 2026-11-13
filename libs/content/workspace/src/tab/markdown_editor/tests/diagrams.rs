@@ -13,7 +13,7 @@ fn marked(md: &str) -> Vec<String> {
     ws.enter_frame();
     ws.enter_frame();
     let r = &ws.editor.edit.renderer;
-    r.diagram_errors
+    r.error_marks
         .iter()
         .map(|&e| r.buffer[e].to_string())
         .collect()
