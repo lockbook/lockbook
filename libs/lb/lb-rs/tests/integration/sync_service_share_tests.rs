@@ -1122,3 +1122,40 @@ async fn share_note_then_move_its_folder_into_recipients_share() {
     owner.sync().await.unwrap();
     assert::all_paths(&owner, &["/", "/team/", "/team/notes/", "/team/notes/note.md"]).await;
 }
+
+/// An edit made inside a share that the same device then declines stays off the server, even when
+/// another device of that account moved the edited folder into the share first.
+#[tokio::test]
+async fn edit_then_decline_share_another_device_moved_into() {
+    let owner = test_core_with_account().await;
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    recipient
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    let note = recipient.create_at_path("/notes/note.md").await.unwrap();
+    recipient.sync().await.unwrap();
+    let other_device = another_client(&recipient).await;
+    other_device.sync().await.unwrap();
+
+    move_by_path(&recipient, "/notes/", "/team/").await.unwrap();
+    recipient.sync().await.unwrap();
+
+    other_device
+        .write_document(note.id, b"draft")
+        .await
+        .unwrap();
+    other_device.reject_share(&team.id).await.unwrap();
+    other_device.sync().await.unwrap();
+    other_device.sync().await.unwrap();
+    assert::all_paths(&other_device, &["/"]).await;
+}
