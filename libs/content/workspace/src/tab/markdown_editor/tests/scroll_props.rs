@@ -499,3 +499,53 @@ fn reloads_above_the_view() {
         .map(|s| s.top);
     assert!(now.is_some_and(|now| (now - (y - 50.0)).abs() <= 0.5), "{now:?} for {}", y - 50.0);
 }
+
+/// A version landing between the reading line and the caret, and beside
+/// the caret, leaves the caret where it was drawn.
+#[test]
+fn a_version_landing_above_the_caret_leaves_it_in_place() {
+    let paras = (0..120)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join("\n\n")
+        + "\n";
+    let mut ws = TestEditor::with_lb(in_memory_core(), &paras);
+    settle(&mut ws, Prop::CaretStays);
+    scroll(&mut ws, 1000.0);
+    settle(&mut ws, Prop::CaretStays);
+    let seen = visible(&ws);
+    let line = seen.len() * 3 / 4;
+    let caret = Grapheme(seen[line].source_range.0.0 + 1);
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(caret),
+            end: Location::Grapheme(caret),
+        },
+    });
+    settle(&mut ws, Prop::CaretStays);
+    let y = caret_y(&ws);
+    assert!(y.is_some());
+
+    // paragraphs added above the line before the caret's, and the letter
+    // before the caret replaced
+    let (above, at) = (&seen[line - 1].text, &seen[line].text);
+    let added = "added\n\n".repeat(20);
+    let next = ws
+        .get_text()
+        .replacen(&format!("\n{above}\n"), &format!("\n{added}{above}\n"), 1)
+        .replacen(&format!("\n{at}\n"), &format!("\nZ{}\n", &at[1..]), 1);
+    ws.editor.reload(next, Some([1; 32]));
+    settle(&mut ws, Prop::CaretStays);
+    assert_eq!(caret_y(&ws), y);
+}
+
+/// The spaces before a block's first line lay out in the block's row.
+#[test]
+fn a_blocks_indent_is_in_its_row() {
+    use super::super::scroll_content::{DocRowId, DocScrollContent};
+    let mut ws = TestEditor::with_lb(in_memory_core(), "p0\n\n  p1\n");
+    let arena = super::super::Arena::new();
+    let root = ws.editor.edit.renderer.reparse(&arena);
+    let rows = DocScrollContent::for_frame(&ws.editor.edit.renderer, root, VIEW.y);
+    assert_eq!(rows.find_text_row(Grapheme(4)), Some(DocRowId::Block(1)));
+}
