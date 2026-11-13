@@ -461,10 +461,10 @@ fn reload_cases() {
         b.reload(v.into());
         b.update();
     }
-    b.queue(vec![Operation::Replace(Replace {
-        range: (Grapheme(0), Grapheme(0)),
-        text: "Ж".into(),
-    })]);
+    b.queue(
+        vec![Operation::Replace(Replace { range: (Grapheme(0), Grapheme(0)), text: "Ж".into() })],
+        std::time::Duration::ZERO,
+    );
     b.update();
     for v in ["foo foo foo foo\n", "foo foo foo foo foo\n"] {
         b.reload(v.into());

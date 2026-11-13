@@ -840,7 +840,7 @@ impl MdEdit {
         };
         self.renderer
             .buffer
-            .queue(vec![Operation::Select(home.into_range())]);
+            .queue(vec![Operation::Select(home.into_range())], self.renderer.now());
         self.renderer.buffer.update()
     }
 }

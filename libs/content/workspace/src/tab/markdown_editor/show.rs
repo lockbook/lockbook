@@ -91,7 +91,7 @@ impl MdEdit {
             let root = self.renderer.reparse(&arena);
             let mut ops = Vec::new();
             self.calc_internal_events(ctx, root, &mut ops, &mut applied);
-            self.renderer.buffer.queue(ops);
+            self.renderer.buffer.queue(ops, self.renderer.now());
             let resp = self.renderer.buffer.update();
             if resp.text_updated {
                 self.renderer.bump_text_seq();
@@ -237,7 +237,9 @@ impl MdEdit {
                         continue;
                     }
                     // the keys before it land first
-                    self.renderer.buffer.queue(std::mem::take(&mut ops));
+                    self.renderer
+                        .buffer
+                        .queue(std::mem::take(&mut ops), self.renderer.now());
                     let resp = self.renderer.buffer.update();
                     if resp.text_updated {
                         self.renderer.bump_text_seq();
@@ -271,7 +273,7 @@ impl MdEdit {
             crate::style::context_menu::close(ctx);
         }
 
-        self.renderer.buffer.queue(ops);
+        self.renderer.buffer.queue(ops, self.renderer.now());
         let mut buf_resp = direct_resp;
         buf_resp |= self.renderer.buffer.update();
         buf_resp |= move_resp; // a deferred reorder reports its text/selection edit
@@ -474,7 +476,7 @@ impl MdEdit {
         let undo_redo = matches!(event, Event::Undo | Event::Redo);
         let mut ops = Vec::new();
         let mut resp = self.calc_operations(&ctx, root, event, &mut ops);
-        self.renderer.buffer.queue(ops);
+        self.renderer.buffer.queue(ops, self.renderer.now());
         resp |= self.renderer.buffer.update();
         if resp.text_updated {
             self.renderer.bump_text_seq();
@@ -1350,7 +1352,7 @@ impl MdEdit {
             }
         }
 
-        self.renderer.buffer.queue(ops);
+        self.renderer.buffer.queue(ops, self.renderer.now());
         let pointer_resp = self.renderer.buffer.update();
         if pointer_resp.text_updated || pointer_resp.selection_user_moved {
             self.cursor_last_interact = Some(ui.ctx().input(|i| i.time));

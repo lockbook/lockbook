@@ -56,9 +56,10 @@ impl MdEdit {
             return Default::default();
         };
 
-        self.renderer
-            .buffer
-            .queue(vec![Operation::Replace(Replace { range: plan.run_range, text: plan.new_run })]);
+        self.renderer.buffer.queue(
+            vec![Operation::Replace(Replace { range: plan.run_range, text: plan.new_run })],
+            self.renderer.now(),
+        );
         let mut resp = self.renderer.buffer.update();
         if !resp.text_updated {
             return resp;
@@ -154,7 +155,9 @@ impl<'ast> MdEdit {
                 // A step of its own selects it where it was: an undo of the
                 // move comes back to it there, not to a caret a tap since
                 // moved. The caret is back by the frame's end.
-                self.renderer.buffer.queue(vec![Operation::Select(range)]);
+                self.renderer
+                    .buffer
+                    .queue(vec![Operation::Select(range)], self.renderer.now());
                 response |= self.renderer.buffer.update();
                 self.move_text(range, to, operations);
                 operations.push(Operation::Select(current_selection));

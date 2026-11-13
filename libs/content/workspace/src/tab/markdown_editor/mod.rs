@@ -811,6 +811,11 @@ pub type HttpClient = reqwest::Client;
 pub type HttpClient = reqwest::blocking::Client;
 
 impl MdRender {
+    /// The frame's time, which groups typing into undo units.
+    pub fn now(&self) -> std::time::Duration {
+        std::time::Duration::from_secs_f64(self.ctx.input(|i| i.time))
+    }
+
     /// Drops what was laid out in fonts since replaced; whether it did.
     pub fn follow_fonts(&mut self) -> bool {
         let seq = crate::font::chosen_seq();
@@ -1990,10 +1995,10 @@ impl Editor {
                             .last_cursor_position(),
                     ),
                 );
-                self.edit
-                    .renderer
-                    .buffer
-                    .queue(vec![lb_rs::model::text::operation_types::Operation::Select(selection)]);
+                self.edit.renderer.buffer.queue(
+                    vec![lb_rs::model::text::operation_types::Operation::Select(selection)],
+                    self.edit.renderer.now(),
+                );
                 self.edit.renderer.buffer.update();
                 self.edit.renderer.reveal_seq = self
                     .edit
@@ -3217,10 +3222,10 @@ impl Editor {
 
     fn select_from_outside(&mut self, selection: (Grapheme, Grapheme)) {
         self.selection_moved = true;
-        self.edit
-            .renderer
-            .buffer
-            .queue(vec![lb_rs::model::text::operation_types::Operation::Select(selection)]);
+        self.edit.renderer.buffer.queue(
+            vec![lb_rs::model::text::operation_types::Operation::Select(selection)],
+            self.edit.renderer.now(),
+        );
         self.edit.renderer.buffer.update();
         self.edit.renderer.reveal_seq = self
             .edit
