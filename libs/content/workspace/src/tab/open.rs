@@ -23,7 +23,7 @@ use crate::space_inspector::show::SpaceInspector;
 #[cfg(not(target_family = "wasm"))]
 use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdResources};
+use crate::tab::markdown_editor::{Editor as Markdown, LineSpacing, MdConfig, MdResources};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Destination, Fragment, TabContent, TabFailure};
@@ -56,14 +56,21 @@ pub struct Doc {
 }
 
 /// What a region's remembered height is filed under, if it's remembered:
-/// a place is, a moment isn't.
-pub fn region_key(dest: &Destination, fragment: Option<&Fragment>, width: f32) -> Option<String> {
+/// a place is, a moment isn't. Heights hold for one width and typesetting.
+pub fn region_key(
+    dest: &Destination, fragment: Option<&Fragment>, width: f32, text: (f32, LineSpacing),
+) -> Option<String> {
     if fragment.is_some_and(|f| !f.persists()) {
         return None;
     }
     let fragment = fragment.map(|f| serde_json::to_string(f).unwrap_or_default());
     let dest = serde_json::to_string(dest).unwrap_or_default();
-    Some(format!("{dest}|{}|{}", fragment.unwrap_or_default(), width.round() as i32))
+    let (size, spacing) = text;
+    Some(format!(
+        "{dest}|{}|{}|{size}|{spacing:?}",
+        fragment.unwrap_or_default(),
+        width.round() as i32
+    ))
 }
 
 /// Whether `bytes` are text the editor can show and save back.
@@ -78,15 +85,19 @@ impl TabResources {
         &self, dest: &Destination, fragment: Option<&Fragment>, width: f32,
     ) -> Option<f32> {
         self.persistence
-            .region_height(&region_key(dest, fragment, width)?)
+            .region_height(&region_key(dest, fragment, width, self.typesetting())?)
     }
 
     pub fn remember_height(
         &self, dest: &Destination, fragment: Option<&Fragment>, width: f32, height: f32,
     ) {
-        if let Some(key) = region_key(dest, fragment, width) {
+        if let Some(key) = region_key(dest, fragment, width, self.typesetting()) {
             self.persistence.set_region_height(key, height);
         }
+    }
+
+    fn typesetting(&self) -> (f32, LineSpacing) {
+        (self.persistence.get_text_size(), self.persistence.get_line_spacing())
     }
 
     /// The name the editor is picked by. The cache can trail a create or

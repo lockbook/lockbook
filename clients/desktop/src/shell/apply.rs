@@ -726,6 +726,16 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 r.workspace.cfg.set_column_width(v);
             }
         }
+        A::SetPrefTextSize(v) => {
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.cfg.set_text_size(v);
+            }
+        }
+        A::SetPrefLineSpacing(v) => {
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.cfg.set_line_spacing(v);
+            }
+        }
         A::SetPrefOpenInNewTab(v) => {
             if let Some(r) = app.session.ready_mut() {
                 r.workspace.cfg.set_open_in_new_tab(v);

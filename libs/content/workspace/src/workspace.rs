@@ -29,7 +29,10 @@ use crate::search::{SearchState, SearchType};
 use crate::show::DocType;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Syntax;
-use crate::tab::markdown_editor::{Editor as Markdown, HttpClient, MdEdit, MdPersistence};
+use crate::tab::markdown_editor::{
+    DEFAULT_TEXT_SIZE, Editor as Markdown, HttpClient, LineSpacing, MAX_TEXT_SIZE, MIN_TEXT_SIZE,
+    MdEdit, MdPersistence,
+};
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{
     ContentState, Destination, ExtendedInput as _, Fragment, Place, Reveal, Session, SessionId,
@@ -2169,6 +2172,16 @@ pub struct WsPresistentData {
     /// The widest a note's text column gets, in points.
     #[serde(default = "default_column_width", deserialize_with = "column_width_preset")]
     column_width: f32,
+    /// Notes' text size in points, once chosen; until then the default.
+    #[serde(default)]
+    text_size: Option<f32>,
+    /// How far apart notes' lines sit.
+    #[serde(default, deserialize_with = "line_spacing_or_default")]
+    line_spacing: LineSpacing,
+    /// The platform's text size as a multiple of its default, where it has
+    /// a setting for one: what the text size is until one is chosen.
+    #[serde(skip)]
+    system_text_scale: Option<f32>,
 }
 
 fn default_column_width() -> f32 {
@@ -2182,6 +2195,14 @@ fn column_width_preset<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f32, D:
         1000.0 => 1200.0,
         w => w,
     })
+}
+
+/// A spacing this build doesn't know loads as the default rather than
+/// failing the whole file.
+fn line_spacing_or_default<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<LineSpacing, D::Error> {
+    Ok(LineSpacing::deserialize(serde_json::Value::deserialize(d)?).unwrap_or_default())
 }
 
 fn default_update_links() -> bool {
@@ -2215,6 +2236,9 @@ impl Default for WsPresistentData {
             update_links: true,
             spell_check: true,
             column_width: default_column_width(),
+            text_size: None,
+            line_spacing: LineSpacing::default(),
+            system_text_scale: None,
         }
     }
 }
@@ -2424,6 +2448,47 @@ impl WsPersistentStore {
             return;
         }
         data_lock.column_width = column_width;
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn get_text_size(&self) -> f32 {
+        let data = self.data.read().unwrap();
+        let scale = data.system_text_scale.unwrap_or(1.0);
+        let size = data
+            .text_size
+            .unwrap_or((DEFAULT_TEXT_SIZE * scale).round());
+        if size.is_finite() { size.clamp(MIN_TEXT_SIZE, MAX_TEXT_SIZE) } else { DEFAULT_TEXT_SIZE }
+    }
+
+    /// The host reports its text size setting, `scale` times its default.
+    pub fn set_system_text_scale(&mut self, scale: f32) {
+        if self.data.read().unwrap().system_text_scale == Some(scale) {
+            return; // hosts push this every frame
+        }
+        self.data.write().unwrap().system_text_scale = Some(scale);
+    }
+
+    pub fn set_text_size(&mut self, text_size: f32) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.text_size == Some(text_size) {
+            return;
+        }
+        data_lock.text_size = Some(text_size);
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn get_line_spacing(&self) -> LineSpacing {
+        self.data.read().unwrap().line_spacing
+    }
+
+    pub fn set_line_spacing(&mut self, line_spacing: LineSpacing) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.line_spacing == line_spacing {
+            return;
+        }
+        data_lock.line_spacing = line_spacing;
         drop(data_lock);
         self.write_to_file();
     }

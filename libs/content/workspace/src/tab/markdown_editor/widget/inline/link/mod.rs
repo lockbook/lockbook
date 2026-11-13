@@ -17,7 +17,7 @@ use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
-    BG_ROW_GAP, CHIP_SIDE_PAD, Format, FragmentContent, Layout, StyleInfo, chip_of,
+    CHIP_SIDE_PAD, Format, FragmentContent, Layout, StyleInfo, chip_of,
 };
 use crate::tab::markdown_editor::{Arena, MdEdit, MdRender};
 use crate::tab::markdown_editor::{Syntax, View};
@@ -352,8 +352,7 @@ impl<'ast> MdRender {
         // the pill as `show_wrap_layout` paints it
         let pill = egui::Rect::from_x_y_ranges(
             text.left()..=right,
-            text.y_range()
-                .expand(self.layout.inline_padding - BG_ROW_GAP / 2.0),
+            text.y_range().expand(self.layout.background_pad()),
         );
         let cap = pill.height() / 2.0;
         let end = (pill.right() - cap).min(text.right());

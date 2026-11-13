@@ -34,6 +34,7 @@ winit = "0.30"
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
+winreg = "0.52"
 windows-sys = { version = "0.52", features = [
     "Win32_Foundation",
     "Win32_Security",

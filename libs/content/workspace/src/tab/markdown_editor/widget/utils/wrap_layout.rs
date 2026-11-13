@@ -2056,7 +2056,7 @@ impl MdRender {
                 let row_bottom = row.fragments[chain_start].rect.bottom() + paint_top_left.y;
                 // backgrounds stop short of the row spacing so ones on
                 // adjacent rows stay apart
-                let pad = inline_pad - BG_ROW_GAP / 2.0;
+                let pad = self.layout.background_pad();
                 // centered on its text from baseline to ascender, not the
                 // row: fonts place their baseline differently
                 let family = row.fragments[chain_start]

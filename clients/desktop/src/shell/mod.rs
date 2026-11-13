@@ -327,6 +327,9 @@ impl ShellApp {
         if let Some(r) = self.session.ready() {
             self.nudges.get_or_insert_with(|| nudge::Nudges::load(r));
         }
+        if let (Some(r), Some(scale)) = (self.session.ready_mut(), crate::system_text::scale()) {
+            r.workspace.cfg.set_system_text_scale(scale);
+        }
         if self.onboard_backup_pending && matches!(self.session, Session::Ready(_)) {
             self.onboard_backup_pending = false;
             if let Some(r) = self.session.ready() {
