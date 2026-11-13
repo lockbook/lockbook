@@ -212,15 +212,14 @@ impl Inner {
 impl DiagramCache {
     pub fn of(ctx: &Context) -> Self {
         let ws_seq = ws_seq(ctx);
-        ctx.data_mut(|d| {
-            d.get_temp_mut_or_insert_with(Id::unique("diagram_cache"), || Self {
-                inner: Default::default(),
-                seq: Arc::new(AtomicU64::new(0)),
-                ws_seq,
-                ctx: ctx.clone(),
+        // the context keeps all but itself, which would keep it alive
+        let (inner, seq, ws_seq) = ctx.data_mut(|d| {
+            d.get_temp_mut_or_insert_with(Id::unique("diagram_cache"), || {
+                (Default::default(), Arc::new(AtomicU64::new(0)), ws_seq)
             })
             .clone()
-        })
+        });
+        Self { inner, seq, ws_seq, ctx: ctx.clone() }
     }
 
     /// Starts a frame: what isn't looked up or drawn by its end is let go,
