@@ -261,6 +261,7 @@ impl TabContent {
                     &svg.opened_content,
                     &svg::buffer::Buffer::new(String::from_utf8_lossy(bytes).as_ref()),
                 );
+                svg.retry_images = true;
                 svg.open_file_hmac = hmac;
                 true
             }

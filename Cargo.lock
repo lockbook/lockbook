@@ -2211,6 +2211,7 @@ version = "0.1.0"
 dependencies = [
  "egui",
  "egui-wgpu",
+ "futures",
  "pollster 0.2.5",
  "raw-window-handle",
  "wgpu",

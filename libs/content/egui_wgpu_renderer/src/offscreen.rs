@@ -30,6 +30,15 @@ pub fn render_offscreen(
     device: &Device, queue: &Queue, renderer: &mut Renderer, frame: OffscreenFrame,
     sample_count: u32,
 ) -> Option<Vec<u8>> {
+    pollster::block_on(render_offscreen_async(device, queue, renderer, frame, sample_count))
+}
+
+/// Asynchronous readback also works in browsers, where mapping completes on
+/// a later event-loop turn and blocking would prevent it from completing.
+pub async fn render_offscreen_async(
+    device: &Device, queue: &Queue, renderer: &mut Renderer, frame: OffscreenFrame,
+    sample_count: u32,
+) -> Option<Vec<u8>> {
     let OffscreenFrame { paint_jobs, mut textures, size_in_pixels, pixels_per_point, clear } =
         frame;
     for (id, deltas) in textures.set.drain() {
@@ -113,13 +122,20 @@ pub fn render_offscreen(
     queue.submit(prepared.into_iter().chain(iter::once(encoder.finish())));
 
     let slice = buffer.slice(..);
-    let (tx, rx) = std::sync::mpsc::channel();
+    let (tx, rx) = futures::channel::oneshot::channel();
     slice.map_async(wgpu::MapMode::Read, move |mapped| {
         let _ = tx.send(mapped.is_ok());
     });
-    let timeout = Some(std::time::Duration::from_secs(5));
-    let polled = device.poll(wgpu::PollType::Wait { submission_index: None, timeout });
-    let mapped = polled.is_ok() && rx.try_recv() == Ok(true);
+    #[cfg(not(target_arch = "wasm32"))]
+    let polled = device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(std::time::Duration::from_secs(5)),
+        })
+        .is_ok();
+    #[cfg(target_arch = "wasm32")]
+    let polled = true;
+    let mapped = polled && rx.await.unwrap_or(false);
     let mut pixels = Vec::with_capacity((row * height) as usize);
     if mapped {
         if let Ok(range) = slice.get_mapped_range() {

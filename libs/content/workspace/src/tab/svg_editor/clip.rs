@@ -109,8 +109,12 @@ impl SVGEditor {
                     }
                     let mut pasted_buffer = Buffer::new(payload);
 
-                    pasted_buffer
-                        .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
+                    if let Err(err) = pasted_buffer
+                        .promote_weak_images(self.viewport_settings.master_transform, &self.lb)
+                    {
+                        tracing::warn!(%err, "could not paste drawing images");
+                        continue;
+                    }
 
                     if !pasted_buffer.elements.is_empty() || !pasted_buffer.weak_images.is_empty() {
                         let mut container = egui::Rect::NOTHING;
