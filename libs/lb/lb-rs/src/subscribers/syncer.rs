@@ -635,9 +635,11 @@ impl<S: Server> Lb<S> {
                         let writable = may_write_in(&local, &remote, me, &id)?;
                         let base_keys = shares_by_recipient(maybe_base_file.as_ref());
                         let remote_keys = shares_by_recipient(maybe_remote_file.as_ref());
+                        let owner = merge.find(&id)?.owner();
                         for (for_, local) in shares_by_recipient(Some(&local_file)) {
                             let base = base_keys.get(&for_).copied();
-                            if Some(local) == base {
+                            // a move may have made the recipient the owner
+                            if Some(local) == base || for_ == owner {
                                 continue;
                             }
                             let remote = remote_keys.get(&for_).copied();
