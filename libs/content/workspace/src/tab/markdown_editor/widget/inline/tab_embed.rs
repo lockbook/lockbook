@@ -580,6 +580,10 @@ impl<'ast> MdRender {
     /// which tells repeated embeds of one title apart.
     pub fn paint_tab_embed(&mut self, ui: &mut egui::Ui, title: &str, rect: Rect, at: Grapheme) {
         let name = title;
+        // one tab shows once a frame; the empty slot covers where it was
+        if !self.painting_drag_float && self.lifted_embed == Some(at) {
+            return;
+        }
         let Some(place) = self.tab_embeds.place(self, title) else { return };
         let segs = &self.buffer.current.segs;
         let before = &self.buffer.current.text[..segs.offset_to_byte(at).0];
