@@ -359,6 +359,7 @@ impl External {
             (applied.current, written)
         };
         for p in &mut self.pending {
+            *p = whole_graphemes(&local, p);
             let (_, len) = local.apply_replace(p);
 
             // the region the local edit takes over: its range and the remote edits it drops
@@ -827,6 +828,29 @@ fn transform_past(
     lost
 }
 
+/// `replace` on `before`, widened to whole graphemes of the text after it: a
+/// combining mark it writes fuses into the grapheme before it, which the edit
+/// then takes over.
+fn whole_graphemes(before: &Snapshot, replace: &Replace) -> Replace {
+    let (a, b) = before.segs.range_to_byte(replace.range);
+    let mut after = before.text.clone();
+    after.replace_range(a.0..b.0, &replace.text);
+    let segs = unicode_segs::calc(&after);
+    let end = a.0 + replace.text.len();
+    let (lo, hi) =
+        segs.range_to_byte((segs.byte_to_char_floor(a), segs.byte_to_char_ceil(Byte(end))));
+    let range = (
+        before.segs.byte_to_char_floor(lo).min(replace.range.0),
+        before
+            .segs
+            .byte_to_char_ceil(Byte(b.0 + hi.0 - end))
+            .max(replace.range.1),
+    );
+    let (lo, hi) = before.segs.range_to_byte(range);
+    let text = after[lo.0..hi.0 + end - b.0].to_string();
+    Replace { range, text }
+}
+
 /// Adjust a range based on a text replacement. Positions before the replacement generally are not adjusted,
 /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
 /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
@@ -996,6 +1020,18 @@ mod test {
             Operation::Select((range.start(), range.start())),
         ]);
         buffer.update();
+    }
+
+    #[test]
+    fn a_reload_keeps_a_combining_mark_typed_onto_its_neighbor() {
+        // the mark fuses into "*", so the edit that wrote it spans no grapheme of its own
+        let mut buffer = Buffer::from("*abc\n");
+        let mark = Replace { range: (Grapheme(1), Grapheme(4)), text: "\u{94d}".into() };
+        buffer.queue(vec![Operation::Replace(mark)]);
+        buffer.update();
+        buffer.reload("Z*abc\n".into());
+        buffer.update();
+        assert_eq!(buffer.current.text, "Z*\u{94d}\n");
     }
 
     #[test]
