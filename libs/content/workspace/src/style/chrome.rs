@@ -260,6 +260,9 @@ pub fn plate_content_shadow(
         .response
 }
 
+/// How much of a dragged copy shows, so where it lands shows through it.
+pub const DRAG_OPACITY: f32 = 0.5;
+
 /// How far a drop line's mark reaches to either side of it: its dot's radius.
 pub const DROP_LINE_REACH: f32 = 4.0;
 

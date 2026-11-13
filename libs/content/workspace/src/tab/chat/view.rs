@@ -1971,11 +1971,7 @@ impl Chat {
         // own callback (inside show) lands on a later glyphon layer.
         // `clip_rect` not `max_rect`: egui_wgpu drops a zero-area callback rect.
         if !text_areas.is_empty() {
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.clip_rect(),
-                    GlyphonRendererCallback::new(text_areas),
-                ));
+            crate::widgets::glyphon_render::paint_glyphon(ui.painter(), ui.clip_rect(), text_areas);
         }
 
         // Commit the frame's row action. Deletions propagate to other

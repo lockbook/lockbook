@@ -1,6 +1,5 @@
 use egui::{Stroke, TextStyle, TextWrapMode, WidgetText};
 
-use crate::GlyphonRendererCallback;
 use crate::theme::icons::Icon;
 use crate::widgets::{GlyphonLabel, TextOverflow};
 
@@ -271,11 +270,10 @@ impl<'a> Button<'a> {
                                 .text_overflow(self.text_overflow)
                                 .build(ui.ctx());
                             let text_area = shaped.text_area(text_rect, ui.ctx(), text_clip);
-                            ui.painter().add(
-                                egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                                    text_clip,
-                                    GlyphonRendererCallback::new(vec![text_area]),
-                                ),
+                            crate::widgets::glyphon_render::paint_glyphon(
+                                ui.painter(),
+                                text_clip,
+                                vec![text_area],
                             );
                         }
 

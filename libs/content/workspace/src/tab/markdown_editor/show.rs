@@ -797,9 +797,10 @@ impl MdEdit {
         // pointer regardless of mid-drag scroll.
         let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = card_rect.translate(offset);
-        ui.painter()
-            .add(crate::style::overlay_shadow(&theme).as_shape(card, card_corner));
-        ui.painter().rect_filled(card, card_corner, fill);
+        let mut painter = ui.painter().clone();
+        painter.multiply_opacity(crate::style::DRAG_OPACITY);
+        painter.add(crate::style::overlay_shadow(&theme).as_shape(card, card_corner));
+        painter.rect_filled(card, card_corner, fill);
 
         // Re-draw the span translated.
         let section = drag.section_range;
@@ -852,13 +853,18 @@ impl MdEdit {
         let cell_box_len = self.renderer.table_cell_boxes.len();
         let header_slot_len = self.renderer.table_header_slots.len();
         self.renderer.painting_drag_float = true;
-        ui.push_id("md_block_drag_float", |ui| float(&mut self.renderer, ui));
+        ui.push_id("md_block_drag_float", |ui| {
+            ui.multiply_opacity(crate::style::DRAG_OPACITY);
+            float(&mut self.renderer, ui)
+        });
         self.renderer.painting_drag_float = false;
         // Favicons paint in a separate pass over `fragments`; the float's
         // capsules live in `fragments[frag_len..]`, so re-run that pass
         // scoped to them before they're truncated away.
+        let overlay_ui = &mut ui.new_child(UiBuilder::new());
+        overlay_ui.multiply_opacity(crate::style::DRAG_OPACITY);
         self.renderer
-            .show_capsule_overlays(ui, root, ui.clip_rect(), frag_len);
+            .show_capsule_overlays(overlay_ui, root, ui.clip_rect(), frag_len);
         let floating_text = std::mem::take(&mut self.renderer.text_areas);
         let floating_deco = std::mem::take(&mut self.renderer.deco_lines);
         self.renderer.fragments.truncate(frag_len);
@@ -866,15 +872,13 @@ impl MdEdit {
         self.renderer.table_cell_boxes.truncate(cell_box_len);
         self.renderer.table_header_slots.truncate(header_slot_len);
 
+        let mut painter = ui.painter().clone();
+        painter.multiply_opacity(crate::style::DRAG_OPACITY);
         if !floating_text.is_empty() {
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.clip_rect(),
-                    crate::GlyphonRendererCallback::new(floating_text),
-                ));
+            crate::widgets::glyphon_render::paint_glyphon(&painter, ui.clip_rect(), floating_text);
         }
         for d in floating_deco {
-            d.paint(ui.painter());
+            d.paint(&painter);
         }
     }
 
@@ -1400,11 +1404,7 @@ impl MdEdit {
             // scrolls off-screen once the user passes one viewport-height.
             // `egui_wgpu` clamps the callback rect to the screen, and a
             // zero-area result silently drops the callback — no text paints.
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.clip_rect(),
-                    crate::GlyphonRendererCallback::new(text_areas),
-                ));
+            crate::widgets::glyphon_render::paint_glyphon(ui.painter(), ui.clip_rect(), text_areas);
         }
 
         for shape in std::mem::take(&mut self.renderer.over_text) {

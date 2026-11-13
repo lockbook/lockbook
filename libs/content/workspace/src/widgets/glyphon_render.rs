@@ -6,8 +6,8 @@ use egui::Rect;
 use egui_wgpu_renderer::egui_wgpu::{self, Renderer, ScreenDescriptor};
 use egui_wgpu_renderer::wgpu::{self, Device, MultisampleState, Queue, TextureFormat};
 use glyphon::{
-    Buffer, Color, ColorMode, FontSystem, Resolution, SwashCache, TextArea, TextAtlas, TextBounds,
-    TextRenderer, Viewport, fontdb,
+    AttrsList, Buffer, Color, ColorMode, FontSystem, Resolution, SwashCache, TextArea, TextAtlas,
+    TextBounds, TextRenderer, Viewport, fontdb,
 };
 
 use super::glyphon_cache::GlyphonCache;
@@ -138,6 +138,49 @@ impl TextBufferArea {
         let clip_rect = clip_rect * ppi;
         TextBufferArea { buffer, rect, clip_rect, default_color }
     }
+
+    /// A copy whose every color, spans included, carries `opacity` of its alpha.
+    pub fn faded(&self, opacity: f32, font_system: &mut FontSystem) -> Self {
+        let fade = |c: Color| Color::rgba(c.r(), c.g(), c.b(), (c.a() as f32 * opacity) as u8);
+        let mut buffer = self.buffer.read().unwrap().clone();
+        for line in &mut buffer.lines {
+            let old = line.attrs_list();
+            let mut faded = AttrsList::new(
+                &old.defaults()
+                    .color(fade(old.defaults().color_opt.unwrap_or(self.default_color))),
+            );
+            for (range, attrs) in old.spans_iter() {
+                let attrs = attrs.as_attrs();
+                let color = fade(attrs.color_opt.unwrap_or(self.default_color));
+                faded.add_span(range.clone(), &attrs.color(color));
+            }
+            line.set_attrs_list(faded);
+        }
+        buffer.shape_until_scroll(font_system, false);
+        Self {
+            buffer: Arc::new(RwLock::new(buffer)),
+            rect: self.rect,
+            clip_rect: self.clip_rect,
+            default_color: fade(self.default_color),
+        }
+    }
+}
+
+/// Paints `areas` as `painter` paints its shapes: at its opacity.
+pub fn paint_glyphon(painter: &egui::Painter, rect: Rect, mut areas: Vec<TextBufferArea>) {
+    let opacity = painter.opacity();
+    if opacity == 0.0 {
+        return;
+    }
+    if opacity < 1.0 {
+        let font_system = register_font_system(painter.ctx());
+        let mut font_system = font_system.lock().unwrap();
+        areas = areas
+            .iter()
+            .map(|area| area.faded(opacity, &mut font_system))
+            .collect();
+    }
+    painter.add(egui_wgpu::Callback::new_paint_callback(rect, GlyphonRendererCallback::new(areas)));
 }
 
 impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
