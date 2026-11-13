@@ -1230,3 +1230,48 @@ async fn shares_keep_their_order_through_a_sync() {
         assert_eq!(order, names);
     }
 }
+
+/// A recipient with links to a shared folder and to a folder inside it, whose own share of the
+/// inner folder the owner has removed, declines the outer share and syncs an edit.
+#[tokio::test]
+async fn decline_share_holding_a_link_inside_it() {
+    let owner = test_core_with_account().await;
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let trip = owner.create_at_path("/trip/").await.unwrap();
+    let flights = owner.create_at_path("/trip/flights/").await.unwrap();
+    owner
+        .share_file(trip.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner
+        .share_file(flights.id, &recipient_name, ShareMode::Read)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+
+    recipient.sync().await.unwrap();
+    recipient
+        .create_link_at_path("/trip", trip.id)
+        .await
+        .unwrap();
+    recipient
+        .create_link_at_path("/flights", flights.id)
+        .await
+        .unwrap();
+    let note = recipient.create_at_path("/note.md").await.unwrap();
+    recipient.sync().await.unwrap();
+
+    owner
+        .unshare_file(flights.id, &recipient_name)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+
+    recipient.reject_share(&trip.id).await.unwrap();
+    recipient.write_document(note.id, b"packed").await.unwrap();
+    recipient.sync().await.unwrap();
+    assert::all_paths(&recipient, &["/", "/note.md"]).await;
+}
