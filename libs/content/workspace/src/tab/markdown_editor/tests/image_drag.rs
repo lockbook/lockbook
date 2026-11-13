@@ -555,6 +555,42 @@ fn a_remote_version_landing_as_the_drop_lets_go_keeps_the_image() {
     assert_eq!(ws.get_text(), moved);
 }
 
+#[test]
+fn a_remote_version_landing_during_an_item_drag_moves_the_held_item() {
+    let md = "top\n\n- one\n- two\n- three\n";
+    let mut ws = editor(md);
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+    assert!(ws.editor.edit.reorder_start(after(&ws, "- on")), "a long press lifts it");
+    ws.enter_frame();
+    ws.editor
+        .reload(md.replace("top", "new top"), Some([1; 32]));
+    ws.enter_frame();
+
+    let to = after(&ws, "three") + egui::vec2(0.0, 8.0);
+    ws.editor.edit.reorder_move(to);
+    ws.enter_frame();
+    ws.editor.edit.reorder_end(to, false);
+    for _ in 0..3 {
+        ws.enter_frame();
+    }
+    assert_eq!(ws.get_text(), "new top\n\n- two\n- one\n- three\n");
+}
+
+#[test]
+fn a_remote_version_adding_text_at_the_list_start_lets_go_of_the_item() {
+    let md = "top\n\n- one\n- two\n";
+    let mut ws = editor(md);
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+    assert!(ws.editor.edit.reorder_start(after(&ws, "- tw")), "a long press lifts it");
+    ws.enter_frame();
+    ws.editor
+        .reload(md.replace("- one", "para\n\n- one"), Some([1; 32]));
+    ws.enter_frame();
+    assert!(ws.editor.edit.in_progress_block_drag.is_none(), "the item is let go");
+}
+
 /// The image lifted, a key typed and deleted, the image dropped below
 /// "end", and the image lifted again.
 fn held_again_after_a_drop(md: &str) -> TestEditor {

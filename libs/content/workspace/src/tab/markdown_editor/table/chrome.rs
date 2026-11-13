@@ -143,6 +143,7 @@ impl MdRender {
             parent_start: key,
             grab_offset: pos - rect.left_top(),
             unit: DragUnit::Column(column),
+            seq: self.buffer.current.seq,
         })
     }
 
@@ -265,13 +266,14 @@ impl MdRender {
 
         // body rows reorder among themselves
         if row.index > 0 && row.of > 2 {
-            self.handle_drag_resp(ui, &resp, dragging, true, |_, origin| {
+            self.handle_drag_resp(ui, &resp, dragging, true, |r, origin| {
                 Some(BlockDrag {
                     section_range: row.line,
                     grabbed: row.line,
                     parent_start: key,
                     grab_offset: origin - row.rect.left_top(),
                     unit: DragUnit::Row,
+                    seq: r.buffer.current.seq,
                 })
             });
         }
