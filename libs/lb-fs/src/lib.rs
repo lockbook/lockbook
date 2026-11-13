@@ -18,6 +18,8 @@ use tracing::{debug, error, info};
 pub mod cache;
 pub(crate) mod file_handle;
 pub mod fs_impl;
+#[cfg(target_os = "linux")]
+pub mod fuse;
 pub mod logger;
 pub mod mount;
 pub mod utils;
