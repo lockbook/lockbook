@@ -19,7 +19,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
 use crate::tab::markdown_editor::{Arena, MdEdit, MdRender, TouchTarget, View};
 use crate::tab::{ContextMenuTarget, Destination, ExtendedOutput as _};
 use crate::theme::palette_v2::ThemeExt as _;
-use crate::widgets::diagram_cache::DiagramSize;
+use crate::widgets::diagram_cache::{DiagramSize, PrintSvg};
 use crate::widgets::glyphon_label::{GlyphonLabel, ShapedLabel};
 use crate::widgets::math::{Formula, Typeset};
 
@@ -235,6 +235,12 @@ impl<'ast> MdRender {
         let painter = ui.painter();
         let width_px = (rect.width() * self.ctx.pixels_per_point()).round() as u32;
         match self.diagrams.size(source) {
+            DiagramSize::Ready(_) if self.print => {
+                if let Some(tree) = self.diagrams.tree(source) {
+                    let callback = std::sync::Arc::new(PrintSvg(tree));
+                    painter.add(egui::PaintCallback { rect, callback });
+                }
+            }
             DiagramSize::Ready(_) => match self.diagrams.texture(source, width_px) {
                 Some(texture) => {
                     let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));

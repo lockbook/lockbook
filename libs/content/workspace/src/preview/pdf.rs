@@ -1,5 +1,5 @@
-//! A printed note cut into pages and written as a PDF: its shapes and
-//! formulas as paths, its textures as images, and its text as text in the
+//! A printed note cut into pages and written as a PDF: its shapes,
+//! formulas and diagrams as paths, its textures as images, and its text as text in the
 //! fonts it was shaped in, so it selects, copies, and searches.
 
 use std::collections::HashMap;
@@ -575,7 +575,7 @@ mod tests {
             .map(|kind| format!("> [!{kind}]\n> An alert.\n\n"))
             .concat();
         let note = format!(
-            "---\ntitle: Tour\ntags: [alpha, beta]\ndone: true\n---\n\n# Title 🧾\n\n{alerts}- [ ] open\n- [x] done\n\nA [link](https://lockbook.net), a footnote[^1], `code` and $x^2$.\n\n$$\\int_0^1 x^2 \\, dx = \\frac{{1}}{{3}}$$\n\n$${}$$\n\nA broken $\\frac{{$ formula.\n\n## Folded {fold}\n\nHidden until printed.\n\n| {} |\n|{}|\n| {} |\n\n```\n{}\n```\n\n![picture](picture.png)\n\n![[Plan#Goals]]\n\n![[Plan#Gone]]\n\n![[broken.png]]\n\n![[broken.pdf]]\n\n![broken](broken.png)\n\n[^1]: The footnote.\n",
+            "---\ntitle: Tour\ntags: [alpha, beta]\ndone: true\n---\n\n# Title 🧾\n\n{alerts}- [ ] open\n- [x] done\n\nA [link](https://lockbook.net), a footnote[^1], `code` and $x^2$.\n\n$$\\int_0^1 x^2 \\, dx = \\frac{{1}}{{3}}$$\n\n$${}$$\n\nA broken $\\frac{{$ formula.\n\n```mermaid\ngraph LR\n  A --> B\n```\n\n## Folded {fold}\n\nHidden until printed.\n\n| {} |\n|{}|\n| {} |\n\n```\n{}\n```\n\n![picture](picture.png)\n\n![[Plan#Goals]]\n\n![[Plan#Gone]]\n\n![[broken.png]]\n\n![[broken.pdf]]\n\n![broken](broken.png)\n\n[^1]: The footnote.\n",
             "a + b + c + d + e + f + ".repeat(12) + "z",
             wide.join(" | "),
             ["---"; 12].join("|"),
@@ -605,7 +605,7 @@ mod tests {
         }
         assert_eq!(dropped, Vec::<String>::new());
         assert_eq!(images, 1, "the picture prints as an image");
-        assert_eq!(svgs, 3, "three formulas print as paths");
+        assert_eq!(svgs, 4, "three formulas and the diagram print as paths");
 
         let pdf = render_pdf(&live, id, None, Paper::LETTER).unwrap();
         assert!(pdf.starts_with(b"%PDF"));

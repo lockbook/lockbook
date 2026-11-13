@@ -1,7 +1,7 @@
 //! A note drawn off screen whole, for a file: in the app's theme made light,
 //! folds open, tables and code wrapped to the width. Its text paints as
-//! [`PrintText`] and its formulas as [`PrintSvg`], for a writer to keep as
-//! text and paths.
+//! [`PrintText`] and its formulas and diagrams as [`PrintSvg`], for a writer to keep
+//! as text and paths.
 
 use std::collections::HashMap;
 use std::sync::Arc;
