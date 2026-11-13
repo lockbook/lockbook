@@ -1,5 +1,5 @@
 [package]
-version = "26.11.12"
+version = "26.11.13"
 name = "lockbook"
 edition = "2021"
 license = "BSD-3-Clause"
