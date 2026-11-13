@@ -38,6 +38,7 @@ mod links;
 mod regressions;
 mod reload_props;
 mod render_props;
+mod scroll_props;
 mod source;
 mod spelling;
 mod tables;
