@@ -819,3 +819,25 @@ fn an_image_dropped_below_a_closed_html_block_lands_there() {
         assert_eq!(ws.get_text(), format!("{block}\n{image}\npara\n\n\n"));
     }
 }
+
+/// An image in another image's alt text, shown while the caret is in the
+/// outer one's source: dropping it elsewhere would rewrite the outer image.
+#[test]
+fn an_image_in_another_images_alt_drops_nothing() {
+    let md = format!("start here\n\nfoo ![bar ![a]({IMAGE})](https://x.test/b.png) baz\n");
+    let mut ws = editor(&md);
+    let caret = Grapheme(md.find("bar").unwrap() + 1);
+    ws.editor.edit.renderer.buffer.queue(
+        vec![lb_rs::model::text::operation_types::Operation::Select((caret, caret))],
+        ws.editor.edit.renderer.now(),
+    );
+    ws.editor.edit.renderer.buffer.update();
+    ws.enter_frame();
+
+    let (from, to) = (image_center(&ws), after(&ws, "sta"));
+    let held = ws.editor.edit.renderer.image_at(from);
+    let inner = md.find("![a]").unwrap();
+    assert_eq!(held.map(|(start, _)| start.0), Some(inner), "the inner image is the one held");
+    drag(&mut ws, from, to);
+    assert_eq!(ws.get_text(), md);
+}
