@@ -690,3 +690,73 @@ fn an_undo_and_a_key_in_one_frame_let_go_of_the_image() {
     assert_eq!(ws.get_text(), format!("q{md}"));
     assert!(ws.editor.edit.in_progress_image_drag.is_none(), "the image is let go");
 }
+
+/// The note's images and its HTML and code blocks, as the editor parses it.
+fn images_and_html(md: &str) -> (usize, Vec<String>) {
+    use comrak::nodes::NodeValue;
+    let arena = comrak::Arena::new();
+    let root = comrak::parse_document(&arena, md, &super::super::MdRender::comrak_options());
+    let images = root
+        .descendants()
+        .filter(|n| matches!(n.data.borrow().value, NodeValue::Image(_)))
+        .count();
+    let html = root
+        .descendants()
+        .filter_map(|n| match &n.data.borrow().value {
+            NodeValue::HtmlBlock(html) => Some(html.literal.clone()),
+            NodeValue::CodeBlock(code) => Some(code.literal.clone()),
+            _ => None,
+        })
+        .collect();
+    (images, html)
+}
+
+#[test]
+fn an_image_dropped_below_an_html_block_stays_an_image() {
+    let md = format!("<section>\nhi\n</section>\n\npara\n\n![a]({IMAGE})\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "</section>\n"));
+    drag(&mut ws, from, to);
+    let moved = ws.get_text();
+    assert_ne!(moved, md, "the drop moved it");
+    assert_eq!(images_and_html(moved), images_and_html(&md), "from {md:?} to {moved:?}");
+}
+
+/// A line the image takes as its own joins its neighbours: below an HTML
+/// block that runs to a blank line, in a quote or a list too, or above a
+/// block that can't interrupt a paragraph, the drop lands elsewhere, the image
+/// an image and the blocks as they were.
+#[test]
+fn an_image_dropped_beside_a_block_that_would_join_it_stays_an_image() {
+    let image = format!("![a]({IMAGE})");
+    let tags = "<custom-tag>\n\n<custom-tag>\n\n<custom-tag>\n";
+    let cases = [
+        (format!("<custom-tag>\n\nnext\n\n{image}\n"), "<custom-tag>\n"),
+        (format!("{image}\n\n{tags}\nend\n"), "<custom-tag>\n"),
+        (format!("para\n\n    code\n\n{image}\n"), "para\n"),
+        (format!("> <aside>\n> hi\n> </aside>\n>\n> next\n\n{image}\n"), "</aside>\n>"),
+        (format!("- <aside>\n  hi\n  </aside>\n\n  next\n\n{image}\n"), "</aside>\n"),
+    ];
+    for (md, needle) in cases {
+        let mut ws = editor(&md);
+        let (from, to) = (image_center(&ws), after(&ws, needle));
+        drag(&mut ws, from, to);
+        let moved = ws.get_text();
+        assert_ne!(moved, md, "the drop moved it");
+        assert_eq!(images_and_html(moved), images_and_html(&md), "from {md:?} to {moved:?}");
+    }
+}
+
+/// An HTML block that ends at its own closing marker takes nothing after it:
+/// a drop below one lands there.
+#[test]
+fn an_image_dropped_below_a_closed_html_block_lands_there() {
+    let image = format!("![a]({IMAGE})");
+    for block in ["<pre>\nx\n</pre>", "<!-- a\ncomment -->"] {
+        let md = format!("{block}\n\npara\n\n{image}\n");
+        let mut ws = editor(&md);
+        let (from, to) = (image_center(&ws), after(&ws, &format!("{block}\n")));
+        drag(&mut ws, from, to);
+        assert_eq!(ws.get_text(), format!("{block}\n{image}\npara\n\n\n"));
+    }
+}

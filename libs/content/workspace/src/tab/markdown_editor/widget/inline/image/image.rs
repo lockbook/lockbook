@@ -555,6 +555,52 @@ impl<'ast> MdEdit {
                 ((range.start(), end), bare)
             })
             .collect();
+        // a line without inlines takes the image as a line of its own, which
+        // joins the lines beside it in its container: an HTML block above that
+        // runs to a blank line takes it in as raw text, and a block below that
+        // can't interrupt a paragraph becomes the image's text
+        let swallowed = |to: Grapheme| {
+            let lines = &r.bounds.source_lines;
+            let Some(i) = lines.iter().position(|l| l.contains(to, true, true)) else {
+                return false;
+            };
+            let prev = i.checked_sub(1).map(|i| lines[i]);
+            let next = lines.get(i + 1).copied();
+            let (mut container, mut above, mut below) = (root, None, None);
+            for n in root.descendants() {
+                let value = &n.data.borrow().value;
+                let range = r.node_range(n);
+                if value.contains_inlines() && range.contains_inclusive(to) {
+                    return false;
+                }
+                if value.is_container_block() && range.contains_inclusive(to) {
+                    container = n;
+                }
+                if value.is_leaf_block() {
+                    if prev.is_some_and(|l| l.contains(range.end(), true, true)) {
+                        above = Some(n);
+                    }
+                    if below.is_none()
+                        && next.is_some_and(|l| l.contains(range.start(), true, true))
+                    {
+                        below = Some(n);
+                    }
+                }
+            }
+            let beside =
+                |n: &&'ast AstNode<'ast>| n.parent().is_some_and(|p| std::ptr::eq(p, container));
+            let runs_on = above.filter(beside).is_some_and(
+                |n| matches!(&n.data.borrow().value, NodeValue::HtmlBlock(h) if h.block_type >= 6),
+            );
+            let taken = below
+                .filter(beside)
+                .is_some_and(|n| match &n.data.borrow().value {
+                    NodeValue::HtmlBlock(h) => h.block_type == 7,
+                    NodeValue::CodeBlock(c) => !c.fenced,
+                    _ => false,
+                });
+            runs_on || taken
+        };
         // a backslash before it would escape its `!`
         let lands = |to: Grapheme| {
             let inline = r
@@ -564,7 +610,7 @@ impl<'ast> MdEdit {
                 .any(|p| p.contains_inclusive(to));
             let escaped = to.0 > 0 && &r.buffer[(to - 1, to)] == "\\";
             let after_url = spans.iter().any(|&(span, bare)| bare && span.end() == to);
-            inline && !escaped && !after_url && !image.contains_inclusive(to)
+            inline && !escaped && !after_url && !image.contains_inclusive(to) && !swallowed(to)
         };
         let span = spans
             .iter()
@@ -597,7 +643,8 @@ impl<'ast> MdEdit {
         if let Some(to) = candidates.into_iter().find(|&to| lands(to)) {
             return Some(to);
         }
-        // in a block of code: the line before it or after it, nearer first
+        // in a block of code, or on a line that would join its neighbours:
+        // the line before it or after it, nearer first
         let lines = &r.bounds.source_lines;
         let block = root
             .descendants()
@@ -606,7 +653,11 @@ impl<'ast> MdEdit {
                 value.is_leaf_block() && !value.contains_inlines()
             })
             .map(|n| r.node_range(n))
-            .find(|range| range.contains(to, true, true))?;
+            .find(|range| range.contains(to, true, true))
+            .or_else(|| {
+                let line = lines.iter().find(|l| l.contains(to, true, true));
+                line.copied().filter(|_| swallowed(to))
+            })?;
         let first = lines
             .iter()
             .position(|l| l.contains(block.start(), true, true))?;
@@ -615,12 +666,32 @@ impl<'ast> MdEdit {
             .rposition(|l| l.contains(block.end(), true, true))?;
         let before = first.checked_sub(1).map(|i| lines[i].end());
         let after = lines.get(last + 1).map(|l| l.start());
-        let sides = if to.0 - block.start().0 <= block.end().0 - to.0 {
-            [before, after]
-        } else {
-            [after, before]
+        let nearer_before = to.0 - block.start().0 <= block.end().0 - to.0;
+        let sides = if nearer_before { [before, after] } else { [after, before] };
+        // else the nearest text, past any quote or list prefix
+        let paragraphs = &r.bounds.inline_paragraphs;
+        let text_before = || {
+            let ends = paragraphs.iter().rev().map(|p| p.end());
+            ends.filter(|&end| end < lines[first].start())
+                .find(|&to| lands(to))
         };
-        sides.into_iter().flatten().find(|&to| lands(to))
+        let text_after = || {
+            let starts = paragraphs.iter().map(|p| p.start());
+            starts
+                .filter(|&start| start > lines[last].end())
+                .find(|&to| lands(to))
+        };
+        sides
+            .into_iter()
+            .flatten()
+            .find(|&to| lands(to))
+            .or_else(|| {
+                if nearer_before {
+                    text_before().or_else(text_after)
+                } else {
+                    text_after().or_else(text_before)
+                }
+            })
     }
 
     /// Follows an image drag: the grabbing hand, edge scroll, and on release
