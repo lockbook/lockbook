@@ -19,7 +19,7 @@ use test_utils::lockbook_server_lib::ServerState;
 use test_utils::lockbook_server_lib::billing::Nop;
 use test_utils::lockbook_server_lib::in_process::InMemDocuments;
 use test_utils::{prop, test_config};
-use tokio::sync::{Notify, oneshot};
+use tokio::sync::oneshot;
 use uuid::Uuid;
 
 type TestServer = ServerState<Nop, Nop, Nop, GatedDocuments<InMemDocuments>>;
@@ -213,12 +213,14 @@ enum Step {
         file: usize,
         from: usize,
     },
-    /// `device` syncs, and when the server reaches its `at`th document read or write of that
-    /// sync, `then` runs before the server goes on.
-    SyncDuring {
+    /// `device` starts a sync and the server holds it at its `at`th document read or write,
+    /// until a [`Step::Release`] or the device's next sync or hold lets it go on.
+    Hold {
         device: usize,
         at: usize,
-        then: Box<Step>,
+    },
+    Release {
+        device: usize,
     },
 }
 
@@ -262,23 +264,27 @@ fn steps(case: Case, bytes: &[u8]) -> Vec<Step> {
     let count = 1 + src.draw(48);
     let during = if tier.overlap { case.mix.writes() } else { 0 };
     let mut device = 0;
+    // devices with a sync held, so a release names one
+    let mut held: Vec<usize> = Vec::new();
     (0..count)
         .map(|_| {
             // people work on one device for a while
             if src.bias(&[4, 1]) == 1 {
                 device = src.draw(tier.all_devices());
             }
-            if src.bias(&[10, during]) == 1 {
-                let at = src.draw(4);
-                let on = src.draw(tier.all_devices());
-                let then = match step(case, &mut src, on) {
-                    // a sync waits for the one in flight on its device
-                    Step::SyncAll { device } => Step::Sync { device },
-                    then => then,
-                };
-                return Step::SyncDuring { device, at, then: Box::new(then) };
+            let releases = if held.is_empty() { 0 } else { during };
+            let step = match src.bias(&[10, during, releases]) {
+                0 => step(case, &mut src, device),
+                1 => Step::Hold { device, at: src.draw(4) },
+                _ => Step::Release { device: held[src.draw(held.len())] },
+            };
+            match step {
+                Step::Hold { device, .. } => held.push(device),
+                Step::Release { device } | Step::Sync { device } => held.retain(|&d| d != device),
+                Step::SyncAll { .. } => held.clear(),
+                _ => {}
             }
-            step(case, &mut src, device)
+            step
         })
         .collect()
 }
@@ -324,18 +330,15 @@ impl Step {
             | Step::Accept { device, .. }
             | Step::Reject { device, .. }
             | Step::Unshare { device, .. }
-            | Step::SyncDuring { device, .. } => device,
+            | Step::Hold { device, .. }
+            | Step::Release { device } => device,
         }
     }
 
-    /// This step, with any step it runs during, taken on `on`.
+    /// This step taken on `on`.
     fn confined(&self, on: usize) -> Step {
         let mut step = self.clone();
         match &mut step {
-            Step::SyncDuring { device, then, .. } => {
-                *device = on;
-                **then = then.confined(on);
-            }
             Step::Sync { device }
             | Step::SyncAll { device }
             | Step::CreateDocument { device, .. }
@@ -347,7 +350,9 @@ impl Step {
             | Step::Share { device, .. }
             | Step::Accept { device, .. }
             | Step::Reject { device, .. }
-            | Step::Unshare { device, .. } => *device = on,
+            | Step::Unshare { device, .. }
+            | Step::Hold { device, .. }
+            | Step::Release { device } => *device = on,
         }
         step
     }
@@ -389,6 +394,14 @@ struct World {
     names: Vec<String>,
     devices: Vec<Lb>,
     per_account: usize,
+    /// Syncs the server holds, by device.
+    held: Mutex<BTreeMap<usize, Held>>,
+}
+
+/// A sync parked on the server, and what lets it go on.
+struct Held {
+    sync: tokio::task::JoinHandle<bool>,
+    go: oneshot::Sender<()>,
 }
 
 impl World {
@@ -425,7 +438,15 @@ impl World {
             }
             names.push(name);
         }
-        Self { server, pause, admin, names, devices, per_account: tier.devices }
+        Self {
+            server,
+            pause,
+            admin,
+            names,
+            devices,
+            per_account: tier.devices,
+            held: Default::default(),
+        }
     }
 
     /// A world holding what this one holds, sharing nothing with it, whose devices draw new ids
@@ -447,6 +468,7 @@ impl World {
             names: self.names.clone(),
             devices,
             per_account: self.per_account,
+            held: Default::default(),
         }
     }
 
@@ -501,42 +523,54 @@ impl World {
     /// Takes `step` on device `on`, returning whether the device accepted it.
     async fn take(&self, step: &Step, on: usize, reach: Reach) -> bool {
         let device = &self.devices[on];
-        match *step {
-            Step::SyncDuring { at, ref then, .. } => {
-                // a second sync on a device waits for its first
-                if matches!(**then, Step::Sync { device } if device == on) {
-                    return device.sync().await.is_ok();
-                }
-                let then_reach = match reach {
-                    Reach::Shared => Reach::Shared,
-                    Reach::Own(_) => Reach::Own(then.device()),
-                };
-                let parked = self.pause.arm(at);
-                let syncing = async {
-                    let synced = device.sync().await.is_ok();
-                    self.pause.disarm();
-                    synced
-                };
-                let meanwhile = async {
-                    if parked.await.is_err() {
-                        return Box::pin(self.take(then, then.device(), then_reach)).await;
-                    }
-                    PAUSES.set(PAUSES.get() + 1);
-                    // the server stamps versions in milliseconds
-                    tokio::time::sleep(Duration::from_millis(2)).await;
-                    let taken = Box::pin(self.take(then, then.device(), then_reach)).await;
-                    self.pause.release();
-                    taken
-                };
-                let both = async { tokio::join!(syncing, meanwhile) };
-                let (synced, taken) = tokio::time::timeout(Duration::from_secs(10), both)
-                    .await
-                    .expect("a step taken during a sync finishes");
-                synced && taken
+        {
+            let held = self.held.lock().unwrap();
+            let releases_first = match step {
+                Step::Release { .. } | Step::SyncAll { .. } => true,
+                Step::Sync { .. } | Step::Hold { .. } => held.contains_key(&on),
+                _ => false,
+            };
+            if !releases_first && !held.is_empty() {
+                PAUSES.set(PAUSES.get() + 1);
             }
-            Step::Sync { .. } => device.sync().await.is_ok(),
+        }
+        match *step {
+            Step::Hold { at, .. } => {
+                let released = self.release(on).await;
+                let parked = self.pause.arm(at);
+                let syncing = device.clone();
+                let mut sync = tokio::spawn(async move { syncing.sync().await.is_ok() });
+                // a sync that never reaches its point finishes unheld
+                let held = async {
+                    tokio::select! {
+                        biased;
+                        Ok(go) = parked => Ok(go),
+                        synced = &mut sync => {
+                            self.pause.disarm();
+                            Err(synced.unwrap())
+                        }
+                    }
+                };
+                let go = match tokio::time::timeout(Duration::from_secs(10), held)
+                    .await
+                    .expect("a held sync parks or finishes")
+                {
+                    Ok(go) => go,
+                    Err(synced) => return released && synced,
+                };
+                // the server stamps versions in milliseconds
+                tokio::time::sleep(Duration::from_millis(2)).await;
+                self.held.lock().unwrap().insert(on, Held { sync, go });
+                released
+            }
+            Step::Release { .. } => self.release(on).await,
+            Step::Sync { .. } => {
+                // a second sync on a device waits for its first
+                let released = self.release(on).await;
+                device.sync().await.is_ok() && released
+            }
             Step::SyncAll { .. } => {
-                let mut all = true;
+                let mut all = self.release_all().await;
                 for device in &self.devices {
                     all &= device.sync().await.is_ok();
                 }
@@ -639,8 +673,32 @@ impl World {
         }
     }
 
-    /// Syncs every device until each has seen every other's changes, shares included.
+    /// Lets device `on`'s held sync go on, returning whether it succeeded, or true if none is
+    /// held.
+    async fn release(&self, on: usize) -> bool {
+        let Some(Held { sync, go }) = self.held.lock().unwrap().remove(&on) else {
+            return true;
+        };
+        let _ = go.send(());
+        tokio::time::timeout(Duration::from_secs(10), sync)
+            .await
+            .expect("a released sync finishes")
+            .unwrap()
+    }
+
+    async fn release_all(&self) -> bool {
+        let held: Vec<_> = self.held.lock().unwrap().keys().copied().collect();
+        let mut all = true;
+        for on in held {
+            all &= self.release(on).await;
+        }
+        all
+    }
+
+    /// Lets every held sync go on, then syncs every device until each has seen every other's
+    /// changes, shares included.
     async fn settle(&self) -> Result<(), String> {
+        self.release_all().await;
         for _ in 0..3 {
             for (i, device) in self.devices.iter().enumerate() {
                 device
@@ -664,20 +722,19 @@ impl World {
     }
 }
 
-type Armed = (usize, oneshot::Sender<()>);
+type Armed = (usize, oneshot::Sender<oneshot::Sender<()>>);
 
-/// Parks the server at a document read or write a step chose, until the step lets it go on.
+/// Parks the server at a document read or write a hold chose, until a later step lets it go on.
 #[derive(Clone, Default)]
 struct Pause {
     /// How many operations to let by, and who hears when the next one parks.
     armed: Arc<Mutex<Option<Armed>>>,
-    release: Arc<Notify>,
 }
 
 impl Pause {
-    /// The receiver hears when the store's `at`th operation from now parks, or errs if
-    /// [`Self::disarm`] comes first.
-    fn arm(&self, at: usize) -> oneshot::Receiver<()> {
+    /// The receiver hears when the store's `at`th operation from now parks, with what lets it
+    /// go on, or errs if [`Self::disarm`] comes first.
+    fn arm(&self, at: usize) -> oneshot::Receiver<oneshot::Sender<()>> {
         let (entered, parked) = oneshot::channel();
         *self.armed.lock().unwrap() = Some((at, entered));
         parked
@@ -685,10 +742,6 @@ impl Pause {
 
     fn disarm(&self) {
         self.armed.lock().unwrap().take();
-    }
-
-    fn release(&self) {
-        self.release.notify_one();
     }
 }
 
@@ -707,8 +760,10 @@ impl Gate for Pause {
             }
         };
         if let Some(entered) = entered {
-            let _ = entered.send(());
-            self.release.notified().await;
+            let (go, wait) = oneshot::channel();
+            if entered.send(go).is_ok() {
+                let _ = wait.await;
+            }
         }
     }
 }
@@ -906,11 +961,7 @@ fn syncing_alone_changes_nothing_check(case: Case, bytes: &[u8]) -> Result<(), S
         let world = World::new(case, bytes).await;
         for (n, step) in steps(case, bytes).iter().enumerate() {
             let step = step.confined(0);
-            let answers = match &step {
-                Step::SyncDuring { then, .. } => then.as_ref(),
-                step => step,
-            };
-            if let Step::Accept { pending, .. } | Step::Reject { pending, .. } = *answers {
+            if let Step::Accept { pending, .. } | Step::Reject { pending, .. } = step {
                 // a share pending only on another device would be answered there
                 if pick_pending(&world.devices[0], pending).await.is_none() {
                     continue;
@@ -944,13 +995,7 @@ fn disjoint_changes_equal_sequential_check(case: Case, bytes: &[u8]) -> Result<(
     block_on(async {
         let steps: Vec<_> = steps(case, bytes)
             .into_iter()
-            .filter(|step| {
-                let answers = match step {
-                    Step::SyncDuring { then, .. } => then.as_ref(),
-                    step => step,
-                };
-                !matches!(answers, Step::Accept { .. } | Step::Reject { .. })
-            })
+            .filter(|step| !matches!(step, Step::Accept { .. } | Step::Reject { .. }))
             .collect();
 
         let concurrent = World::new(case, bytes).await;
@@ -965,16 +1010,16 @@ fn disjoint_changes_equal_sequential_check(case: Case, bytes: &[u8]) -> Result<(
         let per_account = sequential.per_account;
         for device in 0..sequential.devices.len() {
             let first = device / per_account * per_account;
-            for step in steps
-                .iter()
-                .map(|s| match s {
-                    Step::SyncDuring { then, .. } => then,
-                    s => s,
-                })
-                .filter(|s| {
-                    s.device() == device && !matches!(s, Step::Sync { .. } | Step::SyncAll { .. })
-                })
-            {
+            for step in steps.iter().filter(|s| {
+                s.device() == device
+                    && !matches!(
+                        s,
+                        Step::Sync { .. }
+                            | Step::SyncAll { .. }
+                            | Step::Hold { .. }
+                            | Step::Release { .. }
+                    )
+            }) {
                 sequential.take(step, first, Reach::Own(device)).await;
             }
         }
@@ -1033,7 +1078,10 @@ fn a_refused_step_changes_nothing_check(case: Case, bytes: &[u8]) -> Result<(), 
             if !accepted
                 && !matches!(
                     step,
-                    Step::Sync { .. } | Step::SyncAll { .. } | Step::SyncDuring { .. }
+                    Step::Sync { .. }
+                        | Step::SyncAll { .. }
+                        | Step::Hold { .. }
+                        | Step::Release { .. }
                 )
                 && after != before
             {
