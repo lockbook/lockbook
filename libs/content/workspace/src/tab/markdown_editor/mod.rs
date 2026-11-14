@@ -627,9 +627,9 @@ pub struct Editor {
     /// The note can have an outline, headings or not, so native chrome
     /// offers it.
     pub outline_offered: bool,
-    /// The note's headings as the outline lists them, for the text at the
-    /// `text_seq` beside them.
-    outline_rows: Option<(u64, Vec<widget::outline::OutlineRow>)>,
+    /// The note's headings as the outline lists them, for the text and
+    /// reveals at the `text_seq` and `reveal_seq` beside them.
+    outline_rows: Option<((u64, u64), Vec<widget::outline::OutlineRow>)>,
     /// The notes linking here as the card lists them, for the index version
     /// beside them.
     linked: Option<(u64, Vec<widget::outline::LinkedNote>)>,
@@ -2838,6 +2838,10 @@ impl Editor {
             ) => rows.get(*i).map(|row| (row.slug.clone(), row.span)),
             _ => None,
         };
+        let fold_at = match &chosen {
+            Some(widget::outline::Choice::ToggleFold(i)) => rows.get(*i).map(|row| row.start),
+            _ => None,
+        };
         self.outline_rows = Some((seq, rows));
         if let Some(rect) = popup {
             self.edit
@@ -2869,6 +2873,23 @@ impl Editor {
             Some(widget::outline::Choice::CopyHeadingLink(_)) => {
                 let Some((slug, _)) = chosen_row else { return };
                 ui.ctx().copy_text(self.edit.heading_link(&slug));
+            }
+            Some(widget::outline::Choice::ToggleFold(_)) => {
+                let Some(start) = fold_at else { return };
+                let r = &self.edit.renderer;
+                let node = root
+                    .descendants()
+                    .find(|n| {
+                        matches!(n.data().value, NodeValue::Heading(_))
+                            && r.node_range(n).0 == start
+                    })
+                    .map(|n| r.node_range(n));
+                if let Some(node) = node {
+                    self.edit
+                        .renderer
+                        .render_events
+                        .push(input::Event::ToggleFold { node: Some(node) });
+                }
             }
             Some(widget::outline::Choice::CopyLink(id)) => {
                 let place = crate::tab::Place::new(crate::tab::Destination::File(id));
@@ -3224,9 +3245,9 @@ impl Editor {
     }
 
     /// The note's headings as the outline lists them, kept until the text
-    /// changes.
+    /// or what's revealed in it changes.
     fn outline_rows<'a>(&mut self, root: &'a AstNode<'a>) -> &[widget::outline::OutlineRow] {
-        let seq = self.edit.renderer.text_seq;
+        let seq = (self.edit.renderer.text_seq, self.edit.renderer.reveal_seq);
         if self.outline_rows.as_ref().is_none_or(|(at, _)| *at != seq) {
             let r = &self.edit.renderer;
             let code = match r.kind {
@@ -3256,12 +3277,15 @@ impl Editor {
                                 .range_to_char((definition.start.into(), definition.start.into()))
                                 .0,
                             span,
+                            fold: None,
+                            hidden: false,
                         }
                     })
                     .collect()
             } else if r.kind != Syntax::Markdown {
                 Vec::new()
             } else {
+                r.populate_hidden_by_fold(root);
                 fragment::headings_in(root)
                     .into_iter()
                     .map(|(node, h)| widget::outline::OutlineRow {
@@ -3270,6 +3294,11 @@ impl Editor {
                         slug: h.slug,
                         start: r.node_range(node).0,
                         span: r.heading_span(node),
+                        fold: r.foldable(node).map(|_| widget::outline::HeadingFold {
+                            folded: r.fold(node).is_some(),
+                            revealed: r.heading_fold_reveal(node),
+                        }),
+                        hidden: node.ancestors().any(|n| r.hidden_by_fold(n)),
                     })
                     .collect()
             };
