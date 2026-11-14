@@ -310,22 +310,22 @@ struct External {
     /// changes, similar to a base in a 3-way merge. May be a state that never appears in the buffer's history.
     text: String,
 
-    /// Local replacements applied since `text` was loaded or saved, in order, undos as the inverses they applied.
-    /// Applied to `text`, they give the buffer's text.
-    pending: Vec<Replace>,
+    /// Local replacements a save in flight wrote over `text`, in order, undos as the inverses they applied.
+    flushed: Vec<Replace>,
 
-    /// Local replacements dropped from the front of `pending` by saves.
-    saved: usize,
+    /// Local replacements applied since, in the same form. Applied to `text` after `flushed`, they give the buffer's
+    /// text.
+    pending: Vec<Replace>,
 }
 
 impl External {
-    /// Drops each pending edit along with the one that reverts it right after, as an undo or a backspace does, so
-    /// that edits which cancel out don't win conflicts.
-    fn drop_reverted(&mut self) {
-        let segs = unicode_segs::calc(&self.text);
-        let mut text = Snapshot { text: self.text.clone(), segs, ..Default::default() };
+    /// Drops each of `edits`, made in order to `text`, along with the one that reverts it right after, as an undo or a
+    /// backspace does, so that edits which cancel out don't win conflicts.
+    fn drop_reverted(text: &str, edits: Vec<Replace>) -> Vec<Replace> {
+        let mut text =
+            Snapshot { text: text.into(), segs: unicode_segs::calc(text), ..Default::default() };
         let mut kept: Vec<(Replace, Replace)> = vec![];
-        for p in self.pending.drain(..) {
+        for p in edits {
             let replaced = text[p.range].to_string();
             let start = p.range.start();
             let (_, len) = text.apply_replace(&p);
@@ -335,17 +335,48 @@ impl External {
                 kept.push((p, Replace { range: (start, start + len), text: replaced }));
             }
         }
-        self.pending = kept.into_iter().map(|(p, _)| p).collect();
+        kept.into_iter().map(|(p, _)| p).collect()
+    }
+
+    /// Splits each of `edits`, made in order to `text`, into what it changes: the pieces a diff of what it replaced and
+    /// what it wrote finds, last first so each piece's range is still where the diff put it. Only what changed wins
+    /// conflicts: text an edit writes back as it was is no longer its own, and an edit that changes nothing is gone.
+    /// Returns the pieces and the text after them.
+    fn split(text: &str, edits: Vec<Replace>) -> (Vec<Replace>, String) {
+        let mut text =
+            Snapshot { text: text.into(), segs: unicode_segs::calc(text), ..Default::default() };
+        let mut pieces = vec![];
+        for p in edits {
+            let start = p.range.start();
+            for mut piece in diff(&text[p.range], &p.text).into_iter().rev() {
+                piece.range = (start + piece.range.0.0, start + piece.range.1.0);
+                text.apply_replace(&piece);
+                pieces.push(piece);
+            }
+        }
+        (pieces, text.text)
     }
 
     /// Rebases the local edits onto `text`, the new external text, and returns the external changes as one frame on
     /// `current`, the buffer's text. Local edits win conflicts: an external change overlapping one is dropped, and the
-    /// local edit, rebased, replaces what it wrote.
+    /// local edit, rebased, replaces what it wrote. Flushed and pending edits are tidied apart, so a save in flight
+    /// still records the edits it wrote; a newer version voids that save, whose write over `text` will be refused.
     fn reload(&mut self, text: String, current: &str) -> Vec<Replace> {
         let mut remote = diff(&self.text, &text);
-        self.drop_reverted();
+        if text != self.text {
+            let pending = std::mem::take(&mut self.pending);
+            self.pending = std::mem::take(&mut self.flushed);
+            self.pending.extend(pending);
+        }
+        let (flushed, after) = Self::split(
+            &self.text,
+            Self::drop_reverted(&self.text, std::mem::take(&mut self.flushed)),
+        );
+        let (pending, _) =
+            Self::split(&after, Self::drop_reverted(&after, std::mem::take(&mut self.pending)));
+        (self.flushed, self.pending) = (flushed, pending);
         let base = std::mem::replace(&mut self.text, text);
-        if self.pending.is_empty() {
+        if self.flushed.is_empty() && self.pending.is_empty() {
             return remote;
         }
 
@@ -358,7 +389,7 @@ impl External {
             let written = applied.written();
             (applied.current, written)
         };
-        for p in &mut self.pending {
+        for p in self.flushed.iter_mut().chain(&mut self.pending) {
             *p = whole_graphemes(&local, p);
             let (_, len) = local.apply_replace(p);
 
@@ -551,19 +582,17 @@ impl Buffer {
         response
     }
 
-    /// Counts the local replacements kept so far. Read it with the text a save writes and pass both to `saved` before
-    /// the next reload, which may drop replacements that cancel out.
-    pub fn local_seq(&self) -> usize {
-        self.external.saved + self.external.pending.len()
+    /// Marks the local replacements so far as written by a save; read the text the save writes with it. A flush
+    /// before the last one's `saved` adds to it, as a failed save writes nothing.
+    pub fn flush(&mut self) {
+        let pending = std::mem::take(&mut self.external.pending);
+        self.external.flushed.extend(pending);
     }
 
-    /// Indicates to the buffer the text that has been saved outside the editor, which had the local replacements
-    /// counted by `local_seq`. This will serve as the new base for merging external changes.
-    pub fn saved(&mut self, local_seq: usize, external_text: String) {
-        self.external
-            .pending
-            .drain(..local_seq - self.external.saved);
-        self.external.saved = local_seq;
+    /// Indicates to the buffer the text that has been saved outside the editor, which had the local replacements up
+    /// to the last `flush`. This will serve as the new base for merging external changes.
+    pub fn saved(&mut self, external_text: String) {
+        self.external.flushed.clear();
         self.external.text = external_text;
     }
 
@@ -1032,6 +1061,20 @@ mod test {
         buffer.reload("Z*abc\n".into());
         buffer.update();
         assert_eq!(buffer.current.text, "Z*\u{94d}\n");
+    }
+
+    #[test]
+    fn a_reload_keeps_a_word_written_beside_a_wider_local_edit() {
+        // a table cell rewrite writes `|-` over `--`: only its first character changed
+        let mut buffer = Buffer::from("--\n-");
+        let rewrite = Replace { range: (Grapheme(0), Grapheme(2)), text: "|-".into() };
+        buffer.queue(vec![Operation::Replace(rewrite)]);
+        buffer.update();
+        for version in ["--\n--", "-bar -\n--"] {
+            buffer.reload(version.into());
+            buffer.update();
+        }
+        assert_eq!(buffer.current.text, "|bar -\n--");
     }
 
     #[test]
@@ -1800,12 +1843,36 @@ mod reload_tests {
     fn a_reload_after_undoing_a_saved_edit() {
         let mut buf = Buffer::from("aa bb");
         edit(&mut buf, (0, 0), "x ");
-        buf.saved(buf.local_seq(), buf.current.text.clone());
+        buf.flush();
+        buf.saved(buf.current.text.clone());
         edit(&mut buf, (7, 7), " y");
         buf.undo();
         buf.undo();
         reload(&mut buf, "x aa R bb");
         assert_eq!(buf.current.text, "aa R bb");
+    }
+
+    #[test]
+    fn a_save_records_after_a_reload_lands_during_it() {
+        let mut buf = Buffer::from("a c");
+        edit(&mut buf, (0, 3), "a X c Y");
+        buf.flush();
+        let written = buf.current.text.clone();
+        edit(&mut buf, (7, 7), " Z");
+        reload(&mut buf, "a c");
+        buf.saved(written);
+        reload(&mut buf, "R a X c Y");
+        assert_eq!(buf.current.text, "R a X c Y Z");
+    }
+
+    #[test]
+    fn a_save_refused_for_a_newer_version_keeps_its_undone_edit_undone() {
+        let mut buf = Buffer::from("aa bb cc");
+        edit(&mut buf, (3, 5), "XX");
+        buf.flush();
+        buf.undo();
+        reload(&mut buf, "aa RR cc");
+        assert_eq!(buf.current.text, "aa RR cc");
     }
 
     #[test]

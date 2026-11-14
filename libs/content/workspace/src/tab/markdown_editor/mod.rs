@@ -626,8 +626,6 @@ pub struct Editor {
     /// Version of the *displayed* buffer. Only written with the matching
     /// text via [`Self::reload`] / [`Self::saved`].
     hmac: Option<DocumentHmac>,
-    /// The buffer's local edits in the text last flushed for a save.
-    flushed_seq: usize,
     pub initialized: bool,
     /// The selection was moved between frames (a reveal); the next frame
     /// tells the platform, whose own caret would stay behind.
@@ -1390,7 +1388,6 @@ impl Editor {
             region_placed: false,
             region_bounds: None,
             hmac,
-            flushed_seq: 0,
             initialized: Default::default(),
             selection_moved: false,
             outline_offered: false,
@@ -1536,13 +1533,13 @@ impl Editor {
     /// for CAS write. Side effect: mutates the buffer if ops were pending.
     pub fn flush_for_save(&mut self) -> (Option<DocumentHmac>, String) {
         self.apply_pending_buffer();
-        self.flushed_seq = self.edit.renderer.buffer.local_seq();
+        self.edit.renderer.buffer.flush();
         (self.hmac, self.edit.renderer.buffer.current.text.clone())
     }
 
     /// Record a successful CAS: this hmac is the on-disk version of `content`.
     pub fn saved(&mut self, hmac: DocumentHmac, content: String) {
-        self.edit.renderer.buffer.saved(self.flushed_seq, content);
+        self.edit.renderer.buffer.saved(content);
         self.hmac = Some(hmac);
     }
 
