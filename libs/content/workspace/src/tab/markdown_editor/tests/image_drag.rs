@@ -690,3 +690,33 @@ fn an_undo_and_a_key_in_one_frame_let_go_of_the_image() {
     assert_eq!(ws.get_text(), format!("q{md}"));
     assert!(ws.editor.edit.in_progress_image_drag.is_none(), "the image is let go");
 }
+
+/// The note's images and HTML blocks, as the editor parses it.
+fn images_and_html(md: &str) -> (usize, Vec<String>) {
+    use comrak::nodes::NodeValue;
+    let arena = comrak::Arena::new();
+    let root = comrak::parse_document(&arena, md, &super::super::MdRender::comrak_options());
+    let images = root
+        .descendants()
+        .filter(|n| matches!(n.data.borrow().value, NodeValue::Image(_)))
+        .count();
+    let html = root
+        .descendants()
+        .filter_map(|n| match &n.data.borrow().value {
+            NodeValue::HtmlBlock(html) => Some(html.literal.clone()),
+            _ => None,
+        })
+        .collect();
+    (images, html)
+}
+
+#[test]
+fn an_image_dropped_below_an_html_block_stays_an_image() {
+    let md = format!("<section>\nhi\n</section>\n\npara\n\n![a]({IMAGE})\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "</section>\n"));
+    drag(&mut ws, from, to);
+    let moved = ws.get_text();
+    assert_ne!(moved, md, "the drop moved it");
+    assert_eq!(images_and_html(moved), images_and_html(&md), "from {md:?} to {moved:?}");
+}
