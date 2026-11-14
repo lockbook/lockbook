@@ -44,11 +44,6 @@ opt-level = 3
 [profile.test]
 opt-level = 1
 
-# the server's Stripe client is ~5 MB of generated code: optimizing it took
-# most of a test build, and nothing a test or dev run does waits on it
-[profile.dev.package.async-stripe]
-opt-level = 0
-
 [patch.crates-io]
 typst = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }
 typst-eval = { git = "https://github.com/lockbook/typst", rev = "9b98d3705845cf85e2f1923335d3077abd87259a" }

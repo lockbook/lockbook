@@ -23,7 +23,6 @@ use crate::ServerError::ClientError;
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_error::SimplifiedStripeError;
-pub use stripe;
 use tracing::log::warn;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -123,5 +122,6 @@ pub mod loggers;
 pub mod metrics;
 pub mod router_service;
 pub mod schema;
+pub mod stripe;
 pub mod sub_account_service;
 pub mod utils;
