@@ -1362,3 +1362,35 @@ async fn unshare_after_moving_folder_out_keeps_another_devices_edit() {
         assert_eq!(content, b"BOS\nSFO");
     }
 }
+
+/// A device moves its folder into a share and syncs, then moves another folder into it, moves it
+/// back out and leaves the share; both moves survive the next sync.
+#[tokio::test]
+async fn leave_share_after_moving_folder_out_keeps_move_into_it() {
+    let owner = test_core_with_account().await;
+    let laptop = test_core_with_account().await;
+    let laptop_name = laptop.get_account().unwrap().username.clone();
+
+    let trip = owner.create_at_path("/trip/").await.unwrap();
+    owner
+        .share_file(trip.id, &laptop_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    laptop.sync().await.unwrap();
+    laptop.create_link_at_path("/trip", trip.id).await.unwrap();
+    laptop.create_at_path("/flights/").await.unwrap();
+    laptop.create_at_path("/hotels/").await.unwrap();
+    laptop.sync().await.unwrap();
+
+    move_by_path(&laptop, "/flights/", "/trip/").await.unwrap();
+    laptop.sync().await.unwrap();
+    move_by_path(&laptop, "/hotels/", "/trip/flights/")
+        .await
+        .unwrap();
+    move_by_path(&laptop, "/trip/flights/", "/").await.unwrap();
+    laptop.reject_share(&trip.id).await.unwrap();
+    laptop.sync().await.unwrap();
+
+    assert::all_paths(&laptop, &["/", "/flights/", "/flights/hotels/"]).await;
+}
