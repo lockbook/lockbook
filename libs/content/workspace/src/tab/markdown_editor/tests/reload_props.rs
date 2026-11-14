@@ -301,7 +301,8 @@ impl Model {
     /// Merges `disk` in and returns what the note should show.
     fn reload(&mut self, disk: &str) -> String {
         let segs = lb_rs::model::text::unicode_segs::calc(&self.landed);
-        let remote: Vec<_> = lb_rs::model::text::diff(&self.landed, disk)
+        let diff = lb_rs::model::text::diff(&self.landed, disk);
+        let remote: Vec<_> = lb_rs::model::text::narrowed(&self.landed, diff)
             .into_iter()
             .map(|r| {
                 let (s, e) = segs.range_to_byte(r.range);

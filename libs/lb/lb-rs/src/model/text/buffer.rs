@@ -1,7 +1,7 @@
 use super::offset_types::{Byte, Grapheme, Graphemes, RangeExt};
 use super::operation_types::{InverseOperation, Operation, Replace};
 use super::unicode_segs::UnicodeSegs;
-use super::{diff, unicode_segs};
+use super::{diff, narrowed, unicode_segs};
 use std::ops::Index;
 use std::time::Duration;
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -350,7 +350,11 @@ impl External {
         let mut pieces = vec![];
         for p in edits {
             let start = p.range.start();
-            for mut piece in diff(&text[p.range], &p.text).into_iter().rev() {
+            let replaced = &text[p.range];
+            for mut piece in narrowed(replaced, diff(replaced, &p.text))
+                .into_iter()
+                .rev()
+            {
                 piece.range = (start + piece.range.0.0, start + piece.range.1.0);
                 text.apply_replace(&piece);
                 pieces.push(piece);
@@ -364,7 +368,7 @@ impl External {
     /// local edit, rebased, replaces what it wrote. Flushed and pending edits are tidied apart, so a save in flight
     /// still records the edits it wrote; a newer version voids that save, whose write over `text` will be refused.
     fn reload(&mut self, text: String, current: &str) -> Vec<Replace> {
-        let mut remote = diff(&self.text, &text);
+        let mut remote = narrowed(&self.text, diff(&self.text, &text));
         if text != self.text {
             let pending = std::mem::take(&mut self.pending);
             self.pending = std::mem::take(&mut self.flushed);

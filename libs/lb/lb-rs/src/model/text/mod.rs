@@ -63,6 +63,29 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
     result
 }
 
+/// `edits` to `text`, each keeping only the graphemes it changes: a word diff replaces whole words, and an edit
+/// elsewhere in the word lies apart from what changed.
+pub fn narrowed(text: &str, mut edits: Vec<Replace>) -> Vec<Replace> {
+    let segs = unicode_segs::calc(text);
+    for e in &mut edits {
+        let bytes = segs.range_to_byte(e.range);
+        let old: Vec<&str> = text[bytes.start().0..bytes.end().0]
+            .graphemes(true)
+            .collect();
+        let new: Vec<&str> = e.text.graphemes(true).collect();
+        let prefix = old.iter().zip(&new).take_while(|(a, b)| a == b).count();
+        let suffix = old[prefix..]
+            .iter()
+            .rev()
+            .zip(new[prefix..].iter().rev())
+            .take_while(|(a, b)| a == b)
+            .count();
+        e.range = (e.range.0 + prefix, e.range.1 - suffix);
+        e.text = new[prefix..new.len() - suffix].concat();
+    }
+    edits
+}
+
 #[cfg(test)]
 mod test {
     use rand::rngs::StdRng;
