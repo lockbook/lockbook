@@ -147,6 +147,11 @@ pub struct MdRender {
     /// The last change to the buffer edited its text; moving the caret
     /// alone ends it. The word being typed is not spell checked.
     pub typing: bool,
+    /// Front matter drawn as a strip of pills rather than the grid. Opens
+    /// from the sticky choice; the caret entering the block expands it.
+    pub front_matter_collapsed: bool,
+    /// The user toggled the strip this frame; the choice becomes sticky.
+    pub front_matter_collapse_toggled: bool,
 
     // document
     pub buffer: Buffer,
@@ -691,6 +696,9 @@ static PRINT: bool = false;
 pub struct MdPersistence {
     toolbar: ToolbarPersistence,
     file: HashMap<Uuid, MdFilePersistence>,
+    /// Whether front matter opens collapsed: the last choice, anywhere.
+    #[serde(default)]
+    front_matter_collapsed: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -834,6 +842,8 @@ impl MdRender {
             caret_moved: false,
             caret_affinity: Default::default(),
             typing: false,
+            front_matter_collapsed: false,
+            front_matter_collapse_toggled: false,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
@@ -957,6 +967,8 @@ impl MdRender {
             caret_moved: false,
             caret_affinity: Default::default(),
             typing: false,
+            front_matter_collapsed: false,
+            front_matter_collapse_toggled: false,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
@@ -1217,6 +1229,8 @@ impl Editor {
             caret_moved: false,
             caret_affinity: Default::default(),
             typing: false,
+            front_matter_collapsed: false,
+            front_matter_collapse_toggled: false,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -1899,6 +1913,11 @@ impl Editor {
             self.next_resp.scroll_updated = new_offset != prev_offset;
             self.edit.scroll_area_velocity = self.edit.scroll_area.velocity();
 
+            // the strip or the grid: the last choice anywhere
+            if !self.initialized {
+                self.edit.renderer.front_matter_collapsed =
+                    self.persistence.get_markdown().front_matter_collapsed;
+            }
             // persistence: read on first frame; an embed keeps none
             if !self.initialized && !self.embedded {
                 let persisted = self
@@ -2068,6 +2087,11 @@ impl Editor {
                 .or_default();
             if entry.selection != current_selection {
                 entry.selection = current_selection;
+                persistence_updated = true;
+            }
+            if std::mem::take(&mut self.edit.renderer.front_matter_collapse_toggled) {
+                persistence.markdown.front_matter_collapsed =
+                    self.edit.renderer.front_matter_collapsed;
                 persistence_updated = true;
             }
         }

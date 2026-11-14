@@ -552,7 +552,8 @@ impl MdEdit {
                 // the row's old end advances to the new value's end
                 ops.push(Operation::Select(row.line.end().into_range()));
             }
-            (_, None) => {}
+            // handled where the renderer's state lives
+            (FrontMatterAction::ToggleCollapsed, _) | (_, None) => {}
         }
     }
 }

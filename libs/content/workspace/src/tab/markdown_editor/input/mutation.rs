@@ -1,7 +1,7 @@
 use crate::style::button::COPY_FEEDBACK_SECS;
 use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
-use crate::tab::markdown_editor::input::{Event, Increment};
+use crate::tab::markdown_editor::input::{Event, FrontMatterAction, Increment};
 use crate::tab::markdown_editor::widget::utils::{
     NodeValueExt as _, leading_indent_cols, leading_indent_range, wrap_layout,
 };
@@ -687,6 +687,10 @@ impl<'ast> MdEdit {
                 self.renderer.open_dest(&url, wikilink, &ctx);
             }
             Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
+            Event::FrontMatter(FrontMatterAction::ToggleCollapsed) => {
+                self.renderer.front_matter_collapsed ^= true;
+                self.renderer.front_matter_collapse_toggled = true;
+            }
             Event::FrontMatter(action) => self.front_matter_action(action, operations),
             Event::OpenDiagram => {
                 use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;

@@ -530,19 +530,36 @@ impl<'ast> MdRender {
         let (_size, icon_size, space) = size_icon_size_space;
         let folded = self.fold(node).is_some();
         let toggle = Event::ToggleFold { node: Some(self.node_range(node)) };
-        // A finger's target: the gutter around the button, the row's height.
-        let target =
-            Rect::from_min_max(space.min - Vec2::new(6.0, 4.0), space.max + Vec2::new(6.0, 4.0));
-        self.touch_targets
-            .push((target, TouchTarget::Tap(toggle.clone())));
+        self.push_gutter_target(space, &toggle);
 
         if !folded && self.foldable(node).is_none() {
             return;
         }
 
+        let id = ui.scope_id().with("md_fold_btn");
+        let marked = folded && !fold_reveal;
+        let tips = ["Show Contents", "Hide Contents"];
+        self.show_gutter_chevron(ui, id, (icon_size, space), toggle, folded, marked, tips);
+    }
+
+    /// A finger's target for a gutter control: around it, the row's height.
+    pub fn push_gutter_target(&mut self, space: Rect, toggle: &Event) {
+        let target =
+            Rect::from_min_max(space.min - Vec2::new(6.0, 4.0), space.max + Vec2::new(6.0, 4.0));
+        self.touch_targets
+            .push((target, TouchTarget::Tap(toggle.clone())));
+    }
+
+    /// A chevron in the gutter at `space` that sends `toggle` when clicked:
+    /// right while `folded`, else down, and in the accent while `marked`.
+    /// `tips` say what a click does while folded and while open.
+    #[allow(clippy::too_many_arguments)]
+    pub fn show_gutter_chevron(
+        &mut self, ui: &mut Ui, id: egui::Id, (icon_size, space): (f32, Rect), toggle: Event,
+        folded: bool, marked: bool, tips: [&str; 2],
+    ) {
         // Interact on the gutter rect — do not allocate in the parent ui
         // (off-screen neighbor rows would displace the mobile toolbar, #4892).
-        let id = ui.scope_id().with("md_fold_btn");
         let resp = ui.interact(space, id, sense_click());
         control_cursor(ui, space);
 
@@ -558,7 +575,7 @@ impl<'ast> MdRender {
             0.0
         };
         if hover > 0.0 {
-            let amt = if folded && !fold_reveal { FG_PRESS * hover } else { FG_HOVER * hover };
+            let amt = if marked { FG_PRESS * hover } else { FG_HOVER * hover };
             ui.painter().rect_filled(
                 space,
                 Radius::Sm.corner(),
@@ -567,7 +584,7 @@ impl<'ast> MdRender {
         }
 
         let glyph = if folded { phosphor::CARET_RIGHT } else { phosphor::CARET_DOWN };
-        let color = if folded && !fold_reveal {
+        let color = if marked {
             t.accent()
         } else {
             t.neutral_fg_secondary()
@@ -576,7 +593,7 @@ impl<'ast> MdRender {
         GlyphonLabel::icon(glyph, color, icon_size)
             .build(ui.ctx())
             .paint_centered(ui.painter(), space.center());
-        tip_text(ui.ctx(), &resp, if folded { "Show Contents" } else { "Hide Contents" });
+        tip_text(ui.ctx(), &resp, if folded { tips[0] } else { tips[1] });
 
         if resp.clicked() {
             self.render_events.push(toggle);

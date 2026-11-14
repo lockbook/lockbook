@@ -935,19 +935,29 @@ fn shape_to_items(
         }
     }
 
-    // nothing inside a scope that can't wrap is a place to break
+    // nothing inside a scope that can't wrap is a place to break; its
+    // format edges still split the shaping, with no glue between
     let mut open = Vec::new();
+    let mut held: Vec<(usize, usize)> = Vec::new();
     for (pos, ev) in &layout.events {
         match ev {
             FlowEvent::Open(s) => open.push((*pos, s.wrap)),
             FlowEvent::Close => {
                 if let Some((start, false)) = open.pop() {
-                    breaks.retain(|&b| b <= start || b >= *pos);
+                    held.push((start, *pos));
                 }
             }
             _ => {}
         }
     }
+    let is_held = |b: usize| held.iter().any(|&(start, end)| start < b && b < end);
+    let format_edge = |b: usize| {
+        layout
+            .format_runs
+            .iter()
+            .any(|(s, e, _)| b == *s || b == *e)
+    };
+    breaks.retain(|&b| !is_held(b) || format_edge(b));
     let break_points: Vec<usize> = breaks.into_iter().collect();
     let stop = tab_stop_distance(row_height);
     let tab_set: std::collections::HashSet<usize> = layout.tab_positions.iter().copied().collect();
@@ -977,7 +987,7 @@ fn shape_to_items(
         let chunk_text = &layout.visible[chunk_lo..chunk_hi];
         let format = format_for_range(&layout.format_runs, chunk_lo, chunk_hi)
             .unwrap_or_else(default_format);
-        let blank = chunk_text.chars().all(char::is_whitespace);
+        let blank = chunk_text.chars().all(char::is_whitespace) && !is_held(chunk_lo);
 
         // Shape this chunk into its own Buffer. The buffer is what
         // paint will use; the advance comes from the buffer's
@@ -1047,7 +1057,7 @@ fn shape_to_items(
             });
             prev_was_nonblank = false;
         } else {
-            if prev_was_nonblank {
+            if prev_was_nonblank && !is_held(chunk_lo) {
                 let lo_u = chunk_lo as u32;
                 items.push(InlineItem::Glue {
                     natural: 0.0,

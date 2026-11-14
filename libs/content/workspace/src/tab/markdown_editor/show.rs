@@ -512,8 +512,23 @@ impl MdEdit {
     ) {
         let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
             .then_some(self.renderer.buffer.current.selection);
+        // a caret in the collapsed front matter opens it, and it stays open
+        let node = self
+            .renderer
+            .bounds
+            .front_matter
+            .as_ref()
+            .map(|fm| fm.node());
+        let opens = self.renderer.front_matter_collapsed
+            && new_reveal_selection
+                .zip(node)
+                .is_some_and(|(s, node)| node.start() <= s.start() && s.end() <= node.end());
+        if opens {
+            self.renderer.front_matter_collapsed = false;
+        }
         if self.renderer.reveal_selection != new_reveal_selection
             || prior_entered_atom != self.renderer.entered_atom
+            || opens
         {
             self.renderer.reveal_selection = new_reveal_selection;
             self.renderer.reveal_seq = self

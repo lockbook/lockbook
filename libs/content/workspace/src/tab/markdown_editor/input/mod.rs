@@ -158,6 +158,8 @@ pub enum FrontMatterAction {
     MakeText(usize),
     MakeList(usize),
     MakeCheckbox(usize),
+    /// The strip of pills, or the grid; the choice sticks.
+    ToggleCollapsed,
 }
 
 impl From<(Grapheme, Grapheme)> for Region {

@@ -80,4 +80,20 @@ impl<'ast> MdRender {
         }
         offset
     }
+
+    /// Where ↑ or ↓ from outside the collapsed block lands in it: the end
+    /// of its last row going up, of its first going down, since an x on
+    /// the pills means nothing in the grid that opens.
+    pub fn front_matter_landing(
+        &self, from: Grapheme, to: Grapheme, backwards: bool,
+    ) -> Option<Grapheme> {
+        let fm = self.bounds.front_matter.as_ref()?;
+        let node = fm.node();
+        let inside = |o: Grapheme| node.start() <= o && o < node.end();
+        if !self.front_matter_collapsed || inside(from) || !inside(to) {
+            return None;
+        }
+        let row = if backwards { fm.rows.last() } else { fm.rows.first() };
+        row.map(|row| row.exit())
+    }
 }

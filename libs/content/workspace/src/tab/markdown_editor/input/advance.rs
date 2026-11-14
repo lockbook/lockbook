@@ -60,7 +60,16 @@ impl MdEdit {
                         self.cursor.x_target = Some(x_target);
                     }
                 }
-                result
+                match self
+                    .renderer
+                    .front_matter_landing(offset, result, backwards)
+                {
+                    Some(landing) => {
+                        self.cursor.x_target = None;
+                        landing
+                    }
+                    None => result,
+                }
             }
         };
         let raw = result;

@@ -5,10 +5,13 @@
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{
+    Grapheme, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
+};
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::front_matter::{FrontMatter, RowKind, Value};
-use crate::tab::markdown_editor::input::Event;
+use crate::tab::markdown_editor::input::{Event, FrontMatterAction};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     EmbedKind, EmbedSpec, FontFamily, Format, Layout, StyleInfo, WrapUnitLayout,
 };
@@ -40,9 +43,19 @@ impl RowUnits {
     }
 }
 
-/// Click-target id of a checkbox value, keyed by where its text starts.
-fn checkbox_id_salt(text: (Grapheme, Grapheme)) -> egui::Id {
-    egui::Id::unique(("md_fm_checkbox", text.start().0))
+/// A collapsed value longer than this is cut, with an ellipsis.
+const PILL_VALUE_GRAPHEMES: usize = 28;
+
+/// Click-target id of a collapsed row's pill, keyed by its line's start.
+fn pill_id_salt(line: (Grapheme, Grapheme)) -> egui::Id {
+    egui::Id::unique(("md_fm_pill", line.start().0))
+}
+
+/// At most [`PILL_VALUE_GRAPHEMES`] of `s`, an ellipsis standing for the rest.
+fn cut(s: &str) -> String {
+    let mut g = s.graphemes(true);
+    let head: String = g.by_ref().take(PILL_VALUE_GRAPHEMES).collect();
+    if g.next().is_some() { format!("{head}…") } else { head }
 }
 
 impl<'ast> MdRender {
@@ -326,11 +339,112 @@ impl<'ast> MdRender {
         (key_column, rows)
     }
 
+    /// The block as one wrapped row of pills, `key value` each, in source
+    /// order; a pill stands for its whole line.
+    fn front_matter_strip(&self, fm: &FrontMatter<Grapheme>, width: f32) -> WrapUnitLayout {
+        let t = self.ctx.get_lb_theme();
+        let plain = self.text_format_document();
+        let key_fmt =
+            Format { background: t.neutral_bg_secondary(), ..self.text_format_front_matter_key() };
+        let value_fmt = Format { background: t.neutral_bg_secondary(), ..plain.clone() };
+        let tag_fmt = Format { family: FontFamily::Mono, color: t.accent(), ..value_fmt.clone() };
+        let source_fmt =
+            Format { background: t.neutral_bg_secondary(), ..self.text_format_syntax() };
+        let mut l = Layout::new(fm.node());
+        l.push_override(fm.head, "", plain.clone());
+        let mut any = false;
+        for row in &fm.rows {
+            let (key_end, key, value, value_fmt) = match &row.kind {
+                RowKind::Property { key, value, .. } => {
+                    let text = match value {
+                        Value::Text { text, .. } => cut(&self.buffer[*text]),
+                        Value::Empty { .. } => String::new(),
+                        Value::List { items, .. } => cut(&items
+                            .iter()
+                            .map(|i| &self.buffer[i.text])
+                            .collect::<Vec<_>>()
+                            .join(" · ")),
+                    };
+                    let tag = &self.buffer[*key] == "tags";
+                    (
+                        key.end(),
+                        self.buffer[*key].to_string(),
+                        text,
+                        if tag { &tag_fmt } else { &value_fmt },
+                    )
+                }
+                RowKind::Pending { key } => {
+                    (key.end(), self.buffer[*key].to_string(), String::new(), &value_fmt)
+                }
+                RowKind::Blank => continue,
+                RowKind::Source { .. } => {
+                    let first = self.bounds.source_lines[self.range_lines(row.line).start()];
+                    (row.line.start(), String::new(), cut(self.buffer[first].trim()), &source_fmt)
+                }
+            };
+            if any {
+                l.push_override(row.line.start().into_range(), " ", plain.clone());
+            }
+            any = true;
+            l.interaction_open(pill_id_salt(row.line), egui::Sense::click());
+            l.style_open(StyleInfo {
+                format: key_fmt.clone(),
+                source_range: row.line,
+                chip: true,
+                wrap: false,
+                caret_inside: false,
+            });
+            if !key.is_empty() {
+                l.push_override((row.line.start(), key_end), &key, key_fmt.clone());
+            }
+            let value =
+                if key.is_empty() || value.is_empty() { value } else { format!("  {value}") };
+            if value.is_empty() {
+                l.push_override((key_end, row.line.end()), "", plain.clone());
+            } else {
+                l.push_override((key_end, row.line.end()), &value, value_fmt.clone());
+            }
+            l.style_close();
+            l.interaction_close();
+        }
+        l.push_override(fm.tail, "", plain);
+        self.compute_layout_from(l, width, self.layout.row_height)
+    }
+
+    /// The chevron in the gutter that collapses or opens the block: on
+    /// desktop while the pointer is over the block, always on touch and
+    /// while collapsed.
+    fn show_front_matter_toggle(&mut self, ui: &mut Ui, top_left: Pos2, size: Vec2) {
+        if !self.interactive || self.painting_drag_float {
+            return;
+        }
+        let (_, icon_size, space) = Self::fold_button_size_icon_size_space(
+            top_left,
+            self.layout.row_height,
+            self.layout.indent,
+        );
+        let toggle = Event::FrontMatter(FrontMatterAction::ToggleCollapsed);
+        self.push_gutter_target(space, &toggle);
+        let collapsed = self.front_matter_collapsed;
+        let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
+        let block = Rect::from_min_size(top_left, size);
+        let target = space.expand2(Vec2::new(6.0, 4.0));
+        if !(self.touch_mode || collapsed || block.contains(pointer) || target.contains(pointer)) {
+            return;
+        }
+        let id = ui.scope_id().with("md_fm_toggle");
+        let tips = ["Show Properties", "Hide Properties"];
+        self.show_gutter_chevron(ui, id, (icon_size, space), toggle, collapsed, false, tips);
+    }
+
     pub fn height_front_matter(&self, node: &'ast AstNode<'ast>) -> f32 {
         let Some(fm) = &self.bounds.front_matter else {
             return self.height_fenced_code_block(node, &Self::frontmatter_as_code_block());
         };
         let width = self.width(node);
+        if self.front_matter_collapsed {
+            return self.front_matter_strip(fm, width).height;
+        }
         self.front_matter_rows_height(&self.front_matter_units(fm, width).1)
     }
 
@@ -348,7 +462,15 @@ impl<'ast> MdRender {
             return;
         };
         let width = self.width(node);
+        if self.front_matter_collapsed {
+            let strip = self.front_matter_strip(&fm, width);
+            self.show_wrap_layout(ui, top_left, &strip);
+            self.show_front_matter_toggle(ui, top_left, Vec2::new(width, strip.height));
+            return;
+        }
         let (key_column, units) = self.front_matter_units(&fm, width);
+        let height = self.front_matter_rows_height(&units);
+        self.show_front_matter_toggle(ui, top_left, Vec2::new(width, height));
         let row_spacing = self.layout.row_spacing;
         let value_x = top_left.x + key_column + self.layout.block_padding;
         let mut y = top_left.y;
@@ -379,40 +501,24 @@ impl<'ast> MdRender {
         }
     }
 
-    /// A click on a checkbox value flips it. Must run after
-    /// `interact_fragments`.
+    /// A click on a collapsed block's pill opens it on that row. Must run
+    /// after `interact_fragments`.
     pub fn handle_front_matter_interactions(&mut self, ui: &egui::Ui) {
-        if self.readonly {
-            return;
-        }
         let Some(fm) = &self.bounds.front_matter else { return };
-        let checkboxes: Vec<((Grapheme, Grapheme), bool)> = fm
-            .rows
-            .iter()
-            .filter_map(|row| match &row.kind {
-                RowKind::Property {
-                    value: Value::Text { text, checked: Some(checked), .. },
-                    ..
-                } => Some((*text, *checked)),
-                _ => None,
-            })
-            .collect();
         let parent_base = ui.scope_id();
-        for (text, checked) in checkboxes {
-            let id = parent_base.with(checkbox_id_salt(text));
-            let Some(response) = self.interaction_responses.get(&id).cloned() else { continue };
-            let toggle = Event::Replace {
-                region: text.into(),
-                text: (if checked { "false" } else { "true" }).into(),
-                advance_cursor: false,
-            };
-            self.touch_consume_interaction(id, TouchTarget::Tap(toggle.clone()));
-            if response.hovered() {
-                ui.ctx()
-                    .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            }
-            if response.clicked() {
-                self.render_events.push(toggle);
+        // a pill opens the block with the caret on its row
+        if self.front_matter_collapsed && self.interactive {
+            let pills: Vec<((Grapheme, Grapheme), Grapheme)> =
+                fm.rows.iter().map(|row| (row.line, row.exit())).collect();
+            for (line, caret) in pills {
+                let id = parent_base.with(pill_id_salt(line));
+                let Some(response) = self.interaction_responses.get(&id).cloned() else { continue };
+                let open = Event::Select { region: caret.into_range().into() };
+                self.touch_consume_interaction(id, TouchTarget::Tap(open.clone()));
+                crate::style::control_cursor(ui, response.rect);
+                if response.clicked() {
+                    self.render_events.push(open);
+                }
             }
         }
     }
