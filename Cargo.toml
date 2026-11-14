@@ -12,6 +12,7 @@ members = [
     "clients/cli",
     "clients/linux",
     "clients/windows",
+    "clients/windows-cloud-files",
     "clients/desktop",
     "clients/admin",
     "utils/lbdev",

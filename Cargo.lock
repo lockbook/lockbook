@@ -4778,6 +4778,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "lockbook-cloud-files"
+version = "26.11.6"
+dependencies = [
+ "lb-rs",
+ "windows",
+]
+
+[[package]]
 name = "lockbook-desktop"
 version = "26.11.13"
 dependencies = [
