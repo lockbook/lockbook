@@ -44,7 +44,9 @@ async-stripe = { version = "0.37.0", default-features = false, features = [
     "webhook-events",
 ] }
 sha2 = "0.10.2"
-google-androidpublisher3 = "5.0.5"
+google-androidpublisher3 = { version = "7.0.0", features = ["yup-oauth2-service-account"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 constant_time_eq = "0.2.2"
 tracing = "0.1.5"
 tracing-subscriber = "0.3.9"

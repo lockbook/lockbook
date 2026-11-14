@@ -2,13 +2,13 @@ use crate::billing::billing_model::StripeUserInfo;
 use crate::document_service::DocumentService;
 use crate::guard::ServerTx;
 use crate::{ClientError, ServerError, ServerState, StripeWebhookError};
-use google_androidpublisher3::hyper::body::Bytes;
-use google_androidpublisher3::hyper::header::HeaderValue;
 use lb_rs::model::api::{
     PaymentMethod, StripeAccountState, StripeAccountTier, UpgradeAccountStripeError,
 };
 use lb_rs::model::file_metadata::Owner;
 use libsecp256k1::PublicKey;
+use warp::http::HeaderValue;
+use warp::hyper::body::Bytes;
 
 use stripe::{Event, Invoice};
 use tracing::*;
