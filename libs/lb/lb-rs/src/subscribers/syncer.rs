@@ -435,6 +435,8 @@ impl<S: Server> Lb<S> {
             let mut duplicate_file_ids: HashMap<Uuid, (Uuid, AESKey)> = HashMap::new();
 
             'merge_construction: loop {
+                // judged afresh each attempt, since an undone cycle can change a destination's access
+                let mut refused_moves: HashSet<Uuid> = HashSet::new();
                 // process just the edits which allow us to check deletions in the result
                 let mut remote_with_moves = {
                     let mut remote_with_moves = remote_unlazy.stage(Vec::new()).to_lazy();
@@ -461,8 +463,10 @@ impl<S: Server> Lb<S> {
                     }
 
                     // moves (creations happen first in case a file is moved into a new folder);
-                    // as in the merge, skipping files the server moved or deleted
-                    for id in db.local_metadata.ids() {
+                    // as in the merge, skipping files the server moved or deleted; parents first,
+                    // so a destination is judged where its own kept move puts it
+                    let local_ids = db.local_metadata.ids().into_iter().collect();
+                    for id in parents_first(&local, &local_ids)? {
                         let local_file = local.find(&id)?.clone();
                         if let Some(base_file) = db.base_metadata.maybe_find(&id).cloned() {
                             if !local_file.explicitly_deleted()
@@ -478,9 +482,14 @@ impl<S: Server> Lb<S> {
                                 let may_move_from = remote.maybe_find(from).is_some()
                                     && remote.access_mode(me, from)? >= Some(UserAccessMode::Write);
                                 if !may_move_from
-                                    || !may_write_in(&local, &remote, me, local_file.parent())?
+                                    || !may_write_in(
+                                        &local,
+                                        &remote_with_moves,
+                                        me,
+                                        local_file.parent(),
+                                    )?
                                 {
-                                    files_to_unmove.insert(id);
+                                    refused_moves.insert(id);
                                     continue;
                                 }
                                 // move
@@ -597,6 +606,7 @@ impl<S: Server> Lb<S> {
                             if local_file.parent() != base_file.parent()
                                 && remote.find(&id)?.parent() == base_file.parent()
                                 && !files_to_unmove.contains(&id)
+                                && !refused_moves.contains(&id)
                             {
                                 let parent = *local_file.parent();
                                 merge.move_unvalidated(&id, &parent, &self.keychain)?;
@@ -1597,21 +1607,24 @@ fn unmove_cycle<T: TreeLike>(
     Ok(())
 }
 
-/// `ids` ordered so each file comes after its parent when that parent is also in `ids`.
+/// `ids` ordered so each file comes after its ancestors that are also in `ids`.
 fn parents_first<T: TreeLike>(tree: &LazyTree<T>, ids: &HashSet<Uuid>) -> LbResult<Vec<Uuid>> {
     let mut order = Vec::with_capacity(ids.len());
-    let mut placed = HashSet::with_capacity(ids.len());
+    let mut walked = HashSet::with_capacity(ids.len());
     for &id in ids {
-        let mut unplaced_ancestry = Vec::new();
+        let mut unwalked_ancestry = Vec::new();
         let mut id = id;
-        while ids.contains(&id) && !placed.contains(&id) && !unplaced_ancestry.contains(&id) {
-            unplaced_ancestry.push(id);
-            id = *tree.find(&id)?.parent();
+        while walked.insert(id) {
+            unwalked_ancestry.push(id);
+            let Some(file) = tree.maybe_find(&id) else { break };
+            id = *file.parent();
         }
-        for id in unplaced_ancestry.into_iter().rev() {
-            placed.insert(id);
-            order.push(id);
-        }
+        order.extend(
+            unwalked_ancestry
+                .into_iter()
+                .rev()
+                .filter(|id| ids.contains(id)),
+        );
     }
     Ok(order)
 }
