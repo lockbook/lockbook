@@ -386,6 +386,16 @@ fn an_image_dropped_inside_a_word_lands_at_its_nearer_edge() {
 }
 
 #[test]
+fn an_image_dropped_beside_one_whose_link_spans_a_line_leaves_it_whole() {
+    let md = format!("![a]({IMAGE})\n\n![b]({IMAGE}\n) world\n");
+    let mut ws = editor(&md);
+    // just past the end of the first row of `![b]`
+    let (from, to) = (image_center(&ws), after(&ws, "a.png)\n\n") + egui::vec2(120.0, 0.0));
+    drag(&mut ws, from, to);
+    assert_eq!(ws.get_text(), format!("\n\n![b]({IMAGE}\n)![a]({IMAGE}) world\n"));
+}
+
+#[test]
 fn an_undo_after_a_tap_elsewhere_comes_back_to_the_image() {
     use super::super::input::{Location, Region};
     let md = format!("caret\n\n| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
