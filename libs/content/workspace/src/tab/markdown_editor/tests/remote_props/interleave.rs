@@ -1,14 +1,10 @@
 //! The driver every remote property runs under: generated input with sync
-//! results landing between frames. A frame is atomic, so the editor's only
-//! concurrency is which of them reach it between frames: newer versions of
-//! the note from a sync ([`Editor::reload`]) or a save's completion
-//! ([`Editor::saved`]), around frames of local input. The task manager runs
-//! one load or save of a file at a time, may collapse several loads into the
-//! latest, and applies a finished save before the next load starts, so a
-//! remote version only lands while no save is in flight.
-//!
-//! [`Editor::reload`]: super::super::Editor::reload
-//! [`Editor::saved`]: super::super::Editor::saved
+//! results landing between frames, through a real workspace. A frame is
+//! atomic, so the editor's only concurrency is what reaches it between
+//! frames: newer versions of the note from other devices and saves'
+//! completions, around frames of local input. The workspace's task manager
+//! launches each load and save by its own rules; each read or write runs,
+//! and is later recorded for the next frame to apply, as steps of their own.
 
 use comrak::nodes::NodeValue;
 use egui::{Event as Egui, Modifiers, PointerButton, Pos2};
@@ -16,18 +12,20 @@ use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
+use super::super::super::Editor;
 use super::super::super::input::{Event, Location, Region};
 use super::super::super::widget::utils::wrap_layout::FragmentContent;
 use super::super::doc_gen::{Features, gen_doc};
 use super::super::edit_props::{event_count, event_with};
 use super::super::harness::TestEditor;
-use super::reload::Latest;
-use super::scroll::{self, BLOCK, BLOCKS, VIEW, long_doc, pick_visible, settle, view_range};
-use super::{Events, IMAGE, Prop, lb};
+use super::note::{Landed, Note};
+use super::reload::{Input, Latest};
+use super::scroll::{self, BLOCK, BLOCKS, long_doc, pick_visible, settle, view_range};
+use super::{Events, Host, IMAGE, Prop, lb};
 use crate::test_utils::byte_source::ByteSource;
 
 /// The run's choices, ahead of the bytes the note is made from.
-const CHOICES: usize = 256;
+const CHOICES: usize = 1024;
 /// The bytes the opening note is made from; the rest make rewrites.
 const DOC: usize = BLOCK * BLOCKS;
 
@@ -38,19 +36,13 @@ pub(super) fn run(prop: Prop, features: Features, events: Events, seeds: u64) {
     super::run(seeds, CHOICES + DOC + 256, |b, log| check(b, prop, &features, events, log));
 }
 
-/// The note as both sides last agreed on it, and the save in flight.
 struct Session<'a> {
-    ws: TestEditor,
+    note: Note,
     prop: Prop,
     features: Features,
     events: Events,
     /// The bytes another device's rewrites of the note are made from.
     docs: ByteSource<'a>,
-    /// The seq and text a launched save will record.
-    save: Option<(usize, String)>,
-    /// The note on disk, which a remote edit starts from.
-    disk: String,
-    saves: u8,
     remotes: usize,
     /// The buffer's seq once the last remote version landed.
     remote_seq: usize,
@@ -73,110 +65,214 @@ fn check(
     } else {
         gen_doc(&mut ByteSource::new(doc), features)
     };
+    // a NUL makes the note binary to the workspace, which won't open it in the editor
+    let md = md.replace('\0', "");
     log(format!("doc ({} bytes) {md:?}", md.len()));
-    let (mut ws, embeds) = TestEditor::with_test_embeds(lb(), &md);
-    embeds.complete(IMAGE, egui::vec2(40.0, 40.0));
+    let mut note = Note::open(&md);
     if prop == Prop::OutlineFresh {
-        ws.editor.toggle_outline();
+        note.editor_mut().toggle_outline();
     }
     let mut s = Session {
-        ws,
+        note,
         prop,
         features: *features,
         events,
         docs: ByteSource::new(docs),
-        save: None,
         latest: (prop == Prop::LatestVersion).then(|| Latest::new(&md)),
-        disk: md,
-        saves: 0,
         remotes: 0,
         remote_seq: 0,
         left_tier: false,
     };
-    s.frame(false, log)?;
+    s.frame(Input::None, log)?;
     if events >= Events::Scrolled {
         let wheel = 200.0 * (1 + src.draw(12)) as f32;
         log(format!("scroll down {wheel}pt"));
-        scroll::scroll(&mut s.ws, wheel);
-        s.frame(true, log)?;
+        scroll::scroll(&mut s.note, wheel);
+        s.frame(Input::Some, log)?;
     }
     if events >= Events::Held {
-        if let Some(at) = pick_visible(&s.ws, &mut src) {
+        if let Some(at) = pick_visible(&s.note, &mut src) {
             let caret = Grapheme(at.source_range.start().0 + src.draw(at.len().max(1)));
             log(format!("caret at {caret:?}"));
-            s.ws.push(Event::Select {
-                region: Region::BetweenLocations {
-                    start: Location::Grapheme(caret),
-                    end: Location::Grapheme(caret),
+            s.input(
+                Event::Select {
+                    region: Region::BetweenLocations {
+                        start: Location::Grapheme(caret),
+                        end: Location::Grapheme(caret),
+                    },
                 },
-            });
-            s.frame(true, log)?;
+                log,
+            )?;
         }
     }
-    for _ in 0..3 * event_count(&mut src) {
+    for _ in 0..8 * event_count(&mut src) {
         s.step(&mut src, log)?;
         if s.left_tier {
             return Ok(());
         }
     }
     if prop == Prop::OutlineFresh {
-        outline_fresh(&mut s.ws, log)?;
+        outline_fresh(&mut s.note, log)?;
     }
     Ok(())
 }
 
 impl Session<'_> {
     fn seq(&self) -> usize {
-        self.ws.editor.edit.renderer.buffer.current.seq
+        self.note.editor().edit.renderer.buffer.current.seq
     }
 
-    /// A frame, then frames until the view settles. Only `input` may change
-    /// the text.
-    fn frame(&mut self, input: bool, log: &mut dyn FnMut(String)) -> Result<(), String> {
-        self.ws.enter_frame();
-        settle(&mut self.ws);
+    fn text(&self) -> String {
+        self.note.text().to_string()
+    }
+
+    /// A frame, then frames until the view settles. Only `input`, queued
+    /// before it, may change the text; anything recorded lands first, in a
+    /// frame of its own.
+    fn frame(&mut self, input: Input, log: &mut dyn FnMut(String)) -> Result<(), String> {
+        if matches!(input, Input::None) {
+            self.lands(log)?;
+        }
+        self.note.frame_after(0.0, vec![]);
+        settle(&mut self.note);
         self.observe(input, log)
+    }
+
+    /// Editor input, then a frame.
+    fn input(&mut self, mut event: Event, log: &mut dyn FnMut(String)) -> Result<(), String> {
+        self.lands(log)?;
+        if let Event::Replace { text, .. } = &mut event {
+            // a NUL makes the note binary to the workspace
+            text.retain(|c| c != '\0');
+        }
+        self.note.t.push(event.clone());
+        self.frame(Input::Event(&event), log)
     }
 
     /// One frame of pointer input.
     fn pointer(&mut self, input: Vec<Egui>, log: &mut dyn FnMut(String)) -> Result<(), String> {
-        self.ws.enter_frame_with_input(input);
-        self.observe(true, log)
+        self.lands(log)?;
+        self.note.frame_after(0.0, input);
+        self.observe(Input::Some, log)
     }
 
-    fn observe(&mut self, input: bool, log: &mut dyn FnMut(String)) -> Result<(), String> {
+    /// Applies what's recorded in a frame of its own, as the next frame
+    /// would, and judges the view it lands under. A reload first applies
+    /// input still queued, as a drop's move.
+    fn lands(&mut self, log: &mut dyn FnMut(String)) -> Result<(), String> {
+        if !self.note.recorded() {
+            return Ok(());
+        }
+        let ctx = self.note.editor().edit.renderer.ctx.clone();
+        self.note.editor_mut().edit.apply_queued(&ctx);
+        self.observe(Input::Some, log)?;
+        let view = self.view();
+        self.note.frame_after(0.0, vec![]);
+        settle(&mut self.note);
+        self.observe(Input::None, log)?;
+        self.judge(view, log)
+    }
+
+    /// Hands what frames applied to the checks, in the order applied.
+    fn observe(&mut self, input: Input, log: &mut dyn FnMut(String)) -> Result<(), String> {
+        let text = self.text();
+        for landed in self.note.take_applied() {
+            match landed {
+                Landed::Load(disk) => {
+                    self.remotes += 1;
+                    self.remote_seq = self.seq();
+                    log("load lands".into());
+                    if let Some(latest) = &mut self.latest {
+                        latest.landed(&disk, &text, log)?;
+                    }
+                }
+                Landed::Saved(written) => {
+                    log("save lands".into());
+                    if let Some(latest) = &mut self.latest {
+                        latest.saved(&written);
+                    }
+                }
+                Landed::Launched => {
+                    log("save launches".into());
+                    if let Some(latest) = &mut self.latest {
+                        latest.launched();
+                    }
+                }
+            }
+        }
         match &mut self.latest {
-            Some(latest) => latest.framed(self.ws.get_text(), input, log),
+            Some(latest) => latest.framed(&text, input, log),
             None => Ok(()),
         }
     }
 
     fn step(&mut self, src: &mut ByteSource, log: &mut dyn FnMut(String)) -> Result<(), String> {
-        match src.bias(&[6, 3, 2, 2, 2, 2]) {
+        let saves = self.events >= Events::Saves;
+        match src.bias(&[6, 3, 2, 3, 3, 2, 2, 2]) {
             0 => self.local(src, log),
             1 => self.remote(src, log),
-            2 if self.events >= Events::Saves => self.save(log),
-            3 if self.undoes() => {
-                let before = self.ws.get_text().to_string();
-                let undone = self.ws.editor.edit.renderer.buffer.can_undo();
+            2 if saves => {
+                self.note.save(log);
+                self.frame(Input::None, log)
+            }
+            3 if saves => {
+                self.note.run(src, log);
+                Ok(())
+            }
+            4 if saves => self.record(src, log),
+            5 if self.undoes() => {
+                self.lands(log)?;
+                let before = self.text();
+                let undone = self.note.editor().edit.renderer.buffer.can_undo();
                 self.undo(log)?;
                 if self.prop == Prop::UndoRedo && undone && !self.left_tier {
                     log("redo".into());
-                    self.ws.push(Event::Redo);
-                    self.frame(true, log)?;
-                    if self.ws.get_text() != before {
-                        let text = self.ws.get_text();
+                    self.input(Event::Redo, log)?;
+                    let text = self.text();
+                    if text != before {
                         return Err(format!("undo, redo gives {text:?}, not {before:?}"));
                     }
                 }
                 Ok(())
             }
-            4 if self.events >= Events::Held => self.drag(src, log),
+            6 if self.events >= Events::Held => self.drag(src, log),
             _ => {
                 log("frame".into());
-                self.frame(false, log)
+                self.frame(Input::None, log)
             }
         }
+    }
+
+    /// Records one run read or write; a load waits for any already
+    /// recorded to land, so each lands in a frame of its own.
+    fn record(&mut self, src: &mut ByteSource, log: &mut dyn FnMut(String)) -> Result<(), String> {
+        if self.note.ran() == 0 {
+            return Ok(());
+        }
+        let i = src.draw(self.note.ran());
+        if self.note.ran_load(i) && self.note.load_recorded() {
+            self.lands(log)?;
+        }
+        self.note.record_at(i, log);
+        Ok(())
+    }
+
+    /// Runs and records everything in flight, framing until none is left.
+    fn settle_tasks(&mut self, log: &mut dyn FnMut(String)) -> Result<(), String> {
+        let mut src = ByteSource::new(&[]);
+        for _ in 0..50 {
+            if self.note.idle() {
+                return Ok(());
+            }
+            while self.note.held() > 0 {
+                self.note.run(&mut src, log);
+            }
+            while self.note.ran() > 0 {
+                self.record(&mut src, log)?;
+            }
+            self.frame(Input::None, log)?;
+        }
+        Err("the note's loads and saves never settled".into())
     }
 
     /// Below [`Events::Undo`], only local edits since the last remote
@@ -189,8 +285,7 @@ impl Session<'_> {
     /// across a remote version; the run then stops, as it left its tier.
     fn undo(&mut self, log: &mut dyn FnMut(String)) -> Result<(), String> {
         log("undo".into());
-        self.ws.push(Event::Undo);
-        self.frame(true, log)?;
+        self.input(Event::Undo, log)?;
         let across = self.remotes > 0 && self.seq() < self.remote_seq;
         if self.events < Events::Undo && across {
             log("the undo reached back across a remote version".into());
@@ -201,48 +296,43 @@ impl Session<'_> {
 
     /// One generated input event, then a frame.
     fn local(&mut self, src: &mut ByteSource, log: &mut dyn FnMut(String)) -> Result<(), String> {
-        let event = event_with(src, &self.ws, &self.features);
+        // input is made against the text the frame before it shows
+        self.lands(log)?;
+        let event = event_with(src, self.note.editor(), &self.features);
         if matches!(event, Event::Undo) {
-            return if self.undoes() { self.undo(log) } else { self.frame(false, log) };
+            return if self.undoes() { self.undo(log) } else { self.frame(Input::None, log) };
         }
         log(format!("local {event:?}"));
-        self.ws.push(event);
-        self.frame(true, log)
+        self.input(event, log)
     }
 
-    /// Other devices' versions of the note: one or more, each landing with
-    /// a frame, all in one frame, or collapsed to the last.
+    /// Other devices' versions of the note, one or more, written as a sync
+    /// writes them, with or without frames between; the workspace loads
+    /// them by its own rules. Below [`Events::Typing`] they land on a
+    /// just-saved note before more input.
     fn remote(&mut self, src: &mut ByteSource, log: &mut dyn FnMut(String)) -> Result<(), String> {
-        if self.events < Events::Reading || self.save.is_some() {
+        if self.events < Events::Reading {
             return Ok(());
         }
-        if self.events < Events::Typing {
-            self.save(log)?;
-            self.save(log)?;
+        let reading = self.events < Events::Typing;
+        if reading {
+            self.note.save(log);
+            self.settle_tasks(log)?;
+            if !self.note.idle() || self.text() != self.note.disk() {
+                return Ok(());
+            }
         }
         let versions = 1 + src.bias(&[4, 2, 1]);
-        let delivered = src.bias(&[3, 1, 1]);
-        let mut view = self.view();
-        for v in 0..versions {
+        let framed = src.bias(&[3, 1]) == 0;
+        for _ in 0..versions {
             let version = self.version(src, log);
-            if delivered != 2 || v + 1 == versions {
-                self.land(version, log)?;
-            } else {
-                self.disk = version;
-            }
-            if delivered == 0 {
-                self.frame(false, log)?;
-                self.judge(view, log)?;
-                view = self.view();
+            self.note.remote(&version);
+            if framed {
+                self.frame(Input::None, log)?;
             }
         }
-        if delivered != 0 {
-            log(format!(
-                "{} versions land in one frame",
-                if delivered == 1 { versions } else { 1 }
-            ));
-            self.frame(false, log)?;
-            self.judge(view, log)?;
+        if reading {
+            self.settle_tasks(log)?;
         }
         Ok(())
     }
@@ -250,7 +340,7 @@ impl Session<'_> {
     /// The view before versions land, for the properties that judge it.
     fn view(&mut self) -> Option<scroll::Before> {
         matches!(self.prop, Prop::TextStays | Prop::CaretStays)
-            .then(|| scroll::Before::new(&mut self.ws, self.prop))
+            .then(|| scroll::Before::new(&mut self.note, self.prop))
             .flatten()
     }
 
@@ -258,33 +348,15 @@ impl Session<'_> {
         &mut self, view: Option<scroll::Before>, log: &mut dyn FnMut(String),
     ) -> Result<(), String> {
         let scrolled = self.events >= Events::Scrolled;
-        view.map_or(Ok(()), |view| view.judge(&mut self.ws, self.prop, scrolled, log))
-    }
-
-    /// Lands another device's `version` at the top of the next frame, as
-    /// the workspace applies a finished load.
-    fn land(&mut self, version: String, log: &mut dyn FnMut(String)) -> Result<(), String> {
-        // a reload first applies input still queued, as a drop's move
-        let ctx = self.ws.editor.edit.renderer.ctx.clone();
-        self.ws.editor.edit.apply_queued(&ctx);
-        self.observe(true, log)?;
-        self.remotes += 1;
-        self.disk = version.clone();
-        self.ws
-            .editor
-            .reload(version, Some([self.remotes as u8; 32]));
-        self.remote_seq = self.seq();
-        match &mut self.latest {
-            Some(latest) => latest.landed(&self.disk, self.ws.get_text(), log),
-            None => Ok(()),
-        }
+        view.map_or(Ok(()), |view| view.judge(&mut self.note, self.prop, scrolled, log))
     }
 
     /// Another device's next version: an edit at a spot of the note as
     /// shown, carried onto the version on disk without the note's unsaved
     /// edits, or the version on disk reworked whole.
     fn version(&mut self, src: &mut ByteSource, log: &mut dyn FnMut(String)) -> String {
-        let text = self.ws.get_text().to_string();
+        let text = self.text();
+        let disk = self.note.disk();
         let bounds: Vec<usize> = text
             .grapheme_indices(true)
             .map(|(i, _)| i)
@@ -292,7 +364,7 @@ impl Session<'_> {
             .collect();
         let last = bounds.len() - 1;
         // from Scrolled the spot may be wholly above or below the view
-        let view = if self.events >= Events::Scrolled { view_range(&self.ws) } else { None };
+        let view = if self.events >= Events::Scrolled { view_range(&self.note) } else { None };
         let (lo, hi) = match (view, src.bias(&[2, 1, 1])) {
             (Some((lo, _)), 1) => (0, lo.0.min(last)),
             (Some((_, hi)), 2) => (hi.0.min(last), last),
@@ -300,7 +372,6 @@ impl Session<'_> {
         };
         let a = lo + src.draw(hi - lo + 1);
         let b = (a + src.draw(40)).min(hi);
-        let disk = self.disk.clone();
         let marker = format!("⟦{}⟧", self.remotes + 1);
         let lines: Vec<&str> = disk.split_inclusive('\n').collect();
         let next = match src.bias(&[4, 2, 2, 2, 2, 1, 1]) {
@@ -338,7 +409,7 @@ impl Session<'_> {
             }
             5 => {
                 log("remote rewrites the note".into());
-                gen_doc(&mut self.docs, &self.features)
+                gen_doc(&mut self.docs, &self.features).replace('\0', "")
             }
             _ => {
                 log("remote rewrites the note, keeping its words in a new order".into());
@@ -353,18 +424,18 @@ impl Session<'_> {
     }
 
     /// A version from another device inserting a marker outside any image,
-    /// landing without a frame after it. `None` while a save is in flight or
-    /// edits are unsaved, since a merge may drop an insert into one, or if no
-    /// spot keeps it whole.
+    /// written as the drop lets go, so it lands before the next frame moves
+    /// the image. `None` unless nothing is in flight or unsaved, since a
+    /// merge may drop an insert into an edit, or if no spot keeps it whole.
     fn remote_marker(
         &mut self, src: &mut ByteSource, log: &mut dyn FnMut(String),
-    ) -> Result<Option<String>, String> {
-        if self.save.is_some() || self.ws.get_text() != self.disk {
-            return Ok(None);
+    ) -> Option<String> {
+        let disk = self.note.disk();
+        if !self.note.idle() || self.text() != disk {
+            return None;
         }
         let marker = format!("⟦{}⟧", self.remotes + 1);
-        let disk = &self.disk;
-        let images = image_ranges(disk);
+        let images = image_ranges(&disk);
         // the marker's ends can't match the text beside it, or the diff finds
         // the insert shifted
         let (first, last) = (marker.chars().next(), marker.chars().last());
@@ -376,46 +447,20 @@ impl Session<'_> {
             .filter(|&i| disk[i..].chars().next() != first && disk[..i].chars().last() != last)
             .collect();
         if bounds.is_empty() {
-            return Ok(None);
+            return None;
         }
         let at = bounds[src.draw(bounds.len())];
         log(format!("remote inserts {marker:?} at byte {at} as the drop lets go"));
-        let mut next = disk.clone();
+        let mut next = disk;
         next.insert_str(at, &marker);
-        self.land(next, log)?;
-        Ok(Some(marker))
-    }
-
-    /// Launches a save, or records the one in flight, as the task manager
-    /// does at the top of a frame.
-    fn save(&mut self, log: &mut dyn FnMut(String)) -> Result<(), String> {
-        match self.save.take() {
-            None => {
-                let (_, text) = self.ws.editor.flush_for_save();
-                let seq = self.seq();
-                log(format!("save launches at seq {seq}"));
-                if let Some(latest) = &mut self.latest {
-                    latest.launched();
-                }
-                self.save = Some((seq, text));
-            }
-            Some((seq, text)) => {
-                self.saves += 1;
-                log(format!("save of seq {seq} lands"));
-                if let Some(latest) = &mut self.latest {
-                    latest.saved(&text);
-                }
-                self.disk = text.clone();
-                self.ws.editor.saved([200 + self.saves; 32], text);
-            }
-        }
-        self.frame(false, log)
+        self.note.remote(&next);
+        Some(marker)
     }
 
     /// Lifts an image with the mouse, holds it through local edits, saves and
     /// remote versions, and drops it somewhere.
     fn drag(&mut self, src: &mut ByteSource, log: &mut dyn FnMut(String)) -> Result<(), String> {
-        let Some(from) = image_center(&self.ws, src) else { return Ok(()) };
+        let Some(from) = image_center(&self.note, src) else { return Ok(()) };
         let button = |pos, pressed| Egui::PointerButton {
             pos,
             button: PointerButton::Primary,
@@ -426,24 +471,29 @@ impl Session<'_> {
         self.pointer(vec![Egui::PointerMoved(from)], log)?;
         self.pointer(vec![button(from, true)], log)?;
         self.pointer(vec![Egui::PointerMoved(from + egui::vec2(20.0, 20.0))], log)?;
-        let drag = self.ws.editor.edit.in_progress_image_drag.as_ref();
+        let drag = self.note.editor().edit.in_progress_image_drag.as_ref();
         let Some(grab) = drag.map(|d| d.grab_offset) else {
             return self.pointer(vec![button(from, false)], log);
         };
-        let lift = egui::vec2(0.0, grab.y + self.ws.editor.edit.renderer.drop_lift());
+        let lift = egui::vec2(0.0, grab.y + self.note.editor().edit.renderer.drop_lift());
         log("drag holds".into());
         for _ in 0..src.draw(4) {
-            match src.bias(&[1, 1, 1]) {
+            match src.bias(&[1, 1, 1, 1, 1]) {
                 0 => self.remote(src, log)?,
-                1 => self.save(log)?,
+                1 => {
+                    self.note.save(log);
+                    self.frame(Input::None, log)?
+                }
+                2 => self.note.run(src, log),
+                3 => self.record(src, log)?,
                 _ => self.local(src, log)?,
             }
         }
-        let segs = &self.ws.editor.edit.renderer.buffer.current.segs;
+        let segs = &self.note.editor().edit.renderer.buffer.current.segs;
         let at = Grapheme(src.draw(segs.last_cursor_position().0 + 1));
         let to = self
-            .ws
-            .editor
+            .note
+            .editor()
             .edit
             .cursor_line(at)
             .map(|[top, bot]| Pos2::new(top.x - 1.0, (top.y + bot.y) / 2.0))
@@ -451,16 +501,20 @@ impl Session<'_> {
         log(format!("drag drops at offset {at:?}"));
         self.pointer(vec![Egui::PointerMoved(to)], log)?;
         self.pointer(vec![Egui::PointerMoved(to + lift)], log)?;
-        let before = self.ws.get_text().to_string();
+        let before = self.text();
+        // a version can land before the next frame moves the image
+        let marker = if src.bias(&[1, 1]) == 1 { self.remote_marker(src, log) } else { None };
         self.pointer(vec![button(to + lift, false)], log)?;
-        let dropped = self.ws.editor.edit.in_progress_image_drag.as_ref();
+        let dropped = self.note.editor().edit.in_progress_image_drag.as_ref();
         let dropped = dropped
             .filter(|d| d.dropped)
             .and_then(|d| Some((d.image, d.target?)));
-        // a version can land before the next frame moves the image
-        let marker = if src.bias(&[1, 1]) == 1 { self.remote_marker(src, log)? } else { None };
-        self.frame(true, log)?;
-        let mut after = self.ws.get_text().to_string();
+        if marker.is_some() {
+            self.settle_tasks(log)?;
+        }
+        let moved = dropped.map(|(range, to)| Event::Move { range, to });
+        self.frame(moved.as_ref().map_or(Input::Some, Input::Event), log)?;
+        let mut after = self.text();
         if let Some(marker) = marker {
             if after.matches(&marker).count() != 1 {
                 return Err(format!(
@@ -545,16 +599,17 @@ fn image_ranges(md: &str) -> Vec<std::ops::Range<usize>> {
 }
 
 /// The center of one of the images drawn in view, if any.
-fn image_center(ws: &TestEditor, src: &mut ByteSource) -> Option<Pos2> {
+fn image_center(ws: &impl Host, src: &mut ByteSource) -> Option<Pos2> {
+    let view = ws.view();
     let images: Vec<Pos2> = ws
-        .editor
+        .editor()
         .edit
         .renderer
         .fragments
         .iter()
         .filter(|f| matches!(f.content, FragmentContent::Embed { .. }))
         .map(|f| f.rect.center())
-        .filter(|c| (0.0..VIEW.y).contains(&c.y))
+        .filter(|c| (view.top()..view.bottom()).contains(&c.y))
         .collect();
     (!images.is_empty()).then(|| images[src.draw(images.len())])
 }
@@ -572,10 +627,10 @@ fn doc_with_images(src: &mut ByteSource, features: &Features) -> String {
 
 /// The outline as kept through every change equals the outline of a fresh
 /// open of the final text.
-fn outline_fresh(ws: &mut TestEditor, log: &mut dyn FnMut(String)) -> Result<(), String> {
-    ws.enter_frame();
-    let rows = |ws: &TestEditor| {
-        ws.editor
+fn outline_fresh(ws: &mut impl Host, log: &mut dyn FnMut(String)) -> Result<(), String> {
+    ws.frame_after(0.0, vec![]);
+    let rows = |editor: &Editor| {
+        editor
             .outline_rows
             .as_ref()
             .map(|(_, rows)| {
@@ -585,11 +640,11 @@ fn outline_fresh(ws: &mut TestEditor, log: &mut dyn FnMut(String)) -> Result<(),
             })
             .unwrap_or_default()
     };
-    let text = ws.get_text().to_string();
+    let text = ws.text().to_string();
     let mut fresh = TestEditor::with_lb(lb(), &text);
     fresh.editor.toggle_outline();
     fresh.enter_frame();
-    let (kept, opened) = (rows(ws), rows(&fresh));
+    let (kept, opened) = (rows(ws.editor()), rows(&fresh.editor));
     log(format!("outline kept {kept:?}, fresh {opened:?}"));
     if kept != opened {
         return Err(format!("outline kept {kept:?}, a fresh open lists {opened:?} for {text:?}"));

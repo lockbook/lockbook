@@ -4,6 +4,8 @@
 //! tier and an [`Events`] tier, the highest where it holds.
 
 mod interleave;
+mod lost;
+mod note;
 mod reload;
 mod scroll;
 
@@ -11,15 +13,15 @@ use std::sync::OnceLock;
 
 use lb_rs::blocking::Lb;
 
+use super::super::Editor;
 use super::doc_gen::Features;
-use super::harness::in_memory_core;
+use super::harness::{TestEditor, in_memory_core};
 
 /// What happens to the open note besides its document. Each tier adds to
 /// the one below, so a property that holds at a tier holds below it.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 enum Events {
     /// Typing, deletes, selections and undo.
-    #[expect(dead_code, reason = "the floor: no row sits this low")]
     Local,
     /// Saves launch and land.
     Saves,
@@ -53,7 +55,45 @@ enum Prop {
     CaretStays,
 }
 
-const IMAGE: &str = "https://x.test/a.png";
+/// The image notes show: a file beside them in the driver's account, and a
+/// test embed in the hand tests'.
+const IMAGE: &str = "a.png";
+
+/// Where a property's editor runs: a note open in a workspace for the
+/// driver, or the editor alone for a check's hand tests.
+trait Host {
+    fn editor(&self) -> &Editor;
+    fn editor_mut(&mut self) -> &mut Editor;
+    /// A frame `idle` seconds after the last, 0 for the next, with `input`.
+    fn frame_after(&mut self, idle: f64, input: Vec<egui::Event>);
+
+    fn text(&self) -> &str {
+        &self.editor().edit.renderer.buffer.current.text
+    }
+
+    /// Where the editor's view is drawn on screen.
+    fn view(&self) -> egui::Rect {
+        self.editor().painted_canvas
+    }
+}
+
+impl Host for TestEditor {
+    fn editor(&self) -> &Editor {
+        &self.editor
+    }
+
+    fn editor_mut(&mut self) -> &mut Editor {
+        &mut self.editor
+    }
+
+    fn frame_after(&mut self, idle: f64, input: Vec<egui::Event>) {
+        if idle > 0.0 {
+            self.enter_frame_with_input_after(idle, input);
+        } else {
+            self.enter_frame_with_input(input);
+        }
+    }
+}
 
 /// One core shared by every seed.
 fn lb() -> Lb {
@@ -83,6 +123,11 @@ fn a_drop_moves_only_the_image() {
 #[test]
 fn the_note_shows_the_latest_version() {
     interleave::run(Prop::LatestVersion, Features::all(), Events::Held, 600);
+}
+
+#[test]
+fn what_was_typed_is_never_lost() {
+    lost::run(Features::all(), Events::Local, 1000);
 }
 
 #[test]

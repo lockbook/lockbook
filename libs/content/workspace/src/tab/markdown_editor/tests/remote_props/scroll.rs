@@ -5,7 +5,7 @@
 use std::mem::Discriminant;
 
 use comrak::nodes::NodeValue;
-use egui::{Event as Egui, Modifiers, MouseWheelSource, MouseWheelUnit, Pos2, TouchPhase};
+use egui::{Event as Egui, Modifiers, MouseWheelSource, MouseWheelUnit, TouchPhase};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
@@ -13,7 +13,7 @@ use super::super::super::input::{Event, Location, Region};
 use super::super::super::widget::utils::wrap_layout::FragmentContent;
 use super::super::doc_gen::{Features, gen_doc, gen_table};
 use super::super::harness::TestEditor;
-use super::{IMAGE, Prop, lb};
+use super::{Host, IMAGE, Prop, lb};
 use crate::test_utils::byte_source::ByteSource;
 
 /// The harness's screen.
@@ -42,7 +42,7 @@ pub(super) struct Before {
 }
 
 impl Before {
-    pub(super) fn new(ws: &mut TestEditor, prop: Prop) -> Option<Self> {
+    pub(super) fn new(ws: &mut impl Host, prop: Prop) -> Option<Self> {
         let view = view_range(ws)?;
         let seen = visible(ws);
         let nodes = if prop == Prop::TextStays {
@@ -52,8 +52,8 @@ impl Before {
         } else {
             vec![]
         };
-        let text = ws.get_text().to_string();
-        let selection = ws.editor.edit.renderer.buffer.current.selection.1;
+        let text = ws.text().to_string();
+        let selection = ws.editor().edit.renderer.buffer.current.selection.1;
         Some(Self { text, view, seen, nodes, caret: caret_y(ws), selection })
     }
 
@@ -62,9 +62,9 @@ impl Before {
     /// stays on screen. Above counts only once `scrolled`: unscrolled, the
     /// markup before the first fragment drawn isn't above the view.
     pub(super) fn judge(
-        self, ws: &mut TestEditor, prop: Prop, scrolled: bool, log: &mut dyn FnMut(String),
+        self, ws: &mut impl Host, prop: Prop, scrolled: bool, log: &mut dyn FnMut(String),
     ) -> Result<(), String> {
-        let text = ws.get_text().to_string();
+        let text = ws.text().to_string();
         let changes = lb_rs::model::text::diff(&self.text, &text);
         let Some(a) = changes.iter().map(|r| r.range.start().0).min() else { return Ok(()) };
         let b = changes.iter().map(|r| r.range.end().0).max().unwrap_or(a);
@@ -164,7 +164,7 @@ impl Before {
             _ => {
                 if let (Some(before), after) = (self.caret, caret_y(ws)) {
                     match after {
-                        Some(y) if (0.0..=VIEW.y).contains(&y) => {}
+                        Some(_) => {}
                         _ => return Err(format!("the caret at y {before} went to {after:?}")),
                     }
                 }
@@ -190,17 +190,18 @@ impl Seen {
     }
 }
 
-fn visible(ws: &TestEditor) -> Vec<Seen> {
-    let on_screen = |s: &Seen| s.top >= 0.0 && s.bottom <= VIEW.y && s.bottom > s.top;
+fn visible(ws: &impl Host) -> Vec<Seen> {
+    let view = ws.view();
+    let on_screen = |s: &Seen| s.top >= view.top() && s.bottom <= view.bottom() && s.bottom > s.top;
     laid_out(ws).into_iter().filter(on_screen).collect()
 }
 
 /// Every text fragment laid out, on screen or not, but spaces alone: a
 /// line's break can swallow one.
-fn laid_out(ws: &TestEditor) -> Vec<Seen> {
-    let text = ws.get_text();
-    let segs = &ws.editor.edit.renderer.buffer.current.segs;
-    ws.editor
+fn laid_out(ws: &impl Host) -> Vec<Seen> {
+    let text = ws.text();
+    let segs = &ws.editor().edit.renderer.buffer.current.segs;
+    ws.editor()
         .edit
         .renderer
         .fragments
@@ -220,16 +221,17 @@ fn laid_out(ws: &TestEditor) -> Vec<Seen> {
         .collect()
 }
 
-pub(super) fn pick_visible(ws: &TestEditor, src: &mut ByteSource) -> Option<Seen> {
+pub(super) fn pick_visible(ws: &impl Host, src: &mut ByteSource) -> Option<Seen> {
     let mut seen = visible(ws);
     (!seen.is_empty()).then(|| seen.swap_remove(src.draw(seen.len())))
 }
 
 /// The lowest and highest offsets drawn in the view, even in part.
-pub(super) fn view_range(ws: &TestEditor) -> Option<(Grapheme, Grapheme)> {
-    let frags = ws.editor.edit.renderer.fragments.iter();
+pub(super) fn view_range(ws: &impl Host) -> Option<(Grapheme, Grapheme)> {
+    let view = ws.view();
+    let frags = ws.editor().edit.renderer.fragments.iter();
     let shown: Vec<_> = frags
-        .filter(|f| f.rect.bottom() > 0.0 && f.rect.top() < VIEW.y)
+        .filter(|f| f.rect.bottom() > view.top() && f.rect.top() < view.bottom())
         .collect();
     let lo = shown.iter().map(|f| f.source_range.start()).min()?;
     let hi = shown.iter().map(|f| f.source_range.end()).max()?;
@@ -237,9 +239,9 @@ pub(super) fn view_range(ws: &TestEditor) -> Option<(Grapheme, Grapheme)> {
 }
 
 /// The nodes that hold `at`, outermost first: their kinds and ranges.
-fn nodes_at(ws: &mut TestEditor, at: Grapheme) -> Vec<Node> {
+fn nodes_at(ws: &mut impl Host, at: Grapheme) -> Vec<Node> {
     let arena = crate::tab::markdown_editor::Arena::new();
-    let r = &mut ws.editor.edit.renderer;
+    let r = &mut ws.editor_mut().edit.renderer;
     let mut node = r.reparse(&arena);
     let mut kinds = vec![];
     while let Some(child) = node.children().find(|n| {
@@ -253,9 +255,9 @@ fn nodes_at(ws: &mut TestEditor, at: Grapheme) -> Vec<Node> {
 }
 
 /// The range of the innermost block that holds `at`.
-fn leaf_block(ws: &mut TestEditor, at: Grapheme) -> Option<(Grapheme, Grapheme)> {
+fn leaf_block(ws: &mut impl Host, at: Grapheme) -> Option<(Grapheme, Grapheme)> {
     let arena = crate::tab::markdown_editor::Arena::new();
-    let r = &mut ws.editor.edit.renderer;
+    let r = &mut ws.editor_mut().edit.renderer;
     let mut node = r.reparse(&arena);
     let mut block = None;
     while let Some(child) = node.children().find(|n| {
@@ -270,20 +272,29 @@ fn leaf_block(ws: &mut TestEditor, at: Grapheme) -> Option<(Grapheme, Grapheme)>
     block
 }
 
-/// The caret's top on screen, if it's drawn in the view.
-fn caret_y(ws: &TestEditor) -> Option<f32> {
-    let caret = ws.editor.edit.renderer.buffer.current.selection.1;
-    let [top, _] = ws.editor.edit.cursor_line(caret)?;
-    (0.0..=VIEW.y).contains(&top.y).then_some(top.y)
+/// The caret's top, if drawn in the view. A reload re-anchors the scroll
+/// offset, which can move it one f32 rounding (813.637 to 813.6371 at seed
+/// 278), so the view's edges give by one rounding at the offset's magnitude.
+fn caret_y(ws: &impl Host) -> Option<f32> {
+    let caret = ws.editor().edit.renderer.buffer.current.selection.1;
+    let [top, _] = ws.editor().edit.cursor_line(caret)?;
+    let offset = ws.editor().edit.scroll_area.stored_offset();
+    let magnitude = offset
+        .map_or(0.0, |o| o.intra_precise.abs())
+        .max(top.y.abs());
+    let view = ws.view().expand(f32::EPSILON * magnitude);
+    (view.top()..=view.bottom())
+        .contains(&top.y)
+        .then_some(top.y)
 }
 
 /// Frames half a second apart until the scroll stops moving: a wheel's
 /// glide and heights measured late both play out over time.
-pub(super) fn settle(ws: &mut TestEditor) {
+pub(super) fn settle(ws: &mut impl Host) {
     let mut last = None;
     for _ in 0..20 {
-        ws.enter_frame_with_input_after(0.5, vec![]);
-        let now = ws.editor.edit.scroll_area.stored_offset();
+        ws.frame_after(0.5, vec![]);
+        let now = ws.editor().edit.scroll_area.stored_offset();
         if now.is_some() && now == last {
             return;
         }
@@ -291,22 +302,25 @@ pub(super) fn settle(ws: &mut TestEditor) {
     }
 }
 
-pub(super) fn scroll(ws: &mut TestEditor, by: f32) {
-    let center = Pos2::new(VIEW.x / 2.0, VIEW.y / 2.0);
+pub(super) fn scroll(ws: &mut impl Host, by: f32) {
+    let center = ws.view().center();
     let mut left = by;
     while left > 0.0 {
         let delta = left.min(100.0);
         left -= delta;
-        ws.enter_frame_with_input(vec![
-            Egui::PointerMoved(center),
-            Egui::MouseWheel {
-                unit: MouseWheelUnit::Point,
-                delta: egui::vec2(0.0, -delta),
-                modifiers: Modifiers::NONE,
-                phase: TouchPhase::Move,
-                source: MouseWheelSource::Wheel,
-            },
-        ]);
+        ws.frame_after(
+            0.0,
+            vec![
+                Egui::PointerMoved(center),
+                Egui::MouseWheel {
+                    unit: MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, -delta),
+                    modifiers: Modifiers::NONE,
+                    phase: TouchPhase::Move,
+                    source: MouseWheelSource::Wheel,
+                },
+            ],
+        );
     }
 }
 

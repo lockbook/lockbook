@@ -5,7 +5,17 @@
 //! keeps its own. A frame changes the text only by the input in it.
 
 use lb_rs::model::text::offset_types::Grapheme;
+
+use crate::tab::markdown_editor::input::{Event, Location, Region};
 use unicode_segmentation::UnicodeSegmentation as _;
+
+/// What could have changed the text in a frame.
+pub(super) enum Input<'a> {
+    None,
+    /// Input the case doesn't spell out, as a drag.
+    Some,
+    Event(&'a Event),
+}
 
 /// The note's edits as each alignment of them it could have made, and the
 /// text they show.
@@ -39,31 +49,18 @@ impl Latest {
 
     /// A frame passed; only `input` may have changed the text.
     pub(super) fn framed(
-        &mut self, shown: &str, input: bool, log: &mut dyn FnMut(String),
+        &mut self, shown: &str, input: Input, log: &mut dyn FnMut(String),
     ) -> Result<(), String> {
         if shown == self.shown {
             return Ok(());
         }
-        if !input {
-            return fail(shown, std::slice::from_ref(&self.shown), log);
-        }
-        // each way input could have made the change, as the texts it steps
-        // through, taking turns at the alignments followed
-        let mut ways: Vec<std::vec::IntoIter<Model>> = ways(&self.shown, shown)
-            .iter()
-            .map(|steps| {
-                let mut models = self.models.clone();
-                for step in steps {
-                    models = distinct(models.iter().flat_map(|m| m.edited(step)), MODELS);
-                }
-                models.into_iter()
-            })
-            .collect();
-        let turns = std::iter::from_fn(|| {
-            let turn: Vec<Model> = ways.iter_mut().filter_map(Iterator::next).collect();
-            (!turn.is_empty()).then_some(turn)
-        });
-        self.models = distinct(turns.flatten(), MODELS);
+        let models = match input {
+            Input::None => return fail(shown, std::slice::from_ref(&self.shown), log),
+            Input::Event(event) => self.said(event, shown),
+            Input::Some => vec![],
+        };
+        self.models =
+            if models.is_empty() { inferred(&self.models, &self.shown, shown) } else { models };
         if self.models.is_empty() {
             return Err(format!("no alignment of the note's edits makes {shown:?}"));
         }
@@ -71,6 +68,89 @@ impl Latest {
         Ok(())
     }
 
+    /// The models where `event` made `shown` as it says: text written at
+    /// the spot it names, or an undo stepping back through the note's edits.
+    fn said(&self, event: &Event, shown: &str) -> Vec<Model> {
+        let (region, text) = match event {
+            Event::Undo => {
+                let undone = self.models.iter().filter_map(|m| m.undone(shown));
+                return distinct(undone, MODELS);
+            }
+            Event::Move { range, to } => return self.moved(*range, *to, shown),
+            Event::Replace { region, text, .. } => (region, text.as_str()),
+            Event::Delete { region } => (region, ""),
+            _ => return vec![],
+        };
+        let Region::BetweenLocations { start: Location::Grapheme(a), end: Location::Grapheme(b) } =
+            *region
+        else {
+            return vec![];
+        };
+        let segs = lb_rs::model::text::unicode_segs::calc(&self.shown);
+        let (s, e) = segs.range_to_byte((a.min(b), a.max(b)));
+        let edit = Edit { range: (s.0, e.0), text: text.into() };
+        let mut after = self.shown.clone();
+        edit.apply(&mut after);
+        let mut models = self.models.clone();
+        for m in &mut models {
+            m.edits.push(edit.clone());
+        }
+        if after == shown { models } else { vec![] }
+    }
+
+    /// The models where a drop moved `range` to `to` to make `shown`: its
+    /// text taken out, which in a table rewrites the row around it, and
+    /// written at `to`, in one frame. The buffer orders a frame's edits by
+    /// where they start and joins an edit onto one ending where it starts.
+    fn moved(&self, range: (Grapheme, Grapheme), to: Grapheme, shown: &str) -> Vec<Model> {
+        let segs = lb_rs::model::text::unicode_segs::calc(&self.shown);
+        let (a, b) = segs.range_to_byte(range);
+        let to = segs.offset_to_byte(to).0;
+        let Some(text) = self.shown.get(a.0..b.0).filter(|t| !t.is_empty()) else {
+            return vec![];
+        };
+        // the edits in the order the buffer keeps them, given what taking the
+        // text out wrote at `taken`
+        let ordered = |taken: Edit| {
+            let (d0, d1) = taken.range;
+            let written = Edit { range: (to, to), text: text.into() };
+            if to < d0 {
+                let shift = text.len();
+                vec![written, Edit { range: (d0 + shift, d1 + shift), ..taken }]
+            } else if to > d1 {
+                let at = to - d1 + d0 + taken.text.len();
+                vec![taken, Edit { range: (at, at), ..written }]
+            } else {
+                vec![Edit { range: (d0, d1), text: format!("{}{text}", taken.text) }]
+            }
+        };
+        let with = |m: &Model, edits: Vec<Edit>| {
+            let mut m = m.clone();
+            m.edits.extend(edits);
+            (m.shown() == shown).then_some(m)
+        };
+        let exact = Edit { range: (a.0, b.0), text: String::new() };
+        let models: Vec<Model> = self
+            .models
+            .iter()
+            .filter_map(|m| with(m, ordered(exact.clone())))
+            .collect();
+        if !models.is_empty() {
+            return models;
+        }
+        // in a table: the row as rewritten without the text, then the text
+        // written at the drop
+        let mut models = vec![];
+        for (at, _) in shown.match_indices(text) {
+            let mut taken = shown.to_string();
+            taken.replace_range(at..at + text.len(), "");
+            for mut m in self.models.iter().flat_map(|m| m.edited(&taken)) {
+                let taken = m.edits.pop().unwrap();
+                models.extend(with(&m, ordered(taken)));
+            }
+        }
+        distinct(models, MODELS)
+    }
     /// A save launched with the edits so far.
     pub(super) fn launched(&mut self) {
         for m in &mut self.models {
@@ -86,6 +166,26 @@ impl Latest {
             m.landed = text.into();
         }
     }
+}
+
+/// `models`, showing `from`, for each way input could have made `to`, as the
+/// texts it steps through, taking turns at the alignments followed.
+fn inferred(models: &[Model], from: &str, to: &str) -> Vec<Model> {
+    let mut ways: Vec<std::vec::IntoIter<Model>> = ways(from, to)
+        .iter()
+        .map(|steps| {
+            let mut models = models.to_vec();
+            for step in steps {
+                models = distinct(models.iter().flat_map(|m| m.edited(step)), MODELS);
+            }
+            models.into_iter()
+        })
+        .collect();
+    let turns = std::iter::from_fn(|| {
+        let turn: Vec<Model> = ways.iter_mut().filter_map(Iterator::next).collect();
+        (!turn.is_empty()).then_some(turn)
+    });
+    distinct(turns.flatten(), MODELS)
 }
 
 /// The texts input could have stepped through from `before` to `after`:
@@ -152,9 +252,9 @@ fn ways(before: &str, after: &str) -> Vec<Vec<String>> {
     ways
 }
 
-/// The most alignments of the note's edits followed at once: 128 lose the
-/// one two drops between equal images made.
-const MODELS: usize = 256;
+/// The most alignments of the note's edits followed at once: Held seed 449
+/// follows 744.
+const MODELS: usize = 1024;
 
 /// The first `n` of `models` with edits apart from the ones before.
 fn distinct(models: impl IntoIterator<Item = Model>, n: usize) -> Vec<Model> {
@@ -177,8 +277,8 @@ fn fail(shown: &str, wants: &[String], log: &mut dyn FnMut(String)) -> Result<()
 
 /// What the note should show: the version it last loaded and the note's
 /// edits since, in order. A new version merges edit by edit, as the buffer
-/// keeps them: an edit and its undo right after it drop out, and each edit
-/// splits into the pieces a diff of what it replaced and what it wrote finds.
+/// keeps them: an edit and one right after it that puts the text back drop
+/// out, and each edit splits into the pieces a diff of what it replaced and what it wrote finds.
 /// In order, each piece then takes over the remote edits it overlaps, the
 /// text under them staying the note's own; a remote edit apart from it moves
 /// past it, one at a local insert's spot landing after it and an insert at a
@@ -206,6 +306,26 @@ impl Edit {
 
     fn is_empty(&self) -> bool {
         self.range.0 == self.range.1
+    }
+
+    /// The edit to `text` widened to whole graphemes of the text after it,
+    /// as the buffer widens it: a mark it writes fuses onto the one before.
+    fn whole_graphemes(&self, text: &str) -> Edit {
+        let bounds = |t: &str| -> Vec<usize> {
+            t.grapheme_indices(true)
+                .map(|(i, _)| i)
+                .chain([t.len()])
+                .collect()
+        };
+        let ((a, b), end) = (self.range, self.range.0 + self.text.len());
+        let mut after = text.to_string();
+        self.apply(&mut after);
+        let (was, now) = (bounds(text), bounds(&after));
+        let lo = *now.iter().rev().find(|&&i| i <= a).unwrap();
+        let hi = *now.iter().find(|&&i| i >= end).unwrap();
+        let start = (*was.iter().rev().find(|&&i| i <= lo).unwrap()).min(a);
+        let stop = (*was.iter().find(|&&i| i >= b + hi - end).unwrap()).max(b);
+        Edit { range: (start, stop), text: after[start..stop + end - b].to_string() }
     }
 }
 
@@ -305,19 +425,41 @@ impl Model {
             .collect()
     }
 
-    /// Drops each edit along with the one that reverts it right after, as an
-    /// undo or a backspace does, then splits each edit into what it changes.
-    fn tidy(&mut self) {
-        let mut text = self.landed.clone();
-        let mut kept: Vec<(Edit, Edit)> = vec![];
-        for edit in std::mem::take(&mut self.edits) {
-            let (a, b) = edit.range;
-            let inverse = Edit { range: (a, a + edit.text.len()), text: text[a..b].into() };
+    /// The model with its last edits reverted, last first, as an undo steps
+    /// back through them, if that shows `after`.
+    fn undone(&self, after: &str) -> Option<Model> {
+        let mut texts = vec![self.landed.clone()];
+        for edit in &self.edits {
+            let mut text = texts.last().unwrap().clone();
             edit.apply(&mut text);
-            if kept.last().is_some_and(|(_, undo)| *undo == edit) {
+            texts.push(text);
+        }
+        let mut m = self.clone();
+        for (edit, before) in self.edits.iter().zip(&texts).rev() {
+            let (a, b) = edit.range;
+            m.edits
+                .push(Edit { range: (a, a + edit.text.len()), text: before[a..b].into() });
+            if before == after {
+                return Some(m);
+            }
+        }
+        None
+    }
+
+    /// Drops each edit along with the one right after it that leaves the text
+    /// as it was before it, as an undo or a backspace does, then splits each
+    /// edit into what it changes.
+    fn tidy(&mut self) {
+        // each kept edit with the text before it
+        let mut text = self.landed.clone();
+        let mut kept: Vec<(Edit, String)> = vec![];
+        for edit in std::mem::take(&mut self.edits) {
+            let before = text.clone();
+            edit.apply(&mut text);
+            if kept.last().is_some_and(|(_, was)| *was == text) {
                 kept.pop();
             } else {
-                kept.push((edit, inverse));
+                kept.push((edit, before));
             }
         }
         // the pieces of each edit, last first so each range is where the diff put it
@@ -353,6 +495,7 @@ impl Model {
         let mut local = self.landed.clone();
         let (mut theirs, mut written) = merged(&local, &remote);
         for edit in std::mem::take(&mut self.edits) {
+            let edit = edit.whole_graphemes(&local);
             let dropped: Vec<bool> = remote
                 .iter()
                 .map(|r| overlap(edit.range, r.range))

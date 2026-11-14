@@ -2,6 +2,7 @@
 //! event → operation → buffer → reparse → render pipeline via
 //! [`TestEditor`].
 
+use super::super::Editor;
 use super::super::input::{Advance, Bound, Event, FrontMatterAction, Increment, Location, Region};
 use super::super::table::{RowBounds, TableAction, TableSelection};
 use super::super::widget::toolbar::MarkdownToolbarAction as ToolbarAction;
@@ -778,7 +779,7 @@ fn replacement_text_with(src: &mut ByteSource, features: &Features) -> String {
 /// mostly single-char inserts and ±1 cursor moves; bulk edits, big
 /// jumps, and undo/redo are rare.
 fn event(src: &mut ByteSource, ws: &TestEditor) -> Event {
-    event_with(src, ws, &Features::all())
+    event_with(src, &ws.editor, &Features::all())
 }
 
 /// Feature-aware variant of `event`. Forwards `features` to
@@ -786,11 +787,11 @@ fn event(src: &mut ByteSource, ws: &TestEditor) -> Event {
 /// flags as the initial doc. Other event kinds (deletion, selection,
 /// navigation, indent, undo/redo) are pure mutations that don't
 /// introduce new content, so they pass through unchanged.
-pub(super) fn event_with(src: &mut ByteSource, ws: &TestEditor, features: &Features) -> Event {
-    let (cursor, doc_len_chars) = cursor_and_len(ws);
+pub(super) fn event_with(src: &mut ByteSource, editor: &Editor, features: &Features) -> Event {
+    let buf = &editor.edit.renderer.buffer.current;
+    let (cursor, doc_len_chars) = (buf.selection.1, buf.segs.last_cursor_position().0);
     // the checkboxes the last frame drew, as a click or tap reaches them
-    let checks: Vec<Grapheme> = ws
-        .editor
+    let checks: Vec<Grapheme> = editor
         .edit
         .renderer
         .touch_targets
@@ -906,8 +907,7 @@ pub(super) fn event_with(src: &mut ByteSource, ws: &TestEditor, features: &Featu
         14 if !checks.is_empty() => Event::ToggleTask { check: checks[src.draw(checks.len())] },
         15 => {
             use FrontMatterAction::*;
-            let rows = ws
-                .editor
+            let rows = editor
                 .edit
                 .renderer
                 .bounds
@@ -1294,7 +1294,7 @@ fn cursor_renders_check(buf: &[u8], features: &Features) -> Result<(), String> {
                 return;
             }
         }
-        ws.push(event_with(src, ws, features));
+        ws.push(event_with(src, &ws.editor, features));
         ws.enter_frame();
         violation = cursor_visible_sweep(ws);
     })
@@ -1747,7 +1747,7 @@ fn render_stable_after_event_check(buf: &[u8]) -> Result<(), &'static str> {
 fn table_ranges_survive_edits_check(buf: &[u8], features: &Features) -> Result<(), String> {
     let mut violation: Option<String> = None;
     drive_features(buf, features, |ws, src| {
-        ws.push(event_with(src, ws, features));
+        ws.push(event_with(src, &ws.editor, features));
         ws.enter_frame();
         if violation.is_none() {
             violation = super::tables::table_ranges_check_md(ws.get_text())
@@ -1765,7 +1765,7 @@ fn table_ranges_survive_edits_check(buf: &[u8], features: &Features) -> Result<(
 fn table_caret_in_cells_check(buf: &[u8], features: &Features) -> Result<(), String> {
     let mut violation: Option<String> = None;
     drive_features(buf, features, |ws, src| {
-        let event = event_with(src, ws, features);
+        let event = event_with(src, &ws.editor, features);
         let undo_redo = matches!(event, Event::Undo | Event::Redo);
         ws.push(event);
         ws.enter_frame();
@@ -2306,7 +2306,7 @@ fn render_invariants_survive_edits_check(
     const EPS: f32 = 0.01;
     let mut violation: Option<&'static str> = None;
     drive_features(buf, features, |ws, src| {
-        ws.push(event_with(src, ws, features));
+        ws.push(event_with(src, &ws.editor, features));
         ws.enter_frame();
 
         let frame_fragments: Vec<_> = ws
@@ -2504,7 +2504,7 @@ fn cursor_vertical_round_trip_check_inner(
     let mut violation: Option<String> = None;
     let body = |ws: &mut TestEditor, src: &mut ByteSource| {
         let ev = match features {
-            Some(f) => event_with(src, ws, f),
+            Some(f) => event_with(src, &ws.editor, f),
             None => event(src, ws),
         };
         ws.push(ev);
