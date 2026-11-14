@@ -4,6 +4,7 @@ use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
+use crate::model::filename::NameComponents;
 use crate::model::lazy::LazyTree;
 use crate::model::meta::Meta;
 use crate::model::secret_filename::{HmacSha256, SecretFileName};
@@ -14,6 +15,7 @@ use crate::service::keychain::Keychain;
 use db_rs::views::hashmap::DbHashMap;
 use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
+use std::collections::HashSet;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -451,8 +453,72 @@ where
     pub fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, keychain: &Keychain,
     ) -> LbResult<()> {
-        let op = self.delete_share_op(id, maybe_encrypted_for, keychain)?;
-        self.stage_validate_and_promote(op, Owner(keychain.get_pk()?))?;
+        let me = Owner(keychain.get_pk()?);
+        let mut tree = StagedTree::new(&self.tree, Vec::new()).to_lazy();
+        if maybe_encrypted_for == Some(me.0) {
+            // this device's moves into the share that never reached the server go back, as a sync
+            // would put them: those whose new parent the server has in the share, then any left
+            // in a cycle; a move out of a folder since deleted here stays
+            let synced = self.tree.base().to_lazy();
+            let mut moves = Vec::new();
+            for moved in self.tree.staged().ids() {
+                let Some(base) = synced.maybe_find(&moved) else { continue };
+                let file = self.find(&moved)?;
+                if !file.explicitly_deleted()
+                    && file.parent() != base.parent()
+                    && !tree.calculate_deleted(base.parent())?
+                {
+                    moves.push((moved, *file.parent(), *base.parent()));
+                }
+            }
+            let in_share = |file: &Uuid| -> LbResult<bool> {
+                Ok(file == id
+                    || match synced.maybe_find(file) {
+                        Some(_) => synced.ancestors(file)?.contains(id),
+                        None => self.ancestors(file)?.contains(id),
+                    })
+            };
+            let mut undone = Vec::new();
+            for &(moved, to, from) in &moves {
+                if in_share(&to)? && !in_share(&from)? {
+                    tree.move_unvalidated(&moved, &from, keychain)?;
+                    undone.push(moved);
+                }
+            }
+            while let Some(&(moved, _, from)) = moves.iter().find(|(moved, _, _)| {
+                !undone.contains(moved) && tree.ancestors(moved).is_ok_and(|a| a.contains(moved))
+            }) {
+                tree.move_unvalidated(&moved, &from, keychain)?;
+                undone.push(moved);
+            }
+            undone.sort();
+            for moved in undone {
+                let parent = *tree.find(&moved)?.parent();
+                let name = tree.name(&moved, keychain)?;
+                let mut taken = HashSet::new();
+                for sibling in tree.children(&parent)? {
+                    if sibling != moved && !tree.calculate_deleted(&sibling)? {
+                        taken.insert(tree.name(&sibling, keychain)?);
+                    }
+                }
+                let components = if tree.find(&moved)?.is_folder() {
+                    NameComponents::folder(&name)
+                } else {
+                    NameComponents::from(&name)
+                };
+                let free = (1..)
+                    .map(|n| components.numbered(n))
+                    .find(|name| !taken.contains(name))
+                    .unwrap();
+                if free != name {
+                    tree.rename_unvalidated(&moved, &free, keychain)?;
+                }
+            }
+        }
+        let unshared = tree.delete_share_op(id, maybe_encrypted_for, keychain)?;
+        tree.stage_and_promote(unshared)?;
+        let (_, op) = tree.unstage();
+        self.stage_validate_and_promote(op, me)?;
         Ok(())
     }
 
