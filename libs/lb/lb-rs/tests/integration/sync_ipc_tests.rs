@@ -3,6 +3,7 @@ use std::{fs::File, path::Path};
 use test_utils::http::test_core;
 
 #[tokio::test]
+#[ignore = "flaky since #5388: a subprocess spawned by another test can briefly inherit sync.lock"]
 async fn sync_lock_excludes_other_syncers_but_not_transactions() {
     let first = test_core().await;
     let second = Lb::init(first.config.clone()).await.unwrap();
