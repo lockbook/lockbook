@@ -14,7 +14,7 @@ use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use test_utils::byte_source::ByteSource;
-use test_utils::gate::{Gate, GatedDocuments, Point};
+use test_utils::gate::{Gate, GatedServer, Point};
 use test_utils::lockbook_server_lib::ServerState;
 use test_utils::lockbook_server_lib::billing::Nop;
 use test_utils::lockbook_server_lib::in_process::InMemDocuments;
@@ -22,8 +22,10 @@ use test_utils::{prop, test_config};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
-type TestServer = ServerState<Nop, Nop, Nop, GatedDocuments<InMemDocuments>>;
-type Lb = lb_rs::Lb<TestServer>;
+type TestServer = ServerState<Nop, Nop, Nop, InMemDocuments>;
+/// The server as devices reach it.
+type Client = GatedServer<TestServer>;
+type Lb = lb_rs::Lb<Client>;
 
 mod starts;
 
@@ -213,15 +215,25 @@ enum Step {
         file: usize,
         from: usize,
     },
-    /// `device` starts a sync and the server holds it at its `at`th document read or write,
-    /// until a [`Step::Release`] or the device's next sync or hold lets it go on.
+    /// `device` starts a sync and holds it at its `at`th point of `place`, until a
+    /// [`Step::Release`] or the device's next sync or hold lets it go on.
     Hold {
         device: usize,
         at: usize,
+        place: Place,
     },
     Release {
         device: usize,
     },
+}
+
+/// Where in a sync a hold may land.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Place {
+    /// A request about to leave the device.
+    Sent,
+    /// A response the device has yet to read.
+    Answered,
 }
 
 // few names, so devices collide on paths; mostly text, as people's files are
@@ -275,7 +287,11 @@ fn steps(case: Case, bytes: &[u8]) -> Vec<Step> {
             let releases = if held.is_empty() { 0 } else { during };
             let step = match src.bias(&[10, during, releases]) {
                 0 => step(case, &mut src, device),
-                1 => Step::Hold { device, at: src.draw(4) },
+                1 => Step::Hold {
+                    device,
+                    at: src.draw(4),
+                    place: [Place::Sent, Place::Answered][src.draw(2)],
+                },
                 _ => Step::Release { device: held[src.draw(held.len())] },
             };
             match step {
@@ -389,16 +405,17 @@ impl Reach {
 /// account by account.
 struct World {
     server: TestServer,
+    client: Client,
     pause: Pause,
     admin: Account,
     names: Vec<String>,
     devices: Vec<Lb>,
     per_account: usize,
-    /// Syncs the server holds, by device.
+    /// Syncs held mid-way, by device.
     held: Mutex<BTreeMap<usize, Held>>,
 }
 
-/// A sync parked on the server, and what lets it go on.
+/// A sync parked mid-way, and what lets it go on.
 struct Held {
     sync: tokio::task::JoinHandle<bool>,
     go: oneshot::Sender<()>,
@@ -413,25 +430,23 @@ impl World {
     /// `tier`'s accounts with nothing in them, every id drawn from `seed`.
     async fn empty(tier: Tier, seed: u64) -> Self {
         let pause = Pause::default();
-        let mut server = TestServer::with_documents(GatedDocuments::new(
-            InMemDocuments::default(),
-            pause.clone(),
-        ));
+        let mut server = TestServer::with_documents(InMemDocuments::default());
         let admin_name = name(seed, 0);
         server.config.admin.admins.insert(admin_name.clone());
-        let admin = device(&server, seed, 0).await;
+        let client = GatedServer::new(server.clone(), pause.clone());
+        let admin = device(&client, seed, 0).await;
         let admin = admin.create_account(&admin_name, "", false).await.unwrap();
 
         let mut names = Vec::new();
         let mut devices = Vec::new();
         for account in 0..tier.accounts {
             let name = name(seed, account + 1);
-            let first = device(&server, seed, devices.len() + 1).await;
+            let first = device(&client, seed, devices.len() + 1).await;
             first.create_account(&name, "", false).await.unwrap();
             let key = first.export_account_private_key().unwrap();
             devices.push(first);
             for _ in 1..tier.devices {
-                let next = device(&server, seed, devices.len() + 1).await;
+                let next = device(&client, seed, devices.len() + 1).await;
                 next.import_account(&key, None).await.unwrap();
                 next.sync().await.unwrap();
                 devices.push(next);
@@ -440,6 +455,7 @@ impl World {
         }
         Self {
             server,
+            client,
             pause,
             admin,
             names,
@@ -453,16 +469,19 @@ impl World {
     /// from `seed`.
     async fn copy(&self, seed: u64) -> Self {
         let pause = Pause::default();
-        let documents =
-            GatedDocuments::new(self.server.document_service.docs.copy(), pause.clone());
-        let server = self.server.copy_with(documents).await;
+        let server = self
+            .server
+            .copy_with(self.server.document_service.copy())
+            .await;
+        let client = GatedServer::new(server.clone(), pause.clone());
         let mut devices = Vec::new();
         for (n, device) in self.devices.iter().enumerate() {
             let config = config(seed, n + 1);
-            devices.push(device.copy_in_memory(config, server.clone()).await.unwrap());
+            devices.push(device.copy_in_memory(config, client.clone()).await.unwrap());
         }
         Self {
             server,
+            client,
             pause,
             admin: self.admin.clone(),
             names: self.names.clone(),
@@ -535,9 +554,9 @@ impl World {
             }
         }
         match *step {
-            Step::Hold { at, .. } => {
-                let released = self.release(on).await;
-                let parked = self.pause.arm(at);
+            Step::Hold { at, place, .. } => {
+                self.release(on).await;
+                let parked = self.pause.arm(place, at);
                 let syncing = device.clone();
                 let mut sync = tokio::spawn(async move { syncing.sync().await.is_ok() });
                 // a sync that never reaches its point finishes unheld
@@ -556,21 +575,25 @@ impl World {
                     .expect("a held sync parks or finishes")
                 {
                     Ok(go) => go,
-                    Err(synced) => return released && synced,
+                    Err(synced) => return synced,
                 };
                 // the server stamps versions in milliseconds
                 tokio::time::sleep(Duration::from_millis(2)).await;
                 self.held.lock().unwrap().insert(on, Held { sync, go });
-                released
+                true
             }
-            Step::Release { .. } => self.release(on).await,
+            Step::Release { .. } => {
+                self.release(on).await;
+                true
+            }
             Step::Sync { .. } => {
                 // a second sync on a device waits for its first
-                let released = self.release(on).await;
-                device.sync().await.is_ok() && released
+                self.release(on).await;
+                device.sync().await.is_ok()
             }
             Step::SyncAll { .. } => {
-                let mut all = self.release_all().await;
+                self.release_all().await;
+                let mut all = true;
                 for device in &self.devices {
                     all &= device.sync().await.is_ok();
                 }
@@ -673,26 +696,24 @@ impl World {
         }
     }
 
-    /// Lets device `on`'s held sync go on, returning whether it succeeded, or true if none is
-    /// held.
-    async fn release(&self, on: usize) -> bool {
+    /// Lets device `on`'s held sync, if any, finish. It may fail on what changed while it
+    /// waited; the device's next sync retries.
+    async fn release(&self, on: usize) {
         let Some(Held { sync, go }) = self.held.lock().unwrap().remove(&on) else {
-            return true;
+            return;
         };
         let _ = go.send(());
         tokio::time::timeout(Duration::from_secs(10), sync)
             .await
             .expect("a released sync finishes")
-            .unwrap()
+            .unwrap();
     }
 
-    async fn release_all(&self) -> bool {
+    async fn release_all(&self) {
         let held: Vec<_> = self.held.lock().unwrap().keys().copied().collect();
-        let mut all = true;
         for on in held {
-            all &= self.release(on).await;
+            self.release(on).await;
         }
-        all
     }
 
     /// Lets every held sync go on, then syncs every device until each has seen every other's
@@ -722,21 +743,21 @@ impl World {
     }
 }
 
-type Armed = (usize, oneshot::Sender<oneshot::Sender<()>>);
+type Armed = (Place, usize, oneshot::Sender<oneshot::Sender<()>>);
 
-/// Parks the server at a document read or write a hold chose, until a later step lets it go on.
+/// Parks a sync at the point a hold chose, until a later step lets it go on.
 #[derive(Clone, Default)]
 struct Pause {
-    /// How many operations to let by, and who hears when the next one parks.
+    /// Where to park, how many such points to let by, and who hears when the next one parks.
     armed: Arc<Mutex<Option<Armed>>>,
 }
 
 impl Pause {
-    /// The receiver hears when the store's `at`th operation from now parks, with what lets it
-    /// go on, or errs if [`Self::disarm`] comes first.
-    fn arm(&self, at: usize) -> oneshot::Receiver<oneshot::Sender<()>> {
+    /// The receiver hears when the `at`th point of `place` from now parks, with what lets it go
+    /// on, or errs if [`Self::disarm`] comes first.
+    fn arm(&self, place: Place, at: usize) -> oneshot::Receiver<oneshot::Sender<()>> {
         let (entered, parked) = oneshot::channel();
-        *self.armed.lock().unwrap() = Some((at, entered));
+        *self.armed.lock().unwrap() = Some((place, at, entered));
         parked
     }
 
@@ -745,18 +766,30 @@ impl Pause {
     }
 }
 
+/// Requests a sync sends as many at once as the machine has cores. A hold never counts them, so
+/// they all finish before the next point and a seed replays alike on every machine.
+const PARALLEL: [&str; 2] = ["get_document", "change_doc_v2"];
+
 #[async_trait]
 impl Gate for Pause {
-    async fn pass(&self, _: Point) {
+    async fn pass(&self, point: Point) {
+        let here = match point {
+            Point::Sent { endpoint } if !PARALLEL.contains(&endpoint) => Place::Sent,
+            Point::Answered { endpoint } if !PARALLEL.contains(&endpoint) => Place::Answered,
+            _ => return,
+        };
         let entered = {
             let mut armed = self.armed.lock().unwrap();
             match armed.take() {
-                Some((0, entered)) => Some(entered),
-                Some((at, entered)) => {
-                    *armed = Some((at - 1, entered));
+                Some((place, 0, entered)) if place == here => Some(entered),
+                Some((place, at, entered)) if place == here => {
+                    *armed = Some((place, at - 1, entered));
                     None
                 }
-                None => None,
+                other => {
+                    *armed = other;
+                    None
+                }
             }
         };
         if let Some(entered) = entered {
@@ -791,17 +824,23 @@ fn name(seed: u64, n: usize) -> String {
 }
 
 /// The `n`th device a world seeded with `seed` makes.
-async fn device(server: &TestServer, seed: u64, n: usize) -> Lb {
-    Lb::in_memory(config(seed, n), server.clone())
+async fn device(client: &Client, seed: u64, n: usize) -> Lb {
+    Lb::in_memory(config(seed, n), client.clone())
         .await
         .unwrap()
 }
 
 /// What a device shows: every file's type, shares and content, keyed by path.
 async fn tree(device: &Lb) -> BTreeMap<String, String> {
+    listing(device, true).await
+}
+
+/// [`tree`], with shares' accounts left out when not `named`: a device learns usernames as it
+/// looks them up, so a refused step may name an account a held sync left unknown.
+async fn listing(device: &Lb, named: bool) -> BTreeMap<String, String> {
     let mut tree = BTreeMap::new();
     for file in device.list_metadatas().await.unwrap() {
-        let mut shown = format!("{:?}{}", file.file_type, shares(&file));
+        let mut shown = format!("{:?}{}", file.file_type, shares(&file, named));
         if file.is_document() {
             write!(shown, " {}", read(device, file.id).await).unwrap();
         }
@@ -815,7 +854,8 @@ async fn documents(device: &Lb) -> BTreeMap<Uuid, String> {
     let mut documents = BTreeMap::new();
     for file in device.list_metadatas().await.unwrap() {
         if file.is_document() {
-            documents.insert(file.id, format!("{}{}", shares(&file), read(device, file.id).await));
+            documents
+                .insert(file.id, format!("{}{}", shares(&file, true), read(device, file.id).await));
         }
     }
     documents
@@ -838,12 +878,15 @@ async fn read(device: &Lb, id: Uuid) -> String {
     }
 }
 
-/// A file's shares as `by>with:mode`, sorted.
-fn shares(file: &File) -> String {
+/// A file's shares as `by>with:mode`, or `:mode` when not `named`, sorted.
+fn shares(file: &File, named: bool) -> String {
     let mut shares: Vec<_> = file
         .shares
         .iter()
-        .map(|share| format!(" {}>{}:{:?}", share.shared_by, share.shared_with, share.mode))
+        .map(|share| match named {
+            true => format!(" {}>{}:{:?}", share.shared_by, share.shared_with, share.mode),
+            false => format!(" :{:?}", share.mode),
+        })
         .collect();
     shares.sort();
     shares.concat()
@@ -921,7 +964,7 @@ fn run(tier: Tier, seeds: u64, check: Check) {
 }
 
 thread_local! {
-    /// How many steps this thread has taken while a sync waited on the server.
+    /// How many steps this thread has taken while a sync was held.
     static PAUSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
@@ -1047,7 +1090,7 @@ fn a_new_device_sees_what_was_synced_check(case: Case, bytes: &[u8]) -> Result<(
         for account in 0..case.tier.accounts {
             let synced = &world.account_devices(account)[0];
             let key = synced.export_account_private_key().unwrap();
-            let fresh = device(&world.server, seed(bytes), world.devices.len() + 1 + account).await;
+            let fresh = device(&world.client, seed(bytes), world.devices.len() + 1 + account).await;
             fresh.import_account(&key, None).await.unwrap();
             fresh
                 .sync()
@@ -1072,9 +1115,9 @@ fn a_refused_step_changes_nothing_check(case: Case, bytes: &[u8]) -> Result<(), 
         let world = World::new(case, bytes).await;
         for (n, step) in steps(case, bytes).iter().enumerate() {
             let on = step.device();
-            let before = tree(&world.devices[on]).await;
+            let before = listing(&world.devices[on], false).await;
             let accepted = world.take(step, on, Reach::Shared).await;
-            let after = tree(&world.devices[on]).await;
+            let after = listing(&world.devices[on], false).await;
             if !accepted
                 && !matches!(
                     step,
