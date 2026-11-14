@@ -42,7 +42,7 @@ mod starts;
 
 #[test]
 fn syncing_alone_changes_nothing() {
-    run(OVERLAP, 2000, syncing_alone_changes_nothing_check);
+    run(WRITE_SHARES, 2000, syncing_alone_changes_nothing_check);
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn accounts_agree_on_what_they_share() {
 
 #[test]
 fn edits_are_never_lost() {
-    run(OVERLAP, 2000, edits_are_never_lost_check);
+    run(WRITE_SHARES, 2000, edits_are_never_lost_check);
     assert!(LANDED.get() > 0, "no save landed a line");
 }
 
