@@ -41,6 +41,8 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
         // a caret put down in a key's separator types into the value, but a
         // space typed at a key's end stays in the key
         ("---\ndue: x\n---", c(7), " date", "---\ndue date|: x\n---"),
+        ("---\nk: v\n---\n", c(6), "x", "---\nk: x|v\n---\n"),
+        ("---\nk: true\n---\n", c(6), "x", "---\nk: x|true\n---\n"),
         // Return starts a row; a colon, Return, or Tab ends a key
         (hello, c(16), "{ret}", "---\ntitle: Hello\n|\n---\n\nBody"),
         (hello, c(16), "{ret}status:x", "---\ntitle: Hello\nstatus: x|\n---\n\nBody"),
@@ -76,6 +78,7 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
         // only one takes the block, and the line after it stays
         ("---\ntitle: x\n\n---\n\nBody", c(13), "{ret}", "---\ntitle: x\n---\n\n|Body"),
         ("---\n\n---\n\nBody", c(4), "{bs}", "|Body"),
+        ("---\n\n---\n# Title\n\nBody", c(4), "{bs}", "|# Title\n\nBody"),
         // rows never join: Backspace at a row's start, or the body's, goes
         // to the end of the row above
         (ab, c(9), "{bs}", "---\na: 1|\nb: 2\n---"),
@@ -89,6 +92,8 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
         // ⌘⌫ empties the cell, then the row, and ⌫ takes the row
         (rows, c(15), "{cmd-bs}", "---\na: 1\nb: |\nc: 3\n---\nBody"),
         (rows, c(15), "{cmd-bs}{cmd-bs}{bs}", "---\na: 1|\nc: 3\n---\nBody"),
+        (ab, Some((0, 4)), "x", "---\nx|a: 1\nb: 2\n---"),
+        (ab, None, "x", "---\nx|a: 1\nb: 2\n---"),
         ("---\nk:\n---\n", c(6), "[{bs}", "---\nk: |\n---\n"),
         ("---\nk:\n---\n", c(6), "\"a\"", "---\nk: \"a\"|\n---\n"),
         ("---\nk: a\n---\n", c(8), "{cmd-B}", "---\nk: a|\n---\n"),

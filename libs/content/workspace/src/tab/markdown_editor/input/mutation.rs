@@ -120,6 +120,9 @@ impl<'ast> MdEdit {
                 };
                 let snapped = self.renderer.snap_selection_out_of_fold_tags(range);
                 let snapped = self.renderer.snap_selection_into_table_cells(snapped);
+                let snapped = self
+                    .renderer
+                    .snap_caret_out_of_front_matter_separator(snapped);
                 let affinity = if snapped.1 == range.1 { affinity } else { Affinity::Downstream };
                 self.renderer.caret_affinity = (snapped.1, affinity);
                 operations.push(Operation::Select(snapped));

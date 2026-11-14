@@ -1182,12 +1182,28 @@ fn cursor_visible_sweep(ws: &mut TestEditor) -> Option<String> {
         });
         ws.enter_frame();
         // off a table the cursor is where it was sent; on one, in a cell
-        // of that table
+        // of that table; in front matter's opening fence, on its first row,
+        // and inside its other hidden syntax, at an edge of it
         let r = &ws.editor.edit.renderer;
         let at = r.buffer.current.selection.1;
-        let placed = match r.bounds.table_at(g) {
-            Some(table) => r.bounds.table_at(at) == Some(table) && table.cell_at(at).is_some(),
-            None => at == g,
+        let fence = r.bounds.front_matter.as_ref().map(|fm| fm.head);
+        let hidden = r
+            .bounds
+            .front_matter
+            .as_ref()
+            .filter(|_| r.view != crate::tab::markdown_editor::View::Source)
+            .and_then(|fm| {
+                r.front_matter_syntax(fm)
+                    .into_iter()
+                    .find(|a| a.start() < g && g < a.end())
+            });
+        let placed = match (r.bounds.table_at(g), fence, hidden) {
+            (Some(table), _, _) => {
+                r.bounds.table_at(at) == Some(table) && table.cell_at(at).is_some()
+            }
+            (None, Some(head), _) if g < head.end() => at == head.end(),
+            (None, _, Some(a)) => at == g || at == a.start() || at == a.end(),
+            (None, _, None) => at == g,
         };
         if !placed || ws.editor.edit.cursor_line(at).is_none() {
             let text = ws.editor.edit.renderer.buffer.current.text.clone();

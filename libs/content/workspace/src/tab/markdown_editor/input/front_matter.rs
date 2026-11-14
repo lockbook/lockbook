@@ -25,10 +25,12 @@ impl MdEdit {
     /// after the block.
     fn front_matter_body_start(&self, fm: &FrontMatter<Grapheme>) -> Grapheme {
         let lines = &self.renderer.bounds.source_lines;
-        let mut after = lines.iter().filter(|l| l.start() > fm.node().end());
-        let first = after.next();
+        let mut after = lines
+            .iter()
+            .filter(|l| l.start() > fm.node().end())
+            .peekable();
+        let first = after.peek().copied();
         after
-            .chain(first)
             .find(|l| !l.is_empty())
             .or(first)
             .map(|l| l.start())

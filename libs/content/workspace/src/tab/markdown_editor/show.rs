@@ -288,6 +288,7 @@ impl MdEdit {
         let edited = buf_resp.text_updated || buf_resp.selection_user_moved;
         buf_resp |= self.unfold_after_edit(&arena, edited, undo_redo);
         buf_resp |= self.rehome_table_caret(undo_redo);
+        buf_resp |= self.rehome_front_matter_caret(undo_redo);
 
         // An entered atom stays revealed only while the selection remains
         // within it; the range is re-resolved against the (possibly edited)
