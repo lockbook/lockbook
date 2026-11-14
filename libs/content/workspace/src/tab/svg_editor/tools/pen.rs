@@ -99,7 +99,7 @@ impl InputControllerTool for Pen {
             | InputControllerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),
             InputControllerEvent::ToolHover(_) => None,
             InputControllerEvent::ViewportChange(_) => None,
-            InputControllerEvent::Gesture(_) | InputControllerEvent::KeyboardAction(_) => None,
+            InputControllerEvent::Gesture(_) | InputControllerEvent::Action(_) => None,
             InputControllerEvent::ToolPredictedRun(pos2, force) => {
                 Some(PathEvent::PredictedDraw(ToolPayload { pos: pos2, force, id: None }))
             }
@@ -149,6 +149,16 @@ impl InputControllerTool for Pen {
 }
 
 impl Pen {
+    pub fn change_color(&mut self, new_color: DynamicColor) {
+        if new_color == self.active_color {
+            return;
+        }
+
+        self.colors_history[1] = self.colors_history[0];
+        self.colors_history[0] = self.active_color;
+        self.active_color = new_color;
+    }
+
     pub fn new(settings: PenSettings) -> Self {
         let active_color = get_dyn_color(Color {
             red: settings.color.r(),

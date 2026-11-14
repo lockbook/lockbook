@@ -1116,6 +1116,7 @@ impl TabFailure {
 #[derive(Debug, Clone)]
 pub enum Event {
     Markdown(markdown_editor::Event),
+    Canvas(svg_editor::keyboard_shortcuts::CanvasAction),
     Drop {
         content: Vec<ClipContent>,
         position: egui::Pos2,

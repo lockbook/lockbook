@@ -219,6 +219,11 @@ macro_rules! set_tool {
 }
 
 impl Toolbar {
+    /// The pen a pen setting applies to: the highlighter's while it's active.
+    pub fn active_pen(&mut self) -> &mut Pen {
+        if self.active_tool == Tool::Highlighter { &mut self.highlighter } else { &mut self.pen }
+    }
+
     pub fn set_tool(
         &mut self, new_tool: Tool, settings: &mut CanvasSettings, cfg: &mut WsPersistentStore,
     ) {
