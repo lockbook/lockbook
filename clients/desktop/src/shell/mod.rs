@@ -303,6 +303,13 @@ impl ShellApp {
         }
     }
 
+    /// Every edit is on disk, so the window may close.
+    pub fn saves_settled(&self) -> bool {
+        self.session
+            .ready()
+            .is_none_or(|r| r.workspace.saves_settled())
+    }
+
     pub fn ui(&mut self, ctx: &egui::Context) {
         components::install(ctx);
         // F2 = space overlay (rename is context menu, so no conflict).

@@ -662,6 +662,15 @@ impl Workspace {
         self.last_save_all = Some(Instant::now());
     }
 
+    /// Every edit is on disk: no save waits, and no open tab has unsaved
+    /// edits. Quitting waits for this.
+    pub fn saves_settled(&self) -> bool {
+        self.tasks.saves_idle()
+            && !self.tabs.iter().any(|(_, tab)| {
+                matches!(tab.content, ContentState::Open(_)) && tab.is_dirty(&self.tasks)
+            })
+    }
+
     pub fn save_tab(&mut self, i: usize) {
         let Some(slot) = self.tab_strip.get(i) else { return };
         self.queue_save_for_session(slot.id);
