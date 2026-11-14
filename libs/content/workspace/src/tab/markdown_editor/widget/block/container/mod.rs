@@ -925,8 +925,8 @@ impl<'ast> MdRender {
         self.row_height_inflated_at_line(leaf, self.node_first_line(leaf))
     }
 
-    /// Visual height of `node`'s row at `line` when an inline image inflates
-    /// it; `None` otherwise.
+    /// Visual height of `node`'s row at `line` when an inline image or
+    /// formula inflates it; `None` otherwise.
     pub fn row_height_inflated_at_line(
         &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
     ) -> Option<f32> {
@@ -935,25 +935,31 @@ impl<'ast> MdRender {
             leaf = leaf.children().next()?;
         }
         let leaf_node_line = self.node_line(leaf, line);
-        if leaf_node_line.is_empty() || self.disable_images {
+        if leaf_node_line.is_empty() {
             return None;
         }
         let leaf_row_height = self.row_height(leaf);
         let baseline = self.body_baseline(leaf_row_height);
         // the row's metric in `wrap_layout`, with each image placed by `small_image_metrics`
-        let (ascent, descent) = leaf
+        let images = leaf
             .descendants()
+            .filter(|_| !self.disable_images)
             .filter(|d| image_url(d).is_some())
             .filter(|d| leaf_node_line.contains_range(&self.node_range(d), true, true))
             // Same collapse predicate as `layout_image`, else a selected image
             // stays tall but the row doesn't inflate, shifting the marker.
             .filter(|d| !self.range_revealed_interior(self.node_range(d)))
             .filter_map(|d| self.image_logical_size(d))
-            .map(|size| small_image_metrics(size.y, leaf_row_height, baseline))
-            .fold(
-                (leaf_row_height * baseline, leaf_row_height * (1.0 - baseline)),
-                |(a, d), (ia, id)| (a.max(ia), d.max(id)),
-            );
+            .map(|size| small_image_metrics(size.y, leaf_row_height, baseline));
+        // and each formula as `layout_math` places it
+        let formulas = leaf
+            .descendants()
+            .filter_map(|d| self.math_size(d, leaf_node_line))
+            .map(|m| (m.baseline, m.size.y - m.baseline));
+        let (ascent, descent) = images.chain(formulas).fold(
+            (leaf_row_height * baseline, leaf_row_height * (1.0 - baseline)),
+            |(a, d), (ia, id)| (a.max(ia), d.max(id)),
+        );
         let height = ascent + descent;
         (height > leaf_row_height).then_some(height)
     }

@@ -671,8 +671,14 @@ impl<'ast> MdEdit {
             Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
             Event::OpenDiagram => {
                 use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
-                if let Some(Picture::Diagram(source)) = self.renderer.selected_picture(root) {
-                    self.renderer.ctx.open_diagram(source);
+                use crate::tab::{Destination, ExtendedOutput as _};
+                let dest = match self.renderer.selected_picture(root) {
+                    Some(Picture::Diagram(source)) => Some(Destination::Diagram(source)),
+                    Some(Picture::Formula(formula)) => Some(Destination::Formula(formula)),
+                    _ => None,
+                };
+                if let Some(dest) = dest {
+                    self.renderer.ctx.open_picture(dest);
                 }
             }
             Event::CopyImage => {
@@ -682,6 +688,7 @@ impl<'ast> MdEdit {
             }
             Event::EnterAtom => {
                 if !self.enter_at_diagram(root, operations)
+                    && !self.enter_at_math(root, operations)
                     && !self.enter_at_image(root, operations)
                 {
                     self.enter_at_link(root, operations);

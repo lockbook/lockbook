@@ -36,6 +36,7 @@ impl Workspace {
         crate::font::poll(ui.ctx());
         self.images.begin_frame();
         crate::widgets::diagram_cache::DiagramCache::of(ui.ctx()).begin_frame();
+        crate::widgets::math::MathCache::of(ui.ctx()).begin_frame();
         self.tabs.begin_frame();
         for slot in &self.tab_strip {
             self.tabs.promote(&slot.id);
@@ -96,6 +97,7 @@ impl Workspace {
         }
         self.images.end_frame();
         crate::widgets::diagram_cache::DiagramCache::of(ui.ctx()).end_frame();
+        crate::widgets::math::MathCache::of(ui.ctx()).end_frame();
         self.tabs.end_frame();
 
         mem::take(&mut self.out)
@@ -155,8 +157,8 @@ impl Workspace {
                 for (id, heading, new_tab) in open_ids {
                     self.open_link(id, heading, new_tab);
                 }
-                if let Some(source) = ui.ctx().pop_open_diagram() {
-                    self.navigate_to(crate::tab::Destination::Diagram(source));
+                if let Some(dest) = ui.ctx().pop_open_picture() {
+                    self.navigate_to(dest);
                 }
                 for (id, heading, new_tab) in ui.ctx().pop_open_files() {
                     self.open_link(id, heading, new_tab);

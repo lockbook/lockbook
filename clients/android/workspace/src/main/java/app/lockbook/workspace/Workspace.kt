@@ -174,6 +174,8 @@ object Workspace {
 
     external fun currentTab(rustObj: Long): NativeWorkspaceTab
 
+    external fun currentTabTitle(rustObj: Long): String
+
     external fun fileRenamed(rustObj: Long, id: String, name: String): Int
 
     // text input

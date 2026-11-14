@@ -20,7 +20,7 @@ impl<'ast> MdRender {
             }
         }
 
-        result
+        result + self.height_math_errors(node)
     }
 
     /// Build a `Layout` for one paragraph line. Shared by height +
@@ -79,6 +79,8 @@ impl<'ast> MdRender {
 
             top_left.y += self.layout.block_spacing;
         }
+        top_left.y -= self.layout.block_spacing;
+        self.show_math_errors(ui, node, top_left);
     }
 
     pub fn show_paragraph_line(

@@ -70,7 +70,8 @@ impl LanguageCompletions {
     pub fn update_active_state(&mut self, buffer: &Buffer, fenced: bool) {
         self.active = fenced
             && detect_query(buffer).is_some_and(|(_, query)| {
-                self.suppressed.as_deref() != Some(&query) && !results_for(&query).is_empty()
+                self.suppressed.as_deref() != Some(query.as_str())
+                    && !results_for(&query).is_empty()
             });
     }
 

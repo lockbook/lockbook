@@ -62,6 +62,9 @@ pub struct Bounds {
     pub images: Vec<(Grapheme, Grapheme)>,
     /// The fence of every diagram that can collapse to its picture.
     pub diagrams: Vec<(Grapheme, Grapheme)>,
+    /// Every formula, sorted; one wider than its row keeps its scroll by
+    /// its place here.
+    pub math: Vec<(Grapheme, Grapheme)>,
 
     /// Source range of each link, wikilink and image while source shows,
     /// sorted; empty when rendered. Each gets the click area its rendered
@@ -119,6 +122,7 @@ impl Default for Bounds {
             source_links: Vec::default(),
             source_prose: Vec::default(),
             diagrams: Vec::default(),
+            math: Vec::default(),
             tables: Vec::default(),
             code_blocks: Vec::default(),
         }

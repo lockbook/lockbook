@@ -229,6 +229,7 @@ fn tab_label(files: &FileCache, dest: &Destination) -> String {
             .unwrap_or_else(|| "Unknown".into()),
         Destination::Search(_) => "Search".into(),
         Destination::Diagram(_) => "Diagram".into(),
+        Destination::Formula(_) => "Formula".into(),
     }
 }
 

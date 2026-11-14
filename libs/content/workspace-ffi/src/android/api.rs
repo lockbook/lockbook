@@ -1016,6 +1016,23 @@ fn get_current_tab(obj: &mut WgpuWorkspace<'_>) -> i32 {
     crate::current_tab_type(&obj.workspace)
 }
 
+/// The current tab's title, for one with no file of its own.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTabTitle(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let title = obj
+        .workspace
+        .current_tab()
+        .map(|tab| obj.workspace.tab_title(tab))
+        .unwrap_or_default();
+    env.new_string(title)
+        .expect("create tab title string")
+        .into_raw()
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_fileRenamed(
     mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, jnew_name: JString,

@@ -311,8 +311,8 @@ impl DiagramCache {
     }
 
     /// The diagram on the theme background with a margin, at twice its
-    /// natural size, for the clipboard; and that picture's natural size.
-    pub fn image(&self, source: &str) -> Option<(ColorImage, Vec2)> {
+    /// natural size, for the clipboard; its `source_size` is that natural size.
+    pub fn image(&self, source: &str) -> Option<ColorImage> {
         let (cached, theme) = {
             let inner = self.lookup();
             let cached = match inner.entries.get(&inner.key(source)) {
@@ -337,8 +337,9 @@ impl DiagramCache {
         let width = fit_width(&tree, (natural.x * 2.0) as u32, 4096);
         let margin = (MARGIN * width as f32 / natural.x).round() as u32;
         let [r, g, b] = theme.background;
-        let image = rasterize(&tree, width, Some((Color32::from_rgb(r, g, b), margin))).ok()?;
-        Some((image, natural + Vec2::splat(2.0 * MARGIN)))
+        let mut image = rasterize(&tree, width, Some((Color32::from_rgb(r, g, b), margin))).ok()?;
+        image.source_size = natural + Vec2::splat(2.0 * MARGIN);
+        Some(image)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
@@ -556,7 +557,7 @@ fn escape(text: &str) -> String {
 }
 
 /// `width_px`, or less so neither side passes `max_side`.
-fn fit_width(tree: &usvg::Tree, width_px: u32, max_side: u32) -> u32 {
+pub(crate) fn fit_width(tree: &usvg::Tree, width_px: u32, max_side: u32) -> u32 {
     let size = tree.size();
     let tallest = max_side as f32 * size.width() / size.height();
     (width_px.min(max_side) as f32).min(tallest).max(1.0) as u32
@@ -564,7 +565,7 @@ fn fit_width(tree: &usvg::Tree, width_px: u32, max_side: u32) -> u32 {
 
 /// The diagram `width_px` wide, on a `matte` of a color and a margin in
 /// pixels if one is given.
-fn rasterize(
+pub(crate) fn rasterize(
     tree: &usvg::Tree, width_px: u32, matte: Option<(Color32, u32)>,
 ) -> Result<ColorImage, String> {
     let _span = tracing::trace_span!("Diagram::raster", width_px).entered();
@@ -1033,7 +1034,8 @@ mod tests {
     use super::*;
     use crate::theme::palette_v2::{Mode, Theme};
 
-    /// A context with a diagram cache is freed once nothing else holds it.
+    /// A context with a diagram or math cache is freed once nothing else
+    /// holds it.
     #[test]
     fn a_context_with_a_cache_is_freed() {
         let ctx = Context::default();
@@ -1042,6 +1044,7 @@ mod tests {
         let weak = Arc::downgrade(&held);
         drop(held);
         DiagramCache::of(&ctx);
+        crate::widgets::math::MathCache::of(&ctx);
         drop(ctx);
         assert!(weak.upgrade().is_none(), "the context outlives its last handle");
     }

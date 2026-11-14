@@ -2242,6 +2242,100 @@ fn touch_image_tap_selects_and_pops_menu() {
     );
 }
 
+/// Touch tap far from a formula's left edge: selects the formula and pops
+/// the `Atom` menu, whose Edit puts the caret in its source.
+#[test]
+fn touch_math_tap_selects_and_edit_reveals() {
+    use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
+
+    let mut ws = TestEditor::new("$$\\frac{a}{b} + \\frac{c}{d}$$\n");
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+    ws.enter_frame();
+
+    let math = ws.editor.edit.renderer.bounds.math[0];
+    let frag = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .find(|f| matches!(f.content, FragmentContent::Embed { .. }))
+        .expect("formula embed fragment");
+    let pos = frag.rect.right_center() - egui::vec2(4.0, 0.0);
+
+    let modifiers = egui::Modifiers::default();
+    ws.enter_frame_with_input(vec![
+        egui::Event::PointerMoved(pos),
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers,
+        },
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers,
+        },
+    ]);
+
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection, math, "formula selected");
+    let menu = ws.editor.edit.renderer.ctx.pop_context_menu();
+    assert!(
+        matches!(menu, Some((_, ContextMenuTarget::Atom))),
+        "atom context menu popped: {menu:?}"
+    );
+
+    ws.push(Event::EnterAtom);
+    ws.enter_frame();
+    let end = math.end() - 2;
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection, (end, end), "caret in source");
+    assert!(ws.editor.edit.renderer.range_revealed_interior(math), "source revealed");
+}
+
+/// Display math that doesn't typeset shows its source underlined, with its
+/// error below the paragraph as a diagram's shows below its source.
+#[test]
+fn failed_display_math_shows_its_error() {
+    let height = |md: &str| {
+        let mut ws = TestEditor::new(md);
+        ws.enter_frame();
+        ws.enter_frame();
+        let r = &mut ws.editor.edit.renderer;
+        assert_eq!(r.error_marks.len(), 1, "the source is underlined");
+        let arena = Arena::new();
+        let root = r.reparse(&arena);
+        r.height(root.first_child().unwrap())
+    };
+    let display = height("$$\\fracc{1}{2}$$\n");
+    let inline = height("x $\\fracc{1}{2}$\n");
+    assert!(display > inline, "the error shows below: {display} vs {inline}");
+}
+
+/// Inline math that doesn't typeset shows its source underlined as a
+/// misspelling is.
+#[test]
+fn failed_inline_math_is_underlined() {
+    let mut ws = TestEditor::new("a $\\fracc{1}{2}$ b\n");
+    ws.enter_frame();
+    ws.enter_frame();
+    let r = &ws.editor.edit.renderer;
+    assert!(
+        !r.fragments
+            .iter()
+            .any(|f| matches!(f.content, FragmentContent::Embed { .. })),
+        "the source shows"
+    );
+    let marked: Vec<_> = r
+        .error_marks
+        .iter()
+        .map(|&e| r.buffer[e].to_string())
+        .collect();
+    assert_eq!(marked, ["$\\fracc{1}{2}$"], "the source is underlined");
+}
+
 /// `selection_open_target` gates the platform edit menu's "Open Link" /
 /// "Copy Link" — it must see wikilinks, not just links and images.
 #[test]
@@ -3053,4 +3147,23 @@ fn unchanged_text_is_not_parsed_again() {
     ws.enter_frame();
     assert!(!first.same_node(ws.editor.edit.renderer.reparse(&arena)));
     assert_eq!(first.children().count(), 2);
+}
+
+/// The edit menu's Open on a selected formula opens it in its own tab.
+#[test]
+fn selected_math_opens_in_a_tab() {
+    use crate::tab::{Destination, ExtendedOutput as _};
+    use crate::widgets::math::Formula;
+
+    let mut ws = TestEditor::new("$$\\frac{a}{b}$$\n");
+    ws.enter_frame();
+    let math = ws.editor.edit.renderer.bounds.math[0];
+    ws.push(Event::Select { region: math.into() });
+    ws.enter_frame();
+    assert!(ws.editor.edit.renderer.selection_has_diagram(), "edit menu offers Open");
+
+    ws.push(Event::OpenDiagram);
+    ws.enter_frame();
+    let formula = Formula { latex: "\\frac{a}{b}".into(), display: true };
+    assert_eq!(ws.editor.edit.renderer.ctx.pop_open_picture(), Some(Destination::Formula(formula)));
 }

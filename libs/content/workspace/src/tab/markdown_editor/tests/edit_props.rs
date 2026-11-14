@@ -2883,7 +2883,7 @@ fn indent_doesnt_break_document_check(buf: &[u8]) -> Result<(), &'static str> {
     }
     for (b, a) in before.iter().zip(after.iter()) {
         if let Some(b_kind) = b {
-            if a.as_deref() != Some(b_kind) {
+            if a.as_deref() != Some(*b_kind) {
                 return Err("structural line kind changed (line broke)");
             }
         }

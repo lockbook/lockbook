@@ -18,6 +18,7 @@ use crate::tab::input_controller::{
 use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
 use crate::widgets::diagram_cache::{DiagramCache, DiagramSize};
 use crate::widgets::image_cache::{ImageCache, ImageKey, ImageState};
+use crate::widgets::math::{Formula, MathCache, Typeset};
 
 const MIN_ZOOM_LEVEL: f32 = 0.1;
 const ZOOM_STEP: f32 = 10.0;
@@ -38,11 +39,13 @@ pub struct ImageViewer {
     menu_open: bool,
 }
 
-/// What the viewer shows: an image file, or a note's diagram, drawn from
-/// its source at the size it's shown so it stays sharp as it's zoomed.
+/// What the viewer shows: an image file, or a note's diagram or formula,
+/// drawn from its source at the size it's shown so it stays sharp as it's
+/// zoomed.
 enum Picture {
     File(Uuid),
     Diagram(String),
+    Formula(Formula),
 }
 
 #[derive(Clone, Copy)]
@@ -65,6 +68,10 @@ impl ImageViewer {
         Self::of(Picture::Diagram(source), images)
     }
 
+    pub fn formula(formula: Formula, images: ImageCache) -> Self {
+        Self::of(Picture::Formula(formula), images)
+    }
+
     fn of(picture: Picture, images: ImageCache) -> Self {
         Self {
             picture,
@@ -81,7 +88,15 @@ impl ImageViewer {
     pub fn file(&self) -> Option<Uuid> {
         match self.picture {
             Picture::File(id) => Some(id),
-            Picture::Diagram(_) => None,
+            Picture::Diagram(_) | Picture::Formula(_) => None,
+        }
+    }
+
+    /// The tab's name for a picture that isn't a file.
+    pub fn title(&self) -> &'static str {
+        match self.picture {
+            Picture::Formula(_) => "Formula",
+            Picture::File(_) | Picture::Diagram(_) => "Diagram",
         }
     }
 
@@ -107,13 +122,18 @@ impl ImageViewer {
                 let rect = self.image_rect(available, size);
 
                 // a diagram's texture is drawn for the size it's shown at
+                let px = rect.width() * ui.ctx().pixels_per_point();
+                // in steps, so a zoom redraws now and then rather than every frame
+                let px = 2f32.powf((px.max(1.0).log2() * 4.0).ceil() / 4.0) as u32;
                 let texture_id = match &self.picture {
-                    Picture::Diagram(source) => {
-                        let px = rect.width() * ui.ctx().pixels_per_point();
-                        // in steps, so a zoom redraws now and then rather than every frame
-                        let px = 2f32.powf((px.max(1.0).log2() * 4.0).ceil() / 4.0) as u32;
-                        DiagramCache::of(ui.ctx()).texture(source, px)
-                    }
+                    Picture::Diagram(source) => DiagramCache::of(ui.ctx()).texture(source, px),
+                    Picture::Formula(formula) => match formula_typeset(ui.ctx(), formula) {
+                        Typeset::Ready(size) => {
+                            let color = ui.ctx().get_lb_theme().neutral_fg();
+                            MathCache::of(ui.ctx()).texture(size.key, color, px)
+                        }
+                        _ => None,
+                    },
                     Picture::File(_) => Some(texture_id),
                 };
                 if let Some(texture_id) = texture_id {
@@ -132,6 +152,7 @@ impl ImageViewer {
                 let what = match self.picture {
                     Picture::File(_) => "image",
                     Picture::Diagram(_) => "diagram",
+                    Picture::Formula(_) => "formula",
                 };
                 message_indicator(
                     ui,
@@ -178,6 +199,11 @@ impl ImageViewer {
                 DiagramSize::Ready(_) => ImageState::Loaded(egui::TextureId::default()),
                 DiagramSize::Failed(error) => ImageState::Failed(error.message),
             },
+            Picture::Formula(formula) => match formula_typeset(ui.ctx(), formula) {
+                Typeset::Pending => ImageState::Loading,
+                Typeset::Ready(_) => ImageState::Loaded(egui::TextureId::default()),
+                Typeset::Failed { message, .. } => ImageState::Failed(message),
+            },
         }
     }
 
@@ -193,6 +219,10 @@ impl ImageViewer {
                 DiagramSize::Ready(size) => size,
                 _ => Vec2::splat(1.0),
             },
+            Picture::Formula(formula) => match formula_typeset(ui.ctx(), formula) {
+                Typeset::Ready(size) => size.size,
+                _ => Vec2::splat(1.0),
+            },
         }
     }
 
@@ -200,6 +230,7 @@ impl ImageViewer {
         match self.picture {
             Picture::File(_) => "Back to image",
             Picture::Diagram(_) => "Back to diagram",
+            Picture::Formula(_) => "Back to formula",
         }
     }
 
@@ -216,10 +247,16 @@ impl ImageViewer {
         }
     }
 
+    /// Fit shrinks a picture larger than the view; a formula, text-sized in
+    /// a note, also grows to fill it.
     fn image_rect(&self, available: Rect, image_size: Vec2) -> Rect {
-        let scale = (available.width() / image_size.x)
-            .min(available.height() / image_size.y)
-            .min(1.0);
+        let (room, cap) = match self.picture {
+            Picture::Formula(_) => (available.shrink(Space::Xl.pts()), f32::INFINITY),
+            Picture::File(_) | Picture::Diagram(_) => (available, 1.0),
+        };
+        let scale = (room.width() / image_size.x)
+            .min(room.height() / image_size.y)
+            .min(cap);
         let base_rect = Rect::from_center_size(available.center(), image_size * scale);
         transform_rect(base_rect, self.master_transform)
     }
@@ -385,7 +422,16 @@ impl ImageViewer {
         let id = match &self.picture {
             Picture::File(id) => *id,
             Picture::Diagram(source) => {
-                if let Some((image, _)) = DiagramCache::of(ctx).image(source) {
+                if let Some(image) = DiagramCache::of(ctx).image(source) {
+                    ctx.copy_image(image);
+                }
+                return;
+            }
+            Picture::Formula(formula) => {
+                let theme = ctx.get_lb_theme();
+                let (fg, bg) = (theme.neutral_fg(), theme.neutral_bg());
+                if let Some(image) = MathCache::of(ctx).image(formula, formula_text_size(), fg, bg)
+                {
                     ctx.copy_image(image);
                 }
                 return;
@@ -414,6 +460,16 @@ impl ImageViewer {
     fn reset_viewport(&mut self) {
         self.master_transform = Transform::identity();
     }
+}
+
+/// The text size a viewer's formula is set for: the note's body.
+fn formula_text_size() -> f32 {
+    crate::tab::markdown_editor::MdLayout::desktop().row_height
+}
+
+fn formula_typeset(ctx: &egui::Context, formula: &Formula) -> Typeset {
+    let color = ctx.get_lb_theme().neutral_fg();
+    MathCache::of(ctx).size(formula, formula_text_size(), color)
 }
 
 fn transform_point(point: Pos2, transform: Transform) -> Pos2 {

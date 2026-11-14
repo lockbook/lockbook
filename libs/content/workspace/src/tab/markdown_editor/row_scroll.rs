@@ -1,4 +1,4 @@
-//! Blocks wider than the note — tables, code blocks, and diagrams — scroll
+//! Blocks wider than the note — tables, code blocks, diagrams, and formulas — scroll
 //! along their rows: a wheel over one, a touch drag that sets out sideways,
 //! or the platform's own pan recognizer moves it, and it coasts after a
 //! fling. It follows what the user is shown: a find or preview match, or the
@@ -26,6 +26,8 @@ pub enum RowScroller {
     Code(usize),
     /// A collapsed diagram, by its place among the diagrams.
     Diagram(usize),
+    /// A formula wider than its row, by its place among the formulas.
+    Math(usize),
 }
 
 /// Where a block wider than the note is scrolled to along its rows.

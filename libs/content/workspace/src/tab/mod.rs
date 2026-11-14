@@ -43,13 +43,15 @@ pub enum Destination {
     Search(SearchState),
     /// A note's diagram, by its source, in the image viewer.
     Diagram(String),
+    /// A note's formula, in the image viewer.
+    Formula(crate::widgets::math::Formula),
 }
 
 impl Destination {
     pub fn id(&self) -> Uuid {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => *id,
-            Self::Search(_) | Self::Diagram(_) => Uuid::nil(),
+            Self::Search(_) | Self::Diagram(_) | Self::Formula(_) => Uuid::nil(),
         }
     }
 
@@ -57,7 +59,7 @@ impl Destination {
     pub fn backing_file(&self) -> Option<Uuid> {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => Some(*id),
-            Self::Search(_) | Self::Diagram(_) => None,
+            Self::Search(_) | Self::Diagram(_) | Self::Formula(_) => None,
         }
     }
 
@@ -69,6 +71,7 @@ impl Destination {
             Self::MindMap(_) => 2,
             Self::SpaceInspector(_) => 3,
             Self::Diagram(_) => 4,
+            Self::Formula(_) => 5,
         }
     }
 }
@@ -231,9 +234,10 @@ impl Place {
                 }
                 Some(format!("lb://search?{}", query.finish()))
             }
-            Destination::MindMap(_) | Destination::SpaceInspector(_) | Destination::Diagram(_) => {
-                None
-            }
+            Destination::MindMap(_)
+            | Destination::SpaceInspector(_)
+            | Destination::Diagram(_)
+            | Destination::Formula(_) => None,
         }
     }
 }
@@ -519,7 +523,7 @@ impl Tab {
 
     pub fn id(&self) -> Option<Uuid> {
         match self.destination {
-            Destination::Search(_) | Destination::Diagram(_) => None,
+            Destination::Search(_) | Destination::Diagram(_) | Destination::Formula(_) => None,
             _ => Some(self.destination.id()),
         }
     }
@@ -1141,12 +1145,12 @@ impl Workspace {
                     "Unknown".into()
                 }
             }
-            None => match tab.content {
+            None => match &tab.content {
                 #[cfg(not(target_family = "wasm"))]
                 ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
                 ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
                 ContentState::Open(TabContent::Search(_)) => "Search".into(),
-                ContentState::Open(TabContent::Image(_)) => "Diagram".into(),
+                ContentState::Open(TabContent::Image(viewer)) => viewer.title().into(),
                 _ => "Unknown".into(),
             },
         }
@@ -1190,9 +1194,9 @@ pub trait ExtendedOutput {
     /// open the document.
     fn create_note(&self, parent: Uuid, names: Vec<String>);
     fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)>;
-    /// Open a note's diagram, by its source, in the image viewer.
-    fn open_diagram(&self, source: String);
-    fn pop_open_diagram(&self) -> Option<String>;
+    /// Open a note's diagram or formula, by its source, in the image viewer.
+    fn open_picture(&self, dest: Destination);
+    fn pop_open_picture(&self) -> Option<Destination>;
     /// A rendered copy; hosts put both flavors on the clipboard at once.
     fn set_copied_rendered(&self, copied: CopiedRendered);
     fn pop_copied_rendered(&self) -> Option<CopiedRendered>;
@@ -1277,12 +1281,16 @@ impl ExtendedOutput for egui::Context {
         })
     }
 
-    fn open_diagram(&self, source: String) {
-        self.memory_mut(|m| m.data.insert_temp(Id::unique("open_diagram"), source));
+    fn open_picture(&self, dest: Destination) {
+        self.memory_mut(|m| m.data.insert_temp(Id::unique("open_picture"), Some(dest)));
     }
 
-    fn pop_open_diagram(&self) -> Option<String> {
-        self.memory_mut(|m| m.data.remove_temp(Id::unique("open_diagram")))
+    fn pop_open_picture(&self) -> Option<Destination> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Option<Destination>>(Id::unique("open_picture"))
+        })
+        .flatten()
     }
 
     fn pop_open_files(&self) -> Vec<(Uuid, Option<String>, bool)> {
