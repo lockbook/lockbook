@@ -1,86 +1,51 @@
-use lb_rs::io::docs::{AsyncDocs, DocumentStore};
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use lb_rs::model::crypto::EncryptedDocument;
-use lb_rs::model::errors::LbResult;
-use lb_rs::model::file_metadata::DocumentHmac;
+use async_trait::async_trait;
+use lb_rs::io::docs::AsyncDocs;
+use test_utils::gate::{DocOp, Gate, GatedDocuments, Point};
 use test_utils::lockbook_server_lib::ServerState;
 use test_utils::lockbook_server_lib::billing::Nop;
-use test_utils::lockbook_server_lib::document_service::DocumentService;
-use test_utils::lockbook_server_lib::in_process::{InMemDocuments, InMemoryServer};
+use test_utils::lockbook_server_lib::in_process::InMemDocuments;
 use test_utils::{random_name, test_config};
 use tokio::sync::Notify;
-use uuid::Uuid;
 
-/// The in-memory document store with a pause point, a stand-in like `Nop` is for Stripe. Once
-/// armed, its next upload waits for the test to release it.
+/// Once armed, parks the server's next upload until the test releases it: after the server
+/// validated the edit and before it commits the new metadata.
 #[derive(Clone, Default)]
-struct GatedDocuments {
-    docs: InMemDocuments,
+struct Upload {
     armed: Arc<AtomicBool>,
     entered: Arc<Notify>,
     release: Arc<Notify>,
 }
 
-impl DocumentStore for GatedDocuments {
-    async fn insert(
-        &self, id: Uuid, hmac: DocumentHmac, content: &EncryptedDocument,
-    ) -> LbResult<()> {
-        // The one armed upload parks here, after the server validated the edit and before it
-        // commits the new metadata, so the test can run another device's pull inside that window.
-        if self.armed.swap(false, Ordering::SeqCst) {
-            self.entered.notify_one();
-            self.release.notified().await;
+#[async_trait]
+impl Gate for Upload {
+    async fn pass(&self, point: Point) {
+        if let Point::Document { op: DocOp::Insert, .. } = point {
+            if self.armed.swap(false, Ordering::SeqCst) {
+                self.entered.notify_one();
+                self.release.notified().await;
+            }
         }
-        self.docs.insert(id, hmac, content).await
-    }
-
-    async fn maybe_get(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Option<EncryptedDocument>> {
-        self.docs.maybe_get(id, hmac).await
-    }
-
-    async fn delete(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
-        self.docs.delete(id, hmac).await
-    }
-
-    fn exists(&self, id: Uuid, hmac: DocumentHmac) -> bool {
-        self.docs.exists(id, hmac)
     }
 }
 
-impl DocumentService for GatedDocuments {
-    fn get_path(&self, id: Uuid, hmac: DocumentHmac) -> PathBuf {
-        self.docs.get_path(id, hmac)
-    }
-}
+type TestServer = ServerState<Nop, Nop, Nop, GatedDocuments<InMemDocuments>>;
+type Lb = lb_rs::Lb<TestServer>;
 
-type GatedServer = ServerState<Nop, Nop, Nop, GatedDocuments>;
-type Lb = lb_rs::Lb<GatedServer>;
-
-fn gated_server() -> GatedServer {
-    let base = InMemoryServer::in_memory();
-    ServerState {
-        config: base.config,
-        index_db: base.index_db,
-        stripe_client: base.stripe_client,
-        google_play_client: base.google_play_client,
-        app_store_client: base.app_store_client,
-        document_service: GatedDocuments::default(),
-        clock: base.clock,
-        discord_client: base.discord_client,
-        recent_new_account_ips: base.recent_new_account_ips,
-    }
+fn gated_server() -> (TestServer, Upload) {
+    let gate = Upload::default();
+    let docs = GatedDocuments::new(InMemDocuments::default(), gate.clone());
+    (TestServer::with_documents(docs), gate)
 }
 
 /// A device that pulls while another device's edit is still uploading still gets the edit on
 /// its next sync.
 #[tokio::test]
 async fn pull_during_content_upload_still_gets_the_edit() {
-    let server = gated_server();
-    let gate = server.document_service.clone();
+    let (server, gate) = gated_server();
 
     let writer = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
         .await
@@ -122,8 +87,7 @@ async fn pull_during_content_upload_still_gets_the_edit() {
 /// Two devices that upload the same edit at once leave the note readable on a third device.
 #[tokio::test]
 async fn same_edit_uploaded_twice_at_once_stays_readable() {
-    let server = gated_server();
-    let gate = server.document_service.clone();
+    let (server, gate) = gated_server();
 
     let first = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
         .await
@@ -168,8 +132,7 @@ async fn same_edit_uploaded_twice_at_once_stays_readable() {
 /// An edit undone while its upload is still in flight stays undone once the device syncs again.
 #[tokio::test]
 async fn undo_during_content_upload_keeps_the_undo() {
-    let server = gated_server();
-    let gate = server.document_service.clone();
+    let (server, gate) = gated_server();
 
     let writer = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
         .await

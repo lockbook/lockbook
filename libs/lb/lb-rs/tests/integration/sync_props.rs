@@ -3,10 +3,11 @@
 
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
+use lb_rs::io::CoreDb;
 use lb_rs::io::docs::AsyncDocs;
 use lb_rs::io::server::Server;
 use lb_rs::model::account::Account;
@@ -21,13 +22,12 @@ use test_utils::lockbook_server_lib::ServerState;
 use test_utils::lockbook_server_lib::billing::Nop;
 use test_utils::lockbook_server_lib::in_process::InMemDocuments;
 use test_utils::{prop, test_config};
-use tokio::sync::oneshot;
+use tokio::sync::{RwLock, oneshot};
 use uuid::Uuid;
 
-type TestServer = ServerState<Nop, Nop, Nop, InMemDocuments>;
+type TestServer = ServerState<Nop, Nop, Nop, GatedDocuments<InMemDocuments>>;
 /// The server as devices reach it.
 type Client = GatedServer<TestServer>;
-/// A device's documents, of which only saves ask the gate.
 type Docs = GatedDocuments<AsyncDocs>;
 type Lb = lb_rs::Lb<Client, Docs>;
 
@@ -240,15 +240,19 @@ enum Step {
     },
 }
 
-/// Where in a sync a hold may land.
+/// Where in a sync a hold may land. `D` names a document: the device's `D`th by path in a step,
+/// its id once armed.
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Place {
+enum Place<D = usize> {
     /// A request about to leave the device.
     Sent,
     /// A response the device has yet to read.
     Answered,
     /// A device's save, before it writes; the first one from now, whatever `at` says.
     Save,
+    /// An operation on the document, in the server's store or the device's, parallel batches
+    /// included.
+    Document(D),
 }
 
 // few names, so devices collide on paths; mostly text, as people's files are
@@ -305,7 +309,11 @@ fn steps(case: Case, bytes: &[u8]) -> Vec<Step> {
                 1 => Step::Hold {
                     device,
                     at: src.draw(4),
-                    place: [Place::Sent, Place::Answered][src.draw(2)],
+                    place: match src.draw(3) {
+                        0 => Place::Sent,
+                        1 => Place::Answered,
+                        _ => Place::Document(src.draw(8)),
+                    },
                 },
                 _ => Step::Release { device: held[src.draw(held.len())].0 },
             };
@@ -492,7 +500,10 @@ impl World {
     /// `tier`'s accounts with nothing in them, every id drawn from `seed`.
     async fn empty(tier: Tier, seed: u64) -> Self {
         let pause = Pause::default();
-        let mut server = TestServer::with_documents(InMemDocuments::default());
+        let mut server = TestServer::with_documents(GatedDocuments::new(
+            InMemDocuments::default(),
+            pause.clone(),
+        ));
         let admin_name = name(seed, 0);
         server.config.admin.admins.insert(admin_name.clone());
         let client = GatedServer::new(server.clone(), pause.clone());
@@ -532,22 +543,22 @@ impl World {
     /// from `seed`.
     async fn copy(&self, seed: u64) -> Self {
         let pause = Pause::default();
+        let documents = self.server.document_service.docs.copy();
         let server = self
             .server
-            .copy_with(self.server.document_service.copy())
+            .copy_with(GatedDocuments::new(documents, pause.clone()))
             .await;
         let client = GatedServer::new(server.clone(), pause.clone());
         let mut devices = Vec::new();
         for (n, device) in self.devices.iter().enumerate() {
             let config = config(seed, n + 1);
-            let docs =
-                |docs: &Docs| GatedDocuments::new(docs.docs.copy().unwrap(), Local(pause.clone()));
-            devices.push(
-                device
-                    .copy_in_memory(config, client.clone(), docs)
-                    .await
-                    .unwrap(),
-            );
+            let local = Local::new(&pause);
+            let docs = |docs: &Docs| GatedDocuments::new(docs.docs.copy().unwrap(), local.clone());
+            let device = device
+                .copy_in_memory(config, client.clone(), docs)
+                .await
+                .unwrap();
+            devices.push(local.of(device));
         }
         Self {
             server,
@@ -629,6 +640,17 @@ impl World {
         }
         match *step {
             Step::Hold { at, place, .. } => {
+                let place = match place {
+                    Place::Sent => Place::Sent,
+                    Place::Answered => Place::Answered,
+                    Place::Save => Place::Save,
+                    Place::Document(file) => {
+                        match pick(device, reach, file, Kind::Document).await {
+                            Some(id) => Place::Document(id),
+                            None => return device.sync().await.is_ok(),
+                        }
+                    }
+                };
                 let parked = self.pause.arm(place, at);
                 let syncing = device.clone();
                 let sync = tokio::spawn(async move { syncing.sync().await.is_ok() });
@@ -883,7 +905,7 @@ impl World {
     }
 }
 
-type Armed = (Place, usize, oneshot::Sender<oneshot::Sender<()>>);
+type Armed = (Place<Uuid>, usize, oneshot::Sender<oneshot::Sender<()>>);
 
 /// Parks a sync at the point a hold chose, until a later step lets it go on.
 #[derive(Clone, Default)]
@@ -895,7 +917,7 @@ struct Pause {
 impl Pause {
     /// The receiver hears when the `at`th point of `place` from now parks, with what lets it go
     /// on, or errs if [`Self::disarm`] comes first.
-    fn arm(&self, place: Place, at: usize) -> oneshot::Receiver<oneshot::Sender<()>> {
+    fn arm(&self, place: Place<Uuid>, at: usize) -> oneshot::Receiver<oneshot::Sender<()>> {
         let (entered, parked) = oneshot::channel();
         *self.armed.lock().unwrap() = Some((place, at, entered));
         parked
@@ -907,14 +929,18 @@ impl Pause {
 }
 
 /// Requests a sync sends as many at once as the machine has cores. A hold never counts them, so
-/// they all finish before the next point and a seed replays alike on every machine.
+/// they all finish before the next point and a seed replays alike on every machine. A hold on a
+/// document counts only its operations, which run in one batch member each, so the same seed
+/// holds the same document at the same point at any width above one.
 const PARALLEL: [&str; 2] = ["get_document", "change_doc_v2"];
 
+/// The server's view of the [`Pause`], which devices' views pass through.
 #[async_trait]
 impl Gate for Pause {
     async fn pass(&self, point: Point) {
         let here = match point {
             Point::Document { op: DocOp::InsertPending, .. } => Place::Save,
+            Point::Document { id, .. } => Place::Document(id),
             Point::Sent { endpoint } if !PARALLEL.contains(&endpoint) => Place::Sent,
             Point::Answered { endpoint } if !PARALLEL.contains(&endpoint) => Place::Answered,
             _ => return,
@@ -942,15 +968,31 @@ impl Gate for Pause {
     }
 }
 
-/// A device's view of the [`Pause`]: only its saves ask, since its other document calls may run
-/// inside a transaction, where a hold would stall the device.
-struct Local(Pause);
+/// A device's view of the [`Pause`]: its store asks only while its database is free, since a
+/// hold inside a transaction would stall the device.
+#[derive(Clone)]
+struct Local {
+    pause: Pause,
+    db: Arc<OnceLock<Arc<RwLock<CoreDb>>>>,
+}
+
+impl Local {
+    fn new(pause: &Pause) -> Self {
+        Self { pause: pause.clone(), db: Default::default() }
+    }
+
+    /// `device`, whose store is this view's, now watched.
+    fn of(&self, device: Lb) -> Lb {
+        self.db.set(device.db.clone()).ok().unwrap();
+        device
+    }
+}
 
 #[async_trait]
 impl Gate for Local {
     async fn pass(&self, point: Point) {
-        if let Point::Document { op: DocOp::InsertPending, .. } = point {
-            self.0.pass(point).await;
+        if self.db.get().is_some_and(|db| db.try_write().is_ok()) {
+            self.pause.pass(point).await;
         }
     }
 }
@@ -1001,10 +1043,11 @@ fn name(seed: u64, n: usize) -> String {
 
 /// The `n`th device a world seeded with `seed` makes.
 async fn device(client: &Client, pause: &Pause, seed: u64, n: usize) -> Lb {
-    let docs = GatedDocuments::new(AsyncDocs::in_memory(), Local(pause.clone()));
-    Lb::in_memory(config(seed, n), client.clone(), docs)
+    let local = Local::new(pause);
+    let docs = GatedDocuments::new(AsyncDocs::in_memory(), local.clone());
+    local.of(Lb::in_memory(config(seed, n), client.clone(), docs)
         .await
-        .unwrap()
+        .unwrap())
 }
 
 /// What a device shows: every file's type, shares and content, keyed by path.
