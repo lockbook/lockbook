@@ -1086,7 +1086,6 @@ impl MdRender {
         // when text hasn't changed.
         if self.bounds.text_seq != self.text_seq {
             self.bounds.inline_paragraphs.clear();
-            self.bounds.front_matter = None;
             self.calc_source_lines();
             // source shows folds open and images, diagrams and formulas as their text
             if self.view == View::Source {
@@ -1101,6 +1100,7 @@ impl MdRender {
             self.calc_source_links(root);
             self.calc_source_prose(root);
             self.calc_table_bounds(root);
+            self.calc_front_matter_bounds(root);
             self.calc_code_block_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
             // from compute_bounds_block_pre_spacing) queries

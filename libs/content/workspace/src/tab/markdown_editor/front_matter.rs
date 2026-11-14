@@ -4,7 +4,7 @@
 //! `widget::block::leaf::front_matter` and takes keys in
 //! `input::front_matter`.
 
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
@@ -13,15 +13,19 @@ use crate::front_matter::{self, FrontMatter, RowKind, Value};
 use crate::tab::markdown_editor::{MdEdit, MdRender, View};
 
 impl<'ast> MdRender {
-    /// Recompute [`Bounds::front_matter`](super::bounds::Bounds) from the
-    /// node's text.
-    pub fn compute_bounds_front_matter(&mut self, node: &'ast AstNode<'ast>) {
-        let node = self.node_range(node);
-        let base = self.offset_to_byte(node.start());
-        let segs = &self.buffer.current.segs;
-        // a byte offset can fall inside a grapheme
-        self.bounds.front_matter = front_matter::parse(&self.buffer[node])
-            .map(|fm| fm.map(|b| segs.byte_to_char_ceil(base + b)));
+    /// Recompute [`Bounds::front_matter`](super::bounds::Bounds). Depends
+    /// on text only, so source view has them for its front matter edits too.
+    pub fn calc_front_matter_bounds(&mut self, root: &'ast AstNode<'ast>) {
+        let node = root
+            .first_child()
+            .filter(|node| matches!(node.data.borrow().value, NodeValue::FrontMatter(_)));
+        self.bounds.front_matter = node.and_then(|node| {
+            let node = self.node_range(node);
+            let base = self.offset_to_byte(node.start());
+            let segs = &self.buffer.current.segs;
+            // a byte offset can fall inside a grapheme
+            Some(front_matter::parse(&self.buffer[node])?.map(|b| segs.byte_to_char_ceil(base + b)))
+        });
     }
 
     /// The start of the line after the closing fence, or the block's end
@@ -86,7 +90,14 @@ impl<'ast> MdRender {
     /// the syntax's edge in the travel direction. Nothing precedes the
     /// opening fence, so the document's start is its end either way.
     pub fn snap_offset_out_of_front_matter(&self, offset: Grapheme, backwards: bool) -> Grapheme {
-        let Some(fm) = &self.bounds.front_matter else { return offset };
+        let Some(fm) = self
+            .bounds
+            .front_matter
+            .as_ref()
+            .filter(|_| self.view != View::Source)
+        else {
+            return offset;
+        };
         if !fm.head.is_empty() && fm.head.start() <= offset && offset < fm.head.end() {
             return fm.head.end();
         }
@@ -130,7 +141,11 @@ impl<'ast> MdRender {
     pub fn front_matter_landing(
         &self, from: Grapheme, to: Grapheme, backwards: bool,
     ) -> Option<Grapheme> {
-        let fm = self.bounds.front_matter.as_ref()?;
+        let fm = self
+            .bounds
+            .front_matter
+            .as_ref()
+            .filter(|_| self.view != View::Source)?;
         let node = fm.node();
         let inside = |o: Grapheme| node.start() <= o && o < node.end();
         if !self.front_matter_collapsed || inside(from) || !inside(to) {

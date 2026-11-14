@@ -110,6 +110,9 @@ impl MdEdit {
             let (row, column) = table.cell_at(offset)?;
             return Some((table.rows[row].cells.iter().map(|c| c.content).collect(), column));
         }
+        if self.renderer.view == View::Source {
+            return None;
+        }
         let fm = self.renderer.bounds.front_matter.as_ref()?;
         let cells = fm.rows[fm.row_at(offset)?].cells();
         let column = cells

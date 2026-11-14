@@ -11,7 +11,7 @@ use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::{Advance, Bound, FrontMatterAction, Increment, Region};
 use crate::front_matter::{FrontMatter, ListStyle, Quotes, RowKind as Kind, Value, needs_quotes};
-use crate::tab::markdown_editor::MdEdit;
+use crate::tab::markdown_editor::{MdEdit, View};
 
 impl MdEdit {
     /// The front matter and the caret in it, when the selection is a caret
@@ -20,6 +20,12 @@ impl MdEdit {
         let fm = self.renderer.bounds.front_matter.as_ref()?;
         let offset = self.renderer.selection_offset()?;
         (fm.node().start() <= offset && offset <= fm.node().end()).then_some((fm, offset))
+    }
+
+    /// Whether the block shows as its YAML text, which leaves the rules
+    /// that step over hidden syntax out.
+    fn front_matter_as_source(&self) -> bool {
+        self.renderer.view == View::Source
     }
 
     /// The first line after the block with something on it, else the line
@@ -93,11 +99,17 @@ impl MdEdit {
     }
 
     /// Return: a new row after this one, or before it from its start,
-    /// taking an empty last list item with it (a comma starts an item); on
-    /// the last row, with nothing on it, out of the block into the body.
+    /// taking an empty last list item with it (a comma starts an item; in
+    /// source, where the dashes show, Return goes on with a dash list as
+    /// with a markdown list); on the last row, with nothing on it, out of
+    /// the block into the body.
     pub fn front_matter_newline(&self, ops: &mut Vec<Operation>) -> bool {
+        let source = self.front_matter_as_source();
         let Some((fm, offset)) = self.front_matter_caret() else { return false };
         let Some(i) = fm.row_at(offset) else {
+            if source {
+                return false;
+            }
             // in a fence: the caret belongs on the nearest row or the body
             Self::select(
                 ops,
@@ -130,9 +142,19 @@ impl MdEdit {
             Self::replace(ops, offset.into_range(), "\n");
             return true;
         }
-        if let Kind::Property { value: value @ Value::List { items, .. }, .. } = &row.kind {
-            if let Some(j) = value.item_at(offset) {
-                if items[j].text.is_empty() && j + 1 == items.len() {
+        if let Kind::Property { value: value @ Value::List { items, style, .. }, .. } = &row.kind {
+            let dashes = source && *style == ListStyle::Block;
+            // with the dashes showing, an item is its whole line
+            let j = match dashes {
+                true => items
+                    .iter()
+                    .position(|item| item.lead.start() <= offset && offset <= item.written().end()),
+                false => value.item_at(offset),
+            };
+            if let Some(j) = j {
+                let last = j + 1 == items.len();
+                if dashes && (!items[j].text.is_empty() || last) || items[j].text.is_empty() && last
+                {
                     self.front_matter_new_item(fm, i, j, ops);
                     return true;
                 }
@@ -145,7 +167,8 @@ impl MdEdit {
     /// Backspace at a row's start, a value's start, an item's start, or a
     /// quote: an empty row or item goes, as does an empty row above; a
     /// caret at a value's start moves to the key, at a row's start to the
-    /// row above; nothing joins two rows or a key and its value.
+    /// row above; nothing joins two rows or a key and its value. In source,
+    /// where that syntax shows, only an empty list item goes whole.
     /// Cmd+Backspace takes the cell back to its start; at a value's start,
     /// the whole row's text, leaving a blank row for Backspace to remove.
     pub fn front_matter_delete(&self, region: Region, ops: &mut Vec<Operation>) -> bool {
@@ -159,12 +182,13 @@ impl MdEdit {
             }
             _ => return false,
         };
-        if line && self.front_matter_delete_to_cell_start(ops) {
+        let source = self.front_matter_as_source();
+        if line && !source && self.front_matter_delete_to_cell_start(ops) {
             return true;
         }
         let Some(fm) = self.renderer.bounds.front_matter.as_ref() else { return false };
         let Some(offset) = self.renderer.selection_offset() else { return false };
-        if offset == fm.node().end() + 1 {
+        if offset == fm.node().end() + 1 && !source {
             // the line after the fence: back onto the last row
             let at = fm.rows.last().map_or(fm.head.end(), |r| r.exit());
             Self::select(ops, at);
@@ -174,9 +198,9 @@ impl MdEdit {
             return false;
         }
         // inside a fence: nothing to take
-        let Some(i) = fm.row_at(offset) else { return true };
+        let Some(i) = fm.row_at(offset) else { return !source };
         let row = &fm.rows[i];
-        if offset == row.line.start() {
+        if offset == row.line.start() && !source {
             if !row.is_blank() {
                 match i.checked_sub(1).map(|above| &fm.rows[above]) {
                     Some(above) if above.is_blank() => {
@@ -192,11 +216,11 @@ impl MdEdit {
         }
         let Kind::Property { key, sep, value } = &row.kind else { return false };
         match value {
-            Value::Empty { at, .. } if offset == *at => {
+            Value::Empty { at, .. } if offset == *at && !source => {
                 Self::replace(ops, (sep.start(), row.line.end()), "");
                 true
             }
-            Value::Text { text, quotes, .. } => {
+            Value::Text { text, quotes, .. } if !source => {
                 if offset == text.start() {
                     Self::select(ops, key.end());
                     return true;
@@ -205,12 +229,15 @@ impl MdEdit {
             }
             Value::List { style, items, open, close, .. } => {
                 // an empty `[]` goes, leaving an empty value
-                if items.is_empty() && offset == *open + 1 && *style == ListStyle::Flow {
+                if items.is_empty() && offset == *open + 1 && *style == ListStyle::Flow && !source {
                     Self::replace(ops, (*open, *close + 1), "");
                     return true;
                 }
                 let Some(j) = value.item_at(offset) else { return false };
                 let item = &items[j];
+                if source && !item.text.is_empty() {
+                    return false;
+                }
                 if offset != item.text.start() {
                     return Self::front_matter_delete_at_quote(
                         item.text,
@@ -303,7 +330,7 @@ impl MdEdit {
     /// colon.
     pub fn front_matter_indent(&self, deindent: bool, ops: &mut Vec<Operation>) -> bool {
         let Some((fm, offset)) = self.front_matter_caret() else { return false };
-        let Some(i) = fm.row_at(offset) else { return true };
+        let Some(i) = fm.row_at(offset) else { return !self.front_matter_as_source() };
         let row = &fm.rows[i];
         if deindent {
             let in_value =
@@ -339,13 +366,14 @@ impl MdEdit {
     /// value typed after `key:` gets its space; a comma at an item's end
     /// starts the next item; a plain
     /// value that comes to need quotes gets them, and a quote typed inside
-    /// a quoted value is escaped.
+    /// a quoted value is escaped. In source only the colon's space stays.
     pub fn front_matter_typed(
         &mut self, region: Region, text: &str, ops: &mut Vec<Operation>,
     ) -> bool {
         if !matches!(region, Region::Selection) || text.contains('\n') {
             return false;
         }
+        let source = self.front_matter_as_source();
         let Some(fm) = self.renderer.bounds.front_matter.as_ref() else { return false };
         let selection = self.renderer.buffer.current.selection;
         let (offset, end) = (selection.start(), selection.end());
@@ -356,7 +384,7 @@ impl MdEdit {
         let Some(i) = fm.row_at(offset) else { return false };
         let row = &fm.rows[i];
         // `key: -` and a space starts a block list; YAML has no `key: - x`
-        if caret && text == " " && offset == row.line.end() {
+        if caret && text == " " && offset == row.line.end() && !source {
             let line = &self.renderer.buffer[row.line];
             if let Some(head) = line.strip_suffix('-').map(str::trim_end) {
                 if head.ends_with(':') && head.len() > 1 && !head.starts_with(['-', ' ', '#']) {
@@ -379,6 +407,13 @@ impl MdEdit {
             Kind::Property { value, .. } => value,
             _ => return false,
         };
+        // with the syntax showing, what's typed is the YAML, but for the
+        // space a key's colon already put in
+        if source {
+            let after_colon =
+                matches!(value, Value::Empty { at, needs_space: false } if offset == *at);
+            return caret && text == " " && after_colon;
+        }
         match value {
             Value::Empty { at, needs_space } if caret && offset == *at => {
                 let space = if *needs_space { " " } else { "" };
@@ -589,6 +624,9 @@ impl MdEdit {
     /// from a later row stops at the fence.
     pub fn front_matter_span(&self, range: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
         let Some(fm) = self.renderer.bounds.front_matter.as_ref() else { return range };
+        if self.front_matter_as_source() {
+            return range;
+        }
         let (start, end) = range;
         // a span wholly inside hidden syntax, a selection of it or a forward
         // delete into it, edits at its edge: nothing goes, typing goes in the
@@ -644,6 +682,9 @@ impl MdEdit {
     /// a caret or selection in the block to the body, since one there holds
     /// it open.
     pub fn front_matter_toggle_collapsed(&mut self, ops: &mut Vec<Operation>) {
+        if self.front_matter_as_source() {
+            return;
+        }
         let Some(fm) = &self.renderer.bounds.front_matter else { return };
         let body = self.front_matter_body_start(fm);
         let node = fm.node();

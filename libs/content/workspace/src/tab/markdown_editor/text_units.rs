@@ -9,7 +9,7 @@ use std::borrow::Cow;
 use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use super::MdEdit;
+use super::{MdEdit, View};
 
 type Range = (Grapheme, Grapheme);
 
@@ -130,7 +130,12 @@ impl MdEdit {
         let mut atoms = r.bounds.images.clone();
         atoms.extend(r.bounds.folds.iter().map(|f| f.tag));
         atoms.extend(r.collapsed_diagrams());
-        if let Some(fm) = &r.bounds.front_matter {
+        if let Some(fm) = r
+            .bounds
+            .front_matter
+            .as_ref()
+            .filter(|_| r.view != View::Source)
+        {
             atoms.extend(r.front_matter_syntax(fm));
         }
         atoms.sort_unstable();

@@ -139,6 +139,35 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
     }
 }
 
+/// Rule: in source the rows' Tab and Return are the grid's, the syntax is
+/// text the caret goes through and Backspace takes, and a dash list goes
+/// on as a markdown list does.
+#[test]
+fn keys_in_source_edit_the_yaml() {
+    let hi = "---\ntitle: Hi\nstatus: done\n---\n\nBody";
+    let flag = "---\ntitle: Hi\nflag: true\n---\n\nBody";
+    let tags = "---\ntags:\n  - a\n---\n\nBody\n";
+    let quoted = "---\ntags:\n  - \"a b\"\n---\n\nBody\n";
+    for (md, at_, script, want) in [
+        (hi, 13, "{Tab}", "---\ntitle: Hi\nstatus|: done\n---\n\nBody"),
+        (hi, 13, "{Tab}{Tab}", "---\ntitle: Hi\nstatus: done|\n---\n\nBody"),
+        (hi, 13, "{ret}", "---\ntitle: Hi\n|\nstatus: done\n---\n\nBody"),
+        ("---\nkey\n---\n\nBody", 7, "{ret}", "---\nkey: |\n---\n\nBody"),
+        (flag, 11, "{ArrowLeft}", "---\ntitle:| Hi\nflag: true\n---\n\nBody"),
+        (flag, 11, "{bs}", "---\ntitle:|Hi\nflag: true\n---\n\nBody"),
+        (flag, 13, "{cmd-ArrowLeft}", "---\n|title: Hi\nflag: true\n---\n\nBody"),
+        // no box to flip
+        (flag, 24, " ", "---\ntitle: Hi\nflag: true |\n---\n\nBody"),
+        ("---\nkey\n---\n\nBody", 7, ": [a, b]", "---\nkey: [a, b]|\n---\n\nBody"),
+        (tags, 15, "{ret}b{ret}", "---\ntags:\n  - a\n  - b\n  - |\n---\n\nBody\n"),
+        (tags, 15, "{ret}{ret}", "---\ntags:\n  - a\n|\n---\n\nBody\n"),
+        (tags, 15, "{ret}{bs}", "---\ntags:\n  - a|\n---\n\nBody\n"),
+        (quoted, 19, "{ret}", "---\ntags:\n  - \"a b\"\n  - |\n---\n\nBody\n"),
+    ] {
+        assert_eq!(typing_source(md, at_, script), want, "{script} at {at_} in {md:?}");
+    }
+}
+
 /// Rule: completions open on typing, or on a click, Tab, or new row
 /// landing on an empty key or value, never on the arrows or a command, so
 /// those keep moving; nothing is highlighted until one is picked or what is
@@ -428,4 +457,14 @@ pub(super) fn shown(t: &TestEditor) -> String {
     let byte = r.buffer.current.segs.offset_to_byte(Grapheme(at)).0;
     let text = &r.buffer.current.text;
     format!("{}|{}", &text[..byte], &text[byte..])
+}
+
+/// `keys` typed into `md`, shown as source, from offset `at_`.
+fn typing_source(md: &str, at_: usize, script: &str) -> String {
+    let mut t = in_vault(md);
+    t.editor.persistence.set_source(true);
+    t.push(at(at_));
+    t.enter_frame();
+    keys(&mut t, script);
+    shown(&t)
 }
