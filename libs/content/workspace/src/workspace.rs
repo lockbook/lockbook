@@ -2741,3 +2741,32 @@ mod image_embed_tests {
         until(&mut t, &key, |s| matches!(s, ImageState::Loaded(_)));
     }
 }
+
+#[cfg(test)]
+mod close_tests {
+    use crate::test_utils::ws::TestWs;
+
+    /// Text typed into a tab that closes before its save writes is kept
+    /// when another device's version lands first: the save fails, the
+    /// version merges into the closed tab, and the next auto-save writes
+    /// both.
+    #[test]
+    fn edits_survive_a_close_as_another_version_lands() {
+        let mut t = TestWs::new();
+        let id = t.doc("note.md", "mine\n");
+        t.ws.open_file(id, true, false);
+        t.settle();
+        t.frame_with(vec![egui::Event::Text("typed ".into())]);
+        let md = t.ws.current_tab().unwrap().markdown().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.text, "typed mine\n");
+
+        t.ws.close_tab(0);
+        t.ws.core.write_document(id, b"mine\ntheirs\n").unwrap();
+        t.idle(id);
+        t.ws.save_all_tabs();
+        t.idle(id);
+
+        let disk = String::from_utf8(t.ws.core.read_document(id, false).unwrap()).unwrap();
+        assert!(disk.contains("typed") && disk.contains("theirs"), "on disk: {disk:?}");
+    }
+}
