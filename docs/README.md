@@ -39,4 +39,4 @@ Lockbook is fully funded out of pocket by a team of dedicated individuals workin
 
 ---
 
-[**Try Lockbook today!**](installing.md)
+[**Try Lockbook today!**](install.md)

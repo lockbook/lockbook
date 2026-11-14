@@ -1,138 +1,23 @@
 # Sharing
+In Lockbook, you can share any files or folders with other Lockbook users to collaborate on those files on an ongoing basis. You can choose to share with read-only or write access, and each person’s edits reach the others as their devices sync. Shared files are still [kept private](how-lockbook-protects-you.md) from the Lockbook team and everyone else.
 
-This technical design is in service of the [corresponding UX
-design](sharing.md).
+## Getting Started
+Right-click or long-press on a file and select ‘share’, then add someone by their [Lockbook username](account.md). You can also see and change who already has access.
 
-## Data Model
+## How It Works
+**Shared with me**
+When another user shares a note with you, you can access it from *Shared with me*, a view of shared files accessible from a button on the top or bottom of the file tree view. Optionally, you can organize shared files into your file tree and call them something else without affecting other users.
 
-File metadata will include a share mode alongside each user access key. The
-share mode can be `owner`, `update`, or `read`. Additionally, there will be a
-new file type: a link. A link stores just the `id` of the file it links to.
+**Folders**
+Sharing a folder unlocks powerful new ways to collaborate. In a shared folder, collaborators can create, delete, and [organize files](file-management.md), making Lockbook a great tool for everything from managing a team’s knowledge base to organizing a vacation.
 
-## Server
+**Readers & Writers**
+Lockbook has two access levels:
+* **Read** access lets users see the latest version of shared files on an ongoing basis but not make changes.
+* **Write** access lets users edit notes and manage who else has access. In folders, write access lets users create, rename, move, or delete files inside the folder - only the owner can delete the shared folder itself.
 
-Server will need to account for sharing in the following four endpoints:
+**Links**
+You can copy a link to any file and send it in a chat or email. A link only opens the file for people who already have access — it never grants access on its own.
 
-1. `get_updates`
-2. `get_document`
-3. `update_content`
-4. `upsert_metadata`
-
-### Get Updates
-
-`get_updates` will need to additionally return metadata for any files that have
-any ancestors with user access keys for them.
-
-### Get Document
-
-`get_document` will need to check if the document has any ancestors with a user
-access key for the user.
-
-### Change Document Content
-
-`update_content` will need to check if the document has any ancestors with a
-user access key for the user that has share mode `owner` or `write`.
-
-### Upsert File Metadata
-
-`upsert_metadata` will need to check that user access keys on a file are not
-modified in ways that violate the following requirements:
-
--   root files have exactly one owner user access key
--   non-root files do not have an owner user access key
--   owner user access keys of existing files are not modified
--   only the owner can update user access keys
--   each file can only have one user access key per user
-
-## Lb-rs
-
-Lb-rs will need a new repo to store link destinations.
-
-The following functions should substitute links for their destinations (as able)
-while recursing the file tree:
-
-1. `get_children`
-2. `get_and_get_children_recursively`
-3. `get_file_by_path`
-4. `list_paths`
-5. `get_path_by_id`
-
-Lb-rs will expose four new functions:
-
-1. `share`
-2. `get_pending_shares`
-3. `set_link`
-4. `delete_pending_share`
-
-### Share
-
-`share` is the function used to share a file. It accepts a file id, a username,
-and a share mode, and it returns only a success or error. It fetches the public
-key for the username and adds a user access key to the file for the user (the
-file key encrypted with the user's public key). The share registers as an
-unsynced file change and is only uploaded during the next sync.
-
-The expected errors are:
-
--   `NoAccount`
--   `FileNonexistent`
--   `ClientUpdateRequired`
--   `CouldNotReachServer`
--   `UserNonexistent`
--   `FileAlreadySharedWithThatUser`
-
-### Get Pending Shares
-
-A pending share is a file which is shared with a user, but the user doesn't have
-any links to the file. `get_pending_shares` returns the metadata for all such
-files. It accepts no arguments.
-
-The expected errors are:
-
--   `NoAccount`
-
-### Set Link
-
-Links are created using `create_file` using `FileType::Link`. `set_link` is the
-function to set a link, similar to `write_document`. It accepts a file id for
-the link and a file id for the destination. It returns only a success or error.
-
-The expected errors are:
-
--   `NoAccount`
--   `FileNonexistent`
--   `LinkDestinationNonexistent`
--   `FileNotLink`
-
-### Delete Pending Share
-
-The only way for a file to cease to be shared with a user is for that user to
-delete the share, which they do using `delete_share`. `delete_share` accepts a
-file id and deletes the user access key for this user on that file (lb-rs must
-reference the base version of the file if it needs to decrypt it). It does not
-delete links to the file.
-
-The expected errors are:
-
--   `NoAccount`
--   `FileNonexistent`
--   `FileNotShared`
-
-## Clients
-
-Sometimes, lb-rs will not be able to substitute links because the destination
-does not exist locally. If a link destination does not exist, it's because the
-destination file is not shared with the user. This can happen if a file is
-shared with one user, then that user places a link to the file in a folder
-shared with another user. In these situations, clients must render unsubstituted
-link files (from their perspective, the only link files) by informing the user
-that the file has not been shared with them and is therefore inaccessible. Note
-that this requires an update to the data model in each client which corresponds
-to the addition of the `Link` file type in lb-rs.
-
-Clients should expose a context menu to share files as described in the sharing
-UX doc, which uses lb-rs `share` function. Clients should check for pending
-shares on start and after a sync using `get_pending_shares` and allow users to
-accept shares by creating links (using `create_file` with
-`file_type==FileType::Link`, then `set_link`) or decline them (using
-`delete_pending_share`).
+**Billing**
+The contents of a shared file or folder only count toward the owner’s storage limit. If you sign up for [premium](plans.md) to unlock additional storage, your collaborators don’t have to.

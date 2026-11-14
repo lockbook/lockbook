@@ -39,7 +39,7 @@ See `clients/linux/default.nix` for the formal specification. Nix-users can just
 
 # Android
 Dependencies:
-- Android SDK. The version mentioned in [this build.gradle](/clients/android/app/build.gradle) ([gh](https://github.com/lockbook/lockbook/blob/master/clients/android/app/build.gradle)), at the `targetSdkVersion` field.
+- Android SDK. The version mentioned in [this build.gradle](https://github.com/lockbook/lockbook/blob/master/clients/android/app/build.gradle), at the `targetSdkVersion` field.
 - Android NDK. Set the environment variable `ANDROID_NDK_HOME` to the NDK's location.
 - Native development support for cargo:
 ```shell script

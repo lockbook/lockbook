@@ -12,3 +12,8 @@ preferred-dark-theme = "coal"
 additional-css = ["theme/lockbook.css"]
 no-section-label = true
 site-url = "/docs/"
+
+[output.html.redirect]
+"/installing.html" = "install.html"
+"/collaboration.html" = "sharing.html"
+"/canvas.html" = "file-management.html"
