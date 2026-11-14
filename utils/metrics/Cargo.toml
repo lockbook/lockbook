@@ -8,17 +8,23 @@ name = "lb-metrics"
 path = "src/main.rs"
 
 [dependencies]
-warp = "0.3"
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+warp = { version = "0.4", features = ["server"] }
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+    "charset",
+    "http2",
+    "system-proxy",
+] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
-prometheus = "0.13.0"
+prometheus = "0.14.0"
 lazy_static = "1.4.0"
 tracing = "0.1.5"
 tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
-jsonwebtoken = "8.2.0"
+jsonwebtoken = "9.3.1"
 flate2 = "1.0"
 chrono = "0.4"
 urlencoding = "2.1"

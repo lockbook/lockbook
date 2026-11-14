@@ -17,49 +17,52 @@ path = "src/main.rs"
 in-process = []
 
 [dependencies]
-warp = { version = "0.3.2", features = ["tls"] }
+warp = { version = "0.4", features = ["server"] }
+hyper = { version = "1", features = ["server", "http1", "http2"] }
+hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
 base64 = "0.13.0"
 bincode = "1.2.1"
-time = "0.3.20"
+time = { version = "0.3.20", features = ["formatting"] }
 futures = "0.3.13"
 lb-rs = { version = "26", path = "../libs/lb/lb-rs" }
-pagerduty-rs = { version = "0.1.5", default-features = false, features = [
-    "async",
-    "rustls",
-] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
 tokio = { version = "1.5.0", features = ["full"] }
 uuid = { version = "1.2.2", features = ["v4", "serde"] }
 libsecp256k1 = "0.7.1"
-prometheus = "0.13.0"
+prometheus = "0.14.0"
 prometheus-static-metric = "0.5.1"
 lazy_static = "1.4.0"
-async-stripe = { version = "0.37.0", default-features = false, features = [
-    "runtime-tokio-hyper-rustls",
-    "billing",
-    # unused, but webhook-events' EventObject names their types
-    "checkout",
-    "connect",
-    "webhook-events",
-] }
 sha2 = "0.10.2"
-google-androidpublisher3 = "5.0.5"
+hmac = "0.12"
+rustls-native-certs = "0.8"
+hex = "0.4.3"
+google-androidpublisher3 = { version = "7.0.0", features = ["yup-oauth2-service-account"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 constant_time_eq = "0.2.2"
 tracing = "0.1.5"
 tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
 tracing-gcp = "0.1.0"
 itertools = "0.10.1"
-reqwest = { version = "0.11", default-features = false, features = [
+reqwest = { version = "0.12", default-features = false, features = [
     "json",
     "rustls-tls",
     "multipart",
+    "charset",
+    "http2",
+    "system-proxy",
 ] }
-jsonwebtoken = "8.2.0"
-x509-parser = { version = "0.15.0", features = ["verify", "validate"] }
+jsonwebtoken = "9.3.1"
+x509-parser = { version = "0.18.1", features = ["verify", "validate"] }
 db-rs = "0.4.3"
 db-rs-old = { package = "db-rs", version = "=0.3.7" }
 db-rs-derive = "0.3.7"
 semver = "1.0.17"
 async-trait = "0.1.68"
+
+[dev-dependencies]
+http-body-util = "0.1"

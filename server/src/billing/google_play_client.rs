@@ -4,30 +4,54 @@ use google_androidpublisher3::api::{
     SubscriptionPurchase, SubscriptionPurchasesAcknowledgeRequest,
 };
 use google_androidpublisher3::hyper::StatusCode;
-use google_androidpublisher3::hyper::client::HttpConnector;
-use google_androidpublisher3::hyper_rustls::HttpsConnector;
-use google_androidpublisher3::{AndroidPublisher, Error, hyper, hyper_rustls, oauth2};
+use google_androidpublisher3::hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+use google_androidpublisher3::hyper_util::client::legacy::Client;
+use google_androidpublisher3::hyper_util::client::legacy::connect::HttpConnector;
+use google_androidpublisher3::hyper_util::rt::TokioExecutor;
+use google_androidpublisher3::yup_oauth2::client::CustomHyperClientBuilder;
+use google_androidpublisher3::{AndroidPublisher, Error, yup_oauth2};
 
 const PACKAGE_NAME: &str = "app.lockbook";
 
+type Connector = HttpsConnector<HttpConnector>;
+
+fn connector() -> Connector {
+    HttpsConnectorBuilder::new()
+        .with_native_roots()
+        .unwrap()
+        .https_or_http()
+        .enable_http1()
+        .enable_http2()
+        .build()
+}
+
+fn oauth_client() -> CustomHyperClientBuilder<Connector> {
+    Client::builder(TokioExecutor::new())
+        .build(connector())
+        .into()
+}
+
 pub async fn get_google_play_client(
     service_account_key: &Option<String>,
-) -> AndroidPublisher<HttpsConnector<HttpConnector>> {
+) -> AndroidPublisher<Connector> {
     let auth = match service_account_key {
         Some(key) => {
-            let service_account_key: oauth2::ServiceAccountKey =
-                oauth2::parse_service_account_key(key).unwrap();
+            let service_account_key = yup_oauth2::parse_service_account_key(key).unwrap();
 
-            oauth2::ServiceAccountAuthenticator::builder(service_account_key)
-                .build()
-                .await
-                .unwrap()
+            yup_oauth2::ServiceAccountAuthenticator::with_client(
+                service_account_key,
+                oauth_client(),
+            )
+            .build()
+            .await
+            .unwrap()
         }
         None => {
             // creating dummy AndroidPublisher since no service account was provided
-            oauth2::InstalledFlowAuthenticator::builder(
-                oauth2::ApplicationSecret::default(),
-                oauth2::InstalledFlowReturnMethod::HTTPRedirect,
+            yup_oauth2::InstalledFlowAuthenticator::with_client(
+                yup_oauth2::ApplicationSecret::default(),
+                yup_oauth2::InstalledFlowReturnMethod::HTTPRedirect,
+                oauth_client(),
             )
             .build()
             .await
@@ -35,15 +59,7 @@ pub async fn get_google_play_client(
         }
     };
 
-    let client = hyper::Client::builder().build(
-        hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
-            .https_or_http()
-            .enable_http1()
-            .enable_http2()
-            .build(),
-    );
-
-    AndroidPublisher::new(client, auth)
+    AndroidPublisher::new(Client::builder(TokioExecutor::new()).build(connector()), auth)
 }
 
 #[derive(Debug)]
@@ -90,7 +106,10 @@ impl GooglePlayClient for AndroidPublisher<HttpsConnector<HttpConnector>> {
         let subscription_id = &config.billing.google.premium_subscription_product_id;
         self.purchases()
             .subscriptions_acknowledge(
-                SubscriptionPurchasesAcknowledgeRequest { developer_payload: None },
+                SubscriptionPurchasesAcknowledgeRequest {
+                    developer_payload: None,
+                    external_account_ids: None,
+                },
                 PACKAGE_NAME,
                 subscription_id,
                 purchase_token,

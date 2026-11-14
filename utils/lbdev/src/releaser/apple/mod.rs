@@ -3,10 +3,10 @@ pub mod cli;
 pub mod ios;
 pub mod mac;
 
+use chrono::Utc;
 use chrono_tz::America::New_York;
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
-use google_androidpublisher3::chrono::Utc;
 
 use std::fs;
 use std::path::Path;

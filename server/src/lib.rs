@@ -23,7 +23,6 @@ use crate::ServerError::ClientError;
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_error::SimplifiedStripeError;
-pub use stripe;
 use tracing::log::warn;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -102,6 +101,9 @@ where
     )
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ClientAddr(pub SocketAddr);
+
 pub mod account_service;
 pub mod app_links;
 pub mod billing;
@@ -113,10 +115,12 @@ pub mod error_handler;
 pub mod file_service;
 pub mod garbage_worker;
 pub mod guard;
+pub mod http_server;
 #[cfg(feature = "in-process")]
 pub mod in_process;
 pub mod loggers;
 pub mod metrics;
 pub mod router_service;
 pub mod schema;
+pub mod stripe;
 pub mod utils;

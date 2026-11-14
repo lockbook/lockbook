@@ -37,6 +37,7 @@ use warp::hyper::body::Bytes;
 use super::app_store_client::AppStoreClient;
 use super::google_play_client::GooglePlayClient;
 use super::stripe_client::StripeClient;
+use crate::stripe;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
 where
@@ -491,7 +492,7 @@ where
     ) -> Result<(), ServerError<StripeWebhookError>> {
         let event = self.verify_request_and_get_event(&request_body, stripe_sig)?;
 
-        let event_type = event.type_;
+        let event_type = event.type_.clone();
         debug!(?event_type, "Verified stripe request");
 
         match (&event.type_, &event.data.object) {

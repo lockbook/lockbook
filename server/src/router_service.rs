@@ -94,7 +94,10 @@ macro_rules! core_req {
             .and(warp::header::optional::<String>(WIRE_FORMAT_HEADER))
             .and(warp::header::optional::<String>(OS_HEADER))
             .and(warp::header::optional::<String>(CLIENT_HEADER))
-            .and(warp::filters::addr::remote())
+            .and(
+                warp::ext::optional::<$crate::ClientAddr>()
+                    .map(|addr: Option<$crate::ClientAddr>| addr.map(|addr| addr.0)),
+            )
             .then(
                 |state: Arc<ServerState<S, A, G, D>>,
                  request_time: lb_rs::model::clock::Timestamp,
@@ -280,26 +283,8 @@ macro_rules! core_req {
     }};
 }
 
-const RESPONSE_STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
-
-const RESPONSE_STREAM_THRESHOLD: usize = 1024 * 1024 * 1024;
-
-pub fn build_response(
-    body: Vec<u8>, status: StatusCode,
-) -> warp::http::Response<warp::hyper::Body> {
-    let response_body = if body.len() < RESPONSE_STREAM_THRESHOLD {
-        warp::hyper::Body::from(body)
-    } else {
-        let mut buf = Bytes::from(body);
-        let mut chunks: Vec<Result<Bytes, std::io::Error>> =
-            Vec::with_capacity(buf.len().div_ceil(RESPONSE_STREAM_CHUNK_BYTES));
-        while !buf.is_empty() {
-            let n = buf.len().min(RESPONSE_STREAM_CHUNK_BYTES);
-            chunks.push(Ok(buf.split_to(n)));
-        }
-        warp::hyper::Body::wrap_stream(futures::stream::iter(chunks))
-    };
-    let mut response = warp::http::Response::new(response_body);
+pub fn build_response(body: Vec<u8>, status: StatusCode) -> warp::reply::Response {
+    let mut response = warp::http::Response::new(Bytes::from(body).into());
     *response.status_mut() = status;
     response
 }

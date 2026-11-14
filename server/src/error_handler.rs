@@ -3,6 +3,7 @@ use crate::account_service::DeleteAccountHelperError;
 use crate::billing::billing_service::{AppStoreNotificationError, LockBillingWorkflowError};
 use crate::billing::google_play_client::SimpleGCPError;
 use crate::metrics::MetricsError;
+use crate::stripe;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
