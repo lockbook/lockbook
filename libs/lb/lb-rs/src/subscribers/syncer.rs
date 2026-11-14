@@ -498,7 +498,7 @@ impl<S: Server> Lb<S> {
                         let local_file = local.find(&id)?.clone();
                         let parent = *remote.maybe_find(&id).unwrap_or(&local_file).parent();
                         if local_file.explicitly_deleted()
-                            && !lost_access(&local, me, &id)?
+                            && !lost_access(&local, &remote, me, &id)?
                             && may_write_in(&local, &remote, me, &parent)?
                         {
                             // delete
@@ -519,7 +519,7 @@ impl<S: Server> Lb<S> {
                             && !remote_with_moves.calculate_deleted(&id)?
                             && remote.maybe_find(&id).is_none()
                             && !links_to_delete.contains(&id)
-                            && !lost_access(&local, me, &id)?
+                            && !lost_access(&local, &remote, me, &id)?
                             && may_write_in(
                                 &local,
                                 &remote_with_moves,
@@ -584,7 +584,7 @@ impl<S: Server> Lb<S> {
                             && !(remote.maybe_find(&id).is_some()
                                 && remote.calculate_deleted(&id)?)
                             && !links_to_delete.contains(&id)
-                            && !lost_access(&local, me, &id)?
+                            && !lost_access(&local, &remote, me, &id)?
                         {
                             replayed.push(id);
                         }
@@ -1499,7 +1499,9 @@ impl<S: Server> Lb<S> {
 fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<bool> {
-    if local.maybe_find(id).is_some() && local.access_mode(me, id)? < Some(UserAccessMode::Write) {
+    if local.maybe_find(id).is_some()
+        && local_access(local, remote, me, id)? < Some(UserAccessMode::Write)
+    {
         return Ok(false);
     }
     let mut id = *id;
@@ -1512,9 +1514,37 @@ fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
         }
         id = *file.parent();
     }
-    // the server's access at `id`, less the shares this device declined
-    let mut ids = remote.ancestors(&id)?;
-    ids.insert(id);
+    Ok(server_access(local, remote, me, &id)? >= Some(UserAccessMode::Write))
+}
+
+/// This device's access to `id` in its own tree. Where that tree ends at a folder it no longer has,
+/// as after losing a share, access goes on from where `remote` puts the topmost file.
+fn local_access<L: TreeLike, R: TreeLike<F = L::F>>(
+    local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
+) -> LbResult<Option<UserAccessMode>> {
+    let mut mode = local.access_mode(me, id)?;
+    let mut ids = local.ancestors(id)?;
+    ids.insert(*id);
+    for id in ids {
+        let file = local.find(&id)?;
+        if file.is_root() || local.maybe_find(file.parent()).is_some() {
+            continue;
+        }
+        if let Some(placed) = remote.maybe_find(&id) {
+            if remote.maybe_find(placed.parent()).is_some() {
+                mode = mode.max(server_access(local, remote, me, placed.parent())?);
+            }
+        }
+    }
+    Ok(mode)
+}
+
+/// The server's access at `id`, which `remote` has, less the shares this device declined.
+fn server_access<L: TreeLike, R: TreeLike<F = L::F>>(
+    local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
+) -> LbResult<Option<UserAccessMode>> {
+    let mut ids = remote.ancestors(id)?;
+    ids.insert(*id);
     let mut mode = None;
     for id in ids {
         let declined = local.maybe_find(&id).is_some_and(|file| {
@@ -1526,7 +1556,7 @@ fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
             mode = mode.max(remote.find(&id)?.access_mode(&me));
         }
     }
-    Ok(mode >= Some(UserAccessMode::Write))
+    Ok(mode)
 }
 
 /// Promotes `pushed` into `base`, keeping local writes made during the push.
@@ -1599,13 +1629,15 @@ fn orphaned_creation(id: Uuid) -> impl FnOnce(LbErr) -> LbErr {
 
 /// A file this device has no access to, e.g. inside a share it declined. A share root carrying
 /// this device's own (possibly tombstoned) key is not lost: that tombstone is what gets pushed.
-fn lost_access<T: TreeLike>(tree: &LazyTree<T>, me: Owner, id: &Uuid) -> LbResult<bool> {
-    let is_my_share_root = tree
+fn lost_access<L: TreeLike, R: TreeLike<F = L::F>>(
+    local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
+) -> LbResult<bool> {
+    let is_my_share_root = local
         .find(id)?
         .user_access_keys()
         .iter()
         .any(|k| k.encrypted_for == me.0);
-    let reachable = tree.access_mode(me, id)?.is_some();
+    let reachable = local_access(local, remote, me, id)?.is_some();
     Ok(!is_my_share_root && !reachable)
 }
 
