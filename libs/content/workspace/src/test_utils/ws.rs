@@ -6,6 +6,8 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::FileType;
 use web_time::{Duration, Instant};
 
+use crate::tab::ExtendedInput as _;
+use crate::tab::markdown_editor::input::Event;
 use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 use crate::workspace::Workspace;
 
@@ -15,6 +17,8 @@ pub struct TestWs {
     pub size: egui::Vec2,
     /// The cursor the last frame asked for.
     pub cursor: egui::CursorIcon,
+    /// Editor input for the next frame.
+    pending: Vec<Event>,
 }
 
 pub fn test_lb() -> Lb {
@@ -43,9 +47,19 @@ pub fn test_ctx() -> Context {
 
 impl TestWs {
     pub fn new() -> Self {
+        Self::on(&test_lb())
+    }
+
+    /// A workspace on `core`'s account.
+    pub fn on(core: &Lb) -> Self {
         let ctx = test_ctx();
-        let ws = Workspace::new(&test_lb(), &ctx, false, None);
-        Self { ws, ctx, size: vec2(800.0, 600.0), cursor: Default::default() }
+        let ws = Workspace::new(core, &ctx, false, None);
+        Self { ws, ctx, size: vec2(800.0, 600.0), cursor: Default::default(), pending: vec![] }
+    }
+
+    /// Editor input, delivered with the next frame.
+    pub fn push(&mut self, event: Event) {
+        self.pending.push(event);
     }
 
     /// Another device on this workspace's account, synced.
@@ -76,13 +90,28 @@ impl TestWs {
     }
 
     pub fn frame_with(&mut self, events: Vec<egui::Event>) -> crate::Response {
+        self.frame_at(None, events)
+    }
+
+    /// A frame `idle` seconds after the last, with `events`.
+    pub fn frame_after(&mut self, idle: f64, events: Vec<egui::Event>) -> crate::Response {
+        let time = self.ctx.input(|i| i.time) + idle;
+        self.frame_at(Some(time), events)
+    }
+
+    fn frame_at(&mut self, time: Option<f64>, events: Vec<egui::Event>) -> crate::Response {
         let input = RawInput {
             screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), self.size)),
             events,
+            time,
             ..Default::default()
         };
         let mut out = None;
+        let pending = std::mem::take(&mut self.pending);
         let mut full = self.ctx.run_pass(input, |ctx| {
+            for event in &pending {
+                ctx.push_markdown_event(event.clone());
+            }
             ctx.root_ui(|ui| {
                 egui::CentralPanel::default().show(ui, |ui| out = Some(self.ws.show(ui)))
             });

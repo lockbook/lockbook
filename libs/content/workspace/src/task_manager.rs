@@ -68,6 +68,77 @@ impl Tasks {
             || self.completed_loads.iter().any(|l| l.request.id == id)
             || self.completed_saves.iter().any(|s| s.request.id == id)
     }
+
+    fn complete_load(
+        &mut self, id: Uuid, content_result: LbResult<(Option<DocumentHmac>, DecryptedDocument)>,
+    ) {
+        let mut in_progress_load = None;
+        for load in mem::take(&mut self.in_progress_loads) {
+            if load.requests[0].id == id {
+                in_progress_load = Some(load); // use latest of duplicate ids
+            } else {
+                self.in_progress_loads.push(load); // put back the ones we're not completing
+            }
+        }
+        let in_progress_load = in_progress_load
+            .expect("failed to find in-progress entry for load that just completed");
+        // ^ above error may indicate concurrent loads to the same file, which would cause problems
+
+        let timing = CompletedTiming::new(in_progress_load.timing);
+        if let Err(err) = &content_result {
+            error!(
+                "load failed ({:?}): {:?}",
+                timing.completed_at.duration_since(timing.started_at),
+                err
+            );
+        }
+
+        let requests = in_progress_load.requests;
+        let mut results: Vec<_> = (1..requests.len())
+            .map(|_| match &content_result {
+                Ok(content) => Ok(content.clone()),
+                Err(err) => Err(LbErr { kind: err.kind.clone(), backtrace: None }),
+            })
+            .collect();
+        results.push(content_result);
+        for (request, content_result) in requests.into_iter().zip(results) {
+            self.completed_loads
+                .push(CompletedLoad { request, content_result, timing });
+        }
+    }
+
+    fn complete_save(
+        &mut self, request: SaveRequest, content: TabSaveContent,
+        new_hmac_result: LbResult<DocumentHmac>,
+    ) {
+        let mut in_progress_save = None;
+        for save in mem::take(&mut self.in_progress_saves) {
+            if save.request.id == request.id {
+                in_progress_save = Some(save); // use latest of duplicate ids
+            } else {
+                self.in_progress_saves.push(save); // put back the ones we're not completing
+            }
+        }
+        let in_progress_save = in_progress_save
+            .expect("failed to find in-progress entry for save that just completed");
+        // ^ above error may indicate concurrent saves to the same file, which would cause problems
+
+        let timing = CompletedTiming::new(in_progress_save.timing);
+        if let Err(err) = &new_hmac_result {
+            error!(
+                "save failed ({:?}): {:?}",
+                timing.completed_at.duration_since(timing.started_at),
+                err
+            );
+        }
+
+        self.completed_saves.push(CompletedSave {
+            request: in_progress_save.request,
+            content,
+            new_hmac_result,
+            timing,
+        });
+    }
 }
 
 pub struct Response {
@@ -207,16 +278,37 @@ pub struct CompletedSave {
     pub timing: CompletedTiming,
 }
 
+/// A launched task's background half: a load's read or a save's write.
+pub enum Work {
+    Load(Uuid),
+    Save { request: SaveRequest, old_hmac: Option<DocumentHmac>, content: TabSaveContent },
+}
+
+/// A task whose read or write ran, its completion not yet recorded.
+pub enum Ran {
+    Load(Uuid, LbResult<(Option<DocumentHmac>, DecryptedDocument)>),
+    Save { request: SaveRequest, content: TabSaveContent, new_hmac_result: LbResult<DocumentHmac> },
+}
+
 #[derive(Clone)]
 pub struct TaskManager {
     pub tasks: Arc<Mutex<Tasks>>,
     core: Lb,
     ctx: Context,
+    /// Launched work a test runs step by step, in place of a thread each.
+    #[cfg(test)]
+    pub held: Option<Arc<Mutex<Vec<Work>>>>,
 }
 
 impl TaskManager {
     pub fn new(core: Lb, ctx: Context) -> Self {
-        Self { tasks: Default::default(), core, ctx }
+        Self {
+            tasks: Default::default(),
+            core,
+            ctx,
+            #[cfg(test)]
+            held: None,
+        }
     }
 
     pub fn queue_load(&mut self, request: LoadRequest) {
@@ -392,8 +484,7 @@ impl TaskManager {
             }
             tasks.in_progress_loads.push(in_progress_load);
 
-            let self_clone = self.clone();
-            spawn!(self_clone.background_load(id));
+            self.launch(Work::Load(id));
         }
 
         for queued_save in saves_to_launch.into_values() {
@@ -437,8 +528,7 @@ impl TaskManager {
             }
             tasks.in_progress_saves.push(in_progress_save);
 
-            let self_clone = self.clone();
-            spawn!(self_clone.background_save(request, old_hmac, content));
+            self.launch(Work::Save { request, old_hmac, content });
         }
 
         if any_to_launch {
@@ -454,99 +544,47 @@ impl TaskManager {
         }
     }
 
-    /// Move a request to in-progress, then call this from a background thread
-    #[instrument(level = "trace", skip(self), fields(id = %id))]
-    fn background_load(&self, id: Uuid) {
-        let content_result = self.core.read_document_with_hmac(id, true);
-
-        {
-            let mut tasks = self.tasks.lock().unwrap();
-
-            let mut in_progress_load = None;
-            for load in mem::take(&mut tasks.in_progress_loads) {
-                if load.requests[0].id == id {
-                    in_progress_load = Some(load); // use latest of duplicate ids
-                } else {
-                    tasks.in_progress_loads.push(load); // put back the ones we're not completing
-                }
-            }
-            let in_progress_load = in_progress_load
-                .expect("failed to find in-progress entry for load that just completed");
-            // ^ above error may indicate concurrent loads to the same file, which would cause problems
-
-            let timing = CompletedTiming::new(in_progress_load.timing);
-            if let Err(err) = &content_result {
-                error!(
-                    "load failed ({:?}): {:?}",
-                    timing.completed_at.duration_since(timing.started_at),
-                    err
-                );
-            }
-
-            let requests = in_progress_load.requests;
-            let mut results: Vec<_> = (1..requests.len())
-                .map(|_| match &content_result {
-                    Ok(content) => Ok(content.clone()),
-                    Err(err) => Err(LbErr { kind: err.kind.clone(), backtrace: None }),
-                })
-                .collect();
-            results.push(content_result);
-            for (request, content_result) in requests.into_iter().zip(results) {
-                tasks
-                    .completed_loads
-                    .push(CompletedLoad { request, content_result, timing });
-            }
+    fn launch(&self, work: Work) {
+        #[cfg(test)]
+        if let Some(held) = &self.held {
+            held.lock().unwrap().push(work);
+            return;
         }
-
-        self.ctx.request_repaint();
+        let self_clone = self.clone();
+        spawn!({
+            let ran = self_clone.run(work);
+            self_clone.record(ran);
+        });
     }
 
-    /// Move a request to in-progress, then call this from a background thread
-    #[instrument(level = "trace", skip(self, content, request), fields(id = %request.id))]
-    fn background_save(
-        &self, request: SaveRequest, old_hmac: Option<DocumentHmac>, content: TabSaveContent,
-    ) {
-        let id = request.id;
-        let new_hmac_result = self.core.safe_write(
-            request.id,
-            old_hmac,
-            &content.bytes(),
-            Some(request.origin.as_uuid()),
-        );
+    /// The read or write of launched work, off the UI thread.
+    #[instrument(level = "trace", skip_all)]
+    pub fn run(&self, work: Work) -> Ran {
+        match work {
+            Work::Load(id) => Ran::Load(id, self.core.read_document_with_hmac(id, true)),
+            Work::Save { request, old_hmac, content } => {
+                let new_hmac_result = self.core.safe_write(
+                    request.id,
+                    old_hmac,
+                    &content.bytes(),
+                    Some(request.origin.as_uuid()),
+                );
+                Ran::Save { request, content, new_hmac_result }
+            }
+        }
+    }
 
+    /// Moves run work from in-progress to completed, for the next frame.
+    pub fn record(&self, ran: Ran) {
         {
             let mut tasks = self.tasks.lock().unwrap();
-
-            let mut in_progress_save = None;
-            for save in mem::take(&mut tasks.in_progress_saves) {
-                if save.request.id == id {
-                    in_progress_save = Some(save); // use latest of duplicate ids
-                } else {
-                    tasks.in_progress_saves.push(save); // put back the ones we're not completing
+            match ran {
+                Ran::Load(id, content_result) => tasks.complete_load(id, content_result),
+                Ran::Save { request, content, new_hmac_result } => {
+                    tasks.complete_save(request, content, new_hmac_result)
                 }
             }
-            let in_progress_save = in_progress_save
-                .expect("failed to find in-progress entry for save that just completed");
-            // ^ above error may indicate concurrent saves to the same file, which would cause problems
-
-            let timing = CompletedTiming::new(in_progress_save.timing);
-            if let Err(err) = &new_hmac_result {
-                error!(
-                    "save failed ({:?}): {:?}",
-                    timing.completed_at.duration_since(timing.started_at),
-                    err
-                );
-            }
-
-            let completed_save = CompletedSave {
-                request: in_progress_save.request,
-                content,
-                new_hmac_result,
-                timing,
-            };
-            tasks.completed_saves.push(completed_save);
         }
-
         self.ctx.request_repaint();
     }
 
