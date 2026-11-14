@@ -153,8 +153,9 @@ where
         let mut tx = ServerTx::begin(&mut lock)?;
         let db = &mut *tx;
 
-        let cap = Self::get_cap(db, &context.public_key)?;
         let owner = Owner(context.public_key);
+        let cap = Self::get_cap(db, &context.public_key)?
+            .saturating_sub(Self::other_family_usage::<GetUsageError>(db, owner)?);
 
         let mut tree = ServerTree::new(
             owner,
@@ -189,7 +190,7 @@ where
     ) -> Result<u64, ServerError<GetUsageHelperError>> {
         Ok(db
             .accounts
-            .get(&Owner(*public_key))
+            .get(&Self::billed_owner(db, Owner(*public_key)))
             .ok_or(ServerError::ClientError(GetUsageHelperError::UserNotFound))?
             .billing_info
             .data_cap())
@@ -394,50 +395,71 @@ where
             let mut tx = ServerTx::begin(&mut lock)?;
             let db = &mut *tx;
 
-            let mut tree = ServerTree::new(
-                Owner(*public_key),
-                &mut db.owned_files,
-                &mut db.shared_files,
-                &mut db.file_children,
-                &mut db.metas,
-            )?
-            .to_lazy();
-            let metas_to_delete = tree.ids();
+            let mut owners = vec![Owner(*public_key)];
+            if let Some(sub_accounts) = db.sub_accounts_by_parent.get(&Owner(*public_key)) {
+                owners.extend(sub_accounts.iter().copied());
+            }
 
-            for id in metas_to_delete.clone() {
-                if !tree.calculate_deleted(&id)? {
-                    let meta = tree.find(&id)?;
-                    if meta.is_document() && &(meta.owner().0) == public_key {
-                        if let Some(hmac) = meta.document_hmac() {
-                            docs_to_delete.push((*meta.id(), *hmac));
+            for Owner(public_key) in &owners {
+                let mut tree = ServerTree::new(
+                    Owner(*public_key),
+                    &mut db.owned_files,
+                    &mut db.shared_files,
+                    &mut db.file_children,
+                    &mut db.metas,
+                )?
+                .to_lazy();
+                let metas_to_delete = tree.ids();
+
+                for id in metas_to_delete.clone() {
+                    if !tree.calculate_deleted(&id)? {
+                        let meta = tree.find(&id)?;
+                        if meta.is_document() && &(meta.owner().0) == public_key {
+                            if let Some(hmac) = meta.document_hmac() {
+                                docs_to_delete.push((*meta.id(), *hmac));
+                            }
                         }
                     }
                 }
-            }
-            db.owned_files.clear_key(&Owner(*public_key))?;
-            db.shared_files.clear_key(&Owner(*public_key))?;
-            db.last_seen.remove(&Owner(*public_key))?;
+                db.owned_files.clear_key(&Owner(*public_key))?;
+                db.shared_files.clear_key(&Owner(*public_key))?;
+                db.last_seen.remove(&Owner(*public_key))?;
 
-            for id in metas_to_delete {
-                if let Some(meta) = db.metas.get(&id) {
-                    if &(meta.owner().0) == public_key {
-                        for user_access_key in meta.user_access_keys() {
-                            let sharee = Owner(user_access_key.encrypted_for);
-                            db.shared_files.remove(&sharee, meta.id())?;
+                for id in metas_to_delete {
+                    if let Some(meta) = db.metas.get(&id) {
+                        if &(meta.owner().0) == public_key {
+                            for user_access_key in meta.user_access_keys() {
+                                let sharee = Owner(user_access_key.encrypted_for);
+                                db.shared_files.remove(&sharee, meta.id())?;
+                            }
+                            db.metas.remove(&id)?;
+                            db.file_children.clear_key(&id)?;
                         }
-                        db.metas.remove(&id)?;
-                        db.file_children.clear_key(&id)?;
                     }
                 }
-            }
 
-            if free_username {
-                let username = db
-                    .accounts
-                    .remove(&Owner(*public_key))?
-                    .ok_or(ClientError(DeleteAccountHelperError::UserNotFound))?
-                    .username;
-                db.usernames.remove(&username)?;
+                if free_username {
+                    let username = db
+                        .accounts
+                        .remove(&Owner(*public_key))?
+                        .ok_or(ClientError(DeleteAccountHelperError::UserNotFound))?
+                        .username;
+                    db.usernames.remove(&username)?;
+                }
+
+                db.usage_by_owner.remove(&Owner(*public_key))?;
+                let parent = db
+                    .sub_accounts
+                    .get(&Owner(*public_key))
+                    .map(|sub_account| sub_account.parent);
+                if let Some(parent) = parent {
+                    db.sub_accounts_by_parent
+                        .remove(&parent, &Owner(*public_key))?;
+                }
+                if free_username {
+                    db.sub_accounts.remove(&Owner(*public_key))?;
+                    db.sub_account_counters.remove(&Owner(*public_key))?;
+                }
             }
 
             tx.end()?;

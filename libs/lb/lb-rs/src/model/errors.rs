@@ -449,6 +449,49 @@ impl From<ApiError<api::NewAccountError>> for LbErr {
     }
 }
 
+impl From<ApiError<api::NewSubAccountError>> for LbErr {
+    fn from(err: ApiError<api::NewSubAccountError>) -> Self {
+        use api::NewSubAccountError::*;
+        match err {
+            ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+            ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
+            ApiError::Endpoint(UsernameTaken) => LbErrKind::UsernameTaken,
+            ApiError::Endpoint(InvalidUsername) => LbErrKind::UsernameInvalid,
+            ApiError::Endpoint(Disabled) => LbErrKind::ServerDisabled,
+            ApiError::Endpoint(NotPremium) => LbErrKind::NotPremium,
+            ApiError::Endpoint(NotPermissioned) => LbErrKind::InsufficientPermission,
+            ApiError::Endpoint(CounterIncorrect) => LbErrKind::TryAgain,
+            e => core_err_unexpected(e),
+        }
+        .into()
+    }
+}
+
+impl From<ApiError<api::ListSubAccountsError>> for LbErr {
+    fn from(err: ApiError<api::ListSubAccountsError>) -> Self {
+        match err {
+            ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+            ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
+            e => core_err_unexpected(e),
+        }
+        .into()
+    }
+}
+
+impl From<ApiError<api::DeleteSubAccountError>> for LbErr {
+    fn from(err: ApiError<api::DeleteSubAccountError>) -> Self {
+        match err {
+            ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+            ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
+            ApiError::Endpoint(api::DeleteSubAccountError::UserNotFound) => {
+                LbErrKind::UsernameNotFound
+            }
+            e => core_err_unexpected(e),
+        }
+        .into()
+    }
+}
+
 impl From<ApiError<api::GetPublicKeyError>> for LbErr {
     fn from(err: ApiError<api::GetPublicKeyError>) -> Self {
         match err {

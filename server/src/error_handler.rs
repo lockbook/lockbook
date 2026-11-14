@@ -291,6 +291,17 @@ impl From<ServerError<DeleteAccountHelperError>> for ServerError<DeleteAccountEr
     }
 }
 
+impl From<ServerError<DeleteAccountHelperError>> for ServerError<DeleteSubAccountError> {
+    fn from(err: ServerError<DeleteAccountHelperError>) -> Self {
+        match err {
+            ClientError(DeleteAccountHelperError::UserNotFound) => {
+                ClientError(DeleteSubAccountError::UserNotFound)
+            }
+            InternalError(msg) => InternalError(msg),
+        }
+    }
+}
+
 impl From<ServerError<DeleteAccountHelperError>> for ServerError<AdminDisappearAccountError> {
     fn from(err: ServerError<DeleteAccountHelperError>) -> Self {
         match err {

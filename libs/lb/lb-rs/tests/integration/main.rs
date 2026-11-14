@@ -36,6 +36,7 @@ mod read_only_tests;
 mod search_tests;
 mod sharing_contacts_tests;
 mod sharing_tests;
+mod sub_account_tests;
 mod svg_merge_tests;
 mod sync_during_upload_tests;
 #[cfg(not(any(target_family = "wasm", target_os = "ios")))]

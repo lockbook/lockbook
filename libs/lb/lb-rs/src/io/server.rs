@@ -36,6 +36,18 @@ pub trait Server: Clone + MaybeSend + MaybeSync + 'static {
         &self, account: &Account, request: NewAccountRequestV2,
     ) -> impl Future<Output = ApiResult<NewAccountRequestV2>> + MaybeSend;
 
+    fn new_sub_account(
+        &self, account: &Account, request: NewSubAccountRequest,
+    ) -> impl Future<Output = ApiResult<NewSubAccountRequest>> + MaybeSend;
+
+    fn list_sub_accounts(
+        &self, account: &Account, request: ListSubAccountsRequest,
+    ) -> impl Future<Output = ApiResult<ListSubAccountsRequest>> + MaybeSend;
+
+    fn delete_sub_account(
+        &self, account: &Account, request: DeleteSubAccountRequest,
+    ) -> impl Future<Output = ApiResult<DeleteSubAccountRequest>> + MaybeSend;
+
     fn change_doc_v2(
         &self, account: &Account, request: ChangeDocRequestV2,
     ) -> impl Future<Output = ApiResult<ChangeDocRequestV2>> + MaybeSend;

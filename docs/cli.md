@@ -80,6 +80,13 @@ lockbook share pending
 lockbook share accept <id> /work/
 ```
 
+Give a script its own key with a sub-account (premium). It is billed to you and reaches only what you share with it:
+```sh
+lockbook subaccount new bot
+lockbook share new /work/notes <your username>+bot
+lockbook subaccount export <your username>+bot
+```
+
 Automation examples: [this site’s update script](https://github.com/lockbook/lockbook/blob/master/docs/update.sh), [another blog](https://github.com/Parth/parth.cafe/tree/master/.github/workflows).
 
 ## Virtual filesystem (experimental)
