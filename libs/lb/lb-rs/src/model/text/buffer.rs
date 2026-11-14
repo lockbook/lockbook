@@ -321,23 +321,28 @@ struct External {
 }
 
 impl External {
-    /// Drops each of `edits`, made in order to `text`, along with the one that reverts it right after, as an undo or a
-    /// backspace does, so that edits which cancel out don't win conflicts.
+    /// Drops each of `edits`, made in order to `text`, along with the one right after that leaves the text as it was
+    /// before it, as an undo or a backspace does, so that edits which cancel out don't win conflicts.
     fn drop_reverted(text: &str, edits: Vec<Replace>) -> Vec<Replace> {
         let mut text =
             Snapshot { text: text.into(), segs: unicode_segs::calc(text), ..Default::default() };
-        let mut kept: Vec<(Replace, Replace)> = vec![];
+        // each kept edit with the bytes it wrote and the text they replaced
+        let mut kept: Vec<(Replace, (Byte, Byte), String)> = vec![];
         for p in edits {
-            let replaced = text[p.range].to_string();
-            let start = p.range.start();
-            let (_, len) = text.apply_replace(&p);
-            if kept.last().is_some_and(|(_, inverse)| *inverse == p) {
+            let range = text.segs.range_to_byte(p.range);
+            let reverts = kept.last().is_some_and(|(_, written, replaced)| {
+                same_replace(&text.text, (*written, replaced), (range, &p.text))
+            });
+            let replaced = text[range].to_string();
+            text.apply_replace(&p);
+            if reverts {
                 kept.pop();
             } else {
-                kept.push((p, Replace { range: (start, start + len), text: replaced }));
+                let written = (range.0, Byte(range.0.0 + p.text.len()));
+                kept.push((p, written, replaced));
             }
         }
-        kept.into_iter().map(|(p, _)| p).collect()
+        kept.into_iter().map(|(p, _, _)| p).collect()
     }
 
     /// Splits each of `edits`, made in order to `text`, into what it changes: the pieces a diff of what it replaced and
@@ -858,6 +863,15 @@ fn transform_past(
         }
     }
     lost
+}
+
+/// Whether writing `a.1` over the bytes `a.0` of `text` gives the same text as writing `b.1` over `b.0`.
+fn same_replace(text: &str, a: ((Byte, Byte), &str), b: ((Byte, Byte), &str)) -> bool {
+    let (((a_lo, a_hi), a_text), ((b_lo, b_hi), b_text)) = (a, b);
+    let (lo, hi) = (a_lo.min(b_lo).0, a_hi.max(b_hi).0);
+    let a = [&text[lo..a_lo.0], a_text, &text[a_hi.0..hi]];
+    let b = [&text[lo..b_lo.0], b_text, &text[b_hi.0..hi]];
+    a.concat() == b.concat()
 }
 
 /// `replace` on `before`, widened to whole graphemes of the text after it: a
