@@ -302,7 +302,7 @@ impl<'ast> MdRender {
     pub fn compute_bounds(&mut self, node: &'ast AstNode<'ast>) {
         let value = &node.data.borrow().value;
         match value {
-            NodeValue::FrontMatter(_) => {}
+            NodeValue::FrontMatter(_) => self.compute_bounds_front_matter(node),
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block

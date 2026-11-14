@@ -30,7 +30,7 @@ Rows and columns are inserted, deleted, moved, and aligned from the toolbar or f
 The delimiter row has no place in the grid. A table shows as source only while the caret is on it: someone is typing a table by hand. Sorts and charts are cool territory, not a promise.
 
 ## Other
-**Front matter:** Obsidian-like table rendering is the product direction; a code-block stand-in is fine until then ([dialect](dialect.md)).
+**Front matter:** a grid at the top of the note, a row per property with the key in one column and the value in the other; the fences, colons, and quotes are hidden and are atoms for the caret. Return starts a row, Tab moves key to value to the next row, and a colon ends a key being typed. Every edit replaces one key, value, or line, so comments, order, quoting, and list style survive untouched. YAML the grid does not edit in place — comments, lists, nested maps, multi-line scalars, and lines that fail to parse — shows as source rows in the same grid, so one bad line never costs the block ([dialect](dialect.md)).
 
 **HTML:** syntax-highlighted source, with GitHub's finite vocabulary in the target state.
 

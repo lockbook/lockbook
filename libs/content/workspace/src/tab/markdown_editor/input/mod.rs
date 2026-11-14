@@ -3,6 +3,7 @@ pub mod canonical;
 pub mod code;
 pub mod cursor;
 pub mod events;
+pub mod front_matter;
 pub mod mutation;
 
 use comrak::nodes::NodeValue;

@@ -2,6 +2,7 @@ pub mod document_preview;
 pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;
+pub mod front_matter;
 pub mod history_swipe;
 pub mod import;
 pub mod landing;

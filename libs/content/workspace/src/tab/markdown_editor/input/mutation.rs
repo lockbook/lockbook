@@ -111,6 +111,9 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(snapped));
             }
             Event::Replace { region, text, advance_cursor } => {
+                if self.front_matter_typed(region, &text, operations) {
+                    return response;
+                }
                 let mut range = self.region_to_range(region);
                 if matches!(region, Region::Selection) {
                     // selecting a fold chip is just selecting a fold tag, but
@@ -159,6 +162,9 @@ impl<'ast> MdEdit {
                 // item after the hidden contents
                 let handled = !shift && self.newline_at_fold(root, operations);
                 if handled {
+                    return response;
+                }
+                if self.front_matter_newline(operations) {
                     return response;
                 }
                 if self.newline_in_code(root, operations) {
@@ -270,6 +276,9 @@ impl<'ast> MdEdit {
                 if self.delete_at_image(root, region, operations) {
                     return response;
                 }
+                if self.front_matter_delete(region, operations) {
+                    return response;
+                }
 
                 if self.delete_from_caret_at_table(region, operations) {
                     return response;
@@ -347,6 +356,9 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                if self.front_matter_indent(deindent, operations) {
+                    return response;
+                }
                 let selected_lines = self
                     .renderer
                     .bounds

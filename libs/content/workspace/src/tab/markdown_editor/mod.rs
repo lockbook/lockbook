@@ -39,6 +39,7 @@ mod clipboard;
 pub mod commands;
 pub mod fold;
 pub mod fragment;
+pub mod front_matter;
 pub mod input;
 pub mod md_label;
 pub mod row_scroll;
@@ -1067,6 +1068,7 @@ impl MdRender {
         // when text hasn't changed.
         if self.bounds.text_seq != self.text_seq {
             self.bounds.inline_paragraphs.clear();
+            self.bounds.front_matter = None;
             self.calc_source_lines();
             // source shows folds open and images, diagrams and formulas as their text
             if self.view == View::Source {

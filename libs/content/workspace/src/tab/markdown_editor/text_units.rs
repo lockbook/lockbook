@@ -130,6 +130,9 @@ impl MdEdit {
         let mut atoms = r.bounds.images.clone();
         atoms.extend(r.bounds.folds.iter().map(|f| f.tag));
         atoms.extend(r.collapsed_diagrams());
+        if let Some(fm) = &r.bounds.front_matter {
+            atoms.extend(r.front_matter_syntax(fm));
+        }
         atoms.sort_unstable();
         atoms
     }
