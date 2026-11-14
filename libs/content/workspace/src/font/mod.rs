@@ -118,12 +118,16 @@ fn want(list: &mut Vec<Want>, want: Want) {
     }
 }
 
+/// Whether `family` draws, which one in color Swash can't doesn't.
+fn swash_draws(family: &str) -> bool {
+    family != "Noto Color Emoji"
+}
+
 /// Starts reading `families` for note text to fall back to, once each.
 fn want_fallbacks(families: &[&'static str]) {
     let mut fallbacks = FALLBACKS.lock().unwrap();
     for &family in families {
-        // drawn in color Swash can't
-        if family != "Noto Color Emoji" {
+        if swash_draws(family) {
             want(&mut fallbacks.notes, (family.to_owned(), Kind::Script));
         }
     }
@@ -405,9 +409,21 @@ pub fn note_family(mono: bool) -> &'static str {
 /// points its generic sans and monospace at the platform's, which the
 /// interface's text draws in.
 pub fn refresh(db: &mut Database) {
+    platform_families(db);
+    let drawn = CHOSEN.read().unwrap().drawn.clone();
+    for family in drawn.iter().flatten() {
+        add_family(db, family.name, &family.faces);
+    }
+    for family in read_fallbacks() {
+        add_fallback(db, &family);
+    }
+}
+
+/// Adds the platform's text and code families where `db` lacks them, and
+/// points its generic sans and monospace at them.
+fn platform_families(db: &mut Database) {
     let sans = system::platform_sans().unwrap_or("Noto Sans");
     let mono = system::platform_mono().unwrap_or("Noto Sans Mono");
-    let drawn = CHOSEN.read().unwrap().drawn.clone();
     // the UI's font system has them from its first load, so only a
     // background one built later reads them here
     for family in [sans, mono] {
@@ -417,12 +433,6 @@ pub fn refresh(db: &mut Database) {
             }
         }
         stand_in_styles(db, family);
-    }
-    for family in drawn.iter().flatten() {
-        add_family(db, family.name, &family.faces);
-    }
-    for family in read_fallbacks() {
-        add_fallback(db, &family);
     }
     db.set_sans_serif_family(sans);
     db.set_monospace_family(mono);
@@ -490,6 +500,13 @@ pub fn load_family(ctx: &egui::Context, family: &'static str) -> Option<f32> {
 /// Loads the editor's fonts: the bundled symbols, then text and script faces
 /// from the system where it has them, else bundled, then the system's CJK.
 pub fn load(db: &mut Database) {
+    load_fixed(db);
+    refresh(db);
+}
+
+/// The fonts [`load`] starts with: the bundled ones and the system's text
+/// families, without the fallback families read as text asks for them.
+pub fn load_fixed(db: &mut Database) {
     #[cfg(not(any(target_vendor = "apple", target_os = "android")))]
     {
         db.set_sans_serif_family("Noto Sans");
@@ -502,7 +519,33 @@ pub fn load(db: &mut Database) {
         db.load_font_source(Source::Binary(Arc::new(font) as _));
     }
     system::load(db);
-    refresh(db);
+    platform_families(db);
+}
+
+/// Reads now, rather than as text asks for them, every family [`Fallback`]
+/// lists for any script, where it lists them rather than asking the system
+/// per script, so a font system with them searches every face only for
+/// characters none of them draws.
+#[cfg(all(test, not(any(target_vendor = "apple", windows))))]
+pub fn load_listed_fallbacks(db: &mut Database) {
+    use cosmic_text::Fallback as _;
+    use unicode_script::UnicodeScript as _;
+    let fallback = Fallback::default();
+    let mut scripts: Vec<Script> = (0..0x3_0000)
+        .filter_map(char::from_u32)
+        .map(|c| c.script())
+        .collect();
+    scripts.sort_unstable_by_key(|s| s.short_name());
+    scripts.dedup();
+    let mut names: Vec<&'static str> = fallback.common_fallback().to_vec();
+    for script in scripts {
+        names.extend(fallback.script_fallback(script, "en-US"));
+    }
+    for name in names.into_iter().filter(|name| swash_draws(name)) {
+        if let Load::Ready(family) = loader::read(name, Kind::Script) {
+            add_fallback(db, &family);
+        }
+    }
 }
 
 /// Text asks for regular, bold, and their italics, and the font system takes

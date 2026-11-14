@@ -1790,15 +1790,18 @@ impl<'ast> Editor {
         self.edit.renderer.buffer = md.into();
 
         // place cursor (affects capture)
-        self.edit.renderer.buffer.queue(vec![Operation::Select(
-            self.edit
-                .renderer
-                .buffer
-                .current
-                .segs
-                .last_cursor_position()
-                .into_range(),
-        )]);
+        self.edit.renderer.buffer.queue(
+            vec![Operation::Select(
+                self.edit
+                    .renderer
+                    .buffer
+                    .current
+                    .segs
+                    .last_cursor_position()
+                    .into_range(),
+            )],
+            self.edit.renderer.now(),
+        );
         self.edit.renderer.buffer.update();
 
         // parse
@@ -1827,15 +1830,18 @@ impl<'ast> Editor {
         self.edit.renderer.buffer = md.into();
 
         // place cursor (affects capture)
-        self.edit.renderer.buffer.queue(vec![Operation::Select(
-            self.edit
-                .renderer
-                .buffer
-                .current
-                .segs
-                .last_cursor_position()
-                .into_range(),
-        )]);
+        self.edit.renderer.buffer.queue(
+            vec![Operation::Select(
+                self.edit
+                    .renderer
+                    .buffer
+                    .current
+                    .segs
+                    .last_cursor_position()
+                    .into_range(),
+            )],
+            self.edit.renderer.now(),
+        );
         self.edit.renderer.buffer.update();
 
         // parse

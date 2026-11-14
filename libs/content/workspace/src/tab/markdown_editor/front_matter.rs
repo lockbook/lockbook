@@ -192,7 +192,7 @@ impl MdEdit {
             Some(home) if !undo_redo && selection != (home, home) => {
                 self.renderer
                     .buffer
-                    .queue(vec![Operation::Select(home.into_range())]);
+                    .queue(vec![Operation::Select(home.into_range())], self.renderer.now());
                 self.renderer.buffer.update()
             }
             _ => buffer::Response::default(),

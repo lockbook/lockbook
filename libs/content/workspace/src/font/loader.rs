@@ -84,7 +84,7 @@ pub fn busy() -> bool {
         .any(|load| matches!(load, Load::Loading))
 }
 
-fn read(name: &str, kind: Kind) -> Load {
+pub(super) fn read(name: &str, kind: Kind) -> Load {
     let found = match kind {
         Kind::Fallback => name
             .split_once('\t')

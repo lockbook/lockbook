@@ -3,8 +3,8 @@ use super::operation_types::{InverseOperation, Operation, Replace};
 use super::unicode_segs::UnicodeSegs;
 use super::{diff, unicode_segs};
 use std::ops::Index;
+use std::time::Duration;
 use unicode_segmentation::UnicodeSegmentation as _;
-use web_time::{Duration, Instant};
 
 /// Long-lived state of the editor's text buffer. Factored into sub-structs for borrow-checking.
 /// # Operation algebra
@@ -293,7 +293,9 @@ impl Ops {
             let curr_typing = self.frame_is_typing(curr_start, curr_end);
             let prev_typing = self.frame_is_typing(prev_start, prev_end);
             if curr_typing && prev_typing {
-                let gap = self.meta[curr_start].timestamp - self.meta[prev_end - 1].timestamp;
+                let gap = self.meta[curr_start]
+                    .timestamp
+                    .saturating_sub(self.meta[prev_end - 1].timestamp);
                 if gap <= Duration::from_millis(500) {
                     return false;
                 }
@@ -477,7 +479,7 @@ fn map(
 fn applied(text: &str, frame: &[Replace]) -> Buffer {
     let mut buffer = Buffer::from(text);
     let ops = frame.iter().cloned().map(Operation::Replace).collect();
-    buffer.push_frame(ops, Instant::now(), true);
+    buffer.push_frame(ops, Duration::ZERO, true);
     buffer.update();
     buffer
 }
@@ -515,8 +517,8 @@ impl std::ops::BitOrAssign for Response {
 /// Additional metadata tracked alongside operations internally.
 #[derive(Clone, Debug)]
 struct OpMeta {
-    /// At what time was this operation applied? Affects undo units.
-    pub timestamp: Instant,
+    /// When this operation was queued, on the caller's clock. Affects undo units.
+    pub timestamp: Duration,
 
     /// What version of the buffer was the modifier looking at when they made this operation? Used for operational
     /// transformation, both when applying multiple operations in one frame and when merging out-of-editor changes.
@@ -529,9 +531,10 @@ struct OpMeta {
 
 impl Buffer {
     /// Push a series of operations onto the buffer's input queue; operations will be undone/redone atomically. Useful
-    /// for batches of internal operations produced from a single input event e.g. multi-line list identation.
-    pub fn queue(&mut self, mut ops: Vec<Operation>) {
-        let timestamp = Instant::now();
+    /// for batches of internal operations produced from a single input event e.g. multi-line list identation. `now`
+    /// is the caller's clock, which groups typing into undo units.
+    pub fn queue(&mut self, mut ops: Vec<Operation>, now: Duration) {
+        let timestamp = now;
 
         // combine adjacent replacements
         let mut combined_ops = Vec::new();
@@ -563,7 +566,7 @@ impl Buffer {
         self.push_frame(combined_ops, timestamp, false);
     }
 
-    fn push_frame(&mut self, ops: Vec<Operation>, timestamp: Instant, external: bool) {
+    fn push_frame(&mut self, ops: Vec<Operation>, timestamp: Duration, external: bool) {
         let base = self.current.seq;
         self.ops
             .meta
@@ -577,7 +580,8 @@ impl Buffer {
     pub fn reload(&mut self, text: String) -> Response {
         let mut response = self.update();
         let remote = self.external.reload(text, &self.current.text);
-        self.push_frame(remote.into_iter().map(Operation::Replace).collect(), Instant::now(), true);
+        // an external frame ends undo units, so its time is never compared
+        self.push_frame(remote.into_iter().map(Operation::Replace).collect(), Duration::ZERO, true);
         response |= self.update();
         response
     }
@@ -601,13 +605,12 @@ impl Buffer {
         let ops_a = diff(&self.external.text, &external_text_a);
         let ops_b = diff(&self.external.text, &external_text_b);
 
-        let timestamp = Instant::now();
         let ops = ops_a
             .into_iter()
             .chain(ops_b)
             .map(Operation::Replace)
             .collect();
-        self.push_frame(ops, timestamp, false);
+        self.push_frame(ops, Duration::ZERO, false);
 
         self.update();
         self.current.text
@@ -1040,14 +1043,18 @@ mod test {
     use super::Buffer;
     use crate::model::text::offset_types::{Grapheme, RangeExt as _};
     use crate::model::text::operation_types::{Operation, Replace};
+    use std::time::Duration;
     use unicode_segmentation::UnicodeSegmentation;
 
     fn type_into_selection(buffer: &mut Buffer, text: &str) {
         let range = buffer.current.selection;
-        buffer.queue(vec![
-            Operation::Replace(Replace { range, text: text.into() }),
-            Operation::Select((range.start(), range.start())),
-        ]);
+        buffer.queue(
+            vec![
+                Operation::Replace(Replace { range, text: text.into() }),
+                Operation::Select((range.start(), range.start())),
+            ],
+            Duration::ZERO,
+        );
         buffer.update();
     }
 
@@ -1056,7 +1063,7 @@ mod test {
         // the mark fuses into "*", so the edit that wrote it spans no grapheme of its own
         let mut buffer = Buffer::from("*abc\n");
         let mark = Replace { range: (Grapheme(1), Grapheme(4)), text: "\u{94d}".into() };
-        buffer.queue(vec![Operation::Replace(mark)]);
+        buffer.queue(vec![Operation::Replace(mark)], Duration::ZERO);
         buffer.update();
         buffer.reload("Z*abc\n".into());
         buffer.update();
@@ -1068,7 +1075,7 @@ mod test {
         // a table cell rewrite writes `|-` over `--`: only its first character changed
         let mut buffer = Buffer::from("--\n-");
         let rewrite = Replace { range: (Grapheme(0), Grapheme(2)), text: "|-".into() };
-        buffer.queue(vec![Operation::Replace(rewrite)]);
+        buffer.queue(vec![Operation::Replace(rewrite)], Duration::ZERO);
         buffer.update();
         for version in ["--\n--", "-bar -\n--"] {
             buffer.reload(version.into());
@@ -1081,7 +1088,7 @@ mod test {
     fn undo_takes_back_a_combining_mark_typed_after_its_letter() {
         let mut buffer = Buffer::from("xxxxx doc");
         let mark = Replace { range: (Grapheme(1), Grapheme(1)), text: "\u{948}".into() };
-        buffer.queue(vec![Operation::Replace(mark)]);
+        buffer.queue(vec![Operation::Replace(mark)], Duration::ZERO);
         buffer.update();
         assert_eq!(buffer.current.text, "x\u{948}xxxx doc");
 
@@ -1112,11 +1119,14 @@ mod test {
     #[test]
     fn backward_replace_beside_a_replacement() {
         let mut buffer = Buffer::from("aa bb cc");
-        buffer.queue(vec![
-            Operation::Replace(Replace { range: (Grapheme(0), Grapheme(2)), text: "Q".into() }),
-            Operation::Select((Grapheme(2), Grapheme(2))),
-            Operation::Replace(Replace { range: (Grapheme(5), Grapheme(2)), text: "".into() }),
-        ]);
+        buffer.queue(
+            vec![
+                Operation::Replace(Replace { range: (Grapheme(0), Grapheme(2)), text: "Q".into() }),
+                Operation::Select((Grapheme(2), Grapheme(2))),
+                Operation::Replace(Replace { range: (Grapheme(5), Grapheme(2)), text: "".into() }),
+            ],
+            Duration::ZERO,
+        );
         buffer.update();
         assert_eq!(buffer.current.text, "Q cc");
     }
@@ -1449,11 +1459,20 @@ mod undo_unit_tests {
     use super::Buffer;
     use crate::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
     use crate::model::text::operation_types::{Operation, Replace};
-    use std::thread::sleep;
+    use std::cell::Cell;
     use std::time::Duration;
 
+    thread_local! {
+        /// The test's clock, which only `sleep` moves.
+        static NOW: Cell<Duration> = const { Cell::new(Duration::ZERO) };
+    }
+
+    fn sleep(by: Duration) {
+        NOW.with(|now| now.set(now.get() + by));
+    }
+
     fn frame(buf: &mut Buffer, ops: Vec<Operation>) {
-        buf.queue(ops);
+        buf.queue(ops, NOW.with(Cell::get));
         buf.update();
     }
 
@@ -1732,10 +1751,11 @@ mod reload_tests {
     use super::Buffer;
     use crate::model::text::offset_types::Grapheme;
     use crate::model::text::operation_types::{Operation, Replace};
+    use std::time::Duration;
 
     fn edit(buf: &mut Buffer, (start, end): (usize, usize), text: &str) {
         let range = (Grapheme(start), Grapheme(end));
-        buf.queue(vec![Operation::Replace(Replace { range, text: text.into() })]);
+        buf.queue(vec![Operation::Replace(Replace { range, text: text.into() })], Duration::ZERO);
         buf.update();
     }
 
@@ -1759,7 +1779,7 @@ mod reload_tests {
         let mut buf = Buffer::from("aa bb");
         edit(&mut buf, (0, 0), "x ");
         reload(&mut buf, "aa bb R");
-        buf.queue(vec![Operation::Select((Grapheme(1), Grapheme(1)))]);
+        buf.queue(vec![Operation::Select((Grapheme(1), Grapheme(1)))], Duration::ZERO);
         buf.update();
         assert!(!buf.can_undo());
     }
@@ -1799,13 +1819,16 @@ mod reload_tests {
         let disk = format!("{image}\n\nab\n\nfoo\n");
         let mut buf = Buffer::from(disk.as_str());
         let end = Grapheme(image.len() + 9);
-        buf.queue(vec![
-            Operation::Replace(Replace {
-                range: (Grapheme(0), Grapheme(image.len())),
-                text: "".into(),
-            }),
-            Operation::Replace(Replace { range: (end, end), text: image.into() }),
-        ]);
+        buf.queue(
+            vec![
+                Operation::Replace(Replace {
+                    range: (Grapheme(0), Grapheme(image.len())),
+                    text: "".into(),
+                }),
+                Operation::Replace(Replace { range: (end, end), text: image.into() }),
+            ],
+            Duration::ZERO,
+        );
         buf.update();
         let disk = disk.replace("ab", "a⟦1⟧b");
         reload(&mut buf, &disk);

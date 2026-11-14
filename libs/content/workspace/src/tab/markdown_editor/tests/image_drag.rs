@@ -224,11 +224,10 @@ fn a_drop_leaves_the_caret_where_it_was() {
     let md = format!("caret\n\n| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
     let mut ws = editor(&md);
     let caret = Grapheme("car".len());
-    ws.editor
-        .edit
-        .renderer
-        .buffer
-        .queue(vec![lb_rs::model::text::operation_types::Operation::Select((caret, caret))]);
+    ws.editor.edit.renderer.buffer.queue(
+        vec![lb_rs::model::text::operation_types::Operation::Select((caret, caret))],
+        ws.editor.edit.renderer.now(),
+    );
     ws.editor.edit.renderer.buffer.update();
     ws.enter_frame();
 
@@ -413,11 +412,10 @@ fn no_frame_of_a_drop_moves_the_caret() {
     let md = format!("caret\n\n| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
     let mut ws = editor(&md);
     let caret = (Grapheme(3), Grapheme(3));
-    ws.editor
-        .edit
-        .renderer
-        .buffer
-        .queue(vec![lb_rs::model::text::operation_types::Operation::Select(caret)]);
+    ws.editor.edit.renderer.buffer.queue(
+        vec![lb_rs::model::text::operation_types::Operation::Select(caret)],
+        ws.editor.edit.renderer.now(),
+    );
     ws.editor.edit.renderer.buffer.update();
     ws.enter_frame();
 

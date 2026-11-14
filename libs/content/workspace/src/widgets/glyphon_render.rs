@@ -13,6 +13,32 @@ use glyphon::{
 use super::glyphon_cache::GlyphonCache;
 
 pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
+    register(ctx, new_font_system)
+}
+
+/// Registers a [`fixed_font_system`].
+#[cfg(test)]
+pub fn register_fixed_font_system(ctx: &egui::Context) {
+    register(ctx, fixed_font_system);
+}
+
+/// A font system of [`crate::font::load_fixed`]'s fonts and the listed
+/// fallbacks, read once per process, so text a test lays out is the same
+/// whichever fallbacks other tests read.
+#[cfg(test)]
+pub fn fixed_font_system() -> FontSystem {
+    static FIXED: std::sync::OnceLock<fontdb::Database> = std::sync::OnceLock::new();
+    let fixed = FIXED.get_or_init(|| {
+        let mut db = fontdb::Database::new();
+        crate::font::load_fixed(&mut db);
+        #[cfg(not(any(target_vendor = "apple", windows)))]
+        crate::font::load_listed_fallbacks(&mut db);
+        db
+    });
+    font_system(|db| *db = fixed.clone())
+}
+
+fn register(ctx: &egui::Context, new: impl FnOnce() -> FontSystem) -> Arc<Mutex<FontSystem>> {
     // Idempotent: callers (workspace boot, test harness per-frame) may
     // invoke this repeatedly. Reusing the existing FontSystem +
     // GlyphonCache preserves the shaped-buffer cache across frames.
@@ -20,7 +46,7 @@ pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
         return font_system;
     }
 
-    let font_system = Arc::new(Mutex::new(new_font_system()));
+    let font_system = Arc::new(Mutex::new(new()));
     ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, Arc::clone(&font_system)));
 
     let glyphon_cache = Arc::new(Mutex::new(GlyphonCache::new()));
@@ -42,8 +68,12 @@ pub fn reload_font_system(ctx: &egui::Context) {
 
 /// Bundled fonts, then the system's.
 pub fn new_font_system() -> FontSystem {
+    font_system(crate::font::load)
+}
+
+fn font_system(load: impl FnOnce(&mut fontdb::Database)) -> FontSystem {
     let mut db = fontdb::Database::new();
-    crate::font::load(&mut db);
+    load(&mut db);
     let fallback = crate::font::Fallback::default();
     FontSystem::new_with_locale_and_db_and_fallback("en-US".into(), db, fallback)
 }

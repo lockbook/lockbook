@@ -435,7 +435,7 @@ impl MdEdit {
             }
         }
 
-        self.renderer.buffer.queue(operations);
+        self.renderer.buffer.queue(operations, self.renderer.now());
         let mut resp = self.renderer.buffer.update();
         if resp.text_updated {
             self.renderer.bump_text_seq();

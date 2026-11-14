@@ -321,7 +321,7 @@ impl<'ast> MdEdit {
         if ops.is_empty() {
             return buffer::Response::default();
         }
-        self.renderer.buffer.queue(ops);
+        self.renderer.buffer.queue(ops, self.renderer.now());
         let response = self.renderer.buffer.update();
         self.renderer.bump_text_seq();
         self.renderer.reparse(arena);
