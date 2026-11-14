@@ -1,7 +1,7 @@
 use crate::style::button::COPY_FEEDBACK_SECS;
 use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
-use crate::tab::markdown_editor::input::{Event, Increment};
+use crate::tab::markdown_editor::input::{Event, FrontMatterAction, Increment};
 use crate::tab::markdown_editor::widget::utils::{
     NodeValueExt as _, leading_indent_cols, leading_indent_range, wrap_layout,
 };
@@ -27,6 +27,20 @@ pub struct EventState {
 }
 
 impl MdEdit {
+    /// Flips the task item or front matter checkbox whose mark is at
+    /// `check`, and animates it.
+    pub fn toggle_check(&mut self, check: Grapheme, operations: &mut Vec<Operation>) {
+        let (range, text) = match self.front_matter_checkbox_at(check) {
+            Some((value, checked)) => (value, if checked { "false" } else { "true" }),
+            None => {
+                let mark = &self.renderer.buffer[(check, check + 1)];
+                ((check, check + 1), if mark == " " { "x" } else { " " })
+            }
+        };
+        operations.push(Operation::Replace(Replace { range, text: text.into() }));
+        self.renderer.task_toggle_pending = Some(check);
+    }
+
     /// Reorder a list item to the gap at `insert_offset` via
     /// [`MdRender::plan_block_move`]. The selection is left where the
     /// edit transform lands it — a drop doesn't reselect the moved item.
@@ -90,6 +104,7 @@ impl<'ast> MdEdit {
     ) -> buffer::Response {
         let current_selection = self.renderer.buffer.current.selection;
         let mut response = buffer::Response::default();
+        self.property_completions.note(&event);
         match event {
             Event::Select { region: Region::Syntax { larger } } => {
                 if let Some(range) = self.syntax_select(root, larger) {
@@ -106,12 +121,19 @@ impl<'ast> MdEdit {
                 };
                 let snapped = self.renderer.snap_selection_out_of_fold_tags(range);
                 let snapped = self.renderer.snap_selection_into_table_cells(snapped);
+                let snapped = self
+                    .renderer
+                    .snap_caret_out_of_front_matter_separator(snapped);
                 let affinity = if snapped.1 == range.1 { affinity } else { Affinity::Downstream };
                 self.renderer.caret_affinity = (snapped.1, affinity);
                 operations.push(Operation::Select(snapped));
             }
             Event::Replace { region, text, advance_cursor } => {
-                let mut range = self.region_to_range(region);
+                if self.front_matter_typed(region, &text, operations) {
+                    return response;
+                }
+                let range = self.region_to_range(region);
+                let mut range = self.front_matter_span(range);
                 if matches!(region, Region::Selection) {
                     // selecting a fold chip is just selecting a fold tag, but
                     // replacing it should delete folded content
@@ -138,6 +160,11 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(current_selection));
             }
             Event::ToggleStyle { region, style } => {
+                // a divider goes after the block, as from any other block
+                if self.in_front_matter() && style != NodeValue::ThematicBreak {
+                    self.front_matter_style(&style, operations);
+                    return response;
+                }
                 // ToggleStyle inserts markdown syntax (e.g. `**…**`)
                 if self.renderer.kind == Syntax::Markdown {
                     self.toggle_style(root, region, style, current_selection, operations);
@@ -159,6 +186,9 @@ impl<'ast> MdEdit {
                 // item after the hidden contents
                 let handled = !shift && self.newline_at_fold(root, operations);
                 if handled {
+                    return response;
+                }
+                if self.front_matter_newline(operations) {
                     return response;
                 }
                 if self.newline_in_code(root, operations) {
@@ -270,6 +300,9 @@ impl<'ast> MdEdit {
                 if self.delete_at_image(root, region, operations) {
                     return response;
                 }
+                if self.front_matter_delete(region, operations) {
+                    return response;
+                }
 
                 if self.delete_from_caret_at_table(region, operations) {
                     return response;
@@ -321,7 +354,8 @@ impl<'ast> MdEdit {
                 };
                 if !handled() {
                     // default -> delete region
-                    let mut range = self.region_to_range(region);
+                    let range = self.region_to_range(region);
+                    let mut range = self.front_matter_span(range);
 
                     // selecting a fold chip is just selecting a fold tag, but
                     // deleting it should delete folded content
@@ -347,6 +381,9 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                if self.front_matter_indent(deindent, operations) {
+                    return response;
+                }
                 let selected_lines = self
                     .renderer
                     .bounds
@@ -619,6 +656,9 @@ impl<'ast> MdEdit {
                 //         self.appearance.base_font_size.map(|size| size - 1.)
                 // }
             }
+            Event::ToggleFold { node: None } if self.in_front_matter() => {
+                self.front_matter_toggle_collapsed(operations);
+            }
             Event::ToggleFold { node: at } => {
                 let unapply = at.is_none().then(|| self.unapply_fold(root));
                 for node in root.descendants() {
@@ -643,15 +683,7 @@ impl<'ast> MdEdit {
                     self.renderer.apply_fold(node, contents, unapply);
                 }
             }
-            Event::ToggleTask { check } => {
-                let mark = &self.renderer.buffer[(check, check + 1)];
-                let text = if mark == " " { "x" } else { " " };
-                operations.push(Operation::Replace(Replace {
-                    range: (check, check + 1),
-                    text: text.into(),
-                }));
-                self.renderer.task_toggle_pending = Some(check);
-            }
+            Event::ToggleTask { check } => self.toggle_check(check, operations),
             Event::ToggleSpoiler { node: range } => {
                 let Some(node) = root
                     .descendants()
@@ -669,6 +701,10 @@ impl<'ast> MdEdit {
                 self.renderer.open_dest(&url, wikilink, &ctx);
             }
             Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
+            Event::FrontMatter(FrontMatterAction::ToggleCollapsed) => {
+                self.front_matter_toggle_collapsed(operations);
+            }
+            Event::FrontMatter(action) => self.front_matter_action(action, operations),
             Event::OpenDiagram => {
                 use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
                 use crate::tab::{Destination, ExtendedOutput as _};

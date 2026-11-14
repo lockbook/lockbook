@@ -2,14 +2,17 @@
 //! event → operation → buffer → reparse → render pipeline via
 //! [`TestEditor`].
 
-use super::super::input::{Advance, Bound, Event, Increment, Location, Region};
+use super::super::input::{Advance, Bound, Event, FrontMatterAction, Increment, Location, Region};
 use super::super::table::{RowBounds, TableAction, TableSelection};
 use super::super::widget::toolbar::MarkdownToolbarAction as ToolbarAction;
 use super::super::widget::utils::NodeValueExt as _;
 use super::doc_gen::{self, Features, ScriptFeatures, WhitespaceFeatures, gen_doc};
 use super::harness::TestEditor;
+use crate::front_matter::tests::{Yaml, read_yaml};
+use crate::front_matter::{FrontMatter, RowKind, Value};
 use crate::tab::markdown_editor::Arena;
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::test_utils::byte_source::ByteSource;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
@@ -362,6 +365,37 @@ fn undo_then_ime_in_one_frame() {
     run_all(|b| caught(|| undo_then_ime_in_one_frame_check(b)), 1000);
 }
 
+// front matter
+// typed into a cell is what the YAML reads back, the caret after it
+#[test]
+
+fn front_matter_value_round_trips() {
+    run_front_matter(front_matter_value_round_trips_check, cell_doc, 1000);
+}
+// a comma at an item's end adds exactly one item, Backspace undoes it
+#[test]
+
+fn front_matter_list_comma() {
+    run_front_matter(front_matter_list_comma_check, |s| list_doc(s).0, 1000);
+}
+// row moves, removes, and kind changes round-trip, conserving the other rows
+#[test]
+
+fn front_matter_row_actions_round_trip() {
+    run_front_matter(front_matter_row_actions_check, front_matter_doc, 1000);
+}
+// every ← or → in the block draws the caret elsewhere, and they retrace
+#[test]
+
+fn front_matter_arrows_step_and_retrace() {
+    run_front_matter(front_matter_arrows_check, spaced_front_matter_doc, 1000);
+}
+// a \r\n note edits as its \n copy
+#[test]
+fn front_matter_crlf_edits_as_lf() {
+    run_front_matter(front_matter_crlf_check, front_matter_doc, 1000);
+}
+
 // ═══════════════════════════ implementations ═══════════════════════════
 
 /// A generated doc with a caret or a selection somewhere in it.
@@ -648,8 +682,7 @@ fn undo_then_ime_in_one_frame_check(buf: &[u8]) -> Result<(), String> {
     };
     for round in 0..1 + src.draw(4) {
         for _ in 0..1 + src.draw(4) {
-            let (cursor, len) = cursor_and_len(&one);
-            let edit = event(&mut src, cursor, len);
+            let edit = event(&mut src, &one);
             for ws in [&mut one, &mut two] {
                 ws.push(edit.clone());
                 ws.enter_frame();
@@ -744,8 +777,8 @@ fn replacement_text_with(src: &mut ByteSource, features: &Features) -> String {
 /// Picks one event biased toward what an interactive user generates:
 /// mostly single-char inserts and ±1 cursor moves; bulk edits, big
 /// jumps, and undo/redo are rare.
-fn event(src: &mut ByteSource, cursor: Grapheme, doc_len_chars: usize) -> Event {
-    event_with(src, cursor, doc_len_chars, &Features::all())
+fn event(src: &mut ByteSource, ws: &TestEditor) -> Event {
+    event_with(src, ws, &Features::all())
 }
 
 /// Feature-aware variant of `event`. Forwards `features` to
@@ -753,9 +786,20 @@ fn event(src: &mut ByteSource, cursor: Grapheme, doc_len_chars: usize) -> Event 
 /// flags as the initial doc. Other event kinds (deletion, selection,
 /// navigation, indent, undo/redo) are pure mutations that don't
 /// introduce new content, so they pass through unchanged.
-fn event_with(
-    src: &mut ByteSource, cursor: Grapheme, doc_len_chars: usize, features: &Features,
-) -> Event {
+fn event_with(src: &mut ByteSource, ws: &TestEditor, features: &Features) -> Event {
+    let (cursor, doc_len_chars) = cursor_and_len(ws);
+    // the checkboxes the last frame drew, as a click or tap reaches them
+    let checks: Vec<Grapheme> = ws
+        .editor
+        .edit
+        .renderer
+        .touch_targets
+        .iter()
+        .filter_map(|(_, target)| match target {
+            TouchTarget::Tap(Event::ToggleTask { check }) => Some(*check),
+            _ => None,
+        })
+        .collect();
     let weights = &[
         25, // type a character (insert at cursor)
         12, // backspace (delete one grapheme before cursor)
@@ -771,6 +815,8 @@ fn event_with(
         2,  // undo
         2,  // redo
         2,  // code block or divider (⌘⌥E / ⌘⌥R, toolbar)
+        2,  // click a checkbox (a divider when there is none)
+        2,  // a front matter command: a row's menu, the toolbar, the chevron
     ];
     let cursor_idx = cursor.0;
     let max = doc_len_chars;
@@ -857,6 +903,29 @@ fn event_with(
         10 => Event::Select { region: region(src, doc_len_chars) },
         11 => Event::Undo,
         12 => Event::Redo,
+        14 if !checks.is_empty() => Event::ToggleTask { check: checks[src.draw(checks.len())] },
+        15 => {
+            use FrontMatterAction::*;
+            let rows = ws
+                .editor
+                .edit
+                .renderer
+                .bounds
+                .front_matter
+                .as_ref()
+                .map_or(0, |fm| fm.rows.len());
+            let i = src.draw(rows.max(1));
+            Event::FrontMatter(match src.bias(&[2, 2, 1, 1, 1, 1, 1, 1]) {
+                0 => Add,
+                1 => Remove(i),
+                2 => MoveUp(i),
+                3 => MoveDown(i),
+                4 => MakeText(i),
+                5 => MakeList(i),
+                6 => MakeCheckbox(i),
+                _ => ToggleCollapsed,
+            })
+        }
         _ => {
             let style =
                 if src.bias(&[1, 1]) == 0 { code_block() } else { NodeValue::ThematicBreak };
@@ -1033,8 +1102,7 @@ fn initial_buffer(src: &mut ByteSource) -> String {
 
 fn no_panic_under_edits_check(buf: &[u8]) -> Result<(), &'static str> {
     drive(buf, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
     })
     .map_err(|_| "editor panicked under random edit sequence")
@@ -1081,9 +1149,8 @@ fn code_file_check(buf: &[u8]) -> Result<(), String> {
         let mut ws = TestEditor::file(code, ext);
         ws.enter_frame();
         for _ in 0..n {
-            let (cursor, len) = cursor_and_len(&ws);
             let edit = if src.bias(&[1, 1]) == 0 {
-                event(&mut src, cursor, len)
+                event(&mut src, &ws)
             } else {
                 let text = CODE_PIECES[src.draw(CODE_PIECES.len())].to_string();
                 Event::Replace { region: Region::Selection, text, advance_cursor: true }
@@ -1132,8 +1199,7 @@ fn code_colors(ws: &TestEditor, ext: &str) -> Result<(), String> {
 fn cursor_in_bounds_check(buf: &[u8]) -> Result<(), &'static str> {
     let mut violation: Option<String> = None;
     drive(buf, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
         let buffer = &ws.editor.edit.renderer.buffer.current;
         let last = buffer.segs.last_cursor_position();
@@ -1172,12 +1238,28 @@ fn cursor_visible_sweep(ws: &mut TestEditor) -> Option<String> {
         });
         ws.enter_frame();
         // off a table the cursor is where it was sent; on one, in a cell
-        // of that table
+        // of that table; in front matter's opening fence, on its first row,
+        // and inside its other hidden syntax, at an edge of it
         let r = &ws.editor.edit.renderer;
         let at = r.buffer.current.selection.1;
-        let placed = match r.bounds.table_at(g) {
-            Some(table) => r.bounds.table_at(at) == Some(table) && table.cell_at(at).is_some(),
-            None => at == g,
+        let fence = r.bounds.front_matter.as_ref().map(|fm| fm.head);
+        let hidden = r
+            .bounds
+            .front_matter
+            .as_ref()
+            .filter(|_| r.view != crate::tab::markdown_editor::View::Source)
+            .and_then(|fm| {
+                r.front_matter_syntax(fm)
+                    .into_iter()
+                    .find(|a| a.start() < g && g < a.end())
+            });
+        let placed = match (r.bounds.table_at(g), fence, hidden) {
+            (Some(table), _, _) => {
+                r.bounds.table_at(at) == Some(table) && table.cell_at(at).is_some()
+            }
+            (None, Some(head), _) if g < head.end() => at == head.end(),
+            (None, _, Some(a)) => at == g || at == a.start() || at == a.end(),
+            (None, _, None) => at == g,
         };
         if !placed || ws.editor.edit.cursor_line(at).is_none() {
             let text = ws.editor.edit.renderer.buffer.current.text.clone();
@@ -1212,8 +1294,7 @@ fn cursor_renders_check(buf: &[u8], features: &Features) -> Result<(), String> {
                 return;
             }
         }
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event_with(src, cursor, len, features));
+        ws.push(event_with(src, ws, features));
         ws.enter_frame();
         violation = cursor_visible_sweep(ws);
     })
@@ -1254,8 +1335,7 @@ fn cmd_line_jump_preserves_y_check(buf: &[u8]) -> Result<(), String> {
     }
     let mut violation: Option<String> = None;
     drive_simple_n(buf, 1, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame_unfocused();
         if violation.is_some() {
             return;
@@ -1314,8 +1394,7 @@ fn layout_cache_consistent_check(buf: &[u8]) -> Result<(), &'static str> {
         if violation.is_some() {
             return;
         }
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
         // Follow up with a cursor jump that doesn't touch text. This
         // pairs a settled-text frame (cache populated) with a reveal-
@@ -1439,8 +1518,7 @@ fn fold_toggle_does_not_jump_scroll_check(buf: &[u8]) -> Result<(), &'static str
         if violation.is_some() {
             return;
         }
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
         // Place cursor far from where we'll scroll, then scroll away so
         // the cursor is offscreen — the bug only manifests when the
@@ -1649,8 +1727,7 @@ fn render_stable_after_event_check(buf: &[u8]) -> Result<(), &'static str> {
         if violation.is_some() {
             return;
         }
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
         let after_event = ws.editor.edit.scroll_area.stored_offset();
         ws.enter_frame();
@@ -1670,8 +1747,7 @@ fn render_stable_after_event_check(buf: &[u8]) -> Result<(), &'static str> {
 fn table_ranges_survive_edits_check(buf: &[u8], features: &Features) -> Result<(), String> {
     let mut violation: Option<String> = None;
     drive_features(buf, features, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event_with(src, cursor, len, features));
+        ws.push(event_with(src, ws, features));
         ws.enter_frame();
         if violation.is_none() {
             violation = super::tables::table_ranges_check_md(ws.get_text())
@@ -1689,8 +1765,7 @@ fn table_ranges_survive_edits_check(buf: &[u8], features: &Features) -> Result<(
 fn table_caret_in_cells_check(buf: &[u8], features: &Features) -> Result<(), String> {
     let mut violation: Option<String> = None;
     drive_features(buf, features, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        let event = event_with(src, cursor, len, features);
+        let event = event_with(src, ws, features);
         let undo_redo = matches!(event, Event::Undo | Event::Redo);
         ws.push(event);
         ws.enter_frame();
@@ -2231,8 +2306,7 @@ fn render_invariants_survive_edits_check(
     const EPS: f32 = 0.01;
     let mut violation: Option<&'static str> = None;
     drive_features(buf, features, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event_with(src, cursor, len, features));
+        ws.push(event_with(src, ws, features));
         ws.enter_frame();
 
         let frame_fragments: Vec<_> = ws
@@ -2303,8 +2377,7 @@ fn cursor_visibly_moves_vertical_check_simple(buf: &[u8]) -> Result<(), String> 
     };
     let mut violation: Option<String> = None;
     drive_simple_n(buf, 1, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
         if violation.is_some() {
             return;
@@ -2430,10 +2503,9 @@ fn cursor_vertical_round_trip_check_inner(
     };
     let mut violation: Option<String> = None;
     let body = |ws: &mut TestEditor, src: &mut ByteSource| {
-        let (cursor, len) = cursor_and_len(ws);
         let ev = match features {
-            Some(f) => event_with(src, cursor, len, f),
-            None => event(src, cursor, len),
+            Some(f) => event_with(src, ws, f),
+            None => event(src, ws),
         };
         ws.push(ev);
         ws.enter_frame();
@@ -3121,4 +3193,665 @@ fn shift_tab_strips_one_bq_check(buf: &[u8]) -> Result<(), &'static str> {
 
 fn preedit(text: &str) -> egui::ImeEvent {
     egui::ImeEvent::Preedit { text: text.into(), active_range_chars: None }
+}
+
+// ═══════════════════════════ front matter ═══════════════════════════
+
+/// Front matter in ASCII, so every caret step draws apart.
+fn front_matter_features() -> Features {
+    Features { scripts: ScriptFeatures::default(), ..Features::all() }
+}
+
+/// A front matter corpus: `doc` draws the note, and the check the rest.
+fn run_front_matter(
+    check: fn(&[u8]) -> Result<(), String>, doc: fn(&mut ByteSource) -> String, seeds: u64,
+) {
+    crate::test_utils::prop::run(
+        seeds,
+        64,
+        |b| caught(|| check(b)),
+        |b| {
+            let failure = caught(|| check(b)).err().unwrap_or_default();
+            format!("doc:\n{:?}\nfails with: {failure}", doc(&mut ByteSource::new(b)))
+        },
+    );
+}
+
+/// A generated block over a body.
+fn front_matter_doc(src: &mut ByteSource) -> String {
+    format!("{}Body\n", doc_gen::gen_front_matter_f(src, &front_matter_features()))
+}
+
+fn front_matter(ws: &TestEditor) -> Result<&FrontMatter<Grapheme>, String> {
+    let r = &ws.editor.edit.renderer;
+    r.bounds
+        .front_matter
+        .as_ref()
+        .ok_or_else(|| format!("no front matter in {:?}", r.buffer.current.text))
+}
+
+fn select_between(ws: &mut TestEditor, a: Grapheme, b: Grapheme) {
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(a),
+            end: Location::Grapheme(b),
+        },
+    });
+    ws.enter_frame();
+}
+
+fn type_in(ws: &mut TestEditor, text: &str) {
+    ws.push(Event::Replace { region: Region::Selection, text: text.into(), advance_cursor: true });
+    ws.enter_frame();
+}
+
+fn front_matter_event(ws: &mut TestEditor, action: FrontMatterAction) {
+    ws.push(Event::FrontMatter(action));
+    ws.enter_frame();
+}
+
+fn selection(ws: &TestEditor) -> (Grapheme, Grapheme) {
+    ws.editor.edit.renderer.buffer.current.selection
+}
+
+/// A value in a cell: its stored YAML, and the meaning it was written for.
+struct Written {
+    yaml: String,
+    meaning: &'static str,
+}
+
+fn plain(meaning: &'static str) -> Written {
+    Written { yaml: meaning.into(), meaning }
+}
+
+fn double_quoted(meaning: &'static str) -> Written {
+    Written { yaml: format!("\"{}\"", meaning.replace('\\', "\\\\").replace('"', "\\\"")), meaning }
+}
+
+fn single_quoted(meaning: &'static str) -> Written {
+    Written { yaml: format!("'{}'", meaning.replace('\'', "''")), meaning }
+}
+
+/// Values in other notes under the cell's key, as completions offer them.
+const VALUE_CANDIDATES: &[(&str, &str)] = &[
+    ("/a/two.md", "---\nk: \"Q3: plan\"\n---\n"),
+    ("/a/three.md", "---\nk: 'it''s \"hi\"'\n---\n"),
+    ("/b/four.md", "---\nk: done\n---\n"),
+];
+const CANDIDATE_MEANINGS: &[&str] = &["Q3: plan", "it's \"hi\"", "done"];
+
+/// The cell typed into: key `k`'s value, or item `item` of its list.
+struct Cell {
+    md: String,
+    item: Option<usize>,
+    /// The other items' meanings, in order, the typed one's place empty.
+    items: Vec<&'static str>,
+    meaning: &'static str,
+}
+
+fn gen_cell(src: &mut ByteSource) -> Cell {
+    let scalar = |src: &mut ByteSource| -> Written {
+        match src.bias(&[3, 3, 2]) {
+            0 => plain(["foo", "a b", "日本 語", "true", "false", "x-y", "42"][src.draw(7)]),
+            1 => double_quoted(["", "Q3: plan", "it's \"hi\"", "a\\b", "#x"][src.draw(5)]),
+            _ => single_quoted(["", "it's", "a: b"][src.draw(3)]),
+        }
+    };
+    let body = "other: 1\n---\n\nBody\n";
+    match src.bias(&[4, 1, 2, 2]) {
+        0 => {
+            let w = scalar(src);
+            Cell {
+                md: format!("---\nk: {}\n{body}", w.yaml),
+                item: None,
+                items: vec![],
+                meaning: w.meaning,
+            }
+        }
+        1 => {
+            let md = format!("---\nk:{}\n{body}", ["", " "][src.draw(2)]);
+            Cell { md, item: None, items: vec![], meaning: "" }
+        }
+        style => {
+            let n = 1 + src.draw(3);
+            let j = src.draw(n);
+            let words: Vec<Written> = (0..n)
+                .map(|_| match src.bias(&[3, 1]) {
+                    0 => plain(["foo", "a b", "日本", "x"][src.draw(4)]),
+                    _ => double_quoted(["Q3: plan", "x, y", ""][src.draw(3)]),
+                })
+                .collect();
+            let list = if style == 2 {
+                words
+                    .iter()
+                    .map(|w| format!("\n  - {}", w.yaml))
+                    .collect::<String>()
+            } else {
+                format!(
+                    " [{}]",
+                    words
+                        .iter()
+                        .map(|w| w.yaml.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
+            let items = words.iter().map(|w| w.meaning).collect();
+            Cell {
+                md: format!("---\nk:{list}\n{body}"),
+                item: Some(j),
+                items,
+                meaning: words[j].meaning,
+            }
+        }
+    }
+}
+
+fn cell_doc(src: &mut ByteSource) -> String {
+    gen_cell(src).md
+}
+
+/// What saphyr reads in row 0: the cell's scalar and whether it is plain,
+/// and the list's items.
+fn read_cell(ws: &TestEditor, item: Option<usize>) -> Result<((String, bool), Vec<Yaml>), String> {
+    let fm = front_matter(ws)?;
+    let r = &ws.editor.edit.renderer;
+    let line = &r.buffer[fm.rows[0].line];
+    let Some(Yaml::Map(pairs)) = read_yaml(line) else {
+        return Err(format!("{line:?} reads as no mapping"));
+    };
+    let [(_, v)] = &pairs[..] else { return Err(format!("{line:?} is not one pair")) };
+    let (scalar, items) = match (item, v) {
+        (None, s) => (s.clone(), vec![]),
+        (Some(j), Yaml::Seq(items)) => (
+            items
+                .get(j)
+                .cloned()
+                .ok_or(format!("{line:?} lost item {j}"))?,
+            items.clone(),
+        ),
+        _ => return Err(format!("{line:?} is no longer a list")),
+    };
+    match scalar {
+        Yaml::Scalar { text, plain } => Ok(((text, plain), items)),
+        _ => Err(format!("{line:?}'s cell reads as a collection")),
+    }
+}
+
+/// Where the typed cell's text starts, its quote, whether it is a plain
+/// checkbox, and where its row's line ends.
+fn cell_at(
+    ws: &TestEditor, item: Option<usize>,
+) -> Result<(Grapheme, Option<char>, bool, Grapheme), String> {
+    let fm = front_matter(ws)?;
+    let r = &ws.editor.edit.renderer;
+    let row = &fm.rows[0];
+    let quote =
+        |q: &crate::front_matter::Quotes<Grapheme>| q.and_then(|(o, _)| r.buffer[o].chars().next());
+    let RowKind::Property { value, .. } = &row.kind else {
+        return Err(format!("row 0 is no property: {:?}", r.buffer.current.text));
+    };
+    Ok(match (value, item) {
+        (Value::Text { text, quotes, checked }, None) => {
+            (text.0, quote(quotes), checked.is_some(), row.line.1)
+        }
+        (Value::Empty { at, .. }, None) => (*at, None, false, row.line.1),
+        (Value::List { items, .. }, Some(j)) => {
+            let it = items.get(j).ok_or("an item went")?;
+            (it.text.0, quote(&it.quotes), false, row.line.1)
+        }
+        _ => return Err(format!("the cell changed kind: {:?}", r.buffer.current.text)),
+    })
+}
+
+/// Graphemes `quote` writes each of `units` as: an escaped quote or
+/// backslash takes two.
+fn widths(units: &[String], quote: Option<char>) -> Vec<usize> {
+    units
+        .iter()
+        .map(|u| match quote {
+            Some('"') if u == "\"" || u == "\\" => 2,
+            Some('\'') if u == "'" => 2,
+            _ => 1,
+        })
+        .collect()
+}
+
+/// Property: what is typed into a value or list item, at the caret or over
+/// a selection, is what the stored YAML reads back, the caret after it; a
+/// completion taken reads back as the candidate. YAML trims a plain
+/// scalar's edges, so those are compared trimmed.
+fn front_matter_value_round_trips_check(buf: &[u8]) -> Result<(), String> {
+    use unicode_segmentation::UnicodeSegmentation as _;
+    let mut src = ByteSource::new(buf);
+    let cell = gen_cell(&mut src);
+    let mut ws = super::front_matter::in_vault_with(&cell.md, VALUE_CANDIDATES);
+    let mut units: Vec<String> = cell.meaning.graphemes(true).map(String::from).collect();
+    let graphemes = |s: &str| s.graphemes(true).map(String::from).collect::<Vec<_>>();
+    // the offset of the caret between `units[..i]` and the rest
+    let offset = |ws: &TestEditor, units: &[String], i: usize| -> Result<Grapheme, String> {
+        let (start, quote, _, _) = cell_at(ws, cell.item)?;
+        let lead = if quote.is_none() {
+            units.iter().take_while(|u| *u == " " || *u == "\t").count()
+        } else {
+            0
+        };
+        let w = widths(units, quote);
+        Ok(Grapheme(start.0 - lead + w[..i].iter().sum::<usize>()))
+    };
+    let mut caret = units.len();
+    let end = offset(&ws, &units, caret)?;
+    select_between(&mut ws, end, end);
+    let mut log = vec![];
+    for _ in 0..1 + src.draw(6) {
+        let action = src.bias(&[3, 3, 2, 2]);
+        if action == 3 {
+            // take a completion: the arrows pick, Return takes
+            ws.enter_frame();
+            let pc = &ws.editor.edit.property_completions;
+            if !pc.active || pc.results.is_empty() || caret != units.len() {
+                continue;
+            }
+            let picks = 1 + src.draw(2);
+            let pick = (picks - 1).min(pc.results.len() - 1);
+            let candidate = pc.results[pick].text.clone();
+            if !CANDIDATE_MEANINGS.contains(&candidate.as_str()) {
+                return Err(format!("{candidate:?} is offered, which no note has"));
+            }
+            super::front_matter::keys(&mut ws, &format!("{}{{ret}}", "{ArrowDown}".repeat(picks)));
+            log.push(format!("took {candidate:?}"));
+            units = graphemes(&candidate);
+            caret = units.len();
+        } else {
+            let (mut i, mut j) = (caret, caret);
+            if action == 1 {
+                i = src.draw(units.len() + 1);
+                j = i;
+            } else if action == 2 {
+                let (a, b) = (src.draw(units.len() + 1), src.draw(units.len() + 1));
+                (i, j) = (a.min(b), a.max(b));
+            }
+            const TYPED: &[&str] = &[
+                "x", "Q", "i", " ", "#", ":", "\"", "'", "\\", ",", "-", "[", "]", "{", "\t", "é",
+                "日本", "a b", ": ", " #", "#x", "\t#", "x,y",
+            ];
+            let typed = TYPED
+                [src.bias(&[8, 2, 2, 3, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])];
+            let (_, quote, checkbox, _) = cell_at(&ws, cell.item)?;
+            let at_end = i == j && j == units.len();
+            let mut after = units.clone();
+            after.splice(i..j, graphemes(typed));
+            let text: String = units.concat();
+            // the keys that change a cell's kind or step past its syntax
+            // have their own tests: an empty value's `[` and quotes, a
+            // checkbox's Space, `- ` making a list, a comma ending an item,
+            // a closing quote stepped over; and spaces at a plain value's
+            // edges, which YAML drops, but for those typed at its end
+            let skip = units.is_empty()
+                && cell.item.is_none()
+                && (typed.starts_with(['[', '"', '\'']) || typed.starts_with([' ', '\t']))
+                || checkbox && typed == " " && i == j && (i == 0 || at_end)
+                || quote.is_none()
+                    && cell.item.is_none()
+                    && text.trim() == "-"
+                    && typed == " "
+                    && at_end
+                || quote.is_none() && cell.item.is_some() && typed == "," && at_end
+                || quote.is_some_and(|q| typed == q.to_string()) && at_end
+                || quote.is_none() && after.first().is_some_and(|u| u == " " || u == "\t")
+                || quote.is_none()
+                    && !at_end
+                    && units.last().is_some_and(|u| u == " " || u == "\t")
+                || after.concat().trim_matches([' ', '\t']).is_empty()
+                // a lone `-`, `?`, or `:` is YAML's own syntax, typed on the
+                // way to more: `-5`, say
+                || quote.is_none() && matches!(after.concat().trim(), "-" | "?" | ":");
+            if skip {
+                continue;
+            }
+            if action != 0 {
+                let (a, b) = (offset(&ws, &units, i)?, offset(&ws, &units, j)?);
+                select_between(&mut ws, a, b);
+            }
+            type_in(&mut ws, typed);
+            log.push(format!("{typed:?} over {i}..{j}"));
+            units = after;
+            caret = i + typed.graphemes(true).count();
+            let want = offset(&ws, &units, caret)?;
+            let at = selection(&ws);
+            if at != (want, want) {
+                return Err(format!(
+                    "after {log:?} the caret is at {at:?}, not {}, in {:?}",
+                    want.0,
+                    ws.get_text()
+                ));
+            }
+        }
+        let ((read, plain), items) = read_cell(&ws, cell.item)?;
+        let meaning = units.concat();
+        let want = if plain { meaning.trim_matches([' ', '\t']) } else { &meaning };
+        if read != want {
+            return Err(format!(
+                "after {log:?} the value reads {read:?}, not {want:?}, in {:?}",
+                ws.get_text()
+            ));
+        }
+        if let Some(j) = cell.item {
+            for (k, (item, original)) in items.iter().zip(&cell.items).enumerate() {
+                let Yaml::Scalar { text, .. } = item else {
+                    return Err("an item is a collection".into());
+                };
+                if k != j && text != original {
+                    return Err(format!("after {log:?} item {k} reads {text:?}, not {original:?}"));
+                }
+            }
+        }
+        let fm = front_matter(&ws)?;
+        if fm.rows.len() != 2 || &ws.editor.edit.renderer.buffer[fm.rows[1].line] != "other: 1" {
+            return Err(format!("after {log:?} the next row changed: {:?}", ws.get_text()));
+        }
+    }
+    Ok(())
+}
+
+/// A block or flow list beside a value, the caret at the end of a plain
+/// item.
+fn list_doc(src: &mut ByteSource) -> (String, usize) {
+    let n = 1 + src.draw(3);
+    let j = src.draw(n);
+    let words: Vec<&str> = (0..n)
+        .map(|k| match src.bias(&[3, 1]) {
+            1 if k != j => "\"Q3: plan\"",
+            _ => ["foo", "a b", "日本", "x"][src.draw(4)],
+        })
+        .collect();
+    let list = match src.draw(2) {
+        0 => words
+            .iter()
+            .map(|w| format!("\n  - {w}"))
+            .collect::<String>(),
+        _ => format!(" [{}]", words.join(", ")),
+    };
+    (format!("---\ntitle: a\ntags:{list}\nnext: b\n---\n\nBody\n"), j)
+}
+
+/// Property: a comma at a list item's end then Backspace gives back the
+/// note and the caret; a comma then text reads back as one more item, the
+/// text, after it.
+fn front_matter_list_comma_check(buf: &[u8]) -> Result<(), String> {
+    let mut src = ByteSource::new(buf);
+    let (md, j) = list_doc(&mut src);
+    const TYPED: &[&str] = &["x", "new", "a b", "#x", "日本", "[y]"];
+    let typed = TYPED[src.draw(TYPED.len())];
+    let items = |ws: &TestEditor| -> Result<Vec<Yaml>, String> {
+        let fm = front_matter(ws)?;
+        match read_yaml(&ws.editor.edit.renderer.buffer[fm.rows[1].line]) {
+            Some(Yaml::Map(pairs)) => match &pairs[..] {
+                [(_, Yaml::Seq(items))] => Ok(items.clone()),
+                _ => Err(format!("{:?} has no list", ws.get_text())),
+            },
+            _ => Err(format!("{:?} has no list", ws.get_text())),
+        }
+    };
+    let item_end = |ws: &TestEditor| -> Result<Grapheme, String> {
+        match &front_matter(ws)?.rows[1].kind {
+            RowKind::Property { value: Value::List { items, .. }, .. } => Ok(items[j].text.1),
+            _ => Err("no list".into()),
+        }
+    };
+    let lb = super::harness::in_memory_core();
+    let mut ws = TestEditor::with_lb(lb.clone(), &md);
+    let end = item_end(&ws)?;
+    select_between(&mut ws, end, end);
+    let before = (ws.get_text().to_string(), selection(&ws), items(&ws)?);
+    type_in(&mut ws, ",");
+    ws.push(Event::Delete {
+        region: Region::SelectionOrAdvance {
+            advance: Advance::By(Increment::Char),
+            backwards: true,
+        },
+    });
+    ws.enter_frame();
+    if (ws.get_text(), selection(&ws)) != (before.0.as_str(), before.1) {
+        return Err(format!(
+            "comma then Backspace at item {j}: {:?} at {:?}",
+            ws.get_text(),
+            selection(&ws)
+        ));
+    }
+    let mut ws = TestEditor::with_lb(lb, &md);
+    select_between(&mut ws, end, end);
+    type_in(&mut ws, ",");
+    type_in(&mut ws, typed);
+    let mut want = before.2;
+    want.insert(j + 1, Yaml::Scalar { text: typed.into(), plain: true });
+    let got = items(&ws)?;
+    let texts = |v: &[Yaml]| -> Vec<String> {
+        v.iter()
+            .map(|y| match y {
+                Yaml::Scalar { text, .. } => text.clone(),
+                other => format!("{other:?}"),
+            })
+            .collect()
+    };
+    if texts(&got) != texts(&want) {
+        return Err(format!(
+            "comma then {typed:?} at item {j}: {:?} reads {:?}",
+            ws.get_text(),
+            texts(&got)
+        ));
+    }
+    Ok(())
+}
+
+/// Property: rows move up then back down to the note and caret they
+/// started from, the other rows untouched in between; a row removed is
+/// that row's lines gone, and undo brings them back; a value made a
+/// one-item list and then text again, or just text, is the value it was.
+fn front_matter_row_actions_check(buf: &[u8]) -> Result<(), String> {
+    use FrontMatterAction::*;
+    let mut src = ByteSource::new(buf);
+    let md = front_matter_doc(&mut src);
+    let lb = super::harness::in_memory_core();
+    let ws = TestEditor::with_lb(lb.clone(), &md);
+    let fm = front_matter(&ws)?.clone();
+    let buffer = &ws.editor.edit.renderer.buffer;
+    let lines: Vec<String> = fm.rows.iter().map(|r| buffer[r.line].to_string()).collect();
+    let head = buffer[(Grapheme(0), fm.head.1)].to_string();
+    let tail =
+        buffer[(fm.tail.0, Grapheme(buffer.current.segs.last_cursor_position().0))].to_string();
+    let with_lines = |lines: &[String]| format!("{head}{}\n{tail}", lines.join("\n"));
+    let n = fm.rows.len();
+    // an unclosed quote takes in the lines after it, so moving a row
+    // beside one splits the block into other rows
+    if fm
+        .rows
+        .iter()
+        .any(|r| matches!(r.kind, RowKind::Source { error: true }))
+    {
+        return Ok(());
+    }
+    let i = src.draw(n);
+    let caret_at = |src: &mut ByteSource, i: usize| {
+        let (a, b) = fm.rows[i].line;
+        Grapheme(a.0 + src.draw(b.0 - a.0 + 1))
+    };
+
+    if n > 1 && i > 0 {
+        let mut ws = TestEditor::with_lb(lb.clone(), &md);
+        let at = caret_at(&mut src, i);
+        select_between(&mut ws, at, at);
+        let caret = selection(&ws);
+        front_matter_event(&mut ws, MoveUp(i));
+        let mut swapped = lines.clone();
+        swapped.swap(i - 1, i);
+        if ws.get_text() != with_lines(&swapped) {
+            return Err(format!("row {i} moved up: {:?}", ws.get_text()));
+        }
+        front_matter_event(&mut ws, MoveDown(i - 1));
+        if (ws.get_text(), selection(&ws)) != (md.as_str(), caret) {
+            return Err(format!(
+                "row {i} up and down: {:?} at {:?}, the caret was at {caret:?}",
+                ws.get_text(),
+                selection(&ws)
+            ));
+        }
+    }
+
+    let mut ws = TestEditor::with_lb(lb.clone(), &md);
+    let at = caret_at(&mut src, i);
+    select_between(&mut ws, at, at);
+    front_matter_event(&mut ws, Remove(i));
+    let mut fewer = lines.clone();
+    fewer.remove(i);
+    let removed = if fewer.is_empty() { "Body\n".to_string() } else { with_lines(&fewer) };
+    if ws.get_text() != removed {
+        return Err(format!("row {i} removed: {:?}", ws.get_text()));
+    }
+    ws.push(Event::Undo);
+    ws.enter_frame();
+    if ws.get_text() != md {
+        return Err(format!("row {i} removed and undone: {:?}", ws.get_text()));
+    }
+
+    let text_rows: Vec<usize> = (0..n)
+        .filter(|&k| matches!(fm.rows[k].kind, RowKind::Property { value: Value::Text { .. }, .. }))
+        .collect();
+    if !text_rows.is_empty() {
+        let k = text_rows[src.draw(text_rows.len())];
+        for actions in [&[MakeText(k)][..], &[MakeList(k), MakeText(k)]] {
+            let mut ws = TestEditor::with_lb(lb.clone(), &md);
+            let at = caret_at(&mut src, k);
+            select_between(&mut ws, at, at);
+            for action in actions {
+                front_matter_event(&mut ws, *action);
+            }
+            if ws.get_text() != md {
+                return Err(format!("row {k} through {actions:?}: {:?}", ws.get_text()));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// A generated block over a body, a row with spaces after it for some.
+fn spaced_front_matter_doc(src: &mut ByteSource) -> String {
+    let md = front_matter_doc(src);
+    let lines: Vec<&str> = md.split('\n').collect();
+    // the rows are the lines between the fences
+    let Some(close) = lines.iter().skip(1).position(|l| *l == "---") else { return md };
+    let row = src.draw(close + 1);
+    if src.bias(&[2, 1]) == 0 || row == 0 || row > close {
+        return md;
+    }
+    let mut lines: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
+    lines[row].push_str("  ");
+    lines.join("\n")
+}
+
+/// Property: through the block and onto the body, every → moves the caret
+/// to somewhere it draws apart, ← retraces the stops, and ← at the first
+/// stays.
+fn front_matter_arrows_check(buf: &[u8]) -> Result<(), String> {
+    let mut src = ByteSource::new(buf);
+    let md = spaced_front_matter_doc(&mut src);
+    let mut ws = TestEditor::new(&md);
+    let arrow = |ws: &mut TestEditor, backwards: bool| {
+        ws.push(Event::Select {
+            region: Region::ToAdvance {
+                advance: Advance::By(Increment::Char),
+                backwards,
+                extend_selection: false,
+            },
+        });
+        ws.enter_frame();
+    };
+    let drawn = |ws: &TestEditor| -> Result<(Grapheme, [egui::Pos2; 2]), String> {
+        let at = selection(ws).1;
+        let line = ws
+            .editor
+            .edit
+            .cursor_line(at)
+            .ok_or(format!("no caret drawn at {}", at.0))?;
+        Ok((at, line))
+    };
+    select_between(&mut ws, Grapheme(0), Grapheme(0));
+    let node_end = front_matter(&ws)?.node().1;
+    let mut stops = vec![drawn(&ws)?];
+    while stops.last().unwrap().0 <= node_end {
+        if stops.len() > md.len() + 2 {
+            return Err("→ never leaves the block".into());
+        }
+        arrow(&mut ws, false);
+        let (prev, now) = (stops.last().unwrap().1, drawn(&ws)?);
+        if (prev[0] - now.1[0]).length() < 0.5 && (prev[1] - now.1[1]).length() < 0.5 {
+            return Err(format!(
+                "→ from {} to {} draws the caret in place",
+                stops.last().unwrap().0.0,
+                now.0.0
+            ));
+        }
+        stops.push(now);
+    }
+    for k in (0..stops.len() - 1).rev() {
+        arrow(&mut ws, true);
+        let at = selection(&ws).1;
+        if at != stops[k].0 {
+            let path: Vec<usize> = stops.iter().map(|s| s.0.0).collect();
+            return Err(format!(
+                "← from {} lands at {}, → came by {path:?}",
+                stops[k + 1].0.0,
+                at.0
+            ));
+        }
+    }
+    arrow(&mut ws, true);
+    if selection(&ws).1 != stops[0].0 {
+        return Err(format!("← at the first stop {} goes to {}", stops[0].0.0, selection(&ws).1.0));
+    }
+    Ok(())
+}
+
+/// Property: the same keys from the same caret in a note and its `\r\n`
+/// copy give the same note and caret but for the line endings, a `\r\n`
+/// being one grapheme.
+fn front_matter_crlf_check(buf: &[u8]) -> Result<(), String> {
+    use super::front_matter::{keys, shown};
+    const KEYS: &[&str] = &[
+        "x",
+        "{bs}",
+        "{ret}",
+        "{Tab}",
+        "{S-Tab}",
+        ",",
+        ":",
+        " ",
+        "{alt-ArrowUp}",
+        "{alt-ArrowDown}",
+        "{cmd-bs}",
+        "{ArrowLeft}",
+        "{ArrowRight}",
+        "{ArrowUp}",
+        "{ArrowDown}",
+        "{cmd-;}",
+    ];
+    let mut src = ByteSource::new(buf);
+    let md = front_matter_doc(&mut src);
+    let lb = super::harness::in_memory_core();
+    let mut lf = TestEditor::with_lb(lb.clone(), &md);
+    let node = front_matter(&lf)?.node();
+    let at = Grapheme(src.draw(node.1.0 + 1));
+    let script: String = (0..1 + src.draw(4))
+        .map(|_| KEYS[src.draw(KEYS.len())])
+        .collect();
+    let mut crlf = TestEditor::with_lb(lb, &md.replace('\n', "\r\n"));
+    for ws in [&mut lf, &mut crlf] {
+        select_between(ws, at, at);
+        keys(ws, &script);
+    }
+    let (lf, crlf) = (shown(&lf), shown(&crlf));
+    if crlf.replace("\r\n", "\n") != lf {
+        return Err(format!("{script} from {}: {lf:?} but {crlf:?}", at.0));
+    }
+    Ok(())
 }

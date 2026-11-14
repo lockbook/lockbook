@@ -23,7 +23,7 @@ use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 
 use crate::tab::markdown_editor::{self, Editor};
 use markdown_editor::Event;
-use markdown_editor::input::Region;
+use markdown_editor::input::{FrontMatterAction, Region};
 
 pub const MOBILE_TOOL_BAR_SIZE: f32 = CHROME_BAND_H;
 pub const MENU_SPACE: f32 = 20.; // space used for separators between menu sections
@@ -360,6 +360,8 @@ pub struct ToolbarPersistence {
     rule: bool,
     link: bool,
     image: bool,
+    #[serde(default)]
+    front_matter: bool,
     indent: bool,
     deindent: bool,
     search: bool,
@@ -608,8 +610,8 @@ impl<'ast> Editor {
             persistence.table,
         ]));
 
-        // link and image
-        let mut media = 2 * count(&[persistence.link]);
+        // link, front matter, and image
+        let mut media = 2 * count(&[persistence.link]) + count(&[persistence.front_matter]);
         if (persistence.image || is_default) && supports_attachments {
             media += 1;
         }
@@ -996,6 +998,23 @@ impl<'ast> Editor {
                     ui.add_space(5.);
                     self.style(phosphor::IMAGE, NodeValue::Image(Default::default()), root, ui)
                         .map(|e| events.push(e));
+                    any_media = true;
+                }
+                if persistence.front_matter || toolbar_is_default {
+                    if any_media {
+                        ui.add_space(5.);
+                    }
+                    let in_block = self.edit.in_front_matter();
+                    if toolbar_icon(
+                        ui,
+                        &t,
+                        phosphor::LIST_DASHES,
+                        in_block,
+                        menu_open,
+                        "Add Property",
+                    ) {
+                        events.push(Event::FrontMatter(FrontMatterAction::Add));
+                    }
                     any_media = true;
                 }
                 if (persistence.image || toolbar_is_default) && supports_attachments {
@@ -1609,6 +1628,24 @@ impl<'ast> Editor {
                                 self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("[Link](url)");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
+                                    "Property",
+                                    phosphor::LIST_DASHES,
+                                    persistence.front_matter,
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.front_matter ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("Property");
 
                             if supports_attachments {
                                 if self

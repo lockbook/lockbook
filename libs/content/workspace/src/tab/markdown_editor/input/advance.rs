@@ -60,33 +60,40 @@ impl MdEdit {
                         self.cursor.x_target = Some(x_target);
                     }
                 }
-                result
+                match self
+                    .renderer
+                    .front_matter_landing(offset, result, backwards)
+                {
+                    Some(landing) => {
+                        self.cursor.x_target = None;
+                        landing
+                    }
+                    None => result,
+                }
             }
         };
         let raw = result;
         let result = self.renderer.snap_offset_out_of_folds(result, backwards);
+        let result = self
+            .renderer
+            .snap_offset_out_of_front_matter(result, backwards);
         let affinity_at = |result: Grapheme| {
             (result, if result == raw { affinity } else { Affinity::Downstream })
         };
         // in a cell a line is the cell's own: its ends are the content's,
         // and from an end the next cell's is the line
-        let cell = self.renderer.bounds.table_at(offset).and_then(|table| {
-            let (row, column) = table.cell_at(offset)?;
-            Some((&table.rows[row], column))
-        });
-        if let Some((row, column)) = cell.filter(|_| advance == Advance::To(Bound::Line)) {
-            let content = row.cells[column].content;
+        if let Some((cells, column)) = self
+            .cells_at(offset)
+            .filter(|_| advance == Advance::To(Bound::Line))
+        {
+            let content = cells[column];
             let next = match backwards {
                 true if offset == content.start() => column.checked_sub(1),
                 false if offset == content.end() => Some(column + 1),
                 _ => None,
             };
-            if let Some(next) = next.and_then(|next| row.cells.get(next)) {
-                return affinity_at(if backwards {
-                    next.content.start()
-                } else {
-                    next.content.end()
-                });
+            if let Some(next) = next.and_then(|next| cells.get(next)) {
+                return affinity_at(if backwards { next.start() } else { next.end() });
             }
             return affinity_at(result.max(content.start()).min(content.end()));
         }
@@ -94,6 +101,24 @@ impl MdEdit {
             self.renderer
                 .snap_offset_into_table_cell(offset, result, backwards),
         )
+    }
+
+    /// The cells of the table row at `offset`, or of the front matter row,
+    /// whose key and value are cells too; and the one it is in.
+    fn cells_at(&self, offset: Grapheme) -> Option<(Vec<(Grapheme, Grapheme)>, usize)> {
+        if let Some(table) = self.renderer.bounds.table_at(offset) {
+            let (row, column) = table.cell_at(offset)?;
+            return Some((table.rows[row].cells.iter().map(|c| c.content).collect(), column));
+        }
+        if self.renderer.view == View::Source {
+            return None;
+        }
+        let fm = self.renderer.bounds.front_matter.as_ref()?;
+        let cells = fm.rows[fm.row_at(offset)?].cells();
+        let column = cells
+            .iter()
+            .position(|c| c.start() <= offset && offset <= c.end())?;
+        Some((cells, column))
     }
 
     /// `n` visual lines from `offset`, holding its column. Pure: a platform
@@ -113,6 +138,9 @@ impl MdEdit {
             }
         }
         let result = self.renderer.snap_offset_out_of_folds(result, backwards);
+        let result = self
+            .renderer
+            .snap_offset_out_of_front_matter(result, backwards);
         self.renderer
             .snap_offset_into_table_cell(offset, result, backwards)
     }

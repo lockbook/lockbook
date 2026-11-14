@@ -1,3 +1,4 @@
+use crate::front_matter::FrontMatter;
 use crate::tab::markdown_editor::MdRender;
 use comrak::nodes::{LineColumn, Sourcepos};
 use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt};
@@ -80,6 +81,8 @@ pub struct Bounds {
 
     /// Where each block drawn as code starts, in document order.
     pub code_blocks: Vec<Grapheme>,
+    /// The front matter block's rows, when the document opens with one.
+    pub front_matter: Option<FrontMatter<Grapheme>>,
 }
 
 /// Tag + hidden-contents ranges of one actively folded section. Both act
@@ -125,6 +128,7 @@ impl Default for Bounds {
             math: Vec::default(),
             tables: Vec::default(),
             code_blocks: Vec::default(),
+            front_matter: None,
         }
     }
 }

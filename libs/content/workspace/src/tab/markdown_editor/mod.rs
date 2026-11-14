@@ -32,6 +32,7 @@ use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
 use widget::language_completions::LanguageCompletions;
 use widget::link_completions::LinkCompletions;
+use widget::property_completions::PropertyCompletions;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 
 pub mod bounds;
@@ -39,6 +40,7 @@ mod clipboard;
 pub mod commands;
 pub mod fold;
 pub mod fragment;
+pub mod front_matter;
 pub mod input;
 pub mod md_label;
 pub mod row_scroll;
@@ -145,6 +147,11 @@ pub struct MdRender {
     /// The last change to the buffer edited its text; moving the caret
     /// alone ends it. The word being typed is not spell checked.
     pub typing: bool,
+    /// Front matter drawn as a strip of pills rather than the grid. Opens
+    /// from the sticky choice; the caret entering the block expands it.
+    pub front_matter_collapsed: bool,
+    /// The user toggled the strip this frame; the choice becomes sticky.
+    pub front_matter_collapse_toggled: bool,
 
     // document
     pub buffer: Buffer,
@@ -486,6 +493,7 @@ pub struct MdEdit {
     /// Emoji shortcode completion popup (e.g. `:smile:`).
     pub emoji_completions: EmojiCompletions,
     pub language_completions: LanguageCompletions,
+    pub property_completions: PropertyCompletions,
 
     /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
     pub link_completions: LinkCompletions,
@@ -494,6 +502,8 @@ pub struct MdEdit {
     /// the click lands so the context menu's link section stays stable while
     /// the menu is open and the pointer moves.
     pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
+    /// The front matter row under the context menu, captured likewise.
+    pub context_menu_front_matter_row: Option<usize>,
     /// The slug of the heading under the context menu, captured likewise.
     pub context_menu_heading: Option<String>,
     /// The misspelled word under the context menu and its suggestions,
@@ -566,8 +576,10 @@ impl MdEdit {
             file_id,
             emoji_completions: Default::default(),
             language_completions: Default::default(),
+            property_completions: Default::default(),
             link_completions: Default::default(),
             context_menu_link: None,
+            context_menu_front_matter_row: None,
             context_menu_heading: None,
             context_menu_spelling: None,
             context_menu_learned: None,
@@ -684,6 +696,9 @@ static PRINT: bool = false;
 pub struct MdPersistence {
     toolbar: ToolbarPersistence,
     file: HashMap<Uuid, MdFilePersistence>,
+    /// Whether front matter opens collapsed: the last choice, anywhere.
+    #[serde(default)]
+    front_matter_collapsed: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -827,6 +842,8 @@ impl MdRender {
             caret_moved: false,
             caret_affinity: Default::default(),
             typing: false,
+            front_matter_collapsed: false,
+            front_matter_collapse_toggled: false,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
@@ -950,6 +967,8 @@ impl MdRender {
             caret_moved: false,
             caret_affinity: Default::default(),
             typing: false,
+            front_matter_collapsed: false,
+            front_matter_collapse_toggled: false,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
@@ -1081,6 +1100,7 @@ impl MdRender {
             self.calc_source_links(root);
             self.calc_source_prose(root);
             self.calc_table_bounds(root);
+            self.calc_front_matter_bounds(root);
             self.calc_code_block_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
             // from compute_bounds_block_pre_spacing) queries
@@ -1209,6 +1229,8 @@ impl Editor {
             caret_moved: false,
             caret_affinity: Default::default(),
             typing: false,
+            front_matter_collapsed: false,
+            front_matter_collapse_toggled: false,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -1325,8 +1347,10 @@ impl Editor {
                 file_id,
                 emoji_completions: Default::default(),
                 language_completions: Default::default(),
+                property_completions: Default::default(),
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
+                context_menu_front_matter_row: None,
                 context_menu_heading: None,
                 context_menu_spelling: None,
                 context_menu_learned: None,
@@ -1889,6 +1913,11 @@ impl Editor {
             self.next_resp.scroll_updated = new_offset != prev_offset;
             self.edit.scroll_area_velocity = self.edit.scroll_area.velocity();
 
+            // the strip or the grid: the last choice anywhere
+            if !self.initialized {
+                self.edit.renderer.front_matter_collapsed =
+                    self.persistence.get_markdown().front_matter_collapsed;
+            }
             // persistence: read on first frame; an embed keeps none
             if !self.initialized && !self.embedded {
                 let persisted = self
@@ -2058,6 +2087,11 @@ impl Editor {
                 .or_default();
             if entry.selection != current_selection {
                 entry.selection = current_selection;
+                persistence_updated = true;
+            }
+            if std::mem::take(&mut self.edit.renderer.front_matter_collapse_toggled) {
+                persistence.markdown.front_matter_collapsed =
+                    self.edit.renderer.front_matter_collapsed;
                 persistence_updated = true;
             }
         }

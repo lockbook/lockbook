@@ -1,19 +1,19 @@
 //! Language names offered while typing a code fence's info, like `ru` after
 //! ```` ``` ````, from the languages we color.
 
-use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::{Context, Ui};
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::style::{FileRow, Space, ThemeExt as _};
 use crate::syntax::{self, Lang};
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
-use crate::tab::markdown_editor::widget::completion_popup_rect;
-use crate::tab::markdown_editor::{MdEdit, TouchTarget};
+use crate::tab::markdown_editor::widget::{
+    CompletionStep, completion_accepted, completion_dismissed, completion_step,
+};
 
 const MAX_RESULTS: usize = 5;
-const POPUP_WIDTH: f32 = 180.0;
 
 #[derive(Default)]
 pub struct LanguageCompletions {
@@ -86,25 +86,21 @@ impl LanguageCompletions {
         let Some((range, query)) = detect_query(buffer) else { return };
         let results = results_for(&query);
         self.selected = self.selected.min(results.len().saturating_sub(1));
-        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+        if completion_dismissed(ctx) {
             self.suppressed = Some(query);
             return;
         }
         if !editor_focused {
             return;
         }
-        let up = ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp));
-        if up && self.selected > 0 {
-            self.selected -= 1;
+        match completion_step(ctx) {
+            Some(CompletionStep::Up) => self.selected = self.selected.saturating_sub(1),
+            Some(CompletionStep::Down) => {
+                self.selected = (self.selected + 1).min(results.len().saturating_sub(1))
+            }
+            None => {}
         }
-        let down = ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown));
-        if down && self.selected + 1 < results.len() {
-            self.selected += 1;
-        }
-        let accept = ctx.input_mut(|i| {
-            i.consume_key(Modifiers::NONE, Key::Enter) || i.consume_key(Modifiers::NONE, Key::Tab)
-        });
-        if accept {
+        if completion_accepted(ctx) {
             self.apply_completion(events, range, results[self.selected]);
         }
     }
@@ -132,33 +128,11 @@ impl MdEdit {
         }
         let Some((range, query)) = detect_query(&self.renderer.buffer) else { return };
         let results = results_for(&query);
-        let Some([top, bottom]) = self.cursor_line(range.start()) else { return };
-
-        let t = ui.ctx().get_lb_theme();
-        let pad = Space::Xs.pts();
-        let row_h = FileRow::height_for(false);
-        let size = Vec2::new(POPUP_WIDTH, 2.0 * pad + row_h * results.len() as f32);
-        let popup_rect = completion_popup_rect(top, bottom, size, ui.ctx().content_rect());
-        self.renderer
-            .touch_targets
-            .push((popup_rect, TouchTarget::Popup));
-        self.renderer.draw_completion_popup(ui, popup_rect);
-
-        let mut clicked = None;
-        for (i, name) in results.iter().enumerate() {
-            let row_top = popup_rect.top() + pad + row_h * i as f32;
-            let rect = Rect::from_min_max(
-                Pos2::new(popup_rect.left() + pad, row_top),
-                Pos2::new(popup_rect.right() - pad, row_top + row_h),
-            );
-            let resp = FileRow::new(&t, *name)
-                .icon("")
-                .highlighted(i == self.language_completions.selected)
-                .paint_at_hit(ui, rect, rect, Id::unique("language_item").with(i));
-            if resp.clicked() {
-                clicked = Some(*name);
-            }
-        }
+        let labels: Vec<String> = results.iter().map(|name| name.to_string()).collect();
+        let highlighted = Some(self.language_completions.selected);
+        let clicked = self
+            .show_completion_rows(ui, range.start(), &labels, highlighted, "language_item")
+            .map(|i| results[i]);
         if let Some(name) = clicked {
             self.language_completions.apply_completion(
                 &mut self.event.internal_events,

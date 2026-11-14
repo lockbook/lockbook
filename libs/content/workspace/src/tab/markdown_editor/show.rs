@@ -21,6 +21,7 @@ use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
+use crate::front_matter::{RowKind, Value};
 use crate::style::{ThemeExt as _, phosphor};
 use crate::tab::markdown_editor::ScrollTarget;
 use crate::tab::markdown_editor::Syntax;
@@ -28,7 +29,7 @@ use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
-use super::input::{Bound, Event, Location, Region};
+use super::input::{Bound, Event, FrontMatterAction, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, DragUnit, TouchReorder};
 use super::widget::block::leaf::diagram::Picture;
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
@@ -43,6 +44,7 @@ enum EditorMenuCmd {
     UnlearnSpelling,
     Link(LinkMenuAction),
     HeadingLink,
+    FrontMatter(FrontMatterAction),
     Cut,
     Copy,
     CopyRendered,
@@ -175,6 +177,14 @@ impl MdEdit {
             &files,
             file_id,
         );
+        self.property_completions.update_active_state(
+            &self.renderer.buffer,
+            self.renderer.bounds.front_matter.as_ref(),
+            &files,
+            file_id,
+            self.renderer.bounds.text_seq,
+            self.renderer.touch_mode,
+        );
         if !self.renderer.readonly && self.renderer.kind == Syntax::Markdown {
             self.emoji_completions.handle_input(
                 ctx,
@@ -182,6 +192,8 @@ impl MdEdit {
                 focused,
                 &mut self.event.internal_events,
             );
+            self.property_completions
+                .handle_input(ctx, focused, &mut self.event.internal_events);
             self.link_completions.handle_input(
                 ctx,
                 &self.renderer.buffer,
@@ -278,6 +290,7 @@ impl MdEdit {
         let edited = buf_resp.text_updated || buf_resp.selection_user_moved;
         buf_resp |= self.unfold_after_edit(&arena, edited, undo_redo);
         buf_resp |= self.rehome_table_caret(undo_redo);
+        buf_resp |= self.rehome_front_matter_caret(undo_redo);
 
         // An entered atom stays revealed only while the selection remains
         // within it; the range is re-resolved against the (possibly edited)
@@ -300,7 +313,8 @@ impl MdEdit {
         self.renderer.search_range = self
             .emoji_completions
             .search_term_range
-            .or(self.link_completions.search_term_range);
+            .or(self.link_completions.search_term_range)
+            .or(self.property_completions.search_term_range);
 
         if buf_resp.text_updated || buf_resp.selection_user_moved {
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
@@ -501,8 +515,23 @@ impl MdEdit {
     ) {
         let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
             .then_some(self.renderer.buffer.current.selection);
+        // a caret in the collapsed front matter opens it, and it stays open
+        let node = self
+            .renderer
+            .bounds
+            .front_matter
+            .as_ref()
+            .map(|fm| fm.node());
+        let opens = self.renderer.front_matter_collapsed
+            && new_reveal_selection
+                .zip(node)
+                .is_some_and(|(s, node)| node.start() <= s.start() && s.end() <= node.end());
+        if opens {
+            self.renderer.front_matter_collapsed = false;
+        }
         if self.renderer.reveal_selection != new_reveal_selection
             || prior_entered_atom != self.renderer.entered_atom
+            || opens
         {
             self.renderer.reveal_selection = new_reveal_selection;
             self.renderer.reveal_seq = self
@@ -935,6 +964,7 @@ impl MdEdit {
         self.renderer.handle_link_interactions(root, ui, false);
         self.renderer.handle_spoiler_interactions(root, ui);
         self.renderer.handle_fold_interactions(ui);
+        self.renderer.handle_front_matter_interactions(ui);
 
         let mut ops = Vec::new();
 
@@ -977,6 +1007,10 @@ impl MdEdit {
                         let text = &self.renderer.buffer[word];
                         spelling.learned(text).then(|| text.to_string())
                     });
+                self.context_menu_front_matter_row = pos.and_then(|pos| {
+                    let offset = self.location_to_char_offset(Location::Pos(pos));
+                    self.renderer.bounds.front_matter.as_ref()?.row_at(offset)
+                });
             }
             let link_target = self.context_menu_link.clone();
             let heading = self.context_menu_heading.clone();
@@ -984,6 +1018,25 @@ impl MdEdit {
             let learned = self.context_menu_learned.clone();
             let (readonly, markdown) =
                 (self.renderer.readonly, self.renderer.kind == Syntax::Markdown);
+            // the row under the menu: whether it has a value, and what kind
+            let property = self
+                .context_menu_front_matter_row
+                .filter(|_| !readonly)
+                .and_then(|i| {
+                    let fm = self.renderer.bounds.front_matter.as_ref()?;
+                    let row = fm.rows.get(i)?;
+                    let kind = match &row.kind {
+                        RowKind::Property { value, .. } => Some(match value {
+                            Value::List { .. } => FrontMatterAction::MakeList(i),
+                            Value::Text { checked: Some(_), .. } => {
+                                FrontMatterAction::MakeCheckbox(i)
+                            }
+                            _ => FrontMatterAction::MakeText(i),
+                        }),
+                        _ => None,
+                    };
+                    Some((i, fm.rows.len(), kind))
+                });
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
                 if let Some((_, _, suggestions)) = &spelling {
@@ -1012,6 +1065,29 @@ impl MdEdit {
                 }
                 if heading.is_some() {
                     e.item(phosphor::HASH, "Copy Heading Link", EditorMenuCmd::HeadingLink);
+                    e.separator();
+                }
+                if let Some((i, n, kind)) = property {
+                    use FrontMatterAction::*;
+                    let fm = EditorMenuCmd::FrontMatter;
+                    if i > 0 {
+                        e.item(phosphor::CARET_UP, "Move Up", fm(MoveUp(i)));
+                    }
+                    if i + 1 < n {
+                        e.item(phosphor::CARET_DOWN, "Move Down", fm(MoveDown(i)));
+                    }
+                    if let Some(kind) = kind {
+                        for (icon, label, make) in [
+                            (phosphor::TEXT_T, "Make Text", MakeText(i)),
+                            (phosphor::LIST_DASHES, "Make List", MakeList(i)),
+                            (phosphor::CHECK_SQUARE, "Make Checkbox", MakeCheckbox(i)),
+                        ] {
+                            if make != kind {
+                                e.item(icon, label, fm(make));
+                            }
+                        }
+                    }
+                    e.item_danger(phosphor::TRASH, "Remove Property", fm(Remove(i)));
                     e.separator();
                 }
                 if !readonly {
@@ -1094,6 +1170,10 @@ impl MdEdit {
                             }
                         }
                     }
+                }
+                Some(EditorMenuCmd::FrontMatter(action)) => {
+                    self.event.internal_events.push(Event::FrontMatter(action));
+                    ui.ctx().request_repaint();
                 }
                 // an edit, which is the next input pass's to make
                 Some(EditorMenuCmd::Cut) => {
@@ -1484,6 +1564,7 @@ impl MdEdit {
         self.show_emoji_completions(ui);
         self.show_link_completions(ui);
         self.show_language_completions(ui);
+        self.show_property_completions(ui);
     }
 
     /// Reset the buffer to empty state. Chat composers call this after

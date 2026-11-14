@@ -214,6 +214,12 @@ pub enum EmbedKind {
     Rule,
     /// A typeset formula; its url is its math cache key, in hex.
     Math,
+    /// A front matter checkbox, checked or not, whose value starts at
+    /// `check`; its url is empty.
+    Checkbox {
+        checked: bool,
+        check: Grapheme,
+    },
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -232,11 +238,14 @@ pub struct StyleInfo {
     /// The scope may break across rows; one that can't moves to the next
     /// row whole.
     pub wrap: bool,
+    /// A chip whose text is its source: a caret at its edges is typing
+    /// into it, so it draws inside the capsule, mid-capsule when empty.
+    pub caret_inside: bool,
 }
 
 impl StyleInfo {
     pub fn new(format: Format, source_range: (Grapheme, Grapheme)) -> Self {
-        Self { format, source_range, chip: false, wrap: true }
+        Self { format, source_range, chip: false, wrap: true, caret_inside: false }
     }
 }
 
@@ -621,7 +630,7 @@ impl MdRender {
     }
 
     /// Body text's baseline and ascent as fractions of the row height.
-    fn body_metrics(&self, row_height: f32) -> (f32, f32) {
+    pub(crate) fn body_metrics(&self, row_height: f32) -> (f32, f32) {
         let seq = crate::font::chosen_seq();
         if let Some((at, baseline, ascent)) = self.layout_cache.body_metrics.get() {
             if at == seq {
@@ -926,19 +935,29 @@ fn shape_to_items(
         }
     }
 
-    // nothing inside a scope that can't wrap is a place to break
+    // nothing inside a scope that can't wrap is a place to break; its
+    // format edges still split the shaping, with no glue between
     let mut open = Vec::new();
+    let mut held: Vec<(usize, usize)> = Vec::new();
     for (pos, ev) in &layout.events {
         match ev {
             FlowEvent::Open(s) => open.push((*pos, s.wrap)),
             FlowEvent::Close => {
                 if let Some((start, false)) = open.pop() {
-                    breaks.retain(|&b| b <= start || b >= *pos);
+                    held.push((start, *pos));
                 }
             }
             _ => {}
         }
     }
+    let is_held = |b: usize| held.iter().any(|&(start, end)| start < b && b < end);
+    let format_edge = |b: usize| {
+        layout
+            .format_runs
+            .iter()
+            .any(|(s, e, _)| b == *s || b == *e)
+    };
+    breaks.retain(|&b| !is_held(b) || format_edge(b));
     let break_points: Vec<usize> = breaks.into_iter().collect();
     let stop = tab_stop_distance(row_height);
     let tab_set: std::collections::HashSet<usize> = layout.tab_positions.iter().copied().collect();
@@ -968,7 +987,7 @@ fn shape_to_items(
         let chunk_text = &layout.visible[chunk_lo..chunk_hi];
         let format = format_for_range(&layout.format_runs, chunk_lo, chunk_hi)
             .unwrap_or_else(default_format);
-        let blank = chunk_text.chars().all(char::is_whitespace);
+        let blank = chunk_text.chars().all(char::is_whitespace) && !is_held(chunk_lo);
 
         // Shape this chunk into its own Buffer. The buffer is what
         // paint will use; the advance comes from the buffer's
@@ -1038,7 +1057,7 @@ fn shape_to_items(
             });
             prev_was_nonblank = false;
         } else {
-            if prev_was_nonblank {
+            if prev_was_nonblank && !is_held(chunk_lo) {
                 let lo_u = chunk_lo as u32;
                 items.push(InlineItem::Glue {
                     natural: 0.0,
@@ -2174,6 +2193,7 @@ impl MdRender {
                 }
 
                 if let FragmentContent::Embed { url, kind } = &frag.content {
+                    let scope = ui.scope_id();
                     // Non-advancing child ui: embeds paint for off-screen
                     // neighbor rows too, and any allocation there would drag
                     // the layout cursor below the viewport, displacing
@@ -2200,6 +2220,13 @@ impl MdRender {
                         EmbedKind::Math => {
                             self.paint_math(embed_ui, url, frag.source_range, screen_rect)
                         }
+                        EmbedKind::Checkbox { checked, check } => self.show_front_matter_checkbox(
+                            embed_ui,
+                            scope,
+                            screen_rect,
+                            *checked,
+                            *check,
+                        ),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,
@@ -2539,7 +2566,9 @@ impl MdRender {
                 if fragment.source_range.is_empty()
                     && matches!(fragment.content, FragmentContent::Spacer)
                 {
-                    return if fragment.source_range.start() == scope.start() {
+                    let leading = fragment.source_range.start() == scope.start();
+                    let inside = fragment.style_stack.last().is_some_and(|s| s.caret_inside);
+                    return if leading != inside {
                         fragment.rect.min.x
                     } else {
                         fragment.rect.max.x

@@ -1,14 +1,15 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::{Pos2, Rect, Sense, Ui, UiBuilder, Vec2};
+use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
-use crate::style::{Space, ThemeExt as _};
+use crate::show::InputStateExt as _;
+use crate::style::{FileRow, Space, ThemeExt as _};
 use crate::syntax::Role;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::Palette;
 
-use super::MdRender;
 use super::bounds::RangesExt as _;
+use super::{MdEdit, MdRender, TouchTarget};
 use utils::NodeValueExt as _;
 
 pub(crate) mod block;
@@ -19,6 +20,7 @@ pub(crate) mod inline;
 pub(crate) mod language_completions;
 pub(crate) mod link_completions;
 pub(crate) mod outline;
+pub(crate) mod property_completions;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 
@@ -302,7 +304,7 @@ impl<'ast> MdRender {
     pub fn compute_bounds(&mut self, node: &'ast AstNode<'ast>) {
         let value = &node.data.borrow().value;
         match value {
-            NodeValue::FrontMatter(_) => {}
+            NodeValue::FrontMatter(_) => {} // in calc_front_matter_bounds
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
@@ -373,6 +375,84 @@ impl<'ast> MdRender {
                 ui.allocate_exact_size(popup_rect.size(), Sense::hover());
             });
     }
+}
+
+/// A width that fits a completion popup's short words.
+const COMPLETION_POPUP_WIDTH: f32 = 180.0;
+
+impl MdEdit {
+    /// A completion popup of `labels` beside the line at `anchor`, the
+    /// `highlighted` row marked. Returns the row clicked.
+    pub fn show_completion_rows(
+        &mut self, ui: &mut Ui, anchor: Grapheme, labels: &[String], highlighted: Option<usize>,
+        id: &str,
+    ) -> Option<usize> {
+        let [top, bottom] = self.cursor_line(anchor)?;
+        let t = ui.ctx().get_lb_theme();
+        let pad = Space::Xs.pts();
+        let row_h = FileRow::height_for(false);
+        let size = Vec2::new(COMPLETION_POPUP_WIDTH, 2.0 * pad + row_h * labels.len() as f32);
+        let popup_rect = completion_popup_rect(top, bottom, size, ui.ctx().content_rect());
+        self.renderer
+            .touch_targets
+            .push((popup_rect, TouchTarget::Popup));
+        self.renderer.draw_completion_popup(ui, popup_rect);
+        let mut clicked = None;
+        for (i, label) in labels.iter().enumerate() {
+            let row_top = popup_rect.top() + pad + row_h * i as f32;
+            let rect = Rect::from_min_max(
+                Pos2::new(popup_rect.left() + pad, row_top),
+                Pos2::new(popup_rect.right() - pad, row_top + row_h),
+            );
+            let resp = FileRow::new(&t, label)
+                .icon("")
+                .highlighted(highlighted == Some(i))
+                .paint_at_hit(ui, rect, rect, Id::unique(id).with(i));
+            if resp.clicked() {
+                clicked = Some(i);
+            }
+        }
+        clicked
+    }
+}
+
+/// A completion popup's step through its rows.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum CompletionStep {
+    Up,
+    Down,
+}
+
+/// Escape pressed, which dismisses a completion popup. Observed, not
+/// consumed, so it works unfocused and what else Escape closes sees it.
+pub fn completion_dismissed(ctx: &Context) -> bool {
+    ctx.input(|i| i.key_pressed(Key::Escape))
+}
+
+/// Up or Down, or Ctrl+P or Ctrl+N, taken for a completion popup.
+pub fn completion_step(ctx: &Context) -> Option<CompletionStep> {
+    ctx.input_mut(|i| {
+        if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp)
+            || i.consume_key_exact(Modifiers::CTRL, Key::P)
+        {
+            Some(CompletionStep::Up)
+        } else if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown)
+            || i.consume_key_exact(Modifiers::CTRL, Key::N)
+        {
+            Some(CompletionStep::Down)
+        } else {
+            None
+        }
+    })
+}
+
+/// Return or Tab, taken to accept a completion. Exactly, so Shift+Tab
+/// still steps back.
+pub fn completion_accepted(ctx: &Context) -> bool {
+    ctx.input_mut(|i| {
+        i.consume_key_exact(Modifiers::NONE, Key::Enter)
+            || i.consume_key_exact(Modifiers::NONE, Key::Tab)
+    })
 }
 
 /// Gap kept between the completion popup and every window edge. Larger than

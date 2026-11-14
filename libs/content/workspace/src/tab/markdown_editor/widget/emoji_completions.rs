@@ -1,21 +1,20 @@
 use std::collections::HashSet;
 
-use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::{Context, Ui};
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::style::{FileRow, Space, ThemeExt as _};
 use crate::tab::markdown_editor::MdEdit;
-use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
-use crate::tab::markdown_editor::widget::completion_popup_rect;
+use crate::tab::markdown_editor::widget::{
+    CompletionStep, completion_accepted, completion_dismissed, completion_step,
+};
 
 const MAX_RESULTS: usize = 5;
 /// The popup's width, narrower where the window is: room for
 /// `heavy_check_mark` and the shortcodes shorter than it, about 95% of use.
-const POPUP_WIDTH: f32 = 180.0;
 
 #[derive(Default)]
 pub struct EmojiCompletions {
@@ -100,7 +99,7 @@ impl EmojiCompletions {
         // Clamp selection in case results shrank (e.g. the user typed more characters).
         self.selected = self.selected.min(results.len() - 1);
 
-        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+        if completion_dismissed(ctx) {
             self.suppressed = Some(query);
             return;
         }
@@ -109,23 +108,14 @@ impl EmojiCompletions {
             return;
         }
 
-        let up = ctx.input_mut(|i| {
-            i.consume_key(Modifiers::NONE, Key::ArrowUp) || i.consume_key(Modifiers::CTRL, Key::P)
-        });
-        if up && self.selected > 0 {
-            self.selected -= 1;
+        match completion_step(ctx) {
+            Some(CompletionStep::Up) => self.selected = self.selected.saturating_sub(1),
+            Some(CompletionStep::Down) => {
+                self.selected = (self.selected + 1).min(results.len().saturating_sub(1))
+            }
+            None => {}
         }
-        let down = ctx.input_mut(|i| {
-            i.consume_key(Modifiers::NONE, Key::ArrowDown) || i.consume_key(Modifiers::CTRL, Key::N)
-        });
-        if down && self.selected + 1 < results.len() {
-            self.selected += 1;
-        }
-
-        let accept = ctx.input_mut(|i| {
-            i.consume_key(Modifiers::NONE, Key::Enter) || i.consume_key(Modifiers::NONE, Key::Tab)
-        });
-        if accept {
+        if completion_accepted(ctx) {
             self.apply_completion(events, colon_offset, replace_end, results[self.selected]);
         }
     }
@@ -401,39 +391,14 @@ impl MdEdit {
             return;
         }
 
-        // Anchor the popup at the opening colon so it doesn't shift right as the user types.
-        let Some([cursor_top, cursor_bot]) = self.cursor_line(colon_offset) else {
-            return;
-        };
-
-        let t = ui.ctx().get_lb_theme();
-        let pad = Space::Xs.pts();
-        let row_h = FileRow::height_for(false);
-        let size = Vec2::new(POPUP_WIDTH, 2.0 * pad + row_h * results.len() as f32);
-        let popup_rect =
-            completion_popup_rect(cursor_top, cursor_bot, size, ui.ctx().content_rect());
-        self.renderer
-            .touch_targets
-            .push((popup_rect, TouchTarget::Popup));
-        self.renderer.draw_completion_popup(ui, popup_rect);
-
-        let mut clicked = None;
-        for (i, emoji) in results.iter().enumerate() {
-            let top = popup_rect.top() + pad + row_h * i as f32;
-            let rect = Rect::from_min_max(
-                Pos2::new(popup_rect.left() + pad, top),
-                Pos2::new(popup_rect.right() - pad, top + row_h),
-            );
-            let label = format!("{}  {}", emoji.as_str(), matching_shortcode(emoji, &query));
-            let resp = FileRow::new(&t, label)
-                .icon("")
-                .highlighted(i == self.emoji_completions.selected)
-                .paint_at_hit(ui, rect, rect, Id::unique("emoji_item").with(i));
-            if resp.clicked() {
-                clicked = Some(i);
-            }
-        }
-
+        let labels: Vec<String> = results
+            .iter()
+            .map(|emoji| format!("{}  {}", emoji.as_str(), matching_shortcode(emoji, &query)))
+            .collect();
+        let highlighted = Some(self.emoji_completions.selected);
+        // anchored at the opening colon, so it stays while typing
+        let clicked =
+            self.show_completion_rows(ui, colon_offset, &labels, highlighted, "emoji_item");
         if let Some(i) = clicked {
             self.emoji_completions.apply_completion(
                 &mut self.event.internal_events,

@@ -3,6 +3,7 @@ pub mod canonical;
 pub mod code;
 pub mod cursor;
 pub mod events;
+pub mod front_matter;
 pub mod mutation;
 
 use comrak::nodes::NodeValue;
@@ -122,12 +123,13 @@ pub enum Event {
     EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
     OpenDiagram, // the selected diagram, in the image viewer
     ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
-    ToggleTask { check: Grapheme }, // check or uncheck the task item whose mark is here
+    ToggleTask { check: Grapheme }, // check or uncheck the task item or front matter checkbox whose mark is here
     OpenLink { url: String, wikilink: bool }, // navigate, on the platform
-    LoadImage { url: String }, // show an image that waited past the note's scope
+    LoadImage { url: String },      // show an image that waited past the note's scope
     Table(TableAction), // a structure edit of the table at the selection, or a new table there
     PasteGrid(Grid), // rows of cells pasted: into the table at the selection, or as a new table there
     Gesture(Gesture), // a native pan the host finished interpreting; applies even when readonly
+    FrontMatter(FrontMatterAction), // the grid's own commands
 }
 
 /// Finger travel in points, already converted to the editor's units by the host.
@@ -142,6 +144,22 @@ pub enum Gesture {
     RowPanEnd { vx: f32 },
     ReorderMove { pos: Pos2 },
     ReorderEnd { pos: Pos2, cancelled: bool },
+}
+
+/// Commands on the front matter grid, from the toolbar and the row menu.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FrontMatterAction {
+    /// A new property: a block when the note has none, else a row after
+    /// the caret's, else after the last.
+    Add,
+    Remove(usize),
+    MoveUp(usize),
+    MoveDown(usize),
+    MakeText(usize),
+    MakeList(usize),
+    MakeCheckbox(usize),
+    /// The strip of pills, or the grid; the choice sticks.
+    ToggleCollapsed,
 }
 
 impl From<(Grapheme, Grapheme)> for Region {
