@@ -1407,3 +1407,73 @@ async fn decline_share_after_moving_folder_into_it_and_deleting_its_old_parent()
     recipient.reject_share(&team.id).await.unwrap();
     recipient.sync().await.unwrap();
 }
+
+/// Moving a folder shared with someone into their share makes them its owner, so the folder no
+/// longer shows a share to them, before and after a sync.
+#[tokio::test]
+async fn move_folder_shared_with_owner_into_their_share() {
+    let owner = test_core_with_account().await;
+    let owner_name = owner.get_account().unwrap().username.clone();
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    recipient
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    let notes = recipient.create_at_path("/notes/").await.unwrap();
+    recipient.sync().await.unwrap();
+
+    recipient
+        .share_file(notes.id, &owner_name, ShareMode::Read)
+        .await
+        .unwrap();
+    move_by_path(&recipient, "/notes/", "/team/").await.unwrap();
+    let shares = recipient.get_file_by_id(notes.id).await.unwrap().shares;
+    assert!(shares.is_empty(), "{shares:?}");
+
+    recipient.sync().await.unwrap();
+    let shares = recipient.get_file_by_id(notes.id).await.unwrap().shares;
+    assert!(shares.is_empty(), "{shares:?}");
+}
+
+/// A folder shared with someone and moved into their share, then back out before a sync, keeps its
+/// share to them.
+#[tokio::test]
+async fn move_folder_shared_with_owner_into_their_share_and_back() {
+    let owner = test_core_with_account().await;
+    let owner_name = owner.get_account().unwrap().username.clone();
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    recipient
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    let notes = recipient.create_at_path("/notes/").await.unwrap();
+    recipient.sync().await.unwrap();
+
+    recipient
+        .share_file(notes.id, &owner_name, ShareMode::Read)
+        .await
+        .unwrap();
+    move_by_path(&recipient, "/notes/", "/team/").await.unwrap();
+    move_by_path(&recipient, "/team/notes/", "/").await.unwrap();
+    recipient.sync().await.unwrap();
+    let shares = recipient.get_file_by_id(notes.id).await.unwrap().shares;
+    assert_eq!(shares.len(), 1, "{shares:?}");
+}
