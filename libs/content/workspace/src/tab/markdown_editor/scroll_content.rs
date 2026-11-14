@@ -109,11 +109,11 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     }
 
     /// Row whose layout holds `target`: the block whose source range
-    /// contains it (endpoints inclusive, so an end-of-line cursor
-    /// matches), or whose spacing lays out the blank line it is on, the
-    /// blank lines before a block and those after the last one. Other
-    /// targets past every row resolve to `Trailing`, before every row to
-    /// `Leading`.
+    /// contains it (endpoints inclusive, so an end-of-line cursor matches)
+    /// or whose first line's indent holds it, or whose spacing lays out the
+    /// blank line it is on, the blank lines before a block and those after
+    /// the last one. Other targets past every row resolve to `Trailing`,
+    /// before every row to `Leading`.
     pub fn find_text_row(&self, target: Grapheme) -> Option<DocRowId> {
         if self.source {
             for i in 0..self.line_count {
@@ -134,6 +134,13 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
             let (_, e) = self.renderer.node_range(self.blocks[i]);
             if target <= e {
                 return Some(DocRowId::Block(i));
+            }
+        }
+        if let Some(node) = self.blocks.get(after) {
+            let (s, _) = self.renderer.node_range(node);
+            let indent = &self.renderer.buffer[(target, s)];
+            if indent.chars().all(|c| c == ' ' || c == '\t') {
+                return Some(DocRowId::Block(after));
             }
         }
         let holds = |lines| {

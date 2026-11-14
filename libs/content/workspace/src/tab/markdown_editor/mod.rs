@@ -1482,6 +1482,7 @@ impl Editor {
         let idle =
             self.landing.is_none() && self.edit.pending_scroll.is_none() && !self.moved_unpainted;
         let drawn = if idle { self.drawn_texts() } else { Vec::new() };
+        let caret = if idle { self.drawn_caret() } else { None };
         let seq = self.edit.renderer.buffer.current.seq;
         let ctx = self.edit.renderer.ctx.clone();
         self.edit.apply_queued(&ctx);
@@ -1489,24 +1490,29 @@ impl Editor {
             self.edit.renderer.bump_text_seq();
         }
         self.hmac = hmac;
-        self.carry_landing(seq, drawn);
+        self.carry_landing(seq, caret, drawn);
     }
 
     /// Carries the landing through the edits since `seq`, dropping it if
-    /// they touched its text. With none, lands the first of the `drawn`
-    /// texts they left alone where it was drawn.
-    fn carry_landing(&mut self, seq: usize, drawn: Vec<((Grapheme, Grapheme), f32)>) {
+    /// they touched its text. With none, lands the caret where it was drawn,
+    /// at `caret_y`, else the first of the `drawn` texts they left alone.
+    fn carry_landing(
+        &mut self, seq: usize, caret_y: Option<f32>, drawn: Vec<((Grapheme, Grapheme), f32)>,
+    ) {
         let buffer = &self.edit.renderer.buffer;
         let carry = |mut text| buffer.transform_range(seq, &mut text).then_some(text);
+        let caret = |y| Landing::Caret { at: buffer.current.selection.1, y };
         self.landing = match self.landing {
             Some(Landing::Top) => Some(Landing::Top),
             Some(Landing::Heading(text)) => carry(text).map(Landing::Heading),
             Some(Landing::Drawn { text, y }) => carry(text).map(|text| Landing::Drawn { text, y }),
+            Some(Landing::Caret { y, .. }) => Some(caret(y)),
             None => {
-                let Some(landing) = drawn
-                    .into_iter()
-                    .find_map(|(text, y)| carry(text).map(|text| Landing::Drawn { text, y }))
-                else {
+                let Some(landing) = caret_y.map(caret).or_else(|| {
+                    drawn
+                        .into_iter()
+                        .find_map(|(text, y)| carry(text).map(|text| Landing::Drawn { text, y }))
+                }) else {
                     return;
                 };
                 self.edit.pending_scroll = Some(ScrollTarget::Landing);
@@ -1532,6 +1538,25 @@ impl Editor {
             .collect();
         drawn.sort_by(|a, b| (a.1 - line_y).abs().total_cmp(&(b.1 - line_y).abs()));
         drawn
+    }
+
+    /// The caret's top below the view's top, if it was drawn in view in
+    /// the last frame.
+    fn drawn_caret(&self) -> Option<f32> {
+        let caret = self.edit.renderer.buffer.current.selection.1;
+        let [top, _] = self.edit.cursor_line(caret)?;
+        let view = self.painted_canvas;
+        view.y_range().contains(top.y).then_some(top.y - view.min.y)
+    }
+
+    /// Where the caret at `at` is drawn in its row this frame.
+    fn caret_point(
+        &self, rows: &scroll_content::DocScrollContent<'_, '_>, at: Grapheme,
+    ) -> Option<DocOffset> {
+        let row = rows.find_text_row(at)?;
+        let &(_, row_top) = self.painted_rows.iter().find(|(id, _)| *id == row)?;
+        let [top, _] = self.edit.cursor_line(at)?;
+        Some(Offset::new(row, top.y - self.painted_canvas.min.y - row_top))
     }
 
     /// Apply queued buffer ops, then return hmac + text as one snapshot
@@ -3385,7 +3410,7 @@ impl Editor {
                 let intra = self.edit.renderer.block_pre_spacing_height(node);
                 heading_scroll(&self.edit.scroll_area.state, &content, Offset::new(row, intra))
             }
-            Landing::Drawn { .. } => return,
+            Landing::Drawn { .. } | Landing::Caret { .. } => return,
         };
         self.landing = None;
         self.edit.pending_scroll = None;
@@ -3410,6 +3435,13 @@ impl Editor {
         );
         let target = match landing {
             Landing::Top => Offset::at_top_of(scroll_content::DocRowId::Leading),
+            Landing::Caret { at, y } => {
+                let Some(point) = self.caret_point(&content, at) else {
+                    self.landing = None;
+                    return;
+                };
+                crate::widgets::affine_scroll::offset_by(&content, point, self.user_scrolled_by - y)
+            }
             Landing::Heading(range) | Landing::Drawn { text: range, .. } => {
                 let at = range.0;
                 let Some(row) = content.find_text_row(at) else {
@@ -3445,7 +3477,9 @@ impl Editor {
         self.moved_unpainted = true;
         let state = &mut self.edit.scroll_area.state;
         match landing {
-            Landing::Drawn { .. } => Self::scroll_by_pixels_to(state, &content, target),
+            Landing::Drawn { .. } | Landing::Caret { .. } => {
+                Self::scroll_by_pixels_to(state, &content, target)
+            }
             _ => self
                 .edit
                 .scroll_area
@@ -3577,6 +3611,9 @@ enum Landing {
     /// Reading text back at its top `y` below the view's top, where it was
     /// drawn before a reload.
     Drawn { text: (Grapheme, Grapheme), y: f32 },
+    /// The caret, at `at` after a reload, back at its top `y` below the
+    /// view's top, where it was drawn before it.
+    Caret { at: Grapheme, y: f32 },
 }
 
 impl Landing {
@@ -3584,7 +3621,9 @@ impl Landing {
     fn start(self) -> Option<Grapheme> {
         match self {
             Landing::Top => None,
-            Landing::Heading((at, _)) | Landing::Drawn { text: (at, _), .. } => Some(at),
+            Landing::Heading((at, _))
+            | Landing::Drawn { text: (at, _), .. }
+            | Landing::Caret { at, .. } => Some(at),
         }
     }
 }
