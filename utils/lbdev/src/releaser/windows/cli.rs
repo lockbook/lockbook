@@ -44,7 +44,8 @@ fn zip_binary(exe_path: &str, zip_path: &str) -> CliResult<()> {
     let zip_file = File::create(zip_path).unwrap();
     let mut zip = zip::ZipWriter::new(zip_file);
 
-    zip.start_file("lockbook.exe", Default::default()).unwrap();
+    zip.start_file("lockbook.exe", zip::write::SimpleFileOptions::default())
+        .unwrap();
     zip.write_all(&exe_bytes).unwrap();
     zip.finish().unwrap();
     Ok(())
