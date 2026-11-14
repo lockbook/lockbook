@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use tracing::*;
 
 use super::stripe_error::SimplifiedStripeError;
+use crate::stripe;
 
 #[async_trait]
 pub trait StripeClient: Send + Sync + Clone + 'static {
@@ -51,11 +52,7 @@ impl StripeClient for stripe::Client {
             info!(?payment_method_id, "Creating stripe customer");
         }
 
-        let mut customer_params = stripe::CreateCustomer::new();
-        customer_params.payment_method = Some(payment_method_id);
-        customer_params.name = Some(&customer_name);
-
-        let customer = stripe::Customer::create(self, customer_params)
+        let customer = stripe::Client::create_customer(self, &customer_name, &payment_method_id)
             .await
             .map_err(SimplifiedStripeError::from)?;
 
@@ -67,20 +64,10 @@ impl StripeClient for stripe::Client {
     async fn create_payment_method(
         &self, card_number: &str, exp_month: i32, exp_year: i32, cvc: &str,
     ) -> Result<stripe::PaymentMethod, SimplifiedStripeError> {
-        let mut payment_method_params = stripe::CreatePaymentMethod::new();
-        payment_method_params.type_ = Some(stripe::PaymentMethodTypeFilter::Card);
-        payment_method_params.card = Some(stripe::CreatePaymentMethodCardUnion::CardDetailsParams(
-            stripe::CardDetailsParams {
-                cvc: Some(cvc.to_string()),
-                exp_month,
-                exp_year,
-                number: card_number.to_string(),
-            },
-        ));
-
-        let payment_method = stripe::PaymentMethod::create(self, payment_method_params)
-            .await
-            .map_err(SimplifiedStripeError::from)?;
+        let payment_method =
+            stripe::Client::create_card_payment_method(self, card_number, exp_month, exp_year, cvc)
+                .await
+                .map_err(SimplifiedStripeError::from)?;
 
         debug!(?payment_method, "Created stripe payment method");
 
@@ -96,19 +83,9 @@ impl StripeClient for stripe::Client {
             info!(?customer_id, ?payment_method_id, "Creating stripe setup intent");
         }
 
-        let mut setup_intent_params = stripe::CreateSetupIntent::new();
-        setup_intent_params.customer = Some(customer_id);
-        setup_intent_params.payment_method = Some(payment_method_id);
-        setup_intent_params.confirm = Some(true);
-        setup_intent_params.automatic_payment_methods =
-            Some(stripe::CreateSetupIntentAutomaticPaymentMethods {
-                allow_redirects: Some(
-                    stripe::CreateSetupIntentAutomaticPaymentMethodsAllowRedirects::Never,
-                ),
-                enabled: true,
-            });
-
-        let setup_intent = stripe::SetupIntent::create(self, setup_intent_params).await?;
+        let setup_intent =
+            stripe::Client::create_confirmed_setup_intent(self, &customer_id, &payment_method_id)
+                .await?;
 
         debug!(?setup_intent, "Created stripe setup intent");
 
@@ -129,15 +106,9 @@ impl StripeClient for stripe::Client {
             info!(?customer_id, ?payment_method_id, "Creating stripe subscription");
         }
 
-        let mut subscription_params = stripe::CreateSubscription::new(customer_id);
-        let mut subscription_item_params = stripe::CreateSubscriptionItems::new();
-        subscription_item_params.price = Some(price_id.to_string());
-
-        subscription_params.default_payment_method = Some(payment_method_id);
-        subscription_params.items = Some(vec![subscription_item_params]);
-        subscription_params.expand = &["latest_invoice", "latest_invoice.payment_intent"];
-
-        let subscription = stripe::Subscription::create(self, subscription_params).await?;
+        let subscription =
+            stripe::Client::create_subscription(self, &customer_id, payment_method_id, price_id)
+                .await?;
 
         debug!(?subscription, "Created stripe subscription");
 
@@ -193,7 +164,7 @@ impl StripeClient for stripe::Client {
             info!(?payment_method_id, "Detaching stripe payment method");
         }
 
-        let payment_method = stripe::PaymentMethod::detach(self, payment_method_id).await?;
+        let payment_method = stripe::Client::detach_payment_method(self, payment_method_id).await?;
 
         debug!(?payment_method, "Detached stripe payment method");
 
@@ -208,12 +179,7 @@ impl StripeClient for stripe::Client {
             info!(?subscription_id, "Cancelling stripe subscription");
         }
 
-        let subscription = stripe::Subscription::cancel(
-            self,
-            subscription_id,
-            stripe::CancelSubscription::default(),
-        )
-        .await?;
+        let subscription = stripe::Client::cancel_subscription(self, subscription_id).await?;
 
         debug!(?subscription, "Canceled stripe subscription");
 
@@ -228,7 +194,7 @@ impl StripeClient for stripe::Client {
             info!(?subscription_id, "Retrieving stripe subscription");
         }
 
-        let subscription = stripe::Subscription::retrieve(self, subscription_id, &[]).await?;
+        let subscription = stripe::Client::get_subscription(self, subscription_id).await?;
 
         debug!(?subscription, "Retrieved stripe subscription");
 
@@ -243,7 +209,7 @@ impl StripeClient for stripe::Client {
             info!(?invoice_id, "Getting stripe invoice");
         }
 
-        let invoice = stripe::Invoice::retrieve(self, invoice_id, EXPAND_INVOICE_DETAILS)
+        let invoice = stripe::Client::get_invoice(self, invoice_id, EXPAND_INVOICE_DETAILS)
             .await
             .map_err(SimplifiedStripeError::from)?;
 

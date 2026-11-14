@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let config = cfg.clone();
 
-    let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
+    let stripe_client = stripe::Client::new(cfg.billing.stripe.stripe_secret.as_str());
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
     let app_store_client = reqwest::Client::new();
     let discord_client = reqwest::Client::new();

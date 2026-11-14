@@ -10,7 +10,7 @@ use libsecp256k1::PublicKey;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 
-use stripe::{Event, Invoice};
+use crate::stripe::{self, Event, Invoice};
 use tracing::*;
 use uuid::Uuid;
 

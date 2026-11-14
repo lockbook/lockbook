@@ -35,15 +35,10 @@ libsecp256k1 = "0.7.1"
 prometheus = "0.14.0"
 prometheus-static-metric = "0.5.1"
 lazy_static = "1.4.0"
-async-stripe = { version = "0.37.0", default-features = false, features = [
-    "runtime-tokio-hyper-rustls",
-    "billing",
-    # unused, but webhook-events' EventObject names their types
-    "checkout",
-    "connect",
-    "webhook-events",
-] }
 sha2 = "0.10.2"
+hmac = "0.12"
+rustls-native-certs = "0.8"
+hex = "0.4.3"
 google-androidpublisher3 = { version = "7.0.0", features = ["yup-oauth2-service-account"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
