@@ -27,6 +27,26 @@ struct PathEntry {
     path: String,
     filename: String,
     parent_path: String,
+    name_lower: String,
+    stem_lower: String,
+    path_lower: String,
+}
+
+/// 0: the name, with or without its extension, is the query. 1: the name starts with
+/// the query. 2: every query word is in the name. 3: every word is somewhere in the
+/// path. 4: a looser fuzzy match.
+fn match_tier(entry: &PathEntry, query: &str, words: &[String]) -> u8 {
+    if entry.stem_lower == query || entry.name_lower == query {
+        0
+    } else if entry.name_lower.starts_with(query) {
+        1
+    } else if words.iter().all(|w| entry.name_lower.contains(w)) {
+        2
+    } else if words.iter().all(|w| entry.path_lower.contains(w)) {
+        3
+    } else {
+        4
+    }
 }
 
 fn path_result(entry: &PathEntry, path_indices: Vec<u32>) -> SearchResult {
@@ -85,6 +105,13 @@ impl PathSearcher {
                     path: path.clone(),
                     filename: filename.to_string(),
                     parent_path: parent_path.to_string(),
+                    name_lower: filename.to_lowercase(),
+                    stem_lower: match file.is_folder() {
+                        true => filename,
+                        false => filename.rsplit_once('.').map_or(filename, |(stem, _)| stem),
+                    }
+                    .to_lowercase(),
+                    path_lower: path.to_lowercase(),
                 },
                 |entry, cols| {
                     cols[0] = entry.path.as_str().into();
@@ -155,33 +182,90 @@ impl PathSearcher {
             return;
         }
 
+        let words: Vec<String> = self
+            .submitted_query
+            .split_whitespace()
+            .map(str::to_lowercase)
+            .collect();
+        let query = words.join(" ");
+        let mut ranked: Vec<_> = (0..snapshot.matched_item_count())
+            .filter_map(|i| snapshot.get_matched_item(i))
+            .filter(|item| {
+                self.filter_ids
+                    .as_ref()
+                    .is_none_or(|ids| ids.contains(&item.data.file.id))
+            })
+            .collect();
+        // Stable, so loose matches keep nucleo's score order.
+        ranked.sort_by_cached_key(|item| {
+            let tier = match_tier(item.data, &query, &words);
+            let recency = if tier < 4 { item.data.file.last_modified } else { 0 };
+            (tier, Reverse(recency))
+        });
+
         let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
-
-        for i in 0..snapshot.matched_item_count() {
-            if self.results.len() >= 100 {
-                break;
-            }
-            if let Some(item) = snapshot.get_matched_item(i) {
-                if let Some(ids) = &self.filter_ids {
-                    if !ids.contains(&item.data.file.id) {
-                        continue;
-                    }
-                }
-
+        let pattern = self.nucleo.pattern.column_pattern(0);
+        self.results
+            .extend(ranked.into_iter().take(100).map(|item| {
                 let mut indices = Vec::new();
-                self.nucleo.pattern.column_pattern(0).indices(
-                    item.matcher_columns[0].slice(..),
-                    &mut matcher,
-                    &mut indices,
-                );
-
-                self.results.push(path_result(item.data, indices));
-            }
-        }
+                pattern.indices(item.matcher_columns[0].slice(..), &mut matcher, &mut indices);
+                path_result(item.data, indices)
+            }));
     }
 
     /// Get search results.
     pub fn results(&self) -> &[SearchResult] {
         &self.results
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PathSearcher;
+    use crate::model::file::File;
+    use crate::model::file_metadata::FileType;
+    use uuid::Uuid;
+
+    fn entry(path: &str, last_modified: u64) -> (File, String) {
+        let file_type = if path.ends_with('/') { FileType::Folder } else { FileType::Document };
+        let file = File {
+            id: Uuid::new_v4(),
+            parent: Uuid::nil(),
+            name: path.to_string(),
+            file_type,
+            last_modified,
+            last_modified_by: String::new(),
+            owner: String::new(),
+            shares: Vec::new(),
+            size_bytes: 0,
+        };
+        (file, path.to_string())
+    }
+
+    #[test]
+    fn exact_then_prefix_then_name_then_path_newest_first() {
+        let mut searcher = PathSearcher::from_files([
+            entry("/lb-docs/release.md", 1),
+            entry("/a/b/c/d/release-26.11.5.md", 2),
+            entry("/a/b/c/d/release-26.11.12.md", 3),
+            entry("/release-ops/pending-release.md", 4),
+            entry("/release-ops/qa.md", 5),
+        ]);
+        searcher.query("release");
+        let names: Vec<_> = searcher
+            .results()
+            .iter()
+            .map(|r| r.filename.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "release.md",
+                "release-26.11.12.md",
+                "release-26.11.5.md",
+                "pending-release.md",
+                "qa.md"
+            ]
+        );
     }
 }
