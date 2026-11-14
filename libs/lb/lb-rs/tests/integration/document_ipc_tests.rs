@@ -1,4 +1,5 @@
 use lb_rs::Lb;
+use lb_rs::io::docs::DocumentStore;
 use lb_rs::model::errors::LbErrKind;
 use test_utils::http::test_core_with_account;
 
@@ -14,7 +15,7 @@ async fn reads_catch_up_when_another_instance_replaces_the_document() {
     writer.write_document(id, b"new").await.unwrap();
     let expected = writer.read_document_with_hmac(id, false).await.unwrap();
     assert_eq!(reader.read_document(id, false).await.unwrap(), b"old");
-    writer.docs.delete(id, old_hmac).await.unwrap();
+    writer.docs.delete(id, old_hmac.unwrap()).await.unwrap();
 
     assert_eq!(reader.read_document(id, false).await.unwrap(), b"new");
     assert_eq!(
@@ -35,7 +36,7 @@ async fn missing_version_catches_up_to_document_deletion() {
     let reader = Lb::init(writer.config.clone()).await.unwrap();
 
     writer.delete(&id).await.unwrap();
-    writer.docs.delete(id, hmac).await.unwrap();
+    writer.docs.delete(id, hmac.unwrap()).await.unwrap();
 
     assert_eq!(reader.read_document(id, false).await.unwrap_err().kind, LbErrKind::FileNonexistent);
 }
@@ -47,7 +48,7 @@ async fn missing_version_is_fetched_from_the_server_after_catch_up() {
     core.write_document(id, b"content").await.unwrap();
     core.sync().await.unwrap();
     let (hmac, _) = core.read_document_with_hmac(id, false).await.unwrap();
-    core.docs.delete(id, hmac).await.unwrap();
+    core.docs.delete(id, hmac.unwrap()).await.unwrap();
 
     assert_eq!(core.read_document(id, false).await.unwrap(), b"content");
 }

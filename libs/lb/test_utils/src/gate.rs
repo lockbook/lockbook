@@ -1,23 +1,26 @@
-//! A document store and a client's server that ask a [`Gate`] at each operation and request,
-//! so a test decides when a sync goes on.
+//! Document stores and a client's server that ask a [`Gate`] at each operation and request, so
+//! a test decides when a sync or a save goes on.
 
-use std::fmt::Debug;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use lb_rs::io::docs::{DocumentStore, LocalDocuments, PendingDocument};
 use lb_rs::io::server::{ApiResult, Server};
 use lb_rs::model::account::Account;
 use lb_rs::model::api::*;
 use lb_rs::model::crypto::EncryptedDocument;
+use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
-use lockbook_server_lib::ServerError;
 use lockbook_server_lib::document_service::DocumentService;
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DocOp {
     Insert,
+    /// A client's write, before it is promoted.
+    InsertPending,
     Get,
     MaybeGet,
     Delete,
@@ -26,7 +29,7 @@ pub enum DocOp {
 /// Where a request is.
 #[derive(Clone, Copy, Debug)]
 pub enum Point {
-    /// A store operation about to run, on the server.
+    /// A store operation about to run, on the server or a client.
     Document { op: DocOp, id: Uuid },
     /// A request about to leave the client.
     Sent { endpoint: &'static str },
@@ -51,50 +54,56 @@ impl<D> GatedDocuments<D> {
     pub fn new(docs: D, gate: impl Gate) -> Self {
         Self { docs, gate: Arc::new(gate) }
     }
+
+    async fn pass(&self, op: DocOp, id: Uuid) {
+        self.gate.pass(Point::Document { op, id }).await;
+    }
 }
 
-#[async_trait]
-impl<D: DocumentService> DocumentService for GatedDocuments<D> {
-    async fn insert<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
-    ) -> Result<(), ServerError<T>> {
-        self.gate
-            .pass(Point::Document { op: DocOp::Insert, id: *id })
-            .await;
-        self.docs.insert(id, hmac, content).await
+impl<D: DocumentStore> DocumentStore for GatedDocuments<D> {
+    async fn insert(
+        &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
+    ) -> LbResult<()> {
+        self.pass(DocOp::Insert, id).await;
+        self.docs.insert(id, hmac, document).await
     }
 
-    async fn get<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
-    ) -> Result<EncryptedDocument, ServerError<T>> {
-        self.gate
-            .pass(Point::Document { op: DocOp::Get, id: *id })
-            .await;
+    async fn get(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<EncryptedDocument> {
+        self.pass(DocOp::Get, id).await;
         self.docs.get(id, hmac).await
     }
 
-    async fn maybe_get<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
-    ) -> Result<Option<EncryptedDocument>, ServerError<T>> {
-        self.gate
-            .pass(Point::Document { op: DocOp::MaybeGet, id: *id })
-            .await;
+    async fn maybe_get(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Option<EncryptedDocument>> {
+        self.pass(DocOp::MaybeGet, id).await;
         self.docs.maybe_get(id, hmac).await
     }
 
-    async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>> {
-        self.gate
-            .pass(Point::Document { op: DocOp::Delete, id: *id })
-            .await;
+    async fn delete(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
+        self.pass(DocOp::Delete, id).await;
         self.docs.delete(id, hmac).await
     }
 
-    fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool {
+    fn exists(&self, id: Uuid, hmac: DocumentHmac) -> bool {
         self.docs.exists(id, hmac)
     }
+}
 
-    fn get_path(&self, id: &Uuid, hmac: &DocumentHmac) -> PathBuf {
+impl<D: DocumentService> DocumentService for GatedDocuments<D> {
+    fn get_path(&self, id: Uuid, hmac: DocumentHmac) -> PathBuf {
         self.docs.get_path(id, hmac)
+    }
+}
+
+impl<D: LocalDocuments> LocalDocuments for GatedDocuments<D> {
+    async fn insert_pending(
+        &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
+    ) -> LbResult<PendingDocument> {
+        self.pass(DocOp::InsertPending, id).await;
+        self.docs.insert_pending(id, hmac, document).await
+    }
+
+    async fn retain(&self, file_hmacs: HashSet<(Uuid, DocumentHmac)>) -> LbResult<()> {
+        self.docs.retain(file_hmacs).await
     }
 }
 

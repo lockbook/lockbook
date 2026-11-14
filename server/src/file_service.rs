@@ -4,7 +4,7 @@ use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::defense::SERVER_BANDWIDTH_CAP;
-use crate::document_service::DocumentService;
+use crate::document_service::{DocumentService, stored};
 use crate::guard::ServerTx;
 use crate::schema::ServerV6;
 
@@ -237,8 +237,9 @@ where
         drop(lock);
 
         self.document_service
-            .insert(&id, &hmac_bytes, &new_content)
-            .await?;
+            .insert(id, hmac_bytes, &new_content)
+            .await
+            .map_err(stored)?;
         debug!(?id, ?hmac, "Inserted document contents");
 
         let result = async {
@@ -361,8 +362,9 @@ where
 
         let Some(content) = self
             .document_service
-            .maybe_get(&request.id, &request.hmac)
-            .await?
+            .maybe_get(request.id, request.hmac)
+            .await
+            .map_err(stored)?
         else {
             return Err(ClientError(GetDocumentError::DocumentNotFound));
         };
@@ -586,7 +588,10 @@ where
         }
 
         for (id, version) in docs_to_delete {
-            self.document_service.delete(&id, &version).await?;
+            self.document_service
+                .delete(id, version)
+                .await
+                .map_err(stored)?;
         }
 
         Ok(())
@@ -639,7 +644,7 @@ where
 
                     if !self
                         .document_service
-                        .exists(&id, file.document_hmac().unwrap())
+                        .exists(id, *file.document_hmac().unwrap())
                     {
                         result.documents_missing_content.push(id);
                     }
@@ -901,7 +906,7 @@ where
             .collect::<HashMap<_, _>>()
         {
             if let Some(hmac) = meta.document_hmac() {
-                if !deleted_ids.contains(&id) && !self.document_service.exists(&id, hmac) {
+                if !deleted_ids.contains(&id) && !self.document_service.exists(id, *hmac) {
                     result.files_with_hmacs_and_no_contents.insert(id);
                 }
             }

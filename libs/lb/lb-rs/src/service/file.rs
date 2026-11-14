@@ -1,4 +1,5 @@
 use crate::Lb;
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use crate::model::access_info::UserAccessMode;
 use crate::model::errors::{LbErrKind, LbResult};
@@ -11,7 +12,7 @@ use crate::service::events::Actor;
 use std::iter;
 use uuid::Uuid;
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_file(
         &self, name: &str, parent: &Uuid, file_type: FileType,

@@ -67,7 +67,11 @@ impl Lb {
     /// The blocking twin of [`crate::Lb::in_memory`].
     #[cfg(target_family = "wasm")]
     pub fn in_memory(config: Config, server: Network) -> LbResult<Self> {
-        let lb = futures::executor::block_on(crate::Lb::in_memory(config, server))?;
+        let lb = futures::executor::block_on(crate::Lb::in_memory(
+            config,
+            server,
+            crate::io::docs::AsyncDocs::in_memory(),
+        ))?;
         Ok(Self { lb })
     }
 
@@ -75,7 +79,11 @@ impl Lb {
     #[cfg(not(target_family = "wasm"))]
     pub fn in_memory(config: Config, server: Network) -> LbResult<Self> {
         let rt = Arc::new(Runtime::new().unwrap());
-        let lb = rt.block_on(crate::Lb::in_memory(config, server))?;
+        let lb = rt.block_on(crate::Lb::in_memory(
+            config,
+            server,
+            crate::io::docs::AsyncDocs::in_memory(),
+        ))?;
         Ok(Self { rt, lb })
     }
 

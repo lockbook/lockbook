@@ -1,4 +1,5 @@
 use crate::experiments::{WelcomeDoc, cohort};
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use crate::model::account::{Account, MAX_USERNAME_LENGTH};
 use crate::model::api::{
@@ -15,7 +16,7 @@ use qrcode_generator::QrCodeEcc;
 
 use crate::io::network::ApiError;
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// CoreError::AccountExists,
     /// CoreError::UsernameTaken,
     /// CoreError::UsernameInvalid,

@@ -1,3 +1,4 @@
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use basic_human_duration::ChronoHumanDuration;
 use serde::{Deserialize, Serialize};
@@ -124,7 +125,7 @@ impl Status {
     }
 }
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     pub async fn status(&self) -> Status {
         self.status.current_status.read().await.clone()
     }

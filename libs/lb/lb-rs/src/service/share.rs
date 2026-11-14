@@ -1,4 +1,5 @@
 use crate::Lb;
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbErrKind, LbResult};
@@ -23,7 +24,7 @@ pub struct SharingContact {
     pub total_file_count: u64,
 }
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// Ranked contacts for the signed-in account. This is a local, read-only query;
     /// callers should run it off their UI thread.
     /// Inheritance follows real metadata parents, never the local placement of a link.

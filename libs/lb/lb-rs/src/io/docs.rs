@@ -1,9 +1,11 @@
+use crate::io::server::{MaybeSend, MaybeSync};
 use crate::model::{
     core_config::Config,
     crypto::EncryptedDocument,
     errors::{LbErrKind, LbResult},
     file_metadata::DocumentHmac,
 };
+use std::future::Future;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -35,6 +37,56 @@ impl AsyncDocs {
     pub fn in_memory() -> Self {
         Self::Memory(Default::default())
     }
+
+    /// An in-memory store holding these documents, sharing nothing with this one; none for one on
+    /// disk.
+    pub fn copy(&self) -> Option<Self> {
+        match self {
+            Self::Memory(docs) => {
+                Some(Self::Memory(Arc::new(Mutex::new(docs.lock().unwrap().clone()))))
+            }
+            Self::Disk { .. } => None,
+        }
+    }
+}
+
+/// Encrypted documents by id and hmac: what a client and the server both keep.
+pub trait DocumentStore: Clone + MaybeSend + MaybeSync + 'static {
+    fn insert(
+        &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
+    ) -> impl Future<Output = LbResult<()>> + MaybeSend;
+
+    fn maybe_get(
+        &self, id: Uuid, hmac: DocumentHmac,
+    ) -> impl Future<Output = LbResult<Option<EncryptedDocument>>> + MaybeSend;
+
+    fn get(
+        &self, id: Uuid, hmac: DocumentHmac,
+    ) -> impl Future<Output = LbResult<EncryptedDocument>> + MaybeSend {
+        async move {
+            self.maybe_get(id, hmac)
+                .await?
+                .ok_or_else(|| LbErrKind::FileNonexistent.into())
+        }
+    }
+
+    fn delete(
+        &self, id: Uuid, hmac: DocumentHmac,
+    ) -> impl Future<Output = LbResult<()>> + MaybeSend;
+
+    fn exists(&self, id: Uuid, hmac: DocumentHmac) -> bool;
+}
+
+/// A client's [DocumentStore], whose writes land in two steps.
+pub trait LocalDocuments: DocumentStore {
+    fn insert_pending(
+        &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
+    ) -> impl Future<Output = LbResult<PendingDocument>> + MaybeSend;
+
+    /// Deletes every document but those in `file_hmacs`.
+    fn retain(
+        &self, file_hmacs: HashSet<(Uuid, DocumentHmac)>,
+    ) -> impl Future<Output = LbResult<()>> + MaybeSend;
 }
 
 /// One write, readable once [PendingDocument::promote]d into the store that wrote it. On disk
@@ -72,55 +124,124 @@ impl PendingDocument {
 }
 
 #[cfg(target_family = "wasm")]
-impl AsyncDocs {
-    pub async fn insert(
-        &self, _id: Uuid, _hmac: Option<DocumentHmac>, _document: &EncryptedDocument,
+impl DocumentStore for AsyncDocs {
+    async fn insert(
+        &self, _id: Uuid, _hmac: DocumentHmac, _document: &EncryptedDocument,
     ) -> LbResult<()> {
         Ok(())
     }
 
-    pub async fn insert_pending(
+    async fn maybe_get(
+        &self, _id: Uuid, _hmac: DocumentHmac,
+    ) -> LbResult<Option<EncryptedDocument>> {
+        Ok(None)
+    }
+
+    async fn delete(&self, _id: Uuid, _hmac: DocumentHmac) -> LbResult<()> {
+        Ok(())
+    }
+
+    fn exists(&self, _id: Uuid, _hmac: DocumentHmac) -> bool {
+        true
+    }
+}
+
+#[cfg(target_family = "wasm")]
+impl LocalDocuments for AsyncDocs {
+    async fn insert_pending(
         &self, _id: Uuid, _hmac: DocumentHmac, _document: &EncryptedDocument,
     ) -> LbResult<PendingDocument> {
         Ok(PendingDocument)
     }
 
-    pub async fn get(&self, _id: Uuid, _hmac: Option<DocumentHmac>) -> LbResult<EncryptedDocument> {
-        Err(LbErrKind::FileNonexistent.into())
-    }
-
-    pub async fn maybe_get(
-        &self, _id: Uuid, _hmac: Option<DocumentHmac>,
-    ) -> LbResult<Option<EncryptedDocument>> {
-        Ok(None)
-    }
-
-    pub async fn delete(&self, _id: Uuid, _hmac: Option<DocumentHmac>) -> LbResult<()> {
-        Ok(())
-    }
-
-    pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> bool {
-        true
-    }
-
-    pub(crate) async fn retain(&self, _file_hmacs: HashSet<(Uuid, [u8; 32])>) -> LbResult<()> {
+    async fn retain(&self, _file_hmacs: HashSet<(Uuid, DocumentHmac)>) -> LbResult<()> {
         Ok(())
     }
 }
 
 #[cfg(not(target_family = "wasm"))]
 impl AsyncDocs {
-    pub async fn insert(
-        &self, id: Uuid, hmac: Option<DocumentHmac>, document: &EncryptedDocument,
+    pub async fn maybe_size(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<Option<u64>> {
+        let Some(hmac) = hmac else {
+            return Ok(None);
+        };
+        Ok(match self {
+            Self::Memory(docs) => docs
+                .lock()
+                .unwrap()
+                .get(&(id, hmac))
+                .map(|d| bincode::serialized_size(d).unwrap_or_default()),
+            Self::Disk { location } => Path::new(&key_path(location, id, hmac))
+                .metadata()
+                .ok()
+                .map(|meta| meta.len()),
+        })
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl DocumentStore for AsyncDocs {
+    async fn insert(
+        &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
     ) -> LbResult<()> {
-        if let Some(hmac) = hmac {
-            let pending = self.insert_pending(id, hmac, document).await?;
-            pending.promote().await?;
+        let pending = self.insert_pending(id, hmac, document).await?;
+        pending.promote().await
+    }
+
+    fn exists(&self, id: Uuid, hmac: DocumentHmac) -> bool {
+        match self {
+            Self::Memory(docs) => docs.lock().unwrap().contains_key(&(id, hmac)),
+            Self::Disk { location } => Path::new(&key_path(location, id, hmac)).exists(),
+        }
+    }
+
+    async fn maybe_get(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Option<EncryptedDocument>> {
+        let location = match self {
+            Self::Memory(docs) => return Ok(docs.lock().unwrap().get(&(id, hmac)).cloned()),
+            Self::Disk { location } => location,
+        };
+        let path_str = key_path(location, id, hmac);
+        let path = Path::new(&path_str);
+        trace!("read\t{}", &path_str);
+        let maybe_data: Option<Vec<u8>> = match File::open(path).await {
+            Ok(mut f) => {
+                let mut buffer: Vec<u8> = Vec::new();
+                f.read_to_end(&mut buffer).await?;
+                Some(buffer)
+            }
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => None,
+                _ => return Err(err.into()),
+            },
+        };
+
+        Ok(match maybe_data {
+            Some(data) => bincode::deserialize(&data).map(Some).map_unexpected()?,
+            None => None,
+        })
+    }
+
+    async fn delete(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
+        match self {
+            Self::Memory(docs) => {
+                docs.lock().unwrap().remove(&(id, hmac));
+            }
+            Self::Disk { location } => {
+                let path_str = key_path(location, id, hmac);
+                let path = Path::new(&path_str);
+                trace!("delete\t{}", &path_str);
+                if path.exists() {
+                    fs::remove_file(path).await.map_unexpected()?;
+                }
+            }
         }
         Ok(())
     }
+}
 
-    pub async fn insert_pending(
+#[cfg(not(target_family = "wasm"))]
+impl LocalDocuments for AsyncDocs {
+    async fn insert_pending(
         &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
     ) -> LbResult<PendingDocument> {
         let location = match self {
@@ -148,91 +269,7 @@ impl AsyncDocs {
         Ok(PendingDocument::File { path: path_str, final_path })
     }
 
-    pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> bool {
-        let Some(hmac) = hmac else {
-            return false; // is this the move?
-        };
-        match self {
-            Self::Memory(docs) => docs.lock().unwrap().contains_key(&(id, hmac)),
-            Self::Disk { location } => Path::new(&key_path(location, id, hmac)).exists(),
-        }
-    }
-
-    pub async fn get(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<EncryptedDocument> {
-        self.maybe_get(id, hmac)
-            .await?
-            .ok_or_else(|| LbErrKind::FileNonexistent.into())
-    }
-
-    pub async fn maybe_get(
-        &self, id: Uuid, hmac: Option<DocumentHmac>,
-    ) -> LbResult<Option<EncryptedDocument>> {
-        let Some(hmac) = hmac else {
-            return Ok(None);
-        };
-        let location = match self {
-            Self::Memory(docs) => return Ok(docs.lock().unwrap().get(&(id, hmac)).cloned()),
-            Self::Disk { location } => location,
-        };
-        let path_str = key_path(location, id, hmac);
-        let path = Path::new(&path_str);
-        trace!("read\t{}", &path_str);
-        let maybe_data: Option<Vec<u8>> = match File::open(path).await {
-            Ok(mut f) => {
-                let mut buffer: Vec<u8> = Vec::new();
-                f.read_to_end(&mut buffer).await?;
-                Some(buffer)
-            }
-            Err(err) => match err.kind() {
-                ErrorKind::NotFound => None,
-                _ => return Err(err.into()),
-            },
-        };
-
-        Ok(match maybe_data {
-            Some(data) => bincode::deserialize(&data).map(Some).map_unexpected()?,
-            None => None,
-        })
-    }
-
-    pub async fn maybe_size(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<Option<u64>> {
-        let Some(hmac) = hmac else {
-            return Ok(None);
-        };
-        Ok(match self {
-            Self::Memory(docs) => docs
-                .lock()
-                .unwrap()
-                .get(&(id, hmac))
-                .map(|d| bincode::serialized_size(d).unwrap_or_default()),
-            Self::Disk { location } => Path::new(&key_path(location, id, hmac))
-                .metadata()
-                .ok()
-                .map(|meta| meta.len()),
-        })
-    }
-
-    pub async fn delete(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<()> {
-        let Some(hmac) = hmac else {
-            return Ok(());
-        };
-        match self {
-            Self::Memory(docs) => {
-                docs.lock().unwrap().remove(&(id, hmac));
-            }
-            Self::Disk { location } => {
-                let path_str = key_path(location, id, hmac);
-                let path = Path::new(&path_str);
-                trace!("delete\t{}", &path_str);
-                if path.exists() {
-                    fs::remove_file(path).await.map_unexpected()?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) async fn retain(&self, file_hmacs: HashSet<(Uuid, [u8; 32])>) -> LbResult<()> {
+    async fn retain(&self, file_hmacs: HashSet<(Uuid, DocumentHmac)>) -> LbResult<()> {
         let location = match self {
             Self::Memory(docs) => {
                 docs.lock()
@@ -263,7 +300,7 @@ impl AsyncDocs {
             };
 
             if !file_hmacs.contains(&(id, hmac)) {
-                self.delete(id, Some(hmac)).await?;
+                self.delete(id, hmac).await?;
             }
         }
         Ok(())

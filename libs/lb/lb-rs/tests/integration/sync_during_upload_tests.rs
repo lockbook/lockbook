@@ -1,16 +1,16 @@
-use std::fmt::Debug;
+use lb_rs::io::docs::{AsyncDocs, DocumentStore};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use async_trait::async_trait;
 use lb_rs::model::crypto::EncryptedDocument;
+use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
+use test_utils::lockbook_server_lib::ServerState;
 use test_utils::lockbook_server_lib::billing::Nop;
 use test_utils::lockbook_server_lib::document_service::DocumentService;
 use test_utils::lockbook_server_lib::in_process::{InMemDocuments, InMemoryServer};
-use test_utils::lockbook_server_lib::{ServerError, ServerState};
 use test_utils::{random_name, test_config};
 use tokio::sync::Notify;
 use uuid::Uuid;
@@ -25,11 +25,10 @@ struct GatedDocuments {
     release: Arc<Notify>,
 }
 
-#[async_trait]
-impl DocumentService for GatedDocuments {
-    async fn insert<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
-    ) -> Result<(), ServerError<T>> {
+impl DocumentStore for GatedDocuments {
+    async fn insert(
+        &self, id: Uuid, hmac: DocumentHmac, content: &EncryptedDocument,
+    ) -> LbResult<()> {
         // The one armed upload parks here, after the server validated the edit and before it
         // commits the new metadata, so the test can run another device's pull inside that window.
         if self.armed.swap(false, Ordering::SeqCst) {
@@ -39,27 +38,21 @@ impl DocumentService for GatedDocuments {
         self.docs.insert(id, hmac, content).await
     }
 
-    async fn get<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
-    ) -> Result<EncryptedDocument, ServerError<T>> {
-        self.docs.get(id, hmac).await
-    }
-
-    async fn maybe_get<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
-    ) -> Result<Option<EncryptedDocument>, ServerError<T>> {
+    async fn maybe_get(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Option<EncryptedDocument>> {
         self.docs.maybe_get(id, hmac).await
     }
 
-    async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>> {
+    async fn delete(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
         self.docs.delete(id, hmac).await
     }
 
-    fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool {
+    fn exists(&self, id: Uuid, hmac: DocumentHmac) -> bool {
         self.docs.exists(id, hmac)
     }
+}
 
-    fn get_path(&self, id: &Uuid, hmac: &DocumentHmac) -> PathBuf {
+impl DocumentService for GatedDocuments {
+    fn get_path(&self, id: Uuid, hmac: DocumentHmac) -> PathBuf {
         self.docs.get_path(id, hmac)
     }
 }
@@ -89,7 +82,9 @@ async fn pull_during_content_upload_still_gets_the_edit() {
     let server = gated_server();
     let gate = server.document_service.clone();
 
-    let writer = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let writer = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
+        .await
+        .unwrap();
     writer
         .create_account(&random_name(), "", false)
         .await
@@ -98,7 +93,9 @@ async fn pull_during_content_upload_still_gets_the_edit() {
     writer.write_document(doc, b"before").await.unwrap();
     writer.sync().await.unwrap();
 
-    let reader = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let reader = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
+        .await
+        .unwrap();
     let key = writer.export_account_private_key().unwrap();
     reader.import_account(&key, None).await.unwrap();
     reader.sync().await.unwrap();
@@ -128,7 +125,9 @@ async fn same_edit_uploaded_twice_at_once_stays_readable() {
     let server = gated_server();
     let gate = server.document_service.clone();
 
-    let first = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let first = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
+        .await
+        .unwrap();
     first
         .create_account(&random_name(), "", false)
         .await
@@ -137,7 +136,9 @@ async fn same_edit_uploaded_twice_at_once_stays_readable() {
     first.write_document(doc, b"before").await.unwrap();
     first.sync().await.unwrap();
 
-    let second = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let second = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
+        .await
+        .unwrap();
     let key = first.export_account_private_key().unwrap();
     second.import_account(&key, None).await.unwrap();
     second.sync().await.unwrap();
@@ -156,7 +157,9 @@ async fn same_edit_uploaded_twice_at_once_stays_readable() {
         .await
         .expect("both uploads finish");
 
-    let third = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let third = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
+        .await
+        .unwrap();
     third.import_account(&key, None).await.unwrap();
     third.sync().await.unwrap();
     assert_eq!(third.read_document(doc, false).await.unwrap(), b"after");
@@ -168,7 +171,9 @@ async fn undo_during_content_upload_keeps_the_undo() {
     let server = gated_server();
     let gate = server.document_service.clone();
 
-    let writer = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let writer = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
+        .await
+        .unwrap();
     writer
         .create_account(&random_name(), "", false)
         .await
@@ -193,7 +198,9 @@ async fn undo_during_content_upload_keeps_the_undo() {
     writer.sync().await.unwrap();
     assert_eq!(writer.read_document(doc, false).await.unwrap(), b"before");
 
-    let reader = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let reader = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
+        .await
+        .unwrap();
     let key = writer.export_account_private_key().unwrap();
     reader.import_account(&key, None).await.unwrap();
     reader.sync().await.unwrap();

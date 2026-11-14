@@ -1,3 +1,4 @@
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use std::collections::HashSet;
 
@@ -15,7 +16,7 @@ use uuid::Uuid;
 
 use super::events::Actor;
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn read_document(
         &self, id: Uuid, user_activity: bool,
@@ -83,7 +84,7 @@ impl<S: Server> Lb<S> {
             match hmac {
                 Some(hmac) => {
                     let key = tree.decrypt_key(&id, &self.keychain)?;
-                    let local_blob = self.docs.maybe_get(id, Some(hmac)).await?;
+                    let local_blob = self.docs.maybe_get(id, hmac).await?;
                     if local_blob.is_none() && !retried {
                         drop(tx);
                         // catch up our local db and try to read again

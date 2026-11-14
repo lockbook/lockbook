@@ -1,3 +1,4 @@
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use std::num::NonZeroUsize;
 use std::thread;
@@ -11,7 +12,7 @@ use crate::model::tree_like::TreeLike;
 use crate::Lb;
 use crate::model::errors::{LbErrKind, LbResult, Warning};
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn test_repo_integrity(&self, check_docs: bool) -> LbResult<Vec<Warning>> {
         let tx = self.ro_tx().await;

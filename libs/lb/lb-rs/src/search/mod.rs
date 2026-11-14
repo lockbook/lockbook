@@ -1,3 +1,4 @@
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 pub mod content;
 pub mod path;
@@ -46,7 +47,7 @@ use crate::Lb;
 
 const MAX_SEARCHED_FILES: usize = 100;
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     pub async fn path_searcher(&self) -> PathSearcher {
         PathSearcher::new(self).await
     }

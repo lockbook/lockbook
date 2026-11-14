@@ -4,6 +4,7 @@ pub mod gate;
 pub mod prop;
 pub mod shrink;
 
+use lb_rs::io::docs::AsyncDocs;
 use lb_rs::io::server::Server;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::{ClientType, Config};
@@ -45,7 +46,9 @@ pub async fn test_core() -> Lb {
 
 /// A client on the server every test shares, configured by the caller (background work, logs).
 pub async fn test_core_with(config: Config) -> Lb {
-    Lb::in_memory(config, SERVER.clone()).await.unwrap()
+    Lb::in_memory(config, SERVER.clone(), AsyncDocs::in_memory())
+        .await
+        .unwrap()
 }
 
 pub async fn test_core_from(core: &Lb) -> Lb {
