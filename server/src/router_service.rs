@@ -316,6 +316,9 @@ where
     D: DocumentService,
 {
     core_req!(NewAccountRequestV2, ServerState::new_account_v2, server_state)
+        .or(core_req!(NewSubAccountRequest, ServerState::new_sub_account, server_state))
+        .or(core_req!(ListSubAccountsRequest, ServerState::list_sub_accounts, server_state))
+        .or(core_req!(DeleteSubAccountRequest, ServerState::delete_sub_account, server_state))
         .or(core_req!(ChangeDocRequestV2, ServerState::change_doc_v2, server_state))
         .or(core_req!(UpsertRequestV2, ServerState::upsert_file_metadata_v2, server_state))
         .or(core_req!(GetDocRequest, ServerState::get_document, server_state))

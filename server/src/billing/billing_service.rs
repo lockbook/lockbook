@@ -96,6 +96,10 @@ where
     ) -> Result<UpgradeAccountAppStoreResponse, ServerError<UpgradeAccountAppStoreError>> {
         let request = &context.request;
 
+        if self.is_sub_account(&context.public_key).await {
+            return Err(ClientError(UpgradeAccountAppStoreError::AlreadyPremium));
+        }
+
         let mut account = self.lock_subscription_profile(&context.public_key).await?;
 
         debug!("Upgrading the account of a user through app store billing");
@@ -156,6 +160,10 @@ where
     ) -> Result<UpgradeAccountGooglePlayResponse, ServerError<UpgradeAccountGooglePlayError>> {
         let request = &context.request;
 
+        if self.is_sub_account(&context.public_key).await {
+            return Err(ClientError(UpgradeAccountGooglePlayError::AlreadyPremium));
+        }
+
         let mut account = self.lock_subscription_profile(&context.public_key).await?;
 
         if account.billing_info.is_premium() {
@@ -206,6 +214,10 @@ where
         let request = &context.request;
 
         debug!("Attempting to upgrade the account tier of to premium");
+
+        if self.is_sub_account(&context.public_key).await {
+            return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
+        }
 
         let mut account = self.lock_subscription_profile(&context.public_key).await?;
 
@@ -281,17 +293,27 @@ where
     async fn read_billing_platform(
         &self, public_key: &PublicKey,
     ) -> Result<Option<BillingPlatform>, ServerError<GetSubscriptionInfoError>> {
-        Ok(self
-            .index_db
-            .lock()
-            .await
-            .schema
+        let db = &self.index_db.lock().await.schema;
+        let owner = Owner(*public_key);
+        if !db.accounts.contains_key(&owner) {
+            return Err(ClientError(GetSubscriptionInfoError::UserNotFound));
+        }
+
+        let billed_owner = Self::billed_owner(db, owner);
+        let mut platform = db
             .accounts
-            .get(&Owner(*public_key))
+            .get(&billed_owner)
             .ok_or(ClientError(GetSubscriptionInfoError::UserNotFound))?
             .billing_info
             .billing_platform
-            .clone())
+            .clone();
+        if billed_owner != owner {
+            if let Some(BillingPlatform::Stripe(info)) = &mut platform {
+                info.last_4.clear();
+            }
+        }
+
+        Ok(platform)
     }
 
     pub async fn cancel_subscription(
@@ -308,6 +330,9 @@ where
             let mut tx = ServerTx::begin(&mut lock)?;
             let db = &mut *tx;
 
+            let other_usage =
+                Self::other_family_usage::<CancelSubscriptionError>(db, Owner(context.public_key))?;
+
             let mut tree = ServerTree::new(
                 Owner(context.public_key),
                 &mut db.owned_files,
@@ -317,7 +342,7 @@ where
             )?
             .to_lazy();
 
-            let usage = tree.calculate_usage(Owner(context.public_key))?;
+            let usage = tree.calculate_usage(Owner(context.public_key))? + other_usage;
 
             if usage > FREE_TIER_USAGE_SIZE {
                 debug!("Cannot downgrade user to free since they are over the data cap");

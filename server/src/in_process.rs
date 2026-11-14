@@ -186,6 +186,30 @@ where
             .map_err(api_error)
     }
 
+    async fn new_sub_account(
+        &self, account: &Account, request: NewSubAccountRequest,
+    ) -> ApiResult<NewSubAccountRequest> {
+        ServerState::new_sub_account(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
+    async fn list_sub_accounts(
+        &self, account: &Account, request: ListSubAccountsRequest,
+    ) -> ApiResult<ListSubAccountsRequest> {
+        ServerState::list_sub_accounts(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
+    async fn delete_sub_account(
+        &self, account: &Account, request: DeleteSubAccountRequest,
+    ) -> ApiResult<DeleteSubAccountRequest> {
+        ServerState::delete_sub_account(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
     async fn change_doc_v2(
         &self, account: &Account, request: ChangeDocRequestV2,
     ) -> ApiResult<ChangeDocRequestV2> {

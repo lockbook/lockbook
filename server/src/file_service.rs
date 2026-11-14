@@ -72,13 +72,15 @@ where
         let mut affected_owners: HashSet<Owner> = HashSet::new();
         for update in &updates {
             affected_owners.insert(update.new.owner());
+            if let Some(old) = &update.old {
+                affected_owners.insert(old.owner());
+            }
         }
 
         // Get usage caps and calculate old/new usage for each affected owner
         // Each owner needs their own tree to see all their files
+        let mut usages = HashMap::new();
         for &owner in &affected_owners {
-            let usage_cap = Self::get_cap(db, &owner.0).map_err(|err| internal!("{:?}", err))?;
-
             let mut tree = ServerTree::new(
                 owner,
                 &mut db.owned_files,
@@ -92,10 +94,34 @@ where
             let mut tree = tree.stage_unvalidated(updates.clone(), self.clock.now().0 as u64);
             let new_usage = tree.calculate_usage(owner)?;
 
-            debug!(?owner, ?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
+            usages.insert(owner, (old_usage, new_usage));
+        }
+
+        let billed_owners: HashSet<Owner> = affected_owners
+            .iter()
+            .map(|owner| Self::billed_owner(db, *owner))
+            .collect();
+        for billed_owner in billed_owners {
+            let usage_cap =
+                Self::get_cap(db, &billed_owner.0).map_err(|err| internal!("{:?}", err))?;
+
+            let (mut old_usage, mut new_usage) = (0, 0);
+            for member in Self::family(db, billed_owner) {
+                let (old, new) = match usages.get(&member) {
+                    Some(usage) => *usage,
+                    None => {
+                        let usage = Self::cached_usage(db, member)?;
+                        (usage, usage)
+                    }
+                };
+                old_usage += old;
+                new_usage += new;
+            }
+
+            debug!(?billed_owner, ?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
 
             if new_usage > usage_cap && new_usage >= old_usage {
-                warn!(?owner, "user over cap");
+                warn!(?billed_owner, "user over cap");
                 return Err(ClientError(UpsertError::UsageIsOverDataCap));
             }
         }
@@ -133,6 +159,12 @@ where
                     db.shared_files
                         .remove(&Owner(user_access_info.encrypted_for), id)?;
                 }
+            }
+        }
+
+        for (owner, (_, usage)) in usages {
+            if db.usage_by_owner.contains_key(&owner) {
+                db.usage_by_owner.insert(owner, usage)?;
             }
         }
 
@@ -187,6 +219,7 @@ where
         let tree_owner = og_meta.owner();
 
         let usage_cap = Self::get_cap(db, &tree_owner.0).map_err(|err| internal!("{:?}", err))?;
+        let other_usage = Self::other_family_usage(db, tree_owner)?;
 
         let tree = ServerTree::new(
             requester,
@@ -227,7 +260,7 @@ where
         let new_usage = tree.calculate_usage(tree_owner)?;
         debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
 
-        if new_usage > usage_cap && new_usage >= old_usage {
+        if new_usage + other_usage > usage_cap && new_usage >= old_usage {
             warn!("user over cap");
             return Err(ClientError(UsageIsOverDataCap));
         }
@@ -276,11 +309,14 @@ where
             let mut tree = tree.stage(vec![new_meta]);
             let new_usage = tree.calculate_usage(tree_owner)?;
             tree.validate(requester)?;
-            if new_usage > usage_cap && new_usage >= old_usage {
+            if new_usage + other_usage > usage_cap && new_usage >= old_usage {
                 warn!("user over cap");
                 return Err(ClientError(UsageIsOverDataCap));
             }
             tree.promote()?;
+            if db.usage_by_owner.contains_key(&tree_owner) {
+                db.usage_by_owner.remove(&tree_owner)?;
+            }
             db.scheduled_file_cleanups.remove(&(id, hmac_bytes))?;
 
             if let Some(old_hmac) = diff.old.and_then(|old| old.document_hmac().copied()) {
@@ -373,14 +409,15 @@ where
 
         if self.config.features.bandwidth_controls {
             let mut server_wide = db.server_egress.as_ref().cloned().unwrap_or_default();
+            let billed_owner = Self::billed_owner(db, requester);
             let mut account_bandwidth = db
                 .egress_by_owner
-                .get(&requester)
+                .get(&billed_owner)
                 .cloned()
                 .unwrap_or_default();
             let account_bandwidth_cap = db
                 .accounts
-                .get(&requester)
+                .get(&billed_owner)
                 .map(|account| account.billing_info.bandwidth_cap())
                 .unwrap_or_default();
 
@@ -398,7 +435,7 @@ where
             account_bandwidth.increase_by(doc_size);
 
             db.server_egress.replace(server_wide)?;
-            db.egress_by_owner.insert(requester, account_bandwidth)?;
+            db.egress_by_owner.insert(billed_owner, account_bandwidth)?;
         }
 
         tx.end()?;
@@ -574,6 +611,8 @@ where
                     );
                 }
             }
+
+            db.usage_by_owner.remove(&owner)?;
 
             let username = db
                 .accounts

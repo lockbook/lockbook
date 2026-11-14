@@ -1,5 +1,5 @@
 use crate::ServerError;
-use lb_rs::model::account::MAX_USERNAME_LENGTH;
+use lb_rs::model::account::{MAX_USERNAME_LENGTH, SUB_ACCOUNT_SEPARATOR};
 use lb_rs::model::api::{GetBuildInfoError, GetBuildInfoResponse};
 
 pub fn username_is_valid(username: &str) -> bool {
@@ -13,6 +13,14 @@ pub fn username_is_valid(username: &str) -> bool {
                 || c == '.'
                 || c == '@'
         })
+}
+
+pub fn sub_account_username_is_valid(parent: &str, username: &str) -> bool {
+    username.len() <= MAX_USERNAME_LENGTH
+        && username
+            .strip_prefix(parent)
+            .and_then(|rest| rest.strip_prefix(SUB_ACCOUNT_SEPARATOR))
+            .is_some_and(username_is_valid)
 }
 
 pub fn get_build_info() -> Result<GetBuildInfoResponse, ServerError<GetBuildInfoError>> {
