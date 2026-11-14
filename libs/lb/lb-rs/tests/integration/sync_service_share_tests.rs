@@ -1275,3 +1275,90 @@ async fn decline_share_holding_a_link_inside_it() {
     recipient.sync().await.unwrap();
     assert::all_paths(&recipient, &["/", "/note.md"]).await;
 }
+
+/// One device edits a note in a share while another device of that account moves the note's folder
+/// out of the share and leaves it; the edit survives, whichever device syncs first.
+#[tokio::test]
+async fn leave_share_after_moving_folder_out_keeps_another_devices_edit() {
+    for phone_syncs_first in [true, false] {
+        let owner = test_core_with_account().await;
+        let laptop = test_core_with_account().await;
+        let laptop_name = laptop.get_account().unwrap().username.clone();
+
+        let trip = owner.create_at_path("/trip/").await.unwrap();
+        let note = owner
+            .create_at_path("/trip/flights/return.md")
+            .await
+            .unwrap();
+        owner.write_document(note.id, b"BOS").await.unwrap();
+        owner
+            .share_file(trip.id, &laptop_name, ShareMode::Write)
+            .await
+            .unwrap();
+        owner.sync().await.unwrap();
+        laptop.sync().await.unwrap();
+        laptop.create_link_at_path("/trip", trip.id).await.unwrap();
+        laptop.sync().await.unwrap();
+        let phone = another_client(&laptop).await;
+        phone.sync().await.unwrap();
+
+        phone.write_document(note.id, b"BOS\nSFO").await.unwrap();
+        if phone_syncs_first {
+            phone.sync().await.unwrap();
+        }
+
+        move_by_path(&laptop, "/trip/flights/", "/").await.unwrap();
+        laptop.reject_share(&trip.id).await.unwrap();
+        laptop.sync().await.unwrap();
+        phone.sync().await.unwrap();
+        laptop.sync().await.unwrap();
+        owner.sync().await.unwrap();
+
+        for device in [&laptop, &phone] {
+            assert::all_paths(device, &["/", "/flights/", "/flights/return.md"]).await;
+            let content = device.read_document(note.id, false).await.unwrap();
+            assert_eq!(content, b"BOS\nSFO", "phone_syncs_first: {phone_syncs_first}");
+        }
+    }
+}
+
+/// One device edits a note in a share while another device of that account moves the note's folder
+/// out of the share, then the owner unshares it; the edit survives.
+#[tokio::test]
+async fn unshare_after_moving_folder_out_keeps_another_devices_edit() {
+    let owner = test_core_with_account().await;
+    let laptop = test_core_with_account().await;
+    let laptop_name = laptop.get_account().unwrap().username.clone();
+
+    let trip = owner.create_at_path("/trip/").await.unwrap();
+    let note = owner
+        .create_at_path("/trip/flights/return.md")
+        .await
+        .unwrap();
+    owner.write_document(note.id, b"BOS").await.unwrap();
+    owner
+        .share_file(trip.id, &laptop_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    laptop.sync().await.unwrap();
+    laptop.create_link_at_path("/trip", trip.id).await.unwrap();
+    laptop.sync().await.unwrap();
+    let phone = another_client(&laptop).await;
+    phone.sync().await.unwrap();
+
+    phone.write_document(note.id, b"BOS\nSFO").await.unwrap();
+    move_by_path(&laptop, "/trip/flights/", "/").await.unwrap();
+    laptop.sync().await.unwrap();
+    owner.sync().await.unwrap();
+    owner.unshare_file(trip.id, &laptop_name).await.unwrap();
+    owner.sync().await.unwrap();
+    phone.sync().await.unwrap();
+    laptop.sync().await.unwrap();
+
+    for device in [&laptop, &phone] {
+        assert::all_paths(device, &["/", "/flights/", "/flights/return.md"]).await;
+        let content = device.read_document(note.id, false).await.unwrap();
+        assert_eq!(content, b"BOS\nSFO");
+    }
+}
