@@ -1,5 +1,6 @@
 use super::{SearchFilter, SearchResult, build_descendants};
 use crate::Lb;
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use crate::model::file::File;
 use nucleo::{
@@ -53,7 +54,7 @@ pub struct PathSearcher {
 }
 
 impl PathSearcher {
-    pub async fn new<S: Server>(lb: &Lb<S>) -> Self {
+    pub async fn new<S: Server, D: LocalDocuments>(lb: &Lb<S, D>) -> Self {
         let files = lb.list_metadatas().await.unwrap_or_default();
         let paths = lb.list_paths_with_ids(None).await.unwrap_or_default();
         let by_id: HashMap<Uuid, File> = files.into_iter().map(|f| (f.id, f)).collect();

@@ -1,9 +1,10 @@
 use crate::Lb;
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// hint to background processing pipelines whether or not a user is around
     pub fn app_foregrounded(&self) {
         let bg_lb = self.clone();

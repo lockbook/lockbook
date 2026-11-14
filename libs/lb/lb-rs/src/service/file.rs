@@ -1,4 +1,5 @@
 use crate::Lb;
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use crate::model::access_info::UserAccessMode;
 use crate::model::errors::{LbErrKind, LbResult};
@@ -6,13 +7,12 @@ use crate::model::file::File;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::filename::{MAX_FILENAME_LENGTH, NameComponents};
-use crate::model::symkey;
 use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
 use std::iter;
 use uuid::Uuid;
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_file(
         &self, name: &str, parent: &Uuid, file_type: FileType,
@@ -29,8 +29,8 @@ impl<S: Server> Lb<S> {
             .to_lazy();
 
         let id = tree.create(
-            Uuid::new_v4(),
-            symkey::generate_key(),
+            self.entropy.id(),
+            self.entropy.key(),
             parent,
             name,
             file_type,

@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use async_trait::async_trait;
 use db_rs::View;
+use lb_rs::io::copy::copy_db;
 use lb_rs::io::network::ApiError;
 use lb_rs::io::server::{ApiResult, Server};
 use lb_rs::model::account::Account;
@@ -29,6 +29,8 @@ use crate::document_service::DocumentService;
 use crate::schema::ServerDb;
 use crate::utils::get_build_info;
 use crate::{RequestContext, ServerError, ServerState};
+use lb_rs::io::docs::DocumentStore;
+use lb_rs::model::errors::LbResult;
 
 /// A server whose index and documents live in memory, with no billing.
 pub type InMemoryServer = ServerState<Nop, Nop, Nop, InMemDocuments>;
@@ -36,6 +38,13 @@ pub type InMemoryServer = ServerState<Nop, Nop, Nop, InMemDocuments>;
 impl InMemoryServer {
     /// An empty server that accepts new accounts and has no admins.
     pub fn in_memory() -> Self {
+        ServerState::with_documents(InMemDocuments::default())
+    }
+}
+
+impl<D: DocumentService> ServerState<Nop, Nop, Nop, D> {
+    /// [`InMemoryServer::in_memory`] with `documents` as its document store.
+    pub fn with_documents(documents: D) -> Self {
         let config = in_process_config();
         let index_db = ServerDb::init(&db_rs::config::Config::in_memory())
             .expect("an in-memory database initializes");
@@ -45,10 +54,32 @@ impl InMemoryServer {
             stripe_client: Nop {},
             google_play_client: Nop {},
             app_store_client: Nop {},
-            document_service: InMemDocuments::default(),
+            document_service: documents,
             discord_client: Default::default(),
             recent_new_account_ips: Default::default(),
             clock: Default::default(),
+        }
+    }
+}
+
+impl<D: DocumentService> ServerState<Nop, Nop, Nop, D> {
+    /// A server holding this one's index, its settings and `documents`, sharing nothing with it.
+    pub async fn copy_with<E: DocumentService>(
+        &self, documents: E,
+    ) -> ServerState<Nop, Nop, Nop, E> {
+        let index_db =
+            copy_db(&mut *self.index_db.lock().await).expect("an in-memory database copies");
+        let ips = self.recent_new_account_ips.lock().await.clone();
+        ServerState {
+            config: self.config.clone(),
+            index_db: Arc::new(tokio::sync::Mutex::new(index_db)),
+            stripe_client: Nop {},
+            google_play_client: Nop {},
+            app_store_client: Nop {},
+            document_service: documents,
+            discord_client: self.discord_client.clone(),
+            recent_new_account_ips: Arc::new(tokio::sync::Mutex::new(ips)),
+            clock: Arc::new((*self.clock).clone()),
         }
     }
 }
@@ -116,42 +147,40 @@ pub struct InMemDocuments {
     docs: Arc<Mutex<HashMap<(Uuid, DocumentHmac), EncryptedDocument>>>,
 }
 
-#[async_trait]
-impl DocumentService for InMemDocuments {
-    async fn insert<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
-    ) -> Result<(), ServerError<T>> {
+impl InMemDocuments {
+    /// A store holding these documents, sharing nothing with this one.
+    pub fn copy(&self) -> Self {
+        Self { docs: Arc::new(Mutex::new(self.docs.lock().unwrap().clone())) }
+    }
+}
+
+impl DocumentStore for InMemDocuments {
+    async fn insert(
+        &self, id: Uuid, hmac: DocumentHmac, content: &EncryptedDocument,
+    ) -> LbResult<()> {
         self.docs
             .lock()
             .unwrap()
-            .insert((*id, *hmac), content.clone());
+            .insert((id, hmac), content.clone());
         Ok(())
     }
 
-    async fn get<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
-    ) -> Result<EncryptedDocument, ServerError<T>> {
-        self.maybe_get(id, hmac)
-            .await?
-            .ok_or_else(|| internal!("no document {id} at that hmac"))
+    async fn maybe_get(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Option<EncryptedDocument>> {
+        Ok(self.docs.lock().unwrap().get(&(id, hmac)).cloned())
     }
 
-    async fn maybe_get<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
-    ) -> Result<Option<EncryptedDocument>, ServerError<T>> {
-        Ok(self.docs.lock().unwrap().get(&(*id, *hmac)).cloned())
-    }
-
-    async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>> {
-        self.docs.lock().unwrap().remove(&(*id, *hmac));
+    async fn delete(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
+        self.docs.lock().unwrap().remove(&(id, hmac));
         Ok(())
     }
 
-    fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool {
-        self.docs.lock().unwrap().contains_key(&(*id, *hmac))
+    fn exists(&self, id: Uuid, hmac: DocumentHmac) -> bool {
+        self.docs.lock().unwrap().contains_key(&(id, hmac))
     }
+}
 
-    fn get_path(&self, id: &Uuid, hmac: &DocumentHmac) -> PathBuf {
+impl DocumentService for InMemDocuments {
+    fn get_path(&self, id: Uuid, hmac: DocumentHmac) -> PathBuf {
         let hmac = base64::encode_config(hmac, base64::URL_SAFE);
         PathBuf::from(format!("memory/{id}-{hmac}"))
     }

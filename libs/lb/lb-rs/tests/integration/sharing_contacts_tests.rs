@@ -1,5 +1,6 @@
 use lb_rs::model::access_info::{UserAccessInfo, UserAccessMode};
 use lb_rs::model::account::Account;
+use lb_rs::model::entropy::Entropy;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::model::{meta::Meta, symkey};
@@ -54,7 +55,7 @@ async fn account_contacts_count_documents_in_both_directions() {
     let dave = Account::new("dave".into(), "unused".into());
     let unknown = Account::new("unknown".into(), "unused".into());
     core.keychain.cache_account(adam.clone()).await.unwrap();
-    let root = Meta::create_root(&adam).unwrap();
+    let root = Meta::create_root(&adam, &Entropy::default()).unwrap();
     let mut folder = node(&adam, *root.id(), FileType::Folder);
     share(&mut folder, &adam, &alice);
     let mut first = node(&adam, *folder.id(), FileType::Document);

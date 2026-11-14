@@ -1,3 +1,4 @@
+use lb_rs::io::docs::DocumentStore;
 use lb_rs::model::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
@@ -36,7 +37,7 @@ async fn report_usage() {
         .document_hmac()
         .cloned();
     let docs = &core.docs;
-    let local_encrypted = docs.get(file.id, hmac).await.unwrap().value;
+    let local_encrypted = docs.get(file.id, hmac.unwrap()).await.unwrap().value;
 
     assert_eq!(core.get_usage().await.unwrap().usages.len(), 2);
     assert_eq!(
@@ -128,7 +129,7 @@ async fn usage_go_back_down_after_delete_folder() {
         .cloned();
 
     let docs = &core.docs;
-    docs.get(file.id, hmac).await.unwrap();
+    docs.get(file.id, hmac.unwrap()).await.unwrap();
 
     let usage = core
         .get_usage()
@@ -224,7 +225,7 @@ async fn upsert_meta_over_data_cap() {
             .cloned()
     };
     let docs = &core.docs;
-    let local_encrypted = docs.get(document.id, hmac).await.unwrap().value;
+    let local_encrypted = docs.get(document.id, hmac.unwrap()).await.unwrap().value;
 
     let file_capacity =
         (FREE_TIER_USAGE_SIZE - local_encrypted.len() as u64) as f64 / METADATA_FEE as f64;

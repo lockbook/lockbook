@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use lb_rs::io::docs::AsyncDocs;
+use lb_rs::io::docs::{AsyncDocs, DocumentStore};
 use lb_rs::model::crypto::AESEncrypted;
 use lb_rs::model::symkey;
 use test_utils::{self, test_config};
@@ -11,7 +11,7 @@ async fn get() {
 
     let id = Uuid::new_v4();
     let docs = AsyncDocs::from(config);
-    let result = docs.get(id, Some(Default::default())).await;
+    let result = docs.get(id, Default::default()).await;
 
     assert!(result.is_err());
 }
@@ -22,7 +22,7 @@ async fn maybe_get() {
 
     let id = Uuid::new_v4();
     let docs = AsyncDocs::from(config);
-    let result = docs.maybe_get(id, Some(Default::default())).await.unwrap();
+    let result = docs.maybe_get(id, Default::default()).await.unwrap();
 
     assert_eq!(result, None);
 }
@@ -35,10 +35,10 @@ async fn insert_get() {
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    docs.insert(id, Some(Default::default()), &document)
+    docs.insert(id, Default::default(), &document)
         .await
         .unwrap();
-    let result = docs.get(id, Some(Default::default())).await.unwrap();
+    let result = docs.get(id, Default::default()).await.unwrap();
 
     assert_eq!(result, document);
 }
@@ -53,10 +53,10 @@ async fn insert_get_different_hmac() {
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     docs.insert(
         id,
-        Some([
+        [
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0,
-        ]),
+        ],
         &document,
     )
     .await
@@ -64,10 +64,10 @@ async fn insert_get_different_hmac() {
     let result = docs
         .maybe_get(
             id,
-            Some([
+            [
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 1,
-            ]),
+            ],
         )
         .await
         .unwrap();
@@ -83,15 +83,15 @@ async fn insert_get_overwrite_different_source() {
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    docs.insert(id, Some(Default::default()), &document)
+    docs.insert(id, Default::default(), &document)
         .await
         .unwrap();
     let (id_2, document_2) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_2").into_bytes()).unwrap());
-    docs.insert(id_2, Some(Default::default()), &document_2)
+    docs.insert(id_2, Default::default(), &document_2)
         .await
         .unwrap();
-    let result = docs.get(id, Some(Default::default())).await.unwrap();
+    let result = docs.get(id, Default::default()).await.unwrap();
 
     assert_eq!(result, document);
 }
@@ -104,27 +104,27 @@ async fn insert_get_all() {
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    docs.insert(id, Some(Default::default()), &document)
+    docs.insert(id, Default::default(), &document)
         .await
         .unwrap();
     let (id_2, document_2) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_2").into_bytes()).unwrap());
-    docs.insert(id_2, Some(Default::default()), &document_2)
+    docs.insert(id_2, Default::default(), &document_2)
         .await
         .unwrap();
     let (id_3, document_3) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_3").into_bytes()).unwrap());
-    docs.insert(id_3, Some(Default::default()), &document_3)
+    docs.insert(id_3, Default::default(), &document_3)
         .await
         .unwrap();
     let (id_4, document_4) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_4").into_bytes()).unwrap());
-    docs.insert(id_4, Some(Default::default()), &document_4)
+    docs.insert(id_4, Default::default(), &document_4)
         .await
         .unwrap();
     let (id_5, document_5) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_5").into_bytes()).unwrap());
-    docs.insert(id_5, Some(Default::default()), &document_5)
+    docs.insert(id_5, Default::default(), &document_5)
         .await
         .unwrap();
     let result = test_utils::doc_repo_get_all(config);
@@ -152,11 +152,11 @@ async fn insert_delete() {
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    docs.insert(id, Some(Default::default()), &document)
+    docs.insert(id, Default::default(), &document)
         .await
         .unwrap();
-    docs.delete(id, Some(Default::default())).await.unwrap();
-    let result = docs.maybe_get(id, Some(Default::default())).await.unwrap();
+    docs.delete(id, Default::default()).await.unwrap();
+    let result = docs.maybe_get(id, Default::default()).await.unwrap();
 
     assert_eq!(result, None);
 }
@@ -188,11 +188,11 @@ async fn concurrent_insert_same_document() {
         let id = Uuid::new_v4();
         let inserts = (0..4).map(|_| {
             let (docs, document) = (docs.clone(), document.clone());
-            tokio::spawn(async move { docs.insert(id, Some(Default::default()), &document).await })
+            tokio::spawn(async move { docs.insert(id, Default::default(), &document).await })
         });
         for insert in futures::future::join_all(inserts).await {
             insert.unwrap().unwrap();
         }
-        assert_eq!(docs.get(id, Some(Default::default())).await.unwrap(), document);
+        assert_eq!(docs.get(id, Default::default()).await.unwrap(), document);
     }
 }

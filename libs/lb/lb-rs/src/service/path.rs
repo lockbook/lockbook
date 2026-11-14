@@ -6,7 +6,7 @@ use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
 use uuid::Uuid;
 
-impl<S> Lb<S> {
+impl<S, D> Lb<S, D> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_link_at_path(&self, path: &str, target_id: Uuid) -> LbResult<File> {
         let mut tx = self.begin_tx().await;
@@ -18,7 +18,7 @@ impl<S> Lb<S> {
 
         let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
-        let id = tree.create_link_at_path(path, target_id, root, &self.keychain)?;
+        let id = tree.create_link_at_path(path, target_id, root, &self.keychain, &self.entropy)?;
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
@@ -38,7 +38,7 @@ impl<S> Lb<S> {
 
         let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
-        let id = tree.create_at_path(path, root, &self.keychain)?;
+        let id = tree.create_at_path(path, root, &self.keychain, &self.entropy)?;
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 

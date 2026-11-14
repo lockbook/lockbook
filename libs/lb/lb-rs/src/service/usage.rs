@@ -1,4 +1,5 @@
 use crate::Lb;
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use crate::model::api::{FileUsage, GetUsageRequest};
 use crate::model::errors::LbResult;
@@ -18,7 +19,7 @@ pub struct UsageItemMetric {
     pub readable: String,
 }
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// fetches data footprint on server along with data cap information
     /// compares this to local changes to estimate net data increase
     ///

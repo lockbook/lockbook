@@ -5,6 +5,7 @@
 //! suitable for a range of devices: iPhones with flaky networks to servers
 //! and workstations with excellent networks.
 
+pub mod copy;
 pub mod docs;
 pub mod legacy;
 pub mod network;
@@ -226,7 +227,7 @@ impl Drop for LbTx<'_> {
     }
 }
 
-impl<S> Lb<S> {
+impl<S, D> Lb<S, D> {
     pub async fn ro_tx(&self) -> LbRO<'_> {
         let start = Instant::now();
 
