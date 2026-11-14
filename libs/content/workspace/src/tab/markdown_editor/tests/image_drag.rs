@@ -691,7 +691,8 @@ fn an_undo_and_a_key_in_one_frame_let_go_of_the_image() {
     assert!(ws.editor.edit.in_progress_image_drag.is_none(), "the image is let go");
 }
 
-/// The note's images and its HTML and code blocks, as the editor parses it.
+/// The note's images and its HTML blocks, code blocks and lists, as the editor
+/// parses it.
 fn images_and_html(md: &str) -> (usize, Vec<String>) {
     use comrak::nodes::NodeValue;
     let arena = comrak::Arena::new();
@@ -705,6 +706,7 @@ fn images_and_html(md: &str) -> (usize, Vec<String>) {
         .filter_map(|n| match &n.data.borrow().value {
             NodeValue::HtmlBlock(html) => Some(html.literal.clone()),
             NodeValue::CodeBlock(code) => Some(code.literal.clone()),
+            NodeValue::List(_) => Some("list".into()),
             _ => None,
         })
         .collect();
@@ -724,7 +726,8 @@ fn an_image_dropped_below_an_html_block_stays_an_image() {
 
 /// A line the image takes as its own joins its neighbours: below an HTML
 /// block that runs to a blank line, in a quote or a list too, or above a
-/// block that can't interrupt a paragraph, the drop lands elsewhere, the image
+/// block that can't interrupt a paragraph (a custom tag, indented code, or a
+/// list not starting at 1 or with an empty first item), the drop lands elsewhere, the image
 /// an image and the blocks as they were.
 #[test]
 fn an_image_dropped_beside_a_block_that_would_join_it_stays_an_image() {
@@ -734,6 +737,8 @@ fn an_image_dropped_beside_a_block_that_would_join_it_stays_an_image() {
         (format!("<custom-tag>\n\nnext\n\n{image}\n"), "<custom-tag>\n"),
         (format!("{image}\n\n{tags}\nend\n"), "<custom-tag>\n"),
         (format!("para\n\n    code\n\n{image}\n"), "para\n"),
+        (format!("para\n\n3. x\n\n{image}\n"), "para\n"),
+        (format!("para\n\n-\n  x\n\n{image}\n"), "para\n"),
         (format!("> <aside>\n> hi\n> </aside>\n>\n> next\n\n{image}\n"), "</aside>\n>"),
         (format!("- <aside>\n  hi\n  </aside>\n\n  next\n\n{image}\n"), "</aside>\n"),
     ];
