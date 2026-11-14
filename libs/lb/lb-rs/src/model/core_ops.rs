@@ -272,12 +272,27 @@ where
         if !found {
             return Err(LbErrKind::ShareNonexistent.into());
         }
-        result.push(file.sign(keychain)?);
+        let unshared = file.sign(keychain)?;
+        result.push(unshared.clone());
 
-        // delete any links pointing to file
-        if let Some(encrypted_for) = maybe_encrypted_for {
-            if encrypted_for == keychain.get_pk()? {
-                if let Some(link) = self.linked_by(id)? {
+        // delete my links to the file, and to files in it that are no longer shared with me
+        let me = Owner(keychain.get_pk()?);
+        if maybe_encrypted_for == Some(me.0) {
+            let mut links = vec![];
+            for link in self.ids() {
+                if let FileType::Link { target } = self.find(&link)?.file_type() {
+                    if self.find(&link)?.owner() == me && !self.calculate_deleted(&link)? {
+                        links.push((link, target));
+                    }
+                }
+            }
+            let after = StagedTree::new(&self.tree, Some(unshared)).to_lazy();
+            for (link, target) in links {
+                let unreachable = target == *id
+                    || (after.maybe_find(&target).is_some()
+                        && after.ancestors(&target)?.contains(id)
+                        && after.access_mode(me, &target)?.is_none());
+                if unreachable {
                     let mut link = self.find(&link)?.timestamped_value.value.clone();
                     link.set_deleted(true);
                     result.push(link.sign(keychain)?);
