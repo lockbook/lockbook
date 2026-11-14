@@ -401,7 +401,9 @@ fn colon_without_space(line: &str) -> bool {
 /// quotes. `flow` for an item inside brackets, where commas and brackets
 /// are structure too.
 pub fn needs_quotes(s: &str, flow: bool) -> bool {
-    let t = s.trim();
+    // a tab separates as a space does
+    let t = s.replace('\t', " ");
+    let t = t.trim();
     let Some(first) = t.chars().next() else { return false };
     if INDICATORS.contains(first) && !matches!(first, '-' | '?' | ':') {
         return true;

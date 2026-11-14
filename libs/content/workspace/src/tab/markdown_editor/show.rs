@@ -182,6 +182,8 @@ impl MdEdit {
             self.renderer.bounds.front_matter.as_ref(),
             &files,
             file_id,
+            self.renderer.bounds.text_seq,
+            self.renderer.touch_mode,
         );
         if !self.renderer.readonly && self.renderer.kind == Syntax::Markdown {
             self.emoji_completions.handle_input(

@@ -3,7 +3,7 @@
 //! collapses. The properties in `edit_props` carry typing into cells,
 //! list items, row actions, and line endings.
 
-use super::super::input::Event;
+use super::super::input::{Event, FrontMatterAction, Location, Region};
 use super::harness::TestEditor;
 use lb_rs::model::text::offset_types::Grapheme;
 
@@ -48,6 +48,11 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
         (hello, c(16), "{ret}status:x", "---\ntitle: Hello\nstatus: x|\n---\n\nBody"),
         ("---\nstatus\n---", c(10), "{Tab}", "---\nstatus: |\n---"),
         ("---\nkey:\n---", c(8), "v", "---\nkey: v|\n---"),
+        // a span inside hidden syntax edits at its edge: Delete at a value's
+        // end takes nothing, and a selection of the hidden end types into
+        // the value
+        ("---\nt: a \nb: c\n---\n", c(8), "{Delete}", "---\nt: a| \nb: c\n---\n"),
+        ("---\nt: \"a\"\nb: c\n---\n", c(9), "{S-ArrowRight}x", "---\nt: \"ax|\"\nb: c\n---\n"),
         // Backspace in a flow list's first item leaves an empty item, then
         // takes it
         ("---\ntags: [x, a]\n---\n", c(12), "{bs}", "---\ntags: [|, a]\n---\n"),
@@ -92,10 +97,36 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
         // ⌘⌫ empties the cell, then the row, and ⌫ takes the row
         (rows, c(15), "{cmd-bs}", "---\na: 1\nb: |\nc: 3\n---\nBody"),
         (rows, c(15), "{cmd-bs}{cmd-bs}{bs}", "---\na: 1|\nc: 3\n---\nBody"),
+        ("---\nk: [a, b]\n---\n", c(12), "{cmd-bs}", "---\nk: [a, |]\n---\n"),
+        // ⌥↑ and ⌥↓ move the row, the caret with it
+        (rows, c(15), "{alt-ArrowUp}", "---\nb: two|\na: 1\nc: 3\n---\nBody"),
+        (rows, c(15), "{alt-ArrowDown}", "---\na: 1\nc: 3\nb: two|\n---\nBody"),
+        // a selection through the closing fence takes the block from its
+        // first row, else stops at the fence; one over the opening fence,
+        // or typing as the note opens, types into the first key
+        (rows, c(4), "{S-ArrowDown}{S-ArrowDown}{S-ArrowDown}{bs}", "|Body"),
+        (rows, c(9), "{S-ArrowDown}{S-ArrowDown}{S-ArrowDown}{bs}", "---\na: 1\n|\n---\nBody"),
         (ab, Some((0, 4)), "x", "---\nx|a: 1\nb: 2\n---"),
         (ab, None, "x", "---\nx|a: 1\nb: 2\n---"),
+        // a value's first keys pick its kind: `[` a flow list, `- ` a block
+        // list, an empty `[]` goes; a comment's `#` is quoted and quotes
+        // pair and step over
+        ("---\nk:\n---\n", c(6), "[a", "---\nk: [a|]\n---\n"),
+        ("---\nk:\n---\n", c(6), " - a", "---\nk:\n  - a|\n---\n"),
         ("---\nk:\n---\n", c(6), "[{bs}", "---\nk: |\n---\n"),
+        ("---\nk:\n---\n", c(6), "#1", "---\nk: \"#1|\"\n---\n"),
         ("---\nk:\n---\n", c(6), "\"a\"", "---\nk: \"a\"|\n---\n"),
+        ("---\ntags: \n---\n", c(10), "#x", "---\ntags: \"#x|\"\n---\n"),
+        // Space flips a checkbox
+        ("---\nk: true\n---\n", c(4), "{Tab} ", "---\nk: false|\n---\n"),
+        // the list and task shortcuts change a row's kind, a list made text
+        // joining its items as written; the inline ones would write
+        // markdown into the YAML, so do nothing
+        ("---\nk: a\n---\n", c(8), "{cmd-S-8}", "---\nk:\n  - a|\n---\n"),
+        ("---\nk: a\n---\n", c(8), "{cmd-S-8}{cmd-S-8}", "---\nk: a|\n---\n"),
+        ("---\nk:\n  - x\n  - \"y z\"\n---\n", c(4), "{cmd-S-8}", "---\nk: x, \"y z\"|\n---\n"),
+        ("---\nk:\n---\n", c(4), "{cmd-S-8}", "---\nk:\n  - |\n---\n"),
+        ("---\nk: a\n---\n", c(8), "{cmd-S-9}", "---\nk: false|\n---\n"),
         ("---\nk: a\n---\n", c(8), "{cmd-B}", "---\nk: a|\n---\n"),
         // ⌘; adds a property: a block when the note has none, else a row
         // after the caret's, else after the last
@@ -106,6 +137,203 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
     ] {
         assert_eq!(typing_over(md, select, script), want, "{script} at {select:?} in {md:?}");
     }
+}
+
+/// Rule: completions open on typing, or on a click, Tab, or new row
+/// landing on an empty key or value, never on the arrows or a command, so
+/// those keep moving; nothing is highlighted until one is picked or what is
+/// typed is no candidate, so Return and Tab move on; the character that
+/// ends a key or item takes the candidate it finishes.
+#[test]
+fn completions_open_on_typing_with_nothing_highlighted() {
+    #[derive(Debug, PartialEq)]
+    enum Popup {
+        Shut,
+        Open,
+        Highlighted,
+    }
+    let popup = |t: &TestEditor| {
+        let pc = &t.editor.edit.property_completions;
+        match (pc.active && !pc.results.is_empty(), pc.highlighted()) {
+            (false, _) => Popup::Shut,
+            (true, None) => Popup::Open,
+            (true, Some(_)) => Popup::Highlighted,
+        }
+    };
+    let hi = "---\ntitle: Hi\n---\n\nBody";
+    let status = "---\nstatus: \n---\n";
+    for (md, at_, script, want) in [
+        (hi, 13, "{ret}", Popup::Open),
+        (hi, 13, "{ret}st", Popup::Highlighted),
+        (hi, 13, "{ret}{ArrowDown}", Popup::Highlighted),
+        (status, 4, "{Tab}", Popup::Open),
+        (status, 10, "{ArrowRight}", Popup::Shut),
+        ("---\nstatus: done\n---\n", 10, "{Tab}", Popup::Shut),
+        ("---\na: 1\n---\n", 4, "{cmd-;}", Popup::Shut),
+    ] {
+        let mut t = in_vault(md);
+        t.push(at(at_));
+        t.enter_frame();
+        keys(&mut t, script);
+        assert_eq!(popup(&t), want, "{script} at {at_} in {md:?}: {}", shown(&t));
+    }
+    // a click on an empty value, as the app sends one: where it landed
+    let md = "---\ntitle: Hi\nstatus: \n---\n";
+    let mut t = in_vault(md);
+    t.enter_frame();
+    let [top, bottom] = t.editor.edit.cursor_line(Grapheme(22)).unwrap();
+    let pos = egui::pos2(top.x + 1.0, (top.y + bottom.y) / 2.0);
+    t.push(Event::Select { region: Region::Location(Location::Pos(pos)) });
+    t.enter_frame();
+    t.enter_frame();
+    assert_eq!((shown(&t).as_str(), popup(&t)), ("---\ntitle: Hi\nstatus: |\n---\n", Popup::Open));
+    // other notes' values, nearest note first, then count, then name
+    let mut t = in_vault(status);
+    t.push(at(4));
+    t.enter_frame();
+    keys(&mut t, "{Tab}");
+    let results: Vec<&str> = t
+        .editor
+        .edit
+        .property_completions
+        .results
+        .iter()
+        .map(|c| c.text.as_str())
+        .collect();
+    assert_eq!(results, ["doing", "done", "far"]);
+
+    let tags = "---\ntags: [home]\n---\n";
+    for (md, at_, script, want) in [
+        // nothing highlighted: Return and Tab move on
+        (hi, 13, "{ret}{ret}", "---\ntitle: Hi\n---\n\n|Body"),
+        (status, 4, "{Tab}{Tab}", "---\nstatus: \n|\n---\n"),
+        ("---\nstatus:\n---\n", 11, " done{ret}", "---\nstatus: done\n|\n---\n"),
+        // picked with the arrows or Ctrl+N
+        ("---\nstatus:\n---\n", 11, " {ctrl-N}{ctrl-N}{ret}", "---\nstatus: done|\n---\n"),
+        (hi, 13, "{ret}{ArrowDown}{ret}", "---\ntitle: Hi\nstatus: |\n---\n\nBody"),
+        // the ending character takes the candidate it finishes; Return ends
+        // a key too; in a list Return takes the candidate and a comma ends
+        // the item as typed
+        ("", 0, "{cmd-;}sta:", "---\nstatus: |\n---\n"),
+        ("", 0, "{cmd-;}stage:", "---\nstage: |\n---\n"),
+        ("", 0, "{cmd-;}status{ret}", "---\nstatus: |\n---\n"),
+        ("", 0, "{cmd-;}sta{Tab}d{Tab}", "---\nstatus: doing|\n---\n"),
+        (tags, 15, ",ar{ret},ar,", "---\ntags: [home, art, ar, |]\n---\n"),
+        (
+            "---\ntags:\n  - work\n---\n",
+            18,
+            ",ho{ret}{ret}",
+            "---\ntags:\n  - work\n  - home\n|\n---\n",
+        ),
+    ] {
+        let mut t = in_vault(md);
+        t.push(at(at_));
+        t.enter_frame();
+        keys(&mut t, script);
+        assert_eq!(shown(&t), want, "{script} at {at_} in {md:?}");
+    }
+    // the note's own index, saved as it is typed, is no candidate
+    let mut t = in_vault("---\nstatus: do\n---\n");
+    let own = crate::links::read_note("---\nstatus: don\n---\n");
+    let id = t.editor.edit.file_id;
+    t.editor
+        .edit
+        .renderer
+        .files
+        .write()
+        .unwrap()
+        .notes
+        .insert(id, own);
+    t.push(at(14));
+    t.enter_frame();
+    keys(&mut t, "n{Tab}");
+    assert_eq!(shown(&t), "---\nstatus: done|\n---\n");
+}
+
+/// Rule: the shortcut and the toggle collapse the block to pills, moving a
+/// caret in it to the body, every offset keeping a caret position; ↑ or a
+/// pill opens it at a value's end, it stays open, and the body below moves
+/// back.
+#[test]
+fn the_block_collapses_and_the_caret_opens_it() {
+    let md = "---\ntitle: Hello\nstatus: done\ntags: [a, b]\n---\nA long body line here";
+    let node_end = md.find("\n---\n").unwrap() + 4;
+    let toggle = || Event::FrontMatter(FrontMatterAction::ToggleCollapsed);
+    let body_top = |t: &TestEditor| {
+        let body = Grapheme(md.len() - 1);
+        t.editor
+            .edit
+            .renderer
+            .fragment_at_offset(body)
+            .unwrap()
+            .rect
+            .top()
+    };
+    // from a caret or a selection in the block
+    for (shortcut, (a, b)) in [(true, (8, 8)), (false, (8, 8)), (false, (8, 13))] {
+        let mut t = TestEditor::new(md);
+        t.push(Event::Select { region: (Grapheme(a), Grapheme(b)).into() });
+        t.enter_frame();
+        let open = body_top(&t);
+        if shortcut {
+            keys(&mut t, "{cmd-S-D}");
+        } else {
+            t.push(toggle());
+            t.enter_frame();
+            t.enter_frame();
+        }
+        let r = &t.editor.edit.renderer;
+        assert!(r.front_matter_collapsed);
+        assert_eq!(r.buffer.current.selection.1, Grapheme(node_end + 1), "to the body");
+        for o in 0..=node_end {
+            assert!(r.fragment_at_offset(Grapheme(o)).is_some(), "no caret position at {o}");
+        }
+        assert!(body_top(&t) < open);
+        t.push(at(md.len()));
+        t.enter_frame();
+        keys(&mut t, "{ArrowUp}");
+        assert_eq!(shown(&t), md.replace("b]", "b|]"), "↑ lands at the last value's end");
+        t.push(at(md.len()));
+        t.enter_frame();
+        t.enter_frame();
+        let r = &t.editor.edit.renderer;
+        assert!(!r.front_matter_collapsed, "it stays open");
+        assert_eq!(body_top(&t), open);
+    }
+    // a pill opens its row at the value's end
+    let mut t = TestEditor::new(md);
+    t.push(at(md.len()));
+    t.enter_frame();
+    t.push(toggle());
+    t.enter_frame();
+    t.enter_frame();
+    let status = Grapheme(md.find("status").unwrap());
+    let pill = t
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .find(|f| {
+            f.style_stack
+                .last()
+                .is_some_and(|s| s.chip && s.source_range.0 <= status && status < s.source_range.1)
+        })
+        .unwrap()
+        .rect
+        .center();
+    for pressed in [true, false] {
+        let button = egui::PointerButton::Primary;
+        let modifiers = egui::Modifiers::NONE;
+        t.enter_frame_with_input(vec![
+            egui::Event::PointerMoved(pill),
+            egui::Event::PointerButton { pos: pill, button, pressed, modifiers },
+        ]);
+    }
+    t.enter_frame();
+    t.enter_frame();
+    assert!(!t.editor.edit.renderer.front_matter_collapsed);
+    assert_eq!(shown(&t), md.replace("done", "done|"));
 }
 
 /// Rule: other notes' properties come from the note index, which reads the

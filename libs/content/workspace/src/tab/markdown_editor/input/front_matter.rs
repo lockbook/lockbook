@@ -1,8 +1,9 @@
 //! Keys in the front matter grid: Return starts a row or a list item, Tab
 //! moves between key and value, a colon ends a key, a comma ends an item,
-//! and Backspace stops at the edges of a key, value, or item rather than
-//! joining them. A value that comes to need quotes gets them as it is
-//! typed. Every edit replaces one span.
+//! `[` or `- ` starts a list, Space flips a checkbox, and Backspace stops
+//! at the edges of a key, value, or item rather than joining them; Cmd+
+//! Backspace empties a cell, then its row. A value that comes to need
+//! quotes gets them as it is typed. Every edit replaces one span.
 
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
@@ -105,6 +106,13 @@ impl MdEdit {
             return true;
         };
         let row = &fm.rows[i];
+        // a key being typed ends, as with Tab
+        if let Kind::Pending { key } = &row.kind {
+            if offset == key.end() {
+                Self::replace(ops, (key.end(), row.line.end()), ": ");
+                return true;
+            }
+        }
         if row.is_blank() && i + 1 == fm.rows.len() {
             let body = self.front_matter_body_start(fm);
             if fm.rows.len() == 1 {
@@ -135,17 +143,24 @@ impl MdEdit {
     }
 
     /// Backspace at a row's start, a value's start, an item's start, or a
-    /// quote: an empty row or item goes, a caret at a value's start moves
-    /// to the key, and nothing joins two rows or a key and its value.
+    /// quote: an empty row or item goes, as does an empty row above; a
+    /// caret at a value's start moves to the key, at a row's start to the
+    /// row above; nothing joins two rows or a key and its value.
+    /// Cmd+Backspace takes the cell back to its start; at a value's start,
+    /// the whole row's text, leaving a blank row for Backspace to remove.
     pub fn front_matter_delete(&self, region: Region, ops: &mut Vec<Operation>) -> bool {
-        if !matches!(
-            region,
+        let line = match region {
             Region::SelectionOrAdvance {
                 advance: Advance::Next(Bound::Word) | Advance::By(Increment::Char),
                 backwards: true,
+            } => false,
+            Region::SelectionOrAdvance { advance: Advance::To(Bound::Line), backwards: true } => {
+                true
             }
-        ) {
-            return false;
+            _ => return false,
+        };
+        if line && self.front_matter_delete_to_cell_start(ops) {
+            return true;
         }
         let Some(fm) = self.renderer.bounds.front_matter.as_ref() else { return false };
         let Some(offset) = self.renderer.selection_offset() else { return false };
@@ -188,7 +203,12 @@ impl MdEdit {
                 }
                 Self::front_matter_delete_at_quote(*text, *quotes, offset, row.line.end(), ops)
             }
-            Value::List { style, items, open, .. } => {
+            Value::List { style, items, open, close, .. } => {
+                // an empty `[]` goes, leaving an empty value
+                if items.is_empty() && offset == *open + 1 && *style == ListStyle::Flow {
+                    Self::replace(ops, (*open, *close + 1), "");
+                    return true;
+                }
                 let Some(j) = value.item_at(offset) else { return false };
                 let item = &items[j];
                 if offset != item.text.start() {
@@ -222,6 +242,41 @@ impl MdEdit {
             }
             _ => false,
         }
+    }
+
+    /// Cmd+Backspace with a caret in a cell: to the cell's start, or the
+    /// row's text from a value's start. False where Backspace's own rules
+    /// apply: a row's start, or an item's start.
+    fn front_matter_delete_to_cell_start(&self, ops: &mut Vec<Operation>) -> bool {
+        let Some((fm, offset)) = self.front_matter_caret() else { return false };
+        let Some(i) = fm.row_at(offset) else { return false };
+        let row = &fm.rows[i];
+        if offset == row.line.start() {
+            return false;
+        }
+        let clear_row = (row.line.start(), row.line.end());
+        let range = match &row.kind {
+            Kind::Pending { key } => (key.start(), offset),
+            Kind::Property { key, .. } if offset <= key.end() => (key.start(), offset),
+            Kind::Property { value: Value::Empty { .. }, .. } => clear_row,
+            Kind::Property { value: Value::Text { text, .. }, .. } => {
+                if offset > text.start() {
+                    (text.start(), offset)
+                } else {
+                    clear_row
+                }
+            }
+            Kind::Property { value: value @ Value::List { items, .. }, .. } => {
+                match value.item_at(offset) {
+                    Some(j) if offset > items[j].text.start() => (items[j].text.start(), offset),
+                    Some(_) => return false,
+                    None => clear_row,
+                }
+            }
+            _ => clear_row,
+        };
+        Self::replace(ops, range, "");
+        true
     }
 
     /// Backspace right of a closing quote takes the last character inside
@@ -291,11 +346,33 @@ impl MdEdit {
         if !matches!(region, Region::Selection) || text.contains('\n') {
             return false;
         }
-        let Some((fm, offset)) = self.front_matter_caret() else { return false };
+        let Some(fm) = self.renderer.bounds.front_matter.as_ref() else { return false };
+        let selection = self.renderer.buffer.current.selection;
+        let (offset, end) = (selection.start(), selection.end());
+        if offset < fm.node().start() || end > fm.node().end() {
+            return false;
+        }
+        let caret = offset == end;
         let Some(i) = fm.row_at(offset) else { return false };
         let row = &fm.rows[i];
+        // `key: -` and a space starts a block list; YAML has no `key: - x`
+        if caret && text == " " && offset == row.line.end() {
+            let line = &self.renderer.buffer[row.line];
+            if let Some(head) = line.strip_suffix('-').map(str::trim_end) {
+                if head.ends_with(':') && head.len() > 1 && !head.starts_with(['-', ' ', '#']) {
+                    let colon = row.line.start() + head.graphemes(true).count();
+                    ops.push(Operation::Replace(Replace {
+                        range: (colon, row.line.end()),
+                        text: "\n  - ".into(),
+                    }));
+                    // a select at a replaced span's end advances to the new end
+                    Self::select(ops, row.line.end());
+                    return true;
+                }
+            }
+        }
         let value = match &row.kind {
-            Kind::Pending { key } if text == ":" && offset == key.end() => {
+            Kind::Pending { key } if caret && text == ":" && offset == key.end() => {
                 Self::replace(ops, (key.end(), row.line.end()), ": ");
                 return true;
             }
@@ -303,16 +380,62 @@ impl MdEdit {
             _ => return false,
         };
         match value {
-            Value::Empty { at, needs_space: true } if offset == *at => {
-                Self::replace(ops, offset.into_range(), &format!(" {text}"));
+            Value::Empty { at, needs_space } if caret && offset == *at => {
+                let space = if *needs_space { " " } else { "" };
+                match text {
+                    // the separator's space is already there
+                    " " => {
+                        if *needs_space {
+                            Self::replace(ops, offset.into_range(), " ");
+                        }
+                    }
+                    // a flow list or a quoted value, the caret inside
+                    "[" | "\"" | "'" => {
+                        let close = if text == "[" { "]" } else { text };
+                        ops.push(Operation::Replace(Replace {
+                            range: offset.into_range(),
+                            text: format!("{space}{text}"),
+                        }));
+                        Self::select(ops, offset);
+                        ops.push(Operation::Replace(Replace {
+                            range: offset.into_range(),
+                            text: close.into(),
+                        }));
+                    }
+                    _ if needs_quotes(text, false) => {
+                        let text = text.replace('\\', "\\\\").replace('"', "\\\"");
+                        ops.push(Operation::Replace(Replace {
+                            range: offset.into_range(),
+                            text: format!("{space}\"{text}"),
+                        }));
+                        Self::select(ops, offset);
+                        ops.push(Operation::Replace(Replace {
+                            range: offset.into_range(),
+                            text: "\"".into(),
+                        }));
+                    }
+                    _ if *needs_space => {
+                        Self::replace(ops, offset.into_range(), &format!(" {text}"))
+                    }
+                    _ => return false,
+                }
                 true
             }
             Value::Empty { .. } => false,
+            // Space flips a checkbox
+            Value::Text { text: range, quotes: None, checked: Some(_) }
+                if caret && text == " " && (offset == range.start() || offset == range.end()) =>
+            {
+                let range = *range;
+                self.toggle_check(range.start(), ops);
+                Self::select(ops, range.end());
+                true
+            }
             Value::Text { text: range, quotes, .. } => self.front_matter_type_into(
                 *range,
                 *quotes,
                 row.line.end(),
-                offset,
+                (offset, end),
                 text,
                 false,
                 ops,
@@ -325,7 +448,7 @@ impl MdEdit {
                     return false;
                 };
                 let item = &items[j];
-                if text == "," && offset == item.text.end() && item.quotes.is_none() {
+                if caret && text == "," && offset == item.text.end() && item.quotes.is_none() {
                     self.front_matter_new_item(fm, i, j, ops);
                     return true;
                 }
@@ -344,7 +467,7 @@ impl MdEdit {
                     item.text,
                     item.quotes,
                     trail_end,
-                    offset,
+                    (offset, end),
                     text,
                     flow,
                     ops,
@@ -353,60 +476,61 @@ impl MdEdit {
         }
     }
 
-    /// Typing into a scalar: quotes it when the result needs them, escapes
-    /// a quote typed inside quotes, else types as usual.
+    /// Typing over `replaced` in a scalar: quotes it when the result needs
+    /// them, escapes what is typed inside quotes, else types as usual.
     #[allow(clippy::too_many_arguments)]
     fn front_matter_type_into(
         &self, range: (Grapheme, Grapheme), quotes: Quotes<Grapheme>, trail_end: Grapheme,
-        offset: Grapheme, typed: &str, flow: bool, ops: &mut Vec<Operation>,
+        replaced: (Grapheme, Grapheme), typed: &str, flow: bool, ops: &mut Vec<Operation>,
     ) -> bool {
-        let trail_end = trail_end.max(range.end());
-        if offset < range.start()
-            || offset > trail_end
-            || (quotes.is_some() && offset > range.end())
-        {
+        let (start, end) = replaced;
+        if start < range.start() || end > trail_end.max(range.end()) {
             return false;
         }
-        // spaces typed past the end are part of the value
-        let range = (range.start(), range.end().max(offset));
         let buffer = &self.renderer.buffer;
-        if let Some((open, _)) = quotes {
-            let escaped = match &buffer[open] {
-                "\"" => typed.replace('\\', "\\\\").replace('"', "\\\""),
-                _ => typed.replace('\'', "''"),
-            };
-            if escaped == typed {
+        if let Some((open, close)) = quotes {
+            // the caret after the hidden closing quote is at the value's end
+            let after_close = start == end && start == close.end();
+            let (start, end) = if after_close { (range.end(), range.end()) } else { replaced };
+            if end > range.end() {
                 return false;
             }
-            Self::replace(ops, offset.into_range(), &escaped);
+            // the closing quote typed at the end steps over it
+            if start == end && start == range.end() && typed == &buffer[close] {
+                Self::select(ops, close.end());
+                return true;
+            }
+            let escaped = yaml_scalar(typed, buffer[open].chars().next(), flow);
+            if escaped == typed && !after_close {
+                return false;
+            }
+            ops.push(Operation::Replace(Replace { range: (start, end), text: escaped }));
+            Self::select(ops, end);
             return true;
         }
+        // spaces typed past the end are part of the value
+        let range = (range.start(), range.end().max(end));
         let current = &buffer[range];
-        let at = buffer[(range.start(), offset)].graphemes(true).count();
-        let byte = current
-            .grapheme_indices(true)
-            .nth(at)
-            .map_or(current.len(), |(b, _)| b);
-        let after = format!("{}{typed}{}", &current[..byte], &current[byte..]);
+        let byte = |g: Grapheme| {
+            let at = buffer[(range.start(), g)].graphemes(true).count();
+            current
+                .grapheme_indices(true)
+                .nth(at)
+                .map_or(current.len(), |(b, _)| b)
+        };
+        let after = format!("{}{typed}{}", &current[..byte(start)], &current[byte(end)..]);
         if !needs_quotes(&after, flow) {
             return false;
         }
-        // open quote, escapes before the caret, the typed text, the caret,
-        // then escapes after it and the close quote, which the caret op so
-        // stays before
+        // open quote, escapes before the selection, the typed text, the
+        // caret, then escapes after it and the close quote, which the
+        // caret op so stays before
         let escapes = |ops: &mut Vec<Operation>, after: bool| {
             for (k, g) in current.graphemes(true).enumerate() {
-                let escaped = match g {
-                    "\"" => "\\\"",
-                    "\\" => "\\\\",
-                    _ => continue,
-                };
                 let at = range.start() + k;
-                if (at >= offset) == after {
-                    ops.push(Operation::Replace(Replace {
-                        range: (at, at + 1),
-                        text: escaped.into(),
-                    }));
+                let escaped = yaml_scalar(g, Some('"'), flow);
+                if (at >= end) == after && !(start..end).contains(&at) && escaped != g {
+                    ops.push(Operation::Replace(Replace { range: (at, at + 1), text: escaped }));
                 }
             }
         };
@@ -415,15 +539,26 @@ impl MdEdit {
             text: "\"".into(),
         }));
         escapes(ops, false);
-        let typed = typed.replace('\\', "\\\\").replace('"', "\\\"");
-        ops.push(Operation::Replace(Replace { range: offset.into_range(), text: typed }));
-        ops.push(Operation::Select(offset.into_range()));
+        let typed = yaml_scalar(typed, Some('"'), flow);
+        ops.push(Operation::Replace(Replace { range: (start, end), text: typed }));
+        ops.push(Operation::Select(end.into_range()));
         escapes(ops, true);
         ops.push(Operation::Replace(Replace {
             range: range.end().into_range(),
             text: "\"".into(),
         }));
         true
+    }
+}
+
+/// `s` written as a YAML scalar: escaped for the quote it goes inside,
+/// else quoted when a plain scalar would read as something else.
+pub fn yaml_scalar(s: &str, quote: Option<char>, flow: bool) -> String {
+    match quote {
+        Some('\'') => s.replace('\'', "''"),
+        Some(_) => s.replace('\\', "\\\\").replace('"', "\\\""),
+        None if needs_quotes(s, flow) => format!("\"{}\"", yaml_scalar(s, Some('"'), flow)),
+        None => s.into(),
     }
 }
 
@@ -447,6 +582,83 @@ impl MdEdit {
     /// Whether the caret is in the front matter block.
     pub fn in_front_matter(&self) -> bool {
         self.front_matter_caret().is_some()
+    }
+
+    /// A span about to be replaced, kept from cutting the closing fence: one
+    /// from the first row through the fence takes the whole block, and one
+    /// from a later row stops at the fence.
+    pub fn front_matter_span(&self, range: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
+        let Some(fm) = self.renderer.bounds.front_matter.as_ref() else { return range };
+        let (start, end) = range;
+        // a span wholly inside hidden syntax, a selection of it or a forward
+        // delete into it, edits at its edge: nothing goes, typing goes in the
+        // value after a key's separator, else in the text before
+        let syntax = self.renderer.front_matter_syntax(fm);
+        let (low, high) = (start.min(end), start.max(end));
+        let hidden = syntax.iter().find(|a| {
+            low < high && a.start() <= low && high <= a.end() && a.start() >= fm.head.end()
+        });
+        if let Some(a) = hidden {
+            let after_key = fm.rows.iter().any(|r| match &r.kind {
+                Kind::Property { key, .. } => key.end() == a.start(),
+                _ => false,
+            });
+            let edge = if after_key { a.end() } else { a.start() };
+            return (edge, edge);
+        }
+        if fm.tail.is_empty() || start >= fm.tail.start() || end <= fm.tail.start() {
+            return range;
+        }
+        let first = fm.rows.first().map_or(fm.head.end(), |r| r.line.start());
+        if start <= first {
+            (start.min(fm.node().start()), end.max(self.front_matter_body_start(fm)))
+        } else {
+            (start, (fm.tail.start() - 1).max(start))
+        }
+    }
+
+    /// The row the caret is on.
+    pub fn front_matter_row_at_caret(&self) -> Option<usize> {
+        let (fm, offset) = self.front_matter_caret()?;
+        fm.row_at(offset)
+    }
+
+    /// A block style's shortcut on a row: a bullet or numbered list makes
+    /// it a list, and again text; a task list makes it a checkbox. Other
+    /// styles would write markdown into the YAML, so do nothing.
+    pub fn front_matter_style(&self, style: &comrak::nodes::NodeValue, ops: &mut Vec<Operation>) {
+        let Some((fm, offset)) = self.front_matter_caret() else { return };
+        let Some(i) = fm.row_at(offset) else { return };
+        let Kind::Property { value, .. } = &fm.rows[i].kind else { return };
+        let comrak::nodes::NodeValue::List(list) = style else { return };
+        let action = match (list.is_task_list, value) {
+            (true, Value::Text { checked: Some(_), .. }) => return,
+            (true, _) => FrontMatterAction::MakeCheckbox(i),
+            (false, Value::List { .. }) => FrontMatterAction::MakeText(i),
+            (false, _) => FrontMatterAction::MakeList(i),
+        };
+        self.front_matter_action(action, ops);
+    }
+
+    /// Collapse or open the block, and the choice sticks. Collapsing moves
+    /// a caret or selection in the block to the body, since one there holds
+    /// it open.
+    pub fn front_matter_toggle_collapsed(&mut self, ops: &mut Vec<Operation>) {
+        let Some(fm) = &self.renderer.bounds.front_matter else { return };
+        let body = self.front_matter_body_start(fm);
+        let node = fm.node();
+        let selection = self.renderer.buffer.current.selection;
+        let in_block = node.start() <= selection.start() && selection.end() <= node.end();
+        self.renderer.front_matter_collapsed ^= true;
+        self.renderer.front_matter_collapse_toggled = true;
+        // the block's height changes with no edit or caret move
+        self.renderer.reveal_seq = self
+            .renderer
+            .ws_seq
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if self.renderer.front_matter_collapsed && in_block {
+            Self::select(ops, body);
+        }
     }
 
     /// The toolbar's and row menu's commands.

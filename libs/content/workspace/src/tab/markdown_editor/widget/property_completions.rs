@@ -6,14 +6,15 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use egui::{Context, Key, Modifiers, Ui};
+use egui::{Context, Ui};
 use lb_rs::Uuid;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::file_cache::{FileCache, FilesExt as _};
-use crate::front_matter::{FrontMatter, RowKind as Kind, Value};
+use crate::front_matter::{FrontMatter, ListStyle, Quotes, RowKind as Kind, Value};
 use crate::tab::markdown_editor::MdEdit;
+use crate::tab::markdown_editor::input::front_matter::yaml_scalar;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::{
     CompletionStep, completion_accepted, completion_dismissed, completion_step,
@@ -39,10 +40,17 @@ struct Target {
     pool: Pool,
     /// A key being typed: accepting it writes the colon too.
     commit_key: bool,
+    /// What ends this text and starts the next, typed after the candidate
+    /// when that character takes it: `: ` for a key being typed.
+    next: Option<(char, String)>,
     /// A value after a bare `key:` needs a space before it.
     space: bool,
     /// Already in the block or the list; not offered again.
     exclude: Vec<String>,
+    /// The quote a value is typed inside, which a candidate is escaped for.
+    quote: Option<char>,
+    /// A value is an item inside brackets.
+    flow: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -54,13 +62,39 @@ pub struct Candidate {
     pub distance: usize,
 }
 
+/// What put the caret where it is, as the popup sees it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+enum Arrival {
+    #[default]
+    Moved,
+    /// A click or Tab.
+    Landed,
+    /// Typing, deleting, or a new line.
+    Typed,
+}
+
 #[derive(Default)]
 pub struct PropertyCompletions {
     /// True when a key, value, or item is being typed and has candidates.
     /// Read by the editor to gate rendering; also gates `handle_input`.
     pub active: bool,
-    /// Keyboard-highlighted result index.
+    /// Keyboard-highlighted result index; see [`Self::highlighted`].
     pub selected: usize,
+    /// The highlight was moved with the arrows since the query changed.
+    picked: bool,
+    /// How the caret came to where it is. The popup opens on typing: the
+    /// caret arriving by the arrows, or a command changing the row,
+    /// leaves it shut, so Return and the arrows keep moving. A click or
+    /// Tab landing on an empty value opens it, as does any arrival on
+    /// touch, which has no such keys.
+    arrival: Arrival,
+    /// The arrival of the events applied since the last frame.
+    pending: Arrival,
+    /// The text's version and the selection as last seen.
+    seen: Option<(u64, (Grapheme, Grapheme))>,
+    /// What is typed is itself a candidate, so the character that ends it
+    /// keeps it.
+    typed_known: bool,
     /// The typed text, drawn in the accent.
     pub search_term_range: Option<(Grapheme, Grapheme)>,
     /// A query dismissed with Escape stays dismissed until it changes.
@@ -77,14 +111,29 @@ impl PropertyCompletions {
     /// `handle_input`, which early-returns when `self.active` is false.
     pub fn update_active_state(
         &mut self, buffer: &Buffer, fm: Option<&FrontMatter<Grapheme>>,
-        files: &Arc<RwLock<FileCache>>, file_id: Uuid,
+        files: &Arc<RwLock<FileCache>>, file_id: Uuid, text_seq: u64, touch: bool,
     ) {
+        let selection = buffer.current.selection;
+        if self.seen.is_some_and(|seen| seen != (text_seq, selection)) {
+            self.arrival = self.pending;
+        }
+        self.seen = Some((text_seq, selection));
+        self.pending = Arrival::Moved;
+        let previous = self.target.take();
         self.active = false;
         self.search_term_range = None;
-        self.target = None;
         self.results.clear();
         let Some(target) = fm.and_then(|fm| target(buffer, fm)) else { return };
-        if self.suppressed.as_deref() == Some(target.query.as_str()) {
+        let same = previous.is_some_and(|p| {
+            p.replace.start() == target.replace.start() && p.query == target.query
+        });
+        if !same {
+            self.selected = 0;
+            self.picked = false;
+        }
+        let arrived = (touch || self.arrival == Arrival::Landed) && target.query.is_empty();
+        let armed = self.arrival == Arrival::Typed || arrived;
+        if !armed || self.suppressed.as_deref() == Some(target.query.as_str()) {
             return;
         }
         let results = self.search(files, file_id, &target);
@@ -99,6 +148,30 @@ impl PropertyCompletions {
         self.selected = self.selected.min(results.len() - 1);
         self.results = results;
         self.target = Some(target);
+    }
+
+    /// Notes an event the editor applies, which puts the caret where the
+    /// next frame finds it.
+    pub fn note(&mut self, event: &Event) {
+        let arrival = match event {
+            Event::Replace { .. } | Event::Delete { .. } | Event::Newline { .. } => Arrival::Typed,
+            Event::Indent { .. }
+            | Event::Select {
+                region:
+                    Region::Location(Location::Pos(_))
+                    | Region::BetweenLocations { start: Location::Pos(_), .. },
+            } => Arrival::Landed,
+            _ => Arrival::Moved,
+        };
+        self.pending = self.pending.max(arrival);
+    }
+
+    /// The highlighted candidate: none until one is picked, or something
+    /// is typed that isn't a candidate of its own — so Tab and Return move
+    /// on from an empty value or a finished one.
+    pub fn highlighted(&self) -> Option<usize> {
+        let typed = self.target.as_ref().is_some_and(|t| !t.query.is_empty());
+        (self.picked || typed && !self.typed_known).then_some(self.selected)
     }
 
     /// The pool's candidates ranked for the query: how the query matches,
@@ -117,12 +190,18 @@ impl PropertyCompletions {
             self.pool = Some((version, file_id, target.pool.clone(), candidates));
         }
         let candidates = &self.pool.as_ref().unwrap().3;
+        self.typed_known = candidates
+            .iter()
+            .any(|c| c.text.to_lowercase() == target.query.to_lowercase());
         rank(candidates, &target.query, &target.exclude)
     }
 
     /// Consume (or observe) keyboard events targeting the popup. Emitted
     /// replacements are pushed onto `events`. Escape is observed, not
-    /// consumed, and works unfocused; the rest only with focus.
+    /// consumed, and works unfocused; the rest only with focus. Up and
+    /// Down (or Ctrl+P and Ctrl+N) pick, Return and Tab take the highlight,
+    /// and the colon that ends a key takes it too when it was picked or
+    /// begins with what is typed. A list item's comma ends it as typed.
     pub fn handle_input(&mut self, ctx: &Context, editor_focused: bool, events: &mut Vec<Event>) {
         if !self.active || self.results.is_empty() {
             return;
@@ -136,42 +215,57 @@ impl PropertyCompletions {
         if !editor_focused {
             return;
         }
-        match completion_step(ctx) {
-            Some(CompletionStep::Up) => self.selected = self.selected.saturating_sub(1),
-            Some(CompletionStep::Down) => {
-                self.selected = (self.selected + 1).min(self.results.len() - 1)
-            }
-            None => {}
+        let last = self.results.len() - 1;
+        if let Some(step) = completion_step(ctx) {
+            let up = step == CompletionStep::Up;
+            self.selected = match (self.highlighted(), up) {
+                (None, true) => last,
+                (None, false) => 0,
+                (Some(s), true) => s.saturating_sub(1),
+                (Some(s), false) => (s + 1).min(last),
+            };
+            self.picked = true;
         }
+        let Some(selected) = self.highlighted() else { return };
+        let text = self.results[selected].text.clone();
         if completion_accepted(ctx) {
-            let text = self.results[self.selected].text.clone();
-            self.apply_completion(events, &target, &text);
+            self.apply_completion(events, &target, &text, "");
             return;
         }
-        let num_modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
-            Modifiers::COMMAND
-        } else {
-            Modifiers::CTRL
-        };
-        for (idx, key) in [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5]
-            .iter()
-            .enumerate()
-            .take(self.results.len())
-        {
-            if ctx.input_mut(|i| i.consume_key(num_modifier, *key)) {
-                let text = self.results[idx].text.clone();
-                self.apply_completion(events, &target, &text);
-                return;
-            }
+        let Some((end, next)) = &target.next else { return };
+        let extends = text
+            .to_lowercase()
+            .starts_with(&target.query.to_lowercase());
+        if !(self.picked || extends) {
+            return;
+        }
+        let typed = ctx.input_mut(|i| {
+            let at = i
+                .events
+                .iter()
+                .position(|e| matches!(e, egui::Event::Text(t) if t.starts_with(*end)))?;
+            let egui::Event::Text(t) = i.events.remove(at) else { unreachable!() };
+            Some(t)
+        });
+        if let Some(typed) = typed {
+            // anything typed with it goes after
+            let rest = typed[end.len_utf8()..].to_string();
+            self.apply_completion(events, &target, &text, &format!("{next}{rest}"));
         }
     }
 
     /// Replace the typed text with the candidate and reset popup state.
-    fn apply_completion(&mut self, events: &mut Vec<Event>, target: &Target, text: &str) {
+    fn apply_completion(
+        &mut self, events: &mut Vec<Event>, target: &Target, text: &str, after: &str,
+    ) {
+        let text = match target.pool {
+            Pool::Values(_) => yaml_scalar(text, target.quote, target.flow),
+            Pool::Keys => text.into(),
+        };
         let text = match (target.commit_key, target.space) {
             (true, _) => format!("{text}: "),
-            (false, true) => format!(" {text}"),
-            (false, false) => text.to_string(),
+            (false, true) => format!(" {text}{after}"),
+            (false, false) => format!("{text}{after}"),
         };
         events.push(Event::Replace {
             region: Region::BetweenLocations {
@@ -182,6 +276,7 @@ impl PropertyCompletions {
             advance_cursor: true,
         });
         self.selected = 0;
+        self.picked = false;
         self.suppressed = None;
         self.active = false;
     }
@@ -194,7 +289,8 @@ impl Target {
     }
 }
 
-/// The key, value, or item the caret is at the end of, if any.
+/// The key, value, or item the caret is at the end of, or the empty row
+/// it is on, if any.
 fn target(buffer: &Buffer, fm: &FrontMatter<Grapheme>) -> Option<Target> {
     let selection = buffer.current.selection;
     if !selection.is_empty() {
@@ -202,6 +298,8 @@ fn target(buffer: &Buffer, fm: &FrontMatter<Grapheme>) -> Option<Target> {
     }
     let offset = selection.0;
     let i = fm.row_at(offset)?;
+    let quote =
+        |quotes: &Quotes<Grapheme>| quotes.and_then(|(open, _)| buffer[open].chars().next());
     let keys: Vec<String> = fm
         .rows
         .iter()
@@ -222,13 +320,28 @@ fn target(buffer: &Buffer, fm: &FrontMatter<Grapheme>) -> Option<Target> {
             .collect()
     };
     match &fm.rows[i].kind {
+        // a new row's key, before anything is typed
+        Kind::Blank if offset == fm.rows[i].line.start() => Some(Target {
+            replace: (offset, offset),
+            query: String::new(),
+            pool: Pool::Keys,
+            commit_key: true,
+            next: Some((':', String::new())),
+            space: false,
+            exclude: keys.clone(),
+            quote: None,
+            flow: false,
+        }),
         Kind::Pending { key } if offset == key.end() && !key.is_empty() => Some(Target {
             replace: *key,
             query: buffer[*key].to_string(),
             pool: Pool::Keys,
             commit_key: true,
+            next: Some((':', String::new())),
             space: false,
             exclude: others(&buffer[*key]),
+            quote: None,
+            flow: false,
         }),
         Kind::Property { key, value, .. } => {
             if offset == key.end() && !key.is_empty() {
@@ -237,29 +350,40 @@ fn target(buffer: &Buffer, fm: &FrontMatter<Grapheme>) -> Option<Target> {
                     query: buffer[*key].to_string(),
                     pool: Pool::Keys,
                     commit_key: false,
+                    next: None,
                     space: false,
                     exclude: others(&buffer[*key]),
+                    quote: None,
+                    flow: false,
                 });
             }
             let pool = Pool::Values(buffer[*key].to_string());
             match value {
-                Value::Text { text, checked: None, .. } if offset == text.end() => Some(Target {
-                    replace: *text,
-                    query: buffer[*text].to_string(),
-                    pool,
-                    commit_key: false,
-                    space: false,
-                    exclude: vec![],
-                }),
+                Value::Text { text, checked: None, quotes } if offset == text.end() => {
+                    Some(Target {
+                        replace: *text,
+                        query: buffer[*text].to_string(),
+                        pool,
+                        commit_key: false,
+                        next: None,
+                        space: false,
+                        exclude: vec![],
+                        quote: quote(quotes),
+                        flow: false,
+                    })
+                }
                 Value::Empty { at, needs_space } if offset == *at => Some(Target {
                     replace: (*at, *at),
                     query: String::new(),
                     pool,
                     commit_key: false,
+                    next: None,
                     space: *needs_space,
                     exclude: vec![],
+                    quote: None,
+                    flow: false,
                 }),
-                Value::List { items, .. } => {
+                Value::List { items, style, .. } => {
                     let j = value.item_at(offset)?;
                     let item = &items[j];
                     if offset != item.text.end() {
@@ -276,8 +400,12 @@ fn target(buffer: &Buffer, fm: &FrontMatter<Grapheme>) -> Option<Target> {
                         query: buffer[item.text].to_string(),
                         pool,
                         commit_key: false,
+                        // a comma ends the item as typed; Return takes a candidate
+                        next: None,
                         space: false,
                         exclude,
+                        quote: quote(&item.quotes),
+                        flow: *style == ListStyle::Flow,
                     })
                 }
                 _ => None,
@@ -391,7 +519,7 @@ impl MdEdit {
             return;
         }
         let labels: Vec<String> = results.iter().map(|c| c.text.clone()).collect();
-        let highlighted = Some(self.property_completions.selected);
+        let highlighted = self.property_completions.highlighted();
         // anchored at the typed text's start, so it stays while typing
         let clicked = self.show_completion_rows(
             ui,
@@ -406,6 +534,7 @@ impl MdEdit {
                 &mut self.event.internal_events,
                 &target,
                 &text,
+                "",
             );
         }
     }

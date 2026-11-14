@@ -104,6 +104,7 @@ impl<'ast> MdEdit {
     ) -> buffer::Response {
         let current_selection = self.renderer.buffer.current.selection;
         let mut response = buffer::Response::default();
+        self.property_completions.note(&event);
         match event {
             Event::Select { region: Region::Syntax { larger } } => {
                 if let Some(range) = self.syntax_select(root, larger) {
@@ -131,7 +132,8 @@ impl<'ast> MdEdit {
                 if self.front_matter_typed(region, &text, operations) {
                     return response;
                 }
-                let mut range = self.region_to_range(region);
+                let range = self.region_to_range(region);
+                let mut range = self.front_matter_span(range);
                 if matches!(region, Region::Selection) {
                     // selecting a fold chip is just selecting a fold tag, but
                     // replacing it should delete folded content
@@ -158,6 +160,11 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(current_selection));
             }
             Event::ToggleStyle { region, style } => {
+                // a divider goes after the block, as from any other block
+                if self.in_front_matter() && style != NodeValue::ThematicBreak {
+                    self.front_matter_style(&style, operations);
+                    return response;
+                }
                 // ToggleStyle inserts markdown syntax (e.g. `**…**`)
                 if self.renderer.kind == Syntax::Markdown {
                     self.toggle_style(root, region, style, current_selection, operations);
@@ -347,7 +354,8 @@ impl<'ast> MdEdit {
                 };
                 if !handled() {
                     // default -> delete region
-                    let mut range = self.region_to_range(region);
+                    let range = self.region_to_range(region);
+                    let mut range = self.front_matter_span(range);
 
                     // selecting a fold chip is just selecting a fold tag, but
                     // deleting it should delete folded content
@@ -648,6 +656,9 @@ impl<'ast> MdEdit {
                 //         self.appearance.base_font_size.map(|size| size - 1.)
                 // }
             }
+            Event::ToggleFold { node: None } if self.in_front_matter() => {
+                self.front_matter_toggle_collapsed(operations);
+            }
             Event::ToggleFold { node: at } => {
                 let unapply = at.is_none().then(|| self.unapply_fold(root));
                 for node in root.descendants() {
@@ -691,8 +702,7 @@ impl<'ast> MdEdit {
             }
             Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
             Event::FrontMatter(FrontMatterAction::ToggleCollapsed) => {
-                self.renderer.front_matter_collapsed ^= true;
-                self.renderer.front_matter_collapse_toggled = true;
+                self.front_matter_toggle_collapsed(operations);
             }
             Event::FrontMatter(action) => self.front_matter_action(action, operations),
             Event::OpenDiagram => {

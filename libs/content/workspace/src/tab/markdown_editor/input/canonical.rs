@@ -69,6 +69,25 @@ impl<'ast> MdEdit {
         &self, event: egui::Event, root: &'ast AstNode<'ast>,
     ) -> Option<Event> {
         match event {
+            // Option+Up/Down moves a front matter row
+            egui::Event::Key {
+                key: key @ (Key::ArrowUp | Key::ArrowDown),
+                pressed: true,
+                modifiers,
+                ..
+            } if modifiers.alt
+                && !modifiers.shift
+                && !modifiers.command
+                && !self.renderer.readonly
+                && self.front_matter_row_at_caret().is_some() =>
+            {
+                let i = self.front_matter_row_at_caret()?;
+                Some(Event::FrontMatter(if key == Key::ArrowUp {
+                    FrontMatterAction::MoveUp(i)
+                } else {
+                    FrontMatterAction::MoveDown(i)
+                }))
+            }
             egui::Event::Key { key, pressed: true, modifiers, .. }
                 if matches!(key, Key::ArrowUp | Key::ArrowDown | Key::PageUp | Key::PageDown) =>
             {
