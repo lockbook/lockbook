@@ -71,13 +71,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .cert_path(&cert)
                 .key_path(&key)
                 .bind_ephemeral(([0, 0, 0, 0], cfg.server.port));
-            info!("server started successfully on https://{addr}");
-            loggers::record_startup(&server_state.config);
+            loggers::log_startup(&server_state.config, &format!("https://{addr}"));
             server.await
         }
         _ => {
             let (addr, server) = server.bind_ephemeral(([0, 0, 0, 0], cfg.server.port));
-            info!("server started successfully on http://{addr} without tls for local development");
+            loggers::log_startup(&server_state.config, &format!("http://{addr}"));
             server.await
         }
     };
