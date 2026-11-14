@@ -121,3 +121,226 @@ fn caught(check: impl FnOnce() -> Result<(), String>) -> Result<(), String> {
         Err(format!("panicked: {}", message.unwrap_or("with no message")))
     })
 }
+
+/// Every row at every tier from Saves up, 36 tests in one process: on pop-os
+/// two of four such runs died of heap corruption (a SIGSEGV, and glibc's
+/// "corrupted double-linked list"). Ignored; run with `--ignored`.
+mod heap_sweep {
+    use super::*;
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn undo_redo_saves() {
+        interleave::run(Prop::UndoRedo, Features::all(), Events::Saves, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn undo_redo_reading() {
+        interleave::run(Prop::UndoRedo, Features::all(), Events::Reading, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn undo_redo_typing() {
+        interleave::run(Prop::UndoRedo, Features::all(), Events::Typing, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn undo_redo_undo() {
+        interleave::run(Prop::UndoRedo, Features::all(), Events::Undo, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn undo_redo_held() {
+        interleave::run(Prop::UndoRedo, Features::all(), Events::Held, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn undo_redo_scrolled() {
+        interleave::run(Prop::UndoRedo, Features::all(), Events::Scrolled, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn outline_saves() {
+        interleave::run(Prop::OutlineFresh, Features::all(), Events::Saves, 1000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn outline_reading() {
+        interleave::run(Prop::OutlineFresh, Features::all(), Events::Reading, 1000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn outline_typing() {
+        interleave::run(Prop::OutlineFresh, Features::all(), Events::Typing, 1000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn outline_undo() {
+        interleave::run(Prop::OutlineFresh, Features::all(), Events::Undo, 1000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn outline_held() {
+        interleave::run(Prop::OutlineFresh, Features::all(), Events::Held, 1000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn outline_scrolled() {
+        interleave::run(Prop::OutlineFresh, Features::all(), Events::Scrolled, 1000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn drop_saves() {
+        interleave::run(Prop::DropMovesImage, Features::all(), Events::Saves, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn drop_reading() {
+        interleave::run(Prop::DropMovesImage, Features::all(), Events::Reading, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn drop_typing() {
+        interleave::run(Prop::DropMovesImage, Features::all(), Events::Typing, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn drop_undo() {
+        interleave::run(Prop::DropMovesImage, Features::all(), Events::Undo, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn drop_held() {
+        interleave::run(Prop::DropMovesImage, Features::all(), Events::Held, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn drop_scrolled() {
+        interleave::run(Prop::DropMovesImage, Features::all(), Events::Scrolled, 2000);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn latest_saves() {
+        interleave::run(Prop::LatestVersion, Features::all(), Events::Saves, 600);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn latest_reading() {
+        interleave::run(Prop::LatestVersion, Features::all(), Events::Reading, 600);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn latest_typing() {
+        interleave::run(Prop::LatestVersion, Features::all(), Events::Typing, 600);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn latest_undo() {
+        interleave::run(Prop::LatestVersion, Features::all(), Events::Undo, 600);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn latest_held() {
+        interleave::run(Prop::LatestVersion, Features::all(), Events::Held, 600);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn latest_scrolled() {
+        interleave::run(Prop::LatestVersion, Features::all(), Events::Scrolled, 600);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn text_saves() {
+        interleave::run(Prop::TextStays, Features::all(), Events::Saves, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn text_reading() {
+        interleave::run(Prop::TextStays, Features::all(), Events::Reading, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn text_typing() {
+        interleave::run(Prop::TextStays, Features::all(), Events::Typing, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn text_undo() {
+        interleave::run(Prop::TextStays, Features::all(), Events::Undo, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn text_held() {
+        interleave::run(Prop::TextStays, Features::all(), Events::Held, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn text_scrolled() {
+        interleave::run(Prop::TextStays, Features::all(), Events::Scrolled, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn caret_saves() {
+        interleave::run(Prop::CaretStays, Features::all(), Events::Saves, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn caret_reading() {
+        interleave::run(Prop::CaretStays, Features::all(), Events::Reading, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn caret_typing() {
+        interleave::run(Prop::CaretStays, Features::all(), Events::Typing, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn caret_undo() {
+        interleave::run(Prop::CaretStays, Features::all(), Events::Undo, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn caret_held() {
+        interleave::run(Prop::CaretStays, Features::all(), Events::Held, 300);
+    }
+
+    #[test]
+    #[ignore = "heap-corruption sweep"]
+    fn caret_scrolled() {
+        interleave::run(Prop::CaretStays, Features::all(), Events::Scrolled, 300);
+    }
+}
