@@ -1838,6 +1838,27 @@ mod reload_tests {
     }
 
     #[test]
+    fn a_reload_keeps_another_insert_in_the_word_typed_into() {
+        // at the spot typed into, the note's insert comes first
+        let mut buf = Buffer::from("ab");
+        edit(&mut buf, (1, 1), "x");
+        reload(&mut buf, "a⟦1⟧b");
+        assert_eq!(buf.current.text, "ax⟦1⟧b");
+        // apart from it in the same word
+        reload(&mut buf, "a⟦1⟧b⟦2⟧");
+        assert_eq!(buf.current.text, "ax⟦1⟧b⟦2⟧");
+        let mut buf = Buffer::from("abcd");
+        edit(&mut buf, (1, 1), "x");
+        reload(&mut buf, "abc⟦1⟧d");
+        assert_eq!(buf.current.text, "axbc⟦1⟧d");
+        // typed as a rewrite of the whole word, as composing text arrives
+        let mut buf = Buffer::from("ab");
+        edit(&mut buf, (0, 2), "axb");
+        reload(&mut buf, "a⟦1⟧b");
+        assert_eq!(buf.current.text, "ax⟦1⟧b");
+    }
+
+    #[test]
     fn reloads_beside_a_local_delete() {
         let mut buf = Buffer::from("aa bb cc dd");
         edit(&mut buf, (3, 6), "");
