@@ -1201,3 +1201,32 @@ async fn link_moved_into_folder_that_another_device_moved_into_the_share() {
         assert::all_paths(device, &["/", "/notes/", "/notes/team/"]).await;
     }
 }
+
+/// A file shared with several people lists them in the order they were added, on every device.
+#[tokio::test]
+async fn shares_keep_their_order_through_a_sync() {
+    let owner = test_core_with_account().await;
+    let mut names = vec![];
+    for _ in 0..5 {
+        let recipient = test_core_with_account().await;
+        names.push(recipient.get_account().unwrap().username.clone());
+    }
+    let note = owner.create_at_path("/note.md").await.unwrap();
+    owner.sync().await.unwrap();
+
+    for name in &names {
+        owner
+            .share_file(note.id, name, ShareMode::Read)
+            .await
+            .unwrap();
+    }
+    owner.sync().await.unwrap();
+
+    let other_device = another_client(&owner).await;
+    other_device.sync().await.unwrap();
+    for device in [&owner, &other_device] {
+        let shares = device.get_file_by_id(note.id).await.unwrap().shares;
+        let order: Vec<_> = shares.into_iter().map(|s| s.shared_with).collect();
+        assert_eq!(order, names);
+    }
+}
