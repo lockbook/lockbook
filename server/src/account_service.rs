@@ -3,7 +3,7 @@ use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
-use crate::document_service::DocumentService;
+use crate::document_service::{DocumentService, stored};
 use crate::guard::ServerTx;
 use crate::schema::{Account, ServerV6};
 use crate::utils::username_is_valid;
@@ -445,7 +445,10 @@ where
         }
 
         for (id, version) in docs_to_delete {
-            self.document_service.delete(&id, &version).await?;
+            self.document_service
+                .delete(id, version)
+                .await
+                .map_err(stored)?;
         }
         Ok(())
     }

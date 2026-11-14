@@ -14,6 +14,7 @@
 //! - The [blocking] module contains blocking variants of all [Lb] functions for consumers without
 //!   async runtimes.
 //! - The [io] module contains interactions with disk and network.
+use crate::io::docs::LocalDocuments;
 
 #[macro_use]
 extern crate tracing;
@@ -32,14 +33,14 @@ pub mod wasm;
 // C headers name only `blocking::Lb`; cbindgen keys types by bare name, so this one stays out.
 /// cbindgen:ignore
 #[derive(Clone)]
-pub struct Lb<S = Network> {
+pub struct Lb<S = Network, D = AsyncDocs> {
     pub config: Config,
     pub user_last_seen: Arc<RwLock<Instant>>,
     pub user_wake: Arc<Notify>,
     pub keychain: Keychain,
     pub entropy: Entropy,
     pub db: LbDb,
-    pub docs: AsyncDocs,
+    pub docs: D,
     pub client: S,
     pub events: EventSubs,
     pub status: StatusUpdater,
@@ -87,10 +88,11 @@ impl Lb {
     }
 }
 
-impl<S: Server> Lb<S> {
-    /// An instance whose database and documents live in memory, shared with no other process,
-    /// that sends every request to `server`. Only logs and panic reports use `config.writeable_path`.
-    pub async fn in_memory(config: Config, server: S) -> LbResult<Self> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
+    /// An instance whose database lives in memory, shared with no other process, that keeps its
+    /// documents in `docs` and sends every request to `server`. Only logs and panic reports use
+    /// `config.writeable_path`.
+    pub async fn in_memory(config: Config, server: S, docs: D) -> LbResult<Self> {
         logging::init(&config)?;
 
         let db = io::CoreDb::init(&db_rs::config::Config::in_memory())?;
@@ -98,7 +100,7 @@ impl<S: Server> Lb<S> {
         Self::assemble(
             config,
             db,
-            AsyncDocs::in_memory(),
+            docs,
             server,
             #[cfg(all(unix, not(target_os = "ios")))]
             None,
@@ -109,7 +111,7 @@ impl<S: Server> Lb<S> {
     }
 
     async fn assemble(
-        config: Config, db: io::CoreDb, docs: AsyncDocs, client: S,
+        config: Config, db: io::CoreDb, docs: D, client: S,
         #[cfg(all(unix, not(target_os = "ios")))] ipc: Option<Arc<Ipc>>,
         #[cfg(not(any(target_family = "wasm", target_os = "ios")))] sync_lock: Option<
             std::path::PathBuf,

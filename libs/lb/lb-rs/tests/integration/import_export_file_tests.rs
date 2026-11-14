@@ -1,3 +1,4 @@
+use lb_rs::io::docs::DocumentStore;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::service::import_export::{Action, EntryType, Existing, ExportFileInfo, ImportStatus};
 use rand::Rng;
@@ -234,7 +235,7 @@ async fn reimport_compares_without_downloading() {
     for path in ["/Trip/Packing.md", "/Trip/Plan.md", "/Trip/Photos/beach.jpg"] {
         let id = other.get_by_path(path).await.unwrap().id;
         let (hmac, _) = other.read_document_with_hmac(id, false).await.unwrap();
-        other.docs.delete(id, hmac).await.unwrap();
+        other.docs.delete(id, hmac.unwrap()).await.unwrap();
         remote.push((id, hmac));
     }
 
@@ -245,7 +246,14 @@ async fn reimport_compares_without_downloading() {
     let writes: Vec<_> = plan.entries.iter().filter(|e| e.writes()).collect();
     assert!(writes.is_empty(), "{writes:?}");
     for (id, hmac) in remote {
-        assert!(other.docs.maybe_get(id, hmac).await.unwrap().is_none());
+        assert!(
+            other
+                .docs
+                .maybe_get(id, hmac.unwrap())
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }
 

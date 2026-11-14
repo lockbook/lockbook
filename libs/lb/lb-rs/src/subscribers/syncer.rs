@@ -1,3 +1,4 @@
+use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use std::{
     collections::{HashMap, HashSet},
@@ -70,7 +71,7 @@ pub struct SyncState {
 // should_fetch is going to be a tree fn that will return true if:
 //     is md or svg that descends from
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// Outside iOS and WASM, returns `AlreadySyncing` if another instance is syncing this data directory.
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn sync(&self) -> LbResult<()> {
@@ -200,15 +201,16 @@ impl<S: Server> Lb<S> {
             }
         }
         for id in &prunable_ids {
-            if let Some(base_file) = local.tree.base.maybe_find(id) {
-                self.docs
-                    .delete(*id, base_file.document_hmac().copied())
-                    .await?;
+            if let Some(&hmac) = local
+                .tree
+                .base
+                .maybe_find(id)
+                .and_then(|f| f.document_hmac())
+            {
+                self.docs.delete(*id, hmac).await?;
             }
-            if let Some(local_file) = local.maybe_find(id) {
-                self.docs
-                    .delete(*id, local_file.document_hmac().copied())
-                    .await?;
+            if let Some(&hmac) = local.maybe_find(id).and_then(|f| f.document_hmac()) {
+                self.docs.delete(*id, hmac).await?;
             }
         }
 
@@ -328,7 +330,9 @@ impl<S: Server> Lb<S> {
                 // pull a file if we have a prior base, this is our heuristic -- do they have the
                 // ability to edit this file while we release the lock and are pulling all the
                 // files
-                if self.docs.exists(id, base_hmac) && !self.docs.exists(id, Some(remote_hmac)) {
+                if base_hmac.is_some_and(|base_hmac| self.docs.exists(id, base_hmac))
+                    && !self.docs.exists(id, remote_hmac)
+                {
                     docs_to_pull.push((id, remote_hmac));
                 }
 
@@ -340,7 +344,7 @@ impl<S: Server> Lb<S> {
                         .any(|(already_pulling, _)| already_pulling == &id)
                 {
                     if let Some(base_hmac) = base_hmac {
-                        if !self.docs.exists(id, Some(base_hmac)) {
+                        if !self.docs.exists(id, base_hmac) {
                             // this scenario basically only comes up in tests
                             // someone modifies a file directly without reading the prior version
                             docs_to_pull.push((id, base_hmac));
@@ -377,7 +381,7 @@ impl<S: Server> Lb<S> {
         // if the caller managed the event updates, the status would be more meaningful for longer
 
         // in this world, can we get stuck pushing a doc as well? Probably fine for now
-        if self.docs.exists(id, Some(hmac)) {
+        if self.docs.exists(id, hmac) {
             return Ok(None);
         }
 
@@ -387,9 +391,7 @@ impl<S: Server> Lb<S> {
             .client
             .get_document(self.get_account()?, GetDocRequest { id, hmac })
             .await?;
-        self.docs
-            .insert(id, Some(hmac), &remote_document.content)
-            .await?;
+        self.docs.insert(id, hmac, &remote_document.content).await?;
         self.events
             .sync_update(SyncIncrement::PullingDocument(id, false));
 
@@ -401,7 +403,7 @@ impl<S: Server> Lb<S> {
     ) -> LbResult<EncryptedDocument> {
         match self.ensure_doc_available(id, hmac).await? {
             Some(doc) => Ok(doc),
-            None => self.docs.get(id, Some(hmac)).await,
+            None => self.docs.get(id, hmac).await,
         }
     }
 
@@ -738,8 +740,9 @@ impl<S: Server> Lb<S> {
                                                 &merged_document,
                                                 &self.keychain,
                                             )?;
-                                        let hmac = merge.find(&id)?.document_hmac().copied();
-                                        self.docs.insert(id, hmac, &encrypted_document).await?;
+                                        if let Some(&hmac) = merge.find(&id)?.document_hmac() {
+                                            self.docs.insert(id, hmac, &encrypted_document).await?;
+                                        }
                                     }
                                     None => {
                                         // duplicate file, in the document's folder if this device
@@ -791,15 +794,17 @@ impl<S: Server> Lb<S> {
                                                     &local_document,
                                                     &self.keychain,
                                                 )?;
-                                            let duplicate_hmac =
-                                                merge.find(&duplicate_id)?.document_hmac().copied();
-                                            self.docs
-                                                .insert(
-                                                    duplicate_id,
-                                                    duplicate_hmac,
-                                                    &encrypted_document,
-                                                )
-                                                .await?;
+                                            if let Some(&duplicate_hmac) =
+                                                merge.find(&duplicate_id)?.document_hmac()
+                                            {
+                                                self.docs
+                                                    .insert(
+                                                        duplicate_id,
+                                                        duplicate_hmac,
+                                                        &encrypted_document,
+                                                    )
+                                                    .await?;
+                                            }
                                         }
                                     }
                                 }
@@ -1227,7 +1232,8 @@ impl<S: Server> Lb<S> {
     async fn push_doc(&self, diff: FileDiff<SignedMeta>) -> LbResult<Uuid> {
         let id = *diff.new.id();
         let hmac = diff.new.document_hmac();
-        let local_document_change = self.docs.get(id, hmac.copied()).await?;
+        let hmac = *hmac.ok_or(LbErrKind::FileNonexistent)?;
+        let local_document_change = self.docs.get(id, hmac).await?;
         self.client
             .change_doc_v2(
                 self.get_account()?,
@@ -1310,7 +1316,7 @@ impl<S: Server> Lb<S> {
 
         let doc = match hmac {
             Some(hmac) => {
-                let doc = self.docs.get(id, Some(hmac)).await?;
+                let doc = self.docs.get(id, hmac).await?;
                 tree.decrypt_document(&id, &doc, &self.keychain)?
             }
             None => vec![],
@@ -1464,7 +1470,7 @@ impl<S: Server> Lb<S> {
                 continue;
             }
 
-            if self.docs.exists(id, hmac) {
+            if hmac.is_some_and(|hmac| self.docs.exists(id, hmac)) {
                 continue;
             }
 

@@ -7,7 +7,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use async_trait::async_trait;
 use db_rs::View;
 use lb_rs::io::copy::copy_db;
 use lb_rs::io::network::ApiError;
@@ -30,6 +29,8 @@ use crate::document_service::DocumentService;
 use crate::schema::ServerDb;
 use crate::utils::get_build_info;
 use crate::{RequestContext, ServerError, ServerState};
+use lb_rs::io::docs::DocumentStore;
+use lb_rs::model::errors::LbResult;
 
 /// A server whose index and documents live in memory, with no billing.
 pub type InMemoryServer = ServerState<Nop, Nop, Nop, InMemDocuments>;
@@ -153,42 +154,33 @@ impl InMemDocuments {
     }
 }
 
-#[async_trait]
-impl DocumentService for InMemDocuments {
-    async fn insert<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
-    ) -> Result<(), ServerError<T>> {
+impl DocumentStore for InMemDocuments {
+    async fn insert(
+        &self, id: Uuid, hmac: DocumentHmac, content: &EncryptedDocument,
+    ) -> LbResult<()> {
         self.docs
             .lock()
             .unwrap()
-            .insert((*id, *hmac), content.clone());
+            .insert((id, hmac), content.clone());
         Ok(())
     }
 
-    async fn get<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
-    ) -> Result<EncryptedDocument, ServerError<T>> {
-        self.maybe_get(id, hmac)
-            .await?
-            .ok_or_else(|| internal!("no document {id} at that hmac"))
+    async fn maybe_get(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Option<EncryptedDocument>> {
+        Ok(self.docs.lock().unwrap().get(&(id, hmac)).cloned())
     }
 
-    async fn maybe_get<T: Debug>(
-        &self, id: &Uuid, hmac: &DocumentHmac,
-    ) -> Result<Option<EncryptedDocument>, ServerError<T>> {
-        Ok(self.docs.lock().unwrap().get(&(*id, *hmac)).cloned())
-    }
-
-    async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>> {
-        self.docs.lock().unwrap().remove(&(*id, *hmac));
+    async fn delete(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
+        self.docs.lock().unwrap().remove(&(id, hmac));
         Ok(())
     }
 
-    fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool {
-        self.docs.lock().unwrap().contains_key(&(*id, *hmac))
+    fn exists(&self, id: Uuid, hmac: DocumentHmac) -> bool {
+        self.docs.lock().unwrap().contains_key(&(id, hmac))
     }
+}
 
-    fn get_path(&self, id: &Uuid, hmac: &DocumentHmac) -> PathBuf {
+impl DocumentService for InMemDocuments {
+    fn get_path(&self, id: Uuid, hmac: DocumentHmac) -> PathBuf {
         let hmac = base64::encode_config(hmac, base64::URL_SAFE);
         PathBuf::from(format!("memory/{id}-{hmac}"))
     }

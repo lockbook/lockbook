@@ -8,6 +8,7 @@
 //! Ignored by default for their runtime: `cargo test -p lb-rs --test integration
 //! sync_worker_tests -- --ignored`.
 
+use lb_rs::io::docs::DocumentStore;
 use std::time::{Duration, Instant};
 
 use lb_rs::Uuid;
@@ -64,7 +65,7 @@ async fn holds(lb: &Lb, id: Uuid) -> bool {
             .maybe_find(&id)
             .and_then(|file| file.document_hmac().copied())
     };
-    hmac.is_some() && lb.docs.exists(id, hmac)
+    hmac.is_some_and(|hmac| lb.docs.exists(id, hmac))
 }
 
 /// Polls `condition` until it holds or `timeout` passes.

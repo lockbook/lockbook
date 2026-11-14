@@ -1,31 +1,35 @@
 //! Byte-stream properties of sync: devices on accounts take random steps against one in-memory
 //! server, and each property holds at the widest tier whose steps it survives, from every start.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
+use lb_rs::io::CoreDb;
+use lb_rs::io::docs::AsyncDocs;
 use lb_rs::io::server::Server;
 use lb_rs::model::account::Account;
 use lb_rs::model::api::{AdminValidateServer, AdminValidateServerRequest};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::filename::DocumentType;
 use test_utils::byte_source::ByteSource;
-use test_utils::gate::{Gate, GatedServer, Point};
+use test_utils::gate::{DocOp, Gate, GatedDocuments, GatedServer, Point};
 use test_utils::lockbook_server_lib::ServerState;
 use test_utils::lockbook_server_lib::billing::Nop;
 use test_utils::lockbook_server_lib::in_process::InMemDocuments;
 use test_utils::{prop, test_config};
-use tokio::sync::oneshot;
+use tokio::sync::{RwLock, oneshot};
 use uuid::Uuid;
 
-type TestServer = ServerState<Nop, Nop, Nop, InMemDocuments>;
+type TestServer = ServerState<Nop, Nop, Nop, GatedDocuments<InMemDocuments>>;
 /// The server as devices reach it.
 type Client = GatedServer<TestServer>;
-type Lb = lb_rs::Lb<Client>;
+type Docs = GatedDocuments<AsyncDocs>;
+type Lb = lb_rs::Lb<Client, Docs>;
 
 mod starts;
 
@@ -69,6 +73,12 @@ fn devices_converge() {
 #[test]
 fn accounts_agree_on_what_they_share() {
     run(WRITE_SHARES, 2000, accounts_agree_on_what_they_share_check);
+}
+
+#[test]
+fn edits_are_never_lost() {
+    run(WRITE_SHARES, 2000, edits_are_never_lost_check);
+    assert!(LANDED.get() > 0, "no save landed a line");
 }
 
 #[test]
@@ -176,10 +186,13 @@ enum Step {
         parent: usize,
         name: usize,
     },
+    /// When `held`, the save waits before it writes, until a [`Step::Release`] or the device's
+    /// next held save lets it go on.
     Write {
         device: usize,
         file: usize,
         content: usize,
+        held: bool,
     },
     Rename {
         device: usize,
@@ -227,13 +240,19 @@ enum Step {
     },
 }
 
-/// Where in a sync a hold may land.
+/// Where in a sync a hold may land. `D` names a document: the device's `D`th by path in a step,
+/// its id once armed.
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Place {
+enum Place<D = usize> {
     /// A request about to leave the device.
     Sent,
     /// A response the device has yet to read.
     Answered,
+    /// A device's save, before it writes; the first one from now, whatever `at` says.
+    Save,
+    /// An operation on the document, in the server's store or the device's, parallel batches
+    /// included.
+    Document(D),
 }
 
 // few names, so devices collide on paths; mostly text, as people's files are
@@ -276,8 +295,8 @@ fn steps(case: Case, bytes: &[u8]) -> Vec<Step> {
     let count = 1 + src.draw(48);
     let during = if tier.overlap { case.mix.writes() } else { 0 };
     let mut device = 0;
-    // devices with a sync held, so a release names one
-    let mut held: Vec<usize> = Vec::new();
+    // what each device holds, so a release names a device holding something
+    let mut held: Vec<(usize, Activity)> = Vec::new();
     (0..count)
         .map(|_| {
             // people work on one device for a while
@@ -290,14 +309,28 @@ fn steps(case: Case, bytes: &[u8]) -> Vec<Step> {
                 1 => Step::Hold {
                     device,
                     at: src.draw(4),
-                    place: [Place::Sent, Place::Answered][src.draw(2)],
+                    place: match src.draw(3) {
+                        0 => Place::Sent,
+                        1 => Place::Answered,
+                        _ => Place::Document(src.draw(8)),
+                    },
                 },
-                _ => Step::Release { device: held[src.draw(held.len())] },
+                _ => Step::Release { device: held[src.draw(held.len())].0 },
             };
             match step {
-                Step::Hold { device, .. } => held.push(device),
-                Step::Release { device } | Step::Sync { device } => held.retain(|&d| d != device),
-                Step::SyncAll { .. } => held.clear(),
+                Step::Hold { device, .. } | Step::Sync { device } => {
+                    held.retain(|&h| h != (device, Activity::Sync))
+                }
+                Step::SyncAll { .. } => held.retain(|&(_, a)| a != Activity::Sync),
+                Step::Write { device, held: true, .. } => {
+                    held.retain(|&h| h != (device, Activity::Save))
+                }
+                Step::Release { device } => held.retain(|&(d, _)| d != device),
+                _ => {}
+            }
+            match step {
+                Step::Hold { device, .. } => held.push((device, Activity::Sync)),
+                Step::Write { device, held: true, .. } => held.push((device, Activity::Save)),
                 _ => {}
             }
             step
@@ -315,7 +348,12 @@ fn step(case: Case, src: &mut ByteSource, device: usize) -> Step {
         1 => Step::SyncAll { device },
         2 => Step::CreateDocument { device, parent: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
         3 => Step::CreateFolder { device, parent: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
-        4 => Step::Write { device, file: src.draw(8), content: src.draw(8) },
+        4 => Step::Write {
+            device,
+            file: src.draw(8),
+            content: src.draw(8),
+            held: tier.overlap && src.draw(2) == 1,
+        },
         5 => Step::Rename { device, file: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
         6 => Step::Move { device, file: src.draw(8), parent: src.draw(8) },
         7 => Step::Delete { device, file: src.draw(8) },
@@ -349,6 +387,15 @@ impl Step {
             | Step::Hold { device, .. }
             | Step::Release { device } => device,
         }
+    }
+
+    /// This step, taken without waiting on anything.
+    fn unheld(&self) -> Step {
+        let mut step = self.clone();
+        if let Step::Write { held, .. } = &mut step {
+            *held = false;
+        }
+        step
     }
 
     /// This step taken on `on`.
@@ -411,13 +458,36 @@ struct World {
     names: Vec<String>,
     devices: Vec<Lb>,
     per_account: usize,
-    /// Syncs held mid-way, by device.
-    held: Mutex<BTreeMap<usize, Held>>,
+    /// Syncs and saves held mid-way, in the order they were held.
+    held: Mutex<Vec<Held>>,
+    /// When set, each write appends a line naming its content, as an editor saves, and the lines
+    /// that land are noted here.
+    marks: Option<Marks>,
 }
 
-/// A sync parked mid-way, and what lets it go on.
+/// A line a save appended to a note on a device.
+#[derive(Clone)]
+struct Mark {
+    note: Uuid,
+    line: String,
+    device: usize,
+    /// Once the device's sync has carried or dropped the save, whether the device could then no
+    /// longer write the note.
+    unwritable: Option<bool>,
+}
+type Marks = Arc<Mutex<Vec<Mark>>>;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Activity {
+    Sync,
+    Save,
+}
+
+/// A sync or save parked mid-way, and what lets it go on.
 struct Held {
-    sync: tokio::task::JoinHandle<bool>,
+    device: usize,
+    activity: Activity,
+    task: tokio::task::JoinHandle<bool>,
     go: oneshot::Sender<()>,
 }
 
@@ -430,23 +500,26 @@ impl World {
     /// `tier`'s accounts with nothing in them, every id drawn from `seed`.
     async fn empty(tier: Tier, seed: u64) -> Self {
         let pause = Pause::default();
-        let mut server = TestServer::with_documents(InMemDocuments::default());
+        let mut server = TestServer::with_documents(GatedDocuments::new(
+            InMemDocuments::default(),
+            pause.clone(),
+        ));
         let admin_name = name(seed, 0);
         server.config.admin.admins.insert(admin_name.clone());
         let client = GatedServer::new(server.clone(), pause.clone());
-        let admin = device(&client, seed, 0).await;
+        let admin = device(&client, &pause, seed, 0).await;
         let admin = admin.create_account(&admin_name, "", false).await.unwrap();
 
         let mut names = Vec::new();
         let mut devices = Vec::new();
         for account in 0..tier.accounts {
             let name = name(seed, account + 1);
-            let first = device(&client, seed, devices.len() + 1).await;
+            let first = device(&client, &pause, seed, devices.len() + 1).await;
             first.create_account(&name, "", false).await.unwrap();
             let key = first.export_account_private_key().unwrap();
             devices.push(first);
             for _ in 1..tier.devices {
-                let next = device(&client, seed, devices.len() + 1).await;
+                let next = device(&client, &pause, seed, devices.len() + 1).await;
                 next.import_account(&key, None).await.unwrap();
                 next.sync().await.unwrap();
                 devices.push(next);
@@ -462,6 +535,7 @@ impl World {
             devices,
             per_account: tier.devices,
             held: Default::default(),
+            marks: None,
         }
     }
 
@@ -469,15 +543,22 @@ impl World {
     /// from `seed`.
     async fn copy(&self, seed: u64) -> Self {
         let pause = Pause::default();
+        let documents = self.server.document_service.docs.copy();
         let server = self
             .server
-            .copy_with(self.server.document_service.copy())
+            .copy_with(GatedDocuments::new(documents, pause.clone()))
             .await;
         let client = GatedServer::new(server.clone(), pause.clone());
         let mut devices = Vec::new();
         for (n, device) in self.devices.iter().enumerate() {
             let config = config(seed, n + 1);
-            devices.push(device.copy_in_memory(config, client.clone()).await.unwrap());
+            let local = Local::new(&pause);
+            let docs = |docs: &Docs| GatedDocuments::new(docs.docs.copy().unwrap(), local.clone());
+            let device = device
+                .copy_in_memory(config, client.clone(), docs)
+                .await
+                .unwrap();
+            devices.push(local.of(device));
         }
         Self {
             server,
@@ -488,6 +569,7 @@ impl World {
             devices,
             per_account: self.per_account,
             held: Default::default(),
+            marks: None,
         }
     }
 
@@ -542,57 +624,41 @@ impl World {
     /// Takes `step` on device `on`, returning whether the device accepted it.
     async fn take(&self, step: &Step, on: usize, reach: Reach) -> bool {
         let device = &self.devices[on];
-        {
-            let held = self.held.lock().unwrap();
-            let releases_first = match step {
-                Step::Release { .. } | Step::SyncAll { .. } => true,
-                Step::Sync { .. } | Step::Hold { .. } => held.contains_key(&on),
-                _ => false,
-            };
-            if !releases_first && !held.is_empty() {
-                PAUSES.set(PAUSES.get() + 1);
+        // a sync waits for the one in flight on its device, and a held save for the last
+        match *step {
+            Step::Hold { .. } | Step::Sync { .. } => {
+                self.release(Some(on), Some(Activity::Sync)).await
             }
+            Step::SyncAll { .. } => self.release(None, Some(Activity::Sync)).await,
+            Step::Write { held: true, .. } => self.release(Some(on), Some(Activity::Save)).await,
+            Step::Release { .. } => self.release(Some(on), None).await,
+            _ => {}
+        }
+        let syncing = (self.held.lock().unwrap().iter()).any(|h| h.activity == Activity::Sync);
+        if !matches!(step, Step::Release { .. }) && syncing {
+            PAUSES.set(PAUSES.get() + 1);
         }
         match *step {
             Step::Hold { at, place, .. } => {
-                self.release(on).await;
-                let parked = self.pause.arm(place, at);
-                let syncing = device.clone();
-                let mut sync = tokio::spawn(async move { syncing.sync().await.is_ok() });
-                // a sync that never reaches its point finishes unheld
-                let held = async {
-                    tokio::select! {
-                        biased;
-                        Ok(go) = parked => Ok(go),
-                        synced = &mut sync => {
-                            self.pause.disarm();
-                            Err(synced.unwrap())
+                let place = match place {
+                    Place::Sent => Place::Sent,
+                    Place::Answered => Place::Answered,
+                    Place::Save => Place::Save,
+                    Place::Document(file) => {
+                        match pick(device, reach, file, Kind::Document).await {
+                            Some(id) => Place::Document(id),
+                            None => return device.sync().await.is_ok(),
                         }
                     }
                 };
-                let go = match tokio::time::timeout(Duration::from_secs(10), held)
-                    .await
-                    .expect("a held sync parks or finishes")
-                {
-                    Ok(go) => go,
-                    Err(synced) => return synced,
-                };
-                // the server stamps versions in milliseconds
-                tokio::time::sleep(Duration::from_millis(2)).await;
-                self.held.lock().unwrap().insert(on, Held { sync, go });
-                true
+                let parked = self.pause.arm(place, at);
+                let syncing = device.clone();
+                let sync = tokio::spawn(async move { syncing.sync().await.is_ok() });
+                self.park(on, Activity::Sync, sync, parked).await
             }
-            Step::Release { .. } => {
-                self.release(on).await;
-                true
-            }
-            Step::Sync { .. } => {
-                // a second sync on a device waits for its first
-                self.release(on).await;
-                device.sync().await.is_ok()
-            }
+            Step::Release { .. } => true,
+            Step::Sync { .. } => device.sync().await.is_ok(),
             Step::SyncAll { .. } => {
-                self.release_all().await;
                 let mut all = true;
                 for device in &self.devices {
                     all &= device.sync().await.is_ok();
@@ -610,18 +676,39 @@ impl World {
                     .await
                     .is_ok()
             }
-            Step::Write { file, content, .. } => {
+            Step::Write { file, content, held, .. } => {
                 let Some(file) = pick(device, reach, file, Kind::Document).await else {
                     return false;
                 };
-                let Ok(name) = device.get_file_by_id(file).await.map(|f| f.name) else {
+                let Ok(meta) = device.get_file_by_id(file).await else {
                     return false;
                 };
-                let contents = contents(&name);
-                device
-                    .write_document(file, contents[content % contents.len()].as_bytes())
-                    .await
-                    .is_ok()
+                let save = match &self.marks {
+                    Some(marks) => {
+                        // other kinds keep both sides of a conflict as copies instead of merging
+                        if DocumentType::from_file_name_using_extension(&meta.name)
+                            != DocumentType::Text
+                        {
+                            return false;
+                        }
+                        let line = format!("m{content}");
+                        let mark = Mark { note: file, line, device: on, unwritable: None };
+                        tokio::spawn(append(device.clone(), mark, marks.clone()))
+                    }
+                    None => {
+                        let contents = contents(&meta.name);
+                        let bytes = contents[content % contents.len()].as_bytes();
+                        let (device, bytes) = (device.clone(), bytes.to_vec());
+                        tokio::spawn(
+                            async move { device.write_document(file, &bytes).await.is_ok() },
+                        )
+                    }
+                };
+                if !held {
+                    return save.await.unwrap();
+                }
+                let parked = self.pause.arm(Place::Save, 0);
+                self.park(on, Activity::Save, save, parked).await
             }
             Step::Rename { file, name, .. } => {
                 let Some(file) = pick(device, reach, file, Kind::Any).await else {
@@ -693,39 +780,114 @@ impl World {
     async fn take_all(&self, steps: &[Step]) {
         for step in steps {
             self.take(step, step.device(), Reach::Shared).await;
+            self.watch().await;
         }
     }
 
-    /// Lets device `on`'s held sync, if any, finish. It may fail on what changed while it
-    /// waited; the device's next sync retries.
-    async fn release(&self, on: usize) {
-        let Some(Held { sync, go }) = self.held.lock().unwrap().remove(&on) else {
-            return;
+    /// Decides each mark whose note has left its device's local changes, so the device's sync has
+    /// carried or dropped its save, by whether the device could still write the note then.
+    async fn watch(&self) {
+        let Some(marks) = &self.marks else { return };
+        let open: Vec<_> = (marks.lock().unwrap().iter().enumerate())
+            .filter(|(_, mark)| mark.unwritable.is_none())
+            .map(|(n, mark)| (n, mark.note, mark.device))
+            .collect();
+        for (n, note, on) in open {
+            let device = &self.devices[on];
+            if device.local_changes().await.contains(&note) {
+                continue;
+            }
+            let unwritable = !self.writes(on, note).await;
+            marks.lock().unwrap()[n].unwritable = Some(unwritable);
+        }
+    }
+
+    /// Whether device `on` lists `file` and its account owns it or holds a write share on it or a
+    /// folder above it.
+    async fn writes(&self, on: usize, file: Uuid) -> bool {
+        let me = &self.names[on / self.per_account];
+        let listed: BTreeMap<_, _> = (self.devices[on].list_metadatas().await.unwrap())
+            .into_iter()
+            .map(|file| (file.id, file))
+            .collect();
+        let mut at = listed.get(&file);
+        if at.is_some_and(|file| &file.owner == me) {
+            return true;
+        }
+        while let Some(file) = at {
+            let mut shares = file.shares.iter();
+            if shares.any(|share| &share.shared_with == me && share.mode == ShareMode::Write) {
+                return true;
+            }
+            at = listed.get(&file.parent).filter(|_| !file.is_root());
+        }
+        false
+    }
+
+    /// Holds `task` on device `on` once the gate parks it, returning true, or its result if it
+    /// finishes first.
+    async fn park(
+        &self, on: usize, activity: Activity, mut task: tokio::task::JoinHandle<bool>,
+        parked: oneshot::Receiver<oneshot::Sender<()>>,
+    ) -> bool {
+        let held = async {
+            tokio::select! {
+                biased;
+                Ok(go) = parked => Ok(go),
+                done = &mut task => {
+                    self.pause.disarm();
+                    Err(done.unwrap())
+                }
+            }
         };
-        let _ = go.send(());
-        tokio::time::timeout(Duration::from_secs(10), sync)
+        let go = match tokio::time::timeout(Duration::from_secs(10), held)
             .await
-            .expect("a released sync finishes")
-            .unwrap();
+            .expect("a held sync or save parks or finishes")
+        {
+            Ok(go) => go,
+            Err(done) => return done,
+        };
+        // the server stamps versions in milliseconds
+        tokio::time::sleep(Duration::from_millis(2)).await;
+        self.held
+            .lock()
+            .unwrap()
+            .push(Held { device: on, activity, task, go });
+        true
     }
 
-    async fn release_all(&self) {
-        let held: Vec<_> = self.held.lock().unwrap().keys().copied().collect();
-        for on in held {
-            self.release(on).await;
+    /// Lets what is held on `device`, or every device, doing `activity`, or anything, finish in
+    /// the order it was held. A held sync or save may fail on what changed while it waited; the
+    /// device retries as it would.
+    async fn release(&self, device: Option<usize>, activity: Option<Activity>) {
+        let released: Vec<_> = {
+            let mut held = self.held.lock().unwrap();
+            let (released, kept) = held.drain(..).partition(|h: &Held| {
+                device.is_none_or(|d| d == h.device) && activity.is_none_or(|a| a == h.activity)
+            });
+            *held = kept;
+            released
+        };
+        for Held { task, go, .. } in released {
+            let _ = go.send(());
+            tokio::time::timeout(Duration::from_secs(10), task)
+                .await
+                .expect("a released sync or save finishes")
+                .unwrap();
         }
     }
 
-    /// Lets every held sync go on, then syncs every device until each has seen every other's
+    /// Lets everything held go on, then syncs every device until each has seen every other's
     /// changes, shares included.
     async fn settle(&self) -> Result<(), String> {
-        self.release_all().await;
+        self.release(None, None).await;
         for _ in 0..3 {
             for (i, device) in self.devices.iter().enumerate() {
                 device
                     .sync()
                     .await
                     .map_err(|err| format!("device {i} failed to sync: {err:?}"))?;
+                self.watch().await;
             }
         }
         Ok(())
@@ -743,7 +905,7 @@ impl World {
     }
 }
 
-type Armed = (Place, usize, oneshot::Sender<oneshot::Sender<()>>);
+type Armed = (Place<Uuid>, usize, oneshot::Sender<oneshot::Sender<()>>);
 
 /// Parks a sync at the point a hold chose, until a later step lets it go on.
 #[derive(Clone, Default)]
@@ -755,7 +917,7 @@ struct Pause {
 impl Pause {
     /// The receiver hears when the `at`th point of `place` from now parks, with what lets it go
     /// on, or errs if [`Self::disarm`] comes first.
-    fn arm(&self, place: Place, at: usize) -> oneshot::Receiver<oneshot::Sender<()>> {
+    fn arm(&self, place: Place<Uuid>, at: usize) -> oneshot::Receiver<oneshot::Sender<()>> {
         let (entered, parked) = oneshot::channel();
         *self.armed.lock().unwrap() = Some((place, at, entered));
         parked
@@ -767,13 +929,18 @@ impl Pause {
 }
 
 /// Requests a sync sends as many at once as the machine has cores. A hold never counts them, so
-/// they all finish before the next point and a seed replays alike on every machine.
+/// they all finish before the next point and a seed replays alike on every machine. A hold on a
+/// document counts only its operations, which run in one batch member each, so the same seed
+/// holds the same document at the same point at any width above one.
 const PARALLEL: [&str; 2] = ["get_document", "change_doc_v2"];
 
+/// The server's view of the [`Pause`], which devices' views pass through.
 #[async_trait]
 impl Gate for Pause {
     async fn pass(&self, point: Point) {
         let here = match point {
+            Point::Document { op: DocOp::InsertPending, .. } => Place::Save,
+            Point::Document { id, .. } => Place::Document(id),
             Point::Sent { endpoint } if !PARALLEL.contains(&endpoint) => Place::Sent,
             Point::Answered { endpoint } if !PARALLEL.contains(&endpoint) => Place::Answered,
             _ => return,
@@ -801,6 +968,57 @@ impl Gate for Pause {
     }
 }
 
+/// A device's view of the [`Pause`]: its store asks only while its database is free, since a
+/// hold inside a transaction would stall the device.
+#[derive(Clone)]
+struct Local {
+    pause: Pause,
+    db: Arc<OnceLock<Arc<RwLock<CoreDb>>>>,
+}
+
+impl Local {
+    fn new(pause: &Pause) -> Self {
+        Self { pause: pause.clone(), db: Default::default() }
+    }
+
+    /// `device`, whose store is this view's, now watched.
+    fn of(&self, device: Lb) -> Lb {
+        self.db.set(device.db.clone()).ok().unwrap();
+        device
+    }
+}
+
+#[async_trait]
+impl Gate for Local {
+    async fn pass(&self, point: Point) {
+        if self.db.get().is_some_and(|db| db.try_write().is_ok()) {
+            self.pause.pass(point).await;
+        }
+    }
+}
+
+/// Appends `mark`'s line to its document as an editor saves, rereading when another write landed
+/// first, and notes it in `marks` once it lands.
+async fn append(device: Lb, mark: Mark, marks: Marks) -> bool {
+    let (id, line) = (mark.note, &mark.line);
+    for _ in 0..3 {
+        let Ok((hmac, content)) = device.read_document_with_hmac(id, false).await else {
+            return false;
+        };
+        let text = format!("{}\n{line}", String::from_utf8_lossy(&content));
+        match device.safe_write(id, hmac, text.as_bytes(), None).await {
+            Ok(_) => {
+                LANDED.set(LANDED.get() + 1);
+                marks.lock().unwrap().push(mark);
+                return true;
+            }
+            Err(err) if matches!(err.kind, LbErrKind::ReReadRequired) => continue,
+            Err(_) => return false,
+        }
+    }
+    false
+}
+
 /// The seed a case's devices draw ids from: the same bytes give the same ids on every run.
 fn seed(bytes: &[u8]) -> u64 {
     // FNV-1a, since std's hashers are seeded per process
@@ -824,10 +1042,12 @@ fn name(seed: u64, n: usize) -> String {
 }
 
 /// The `n`th device a world seeded with `seed` makes.
-async fn device(client: &Client, seed: u64, n: usize) -> Lb {
-    Lb::in_memory(config(seed, n), client.clone())
+async fn device(client: &Client, pause: &Pause, seed: u64, n: usize) -> Lb {
+    let local = Local::new(pause);
+    let docs = GatedDocuments::new(AsyncDocs::in_memory(), local.clone());
+    local.of(Lb::in_memory(config(seed, n), client.clone(), docs)
         .await
-        .unwrap()
+        .unwrap())
 }
 
 /// What a device shows: every file's type, shares and content, keyed by path.
@@ -966,6 +1186,8 @@ fn run(tier: Tier, seeds: u64, check: Check) {
 thread_local! {
     /// How many steps this thread has taken while a sync was held.
     static PAUSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// How many lines this thread's saves have appended.
+    static LANDED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 fn run_case(case: Case, deadline: Option<Instant>, seeds: u64, check: Check) {
@@ -1041,10 +1263,11 @@ fn disjoint_changes_equal_sequential_check(case: Case, bytes: &[u8]) -> Result<(
             .filter(|step| !matches!(step, Step::Accept { .. } | Step::Reject { .. }))
             .collect();
 
+        // a held save lands after later saves on its device, which one after another can't show
         let concurrent = World::new(case, bytes).await;
         for step in &steps {
             concurrent
-                .take(step, step.device(), Reach::Own(step.device()))
+                .take(&step.unheld(), step.device(), Reach::Own(step.device()))
                 .await;
         }
         concurrent.settle().await?;
@@ -1063,7 +1286,9 @@ fn disjoint_changes_equal_sequential_check(case: Case, bytes: &[u8]) -> Result<(
                             | Step::Release { .. }
                     )
             }) {
-                sequential.take(step, first, Reach::Own(device)).await;
+                sequential
+                    .take(&step.unheld(), first, Reach::Own(device))
+                    .await;
             }
         }
         sequential.settle().await?;
@@ -1090,7 +1315,9 @@ fn a_new_device_sees_what_was_synced_check(case: Case, bytes: &[u8]) -> Result<(
         for account in 0..case.tier.accounts {
             let synced = &world.account_devices(account)[0];
             let key = synced.export_account_private_key().unwrap();
-            let fresh = device(&world.client, seed(bytes), world.devices.len() + 1 + account).await;
+            let fresh =
+                device(&world.client, &world.pause, seed(bytes), world.devices.len() + 1 + account)
+                    .await;
             fresh.import_account(&key, None).await.unwrap();
             fresh
                 .sync()
@@ -1207,6 +1434,60 @@ fn accounts_agree_on_what_they_share_check(case: Case, bytes: &[u8]) -> Result<(
                             ));
                         }
                     }
+                }
+            }
+        }
+        Ok(())
+    })
+}
+
+/// Once every device has synced, every line a save appended to a note is on each of its account's
+/// devices that lists the note and still names it a note, in the note or a copy sync kept of it,
+/// unless the saving device could no longer write the note by the time its sync carried the save:
+/// its access was revoked or lowered to read, or the note or a folder above it was deleted. Every
+/// write appends, so none overwrites another on purpose; other accounts see what it sees by
+/// [`accounts_agree_on_what_they_share_check`].
+fn edits_are_never_lost_check(case: Case, bytes: &[u8]) -> Result<(), String> {
+    block_on(async {
+        let mut world = World::new(case, bytes).await;
+        let marks = Marks::default();
+        world.marks = Some(marks.clone());
+        let steps: Vec<_> = steps(case, bytes)
+            .into_iter()
+            .enumerate()
+            .map(|(n, mut step)| {
+                if let Step::Write { content, .. } = &mut step {
+                    *content = n;
+                }
+                step
+            })
+            .collect();
+        world.take_all(&steps).await;
+        world.settle().await?;
+        let marks = marks.lock().unwrap().clone();
+        for (i, device) in world.devices.iter().enumerate() {
+            let listed = device.list_metadatas().await.unwrap();
+            let mut lines = HashSet::new();
+            for file in &listed {
+                if let Ok(content) = device.read_document(file.id, false).await {
+                    lines.extend(String::from_utf8_lossy(&content).lines().map(String::from));
+                }
+            }
+            for Mark { note: id, line, device: on, unwritable } in &marks {
+                // a note renamed to another kind is read as that kind from then on
+                let note = listed.iter().find(|file| file.id == *id).filter(|file| {
+                    DocumentType::from_file_name_using_extension(&file.name) == DocumentType::Text
+                });
+                let account = on / world.per_account;
+                if i / world.per_account != account || note.is_none() || *unwritable == Some(true) {
+                    continue;
+                }
+                if !lines.contains(line) {
+                    let path = device.get_path_by_id(*id).await.unwrap();
+                    let content = read(device, *id).await;
+                    return Err(format!(
+                        "device {i} lost {line}, saved on device {on}, from {path}: {content}"
+                    ));
                 }
             }
         }
