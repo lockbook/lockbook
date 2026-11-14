@@ -6,7 +6,11 @@ use crate::releaser::utils::{android_version_code, lb_repo, lb_version};
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use google_androidpublisher3::api::{AppEdit, LocalizedText, Track, TrackRelease};
-use google_androidpublisher3::{AndroidPublisher, hyper, hyper_rustls, oauth2};
+use google_androidpublisher3::hyper_rustls::HttpsConnectorBuilder;
+use google_androidpublisher3::hyper_util::client::legacy::Client;
+use google_androidpublisher3::hyper_util::rt::TokioExecutor;
+use google_androidpublisher3::yup_oauth2::client::CustomHyperClientBuilder;
+use google_androidpublisher3::{AndroidPublisher, yup_oauth2};
 use std::fmt::Display;
 use std::fs::File;
 use std::process::Command;
@@ -117,23 +121,32 @@ fn release_gh() -> CliResult<()> {
 
 fn release_play_store(track: AndroidTrack) -> CliResult<()> {
     let ps = PlayStore::env();
-    let service_account_key: oauth2::ServiceAccountKey =
-        oauth2::parse_service_account_key(ps.service_account_key).unwrap();
+    let service_account_key =
+        yup_oauth2::parse_service_account_key(ps.service_account_key).unwrap();
 
     let runtime = Runtime::new().unwrap();
 
     runtime.block_on(async move {
-        let auth = oauth2::ServiceAccountAuthenticator::builder(service_account_key)
-            .build()
-            .await
-            .unwrap();
-
-        let client = hyper::Client::builder().build(
-            hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
+        let connector = || {
+            HttpsConnectorBuilder::new()
+                .with_native_roots()
+                .unwrap()
                 .https_or_http()
                 .enable_http1()
-                .build(),
-        );
+                .build()
+        };
+
+        let auth = yup_oauth2::ServiceAccountAuthenticator::with_client(
+            service_account_key,
+            CustomHyperClientBuilder::from(
+                Client::builder(TokioExecutor::new()).build(connector()),
+            ),
+        )
+        .build()
+        .await
+        .unwrap();
+
+        let client = Client::builder(TokioExecutor::new()).build(connector());
 
         let publisher = AndroidPublisher::new(client, auth);
 
