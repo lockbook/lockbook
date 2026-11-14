@@ -27,8 +27,7 @@ impl TabCache {
         self.previous = std::mem::take(&mut self.current);
     }
 
-    /// Dirty tabs are kept alive — their save was already queued at
-    /// close time and needs the tab present for check_launch.
+    /// Dirty tabs are kept alive, closed ones included, so saves reach them.
     pub fn end_frame(&mut self) {
         let mut keep = Vec::new();
         for (id, tab) in self.previous.drain() {

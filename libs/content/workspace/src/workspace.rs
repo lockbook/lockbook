@@ -647,16 +647,17 @@ impl Workspace {
         }
     }
 
+    /// Queues a save of every tab with unsaved edits, closed ones included:
+    /// the tab cache keeps those until they're saved.
     pub fn save_all_tabs(&mut self) {
-        let slots: Vec<_> = self.tab_strip.clone();
-        for slot in &slots {
-            if let Some(tab) = self.tabs.get(&slot.id) {
-                if let Some(id) = tab.id() {
-                    if tab.is_dirty(&self.tasks) {
-                        self.tasks.queue_save(SaveRequest { id, origin: slot.id });
-                    }
-                }
-            }
+        let dirty: Vec<_> = self
+            .tabs
+            .iter()
+            .filter(|(_, tab)| tab.is_dirty(&self.tasks))
+            .filter_map(|(&origin, tab)| Some(SaveRequest { id: tab.id()?, origin }))
+            .collect();
+        for request in dirty {
+            self.tasks.queue_save(request);
         }
         self.last_save_all = Some(Instant::now());
     }
