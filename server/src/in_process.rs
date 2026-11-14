@@ -55,7 +55,7 @@ impl InMemoryServer {
 
 /// Every setting a handler reads, chosen for tests: accounts open, no rate limit, no admins.
 /// Settings the in-process path never reads are empty.
-pub(crate) fn in_process_config() -> Config {
+fn in_process_config() -> Config {
     let none = String::new;
     Config {
         server: ServerConfig {

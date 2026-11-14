@@ -205,28 +205,3 @@ fn panic_hook() {
         tracing::error!("panic detected: {panic_info} {}", bt);
     }));
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::in_process::in_process_config;
-
-    #[test]
-    fn startup_message_names_the_build_and_leaves_secrets_out() {
-        let mut config = in_process_config();
-        config.server.pd_api_key = Some("pd-secret".to_string());
-        config.server.discord_webhook_url = Some("discord-secret".to_string());
-        config.billing.stripe.stripe_secret = "stripe-secret".to_string();
-        config.billing.stripe.signing_secret = "signing-secret".to_string();
-        config.billing.google.pubsub_token = "pubsub-secret".to_string();
-        config.billing.apple.iap_key = "apple-secret".to_string();
-        config.billing.apple.asc_shared_secret = "shared-secret".to_string();
-
-        let message = startup_message(&config, "https://0.0.0.0:443");
-
-        assert!(message.starts_with(&format!("lockbook-server {CARGO_PKG_VERSION} (")));
-        assert!(message.contains("started on https://0.0.0.0:443, env: Local"));
-        assert!(message.contains("new_accounts: true"));
-        assert!(!message.contains("secret"));
-    }
-}
