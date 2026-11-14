@@ -222,6 +222,14 @@ pub fn parse(block: &str) -> Option<FrontMatter> {
     Some(FrontMatter { head, tail, rows })
 }
 
+/// What a quoted scalar, its quotes included, means: the escapes undone.
+pub fn unquote(quoted: &str) -> Option<String> {
+    Parser::new_from_str(quoted).find_map(|r| match r {
+        Ok((Event::Scalar(value, ..), _)) => Some(value.into_owned()),
+        _ => None,
+    })
+}
+
 fn is_fence(line: &str) -> bool {
     line.trim_end_matches('\r') == "---"
 }

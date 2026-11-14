@@ -177,6 +177,12 @@ impl MdEdit {
             &files,
             file_id,
         );
+        self.property_completions.update_active_state(
+            &self.renderer.buffer,
+            self.renderer.bounds.front_matter.as_ref(),
+            &files,
+            file_id,
+        );
         if !self.renderer.readonly && self.renderer.kind == Syntax::Markdown {
             self.emoji_completions.handle_input(
                 ctx,
@@ -184,6 +190,8 @@ impl MdEdit {
                 focused,
                 &mut self.event.internal_events,
             );
+            self.property_completions
+                .handle_input(ctx, focused, &mut self.event.internal_events);
             self.link_completions.handle_input(
                 ctx,
                 &self.renderer.buffer,
@@ -302,7 +310,8 @@ impl MdEdit {
         self.renderer.search_range = self
             .emoji_completions
             .search_term_range
-            .or(self.link_completions.search_term_range);
+            .or(self.link_completions.search_term_range)
+            .or(self.property_completions.search_term_range);
 
         if buf_resp.text_updated || buf_resp.selection_user_moved {
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
@@ -1537,6 +1546,7 @@ impl MdEdit {
         self.show_emoji_completions(ui);
         self.show_link_completions(ui);
         self.show_language_completions(ui);
+        self.show_property_completions(ui);
     }
 
     /// Reset the buffer to empty state. Chat composers call this after

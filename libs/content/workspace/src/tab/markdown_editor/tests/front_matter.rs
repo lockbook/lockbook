@@ -7,6 +7,10 @@ use super::super::input::Event;
 use super::harness::TestEditor;
 use lb_rs::model::text::offset_types::Grapheme;
 
+fn at(g: usize) -> Event {
+    Event::Select { region: (Grapheme(g), Grapheme(g)).into() }
+}
+
 /// `keys` typed into `md` of a note in the vault, from the selection
 /// `select`, or from where the note opens.
 fn typing_over(md: &str, select: Option<(usize, usize)>, script: &str) -> String {
@@ -97,6 +101,22 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
     ] {
         assert_eq!(typing_over(md, select, script), want, "{script} at {select:?} in {md:?}");
     }
+}
+
+/// Rule: other notes' properties come from the note index, which reads the
+/// vault only once something asks (#5267).
+#[test]
+fn typing_a_key_asks_for_the_note_index() {
+    use crate::test_utils::files::{at as path_at, cache, tree};
+    let files = tree("alice", &["/a/one.md", "/a/two.md"]);
+    let one = path_at(&files, "/a/one.md");
+    let md = "---\ntitle: Hi\n---\n";
+    let mut t = TestEditor::in_files(cache(files), one, md);
+    t.push(at(md.find("Hi").unwrap() + 2));
+    t.enter_frame();
+    keys(&mut t, "{ret}st");
+    let files = t.editor.edit.renderer.files.read().unwrap();
+    assert!(files.notes.is_wanted());
 }
 
 /// `one.md` open on `md`, beside notes whose front matter feeds

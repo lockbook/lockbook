@@ -12,7 +12,7 @@ The insert-table button opens a size picker, as in Word and Google Docs: a grid 
 Enter a search term, regex optional, count & navigate matches, replace one, replace all. On iOS a native search button opens this.
 
 ## Completions
-Emoji on `:`. Files/wiki/images on `[` / `[[` / `![` — they pick the link type by how you start ([links-images](links-images.md)). May insert the emoji character instead of the shortcode ([dialect](dialect.md)).
+Emoji on `:`. Files/wiki/images on `[` / `[[` / `![` — they pick the link type by how you start ([links-images](links-images.md)). May insert the emoji character instead of the shortcode ([dialect](dialect.md)). In the front matter grid, property names while a key is typed and the values other notes gave that key while a value or tag is typed, from the note index; the nearest note that uses one ranks it, so a folder's own vocabulary comes first, and the order within a match class takes no part from the query, so the top row holds as the rest is typed ([blocks](blocks.md)).
 
 You should be able to ignore them while typing with no side effect and also submit easily. They shouldn't show unless you probably intend to invoke them or at least write the kind of syntax they cover. Those conflict when Return submits instead of inserting a newline (acceptably).
 
