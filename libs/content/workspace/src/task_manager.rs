@@ -416,7 +416,7 @@ impl TaskManager {
                 } else {
                     let old_hmac = tab.hmac();
                     let Some(content) = tab.clone_content() else {
-                        break;
+                        continue;
                     };
                     (old_hmac, content)
                 };
