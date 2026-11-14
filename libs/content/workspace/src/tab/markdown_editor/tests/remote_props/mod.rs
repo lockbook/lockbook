@@ -127,7 +127,7 @@ fn the_note_shows_the_latest_version() {
 
 #[test]
 fn what_was_typed_is_never_lost() {
-    lost::run(Features::all(), Events::Local, 1000);
+    lost::run(Features::all(), Events::Scrolled, 1000);
 }
 
 #[test]

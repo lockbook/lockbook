@@ -164,25 +164,6 @@ impl Note {
         }
     }
 
-    /// Runs and records everything in flight, in launch order, framing
-    /// until nothing is left.
-    pub fn settle(&mut self, log: &mut dyn FnMut(String)) {
-        let mut src = ByteSource::new(&[]);
-        for _ in 0..100 {
-            if self.idle() {
-                return;
-            }
-            while self.held() > 0 {
-                self.run(&mut src, log);
-            }
-            while self.ran() > 0 {
-                self.record_at(0, log);
-            }
-            self.frame_after(0.0, vec![]);
-        }
-        panic!("the note's loads and saves never settled");
-    }
-
     /// Queues a save of every tab with edits, as auto-save does; it
     /// launches at the top of the next frame.
     pub fn save(&mut self, log: &mut dyn FnMut(String)) {
