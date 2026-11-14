@@ -1899,6 +1899,17 @@ mod reload_tests {
     }
 
     #[test]
+    fn a_reload_keeps_another_edit_where_a_mark_typed_over_a_selection_was_undone() {
+        let mut buf = Buffer::from("ab cd ef");
+        edit(&mut buf, (3, 5), "\u{948}");
+        assert_eq!(buf.current.text, "ab \u{948} ef");
+        buf.undo();
+        assert_eq!(buf.current.text, "ab cd ef");
+        reload(&mut buf, "ab cX ef");
+        assert_eq!(buf.current.text, "ab cX ef");
+    }
+
+    #[test]
     fn reload_after_an_undo_at_a_reload() {
         let mut buf = Buffer::from("aa bb cc");
         reload(&mut buf, "aa bb cc R");
