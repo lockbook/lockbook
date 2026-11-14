@@ -193,15 +193,17 @@ impl Headless {
         self.frames += 1;
     }
 
-    /// Draws frames until the tab settles, or long enough that it won't;
-    /// returns whether it settled.
+    /// Draws frames until the tab settles and no font is still being read,
+    /// or long enough that it won't; returns whether it settled.
     pub fn settle(&mut self) -> bool {
+        let started = Instant::now();
         loop {
             self.frame();
-            if self.frames > 1 && self.tab.settled() {
+            // a font still being read redraws the tab when it's added
+            if self.frames > 1 && self.tab.settled() && !crate::font::loader::busy() {
                 return true;
             }
-            if self.started.elapsed() > SETTLE_BOUND {
+            if started.elapsed() > SETTLE_BOUND {
                 return false;
             }
             std::thread::sleep(Duration::from_millis(4));
@@ -328,6 +330,9 @@ pub fn share_font_system(ctx: &Context, font_system: Arc<Mutex<FontSystem>>) {
     ctx.data_mut(|d| d.insert_temp(Id::NULL, font_system));
     ctx.data_mut(|d| d.insert_temp(Id::NULL, Arc::new(Mutex::new(GlyphonCache::new()))));
 }
+
+pub mod pdf;
+pub mod print;
 
 #[cfg(test)]
 mod tests {

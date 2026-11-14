@@ -181,6 +181,28 @@ impl MathCache {
         }
     }
 
+    /// The picture at `key` in `color`, while it's kept.
+    pub fn tree(&self, key: u64, color: Color32) -> Option<Arc<usvg::Tree>> {
+        let mut inner = self.lock();
+        inner.used.insert(key);
+        match inner.entries.get(&key) {
+            Some(State::Ready { color: c, tree: Some(tree), .. }) if *c == color => {
+                Some(tree.clone())
+            }
+            _ => None,
+        }
+    }
+
+    /// Whether a formula is still typesetting or drawing.
+    pub fn busy(&self) -> bool {
+        let inner = self.lock();
+        inner.rendering
+            || inner
+                .entries
+                .values()
+                .any(|s| matches!(s, State::Pending | State::Ready { rendering: true, .. }))
+    }
+
     /// The texture to paint `width_px` device pixels wide in `color`, if
     /// any. One of another width or color paints while this one draws.
     pub fn texture(&self, key: u64, color: Color32, width_px: u32) -> Option<TextureId> {

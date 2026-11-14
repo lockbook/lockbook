@@ -478,7 +478,13 @@ impl Slot {
                     md.edit.renderer.tab_embeds.res = (!card).then(|| res.clone());
                 }
                 let mut tab = Tab::new(dest.clone(), ContentState::Open(content), salt, true);
-                tab.presentation = if card { Presentation::Card } else { Presentation::Embedded };
+                tab.presentation = if crate::printing(&res.ctx) {
+                    Presentation::Print
+                } else if card {
+                    Presentation::Card
+                } else {
+                    Presentation::Embedded
+                };
                 tab.reveal = Some(Reveal { fragment: self.place.fragment.clone(), flash: false });
                 SlotState::Open(Box::new(tab))
             }

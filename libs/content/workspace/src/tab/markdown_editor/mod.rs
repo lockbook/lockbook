@@ -195,6 +195,11 @@ pub struct MdRender {
     /// Per-frame geometry index of every table cell, cleared and read like
     /// `block_boxes`: a pointer in a cell resolves to that cell.
     pub table_cell_boxes: Vec<table::TableCellBox>,
+    /// Tables, their rows, code blocks, and each heading with the block after
+    /// it, as painted for print.
+    pub unbreakable: Vec<egui::Rect>,
+    /// The top of the heading last painted for print, until the block after it.
+    pub print_heading_top: Option<f32>,
     /// A painter slot above each header row's background, with the row's
     /// rect: the selection's highlight there would paint under it.
     pub table_header_slots: Vec<(egui::layers::ShapeIdx, Rect)>,
@@ -261,7 +266,10 @@ pub struct MdRender {
     /// landing.
     pub landing_text: Option<Grapheme>,
     pub interactive: bool, // enables fold buttons
-    pub readonly: bool,    // disables task checkboxes and saving
+    /// Laid out for print: tables share the width, folds are open, and
+    /// [`Self::unbreakable`] collects what a page break mustn't cut.
+    pub print: bool,
+    pub readonly: bool, // disables task checkboxes and saving
     pub view: View,
     /// Password mode: render every source byte as `*` while the buffer keeps
     /// the real text. Only meaningful for plain text shown as source —
@@ -850,6 +858,8 @@ impl MdRender {
             fragments: Vec::new(),
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
+            unbreakable: Vec::new(),
+            print_heading_top: None,
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
@@ -886,6 +896,7 @@ impl MdRender {
             region_reveal: None,
             landing_text: None,
             interactive: false,
+            print: false,
             readonly: true,
             view: View::Rendered,
             mask: false,
@@ -974,6 +985,8 @@ impl MdRender {
             fragments: Vec::new(),
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
+            unbreakable: Vec::new(),
+            print_heading_top: None,
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
@@ -1017,6 +1030,7 @@ impl MdRender {
             region_reveal: None,
             landing_text: None,
             interactive: false,
+            print: false,
             readonly: true,
             view: View::Rendered,
             mask: false,
@@ -1238,6 +1252,8 @@ impl Editor {
             fragments: Vec::new(),
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
+            unbreakable: Vec::new(),
+            print_heading_top: None,
             table_header_slots: Vec::new(),
             row_scrolls: Default::default(),
             row_scrollers: Default::default(),
@@ -1275,6 +1291,7 @@ impl Editor {
             region_reveal: None,
             landing_text: None,
             interactive: true,
+            print: false,
             readonly,
             view,
             mask: false,
@@ -1646,6 +1663,9 @@ impl Editor {
         let mut resp: Response = mem::take(&mut self.next_resp);
         self.moved_unpainted = false;
         self.edit.renderer.tab_embeds.begin_frame(ui.ctx());
+        // a formula landing mid-frame drew as its source
+        let math_seq = self.edit.renderer.math.seq();
+        let diagram_seq = self.edit.renderer.diagrams.seq();
         // Copy takes the selection in the embed last pressed, if there is one
         if ui.input(|i| i.events.contains(&egui::Event::Copy)) {
             if let Some(text) = self.edit.renderer.tab_embeds.copy() {
@@ -1660,8 +1680,9 @@ impl Editor {
             resp.scroll_updated = true;
         }
 
-        // Desktop follows the text width setting; touch keeps its own cap.
-        if !self.edit.renderer.touch_mode {
+        // Desktop follows the text width setting; touch keeps its own cap, and
+        // print is as wide as the paper.
+        if !self.edit.renderer.touch_mode && !self.edit.renderer.print {
             self.edit.renderer.layout.max_width = self.persistence.get_column_width();
         }
         let height = ui.available_size().y.round();
@@ -2187,7 +2208,11 @@ impl Editor {
         self.edit.renderer.tab_embeds.end_frame();
         self.loads_pending = self.edit.renderer.embeds.take_pending()
             | self.edit.renderer.previews_pending.take()
-            | self.edit.renderer.tab_embeds.pending();
+            | self.edit.renderer.tab_embeds.pending()
+            | self.edit.renderer.math.busy()
+            | (self.edit.renderer.math.seq() != math_seq)
+            | self.edit.renderer.diagrams.busy()
+            | (self.edit.renderer.diagrams.seq() != diagram_seq);
 
         resp
     }
@@ -2352,6 +2377,8 @@ impl Editor {
                         self.edit.renderer.fragments.clear();
                         self.edit.renderer.block_boxes.clear();
                         self.edit.renderer.table_cell_boxes.clear();
+                        self.edit.renderer.unbreakable.clear();
+                        self.edit.renderer.print_heading_top = None;
                         self.edit.renderer.table_header_slots.clear();
                         self.edit.renderer.in_progress_block_drag =
                             self.edit.in_progress_block_drag;

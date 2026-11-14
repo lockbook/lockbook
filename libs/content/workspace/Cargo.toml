@@ -60,6 +60,8 @@ gif = "0.14"
 glam = "0.22.0"
 glyphon = "0.12.0"
 hayro = "0.4.0"
+krilla = { version = "0.8.2", default-features = false, features = ["raster-images"] }
+krilla-svg = "0.8.1"
 # Annoyingly egui depends on a version match here for feature toggling reasons
 image = "0.25.9"
 png = "0.18.1"

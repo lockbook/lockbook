@@ -391,6 +391,8 @@ pub enum Action {
     Duplicate(Vec<Uuid>),
     /// Export each id into one picked destination folder.
     Export(Vec<Uuid>),
+    /// Write a note as a PDF where the user picks.
+    ExportPdf(Uuid),
     /// Copy a place's link to the OS clipboard, a file's as its external URL.
     CopyLink(workspace_rs::tab::Place),
     /// Show the Files pane with the file selected and scrolled into view.
@@ -547,6 +549,7 @@ impl Action {
             Self::MoveInto { .. } => "MoveInto",
             Self::Duplicate(_) => "Duplicate",
             Self::Export(_) => "Export",
+            Self::ExportPdf(_) => "ExportPdf",
             Self::CopyLink(_) => "CopyLink",
             Self::RevealInFiles(_) => "RevealInFiles",
             Self::Import => "Import",

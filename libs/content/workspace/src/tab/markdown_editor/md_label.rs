@@ -39,7 +39,7 @@ impl MdLabel {
 
     /// Render `md` into `ui` at the current cursor position, wrapping at
     /// `width`. Advances `ui`'s cursor past the rendered block. Returns the
-    /// shaped text areas for the caller to submit via `GlyphonRendererCallback`.
+    /// shaped text areas for the caller to submit via `paint_text`.
     /// `id_salt` must be unique among labels painted into one `ui`.
     pub fn show(
         &mut self, ui: &mut Ui, id_salt: impl egui::AsIdSalt, md: &str, width: f32,

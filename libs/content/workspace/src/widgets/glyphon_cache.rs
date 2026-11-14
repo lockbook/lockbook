@@ -7,6 +7,8 @@ pub struct GlyphonCacheKey {
     pub font_size_bits: u32,
     pub line_height_bits: u32,
     pub width_bits: u32,
+    /// Each line centered in the width.
+    pub centered: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -36,6 +38,7 @@ impl GlyphonCacheKey {
             font_size_bits,
             line_height_bits,
             width_bits,
+            centered: false,
         }
     }
 }

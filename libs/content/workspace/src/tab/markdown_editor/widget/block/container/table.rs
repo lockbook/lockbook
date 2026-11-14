@@ -170,7 +170,7 @@ impl<'ast> MdRender {
     /// The width of each of the table's columns, padding included: as
     /// wide as its widest cell's content on one row, between a column's
     /// narrowest and widest. Past the widest, text wraps; a table wider
-    /// than the note scrolls.
+    /// than the note scrolls, or in print shares its width by those widths.
     pub fn table_column_widths(&self, table: &'ast AstNode<'ast>) -> Rc<[f32]> {
         if let Some(columns) = self.get_cached_table_columns(table) {
             return columns;
@@ -193,6 +193,11 @@ impl<'ast> MdRender {
             }
         }
         self.layout_cache.table_cell_measuring.set(false);
+        let total: f32 = widths.iter().sum();
+        let room = self.width(table);
+        if self.print && total > room {
+            widths.iter_mut().for_each(|w| *w *= room / total);
+        }
         let columns: Rc<[f32]> = widths.into();
         self.set_cached_table_columns(table, columns.clone());
         columns

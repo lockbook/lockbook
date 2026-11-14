@@ -579,6 +579,8 @@ impl MdEdit {
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
         self.renderer.table_cell_boxes.clear();
+        self.renderer.unbreakable.clear();
+        self.renderer.print_heading_top = None;
         self.renderer.table_header_slots.clear();
         self.renderer.in_progress_block_drag = self.in_progress_block_drag;
         self.renderer.bounds.wrap_lines.clear();
@@ -911,7 +913,7 @@ impl MdEdit {
         let mut painter = ui.painter().clone();
         painter.multiply_opacity(crate::style::DRAG_OPACITY);
         if !floating_text.is_empty() {
-            crate::widgets::glyphon_render::paint_glyphon(&painter, ui.clip_rect(), floating_text);
+            crate::paint_text(&painter, ui.clip_rect(), floating_text);
         }
         for d in floating_deco {
             d.paint(&painter);
@@ -1492,7 +1494,7 @@ impl MdEdit {
             // scrolls off-screen once the user passes one viewport-height.
             // `egui_wgpu` clamps the callback rect to the screen, and a
             // zero-area result silently drops the callback — no text paints.
-            crate::widgets::glyphon_render::paint_glyphon(ui.painter(), ui.clip_rect(), text_areas);
+            crate::paint_text(ui.painter(), ui.clip_rect(), text_areas);
         }
 
         for shape in std::mem::take(&mut self.renderer.over_text) {

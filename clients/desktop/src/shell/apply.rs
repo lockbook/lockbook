@@ -18,7 +18,7 @@ use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use rfd::FileDialog;
 use workspace_rs::file_cache::{Change, FileCache, FilesExt};
-use workspace_rs::tab::{Destination, Place};
+use workspace_rs::tab::{ContentState, Destination, Place, TabSaveContent};
 
 use super::ShellApp;
 use super::action::{
@@ -566,6 +566,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::Duplicate(ids) => duplicate_files(app, &ids),
         A::Export(ids) => export_files(app, ctx, &ids),
+        A::ExportPdf(id) => export_pdf(app, ctx, id),
         A::CopyLink(place) => {
             if let Some(r) = app.session.ready() {
                 let core = &r.workspace.core;
@@ -1356,7 +1357,16 @@ fn expand_or_collapse(app: &mut ShellApp, id: Uuid, expand: bool) {
 /// Result of a system file/folder picker that ran off the UI thread.
 pub(crate) enum NativeDialogResult {
     Import(Option<Vec<PathBuf>>),
-    Export { files: Vec<File>, dest: Option<PathBuf> },
+    Export {
+        files: Vec<File>,
+        dest: Option<PathBuf>,
+    },
+    /// Where to write note `id` as a PDF, from `text`; no `dest` when the user canceled.
+    ExportPdf {
+        id: Uuid,
+        text: Option<String>,
+        dest: Option<PathBuf>,
+    },
 }
 
 /// NSOpenPanel's nested modal often synthesizes `CloseRequested` on cancel.
@@ -1480,6 +1490,9 @@ pub(crate) fn poll_native_dialog(app: &mut ShellApp, ctx: &Context) {
         NativeDialogResult::Export { files, dest: Some(dest) } => {
             finish_export(app, files, dest);
         }
+        NativeDialogResult::ExportPdf { id, text, dest: Some(dest) } => {
+            write_pdf(app, ctx, id, text, dest);
+        }
         _ => {}
     }
 }
@@ -1522,6 +1535,83 @@ fn export_files(app: &mut ShellApp, ctx: &Context, ids: &[Uuid]) {
         files,
         dest: FileDialog::new().pick_folder(),
     });
+}
+
+/// Asks where to save note `id` as a PDF, with any edits its open tab hasn't saved yet.
+fn export_pdf(app: &mut ShellApp, ctx: &Context, id: Uuid) {
+    if app.pdf_export_rx.is_some() {
+        return;
+    }
+    let Some(r) = app.session.ready() else {
+        return;
+    };
+    let Some(name) = r
+        .workspace
+        .files
+        .read()
+        .unwrap()
+        .get_by_id(id)
+        .map(|f| f.name.clone())
+    else {
+        return;
+    };
+    let text = r
+        .workspace
+        .tab_strip
+        .iter()
+        .filter(|session| session.place.dest == Destination::File(id))
+        .find_map(|session| match &r.workspace.tabs.get(&session.id)?.content {
+            ContentState::Open(content) => match content.clone_content()? {
+                TabSaveContent::String(text) => Some(text),
+                _ => None,
+            },
+            _ => None,
+        });
+    let stem = name.strip_suffix(".md").unwrap_or(&name).to_string();
+    spawn_native_dialog(app, ctx, move || {
+        let dest = FileDialog::new()
+            .set_file_name(format!("{stem}.pdf"))
+            .add_filter("PDF", &["pdf"])
+            .save_file();
+        NativeDialogResult::ExportPdf { id, text, dest }
+    });
+}
+
+/// Draws note `id` as a PDF and writes it to `dest`, off the UI thread.
+fn write_pdf(app: &mut ShellApp, ctx: &Context, id: Uuid, text: Option<String>, dest: PathBuf) {
+    let Some(r) = app.session.ready() else {
+        return;
+    };
+    let res = r.workspace.resources();
+    let (tx, rx) = mpsc::channel();
+    app.pdf_export_rx = Some(rx);
+    let ctx = ctx.clone();
+    thread::spawn(move || {
+        let paper = workspace_rs::preview::pdf::Paper::of_locale();
+        let written = workspace_rs::preview::pdf::render_pdf(&res, id, text, paper)
+            .and_then(|pdf| std::fs::write(&dest, pdf).map_err(|e| e.to_string()));
+        let _ = tx.send(written);
+        ctx.request_repaint();
+    });
+}
+
+pub(crate) fn poll_pdf_export(app: &mut ShellApp) {
+    let Some(rx) = &app.pdf_export_rx else {
+        return;
+    };
+    let written = match rx.try_recv() {
+        Ok(written) => written,
+        Err(mpsc::TryRecvError::Empty) => return,
+        Err(mpsc::TryRecvError::Disconnected) => Err("the export stopped".into()),
+    };
+    app.pdf_export_rx = None;
+    match written {
+        Ok(()) => app.toasts.info("Exported as PDF"),
+        Err(e) => {
+            eprintln!("export pdf: {e}");
+            app.toasts.error("Couldn’t export as PDF");
+        }
+    }
 }
 
 fn finish_export(app: &mut ShellApp, files: Vec<File>, dest: PathBuf) {
