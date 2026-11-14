@@ -507,6 +507,50 @@ fn an_edit_during_a_drag_still_moves_the_image() {
     assert_eq!(ws.get_text(), format!("\n\n\n\nend![a]({IMAGE}) here\n"));
 }
 
+/// An image whose paragraph becomes a block of code while it's held is code text, and the drop
+/// leaves it there.
+#[test]
+fn an_image_held_while_its_paragraph_turns_to_code_drops_nothing() {
+    use super::super::input::Region;
+    use comrak::nodes::NodeValue;
+
+    let md = format!("start ![a]({IMAGE}) end\n\nfoo baz baz bar\n");
+    let mut ws = editor(&md);
+    let button = |pos, pressed| Egui::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    let from = image_center(&ws);
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(from)]);
+    ws.enter_frame_with_input(vec![button(from, true)]);
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(from + egui::vec2(20.0, 20.0))]);
+    let grab = ws
+        .editor
+        .edit
+        .in_progress_image_drag
+        .as_ref()
+        .expect("it lifted")
+        .grab_offset;
+    let lift = egui::vec2(0.0, grab.y + ws.editor.edit.renderer.drop_lift());
+
+    ws.push(Event::ToggleStyle {
+        region: Region::Selection,
+        style: NodeValue::CodeBlock(Default::default()),
+    });
+    ws.enter_frame();
+    let code = format!("```\nstart ![a]({IMAGE}) end\n```\n\nfoo baz baz bar\n");
+    assert_eq!(ws.get_text(), code);
+
+    let to = after(&ws, "baz baz");
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(to)]);
+    ws.enter_frame_with_input(vec![Egui::PointerMoved(to + lift)]);
+    ws.enter_frame_with_input(vec![button(to + lift, false)]);
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), code);
+}
+
 /// A drop the platform drives lands where the finger let go, whatever
 /// pointer egui still tracks.
 #[test]
