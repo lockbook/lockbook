@@ -89,9 +89,15 @@ impl AccountStanding {
                         card_last_4: last4,
                     }
                 } else {
+                    // Stripe's renewal choice lives on its billing page; the paid period is certain.
+                    let paid_through = if date == "the end of the billing period" {
+                        "Paid through the current billing period.".to_owned()
+                    } else {
+                        format!("Paid through {date}.")
+                    };
                     Self {
                         tier: AccountTier::Premium,
-                        detail: Some(renews),
+                        detail: Some(paid_through),
                         source: Some("Stripe"),
                         card_last_4: last4,
                     }

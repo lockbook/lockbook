@@ -205,13 +205,14 @@ pub enum OnboardMode {
     Backup,
 }
 
-/// Stripe upgrade sheet stages.
+/// Upgrade page stages: pick a plan, pay on Stripe's page, then Premium.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum UpgradeStage {
     #[default]
-    EnterCard,
-    Confirm,
-    Paying,
+    Choose,
+    /// Stripe Checkout is open in the browser; Premium arrives with the account.
+    Browser,
+    Done,
 }
 
 /// Create-sheet file type.
@@ -463,13 +464,15 @@ pub enum Action {
     RefreshDebugInfo,
     /// Copy ready debug info to the OS clipboard.
     CopyDebugInfo,
-    /// Open Stripe upgrade sheet (free tier).
+    /// Open the upgrade page (free tier).
     OpenUpgrade,
     UpgradeBack,
-    UpgradeNext,
-    UpgradeConfirmPay,
-    /// After success/error, leave Paying for Settings → Plan.
+    UpgradeYearly(bool),
+    /// Open Stripe Checkout for the chosen plan in the browser.
+    UpgradeCheckout,
     UpgradeDone,
+    /// Open Stripe's billing portal (card, invoices, cancel).
+    ManageBilling,
     OpenLogout,
     LogoutAck(bool),
     ConfirmLogout,
@@ -592,8 +595,9 @@ impl Action {
             Self::CopyDebugInfo => "CopyDebugInfo",
             Self::OpenUpgrade => "OpenUpgrade",
             Self::UpgradeBack => "UpgradeBack",
-            Self::UpgradeNext => "UpgradeNext",
-            Self::UpgradeConfirmPay => "UpgradeConfirmPay",
+            Self::UpgradeYearly(_) => "UpgradeYearly",
+            Self::UpgradeCheckout => "UpgradeCheckout",
+            Self::ManageBilling => "ManageBilling",
             Self::UpgradeDone => "UpgradeDone",
             Self::OpenLogout => "OpenLogout",
             Self::LogoutAck(_) => "LogoutAck",

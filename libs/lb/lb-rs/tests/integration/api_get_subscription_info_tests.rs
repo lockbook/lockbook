@@ -1,71 +1,18 @@
 use lb_rs::io::server::Server;
-use lb_rs::model::api::{
-    GetSubscriptionInfoRequest, GetSubscriptionInfoRequestV2, UpgradeAccountStripeRequest,
-};
-use test_utils::{generate_premium_account_tier, test_core_with_account, test_credit_cards};
+use lb_rs::model::api::{GetSubscriptionInfoRequest, GetSubscriptionInfoRequestV2};
+use test_utils::test_core_with_account;
 
 #[tokio::test]
-#[ignore]
-async fn get_subscription_info() {
+async fn get_subscription_info_free() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
 
-    assert!(
-        Server::get_subscription_info(&core.client, account, GetSubscriptionInfoRequest {})
-            .await
-            .unwrap()
-            .subscription_info
-            .is_none()
-    );
+    let v1 =
+        Server::get_subscription_info(&core.client, account, GetSubscriptionInfoRequest {}).await;
+    assert!(v1.unwrap().subscription_info.is_none());
 
-    Server::upgrade_account_stripe(
-        &core.client,
-        account,
-        UpgradeAccountStripeRequest {
-            account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
-        },
-    )
-    .await
-    .unwrap();
-
-    assert!(
-        Server::get_subscription_info(&core.client, account, GetSubscriptionInfoRequest {})
-            .await
-            .unwrap()
-            .subscription_info
-            .is_some()
-    );
-}
-
-#[tokio::test]
-#[ignore]
-async fn get_subscription_info_v2() {
-    let core = test_core_with_account().await;
-    let account = core.get_account().unwrap();
-
-    assert!(
+    let v2 =
         Server::get_subscription_info_v2(&core.client, account, GetSubscriptionInfoRequestV2 {})
-            .await
-            .unwrap()
-            .subscription_info
-            .is_none()
-    );
-
-    Server::upgrade_account_stripe(
-        &core.client,
-        account,
-        UpgradeAccountStripeRequest {
-            account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
-        },
-    )
-    .await
-    .unwrap();
-
-    assert!(
-        Server::get_subscription_info_v2(&core.client, account, GetSubscriptionInfoRequestV2 {})
-            .await
-            .unwrap()
-            .subscription_info
-            .is_some()
-    );
+            .await;
+    assert!(v2.unwrap().subscription_info.is_none());
 }
