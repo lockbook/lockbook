@@ -457,8 +457,16 @@ struct World {
     marks: Option<Marks>,
 }
 
-/// A line a save appended, with its document and the account whose device saved it.
-type Mark = (Uuid, String, usize);
+/// A line a save appended to a note on a device.
+#[derive(Clone)]
+struct Mark {
+    note: Uuid,
+    line: String,
+    device: usize,
+    /// Once the device's sync has carried or dropped the save, whether the device could then no
+    /// longer write the note.
+    unwritable: Option<bool>,
+}
 type Marks = Arc<Mutex<Vec<Mark>>>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -661,7 +669,8 @@ impl World {
                         {
                             return false;
                         }
-                        let mark = (file, format!("m{content}"), on / self.per_account);
+                        let line = format!("m{content}");
+                        let mark = Mark { note: file, line, device: on, unwritable: None };
                         tokio::spawn(append(device.clone(), mark, marks.clone()))
                     }
                     None => {
@@ -749,7 +758,48 @@ impl World {
     async fn take_all(&self, steps: &[Step]) {
         for step in steps {
             self.take(step, step.device(), Reach::Shared).await;
+            self.watch().await;
         }
+    }
+
+    /// Decides each mark whose note has left its device's local changes, so the device's sync has
+    /// carried or dropped its save, by whether the device could still write the note then.
+    async fn watch(&self) {
+        let Some(marks) = &self.marks else { return };
+        let open: Vec<_> = (marks.lock().unwrap().iter().enumerate())
+            .filter(|(_, mark)| mark.unwritable.is_none())
+            .map(|(n, mark)| (n, mark.note, mark.device))
+            .collect();
+        for (n, note, on) in open {
+            let device = &self.devices[on];
+            if device.local_changes().await.contains(&note) {
+                continue;
+            }
+            let unwritable = !self.writes(on, note).await;
+            marks.lock().unwrap()[n].unwritable = Some(unwritable);
+        }
+    }
+
+    /// Whether device `on` lists `file` and its account owns it or holds a write share on it or a
+    /// folder above it.
+    async fn writes(&self, on: usize, file: Uuid) -> bool {
+        let me = &self.names[on / self.per_account];
+        let listed: BTreeMap<_, _> = (self.devices[on].list_metadatas().await.unwrap())
+            .into_iter()
+            .map(|file| (file.id, file))
+            .collect();
+        let mut at = listed.get(&file);
+        if at.is_some_and(|file| &file.owner == me) {
+            return true;
+        }
+        while let Some(file) = at {
+            let mut shares = file.shares.iter();
+            if shares.any(|share| &share.shared_with == me && share.mode == ShareMode::Write) {
+                return true;
+            }
+            at = listed.get(&file.parent).filter(|_| !file.is_root());
+        }
+        false
     }
 
     /// Holds `task` on device `on` once the gate parks it, returning true, or its result if it
@@ -815,6 +865,7 @@ impl World {
                     .sync()
                     .await
                     .map_err(|err| format!("device {i} failed to sync: {err:?}"))?;
+                self.watch().await;
             }
         }
         Ok(())
@@ -907,7 +958,7 @@ impl Gate for Local {
 /// Appends `mark`'s line to its document as an editor saves, rereading when another write landed
 /// first, and notes it in `marks` once it lands.
 async fn append(device: Lb, mark: Mark, marks: Marks) -> bool {
-    let (id, ref line, _) = mark;
+    let (id, line) = (mark.note, &mark.line);
     for _ in 0..3 {
         let Ok((hmac, content)) = device.read_document_with_hmac(id, false).await else {
             return false;
@@ -1348,8 +1399,10 @@ fn accounts_agree_on_what_they_share_check(case: Case, bytes: &[u8]) -> Result<(
 }
 
 /// Once every device has synced, every line a save appended to a note is on each of its account's
-/// devices that lists the note and still names it a note, in the note or a copy sync kept of it. Every write appends, so
-/// none overwrites another on purpose; other accounts see what it sees by
+/// devices that lists the note and still names it a note, in the note or a copy sync kept of it,
+/// unless the saving device could no longer write the note by the time its sync carried the save:
+/// its access was revoked or lowered to read, or the note or a folder above it was deleted. Every
+/// write appends, so none overwrites another on purpose; other accounts see what it sees by
 /// [`accounts_agree_on_what_they_share_check`].
 fn edits_are_never_lost_check(case: Case, bytes: &[u8]) -> Result<(), String> {
     block_on(async {
@@ -1377,18 +1430,21 @@ fn edits_are_never_lost_check(case: Case, bytes: &[u8]) -> Result<(), String> {
                     lines.extend(String::from_utf8_lossy(&content).lines().map(String::from));
                 }
             }
-            for (id, line, account) in &marks {
+            for Mark { note: id, line, device: on, unwritable } in &marks {
                 // a note renamed to another kind is read as that kind from then on
                 let note = listed.iter().find(|file| file.id == *id).filter(|file| {
                     DocumentType::from_file_name_using_extension(&file.name) == DocumentType::Text
                 });
-                if i / world.per_account != *account || note.is_none() {
+                let account = on / world.per_account;
+                if i / world.per_account != account || note.is_none() || *unwritable == Some(true) {
                     continue;
                 }
                 if !lines.contains(line) {
                     let path = device.get_path_by_id(*id).await.unwrap();
                     let content = read(device, *id).await;
-                    return Err(format!("device {i} lost {line} from {path}: {content}"));
+                    return Err(format!(
+                        "device {i} lost {line}, saved on device {on}, from {path}: {content}"
+                    ));
                 }
             }
         }
