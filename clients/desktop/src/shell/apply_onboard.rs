@@ -65,7 +65,9 @@ pub(crate) fn onboard_form(
         api_url,
         busy: false,
         err,
-        key_stored: false,
+        ready: false,
+        signing_in: false,
+        draft: None,
     }
 }
 
@@ -207,11 +209,19 @@ fn onboard_import_secret(account_key: &str) -> String {
 }
 
 pub(crate) enum AutoOnboard {
-    Ready { core: Lb, files: FileCache, sub_info: Option<SubscriptionInfo> },
+    /// The key signed in; the notes are syncing.
+    Accepted,
+    Ready {
+        core: Lb,
+        files: FileCache,
+        sub_info: Option<SubscriptionInfo>,
+    },
     Failed,
 }
 
-/// Apply a finished auto-import. Failures are silent — the form stays put.
+/// Apply an auto-import as it goes: an accepted key opens the look step
+/// while the notes sync, and the finished sync readies it. Failures are
+/// silent — the form stays put.
 pub(crate) fn poll_auto_import(app: &mut ShellApp, ctx: &Context) {
     let Some(rx) = &app.onboard_auto_rx else {
         return;
@@ -227,16 +237,26 @@ pub(crate) fn poll_auto_import(app: &mut ShellApp, ctx: &Context) {
             return;
         }
     };
-    app.onboard_auto_rx = None;
     match result {
+        AutoOnboard::Accepted => {
+            if let Some(Modal::Onboard { mode, signing_in, .. }) = &mut app.modal {
+                *mode = OnboardMode::Look;
+                *signing_in = true;
+            }
+        }
         AutoOnboard::Ready { core, files, sub_info } => {
-            app.modal = None;
+            app.onboard_auto_rx = None;
+            if let Some(Modal::Onboard { busy, ready, .. }) = &mut app.modal {
+                *busy = false;
+                *ready = true;
+            }
             app.lb_rx = None;
             app.recents_cache = Default::default();
             app.shared_cache = Default::default();
             app.session = Session::Ready(Box::new(session::Ready::new(core, files, ctx, sub_info)));
         }
         AutoOnboard::Failed => {
+            app.onboard_auto_rx = None;
             if let Some(Modal::Onboard { busy, .. }) = &mut app.modal {
                 *busy = false;
             }
@@ -278,7 +298,7 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         }
         _ => return,
     };
-    if mode == OnboardMode::Backup {
+    if matches!(mode, OnboardMode::Backup | OnboardMode::Look | OnboardMode::Complete) {
         return;
     }
 
@@ -309,7 +329,7 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
             }
         }
         OnboardMode::Choice => Some("Pick Create or Import".into()),
-        OnboardMode::Backup => None,
+        OnboardMode::Backup | OnboardMode::Look | OnboardMode::Complete => None,
     };
     if let Some(e) = local_err {
         if let Some(Modal::Onboard { busy, err, .. }) = &mut app.modal {
@@ -339,8 +359,10 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         app.onboard_auto_rx = Some(rx);
         let ctx = ctx.clone();
         thread::spawn(move || {
-            match onboard_account(&core, mode, &uname, &import_secret, &api) {
+            match onboard_account(&core, mode, &import_secret, &api) {
                 Ok(()) => {
+                    let _ = tx.send(AutoOnboard::Accepted);
+                    ctx.request_repaint();
                     // Import already wrote the account. Open even if sync fails
                     // so we don't leave a signed-in core on the import form.
                     let load = match onboard_sync_and_cache(core, None, &ctx) {
@@ -370,6 +392,22 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         return;
     }
 
+    // Create makes the key here and registers it at Done, under whatever
+    // name the Account step holds by then.
+    if mode == OnboardMode::Create {
+        if let Some(Modal::Onboard { mode: m, busy, err, ready, signing_in, draft, .. }) =
+            &mut app.modal
+        {
+            draft.get_or_insert_with(|| lb::model::account::Account::new(String::new(), api));
+            *m = OnboardMode::Look;
+            *busy = false;
+            *err = None;
+            *ready = true;
+            *signing_in = false;
+        }
+        return;
+    }
+
     let fail = OnboardFail { err: String::new(), mode, uname: uname.clone(), account_key, api_url };
 
     // Take the live `Lb` off the session and finish create/import + initial
@@ -385,18 +423,22 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         }
     };
 
-    if mode == OnboardMode::Create {
-        app.onboard_backup_pending = true;
-    }
+    app.onboard_pending = true;
 
     let (tx, rx) = mpsc::channel();
     let status = super::session::load_status(match mode {
-        OnboardMode::Create => "Creating account…",
         OnboardMode::Import => "Importing account…",
-        OnboardMode::Choice | OnboardMode::Backup => "Signing in…",
+        _ => "Signing in…",
     });
     app.lb_rx = None;
-    app.modal = None;
+    // The list stays up while the worker runs: the look step opens while the
+    // account is made or the notes sync.
+    if let Some(Modal::Onboard { mode: m, busy, err, signing_in, .. }) = &mut app.modal {
+        *busy = true;
+        *err = None;
+        *signing_in = mode == OnboardMode::Import;
+        *m = OnboardMode::Look;
+    }
     app.recents_cache = Default::default();
     app.shared_cache = Default::default();
     app.session =
@@ -404,7 +446,7 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
 
     let ctx = ctx.clone();
     thread::spawn(move || {
-        if let Err(e) = onboard_account(&core, mode, &uname, &import_secret, &api) {
+        if let Err(e) = onboard_account(&core, mode, &import_secret, &api) {
             let _ = tx.send(CoreLoad::OnboardFailed { core, fail: OnboardFail { err: e, ..fail } });
             ctx.request_repaint();
             return;
@@ -423,19 +465,96 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
     });
 }
 
+/// Start writing: registers the new account under the name the Account step
+/// holds, with the key it has shown, and saves the onboarding note as its
+/// `welcome.md`. A failure stays on Complete with its error, the key kept, so
+/// Start writing retries.
+pub(crate) fn onboard_register(app: &mut ShellApp, ctx: &Context) {
+    let (uname, api, api_url, draft) = match &app.modal {
+        Some(Modal::Onboard {
+            mode: OnboardMode::Complete,
+            uname,
+            api_url,
+            draft: Some(d),
+            busy: false,
+            ..
+        }) => (uname.trim().to_owned(), resolved_api_url(api_url), api_url.clone(), d.clone()),
+        _ => return,
+    };
+    let core = match std::mem::replace(&mut app.session, Session::Error("signing in".into())) {
+        Session::SignedOut { core } => core,
+        other => {
+            app.session = other;
+            return;
+        }
+    };
+    if let Some(Modal::Onboard { busy, err, .. }) = &mut app.modal {
+        *busy = true;
+        *err = None;
+    }
+    app.onboard_pending = true;
+    app.lb_rx = None;
+    let (tx, rx) = mpsc::channel();
+    let status = super::session::load_status("Creating account…");
+    app.session =
+        Session::Loading { kind: super::session::LoadKind::Onboard, status: status.clone(), rx };
+    let fail = OnboardFail {
+        err: String::new(),
+        mode: OnboardMode::Create,
+        uname: uname.clone(),
+        account_key: String::new(),
+        api_url,
+    };
+    let note = app
+        .onboard_note
+        .as_ref()
+        .map(|n| n.saved())
+        .unwrap_or_default();
+    let ctx = ctx.clone();
+    thread::spawn(move || {
+        // desktop writes its own welcome note in place of the cohort's
+        if let Err(e) = core.create_account_with_key(&uname, &api, draft.private_key, false) {
+            let err = match e.kind {
+                lb::model::errors::LbErrKind::ServerUnreachable => {
+                    "Couldn’t reach Lockbook. Check your connection and try again.".to_owned()
+                }
+                _ => e.to_string(),
+            };
+            let _ = tx.send(CoreLoad::OnboardFailed { core, fail: OnboardFail { err, ..fail } });
+            ctx.request_repaint();
+            return;
+        }
+        let welcome = core.get_root().and_then(|root| {
+            core.create_file("welcome.md", &root.id, lb::model::file_metadata::FileType::Document)
+        });
+        if let Ok(file) = welcome {
+            let _ = core.write_document(file.id, note.as_bytes());
+        }
+        let load = match onboard_sync_and_cache(core, Some(&status), &ctx) {
+            Ok(load) => load,
+            Err(error) => {
+                // the account exists: open it even if the first sync failed
+                let (core, _) = *error;
+                match FileCache::new(&core) {
+                    Ok(files) => session::prepare_ready(core, files),
+                    Err(e) => CoreLoad::Failed(format!("Couldn’t load files: {e}")),
+                }
+            }
+        };
+        let _ = tx.send(load);
+        ctx.request_repaint();
+    });
+}
+
 fn onboard_account(
-    core: &Lb, mode: OnboardMode, uname: &str, import_secret: &str, api: &str,
+    core: &Lb, mode: OnboardMode, import_secret: &str, api: &str,
 ) -> Result<(), String> {
     match mode {
-        OnboardMode::Create => core
-            .create_account(uname.trim(), api, true)
-            .map(|_| ())
-            .map_err(|e| e.to_string()),
         OnboardMode::Import => core
             .import_account(import_secret, Some(api))
             .map(|_| ())
             .map_err(|e| e.to_string()),
-        OnboardMode::Choice | OnboardMode::Backup => Err("Pick Create or Import".into()),
+        _ => Err("Pick Create or Import".into()),
     }
 }
 

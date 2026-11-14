@@ -114,8 +114,11 @@ pub struct ShellApp {
     pub(crate) pdf_export_rx: Option<mpsc::Receiver<Result<(), String>>>,
     /// Auto-import worker (paste / complete key). Failures do not surface.
     pub(crate) onboard_auto_rx: Option<mpsc::Receiver<apply_onboard::AutoOnboard>>,
-    /// After a successful create, show the account-key backup sheet.
-    pub(crate) onboard_backup_pending: bool,
+    /// Create or sign in is running; when it lands, the list's open step
+    /// learns the account is ready.
+    pub(crate) onboard_pending: bool,
+    /// The note beside the sign-up list, writing itself out step by step.
+    pub(crate) onboard_note: Option<sheet_onboard::OnboardNote>,
     /// The file a link from outside the app names, until it opens.
     pub(crate) incoming_link: Option<apply::IncomingLink>,
     /// Loaded once the account is ready.
@@ -190,7 +193,8 @@ impl Default for ShellApp {
             native_dialog_rx: None,
             pdf_export_rx: None,
             onboard_auto_rx: None,
-            onboard_backup_pending: false,
+            onboard_pending: false,
+            onboard_note: None,
             incoming_link: None,
             nudges: None,
             import_job: None,
@@ -216,19 +220,20 @@ impl ShellApp {
             .is_some_and(|r| r.workspace.account.is_dev())
     }
 
-    fn showing_backup(&self) -> bool {
-        matches!(&self.modal, Some(Modal::Onboard { mode: action::OnboardMode::Backup, .. }))
+    /// The sign-up screens are up: from launch until the person is in a note.
+    pub(crate) fn onboarding(&self) -> bool {
+        matches!(&self.modal, Some(Modal::Onboard { .. }))
     }
 
-    /// Sidebar, editor, pane toggles. Hidden while the post-create key backup
-    /// sheet is up — that step is still onboard, not the signed-in app.
+    /// Sidebar, editor, pane toggles. Hidden while signing up — the look and
+    /// key steps come after the account exists, but they are still onboard.
     pub(crate) fn product_open(&self) -> bool {
-        matches!(self.session, Session::Ready(_)) && !self.showing_backup()
+        matches!(self.session, Session::Ready(_)) && !self.onboarding()
     }
 
     /// Auto logout / re-import loop for crash hunting (`LOCKBOOK_SESSION_STRESS=1`).
     fn session_stress_tick(&mut self, ctx: &egui::Context) {
-        if self.showing_backup() {
+        if self.onboarding() {
             return;
         }
         let Some(stress) = self.session_stress.as_mut() else {
@@ -313,40 +318,50 @@ impl ShellApp {
             self.session = Session::start(ctx);
         }
         if let Some(fail) = self.session.poll(ctx) {
-            // Manual sign-in failed; restore the form with the error.
-            self.onboard_backup_pending = false;
-            let mode = fail.mode;
-            self.modal = Some(apply_onboard::onboard_form(
-                fail.mode,
-                fail.uname,
-                fail.account_key,
-                fail.api_url,
-                Some(fail.err),
-            ));
-            if mode == action::OnboardMode::Import {
-                apply_onboard::onboard_import_focus(ctx);
+            self.onboard_pending = false;
+            // a registration stays on Complete, where Start writing retries
+            if let (action::OnboardMode::Create, Some(Modal::Onboard { busy, err, .. })) =
+                (fail.mode, &mut self.modal)
+            {
+                *busy = false;
+                *err = Some(fail.err);
+            } else {
+                // Manual sign-in failed; restore the form with the error.
+                let mode = fail.mode;
+                self.modal = Some(apply_onboard::onboard_form(
+                    fail.mode,
+                    fail.uname,
+                    fail.account_key,
+                    fail.api_url,
+                    Some(fail.err),
+                ));
+                if mode == action::OnboardMode::Import {
+                    apply_onboard::onboard_import_focus(ctx);
+                }
             }
         }
         if let Some(r) = self.session.ready() {
             self.nudges.get_or_insert_with(|| nudge::Nudges::load(r));
         }
-        if self.onboard_backup_pending && matches!(self.session, Session::Ready(_)) {
-            self.onboard_backup_pending = false;
-            if let Some(r) = self.session.ready() {
-                if let Some(nudges) = &mut self.nudges {
-                    nudges.created(r);
+        if self.onboard_pending && matches!(self.session, Session::Ready(_)) {
+            self.onboard_pending = false;
+            let signing_in = matches!(&self.modal, Some(Modal::Onboard { signing_in: true, .. }));
+            if signing_in {
+                // the look step ends on its own Done
+                if let Some(Modal::Onboard { busy, ready, .. }) = &mut self.modal {
+                    *ready = true;
+                    *busy = false;
                 }
-                if let Ok(p) = r.workspace.core.export_account_phrase() {
-                    self.phrase_cache = Some(p);
+            } else {
+                // a new account registered at Done: the list is finished
+                if let Some(r) = self.session.ready() {
+                    if let Some(nudges) = &mut self.nudges {
+                        nudges.created(r);
+                    }
                 }
+                apply::close_onboarding(self);
+                apply::land_in_welcome_note(self);
             }
-            self.modal = Some(apply_onboard::onboard_form(
-                action::OnboardMode::Backup,
-                String::new(),
-                String::new(),
-                apply_onboard::initial_api_url(),
-                None,
-            ));
         }
         apply_onboard::poll_auto_import(self, ctx);
         apply::poll_native_dialog(self, ctx);
@@ -399,7 +414,9 @@ impl ShellApp {
                 }
                 return;
             }
-            Session::Loading { kind: session::LoadKind::Onboard, status, .. } => {
+            Session::Loading { kind: session::LoadKind::Onboard, status, .. }
+                if !self.onboarding() =>
+            {
                 let msg = session::read_load_status(status);
                 boot_screen(ctx, &t, &msg, true);
                 titlebar::show(self, ctx, &t, &mut queue);
@@ -408,6 +425,8 @@ impl ShellApp {
                 }
                 return;
             }
+            // Create and import keep their screens up while the worker runs.
+            Session::Loading { .. } => {}
             Session::Error(msg) => {
                 boot_screen(ctx, &t, msg, false);
                 titlebar::show(self, ctx, &t, &mut queue);
@@ -431,11 +450,15 @@ impl ShellApp {
             sheets::show_modals(self, ctx, &t, &mut queue);
         }
 
-        let show_side = self.product_open() && self.sidebar_open && !self.defaults_zen();
-
         // One SidePanel: slide its contents (right edge glued to visible width).
         // Resting width is stored separately so the wipe does not persist 1px.
-        let how = sidebar::open_t(ctx, show_side);
+        // It slides when the person opens or closes it; the app opening around
+        // it (launch, the end of sign-up) shows it in place.
+        let how = if self.product_open() {
+            sidebar::open_t(ctx, self.sidebar_open && !self.defaults_zen())
+        } else {
+            0.0
+        };
         let side_frame = Frame::new()
             .fill(t.neutral_bg_secondary())
             .inner_margin(0.0);
@@ -485,7 +508,7 @@ impl ShellApp {
                 .show(root, |ui| {
                     if self.product_open() {
                         editor::show(self, ui, &t, &mut queue);
-                    } else if !self.showing_backup() {
+                    } else if !self.onboarding() {
                         ui.centered_and_justified(|ui| {
                             ui.label(
                                 TypeRole::Body
@@ -657,8 +680,13 @@ impl ShellApp {
                     AccountPanel::Closed => Some(A::CloseModal),
                     _ => Some(A::HideAccountKey),
                 },
+                // The account is being made, or exists: no way back to the start.
+                Some(Modal::Onboard { busy: true, .. }) => None,
                 Some(Modal::Onboard { mode, .. }) => match mode {
-                    action::OnboardMode::Choice | action::OnboardMode::Backup => None,
+                    action::OnboardMode::Choice
+                    | action::OnboardMode::Look
+                    | action::OnboardMode::Backup
+                    | action::OnboardMode::Complete => None,
                     _ => Some(A::OnboardSetMode(action::OnboardMode::Choice)),
                 },
                 Some(_) => Some(A::CloseModal),
@@ -845,20 +873,24 @@ impl ShellApp {
                             _ => {}
                         },
                         Modal::ImportParent { .. } => self.queue.push(A::ConfirmImportParent),
-                        Modal::Onboard { mode, key_stored, .. } => match mode {
-                            action::OnboardMode::Create | action::OnboardMode::Import => {
+                        Modal::Onboard { mode, ready, busy, signing_in, .. } => match mode {
+                            action::OnboardMode::Create | action::OnboardMode::Import if !*busy => {
                                 self.queue.push(A::OnboardSubmit { show_error: true })
                             }
-                            action::OnboardMode::Backup
-                                if *key_stored
-                                    && self
-                                        .phrase_cache
-                                        .as_deref()
-                                        .is_some_and(|p| p.split_whitespace().count() == 24) =>
-                            {
-                                self.queue.push(A::OnboardFinishBackup)
+                            action::OnboardMode::Create | action::OnboardMode::Import => {}
+                            action::OnboardMode::Look if *signing_in => self
+                                .queue
+                                .push(A::OnboardSetMode(action::OnboardMode::Complete)),
+                            action::OnboardMode::Look => self
+                                .queue
+                                .push(A::OnboardSetMode(action::OnboardMode::Backup)),
+                            action::OnboardMode::Backup => self
+                                .queue
+                                .push(A::OnboardSetMode(action::OnboardMode::Complete)),
+                            action::OnboardMode::Complete if !*busy && (*ready || !*signing_in) => {
+                                self.queue.push(A::OnboardFinish)
                             }
-                            action::OnboardMode::Backup => {}
+                            action::OnboardMode::Complete => {}
                             action::OnboardMode::Choice => {
                                 if ctx.data(|d| {
                                     d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())

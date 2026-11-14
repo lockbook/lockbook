@@ -12,7 +12,6 @@ use crate::model::pubkey;
 use crate::service::events::Actor;
 use crate::{DEFAULT_API_LOCATION, Lb};
 use libsecp256k1::SecretKey;
-use qrcode_generator::QrCodeEcc;
 
 use crate::io::network::ApiError;
 
@@ -232,9 +231,7 @@ impl<S: Server> Lb<S> {
     }
 
     pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        let acct_secret = self.export_account_private_key()?;
-        qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
-            .map_err(|err| core_err_unexpected(err).into())
+        self.get_account()?.qr_png()
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

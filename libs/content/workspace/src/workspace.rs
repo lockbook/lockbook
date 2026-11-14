@@ -2171,7 +2171,7 @@ pub struct WsPresistentData {
     column_width: f32,
 }
 
-fn default_column_width() -> f32 {
+pub fn default_column_width() -> f32 {
     900.0
 }
 
