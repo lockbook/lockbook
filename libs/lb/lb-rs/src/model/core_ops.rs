@@ -482,7 +482,9 @@ where
 
             // 2. a move goes back when its new parent is in the share and its old parent isn't.
             //    whether a file is in the share is asked of the server's tree, or of this
-            //    device's for a file the server doesn't have
+            //    device's for a file the server doesn't have. a new parent must be in the share
+            //    here too: one this device took out of the share keeps what moved into it, as a
+            //    sync judges it where this device's own move puts it
             let in_share = |file: &Uuid| -> LbResult<bool> {
                 Ok(file == id
                     || match synced.maybe_find(file) {
@@ -490,9 +492,12 @@ where
                         None => self.ancestors(file)?.contains(id),
                     })
             };
+            let kept_in_share = |file: &Uuid| -> LbResult<bool> {
+                Ok(in_share(file)? && (file == id || self.ancestors(file)?.contains(id)))
+            };
             let mut undone = Vec::new();
             for &(moved, to, from) in &moves {
-                if in_share(&to)? && !in_share(&from)? {
+                if kept_in_share(&to)? && !in_share(&from)? {
                     tree.move_unvalidated(&moved, &from, keychain)?;
                     undone.push(moved);
                 }
