@@ -27,6 +27,20 @@ pub struct EventState {
 }
 
 impl MdEdit {
+    /// Flips the task item or front matter checkbox whose mark is at
+    /// `check`, and animates it.
+    pub fn toggle_check(&mut self, check: Grapheme, operations: &mut Vec<Operation>) {
+        let (range, text) = match self.front_matter_checkbox_at(check) {
+            Some((value, checked)) => (value, if checked { "false" } else { "true" }),
+            None => {
+                let mark = &self.renderer.buffer[(check, check + 1)];
+                ((check, check + 1), if mark == " " { "x" } else { " " })
+            }
+        };
+        operations.push(Operation::Replace(Replace { range, text: text.into() }));
+        self.renderer.task_toggle_pending = Some(check);
+    }
+
     /// Reorder a list item to the gap at `insert_offset` via
     /// [`MdRender::plan_block_move`]. The selection is left where the
     /// edit transform lands it — a drop doesn't reselect the moved item.
@@ -655,15 +669,7 @@ impl<'ast> MdEdit {
                     self.renderer.apply_fold(node, contents, unapply);
                 }
             }
-            Event::ToggleTask { check } => {
-                let mark = &self.renderer.buffer[(check, check + 1)];
-                let text = if mark == " " { "x" } else { " " };
-                operations.push(Operation::Replace(Replace {
-                    range: (check, check + 1),
-                    text: text.into(),
-                }));
-                self.renderer.task_toggle_pending = Some(check);
-            }
+            Event::ToggleTask { check } => self.toggle_check(check, operations),
             Event::ToggleSpoiler { node: range } => {
                 let Some(node) = root
                     .descendants()
@@ -681,6 +687,7 @@ impl<'ast> MdEdit {
                 self.renderer.open_dest(&url, wikilink, &ctx);
             }
             Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
+            Event::FrontMatter(action) => self.front_matter_action(action, operations),
             Event::OpenDiagram => {
                 use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
                 use crate::tab::{Destination, ExtendedOutput as _};

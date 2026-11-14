@@ -213,6 +213,7 @@ impl<'ast> MdRender {
             source_range: node_range,
             chip: true,
             wrap: false,
+            caret_inside: false,
         });
         // `show_capsule_overlays` paints the icon over the lead
         let text = format!("{lead}{}", self.chip_title(node, lead, &chip.title, &fmt).0);

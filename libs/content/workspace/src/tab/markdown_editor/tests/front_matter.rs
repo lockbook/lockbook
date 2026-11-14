@@ -32,6 +32,7 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
         // Backspace at a value's or an item's start goes to the key, and on
         // an empty value takes the separator
         (hello, c(11), "{bs}", "---\ntitle|: Hello\n---\n\nBody"),
+        ("---\ntags:\n  - a\n---\n", c(14), "{bs}", "---\ntags|:\n  - a\n---\n"),
         ("---\nkey: \n---", c(9), "{bs}", "---\nkey|\n---"),
         // a caret put down in a key's separator types into the value, but a
         // space typed at a key's end stays in the key
@@ -44,6 +45,7 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
         // Backspace in a flow list's first item leaves an empty item, then
         // takes it
         ("---\ntags: [x, a]\n---\n", c(12), "{bs}", "---\ntags: [|, a]\n---\n"),
+        ("---\ntags: [x, a]\n---\n", c(12), "{bs}{bs}", "---\ntags: [|a]\n---\n"),
         // Return on a list's filled item starts a row after the list
         ("---\ntags: [work, home]\n---\n", c(20), "{ret}", "---\ntags: [work, home]\n|\n---\n"),
         // Tab goes by cell ends, key, value, the next key, and past the
@@ -74,7 +76,11 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
         // to the end of the row above
         (ab, c(9), "{bs}", "---\na: 1|\nb: 2\n---"),
         ("---\na: 1\n---\n\nBody", c(13), "{bs}", "---\na: 1|\n---\n\nBody"),
+        // at a row's start Return opens a row above and Backspace takes an
+        // empty one there; the first row has none
+        ("---\n\nstatus\n---\nBody", c(5), "{ret}", "---\n\n\n|status\n---\nBody"),
         ("---\n\nstatus\n---\nBody", c(5), "{bs}", "---\n|status\n---\nBody"),
+        ("---\na: 1\nb: 2\n---\nBody", c(9), "{ret}", "---\na: 1\n\n|b: 2\n---\nBody"),
         ("---\na: 1\nb: 2\n---\nBody", c(4), "{bs}", "---\n|a: 1\nb: 2\n---\nBody"),
         // ⌘⌫ empties the cell, then the row, and ⌫ takes the row
         (rows, c(15), "{cmd-bs}", "---\na: 1\nb: |\nc: 3\n---\nBody"),
@@ -82,6 +88,12 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
         ("---\nk:\n---\n", c(6), "[{bs}", "---\nk: |\n---\n"),
         ("---\nk:\n---\n", c(6), "\"a\"", "---\nk: \"a\"|\n---\n"),
         ("---\nk: a\n---\n", c(8), "{cmd-B}", "---\nk: a|\n---\n"),
+        // ⌘; adds a property: a block when the note has none, else a row
+        // after the caret's, else after the last
+        ("# Title\n\nBody", c(0), "{cmd-;}", "---\n|\n---\n# Title\n\nBody"),
+        ("# Title\n\nBody", c(0), "{cmd-;}tags", "---\ntags|\n---\n# Title\n\nBody"),
+        ("---\na: 1\n---\n\nBody", c(14), "{cmd-;}", "---\na: 1\n|\n---\n\nBody"),
+        ("---\na: 1\nb: 2\n---\n", c(4), "{cmd-;}", "---\na: 1\n|\nb: 2\n---\n"),
     ] {
         assert_eq!(typing_over(md, select, script), want, "{script} at {select:?} in {md:?}");
     }

@@ -214,6 +214,12 @@ pub enum EmbedKind {
     Rule,
     /// A typeset formula; its url is its math cache key, in hex.
     Math,
+    /// A front matter checkbox, checked or not, whose value starts at
+    /// `check`; its url is empty.
+    Checkbox {
+        checked: bool,
+        check: Grapheme,
+    },
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -232,11 +238,14 @@ pub struct StyleInfo {
     /// The scope may break across rows; one that can't moves to the next
     /// row whole.
     pub wrap: bool,
+    /// A chip whose text is its source: a caret at its edges is typing
+    /// into it, so it draws inside the capsule, mid-capsule when empty.
+    pub caret_inside: bool,
 }
 
 impl StyleInfo {
     pub fn new(format: Format, source_range: (Grapheme, Grapheme)) -> Self {
-        Self { format, source_range, chip: false, wrap: true }
+        Self { format, source_range, chip: false, wrap: true, caret_inside: false }
     }
 }
 
@@ -621,7 +630,7 @@ impl MdRender {
     }
 
     /// Body text's baseline and ascent as fractions of the row height.
-    fn body_metrics(&self, row_height: f32) -> (f32, f32) {
+    pub(crate) fn body_metrics(&self, row_height: f32) -> (f32, f32) {
         let seq = crate::font::chosen_seq();
         if let Some((at, baseline, ascent)) = self.layout_cache.body_metrics.get() {
             if at == seq {
@@ -2174,6 +2183,7 @@ impl MdRender {
                 }
 
                 if let FragmentContent::Embed { url, kind } = &frag.content {
+                    let scope = ui.scope_id();
                     // Non-advancing child ui: embeds paint for off-screen
                     // neighbor rows too, and any allocation there would drag
                     // the layout cursor below the viewport, displacing
@@ -2200,6 +2210,13 @@ impl MdRender {
                         EmbedKind::Math => {
                             self.paint_math(embed_ui, url, frag.source_range, screen_rect)
                         }
+                        EmbedKind::Checkbox { checked, check } => self.show_front_matter_checkbox(
+                            embed_ui,
+                            scope,
+                            screen_rect,
+                            *checked,
+                            *check,
+                        ),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,
@@ -2539,7 +2556,9 @@ impl MdRender {
                 if fragment.source_range.is_empty()
                     && matches!(fragment.content, FragmentContent::Spacer)
                 {
-                    return if fragment.source_range.start() == scope.start() {
+                    let leading = fragment.source_range.start() == scope.start();
+                    let inside = fragment.style_stack.last().is_some_and(|s| s.caret_inside);
+                    return if leading != inside {
                         fragment.rect.min.x
                     } else {
                         fragment.rect.max.x

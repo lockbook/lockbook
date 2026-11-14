@@ -10,6 +10,7 @@ use super::doc_gen::{self, Features, ScriptFeatures, WhitespaceFeatures, gen_doc
 use super::harness::TestEditor;
 use crate::tab::markdown_editor::Arena;
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::test_utils::byte_source::ByteSource;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
@@ -648,8 +649,7 @@ fn undo_then_ime_in_one_frame_check(buf: &[u8]) -> Result<(), String> {
     };
     for round in 0..1 + src.draw(4) {
         for _ in 0..1 + src.draw(4) {
-            let (cursor, len) = cursor_and_len(&one);
-            let edit = event(&mut src, cursor, len);
+            let edit = event(&mut src, &one);
             for ws in [&mut one, &mut two] {
                 ws.push(edit.clone());
                 ws.enter_frame();
@@ -744,8 +744,8 @@ fn replacement_text_with(src: &mut ByteSource, features: &Features) -> String {
 /// Picks one event biased toward what an interactive user generates:
 /// mostly single-char inserts and ±1 cursor moves; bulk edits, big
 /// jumps, and undo/redo are rare.
-fn event(src: &mut ByteSource, cursor: Grapheme, doc_len_chars: usize) -> Event {
-    event_with(src, cursor, doc_len_chars, &Features::all())
+fn event(src: &mut ByteSource, ws: &TestEditor) -> Event {
+    event_with(src, ws, &Features::all())
 }
 
 /// Feature-aware variant of `event`. Forwards `features` to
@@ -753,9 +753,20 @@ fn event(src: &mut ByteSource, cursor: Grapheme, doc_len_chars: usize) -> Event 
 /// flags as the initial doc. Other event kinds (deletion, selection,
 /// navigation, indent, undo/redo) are pure mutations that don't
 /// introduce new content, so they pass through unchanged.
-fn event_with(
-    src: &mut ByteSource, cursor: Grapheme, doc_len_chars: usize, features: &Features,
-) -> Event {
+fn event_with(src: &mut ByteSource, ws: &TestEditor, features: &Features) -> Event {
+    let (cursor, doc_len_chars) = cursor_and_len(ws);
+    // the checkboxes the last frame drew, as a click or tap reaches them
+    let checks: Vec<Grapheme> = ws
+        .editor
+        .edit
+        .renderer
+        .touch_targets
+        .iter()
+        .filter_map(|(_, target)| match target {
+            TouchTarget::Tap(Event::ToggleTask { check }) => Some(*check),
+            _ => None,
+        })
+        .collect();
     let weights = &[
         25, // type a character (insert at cursor)
         12, // backspace (delete one grapheme before cursor)
@@ -771,6 +782,7 @@ fn event_with(
         2,  // undo
         2,  // redo
         2,  // code block or divider (⌘⌥E / ⌘⌥R, toolbar)
+        2,  // click a checkbox (a divider when there is none)
     ];
     let cursor_idx = cursor.0;
     let max = doc_len_chars;
@@ -857,6 +869,7 @@ fn event_with(
         10 => Event::Select { region: region(src, doc_len_chars) },
         11 => Event::Undo,
         12 => Event::Redo,
+        14 if !checks.is_empty() => Event::ToggleTask { check: checks[src.draw(checks.len())] },
         _ => {
             let style =
                 if src.bias(&[1, 1]) == 0 { code_block() } else { NodeValue::ThematicBreak };
@@ -1033,8 +1046,7 @@ fn initial_buffer(src: &mut ByteSource) -> String {
 
 fn no_panic_under_edits_check(buf: &[u8]) -> Result<(), &'static str> {
     drive(buf, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
     })
     .map_err(|_| "editor panicked under random edit sequence")
@@ -1081,9 +1093,8 @@ fn code_file_check(buf: &[u8]) -> Result<(), String> {
         let mut ws = TestEditor::file(code, ext);
         ws.enter_frame();
         for _ in 0..n {
-            let (cursor, len) = cursor_and_len(&ws);
             let edit = if src.bias(&[1, 1]) == 0 {
-                event(&mut src, cursor, len)
+                event(&mut src, &ws)
             } else {
                 let text = CODE_PIECES[src.draw(CODE_PIECES.len())].to_string();
                 Event::Replace { region: Region::Selection, text, advance_cursor: true }
@@ -1132,8 +1143,7 @@ fn code_colors(ws: &TestEditor, ext: &str) -> Result<(), String> {
 fn cursor_in_bounds_check(buf: &[u8]) -> Result<(), &'static str> {
     let mut violation: Option<String> = None;
     drive(buf, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
         let buffer = &ws.editor.edit.renderer.buffer.current;
         let last = buffer.segs.last_cursor_position();
@@ -1212,8 +1222,7 @@ fn cursor_renders_check(buf: &[u8], features: &Features) -> Result<(), String> {
                 return;
             }
         }
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event_with(src, cursor, len, features));
+        ws.push(event_with(src, ws, features));
         ws.enter_frame();
         violation = cursor_visible_sweep(ws);
     })
@@ -1254,8 +1263,7 @@ fn cmd_line_jump_preserves_y_check(buf: &[u8]) -> Result<(), String> {
     }
     let mut violation: Option<String> = None;
     drive_simple_n(buf, 1, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame_unfocused();
         if violation.is_some() {
             return;
@@ -1314,8 +1322,7 @@ fn layout_cache_consistent_check(buf: &[u8]) -> Result<(), &'static str> {
         if violation.is_some() {
             return;
         }
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
         // Follow up with a cursor jump that doesn't touch text. This
         // pairs a settled-text frame (cache populated) with a reveal-
@@ -1439,8 +1446,7 @@ fn fold_toggle_does_not_jump_scroll_check(buf: &[u8]) -> Result<(), &'static str
         if violation.is_some() {
             return;
         }
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
         // Place cursor far from where we'll scroll, then scroll away so
         // the cursor is offscreen — the bug only manifests when the
@@ -1649,8 +1655,7 @@ fn render_stable_after_event_check(buf: &[u8]) -> Result<(), &'static str> {
         if violation.is_some() {
             return;
         }
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
         let after_event = ws.editor.edit.scroll_area.stored_offset();
         ws.enter_frame();
@@ -1670,8 +1675,7 @@ fn render_stable_after_event_check(buf: &[u8]) -> Result<(), &'static str> {
 fn table_ranges_survive_edits_check(buf: &[u8], features: &Features) -> Result<(), String> {
     let mut violation: Option<String> = None;
     drive_features(buf, features, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event_with(src, cursor, len, features));
+        ws.push(event_with(src, ws, features));
         ws.enter_frame();
         if violation.is_none() {
             violation = super::tables::table_ranges_check_md(ws.get_text())
@@ -1689,8 +1693,7 @@ fn table_ranges_survive_edits_check(buf: &[u8], features: &Features) -> Result<(
 fn table_caret_in_cells_check(buf: &[u8], features: &Features) -> Result<(), String> {
     let mut violation: Option<String> = None;
     drive_features(buf, features, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        let event = event_with(src, cursor, len, features);
+        let event = event_with(src, ws, features);
         let undo_redo = matches!(event, Event::Undo | Event::Redo);
         ws.push(event);
         ws.enter_frame();
@@ -2231,8 +2234,7 @@ fn render_invariants_survive_edits_check(
     const EPS: f32 = 0.01;
     let mut violation: Option<&'static str> = None;
     drive_features(buf, features, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event_with(src, cursor, len, features));
+        ws.push(event_with(src, ws, features));
         ws.enter_frame();
 
         let frame_fragments: Vec<_> = ws
@@ -2303,8 +2305,7 @@ fn cursor_visibly_moves_vertical_check_simple(buf: &[u8]) -> Result<(), String> 
     };
     let mut violation: Option<String> = None;
     drive_simple_n(buf, 1, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
+        ws.push(event(src, ws));
         ws.enter_frame();
         if violation.is_some() {
             return;
@@ -2430,10 +2431,9 @@ fn cursor_vertical_round_trip_check_inner(
     };
     let mut violation: Option<String> = None;
     let body = |ws: &mut TestEditor, src: &mut ByteSource| {
-        let (cursor, len) = cursor_and_len(ws);
         let ev = match features {
-            Some(f) => event_with(src, cursor, len, f),
-            None => event(src, cursor, len),
+            Some(f) => event_with(src, ws, f),
+            None => event(src, ws),
         };
         ws.push(ev);
         ws.enter_frame();

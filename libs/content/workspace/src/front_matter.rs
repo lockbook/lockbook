@@ -4,7 +4,7 @@
 //! block text handed in (fences included), so a caller splices by them;
 //! the editor [`FrontMatter::map`]s them to its own offsets.
 
-use std::ops::Range;
+use std::ops::{Add, Range};
 
 use saphyr_parser::{Event, Parser, ScalarStyle, Span};
 
@@ -53,10 +53,30 @@ pub type Quotes<O = usize> = Option<((O, O), (O, O))>;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Value<O = usize> {
     /// A one-line scalar; `quotes` are the quote characters around `text`.
-    Text { text: (O, O), quotes: Quotes<O> },
+    /// `checked` for a plain `true` or `false`, drawn as a checkbox.
+    Text { text: (O, O), quotes: Quotes<O>, checked: Option<bool> },
     /// No value yet; `at` is where one is typed. `needs_space` when the
     /// line is `key:` with no space after the colon.
     Empty { at: O, needs_space: bool },
+    /// A list of one-line scalars, one per line (`- a`) or in brackets
+    /// (`[a, b]`). `open` is the bracket or the end of the key's line;
+    /// `close` is the closing bracket or the end of the last item's line.
+    List { style: ListStyle, items: Vec<Item<O>>, open: O, close: O },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ListStyle {
+    Block,
+    Flow,
+}
+
+/// One list item: its text, its quotes, and the syntax before it on the
+/// same line — the dash or the comma — from the previous item's end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Item<O = usize> {
+    pub text: (O, O),
+    pub quotes: Quotes<O>,
+    pub lead: (O, O),
 }
 
 impl<O: Copy> FrontMatter<O> {
@@ -70,10 +90,21 @@ impl<O: Copy> FrontMatter<O> {
         let r = |(a, b): (O, O)| (f(a), f(b));
         let quotes = |q: Quotes<O>| q.map(|(open, close)| (r(open), r(close)));
         let value = |value: &Value<O>| match value {
-            Value::Text { text, quotes: q } => Value::Text { text: r(*text), quotes: quotes(*q) },
+            Value::Text { text, quotes: q, checked } => {
+                Value::Text { text: r(*text), quotes: quotes(*q), checked: *checked }
+            }
             Value::Empty { at, needs_space } => {
                 Value::Empty { at: f(*at), needs_space: *needs_space }
             }
+            Value::List { style, items, open, close } => Value::List {
+                style: *style,
+                items: items
+                    .iter()
+                    .map(|i| Item { text: r(i.text), quotes: quotes(i.quotes), lead: r(i.lead) })
+                    .collect(),
+                open: f(*open),
+                close: f(*close),
+            },
         };
         let rows = self.rows.iter().map(|row| {
             let kind = match &row.kind {
@@ -99,7 +130,7 @@ impl<O: Copy + Ord> FrontMatter<O> {
     }
 }
 
-impl<O: Copy + Ord> Row<O> {
+impl<O: Copy + Ord + Add<usize, Output = O>> Row<O> {
     pub fn is_blank(&self) -> bool {
         matches!(self.kind, RowKind::Blank)
     }
@@ -132,12 +163,13 @@ impl<O: Copy + Ord> Row<O> {
     }
 }
 
-impl<O: Copy + Ord> Value<O> {
+impl<O: Copy + Ord + Add<usize, Output = O>> Value<O> {
     /// Where the caret lands entering the value.
     pub fn caret(&self) -> O {
         match self {
             Value::Text { text, .. } => text.0,
             Value::Empty { at, .. } => *at,
+            Value::List { items, open, .. } => items.first().map_or(*open + 1, |i| i.text.0),
         }
     }
 
@@ -145,6 +177,25 @@ impl<O: Copy + Ord> Value<O> {
         match self {
             Value::Text { text, .. } => text.1,
             Value::Empty { at, .. } => *at,
+            Value::List { items, open, .. } => items.last().map_or(*open + 1, |i| i.text.1),
+        }
+    }
+
+    /// The list item holding `offset`, text ends included.
+    pub fn item_at(&self, offset: O) -> Option<usize> {
+        let Value::List { items, .. } = self else { return None };
+        items
+            .iter()
+            .position(|i| i.text.0 <= offset && offset <= i.text.1)
+    }
+}
+
+impl<O: Copy> Item<O> {
+    /// The item as written, quotes included.
+    pub fn written(&self) -> (O, O) {
+        match self.quotes {
+            Some((open, close)) => (open.0, close.1),
+            None => self.text,
         }
     }
 }
@@ -227,13 +278,17 @@ fn rows(block: &str, lines: &[Range<usize>], content: Range<usize>) -> Vec<Row> 
         } else if colon_without_space(s) {
             kinds[i] = Some(RowKind::Source { error: true });
             blank(&mut text, l.clone());
+        } else {
+            for comma in empty_item_commas(s) {
+                blank(&mut text, l.start + comma..l.start + comma + 1);
+            }
         }
     }
 
     // parse; blank the line an error points at and parse again
     let mut last_error = usize::MAX;
     let parsed = loop {
-        match structure(&text) {
+        match structure(&text, block) {
             Ok(p) => break p,
             Err(at) => {
                 let at = at.min(text.len().saturating_sub(1));
@@ -333,8 +388,60 @@ fn colon_without_space(line: &str) -> bool {
     }
 }
 
+/// Whether a plain scalar reading `s` would mean something else to YAML
+/// — a comment, a mapping, a list, a flow collection — and so wants
+/// quotes. `flow` for an item inside brackets, where commas and brackets
+/// are structure too.
+pub fn needs_quotes(s: &str, flow: bool) -> bool {
+    let t = s.trim();
+    let Some(first) = t.chars().next() else { return false };
+    if INDICATORS.contains(first) && !matches!(first, '-' | '?' | ':') {
+        return true;
+    }
+    if matches!(first, '-' | '?' | ':') && t.len() > 1 && t.as_bytes()[1] == b' ' {
+        return true;
+    }
+    if t.contains(": ") || t.contains(" #") || t.ends_with(':') {
+        return true;
+    }
+    flow && t.contains([',', '[', ']', '{', '}'])
+}
+
+/// The commas in a flow list value that follow another with nothing but
+/// spaces between: items being typed, which YAML would not read.
+fn empty_item_commas(line: &str) -> Vec<usize> {
+    let Some(colon) = line.find(": ") else { return vec![] };
+    let value = line[colon + 2..].trim_start();
+    if !value.starts_with('[') {
+        return vec![];
+    }
+    let bytes = line.as_bytes();
+    // the bracket opens an item as a comma does
+    let (mut out, mut quote, mut after_comma) = (vec![], None, true);
+    let mut i = line.len() - value.len() + 1;
+    while i < bytes.len() {
+        match (quote, bytes[i]) {
+            (Some(b'"'), b'\\') => i += 1,
+            (Some(q), b) if b == q => quote = None,
+            (Some(_), _) | (None, b' ' | b'\t') => {}
+            (None, b @ (b'"' | b'\'')) => (quote, after_comma) = (Some(b), false),
+            (None, b',') => {
+                if after_comma {
+                    out.push(i);
+                }
+                after_comma = true;
+            }
+            (None, b']' | b'#') => break,
+            (None, _) => after_comma = false,
+        }
+        i += 1;
+    }
+    out
+}
+
 /// A property's separator and value.
 type SepValue = ((usize, usize), Value);
+
 struct Entry {
     first_line: usize,
     last_line: usize,
@@ -342,8 +449,9 @@ struct Entry {
     kind: RowKind,
 }
 
-/// Walks the YAML events; `Err(index)` is where parsing failed.
-fn structure(text: &str) -> Result<Vec<Entry>, usize> {
+/// Walks the YAML events of `text`, `block` with lines blanked; `Err(index)`
+/// is where parsing failed.
+fn structure(text: &str, block: &str) -> Result<Vec<Entry>, usize> {
     let lines = line_ranges(text);
     // the parser counts chars; everything here is bytes
     let byte_at: Vec<usize> = text
@@ -396,7 +504,7 @@ fn structure(text: &str) -> Result<Vec<Entry>, usize> {
             _ => None,
         };
         let first_line = line_of(at(key_span.start.index()));
-        // the value: one event, or a nested construct to skip
+        // the value: one event, a list, or a nested construct to skip
         let Some((val_ev, val_span)) = it.next() else { break };
         let mut last_line = last_line_of(&val_span).max(first_line);
         let value = match (&key, &val_ev) {
@@ -404,10 +512,17 @@ fn structure(text: &str) -> Result<Vec<Entry>, usize> {
                 scalar_value(text, &lines, key, *style, span(&val_span))
                     .filter(|(_, value)| rest_of_line_blank(text, &lines, value, last_line))
             }
-
+            (Some(key), Event::SequenceStart(0, None)) => {
+                let (value, last) =
+                    list_value(block, &lines, &span, key, span(&val_span).start, &mut it);
+                last_line = last_line.max(last);
+                value
+            }
             _ => None,
         };
-        if matches!(val_ev, Event::MappingStart(..) | Event::SequenceStart(..)) {
+        if matches!(val_ev, Event::MappingStart(..))
+            || (key.is_none() && matches!(val_ev, Event::SequenceStart(..)))
+        {
             let mut depth = 1;
             for (ev, s) in it.by_ref() {
                 match ev {
@@ -441,6 +556,130 @@ fn separator(text: &str, lines: &[Range<usize>], key: &Range<usize>) -> Option<(
     let colon = key.end + text[key.end..line.end].find(':')?;
     let spaces = text[colon + 1..].len() - text[colon + 1..].trim_start_matches(' ').len();
     Some((colon, colon + 1 + spaces))
+}
+
+/// The items of the sequence opened at `open`, consumed through its end,
+/// as a list value; `None` for one the grid shows as source. Also the
+/// last line consumed.
+fn list_value<'a>(
+    text: &str, lines: &[Range<usize>], span: &impl Fn(&Span) -> Range<usize>, key: &Range<usize>,
+    open: usize, it: &mut impl Iterator<Item = (Event<'a>, Span)>,
+) -> (Option<SepValue>, usize) {
+    let mut written = vec![];
+    let mut ok = true;
+    let mut depth = 1usize;
+    let mut last_line = line_index(lines, open);
+    let mut close = None;
+    for (ev, s) in it.by_ref() {
+        let s = span(&s);
+        last_line = last_line.max(line_index(lines, s.end.saturating_sub(1)));
+        match ev {
+            Event::Scalar(_, style, 0, None) if depth == 1 => written.push((style, s)),
+            Event::SequenceStart(..) | Event::MappingStart(..) => {
+                depth += 1;
+                ok = false;
+            }
+            Event::MappingEnd => depth -= 1,
+            Event::SequenceEnd => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(s.start);
+                    break;
+                }
+            }
+            _ => ok = false,
+        }
+    }
+    let (Some(sep), Some(close), true) = (separator(text, lines, key), close, ok) else {
+        return (None, last_line);
+    };
+    let flow = text.as_bytes().get(open) == Some(&b'[');
+    let style = if flow { ListStyle::Flow } else { ListStyle::Block };
+    // a block list opens at the end of the key's line
+    let open = if flow { open } else { sep.1 };
+    let key_line = &lines[line_index(lines, key.start)];
+    let mut items = vec![];
+    let mut prev_end = if flow { open + 1 } else { sep.1 };
+    for (style, w) in written {
+        let Some((quotes, item_text)) = scalar_text(text, style, w.clone()) else {
+            return (None, last_line);
+        };
+        let lead = if flow {
+            // a comma right after another, or the bracket, starts an item
+            // being typed
+            let mut commas: Vec<usize> = text[prev_end..w.start]
+                .match_indices(',')
+                .map(|(c, _)| prev_end + c)
+                .collect();
+            if items.is_empty() && !commas.is_empty() {
+                items.push(Item {
+                    text: (prev_end, prev_end),
+                    quotes: None,
+                    lead: (prev_end, prev_end),
+                });
+            }
+            commas.pop();
+            for comma in commas {
+                let p = comma + 1 + usize::from(text.as_bytes().get(comma + 1) == Some(&b' '));
+                items.push(Item { text: (p, p), quotes: None, lead: (prev_end, p) });
+                prev_end = p;
+            }
+            (prev_end, w.start)
+        } else {
+            // its own line, a dash before it, nothing after it
+            let line = &lines[line_index(lines, w.start)];
+            if line.start == key_line.start
+                || !is_dash_lead(&text[line.start..w.start])
+                || !text[quotes.map_or(item_text.1, |(_, c)| c.1)..line.end]
+                    .trim()
+                    .is_empty()
+            {
+                return (None, last_line);
+            }
+            (line.start, w.start)
+        };
+        let item = Item { text: item_text, quotes, lead };
+        prev_end = item.written().1;
+        items.push(item);
+    }
+    // a comma before the bracket is an item being typed
+    if flow {
+        let commas: Vec<usize> = text[prev_end..close]
+            .match_indices(',')
+            .map(|(c, _)| prev_end + c)
+            .collect();
+        for comma in commas {
+            let p = comma + 1 + usize::from(text.as_bytes().get(comma + 1) == Some(&b' '));
+            items.push(Item { text: (p, p), quotes: None, lead: (prev_end, p) });
+            prev_end = p;
+        }
+    }
+    let close = if flow {
+        if text.as_bytes().get(close) != Some(&b']') {
+            return (None, last_line);
+        }
+        close
+    } else {
+        match items.last() {
+            Some(item) => lines[line_index(lines, item.text.0)].end,
+            None => return (None, last_line),
+        }
+    };
+    // nothing else on the key's line, or after a closing bracket
+    let after = if flow { close + 1 } else { sep.1 };
+    if !text[after.min(key_line.end)..key_line.end]
+        .trim()
+        .is_empty()
+    {
+        return (None, last_line);
+    }
+    (Some((sep, Value::List { style, items, open, close })), last_line)
+}
+
+/// `  - `: spaces, a dash, spaces.
+fn is_dash_lead(s: &str) -> bool {
+    let s = s.trim_start();
+    s.starts_with('-') && s[1..].trim().is_empty()
 }
 
 /// A one-line scalar's quotes and text from its span as written, or `None`
@@ -504,8 +743,13 @@ fn scalar_value(
     if written.start < sep.1 {
         return None;
     }
-    let (quotes, text) = scalar_text(text, style, written)?;
-    Some((sep, Value::Text { text, quotes }))
+    let (quotes, range) = scalar_text(text, style, written)?;
+    let checked = match (quotes, &text[range.0..range.1]) {
+        (None, "true") => Some(true),
+        (None, "false") => Some(false),
+        _ => None,
+    };
+    Some((sep, Value::Text { text: range, quotes, checked }))
 }
 
 fn rest_of_line_blank(text: &str, lines: &[Range<usize>], value: &Value, last_line: usize) -> bool {
@@ -513,14 +757,57 @@ fn rest_of_line_blank(text: &str, lines: &[Range<usize>], value: &Value, last_li
         Value::Text { quotes: Some((_, close)), .. } => close.1,
         Value::Text { text: t, quotes: None, .. } => t.1,
         Value::Empty { at, .. } => *at,
+        Value::List { .. } => return true,
     };
     let line = &lines[last_line];
     text[end.min(line.end)..line.end].trim().is_empty()
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+    use crate::tab::markdown_editor::tests::doc_gen::{Features, gen_front_matter_f};
+    use crate::test_utils::byte_source::ByteSource;
+
+    /// A YAML node as saphyr reads it: scalars as written, before any
+    /// typing, with whether they were plain.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub(crate) enum Yaml {
+        Scalar { text: String, plain: bool },
+        Seq(Vec<Yaml>),
+        Map(Vec<(Yaml, Yaml)>),
+    }
+
+    /// The first document's root, or `None` when saphyr fails to read it
+    /// or there is none.
+    pub(crate) fn read_yaml(s: &str) -> Option<Yaml> {
+        let mut stack: Vec<Vec<Yaml>> = vec![vec![]];
+        for event in Parser::new_from_str(s) {
+            let node = match event.ok()?.0 {
+                Event::Scalar(text, style, ..) => {
+                    Yaml::Scalar { text: text.into_owned(), plain: style == ScalarStyle::Plain }
+                }
+                Event::SequenceStart(..) | Event::MappingStart(..) => {
+                    stack.push(vec![]);
+                    continue;
+                }
+                Event::SequenceEnd => Yaml::Seq(stack.pop()?),
+                Event::MappingEnd => {
+                    let flat = stack.pop()?;
+                    let mut pairs = vec![];
+                    let mut it = flat.into_iter();
+                    while let (Some(k), Some(v)) = (it.next(), it.next()) {
+                        pairs.push((k, v));
+                    }
+                    Yaml::Map(pairs)
+                }
+                Event::DocumentEnd => break,
+                _ => continue,
+            };
+            stack.last_mut()?.push(node);
+        }
+        stack.pop()?.into_iter().next()
+    }
 
     fn rows(block: &str) -> Vec<String> {
         parse(block)
@@ -530,6 +817,14 @@ mod tests {
             .map(|r| match &r.kind {
                 RowKind::Property { key, value, .. } => {
                     let v = match value {
+                        Value::List { items, .. } => format!(
+                            "[{}]",
+                            items
+                                .iter()
+                                .map(|i| block[i.text.0..i.text.1].to_string())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
                         Value::Text { text, quotes, .. } => format!(
                             "{}{}",
                             &block[text.0..text.1],
@@ -577,6 +872,18 @@ mod tests {
             ("---\n\n---\n", &["blank"][..]),
             ("---\ntitle: x\n", &["title = x"]),
             (
+                "---\ntags:\n  - a\n\n  - b\n\nnext: y\n---\n",
+                &["tags = [a, b]", "blank", "next = y"],
+            ),
+            (
+                "---\ntags:\n  - a\n  -x: y: z\n  - b\nnext: y\n---\n",
+                &["source", "source", "source (error)", "source", "next = y"],
+            ),
+            (
+                "---\ntags:\n  - a\nfoo\n  - b\n---\n",
+                &["source", "source", "pending foo", "source"],
+            ),
+            (
                 "---\nt: \"Foo: bar\"\nq: 'single'\nn: 42\nempty:\nempty2: \nc: x # note\n---\n",
                 &[
                     "t = Foo: bar (quoted)",
@@ -612,5 +919,154 @@ mod tests {
             assert_eq!(rows(fm), want, "{fm:?}");
             rows_tile_the_lines(fm, &parse(fm).unwrap()).unwrap();
         }
+    }
+
+    /// Whether the scalar span `(a, b)` of `block` is `read`: as its text
+    /// when it is plain, which has no escapes, and read alone when quoted.
+    fn span_is(block: &str, (a, b): (usize, usize), read: &Yaml) -> bool {
+        match read {
+            Yaml::Scalar { text, plain: true } => block[a..b] == *text,
+            _ => read_yaml(&block[a..b]).as_ref() == Some(read),
+        }
+    }
+
+    /// Whether `s` is only spaces, tabs, and newlines around `mark`, which
+    /// may be absent when `optional`.
+    fn only_mark(s: &str, mark: char, optional: bool) -> bool {
+        let t = s.trim_matches([' ', '\t', '\r', '\n']);
+        t.is_empty() && optional || t.len() == 1 && t.starts_with(mark)
+    }
+
+    /// The rows of a generated block against saphyr: each property's line
+    /// read alone is the one-pair mapping of its key and value; each key,
+    /// value, and item span holds what saphyr read there; the
+    /// list syntax between items is only dashes or commas; and the rows tile
+    /// the lines between the fences.
+    fn rows_agree_with_saphyr(block: &str) -> Result<(), String> {
+        let p = parse(block).ok_or("no block")?;
+        let fence = |r: (usize, usize)| block[r.0..r.1].trim_end_matches(['\r', '\n']) == "---";
+        if !fence(p.head) || !block[p.tail.0..].starts_with("---") {
+            return Err("fences".into());
+        }
+        rows_tile_the_lines(block, &p)?;
+        for row in &p.rows {
+            let line = &block[row.line.0..row.line.1];
+            let err = |what: &str| Err(format!("{what} in row {line:?}"));
+            match &row.kind {
+                RowKind::Property { key, sep, value } => {
+                    let Some(Yaml::Map(pairs)) = read_yaml(line) else {
+                        return err("no mapping");
+                    };
+                    let [(k, v)] = &pairs[..] else { return err("not one pair") };
+                    if !span_is(block, *key, k) {
+                        return err("key span");
+                    }
+                    if !block[sep.0..sep.1].starts_with(':')
+                        || !block[sep.0 + 1..sep.1].trim_matches([' ', '\t']).is_empty()
+                    {
+                        return err("separator");
+                    }
+                    match value {
+                        Value::Text { text, quotes, checked } => {
+                            let written = quotes.map_or(*text, |(o, c)| (o.0, c.1));
+                            if !span_is(block, written, v) {
+                                return err("value span");
+                            }
+                            let as_plain =
+                                Yaml::Scalar { text: block[text.0..text.1].into(), plain: true };
+                            let check = match &block[text.0..text.1] {
+                                "true" if *v == as_plain => Some(true),
+                                "false" if *v == as_plain => Some(false),
+                                _ => None,
+                            };
+                            if *checked != check {
+                                return err("checkbox");
+                            }
+                        }
+                        Value::Empty { .. } => {
+                            if *v != (Yaml::Scalar { text: String::new(), plain: true }) {
+                                return err("empty value");
+                            }
+                        }
+                        Value::List { style, items, open, close } => {
+                            let Yaml::Seq(read) = v else { return err("no sequence") };
+                            // a flow list's trailing comma is an item being typed
+                            let typing = *style == ListStyle::Flow
+                                && items.len() == read.len() + 1
+                                && items.last().is_some_and(|i| i.text.0 == i.text.1);
+                            if items.len() != read.len() && !typing {
+                                return err("item count");
+                            }
+                            let flow = *style == ListStyle::Flow;
+                            if flow
+                                && (&block[*open..*open + 1] != "["
+                                    || &block[*close..*close + 1] != "]")
+                            {
+                                return err("brackets");
+                            }
+                            let mut at = if flow { *open + 1 } else { *open };
+                            for (j, item) in items.iter().enumerate() {
+                                let w = item.written();
+                                let between = block.get(at..item.lead.0).unwrap_or("x");
+                                if !between.trim().is_empty() || item.lead.1 != w.0 {
+                                    return err("item leads");
+                                }
+                                let lead = &block[item.lead.0..item.lead.1];
+                                let ok = match style {
+                                    ListStyle::Block => only_mark(lead, '-', false),
+                                    ListStyle::Flow => only_mark(lead, ',', j == 0),
+                                };
+                                if !ok {
+                                    return err("item syntax");
+                                }
+                                if let Some(want) = read.get(j) {
+                                    if !span_is(block, w, want) {
+                                        return err("item span");
+                                    }
+                                }
+                                at = w.1;
+                            }
+                            let rest = block.get(at..*close).unwrap_or("x");
+                            if !only_mark(rest, ',', true) || !flow && rest.contains(',') {
+                                return err("list end");
+                            }
+                        }
+                    }
+                }
+                RowKind::Pending { key } => {
+                    let want = Yaml::Scalar { text: line.trim_end().into(), plain: true };
+                    if &block[key.0..key.1] != line.trim_end() || read_yaml(line) != Some(want) {
+                        return err("pending key");
+                    }
+                }
+                RowKind::Blank => {
+                    if !line.trim().is_empty() {
+                        return err("blank");
+                    }
+                }
+                RowKind::Source { .. } => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Rule: the rows of any generated block agree with saphyr, tile its
+    /// lines, and hold their items, with `checked` just for a plain boolean.
+    #[test]
+    fn generated_rows_agree_with_saphyr() {
+        crate::test_utils::prop::run(
+            3000,
+            64,
+            |b| rows_agree_with_saphyr(&generated_block(b)),
+            |b| format!("block:\n{:?}", generated_block(b)),
+        );
+    }
+
+    /// A generated block, its line endings `\r\n` for some.
+    fn generated_block(b: &[u8]) -> String {
+        let mut src = ByteSource::new(b);
+        let crlf = src.bias(&[4, 1]) == 1;
+        let block = gen_front_matter_f(&mut src, &Features::all());
+        if crlf { block.replace('\n', "\r\n") } else { block }
     }
 }

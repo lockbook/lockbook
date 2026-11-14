@@ -8,7 +8,7 @@ use crate::tab::markdown_editor::{self, MdEdit};
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeLink, NodeList, NodeValue};
 use egui::{self, Key, Modifiers};
 use lb_rs::model::text::offset_types::RangeExt as _;
-use markdown_editor::input::{Advance, Bound, Event, Increment, Region};
+use markdown_editor::input::{Advance, Bound, Event, FrontMatterAction, Increment, Region};
 
 impl From<Modifiers> for Advance {
     fn from(modifiers: Modifiers) -> Self {
@@ -257,6 +257,14 @@ impl<'ast> MdEdit {
                 } else {
                     Some(Event::Indent { deindent: modifiers.shift })
                 }
+            }
+            egui::Event::Key { key: Key::Semicolon, pressed: true, modifiers, .. }
+                if modifiers.command && !cfg!(target_os = "ios") =>
+            {
+                if self.renderer.readonly {
+                    return None;
+                }
+                Some(Event::FrontMatter(FrontMatterAction::Add))
             }
             egui::Event::Key { key: Key::A, pressed: true, modifiers, .. }
                 if modifiers.command && !cfg!(target_os = "ios") =>

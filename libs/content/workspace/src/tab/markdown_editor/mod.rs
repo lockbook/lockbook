@@ -495,6 +495,8 @@ pub struct MdEdit {
     /// the click lands so the context menu's link section stays stable while
     /// the menu is open and the pointer moves.
     pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
+    /// The front matter row under the context menu, captured likewise.
+    pub context_menu_front_matter_row: Option<usize>,
     /// The slug of the heading under the context menu, captured likewise.
     pub context_menu_heading: Option<String>,
     /// The misspelled word under the context menu and its suggestions,
@@ -569,6 +571,7 @@ impl MdEdit {
             language_completions: Default::default(),
             link_completions: Default::default(),
             context_menu_link: None,
+            context_menu_front_matter_row: None,
             context_menu_heading: None,
             context_menu_spelling: None,
             context_menu_learned: None,
@@ -1329,6 +1332,7 @@ impl Editor {
                 language_completions: Default::default(),
                 link_completions: LinkCompletions::new(open_origin),
                 context_menu_link: None,
+                context_menu_front_matter_row: None,
                 context_menu_heading: None,
                 context_menu_spelling: None,
                 context_menu_learned: None,

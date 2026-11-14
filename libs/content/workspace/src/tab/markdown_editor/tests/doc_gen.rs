@@ -959,14 +959,14 @@ pub fn gen_doc_large(src: &mut ByteSource, target_bytes: usize) -> String {
 }
 
 /// A front matter block: one to four rows drawn from the shapes the grid
-/// edits in place (`key: value`, quoted, empty, a key being typed) and the
+/// edits in place (`key: value`, quoted, empty, a checkbox, a key being typed) and the
 /// ones it shows as source (comments, lists, nested maps, bad lines).
-pub(super) fn gen_front_matter_f(src: &mut ByteSource, f: &Features) -> String {
+pub(crate) fn gen_front_matter_f(src: &mut ByteSource, f: &Features) -> String {
     let mut out = String::from("---\n");
     let n = 1 + src.draw(4);
     for _ in 0..n {
         let key = gen_word_f(src, f);
-        match src.bias(&[8, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1]) {
+        match src.bias(&[8, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2]) {
             0 => out.push_str(&format!("{key}: {}\n", gen_text_f(src, f))),
             1 => out.push_str(&format!("{key}: \"{}\"\n", gen_text_f(src, f))),
             2 => out.push_str(&format!("{key}:\n")),
@@ -983,7 +983,8 @@ pub(super) fn gen_front_matter_f(src: &mut ByteSource, f: &Features) -> String {
                 out.push_str(&format!("{key}: [{}, {}]\n", gen_word_f(src, f), gen_word_f(src, f)))
             }
             9 => out.push_str(&format!("{key}:\n  k: {}\n", gen_word_f(src, f))),
-            _ => out.push_str(&format!("{key}: \"{}\n", gen_word_f(src, f))),
+            10 => out.push_str(&format!("{key}: \"{}\n", gen_word_f(src, f))),
+            _ => out.push_str(&format!("{key}: {}\n", ["true", "false"][src.draw(2)])),
         }
     }
     out.push_str("---\n\n");

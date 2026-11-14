@@ -112,7 +112,6 @@ impl<'ast> MdRender {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_task_item: &NodeTaskItem,
     ) {
-        let theme = self.ctx.get_lb_theme();
         let maybe_check = node_task_item.symbol;
         let checked = maybe_check.is_some();
 
@@ -151,84 +150,24 @@ impl<'ast> MdRender {
             } else {
                 Sense::click_and_drag()
             };
-            // scope_id carries the view, so two views of one note get distinct ids
-            let checkbox_response = ui.interact(clickable_space, checkbox_id, sense);
+            // A finger's target: the gutter beside the box and the row's
+            // height, stopping short of the item's text.
+            let target = Rect::from_min_max(
+                clickable_space.min - Vec2::new(11.0, 4.0),
+                clickable_space.max + Vec2::new(4.0, 4.0),
+            );
             let check_offset = self.check_offset(node);
-            let toggle = Event::ToggleTask { check: check_offset };
-            if checkbox_response.clicked() {
-                self.render_events.push(toggle.clone());
-            }
-            let hovered = checkbox_response.hovered() && !self.readonly && !self.touch_mode;
-            if !self.readonly {
-                // A finger's target: the gutter beside the box and the row's
-                // height, stopping short of the item's text.
-                let target = Rect::from_min_max(
-                    clickable_space.min - Vec2::new(11.0, 4.0),
-                    clickable_space.max + Vec2::new(4.0, 4.0),
-                );
-                self.touch_targets.push((target, TouchTarget::Tap(toggle)));
-            }
+            let checkbox_response = self.show_checkbox(
+                ui,
+                checkbox_id,
+                [checkbox_space, clickable_space, target],
+                checked,
+                check_offset,
+                sense,
+            );
             // Click toggles; drag starts a reorder (`click_and_drag`
             // above distinguishes the two).
             self.handle_item_drag_resp(ui, node, &checkbox_response, false);
-
-            let secs = match self.task_toggled {
-                Some((check, at)) if check == check_offset => {
-                    Some((ui.input(|i| i.time) - at) as f32)
-                }
-                _ => None,
-            };
-            if secs.is_some_and(|s| s < POP_SECS) {
-                ui.ctx().request_repaint();
-            }
-            let look = Look::at(checked, secs);
-            // press snaps in, as other controls do
-            let pressed = checkbox_response.is_pointer_button_down_on() && !self.readonly;
-            let scale = if pressed { look.scale.min(PRESS_SCALE) } else { look.scale };
-
-            // on the pixel grid at rest; in motion the rounding would wobble it
-            let radius = Radius::Sm.pts() as f32;
-            let box_rect =
-                Rect::from_center_size(checkbox_space.center(), checkbox_space.size() * scale);
-            let box_rect = if scale == 1.0 {
-                box_rect.round_to_pixels(ui.ctx().pixels_per_point())
-            } else {
-                box_rect
-            };
-            if look.fill < 1.0 {
-                let outline = if hovered { theme.accent() } else { theme.neutral() };
-                ui.painter().rect_stroke(
-                    box_rect,
-                    radius,
-                    Stroke::new(STROKE_HAIRLINE, outline),
-                    StrokeKind::Inside,
-                );
-            }
-            if look.fill > 0.0 {
-                let fill = if hovered {
-                    theme.wash_toward_neutral_fg(theme.accent(), Theme::HOVER_WASH)
-                } else {
-                    theme.accent()
-                };
-                ui.painter().rect_filled(
-                    Rect::from_center_size(box_rect.center(), box_rect.size() * look.fill),
-                    radius * look.fill,
-                    fill,
-                );
-            }
-
-            // checked: page colour, which `readable()` keeps legible on every accent
-            if look.fill > 0.0 {
-                let color = theme.neutral_bg().gamma_multiply(look.fill);
-                paint_check(ui, box_rect, look.draw, look.check_scale, color);
-            }
-            // unchecked and hovered: a faint preview of the click, rising as the fill leaves
-            if hovered && !checked {
-                let color = theme
-                    .accent()
-                    .gamma_multiply(GHOST_ALPHA * (1.0 - look.fill));
-                paint_check(ui, box_rect, 1.0, 1.0, color);
-            }
         }
 
         let any_children = node.children().next().is_some();
@@ -286,6 +225,91 @@ impl<'ast> MdRender {
             (fold_button_size, fold_button_icon_size, fold_button_space),
             self.item_fold_reveal(node),
         );
+    }
+
+    /// The checkbox every task item and front matter checkbox is. `rects`
+    /// are the box (a body row's height square), the area taking clicks,
+    /// and a finger's target. A click or tap sends [`Event::ToggleTask`]
+    /// for the mark at `check`, which animates the box.
+    pub(crate) fn show_checkbox(
+        &mut self, ui: &mut Ui, id: egui::Id, rects: [Rect; 3], checked: bool, check: Grapheme,
+        sense: Sense,
+    ) -> egui::Response {
+        let [space, clickable, target] = rects;
+        let response = ui.interact(clickable, id, sense);
+        let toggle = Event::ToggleTask { check };
+        if response.clicked() {
+            self.render_events.push(toggle.clone());
+        }
+        if !self.readonly {
+            self.touch_targets.push((target, TouchTarget::Tap(toggle)));
+        }
+        crate::style::control_cursor(ui, clickable);
+        let hovered = response.hovered() && !self.readonly && !self.touch_mode;
+        let pressed = response.is_pointer_button_down_on() && !self.readonly;
+        self.paint_checkbox(ui, space, checked, check, hovered, pressed);
+        response
+    }
+
+    /// A checkbox in `space`: an outline, or the accent fill and check,
+    /// animated after a toggle at `check`.
+    fn paint_checkbox(
+        &self, ui: &Ui, space: Rect, checked: bool, check: Grapheme, hovered: bool, pressed: bool,
+    ) {
+        let theme = self.ctx.get_lb_theme();
+        let secs = match self.task_toggled {
+            Some((at_check, at)) if at_check == check => Some((ui.input(|i| i.time) - at) as f32),
+            _ => None,
+        };
+        if secs.is_some_and(|s| s < POP_SECS) {
+            ui.ctx().request_repaint();
+        }
+        let look = Look::at(checked, secs);
+        // press snaps in, as other controls do
+        let scale = if pressed { look.scale.min(PRESS_SCALE) } else { look.scale };
+
+        // on the pixel grid at rest; in motion the rounding would wobble it
+        let radius = Radius::Sm.pts() as f32;
+        let box_rect = Rect::from_center_size(space.center(), space.size() * scale);
+        let box_rect = if scale == 1.0 {
+            box_rect.round_to_pixels(ui.ctx().pixels_per_point())
+        } else {
+            box_rect
+        };
+        if look.fill < 1.0 {
+            let outline = if hovered { theme.accent() } else { theme.neutral() };
+            ui.painter().rect_stroke(
+                box_rect,
+                radius,
+                Stroke::new(STROKE_HAIRLINE, outline),
+                StrokeKind::Inside,
+            );
+        }
+        if look.fill > 0.0 {
+            let fill = if hovered {
+                theme.wash_toward_neutral_fg(theme.accent(), Theme::HOVER_WASH)
+            } else {
+                theme.accent()
+            };
+            ui.painter().rect_filled(
+                Rect::from_center_size(box_rect.center(), box_rect.size() * look.fill),
+                radius * look.fill,
+                fill,
+            );
+        }
+
+        // checked: page colour, which `readable()` keeps legible on every accent
+        if look.fill > 0.0 {
+            let color = theme.neutral_bg().gamma_multiply(look.fill);
+            paint_check(ui, box_rect, look.draw, look.check_scale, color);
+        }
+        // unchecked and hovered: a faint preview of the click, rising as the fill leaves
+        if hovered && !checked {
+            let color = theme
+                .accent()
+                .gamma_multiply(GHOST_ALPHA * (1.0 - look.fill));
+            paint_check(ui, box_rect, 1.0, 1.0, color);
+        }
     }
 
     pub fn own_prefix_len_task_item(

@@ -102,3 +102,21 @@ fn table_handles_show_their_cursor() {
     assert_eq!(landing(&mut t, column.center_top()), CursorIcon::Grab);
     assert_eq!(landing(&mut t, row.left_center()), CursorIcon::Default);
 }
+
+#[test]
+fn checkboxes_show_the_arrow() {
+    use super::super::{Event, TouchTarget};
+    let mut t = open("---\ndone: false\n---\n\n- [ ] a task\n");
+    let boxes: Vec<Rect> = renderer(&mut t)
+        .touch_targets
+        .iter()
+        .filter(|(_, target)| matches!(target, TouchTarget::Tap(Event::ToggleTask { .. })))
+        .map(|(rect, _)| *rect)
+        .collect();
+    // the front matter value's and the task's
+    assert_eq!(boxes.len(), 2);
+    for rect in boxes {
+        assert_eq!(landing(&mut t, rect.center()), CursorIcon::Default);
+        assert_eq!(landing(&mut t, rect.right_center() + egui::vec2(60.0, 0.0)), CursorIcon::Text);
+    }
+}

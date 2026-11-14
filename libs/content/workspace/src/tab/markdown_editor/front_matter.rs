@@ -37,6 +37,12 @@ impl<'ast> MdRender {
                         ((key.end(), text.start()), (text.end(), row.line.end()))
                     }
                     Value::Empty { at, .. } => ((key.end(), *at), (*at, *at)),
+                    Value::List { items, .. } => {
+                        for pair in items.windows(2) {
+                            out.push((pair[0].text.end(), pair[1].text.start()));
+                        }
+                        ((key.end(), value.caret()), (value.end(), row.line.end()))
+                    }
                 },
                 RowKind::Pending { key } => ((key.end(), key.end()), (key.end(), row.line.end())),
                 // a blank row's spaces draw nothing
@@ -56,6 +62,7 @@ impl<'ast> MdRender {
                 }
             }
         }
+        out.sort_unstable();
         if !fm.tail.is_empty() {
             out.push(fm.tail);
         }

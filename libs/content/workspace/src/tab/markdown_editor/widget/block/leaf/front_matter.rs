@@ -1,15 +1,18 @@
 //! Front matter as a grid: a row per property, the key in one column and
 //! the value in the other, with the fences, colons, and quotes hidden.
-//! Rows the grid cannot edit in place show as source
-//! ([`crate::front_matter`]).
+//! A list is a row of chips, `true`/`false` a checkbox, and rows the grid
+//! cannot edit in place show as source ([`crate::front_matter`]).
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Pos2, Ui};
+use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::front_matter::{FrontMatter, RowKind, Value};
-use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, WrapUnitLayout};
+use crate::tab::markdown_editor::input::Event;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{
+    EmbedKind, EmbedSpec, FontFamily, Format, Layout, StyleInfo, WrapUnitLayout,
+};
+use crate::tab::markdown_editor::{MdRender, TouchTarget};
 use crate::theme::palette_v2::ThemeExt as _;
 
 /// The key column takes at most this share of the block's width.
@@ -37,6 +40,11 @@ impl RowUnits {
     }
 }
 
+/// Click-target id of a checkbox value, keyed by where its text starts.
+fn checkbox_id_salt(text: (Grapheme, Grapheme)) -> egui::Id {
+    egui::Id::unique(("md_fm_checkbox", text.start().0))
+}
+
 impl<'ast> MdRender {
     pub(crate) fn frontmatter_as_code_block() -> NodeCodeBlock {
         NodeCodeBlock {
@@ -52,6 +60,7 @@ impl<'ast> MdRender {
 
     fn text_format_front_matter_key(&self) -> Format {
         Format {
+            family: FontFamily::Mono,
             color: self.ctx.get_lb_theme().neutral_fg_secondary(),
             ..self.text_format_document()
         }
@@ -59,6 +68,34 @@ impl<'ast> MdRender {
 
     fn text_format_front_matter_error(&self) -> Format {
         Format { color: self.ctx.get_lb_theme().danger(), ..self.text_format_syntax() }
+    }
+
+    /// A list item's capsule: tags take the accent, other lists a plain
+    /// surface.
+    fn text_format_front_matter_chip(&self, tag: bool) -> Format {
+        let t = self.ctx.get_lb_theme();
+        if tag {
+            Format {
+                family: FontFamily::Mono,
+                color: t.accent(),
+                background: t.accent().gamma_multiply(0.14),
+                ..self.text_format_document()
+            }
+        } else {
+            Format { background: t.neutral_bg_secondary(), ..self.text_format_document() }
+        }
+    }
+
+    /// A checkbox value in `rect`, its text row: a task item's checkbox,
+    /// clickable over the row's half spacing as a task item's is.
+    pub fn show_front_matter_checkbox(
+        &mut self, ui: &mut Ui, scope: egui::Id, rect: Rect, checked: bool, check: Grapheme,
+    ) {
+        let space = Rect::from_center_size(rect.center(), Vec2::splat(self.layout.row_height));
+        let clickable = space.expand(self.layout.row_spacing / 2.0);
+        let sense = if self.readonly { egui::Sense::hover() } else { egui::Sense::click() };
+        let id = scope.with(("md_fm_checkbox", check.0));
+        self.show_checkbox(ui, id, [space, clickable, clickable], checked, check, sense);
     }
 
     /// The key column's width: the widest key, within its share.
@@ -88,6 +125,92 @@ impl<'ast> MdRender {
             widest = widest.max(right);
         }
         widest.min(width * KEY_COLUMN_MAX)
+    }
+
+    /// The value column of a property row: its text, chips, or checkbox,
+    /// with the syntax around them hidden.
+    fn layout_front_matter_value(
+        &self, v: &mut Layout, key: (Grapheme, Grapheme), sep: (Grapheme, Grapheme),
+        value: &Value<Grapheme>, line_end: Grapheme,
+    ) {
+        let value_format = self.text_format_document();
+        let hidden = |layout: &mut Layout, range: (Grapheme, Grapheme)| {
+            layout.push_override(range, "", value_format.clone());
+        };
+        // the colon's own offset stays the key's, so a caret at the key's
+        // end draws there, not in this column
+        let after_colon = (sep.start() + 1).min(sep.end());
+        match value {
+            Value::Text { text, quotes, checked } => {
+                let open = quotes.map_or(text.start(), |(open, _)| open.end());
+                // a caret at either end sits beside the box; inside, the
+                // word shows to be edited
+                let inside = self
+                    .reveal_selection
+                    .is_some_and(|s| text.start() < s.start() && s.end() < text.end());
+                let boxed = checked.filter(|_| !inside);
+                if boxed.is_none() {
+                    hidden(v, (after_colon, open));
+                }
+                match boxed {
+                    // the box spans the hidden gap too, so a caret there
+                    // draws at its edge as at a text value's start
+                    Some(checked) => {
+                        // a text row's band, split where body text sits
+                        let row_height = self.layout.row_height;
+                        let (baseline, _) = self.body_metrics(row_height);
+                        v.push_embed(EmbedSpec {
+                            advance: row_height,
+                            ascent: row_height * baseline,
+                            descent: row_height * (1.0 - baseline),
+                            source_range: (after_colon, text.end()),
+                            url: String::new(),
+                            kind: EmbedKind::Checkbox { checked, check: text.start() },
+                        });
+                    }
+                    _ if text.is_empty() => hidden(v, *text),
+                    _ => v.push_source(*text, &self.buffer[*text], value_format.clone()),
+                }
+                let close = quotes.map_or(text.end(), |(_, close)| close.start());
+                hidden(v, (close, line_end));
+            }
+            Value::Empty { at, .. } => {
+                hidden(v, (after_colon, *at));
+                hidden(v, (*at, line_end));
+            }
+            Value::List { items, open, .. } => {
+                let chip = self.text_format_front_matter_chip(&self.buffer[key] == "tags");
+                if items.is_empty() {
+                    hidden(v, (after_colon, *open + 1));
+                    hidden(v, (*open + 1, line_end));
+                    return;
+                }
+                let mut prev = after_colon;
+                for (j, item) in items.iter().enumerate() {
+                    if j == 0 {
+                        hidden(v, (prev, item.text.start()));
+                    } else {
+                        // the comma or dash between chips reads as a space
+                        v.push_override((prev, item.text.start()), " ", value_format.clone());
+                    }
+                    v.style_open(StyleInfo {
+                        format: chip.clone(),
+                        source_range: item.text,
+                        chip: true,
+                        wrap: false,
+                        caret_inside: true,
+                    });
+                    if item.text.is_empty() {
+                        hidden(v, item.text);
+                    } else {
+                        v.push_source(item.text, &self.buffer[item.text], chip.clone());
+                    }
+                    v.style_close();
+                    prev = item.text.end();
+                }
+                hidden(v, (prev, line_end));
+            }
+        }
     }
 
     /// The key column's width and each row's wrap units.
@@ -121,26 +244,7 @@ impl<'ast> MdRender {
                             k.push_source(*key, &self.buffer[*key], key_format.clone());
                         }
                         let mut v = Layout::new((sep.start(), row.line.end()));
-                        // the colon's own offset stays the key's, so a caret
-                        // at the key's end draws there, not in this column
-                        let after_colon = (sep.start() + 1).min(sep.end());
-                        match value {
-                            Value::Text { text, quotes } => {
-                                let open = quotes.map_or(text.start(), |(open, _)| open.end());
-                                hidden(&mut v, (after_colon, open));
-                                if text.is_empty() {
-                                    hidden(&mut v, *text);
-                                } else {
-                                    v.push_source(*text, &self.buffer[*text], value_format.clone());
-                                }
-                                let close = quotes.map_or(text.end(), |(_, close)| close.start());
-                                hidden(&mut v, (close, row.line.end()));
-                            }
-                            Value::Empty { at, .. } => {
-                                hidden(&mut v, (after_colon, *at));
-                                hidden(&mut v, (*at, row.line.end()));
-                            }
-                        }
+                        self.layout_front_matter_value(&mut v, *key, *sep, value, row.line.end());
                         if is_last {
                             hidden(&mut v, fm.tail);
                         }
@@ -271,7 +375,45 @@ impl<'ast> MdRender {
                     }
                 }
             }
-            y += height + row_spacing;
+            y += height + self.layout.block_spacing;
+        }
+    }
+
+    /// A click on a checkbox value flips it. Must run after
+    /// `interact_fragments`.
+    pub fn handle_front_matter_interactions(&mut self, ui: &egui::Ui) {
+        if self.readonly {
+            return;
+        }
+        let Some(fm) = &self.bounds.front_matter else { return };
+        let checkboxes: Vec<((Grapheme, Grapheme), bool)> = fm
+            .rows
+            .iter()
+            .filter_map(|row| match &row.kind {
+                RowKind::Property {
+                    value: Value::Text { text, checked: Some(checked), .. },
+                    ..
+                } => Some((*text, *checked)),
+                _ => None,
+            })
+            .collect();
+        let parent_base = ui.scope_id();
+        for (text, checked) in checkboxes {
+            let id = parent_base.with(checkbox_id_salt(text));
+            let Some(response) = self.interaction_responses.get(&id).cloned() else { continue };
+            let toggle = Event::Replace {
+                region: text.into(),
+                text: (if checked { "false" } else { "true" }).into(),
+                advance_cursor: false,
+            };
+            self.touch_consume_interaction(id, TouchTarget::Tap(toggle.clone()));
+            if response.hovered() {
+                ui.ctx()
+                    .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+            }
+            if response.clicked() {
+                self.render_events.push(toggle);
+            }
         }
     }
 }
