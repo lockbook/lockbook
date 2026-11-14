@@ -102,6 +102,7 @@ lb_rs.dll
 
 *.pem
 *.crt
+!server/tests/fixtures/*.crt
 lockbook-server.prod
 lockbook-server
 

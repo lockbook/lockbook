@@ -13,6 +13,7 @@ use lockbook_server_lib::schema::{self, ServerDb};
 use lockbook_server_lib::*;
 use std::path::Path;
 use std::sync::Arc;
+use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tracing::*;
 use warp::Filter;
@@ -55,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(app_store_notification_webhooks(&server_state))
         .or(app_link_routes());
 
-    let server = warp::serve(routes);
+    let service = warp::service(routes);
 
     server_state.start_metrics_worker();
     server_state.start_garbage_worker();
@@ -63,23 +64,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // metrics endpoint to be served anauthenticated, locally, only
     tokio::spawn(warp::serve(get_metrics()).run(cfg.metrics.addr));
 
+    let bind_addr = std::net::SocketAddr::from(([0, 0, 0, 0], cfg.server.port));
+    let bind_error = |e: Box<dyn std::error::Error + Send + Sync>| -> ! {
+        panic!("error binding to {bind_addr}: {e}")
+    };
+    let listener = TcpListener::bind(bind_addr)
+        .await
+        .unwrap_or_else(|e| bind_error(e.into()));
+    let addr = listener
+        .local_addr()
+        .unwrap_or_else(|e| bind_error(e.into()));
+
     // *** How people can connect to this server ***
-    match (cfg.server.ssl_cert_location, cfg.server.ssl_private_key_location) {
+    let acceptor = match (cfg.server.ssl_cert_location, cfg.server.ssl_private_key_location) {
         (Some(cert), Some(key)) => {
-            let (addr, server) = server
-                .tls()
-                .cert_path(&cert)
-                .key_path(&key)
-                .bind_ephemeral(([0, 0, 0, 0], cfg.server.port));
+            let acceptor = http_server::tls_acceptor(&cert, &key).unwrap_or_else(|e| bind_error(e));
             loggers::log_startup(&server_state.config, &format!("https://{addr}"));
-            server.await
+            Some(acceptor)
         }
         _ => {
-            let (addr, server) = server.bind_ephemeral(([0, 0, 0, 0], cfg.server.port));
             loggers::log_startup(&server_state.config, &format!("http://{addr}"));
-            server.await
+            None
         }
     };
+
+    http_server::serve(listener, acceptor, service).await;
 
     Ok(())
 }

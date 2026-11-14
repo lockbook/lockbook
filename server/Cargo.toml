@@ -17,16 +17,16 @@ path = "src/main.rs"
 in-process = []
 
 [dependencies]
-warp = { version = "0.3.2", features = ["tls"] }
+warp = { version = "0.4", features = ["server"] }
+hyper = { version = "1", features = ["server", "http1", "http2"] }
+hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
 base64 = "0.13.0"
 bincode = "1.2.1"
-time = "0.3.20"
+time = { version = "0.3.20", features = ["formatting"] }
 futures = "0.3.13"
 lb-rs = { version = "26", path = "../libs/lb/lb-rs" }
-pagerduty-rs = { version = "0.1.5", default-features = false, features = [
-    "async",
-    "rustls",
-] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
 tokio = { version = "1.5.0", features = ["full"] }
@@ -53,10 +53,13 @@ tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
 tracing-gcp = "0.1.0"
 itertools = "0.10.1"
-reqwest = { version = "0.11", default-features = false, features = [
+reqwest = { version = "0.12", default-features = false, features = [
     "json",
     "rustls-tls",
     "multipart",
+    "charset",
+    "http2",
+    "system-proxy",
 ] }
 jsonwebtoken = "9.3.1"
 x509-parser = { version = "0.18.1", features = ["verify", "validate"] }
@@ -65,3 +68,6 @@ db-rs-old = { package = "db-rs", version = "=0.3.7" }
 db-rs-derive = "0.3.7"
 semver = "1.0.17"
 async-trait = "0.1.68"
+
+[dev-dependencies]
+http-body-util = "0.1"

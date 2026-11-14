@@ -102,6 +102,9 @@ where
     )
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ClientAddr(pub SocketAddr);
+
 pub mod account_service;
 pub mod app_links;
 pub mod billing;
@@ -113,6 +116,7 @@ pub mod error_handler;
 pub mod file_service;
 pub mod garbage_worker;
 pub mod guard;
+pub mod http_server;
 #[cfg(feature = "in-process")]
 pub mod in_process;
 pub mod loggers;

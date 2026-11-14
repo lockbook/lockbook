@@ -31,16 +31,19 @@ futures = "0.3.30"
 getrandom = { version = "0.2", features = ["js"] }
 glam = "0.22.0"
 hmac = "0.11.0"
-http = "0.2.6"
+http = "1"
 indexmap = { version = "2.5.0", features = ["rayon"] }
 libsecp256k1 = "0.7.1"
 qrcode-generator = "4.1.6"
 rand = "0.8.4"
-reqwest = { version = "0.11.1", default-features = false, features = [
+reqwest = { version = "0.12", default-features = false, features = [
     "json",
     "rustls-tls",
     "socks",
     "stream",
+    "charset",
+    "http2",
+    "system-proxy",
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11"
