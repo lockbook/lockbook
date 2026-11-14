@@ -1,6 +1,6 @@
 use std::f32;
 
-use comrak::nodes::{AstNode, NodeValue};
+use comrak::nodes::{AstNode, ListType, NodeValue};
 use egui::{self, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
@@ -558,7 +558,8 @@ impl<'ast> MdEdit {
         // a line without inlines takes the image as a line of its own, which
         // joins the lines beside it in its container: an HTML block above that
         // runs to a blank line takes it in as raw text, and a block below that
-        // can't interrupt a paragraph becomes the image's text
+        // can't interrupt a paragraph (a custom tag, indented code, or a list
+        // not starting at 1 or with an empty first item) becomes the image's text
         let swallowed = |to: Grapheme| {
             let lines = &r.bounds.source_lines;
             let Some(i) = lines.iter().position(|l| l.contains(to, true, true)) else {
@@ -576,15 +577,16 @@ impl<'ast> MdEdit {
                 if value.is_container_block() && range.contains_inclusive(to) {
                     container = n;
                 }
-                if value.is_leaf_block() {
-                    if prev.is_some_and(|l| l.contains(range.end(), true, true)) {
-                        above = Some(n);
-                    }
-                    if below.is_none()
-                        && next.is_some_and(|l| l.contains(range.start(), true, true))
-                    {
-                        below = Some(n);
-                    }
+                if value.is_leaf_block()
+                    && prev.is_some_and(|l| l.contains(range.end(), true, true))
+                {
+                    above = Some(n);
+                }
+                if (value.is_leaf_block() || value.is_container_block())
+                    && below.is_none()
+                    && next.is_some_and(|l| l.contains(range.start(), true, true))
+                {
+                    below = Some(n);
                 }
             }
             let beside =
@@ -597,6 +599,18 @@ impl<'ast> MdEdit {
                 .is_some_and(|n| match &n.data.borrow().value {
                     NodeValue::HtmlBlock(h) => h.block_type == 7,
                     NodeValue::CodeBlock(c) => !c.fenced,
+                    // only a list starting at 1 with text on its first line can
+                    NodeValue::List(l) => {
+                        let start = r.node_range(n).start();
+                        let line = lines.iter().find(|line| line.contains(start, true, true));
+                        let text = n.first_child().and_then(|item| item.first_child());
+                        let empty = !text.is_some_and(|text| {
+                            line.is_some_and(|line| {
+                                line.contains(r.node_range(text).start(), true, true)
+                            })
+                        });
+                        (l.list_type == ListType::Ordered && l.start != 1) || empty
+                    }
                     _ => false,
                 });
             runs_on || taken
