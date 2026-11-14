@@ -1477,3 +1477,41 @@ async fn move_folder_shared_with_owner_into_their_share_and_back() {
     let shares = recipient.get_file_by_id(notes.id).await.unwrap().shares;
     assert_eq!(shares.len(), 1, "{shares:?}");
 }
+
+/// Unsharing a folder from someone and then moving it into their share keeps them unshared once it
+/// moves back out.
+#[tokio::test]
+async fn unshare_then_move_folder_into_their_share() {
+    let owner = test_core_with_account().await;
+    let owner_name = owner.get_account().unwrap().username.clone();
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    recipient
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    let notes = recipient.create_at_path("/notes/").await.unwrap();
+    recipient
+        .share_file(notes.id, &owner_name, ShareMode::Read)
+        .await
+        .unwrap();
+    recipient.sync().await.unwrap();
+
+    recipient.unshare_file(notes.id, &owner_name).await.unwrap();
+    move_by_path(&recipient, "/notes/", "/team/").await.unwrap();
+    recipient.sync().await.unwrap();
+    move_by_path(&recipient, "/team/notes/", "/").await.unwrap();
+    recipient.sync().await.unwrap();
+    let shares = recipient.get_file_by_id(notes.id).await.unwrap().shares;
+    assert!(shares.is_empty(), "{shares:?}");
+    owner.sync().await.unwrap();
+    assert::all_pending_shares(&owner, &[]).await;
+}
