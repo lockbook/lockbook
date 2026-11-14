@@ -647,28 +647,28 @@ impl Workspace {
         }
     }
 
-    /// Queues a save of every tab with unsaved edits, closed ones included:
-    /// the tab cache keeps those until they're saved.
-    pub fn save_all_tabs(&mut self) {
-        let dirty: Vec<_> = self
-            .tabs
+    /// The saves every open tab of a file with unsaved edits needs, closed
+    /// tabs included: the tab cache keeps those until they're saved.
+    fn unsaved(&self) -> Vec<SaveRequest> {
+        self.tabs
             .iter()
+            .filter(|(_, tab)| matches!(tab.content, ContentState::Open(_)))
             .filter(|(_, tab)| tab.is_dirty(&self.tasks))
             .filter_map(|(&origin, tab)| Some(SaveRequest { id: tab.id()?, origin }))
-            .collect();
-        for request in dirty {
+            .collect()
+    }
+
+    pub fn save_all_tabs(&mut self) {
+        for request in self.unsaved() {
             self.tasks.queue_save(request);
         }
         self.last_save_all = Some(Instant::now());
     }
 
-    /// Every edit is on disk: no save waits, and no open tab has unsaved
-    /// edits. Quitting waits for this.
+    /// Every edit is on disk: no save waits and none is needed. Quitting
+    /// waits for this.
     pub fn saves_settled(&self) -> bool {
-        self.tasks.saves_idle()
-            && !self.tabs.iter().any(|(_, tab)| {
-                matches!(tab.content, ContentState::Open(_)) && tab.is_dirty(&self.tasks)
-            })
+        self.tasks.saves_idle() && self.unsaved().is_empty()
     }
 
     pub fn save_tab(&mut self, i: usize) {
@@ -2754,6 +2754,8 @@ mod image_embed_tests {
 
 #[cfg(test)]
 mod close_tests {
+    use web_time::{Duration, Instant};
+
     use crate::test_utils::ws::TestWs;
 
     /// Text typed into a tab that closes before its save writes is kept
@@ -2778,5 +2780,24 @@ mod close_tests {
 
         let disk = String::from_utf8(t.ws.core.read_document(id, false).unwrap()).unwrap();
         assert!(disk.contains("typed") && disk.contains("theirs"), "on disk: {disk:?}");
+    }
+
+    /// Quitting waits for saves, so a save that can never succeed must
+    /// still let it finish: here the note is deleted under unsaved typing.
+    #[test]
+    fn saves_settle_when_a_save_cannot_succeed() {
+        let mut t = TestWs::new();
+        let id = t.doc("note.md", "mine\n");
+        t.ws.open_file(id, true, false);
+        t.settle();
+        t.frame_with(vec![egui::Event::Text("typed ".into())]);
+        t.ws.core.delete_file(&id).unwrap();
+
+        let start = Instant::now();
+        while !t.ws.saves_settled() {
+            assert!(start.elapsed() < Duration::from_secs(10), "saves never settled");
+            t.ws.save_all_tabs();
+            t.frame();
+        }
     }
 }
