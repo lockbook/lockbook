@@ -134,6 +134,24 @@ impl<'ast> MdRender {
                 {
                     range = inline_range;
                 }
+
+                // hack: a link or image whose tail spans a line ends at its
+                // destination; what follows it starts after its `)`.
+                if matches!(value, NodeValue::Link(_) | NodeValue::Image(_)) {
+                    let parent = node.parent().unwrap();
+                    let follows = match node.next_sibling() {
+                        Some(next) => Some(self.sourcepos_to_range(next.data.borrow().sourcepos).0),
+                        None if matches!(parent.data.borrow().value, NodeValue::Paragraph) => {
+                            Some(self.node_range(parent).1)
+                        }
+                        None => None,
+                    };
+                    if let Some(end) = follows {
+                        if end > range.1 && &self.buffer[(end - 1, end)] == ")" {
+                            range.1 = end;
+                        }
+                    }
+                }
             }
 
             _ => {}
