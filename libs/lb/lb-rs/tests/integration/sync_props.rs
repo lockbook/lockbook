@@ -90,7 +90,7 @@ fn the_server_stays_valid() {
 #[test]
 fn with_creation_off_no_device_writes_v2() {
     run(CREATION_OFF, 2000, with_creation_off_no_device_writes_v2_check);
-    assert!(REFUSED.get() > 0, "no device tried to create an attachments folder");
+    assert!(REFUSED.get() > 0, "no device's switch refused an attachments folder");
 }
 
 #[test]
@@ -947,11 +947,15 @@ impl World {
                 let Some(document) = pick(device, reach, document, Kind::Document).await else {
                     return false;
                 };
-                let created = device.create_attachments_folder(&document).await.is_ok();
-                if !created {
-                    REFUSED.set(REFUSED.get() + 1);
+                match device.create_attachments_folder(&document).await {
+                    Ok(_) => true,
+                    Err(err) => {
+                        if err.kind == LbErrKind::AttachmentsFoldersOff {
+                            REFUSED.set(REFUSED.get() + 1);
+                        }
+                        false
+                    }
                 }
-                created
             }
             Step::Attach { document, name, .. } => {
                 let Some((note, folder)) = attachments(device, reach, document).await else {
@@ -1624,7 +1628,8 @@ thread_local! {
     static LANDED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     /// How many documents this thread's steps have added to attachments folders.
     static ATTACHED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-    /// How many attachments folders this thread's steps tried and were refused.
+    /// How many attachments folders this thread's steps tried and were refused because the
+    /// device's switch is off.
     static REFUSED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
