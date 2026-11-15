@@ -17,6 +17,7 @@ pub mod prefs;
 pub mod session;
 pub mod settings;
 mod settings_account;
+mod settings_storage;
 mod sheet_create;
 mod sheet_folder;
 mod sheet_links;
