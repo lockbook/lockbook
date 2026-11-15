@@ -1,5 +1,6 @@
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::element::{Color, Element};
+use usvg::Transform;
 use uuid::Uuid;
 
 fn id(n: u8) -> Uuid {
@@ -78,4 +79,29 @@ fn remote_restack_survives_merge() {
     local.elements.insert_before(1, local_only, el);
     reload(&mut local, &svg(&[1, 2]), &svg(&[2, 1]));
     assert_eq!(local.elements.keys().copied().collect::<Vec<_>>(), [id(2), id(1), local_only]);
+}
+
+/// Moving a stroke 100 to the right puts it 100 to the right in every other SVG
+/// viewer too.
+#[test]
+fn moved_stroke_is_where_other_viewers_draw_it() {
+    let mut drawing = Buffer::new(&svg(&[1])); // a stroke at x = 1
+    let stroke = drawing.elements.get_mut(&id(1)).unwrap();
+    stroke.transform(Transform::from_translate(100.0, 0.0));
+
+    let saved = drawing.serialize();
+    let resvg = usvg::Tree::from_str(&saved, &usvg::Options::default()).unwrap();
+    assert_eq!(first_path(resvg.root()).abs_bounding_box().left(), 101.0);
+}
+
+fn first_path(group: &usvg::Group) -> &usvg::Path {
+    group
+        .children()
+        .iter()
+        .find_map(|node| match node {
+            usvg::Node::Path(path) => Some(path.as_ref()),
+            usvg::Node::Group(group) => Some(first_path(group)),
+            _ => None,
+        })
+        .unwrap()
 }

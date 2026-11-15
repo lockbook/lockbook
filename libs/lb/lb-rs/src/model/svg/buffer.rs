@@ -287,15 +287,16 @@ pub fn serialize_inner(
                 let mut curv_attrs = " ".to_string();
                 // if it's empty then the curve will not be converted to string via bezier_rs
                 if let Some(stroke) = p.stroke {
+                    // `data` already holds the path's transform, which only scales how wide
+                    // the canvas draws the stroke.
                     curv_attrs = format!(
-                        "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}' transform='{}'",
-                        stroke.width,
+                        "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}'",
+                        stroke.width * (p.transform.sx + p.transform.sy) / 2.0,
                         stroke.color.light.red,
                         stroke.color.light.green,
                         stroke.color.light.blue,
                         stroke.opacity,
                         id_map.get(el.0).unwrap_or(&el.0.to_string()),
-                        to_svg_transform(p.transform)
                     );
                 }
 
@@ -630,11 +631,4 @@ pub fn u_transform_to_bezier(src: &Transform) -> DAffine2 {
         },
         translation: glam::DVec2 { x: src.tx.into(), y: src.ty.into() },
     }
-}
-
-fn to_svg_transform(transform: Transform) -> String {
-    format!(
-        "matrix({} {} {} {} {} {})",
-        transform.sx, transform.ky, transform.kx, transform.sy, transform.tx, transform.ty
-    )
 }
