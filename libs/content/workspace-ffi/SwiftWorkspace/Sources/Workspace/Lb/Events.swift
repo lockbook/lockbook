@@ -27,7 +27,7 @@ public struct Status: Equatable {
     public var pushingFiles: [UUID]
     public var dirtyLocally: [UUID]
     public var pullingFiles: [UUID]
-    public var spaceUsed: UsageMetrics?
+    public var usage: UsageMetrics
     public var message: String
     public var unexpectedSyncProblem: String?
 
@@ -40,7 +40,7 @@ public struct Status: Equatable {
         dirtyLocally = Array(UnsafeBufferPointer(start: status.dirty_locally.ids, count: Int(status.dirty_locally.len))).toUUIDs()
         pushingFiles = Array(UnsafeBufferPointer(start: status.pushing_files.ids, count: Int(status.pushing_files.len))).toUUIDs()
         pullingFiles = Array(UnsafeBufferPointer(start: status.pulling_files.ids, count: Int(status.pulling_files.len))).toUUIDs()
-        spaceUsed = status.space_used != nil ? UsageMetrics(status.space_used.move()) : nil
+        usage = UsageMetrics(status.usage)
         message = status.msg != nil ? String(cString: status.msg) : ""
         unexpectedSyncProblem = status.unexpected_sync_problem != nil ? String(cString: status.unexpected_sync_problem) : nil
     }
@@ -54,7 +54,7 @@ public struct Status: Equatable {
         pushingFiles = []
         dirtyLocally = []
         pullingFiles = []
-        spaceUsed = nil
+        usage = .empty
         message = ""
         unexpectedSyncProblem = nil
     }

@@ -798,38 +798,116 @@ pub struct LbUsageMetricsRes {
 }
 
 #[repr(C)]
-pub struct LbUsageMetrics {
-    server_used_exact: u64,
-    server_used_human: *mut c_char,
+pub struct LbUsageItem {
+    exact: u64,
+    human: *mut c_char,
+}
 
-    server_cap_exact: u64,
-    server_cap_human: *mut c_char,
+#[repr(C)]
+pub struct LbUsageMetrics {
+    synced: LbUsageItem,
+    local: LbUsageItem,
+    added: LbUsageItem,
+    freed: LbUsageItem,
+    has_data_cap: bool,
+    data_cap: LbUsageItem,
+}
+
+impl LbUsageItem {
+    fn empty() -> Self {
+        Self { exact: 0, human: null_mut() }
+    }
+}
+
+impl From<service::usage::UsageItemMetric> for LbUsageItem {
+    fn from(metric: service::usage::UsageItemMetric) -> Self {
+        Self { exact: metric.exact, human: cstring(metric.readable) }
+    }
+}
+
+impl LbUsageMetrics {
+    fn empty() -> Self {
+        Self {
+            synced: LbUsageItem::empty(),
+            local: LbUsageItem::empty(),
+            added: LbUsageItem::empty(),
+            freed: LbUsageItem::empty(),
+            has_data_cap: false,
+            data_cap: LbUsageItem::empty(),
+        }
+    }
+}
+
+impl From<service::usage::UsageMetrics> for LbUsageMetrics {
+    fn from(usage: service::usage::UsageMetrics) -> Self {
+        Self {
+            synced: usage.synced.into(),
+            local: usage.local.into(),
+            added: usage.added.into(),
+            freed: usage.freed.into(),
+            has_data_cap: usage.data_cap.is_some(),
+            data_cap: usage
+                .data_cap
+                .map(LbUsageItem::from)
+                .unwrap_or_else(LbUsageItem::empty),
+        }
+    }
+}
+
+fn usage_res(res: model::errors::LbResult<service::usage::UsageMetrics>) -> LbUsageMetricsRes {
+    match res {
+        Ok(usage) => LbUsageMetricsRes { err: null_mut(), usages: usage.into() },
+        Err(err) => LbUsageMetricsRes { err: lb_err(err), usages: LbUsageMetrics::empty() },
+    }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
-    let lb = rlb(lb);
+    usage_res(rlb(lb).get_usage())
+}
 
-    match lb.get_usage() {
-        Ok(usage) => LbUsageMetricsRes {
-            err: null_mut(),
-            usages: LbUsageMetrics {
-                server_used_exact: usage.server_usage.exact,
-                server_used_human: cstring(usage.server_usage.readable),
-                server_cap_exact: usage.data_cap.exact,
-                server_cap_human: cstring(usage.data_cap.readable),
-            },
-        },
-        Err(err) => LbUsageMetricsRes {
-            err: lb_err(err),
-            usages: LbUsageMetrics {
-                server_used_exact: 0,
-                server_used_human: null_mut(),
-                server_cap_exact: 0,
-                server_cap_human: null_mut(),
-            },
-        },
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_refresh_usage(lb: *mut Lb) -> LbUsageMetricsRes {
+    usage_res(rlb(lb).refresh_usage())
+}
+
+#[repr(C)]
+pub struct LbUsageEntry {
+    id: LbUuid,
+    synced: u64,
+    local: u64,
+}
+
+#[repr(C)]
+pub struct LbUsageBreakdownRes {
+    err: *mut LbFfiErr,
+    entries: *mut LbUsageEntry,
+    len: usize,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_get_usage_breakdown(lb: *mut Lb) -> LbUsageBreakdownRes {
+    match rlb(lb).get_usage_breakdown() {
+        Ok(entries) => {
+            let (entries, len) = carray(
+                entries
+                    .into_iter()
+                    .map(|entry| LbUsageEntry {
+                        id: entry.id.into(),
+                        synced: entry.synced,
+                        local: entry.local,
+                    })
+                    .collect(),
+            );
+            LbUsageBreakdownRes { err: null_mut(), entries, len }
+        }
+        Err(err) => LbUsageBreakdownRes { err: lb_err(err), entries: null_mut(), len: 0 },
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_bytes_to_human(bytes: u64) -> *mut c_char {
+    cstring(model::usage::bytes_to_human(bytes))
 }
 
 #[unsafe(no_mangle)]
@@ -1197,7 +1275,7 @@ pub struct LbStatus {
     pub pushing_files: LbIds,
     pub dirty_locally: LbIds,
     pub pulling_files: LbIds,
-    pub space_used: *mut LbUsageMetrics,
+    pub usage: LbUsageMetrics,
     pub msg: *mut c_char,
     pub unexpected_sync_problem: *mut c_char,
 }
@@ -1226,15 +1304,7 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
     let pulling_files = carray(status.pulling_files.into_iter().map(LbUuid::from).collect());
     let pulling_files = LbIds { ids: pulling_files.0, len: pulling_files.1 };
 
-    let space_used = match status.space_used {
-        Some(usage) => Box::into_raw(Box::new(LbUsageMetrics {
-            server_used_exact: usage.server_usage.exact,
-            server_used_human: cstring(usage.server_usage.readable),
-            server_cap_exact: usage.data_cap.exact,
-            server_cap_human: cstring(usage.data_cap.readable),
-        })),
-        None => null_mut(),
-    };
+    let usage = status.usage.into();
 
     LbStatus {
         offline: status.offline,
@@ -1245,7 +1315,7 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
         pushing_files,
         dirty_locally,
         pulling_files,
-        space_used,
+        usage,
         msg,
         unexpected_sync_problem,
     }

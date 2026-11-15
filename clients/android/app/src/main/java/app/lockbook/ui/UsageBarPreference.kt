@@ -55,8 +55,8 @@ class UsageBarPreference(
 
     private fun setUpUsagePreference(usage: Usage) {
         val dataCapExact = usage.dataCap?.exact ?: 1
-        val serverUsageExact = usage.serverUsage?.exact ?: 1
-        val serverUsage = usage.serverUsage?.readable ?: ""
+        val serverUsageExact = usage.local?.exact ?: 1
+        val serverUsage = usage.local?.readable ?: ""
         val dataCap = usage.dataCap?.readable ?: ""
 
         val roundedDataCap = dataCapExact / ROUND_DECIMAL_PLACES

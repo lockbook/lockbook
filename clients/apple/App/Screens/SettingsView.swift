@@ -380,15 +380,15 @@ struct UsageSettingsRows: View {
             }
         }
 
-        if let usage = model.usage {
+        if let usage = model.usage, let cap = usage.dataCap {
             VStack {
                 HStack {
                     Text("Server Utilization:")
                     Spacer()
-                    Text("\(usage.serverUsedHuman) / \(usage.serverCapHuman)")
+                    Text("\(usage.local.human) / \(cap.human)")
                 }
 
-                ProgressView(value: Double(usage.serverUsedExact), total: Double(usage.serverCapExact))
+                ProgressView(value: Double(min(usage.local.exact, cap.exact)), total: Double(cap.exact))
                     .padding(.top, 10)
                     .padding(.bottom, 8)
             }

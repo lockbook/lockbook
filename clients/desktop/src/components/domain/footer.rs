@@ -100,9 +100,9 @@ struct Layout {
 
 /// How full the account is, when the server reports a cap.
 fn usage_frac(status: &Status) -> Option<f32> {
-    let usage = status.space_used.as_ref()?;
-    let cap = usage.data_cap.exact;
-    (cap != 0).then(|| (usage.server_usage.exact as f64 / cap as f64).min(1.0) as f32)
+    let usage = &status.usage;
+    let cap = usage.data_cap.as_ref()?.exact;
+    (cap != 0).then(|| (usage.local.exact as f64 / cap as f64).min(1.0) as f32)
 }
 
 fn layout(app: &ShellApp) -> Option<Layout> {
@@ -164,8 +164,8 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
 
     // Prefer server `readable` (SI 1000) so premium cap shows **30 GB** not 27.9.
     let usage_info = usage_frac(&status).and_then(|frac| {
-        let usage = status.space_used.as_ref()?;
-        Some((usage.server_usage.readable.clone(), usage.data_cap.readable.clone(), frac))
+        let usage = &status.usage;
+        Some((usage.local.readable.clone(), usage.data_cap.as_ref()?.readable.clone(), frac))
     });
 
     // The footer claims its measured band; its parts are placed inside it.
@@ -332,9 +332,10 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     let frame_pad_x = Space::Sm.pts();
     let content_w = (footer_rect.width() - 2.0 * gap - 2.0 * frame_pad_x).max(Space::Xl.pts());
     let tier_free = status
-        .space_used
+        .usage
+        .data_cap
         .as_ref()
-        .map(|u| u.data_cap.exact <= FREE_TIER_USAGE_SIZE)
+        .map(|cap| cap.exact <= FREE_TIER_USAGE_SIZE)
         .unwrap_or(true);
     let usage = usage_info
         .as_ref()

@@ -27,7 +27,7 @@ import SwiftWorkspace
 
     func loadUsages() {
         DispatchQueue.global(qos: .userInitiated).async {
-            let res = AppState.lb.getUsage()
+            let res = AppState.lb.refreshUsage()
 
             DispatchQueue.main.async {
                 switch res {

@@ -1,7 +1,7 @@
 use crate::file_cache::FilesExt as _;
 use lb_rs::Uuid;
-use lb_rs::model::api::FileUsage;
 use lb_rs::model::file::File;
+use lb_rs::service::usage::UsageEntry;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -39,7 +39,9 @@ pub struct StorageCell {
 }
 
 impl Data {
-    pub fn init(potential_root: Option<File>, usage: Vec<FileUsage>, meta_data: Vec<File>) -> Self {
+    pub fn init(
+        potential_root: Option<File>, usage: Vec<UsageEntry>, meta_data: Vec<File>,
+    ) -> Self {
         let root = meta_data.root().id;
         let data = Self::get_filerows(usage, meta_data);
         let mut all_files = HashMap::new();
@@ -80,21 +82,16 @@ impl Data {
         Self { focused_folder, root, all_files, folder_sizes }
     }
 
-    fn get_filerows(usage: Vec<FileUsage>, meta_data: Vec<File>) -> Vec<FileRow> {
-        let mut filerows = vec![];
+    fn get_filerows(usage: Vec<UsageEntry>, meta_data: Vec<File>) -> Vec<FileRow> {
+        let sizes: HashMap<Uuid, u64> = usage
+            .into_iter()
+            .map(|entry| (entry.id, entry.local))
+            .collect();
 
-        for file in meta_data {
-            filerows.push(FileRow {
-                size: usage
-                    .iter()
-                    .find(|item| item.file_id == file.id)
-                    .unwrap_or(&FileUsage { file_id: file.id, size_bytes: 0 }) // Files that are shared with you take up 0. In the future, we may implement a way to view it with the flag that its not stored by you
-                    .size_bytes,
-                file,
-            });
-        }
-
-        filerows
+        meta_data
+            .into_iter()
+            .map(|file| FileRow { size: sizes.get(&file.id).copied().unwrap_or_default(), file })
+            .collect()
     }
 
     pub fn get_size(&self, id: &Uuid) -> u64 {

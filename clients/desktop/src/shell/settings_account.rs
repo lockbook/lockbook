@@ -16,8 +16,8 @@ fn plan_standing(app: &ShellApp) -> super::account_plan::AccountStanding {
     let cap = app
         .session
         .ready()
-        .and_then(|r| r.status.space_used.as_ref())
-        .map(|u| u.data_cap.exact);
+        .and_then(|r| r.status.usage.data_cap.as_ref())
+        .map(|cap| cap.exact);
     let info = app.session.ready().and_then(|r| r.sub_info.as_ref());
     AccountStanding::from_subscription_and_cap(info, cap)
 }
@@ -616,8 +616,11 @@ fn page_plan_body(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Ac
     let storage = app
         .session
         .ready()
-        .and_then(|r| r.status.space_used.as_ref())
-        .map(|u| format!("{} of {}", u.server_usage.readable, u.data_cap.readable))
+        .and_then(|r| {
+            let usage = &r.status.usage;
+            let cap = usage.data_cap.as_ref()?;
+            Some(format!("{} of {}", usage.local.readable, cap.readable))
+        })
         .unwrap_or_else(|| "—".into());
     let standing = plan_standing(app);
     let tier = standing.tier.label();

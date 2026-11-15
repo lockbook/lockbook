@@ -188,9 +188,8 @@ pub(crate) fn poll_upgrade(app: &mut ShellApp, ctx: &Context) {
     };
     if out.is_ok() {
         if let Some(r) = app.session.ready_mut() {
-            let usage = r.workspace.core.get_usage().ok();
-            if let Some(u) = usage {
-                r.status.space_used = Some(u);
+            if let Ok(usage) = r.workspace.core.get_usage() {
+                r.status.usage = usage;
             }
             r.sub_info = r.workspace.core.get_subscription_info().ok().flatten();
             r.refresh_status();

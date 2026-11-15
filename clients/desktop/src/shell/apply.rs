@@ -905,9 +905,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             };
             match r.workspace.core.cancel_subscription() {
                 Ok(()) => {
-                    let usage = r.workspace.core.get_usage().ok();
-                    if let Some(u) = usage.clone() {
-                        r.status.space_used = Some(u);
+                    if let Ok(usage) = r.workspace.core.get_usage() {
+                        r.status.usage = usage;
                     }
                     r.sub_info = r.workspace.core.get_subscription_info().ok().flatten();
                 }
@@ -919,9 +918,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                         || lower.contains("already canceled")
                         || lower.contains("alreadycanceled");
                     if already {
-                        let usage = r.workspace.core.get_usage().ok();
-                        if let Some(u) = usage {
-                            r.status.space_used = Some(u);
+                        if let Ok(usage) = r.workspace.core.refresh_usage() {
+                            r.status.usage = usage;
                         }
                         r.sub_info = r.workspace.core.get_subscription_info().ok().flatten();
                     }
@@ -1699,14 +1697,7 @@ pub(crate) fn import_event(app: &ShellApp) -> Option<A> {
         return rx.try_recv().ok().map(A::ImportPlanned);
     }
     let (_, _, waiting_on) = app.import_after_upgrade.as_ref()?;
-    let cap = app
-        .session
-        .ready()?
-        .status
-        .space_used
-        .as_ref()?
-        .data_cap
-        .exact;
+    let cap = app.session.ready()?.status.usage.data_cap.as_ref()?.exact;
     (cap > *waiting_on && app.modal.is_none()).then_some(A::ImportResume)
 }
 

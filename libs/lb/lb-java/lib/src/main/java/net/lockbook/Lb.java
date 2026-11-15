@@ -43,6 +43,9 @@ public class Lb {
     public static native String getTimestampHumanString(long timestamp) throws LbError;
 
     public static native Usage getUsage() throws LbError;
+    public static native Usage refreshUsage() throws LbError;
+    public static native UsageEntry[] getUsageBreakdown() throws LbError;
+    public static native String bytesToHuman(long bytes);
     public static native void sync() throws LbError;
     public static native LbEvent subscribe(long rx) throws LbError;
 
