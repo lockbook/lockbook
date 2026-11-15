@@ -45,6 +45,50 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         Ok(ui_file)
     }
 
+    /// Creates `document`'s attachments folder, beside it and named for it: `plan.md`'s is
+    /// `plan-attachments`. The folder keeps that name when the document is renamed. Refused as
+    /// [LbErrKind::InsufficientPermission] while this device doesn't create them
+    /// ([Lb::attachments_folders]), and refused when the document already has one.
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn create_attachments_folder(&self, document: &Uuid) -> LbResult<File> {
+        if !self.attachments_folders {
+            return Err(LbErrKind::InsufficientPermission.into());
+        }
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+
+        let mut tree = (&db.base_metadata)
+            .to_staged(&mut db.local_metadata)
+            .to_lazy();
+
+        let id = tree.create_attachments(
+            self.entropy.id(),
+            self.entropy.key(),
+            document,
+            &self.keychain,
+        )?;
+        let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
+
+        tx.end();
+
+        self.events.meta_changed(Actor::User(None));
+        Ok(ui_file)
+    }
+
+    /// `document`'s attachments folder, if it has one that isn't deleted.
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn get_attachments_folder(&self, document: &Uuid) -> LbResult<Option<File>> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        tree.find(document)?;
+        let Some(id) = tree.attachments_folder(document)? else {
+            return Ok(None);
+        };
+        Ok(Some(tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?))
+    }
+
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn rename_file(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
         let mut tx = self.begin_tx().await;

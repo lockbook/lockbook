@@ -56,6 +56,11 @@ where
             return Err(ClientError(NewAccountError::Disabled));
         }
 
+        // a root is never an attachments folder, the only file written as V2
+        if crate::file_service::writes_v2(&request.root_folder) {
+            return Err(internal!("new account root is V2 metadata"));
+        }
+
         let mut guard = self.index_db.lock().await;
         let mut tx = ServerTx::begin(&mut guard)?;
         let db = &mut *tx;

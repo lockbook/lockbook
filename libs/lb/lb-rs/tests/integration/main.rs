@@ -11,6 +11,7 @@ mod api_move_file_tests;
 mod api_new_account_tests;
 mod api_rename_file_tests;
 mod api_service_tests;
+mod attachments_tests;
 mod cli_data_tests;
 mod core_ops_tests;
 mod db_migration_tests;

@@ -30,6 +30,10 @@ pub mod subscribers;
 #[cfg(target_family = "wasm")]
 pub mod wasm;
 
+/// Do devices create attachments folders? Off until every client in the field reads metadata V2;
+/// turning it on is a change to this line.
+pub const ATTACHMENTS_FOLDERS: bool = false;
+
 // C headers name only `blocking::Lb`; cbindgen keys types by bare name, so this one stays out.
 /// cbindgen:ignore
 #[derive(Clone)]
@@ -45,6 +49,11 @@ pub struct Lb<S = Network, D = AsyncDocs> {
     pub events: EventSubs,
     pub status: StatusUpdater,
     pub syncer: Syncer,
+    /// Does this device create attachments folders? Gates creating them and nothing else: a device
+    /// that doesn't reads, merges, moves, renames, deletes and shares them like one that does.
+    /// Set in code, not configured: every instance starts at [ATTACHMENTS_FOLDERS], and tests turn
+    /// it on for the devices they need before using them.
+    pub attachments_folders: bool,
     #[cfg(all(unix, not(target_os = "ios")))]
     /// None for an instance that shares its database with no other process.
     pub(crate) ipc: Option<Arc<Ipc>>,
@@ -135,6 +144,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             docs,
             client,
             syncer,
+            attachments_folders: ATTACHMENTS_FOLDERS,
             events,
             status,
             user_last_seen,

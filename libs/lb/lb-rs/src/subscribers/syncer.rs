@@ -462,6 +462,13 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 &self.keychain,
                             )
                             .map_err(orphaned_creation(id))?;
+                        if let Some(of) = local_file.attachments_of() {
+                            remote_with_moves.attach_unvalidated(
+                                &id,
+                                of.clone(),
+                                &self.keychain,
+                            )?;
+                        }
                     }
 
                     // moves (creations happen first in case a file is moved into a new folder);
@@ -553,6 +560,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 &self.keychain,
                             )
                             .map_err(orphaned_creation(id))?;
+                        if let Some(of) = local_file.attachments_of() {
+                            merge.attach_unvalidated(&id, of.clone(), &self.keychain)?;
+                        }
                     }
 
                     // deletes
@@ -990,7 +1000,10 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                             | ValidationFailure::FileNameTooLong(_)
                             | ValidationFailure::DeletedFileUpdated(_)
                             | ValidationFailure::NonDecryptableFileName(_)
-                            | ValidationFailure::SelfShare(_) => {
+                            | ValidationFailure::SelfShare(_)
+                            | ValidationFailure::InvalidAttachmentsFolder(_)
+                            | ValidationFailure::DuplicateAttachmentsFolder { .. }
+                            | ValidationFailure::MisplacedAttachmentsFolder(_) => {
                                 validate_result?;
                             }
                         },

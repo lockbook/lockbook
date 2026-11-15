@@ -137,6 +137,7 @@ fn in_process_config() -> Config {
             new_accounts: true,
             new_account_rate_limit: false,
             bandwidth_controls: true,
+            meta_v2: true,
         },
     }
 }

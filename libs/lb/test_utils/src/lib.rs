@@ -59,6 +59,28 @@ pub async fn test_core_with_account() -> Lb {
     with_account(test_core().await).await
 }
 
+/// `core`, made a device that creates attachments folders: set in code, as no config can, before
+/// anything uses it.
+pub fn creating_attachments<S: Server>(mut core: lb_rs::Lb<S>) -> lb_rs::Lb<S> {
+    core.attachments_folders = true;
+    core
+}
+
+/// A new account on a device that creates attachments folders.
+pub async fn test_core_with_attachments() -> Lb {
+    with_account(creating_attachments(test_core().await)).await
+}
+
+/// Another device on `core`'s account that creates attachments folders.
+pub async fn test_core_from_with_attachments(core: &Lb) -> Lb {
+    import_into(core, creating_attachments(test_core().await)).await
+}
+
+/// Another device on `core`'s account, configured by the caller, e.g. to list attachments folders.
+pub async fn test_core_from_with(core: &Lb, config: Config) -> Lb {
+    import_into(core, test_core_with(config).await).await
+}
+
 /// Clients over HTTP to the server at [url], with their data on disk: for tests of the network
 /// client, IPC between processes, and the files a client keeps.
 pub mod http {
