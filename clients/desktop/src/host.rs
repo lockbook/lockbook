@@ -221,7 +221,7 @@ impl ApplicationHandler<UserEvent> for App {
                 state.render(event_loop);
             }
             WindowEvent::Focused(true) => {
-                crate::system_text::refresh(&state.lb.renderer.context);
+                crate::system_text::refresh(&state.lb.renderer.context, &state.window);
             }
             _ => {}
         }
@@ -558,7 +558,9 @@ fn init_app(window: Arc<Window>) -> WgpuLockbook<'static> {
         )
     };
 
-    init_with_renderer(renderer)
+    let lb = init_with_renderer(renderer);
+    crate::system_text::refresh(&lb.renderer.context, &window);
+    lb
 }
 
 fn init_with_renderer(mut renderer: RendererState<'static>) -> WgpuLockbook<'static> {
@@ -593,7 +595,6 @@ fn init_with_renderer(mut renderer: RendererState<'static>) -> WgpuLockbook<'sta
         app,
     };
 
-    crate::system_text::refresh(&lb.renderer.context);
     lb.frame();
     lb
 }

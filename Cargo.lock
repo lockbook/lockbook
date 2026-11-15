@@ -4808,6 +4808,7 @@ dependencies = [
  "winreg 0.52.0",
  "workspace",
  "x11rb",
+ "zbus",
 ]
 
 [[package]]
