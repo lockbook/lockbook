@@ -473,9 +473,8 @@ where
         Ok(())
     }
 
-    /// Puts `document`'s attachments folder, if it has one, beside it. It keeps its name,
-    /// numbered as a conflict is (`plan-attachments 2`) where another file beside the document
-    /// has it.
+    /// Puts `document`'s attachments folder, if it has one, beside it, as
+    /// [Self::place_attachments_folder] does.
     pub fn place_attachments(&mut self, document: &Uuid, keychain: &Keychain) -> LbResult<()> {
         if !self.find(document)?.is_document() || self.calculate_deleted(document)? {
             return Ok(());
@@ -483,6 +482,16 @@ where
         let Some(folder) = self.attachments_folder(document)? else {
             return Ok(());
         };
+        self.place_attachments_folder(document, &folder, keychain)
+    }
+
+    /// Puts `folder`, an attachments folder of the live `document`, beside it. It keeps its name,
+    /// numbered as a conflict is (`plan-attachments 2`) where another file beside the document has
+    /// it.
+    pub fn place_attachments_folder(
+        &mut self, document: &Uuid, folder: &Uuid, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let folder = *folder;
         let parent = *self.find(document)?.parent();
         if *self.find(&folder)?.parent() != parent {
             self.move_unvalidated(&folder, &parent, keychain)?;
