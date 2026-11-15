@@ -25,6 +25,7 @@ mod sheet_onboard;
 mod sheet_share;
 mod sheets;
 pub mod sidebar;
+mod storage_report;
 pub mod titlebar;
 pub mod toasts;
 
@@ -125,6 +126,7 @@ pub struct ShellApp {
     pub import_job: Option<workspace_rs::import::ImportJob>,
     /// An import waiting on an upgrade: its paths, its folder, and the cap it must outgrow.
     pub(crate) import_after_upgrade: Option<(Vec<std::path::PathBuf>, Uuid, u64)>,
+    pub(crate) storage: settings_storage::StorageView,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -196,6 +198,7 @@ impl Default for ShellApp {
             nudges: None,
             import_job: None,
             import_after_upgrade: None,
+            storage: Default::default(),
         }
     }
 }
