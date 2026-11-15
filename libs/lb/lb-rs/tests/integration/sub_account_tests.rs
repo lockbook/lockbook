@@ -1,9 +1,8 @@
 use lb_rs::io::network::ApiError;
 use lb_rs::io::server::Server;
 use lb_rs::model::api::{
-    FREE_TIER_USAGE_SIZE, GetSubscriptionInfoRequest, PREMIUM_TIER_USAGE_SIZE, PaymentMethod,
-    PaymentPlatform, StripeAccountState, StripeAccountTier, UpgradeAccountStripeError,
-    UpgradeAccountStripeRequest,
+    FREE_TIER_USAGE_SIZE, GetSubscriptionInfoError, GetSubscriptionInfoRequest,
+    PREMIUM_TIER_USAGE_SIZE, PaymentMethod, StripeAccountState, StripeAccountTier,
 };
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
@@ -190,8 +189,8 @@ async fn usage_counts_against_the_parent() {
 
     let parent_usage = parent.get_usage().await.unwrap();
     let sub_usage = sub_account.get_usage().await.unwrap();
-    assert_eq!(parent_usage.data_cap.exact, PREMIUM_TIER_USAGE_SIZE - sub_usage.server_usage.exact);
-    assert_eq!(sub_usage.data_cap.exact, PREMIUM_TIER_USAGE_SIZE - parent_usage.server_usage.exact);
+    assert_eq!(parent_usage.data_cap.exact, PREMIUM_TIER_USAGE_SIZE);
+    assert_eq!(sub_usage.data_cap.exact, PREMIUM_TIER_USAGE_SIZE);
     assert_eq!(parent.list_sub_accounts().await.unwrap()[0].usage, sub_usage.server_usage.exact);
 }
 
@@ -215,38 +214,38 @@ async fn the_family_shares_one_cap() {
     parent.sync().await.unwrap();
 
     sub_account.sync().await.unwrap();
+
+    write_random(&parent, "again.md", most_of_the_cap).await;
+    let result = parent.sync().await;
+    assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
+
+    parent.delete_sub_account(&username).await.unwrap();
+
+    parent.sync().await.unwrap();
 }
 
 #[tokio::test]
-async fn billing_follows_the_parent() {
+async fn billing_is_not_permitted() {
     let parent = premium_core().await;
     let username = parent.create_sub_account("bot").await.unwrap();
     let sub_account = sign_in(&parent, &username).await;
     let account = sub_account.get_account().unwrap();
 
-    let info =
+    let result =
         Server::get_subscription_info(&sub_account.client, account, GetSubscriptionInfoRequest {})
-            .await
-            .unwrap()
-            .subscription_info
-            .unwrap();
-    assert_eq!(
-        info.payment_platform,
-        PaymentPlatform::Stripe { card_last_4_digits: String::new() }
-    );
+            .await;
+    assert!(matches!(result, Err(ApiError::Endpoint(GetSubscriptionInfoError::NotPermissioned))));
 
-    let result = Server::upgrade_account_stripe(
-        &sub_account.client,
-        account,
-        UpgradeAccountStripeRequest {
-            account_tier: StripeAccountTier::Premium(PaymentMethod::OldCard),
-        },
-    )
-    .await;
-    assert!(matches!(result, Err(ApiError::Endpoint(UpgradeAccountStripeError::AlreadyPremium))));
+    let result = sub_account.get_subscription_info().await;
+    assert_eq!(result.unwrap_err().kind, LbErrKind::InsufficientPermission);
+
+    let result = sub_account
+        .upgrade_account_stripe(StripeAccountTier::Premium(PaymentMethod::OldCard))
+        .await;
+    assert_eq!(result.unwrap_err().kind, LbErrKind::InsufficientPermission);
 
     let result = sub_account.cancel_subscription().await;
-    assert_eq!(result.unwrap_err().kind, LbErrKind::NotPremium);
+    assert_eq!(result.unwrap_err().kind, LbErrKind::InsufficientPermission);
 }
 
 #[tokio::test]
@@ -260,9 +259,10 @@ async fn parent_deletes() {
     parent.delete_sub_account(&username).await.unwrap();
 
     assert!(parent.list_sub_accounts().await.unwrap().is_empty());
-    assert_eq!(parent.get_usage().await.unwrap().data_cap.exact, PREMIUM_TIER_USAGE_SIZE);
     let result = parent.delete_sub_account(&username).await;
     assert_eq!(result.unwrap_err().kind, LbErrKind::UsernameNotFound);
+    let result = sub_account.get_subscription_info().await;
+    assert_eq!(result.unwrap_err().kind, LbErrKind::InsufficientPermission);
 
     let result = parent.create_sub_account("bot").await;
     assert_eq!(result.unwrap_err().kind, LbErrKind::UsernameTaken);

@@ -455,6 +455,7 @@ pub enum UpgradeAccountStripeError {
     InvalidCardCvc,
     ExistingRequestPending,
     UserNotFound,
+    NotPermissioned,
 }
 
 impl Request for UpgradeAccountStripeRequest {
@@ -479,6 +480,7 @@ pub enum UpgradeAccountGooglePlayError {
     InvalidPurchaseToken,
     ExistingRequestPending,
     UserNotFound,
+    NotPermissioned,
 }
 
 impl Request for UpgradeAccountGooglePlayRequest {
@@ -504,6 +506,7 @@ pub enum UpgradeAccountAppStoreError {
     InvalidAuthDetails,
     ExistingRequestPending,
     UserNotFound,
+    NotPermissioned,
 }
 
 impl Request for UpgradeAccountAppStoreRequest {
@@ -527,6 +530,7 @@ pub enum CancelSubscriptionError {
     UserNotFound,
     ExistingRequestPending,
     CannotCancelForAppStore,
+    NotPermissioned,
 }
 
 impl Request for CancelSubscriptionRequest {
@@ -561,6 +565,7 @@ pub struct GetSubscriptionInfoResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GetSubscriptionInfoError {
     UserNotFound,
+    NotPermissioned,
 }
 
 impl Request for GetSubscriptionInfoRequest {

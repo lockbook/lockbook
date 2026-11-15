@@ -8,6 +8,7 @@ use cli_rs::cli_error::{CliError, CliResult};
 use is_terminal::IsTerminal;
 use lb_rs::DEFAULT_API_LOCATION;
 use lb_rs::Lb;
+use lb_rs::model::account::SUB_ACCOUNT_SEPARATOR;
 use lb_rs::model::api::{PaymentMethod, PaymentPlatform, StripeAccountTier};
 
 use crate::{core, ensure_account, input};
@@ -173,7 +174,9 @@ pub async fn status() -> Result<(), CliError> {
         .checked_div(cap.data_cap.exact)
         .unwrap_or(0);
 
-    if let Some(info) = lb.get_subscription_info().await? {
+    if lb.get_account()?.username.contains(SUB_ACCOUNT_SEPARATOR) {
+        println!("type: sub-account");
+    } else if let Some(info) = lb.get_subscription_info().await? {
         match info.payment_platform {
             PaymentPlatform::Stripe { card_last_4_digits } => {
                 println!("type: Stripe, *{card_last_4_digits}")

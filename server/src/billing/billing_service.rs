@@ -97,7 +97,7 @@ where
         let request = &context.request;
 
         if self.is_sub_account(&context.public_key).await {
-            return Err(ClientError(UpgradeAccountAppStoreError::AlreadyPremium));
+            return Err(ClientError(UpgradeAccountAppStoreError::NotPermissioned));
         }
 
         let mut account = self.lock_subscription_profile(&context.public_key).await?;
@@ -161,7 +161,7 @@ where
         let request = &context.request;
 
         if self.is_sub_account(&context.public_key).await {
-            return Err(ClientError(UpgradeAccountGooglePlayError::AlreadyPremium));
+            return Err(ClientError(UpgradeAccountGooglePlayError::NotPermissioned));
         }
 
         let mut account = self.lock_subscription_profile(&context.public_key).await?;
@@ -216,7 +216,7 @@ where
         debug!("Attempting to upgrade the account tier of to premium");
 
         if self.is_sub_account(&context.public_key).await {
-            return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
+            return Err(ClientError(UpgradeAccountStripeError::NotPermissioned));
         }
 
         let mut account = self.lock_subscription_profile(&context.public_key).await?;
@@ -293,32 +293,30 @@ where
     async fn read_billing_platform(
         &self, public_key: &PublicKey,
     ) -> Result<Option<BillingPlatform>, ServerError<GetSubscriptionInfoError>> {
-        let db = &self.index_db.lock().await.schema;
-        let owner = Owner(*public_key);
-        if !db.accounts.contains_key(&owner) {
-            return Err(ClientError(GetSubscriptionInfoError::UserNotFound));
+        if self.is_sub_account(public_key).await {
+            return Err(ClientError(GetSubscriptionInfoError::NotPermissioned));
         }
 
-        let billed_owner = Self::billed_owner(db, owner);
-        let mut platform = db
+        Ok(self
+            .index_db
+            .lock()
+            .await
+            .schema
             .accounts
-            .get(&billed_owner)
+            .get(&Owner(*public_key))
             .ok_or(ClientError(GetSubscriptionInfoError::UserNotFound))?
             .billing_info
             .billing_platform
-            .clone();
-        if billed_owner != owner {
-            if let Some(BillingPlatform::Stripe(info)) = &mut platform {
-                info.last_4.clear();
-            }
-        }
-
-        Ok(platform)
+            .clone())
     }
 
     pub async fn cancel_subscription(
         &self, context: RequestContext<CancelSubscriptionRequest>,
     ) -> Result<CancelSubscriptionResponse, ServerError<CancelSubscriptionError>> {
+        if self.is_sub_account(&context.public_key).await {
+            return Err(ClientError(CancelSubscriptionError::NotPermissioned));
+        }
+
         let mut account = self.lock_subscription_profile(&context.public_key).await?;
 
         if account.billing_info.data_cap() == FREE_TIER_USAGE_SIZE {

@@ -153,9 +153,8 @@ where
         let mut tx = ServerTx::begin(&mut lock)?;
         let db = &mut *tx;
 
+        let cap = Self::get_cap(db, &context.public_key)?;
         let owner = Owner(context.public_key);
-        let cap = Self::get_cap(db, &context.public_key)?
-            .saturating_sub(Self::other_family_usage::<GetUsageError>(db, owner)?);
 
         let mut tree = ServerTree::new(
             owner,
