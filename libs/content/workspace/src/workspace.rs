@@ -1980,18 +1980,29 @@ impl Workspace {
         // a note's attachments folder moved or was renamed with it, and its links are kept with
         // the note's
         let (made, folder_renames) = self.with_attachments(made);
-        // planned against the tree before the change, which the cache still is
-        let plan = self.link_plan(&made);
+        // planned against the tree before the change, which the cache still is, to reach the
+        // folders under the names lb gave them
+        let plan = if folder_renames.is_empty() {
+            self.link_plan(&made)
+        } else {
+            Arc::new(crate::link_plan::plan_along(
+                &self.files.read().unwrap(),
+                &made,
+                &folder_renames,
+            ))
+        };
         let folder_plans: Vec<Arc<Plan>> = folder_renames
             .iter()
             .map(|rename| self.link_plan(rename))
             .collect();
-        if update_links {
-            self.write_mends(&plan);
-        }
-        // the user renamed the note, not the folder, so the links into it are kept unasked
+        // the user renamed the note, not the folder, so the links into it are kept unasked; first,
+        // so a link naming the folder's stale name takes its new one, not the one the note's plan
+        // reads off the tree before the folder is renamed
         for plan in &folder_plans {
             self.write_mends(plan);
+        }
+        if update_links {
+            self.write_mends(&plan);
         }
         // the next change plans against this one, before the rebuild lands
         let mut files = self.files.write().unwrap();

@@ -175,7 +175,7 @@ impl Lb {
         self.block_on(self.lb.get_file_by_id(id))
     }
 
-    pub fn list_attachments(&self) -> LbResult<Vec<File>> {
+    pub fn list_attachments(&self) -> LbResult<crate::service::file::Attachments> {
         self.block_on(self.lb.list_attachments())
     }
 

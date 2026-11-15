@@ -14,7 +14,7 @@ use crate::file_cache::{
     title_matches, wiki_fragment,
 };
 use crate::links::{LinkKind, NoteLink, written_dests};
-use crate::note_index::{Backlink, locate};
+use crate::note_index::{Backlink, locate, locate_by_path};
 use crate::resolvers::link::can_edit;
 
 /// A link's new destination.
@@ -82,14 +82,23 @@ pub fn planned(files: &FileCache, change: &Change) -> Arc<Plan> {
 /// file would change is mended to reach the file it reaches now, in the form
 /// it's written in; a delete mends nothing and lists what breaks.
 pub fn plan(files: &FileCache, change: &Change) -> Plan {
+    plan_along(files, change, &[])
+}
+
+/// [`plan`] for a change that `along` came with: the renames lb made of its
+/// notes' attachments folders, which the links mended here are written to
+/// reach.
+pub fn plan_along(files: &FileCache, change: &Change, along: &[Change]) -> Plan {
     files.notes.want();
-    let mut plan = changes(files, change);
+    let mut plan = changes(files, change, along);
     plan.checking = !files.notes.is_ready();
     plan
 }
 
-fn changes(files: &FileCache, change: &Change) -> Plan {
-    let after = files.after(change);
+fn changes(files: &FileCache, change: &Change, along: &[Change]) -> Plan {
+    let after = along
+        .iter()
+        .fold(files.after(change), |after, change| after.after(change));
     if let Change::Share { id, .. } = change {
         return share_plan(files, &after, *id);
     }
@@ -141,7 +150,13 @@ fn changes(files: &FileCache, change: &Change) -> Plan {
             continue;
         }
         let Some((target, reach)) = locate(files, note, link) else { continue };
-        if locate(&after, note, link).map(|(id, _)| id) == Some(target) {
+        // a link that reaches its target only by its note's attachments folder
+        // is rewritten so the text names the folder again, but only by a
+        // change to the note itself, which the user is asked about: what it
+        // was written to reach may yet come back
+        let by_path =
+            |files: &FileCache| locate_by_path(files, note, link).map(|(id, _)| id) == Some(target);
+        if !by_path(files) && !affected.contains(&note) || by_path(&after) {
             continue;
         }
         let stuck = || Backlink { note, link: link.clone() };
@@ -378,6 +393,49 @@ mod tests {
     fn text(texts: &[(Uuid, String)], files: &FileCache, path: &str) -> String {
         let id = at(files, path);
         texts.iter().find(|(i, _)| *i == id).unwrap().1.clone()
+    }
+
+    /// An app rename of a note whose text names its folder's stale name: the
+    /// folder's plan, written first as the workspace does, names the folder's
+    /// new name, and the note's own plan then leaves that link be.
+    #[test]
+    fn an_app_rename_rewrites_a_stale_folder_name() {
+        let (files, texts) = vault(
+            &[("/notes/trip.md", "![a](plan-attachments/a.png) [t](trip.md)")],
+            &["/notes/trip-attachments/a.png"],
+        );
+        let note = at(&files, "/notes/trip.md");
+        let folder = at(&files, "/notes/trip-attachments/");
+        let files = files.with_attachments([(note, folder)]);
+
+        let folder_rename = Change::Rename { id: folder, name: "idea-attachments".into() };
+        let folder_plan = plan(&files, &folder_rename);
+        let note_plan = plan_along(
+            &files,
+            &Change::Rename { id: note, name: "idea.md".into() },
+            &[folder_rename],
+        );
+        let text = mend_text(&texts[0].1, &folder_plan.mends.iter().collect::<Vec<_>>());
+        let text = mend_text(&text, &note_plan.mends.iter().collect::<Vec<_>>());
+
+        assert_eq!(text, "![a](idea-attachments/a.png) [t](idea.md)");
+    }
+
+    #[test]
+    fn renaming_the_folder_leaves_a_broken_link_it_only_reads_into_it() {
+        let (files, texts) = vault(
+            &[("/notes/plan.md", "![l](assets/logo.png) ![p](../photos/image.png)")],
+            &["/notes/plan-attachments/logo.png", "/notes/plan-attachments/image.png"],
+        );
+        let note = at(&files, "/notes/plan.md");
+        let folder = at(&files, "/notes/plan-attachments/");
+        let files = files.with_attachments([(note, folder)]);
+
+        let folder_plan =
+            plan(&files, &Change::Rename { id: folder, name: "trip-attachments".into() });
+        let text = mend_text(&texts[0].1, &folder_plan.mends.iter().collect::<Vec<_>>());
+
+        assert_eq!(text, "![l](assets/logo.png) ![p](../photos/image.png)");
     }
 
     #[test]

@@ -228,6 +228,15 @@ pub fn locate(files: &impl FilesExt, note: Uuid, link: &NoteLink) -> Option<(Uui
     }
 }
 
+/// [`locate`] by what the link's text names, without reading it against the
+/// note's attachments folder: whether the text still says where the link goes.
+pub fn locate_by_path(files: &impl FilesExt, note: Uuid, link: &NoteLink) -> Option<(Uuid, Reach)> {
+    match link.kind {
+        LinkKind::Wiki => files.locate_wikilink(&link.dest, note),
+        LinkKind::Link | LinkKind::Image => files.locate_link_by_path(&link.dest, note),
+    }
+}
+
 pub fn is_note(f: &lb_rs::model::file::File) -> bool {
     f.is_document() && f.name.ends_with(".md")
 }
