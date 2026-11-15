@@ -39,6 +39,7 @@ pub struct InsertElement {
 #[derive(Clone, Copy, Debug)]
 pub struct TransformElement {
     pub id: Uuid,
+    /// in drawing coordinates, so the viewport can change before it's undone
     pub transform: Transform,
 }
 
@@ -65,7 +66,8 @@ impl History {
         self.undo.push_back(event);
     }
 
-    pub fn apply_event(&mut self, event: &Event, buffer: &mut Buffer) {
+    /// `master` is the viewport's transform now: elements are held in screen coordinates.
+    pub fn apply_event(&mut self, event: &Event, buffer: &mut Buffer, master: Transform) {
         match event {
             Event::Insert(payload) => {
                 payload.iter().for_each(|insert_payload| {
@@ -102,9 +104,14 @@ impl History {
                 });
             }
             Event::Transform(payload) => {
+                let to_drawing = master.invert().unwrap_or_default();
                 payload.iter().for_each(|transform_payload| {
                     if let Some(el) = buffer.elements.get_mut(&transform_payload.id) {
-                        el.transform(transform_payload.transform);
+                        el.transform(
+                            master
+                                .pre_concat(transform_payload.transform)
+                                .pre_concat(to_drawing),
+                        );
                     }
                 });
             }
@@ -130,14 +137,14 @@ impl History {
         };
     }
 
-    pub fn undo(&mut self, buffer: &mut Buffer) {
+    pub fn undo(&mut self, buffer: &mut Buffer, master: Transform) {
         if self.undo.is_empty() {
             return;
         }
 
         if let Some(undo_event) = self.undo.pop_back() {
             let undo_event = self.swap_event(undo_event);
-            self.apply_event(&undo_event, buffer);
+            self.apply_event(&undo_event, buffer, master);
             self.redo.push(undo_event);
         }
     }
@@ -146,14 +153,14 @@ impl History {
         !self.undo.is_empty()
     }
 
-    pub fn redo(&mut self, buffer: &mut Buffer) {
+    pub fn redo(&mut self, buffer: &mut Buffer, master: Transform) {
         if self.redo.is_empty() {
             return;
         }
 
         if let Some(redo_event) = self.redo.pop() {
             let redo_event = self.swap_event(redo_event);
-            self.apply_event(&redo_event, buffer);
+            self.apply_event(&redo_event, buffer, master);
             self.undo.push_back(redo_event);
         }
     }

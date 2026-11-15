@@ -798,3 +798,15 @@ fn undo_unstacks() {
     let gestures = vec![Gesture::Layer(0, LayerMove::ToBack)];
     undo_redo_check(&Case { file, gestures, later: vec![] }).unwrap();
 }
+
+/// The viewport's zoom changes between a move and its undo.
+#[test]
+fn undo_unmoves_after_a_zoom() {
+    let file = vec![file_stroke(1, &[(150, 120), (150, 120), (160, 130)], 1)];
+    let gestures = vec![
+        Gesture::Move(0, vec2(-40., -40.)),
+        Gesture::Draw(vec![pos2(150., 120.), pos2(100., 100.)]),
+        Gesture::Zoom(1.25, pos2(150., 120.)),
+    ];
+    undo_redo_check(&Case { file, gestures, later: vec![] }).unwrap();
+}

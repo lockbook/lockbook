@@ -376,9 +376,13 @@ impl SVGEditor {
                 transform_canvas(tool_context.buffer, tool_context.viewport_settings, transform);
             } else if let input_controller::InputControllerEvent::Gesture(num_touches) = event {
                 if num_touches == 2 {
-                    tool_context.history.undo(tool_context.buffer)
+                    tool_context
+                        .history
+                        .undo(tool_context.buffer, tool_context.viewport_settings.master_transform)
                 } else if num_touches == 3 {
-                    tool_context.history.redo(tool_context.buffer)
+                    tool_context
+                        .history
+                        .redo(tool_context.buffer, tool_context.viewport_settings.master_transform)
                 }
             } else {
                 self.toolbar.active_tool_mut().process_controller_event(
@@ -453,8 +457,12 @@ fn execute_action(
     use keyboard_shortcuts::CanvasAction as A;
     use tools::{InputControllerTool, selection::SelectionEvent};
     match action {
-        A::Undo => ctx.history.undo(ctx.buffer),
-        A::Redo => ctx.history.redo(ctx.buffer),
+        A::Undo => ctx
+            .history
+            .undo(ctx.buffer, ctx.viewport_settings.master_transform),
+        A::Redo => ctx
+            .history
+            .redo(ctx.buffer, ctx.viewport_settings.master_transform),
         A::SetTool(tool) => toolbar.set_tool(tool, ctx.settings, cfg),
         A::ToggleToolPopover => toolbar.toggle_at_cursor_tool_popover(),
         A::DeleteSelection => toolbar

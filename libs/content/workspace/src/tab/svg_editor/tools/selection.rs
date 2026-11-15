@@ -179,7 +179,8 @@ pub enum SelectionOperation {
 #[derive(Clone, Debug)]
 pub struct SelectedElement {
     pub id: Uuid,
-    pub transform: Transform, // collection of all transforms that happend during a drag
+    /// all the transforms of a drag so far, in drawing coordinates
+    pub transform: Transform,
 }
 
 #[derive(Default)]
@@ -394,7 +395,13 @@ impl InputControllerTool for Selection {
 
                     if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
                         el.transform(transform);
-                        s_el.transform = s_el.transform.post_concat(transform);
+                        let master = selection_ctx.viewport_settings.master_transform;
+                        let in_drawing = master
+                            .invert()
+                            .unwrap_or_default()
+                            .pre_concat(transform)
+                            .pre_concat(master);
+                        s_el.transform = s_el.transform.post_concat(in_drawing);
                     }
                 }
             }
@@ -560,9 +567,11 @@ impl Selection {
             .collect();
 
         let delete_event = Event::Delete(elements);
-        selection_ctx
-            .history
-            .apply_event(&delete_event, selection_ctx.buffer);
+        selection_ctx.history.apply_event(
+            &delete_event,
+            selection_ctx.buffer,
+            selection_ctx.viewport_settings.master_transform,
+        );
         selection_ctx.history.save(delete_event);
         self.clear_selection_els();
     }

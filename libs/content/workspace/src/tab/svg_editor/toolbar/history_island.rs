@@ -30,7 +30,9 @@ impl Toolbar {
                             })
                             .inner;
                         if undo_btn.clicked() || undo_btn.drag_started() {
-                            tlbr_ctx.history.undo(tlbr_ctx.buffer);
+                            tlbr_ctx
+                                .history
+                                .undo(tlbr_ctx.buffer, tlbr_ctx.viewport_settings.master_transform);
                             dirty = true;
                         }
 
@@ -41,7 +43,9 @@ impl Toolbar {
                             .inner;
 
                         if redo_btn.clicked() || redo_btn.drag_started() {
-                            tlbr_ctx.history.redo(tlbr_ctx.buffer);
+                            tlbr_ctx
+                                .history
+                                .redo(tlbr_ctx.buffer, tlbr_ctx.viewport_settings.master_transform);
                             dirty = true;
                         }
                     })
