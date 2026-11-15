@@ -810,3 +810,16 @@ fn undo_unmoves_after_a_zoom() {
     ];
     undo_redo_check(&Case { file, gestures, later: vec![] }).unwrap();
 }
+
+#[test]
+fn color_swatch_keeps_each_strokes_width() {
+    let file = vec![
+        file_stroke(1, &[(150, 120), (200, 150)], 1),
+        file_stroke(2, &[(300, 300), (350, 320)], 3),
+    ];
+    let mut c = TestCanvas::open(&file_bytes(&Case { file, gestures: vec![], later: vec![] }));
+    let widths = |c: &TestCanvas| canvas_view(c).iter().map(|s| s.width).collect::<Vec<_>>();
+    let before = widths(&c);
+    perform(&mut c, &Gesture::Restyle(None, Style::Color(1)));
+    assert_eq!(widths(&c), before);
+}

@@ -1082,27 +1082,24 @@ impl Selection {
         buffer_changed
     }
 
-    /// A color swatch: each selected stroke takes the panel's stroke in `color`.
+    /// A color swatch: each selected stroke takes `color`, keeping its width and opacity.
     pub fn set_color(&mut self, selection_ctx: &mut ToolContext, color: DynamicColor) {
-        let ElementSpecificEditableProperties::Stroke(StrokeEditableProperties { mut stroke }) =
-            ElementEditableProperties::from_selection(
-                &self.selected_elements,
-                selection_ctx.buffer,
-            )
-            .specific
-        else {
+        let properties = ElementEditableProperties::from_selection(
+            &self.selected_elements,
+            selection_ctx.buffer,
+        );
+        if !matches!(properties.specific, ElementSpecificEditableProperties::Stroke(_)) {
             return;
-        };
+        }
         let event = history::Event::StrokeChange(
             self.selected_elements
                 .iter()
                 .filter_map(|s_el: &selection::SelectedElement| {
                     let el = selection_ctx.buffer.elements.get_mut(&s_el.id)?;
                     let old_stroke = el.stroke();
-                    stroke.color = color;
                     let mut el_stroke = el.stroke()?;
                     el_stroke.color = color;
-                    el.set_stroke(stroke);
+                    el.set_stroke(el_stroke);
                     Some(history::StrokeChangeElement {
                         id: s_el.id,
                         old_stroke,
