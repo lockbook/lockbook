@@ -419,7 +419,8 @@ fn view(b: &Buffer, to_file: Transform) -> View {
                         })
                         .collect(),
                     rgb: (s.color.light.red, s.color.light.green, s.color.light.blue),
-                    width: (s.width * 100.).round() as i64,
+                    // as the renderer draws it: scaling a stroke scales its width
+                    width: (s.width * (p.transform.sx + p.transform.sy) / 2. * 100.).round() as i64,
                     opacity: (s.opacity * 255.).round() as i64,
                     element_opacity: (p.opacity * 255.).round() as i64,
                 })
