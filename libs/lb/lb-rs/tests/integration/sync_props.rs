@@ -295,6 +295,51 @@ enum Step {
         document: usize,
         name: usize,
     },
+    /// Shares alone a document that has an attachments folder.
+    ShareNote {
+        device: usize,
+        document: usize,
+        to: usize,
+        write: bool,
+    },
+    /// Revokes a share of a document that has an attachments folder.
+    RevokeNote {
+        device: usize,
+        document: usize,
+        from: usize,
+    },
+    /// Adds a document to the attachments folder of another account's document, creating the
+    /// folder first if it has none, as a writer pasting an image into a shared note does.
+    AttachToShared {
+        device: usize,
+        document: usize,
+        name: usize,
+    },
+    /// Deletes a document's attachments folder and creates a new one in its place.
+    ReplaceAttachments {
+        device: usize,
+        document: usize,
+    },
+    /// Renames a document to a sibling's stem with another extension, so both derive the same
+    /// attachments folder name.
+    RenameClash {
+        device: usize,
+        document: usize,
+        other: usize,
+    },
+    /// Creates an ordinary folder beside a document, named as the document's attachments folder
+    /// would be.
+    Squat {
+        device: usize,
+        document: usize,
+    },
+    /// Moves a document that has an attachments folder into a folder under another share, or
+    /// under none.
+    MoveAcross {
+        device: usize,
+        document: usize,
+        parent: usize,
+    },
     /// `device` starts a sync and holds it at its `at`th point of `place`, until a
     /// [`Step::Release`] or the device's next sync or hold lets it go on.
     Hold {
@@ -410,7 +455,15 @@ fn step(case: Case, src: &mut ByteSource, device: usize) -> Step {
     let tier = case.tier;
     let shares = if tier.accounts > 1 { 2 } else { 0 };
     let writes = 3 * case.mix.writes();
-    match src.bias(&[3, 1, 3, 2, writes, 2, 2, 1, shares, shares, shares, shares, 2, 3, 1, 1]) {
+    // steps aimed at what attachments folders make rare; nothing else draws differently
+    let aimed = if tier.attachments { 1 } else { 0 };
+    let shared = aimed * shares / 2;
+    #[rustfmt::skip]
+    let weights = [
+        3, 1, 3, 2, writes, 2, 2, 1, shares, shares, shares, shares, 2, 3, 1, 1,
+        shared, shared, shared, aimed, aimed, aimed, shared,
+    ];
+    match src.bias(&weights) {
         0 => Step::Sync { device },
         1 => Step::SyncAll { device },
         2 => Step::CreateDocument { device, parent: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
@@ -436,9 +489,21 @@ fn step(case: Case, src: &mut ByteSource, device: usize) -> Step {
         12 => Step::CreateAttachments { device, document: src.draw(8) },
         13 => Step::Attach { device, document: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
         14 => Step::MoveAttachments { device, document: src.draw(8), parent: src.draw(8) },
-        _ => {
+        15 => {
             Step::RenameAttachments { device, document: src.draw(8), name: src.bias(&NAME_WEIGHTS) }
         }
+        16 => Step::ShareNote {
+            device,
+            document: src.draw(8),
+            to: src.draw(tier.accounts),
+            write: src.draw(2) == 1,
+        },
+        17 => Step::RevokeNote { device, document: src.draw(8), from: src.draw(4) },
+        18 => Step::AttachToShared { device, document: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
+        19 => Step::ReplaceAttachments { device, document: src.draw(8) },
+        20 => Step::RenameClash { device, document: src.draw(8), other: src.draw(8) },
+        21 => Step::Squat { device, document: src.draw(8) },
+        _ => Step::MoveAcross { device, document: src.draw(8), parent: src.draw(8) },
     }
 }
 
@@ -461,6 +526,13 @@ impl Step {
             | Step::Attach { device, .. }
             | Step::MoveAttachments { device, .. }
             | Step::RenameAttachments { device, .. }
+            | Step::ShareNote { device, .. }
+            | Step::RevokeNote { device, .. }
+            | Step::AttachToShared { device, .. }
+            | Step::ReplaceAttachments { device, .. }
+            | Step::RenameClash { device, .. }
+            | Step::Squat { device, .. }
+            | Step::MoveAcross { device, .. }
             | Step::Hold { device, .. }
             | Step::Release { device } => device,
         }
@@ -495,6 +567,13 @@ impl Step {
             | Step::Attach { device, .. }
             | Step::MoveAttachments { device, .. }
             | Step::RenameAttachments { device, .. }
+            | Step::ShareNote { device, .. }
+            | Step::RevokeNote { device, .. }
+            | Step::AttachToShared { device, .. }
+            | Step::ReplaceAttachments { device, .. }
+            | Step::RenameClash { device, .. }
+            | Step::Squat { device, .. }
+            | Step::MoveAcross { device, .. }
             | Step::Hold { device, .. }
             | Step::Release { device } => *device = on,
         }
@@ -924,6 +1003,126 @@ impl World {
                 let sharee = &shares[from % shares.len()].shared_with;
                 device.unshare_file(file, sharee).await.is_ok()
             }
+            Step::ShareNote { document, to, write, .. } => {
+                let notes = notes(device, reach).await;
+                let Some(note) = nth(notes.iter().filter(|n| n.folder.is_some()), document) else {
+                    return false;
+                };
+                let mode = if write { ShareMode::Write } else { ShareMode::Read };
+                (device.share_file(note.file.id, &self.names[to % self.names.len()], mode))
+                    .await
+                    .is_ok()
+            }
+            Step::RevokeNote { document, from, .. } => {
+                let notes = notes(device, reach).await;
+                let shared = notes.iter().filter(|n| !n.file.shares.is_empty());
+                let Some(note) = nth(shared, document) else {
+                    return false;
+                };
+                let shares = &note.file.shares;
+                let sharee = &shares[from % shares.len()].shared_with;
+                device.unshare_file(note.file.id, sharee).await.is_ok()
+            }
+            Step::AttachToShared { document, name, .. } => {
+                let me = self.me(on);
+                let notes = notes(device, reach).await;
+                let Some(note) = nth(notes.iter().filter(|n| n.file.owner != me), document) else {
+                    return false;
+                };
+                let folder = match &note.folder {
+                    Some(folder) => folder.clone(),
+                    None => match device.create_attachments_folder(&note.file.id).await {
+                        Ok(folder) => folder,
+                        Err(_) => return false,
+                    },
+                };
+                let Ok(file) = device
+                    .create_file(&reach.name(name), &folder.id, FileType::Document)
+                    .await
+                else {
+                    return false;
+                };
+                ATTACHED.set(ATTACHED.get() + 1);
+                let attached =
+                    Attached { file: file.id, note: note.file.id, folder: folder.id, device: on };
+                self.attached.lock().unwrap().push(attached);
+                true
+            }
+            Step::ReplaceAttachments { document, .. } => {
+                let Some((note, folder)) = attachments(device, reach, document).await else {
+                    return false;
+                };
+                if device.delete(&folder.id).await.is_err() {
+                    return false;
+                }
+                self.deleted.lock().unwrap().insert(folder.id);
+                device.create_attachments_folder(&note).await.is_ok()
+            }
+            Step::RenameClash { document, other, .. } => {
+                let notes = notes(device, reach).await;
+                let Some(note) = nth(notes.iter(), document) else {
+                    return false;
+                };
+                // a sibling if there is one, so the derived names meet in one folder
+                let siblings: Vec<_> = (notes.iter())
+                    .filter(|n| n.file.id != note.file.id && n.file.parent == note.file.parent)
+                    .collect();
+                let others: Vec<_> = if siblings.is_empty() {
+                    notes.iter().filter(|n| n.file.id != note.file.id).collect()
+                } else {
+                    siblings
+                };
+                let Some(other) = nth(others.into_iter(), other) else {
+                    return false;
+                };
+                let stem = match other.file.name.rsplit_once('.') {
+                    Some((stem, _)) if !stem.is_empty() => stem,
+                    _ => &other.file.name,
+                };
+                let extension = if other.file.name.ends_with(".txt") { "md" } else { "txt" };
+                (device.rename_file(&note.file.id, &format!("{stem}.{extension}")))
+                    .await
+                    .is_ok()
+            }
+            Step::Squat { document, .. } => {
+                let notes = notes(device, reach).await;
+                let Some(note) = nth(notes.iter(), document) else {
+                    return false;
+                };
+                let name = attachments_folder_name(&note.file.name, 0);
+                (device.create_file(&name, &note.file.parent, FileType::Folder))
+                    .await
+                    .is_ok()
+            }
+            Step::MoveAcross { document, parent, .. } => {
+                let listed: HashMap<Uuid, File> = (device.list_metadatas().await.unwrap())
+                    .into_iter()
+                    .map(|f| (f.id, f))
+                    .collect();
+                let notes = notes(device, reach).await;
+                let Some(note) = nth(notes.iter().filter(|n| n.folder.is_some()), document) else {
+                    return false;
+                };
+                let from = share_root(&listed, note.file.parent);
+                let mut parents = Vec::new();
+                for file in listed.values() {
+                    let fits = file.is_folder()
+                        && (file.is_root() || reach.reaches(&file.name))
+                        && share_root(&listed, file.id) != from;
+                    if fits {
+                        parents.push((device.get_path_by_id(file.id).await.unwrap(), file.id));
+                    }
+                }
+                parents.sort();
+                let Some((_, parent)) = parents.get(parent % parents.len().max(1)) else {
+                    return false;
+                };
+                let moved = device.move_file(&note.file.id, parent).await.is_ok();
+                if moved {
+                    self.moved.lock().unwrap().insert(note.file.id);
+                }
+                moved
+            }
         }
     }
 
@@ -1317,6 +1516,48 @@ async fn attachments(device: &Lb, reach: Reach, index: usize) -> Option<(Uuid, F
     let document = pick(device, reach, index, Kind::Document).await?;
     let folder = device.get_attachments_folder(&document).await.ok()??;
     Some((document, folder))
+}
+
+/// A document within reach and its attachments folder, if it has one.
+struct Note {
+    file: File,
+    folder: Option<File>,
+}
+
+/// The documents within `reach`, by path, each with its attachments folder.
+async fn notes(device: &Lb, reach: Reach) -> Vec<Note> {
+    let mut notes = Vec::new();
+    for file in device.list_metadatas().await.unwrap() {
+        if file.is_document() && reach.reaches(&file.name) {
+            let path = device.get_path_by_id(file.id).await.unwrap();
+            let folder = device.get_attachments_folder(&file.id).await.ok().flatten();
+            notes.push((path, Note { file, folder }));
+        }
+    }
+    notes.sort_by(|a, b| a.0.cmp(&b.0));
+    notes.into_iter().map(|(_, note)| note).collect()
+}
+
+/// The `index`th of `items`, wrapping.
+fn nth<T>(items: impl Iterator<Item = T>, index: usize) -> Option<T> {
+    let items: Vec<_> = items.collect();
+    let n = items.len();
+    items.into_iter().nth(index % n.max(1))
+}
+
+/// The nearest folder at or above `id` that is shared, as a device lists it.
+fn share_root(listed: &HashMap<Uuid, File>, mut id: Uuid) -> Option<Uuid> {
+    for _ in 0..listed.len() {
+        let file = listed.get(&id)?;
+        if !file.shares.is_empty() {
+            return Some(id);
+        }
+        if file.is_root() {
+            return None;
+        }
+        id = file.parent;
+    }
+    None
 }
 
 /// The `index`th share waiting for this device's account, by name.
