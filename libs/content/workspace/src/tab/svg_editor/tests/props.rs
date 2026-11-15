@@ -61,11 +61,11 @@ fn save_reopen_shows_the_same() {
 }
 #[test]
 fn saved_file_renders_like_the_canvas() {
-    check(Gestures::CORE, 200, |c| renders_check(c, false));
+    check(Gestures::CORE, 200, renders_check);
 }
 #[test]
-fn saved_file_renders_like_the_canvas_given_round_caps() {
-    check(Gestures::TOOLBAR, 200, |c| renders_check(c, true));
+fn saved_file_renders_like_the_canvas_given_toolbar() {
+    check(Gestures::TOOLBAR, 200, renders_check);
 }
 #[test]
 fn undo_all_restores_and_redo_all_replays() {
@@ -594,13 +594,8 @@ fn canvas_mask(c: &TestCanvas) -> Vec<bool> {
 }
 
 /// What any SVG viewer paints for the file, at the canvas's zoom.
-fn viewer_mask(file: &str, master: Transform, round: bool) -> Vec<bool> {
-    let mut file = file.to_string();
-    if round {
-        file = file
-            .replace("fill='none'", "fill='none' stroke-linecap='round' stroke-linejoin='round'");
-    }
-    let tree = resvg::usvg::Tree::from_str(&file, &resvg::usvg::Options::default()).unwrap();
+fn viewer_mask(file: &str, master: Transform) -> Vec<bool> {
+    let tree = resvg::usvg::Tree::from_str(file, &resvg::usvg::Options::default()).unwrap();
     let mut pixmap = resvg::tiny_skia::Pixmap::new(SIDE, TALL).unwrap();
     resvg::render(&tree, master, &mut pixmap.as_mut());
     pixmap.pixels().iter().map(|px| px.alpha() > 64).collect()
@@ -653,12 +648,11 @@ fn differs(what: &str, a: &[bool], b: &[bool]) -> Result<(), String> {
 }
 
 /// The saved file looks the same in any SVG viewer as on the canvas.
-/// `round` renders the file as if it said round caps and joins.
-fn renders_check(c: &Case, round: bool) -> Result<(), String> {
+fn renders_check(c: &Case) -> Result<(), String> {
     let mut canvas = TestCanvas::open(&file_bytes(c));
     perform_all(&mut canvas, &c.gestures);
     let file = canvas.save();
-    differs("canvas vs viewer", &canvas_mask(&canvas), &viewer_mask(&file, canvas.master(), round))
+    differs("canvas vs viewer", &canvas_mask(&canvas), &viewer_mask(&file, canvas.master()))
 }
 
 #[test]
@@ -775,4 +769,15 @@ fn chain_keeps_stacking_order() {
         ],
     };
     chain_check(&chain).unwrap();
+}
+
+fn file_stroke(n: u128, pts: &[(u32, u32)], width: u32) -> FileStroke {
+    FileStroke { id: lb_rs::Uuid::from_u128(n).to_string(), pts: pts.to_vec(), width }
+}
+
+/// A wide, short stroke ends in the round caps the canvas draws.
+#[test]
+fn saved_stroke_has_the_canvas_caps() {
+    let file = vec![file_stroke(1, &[(150, 120), (151, 120)], 10)];
+    renders_check(&Case { file, gestures: vec![], later: vec![] }).unwrap();
 }

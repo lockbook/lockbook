@@ -288,9 +288,10 @@ pub fn serialize_inner(
                 // if it's empty then the curve will not be converted to string via bezier_rs
                 if let Some(stroke) = p.stroke {
                     // `data` already holds the path's transform, which only scales how wide
-                    // the canvas draws the stroke.
+                    // the canvas draws the stroke. The canvas draws round caps and joins.
                     curv_attrs = format!(
-                        "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}'",
+                        "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' \
+                         stroke-linecap='round' stroke-linejoin='round' id='{}'",
                         stroke.width * (p.transform.sx + p.transform.sy) / 2.0,
                         stroke.color.light.red,
                         stroke.color.light.green,
