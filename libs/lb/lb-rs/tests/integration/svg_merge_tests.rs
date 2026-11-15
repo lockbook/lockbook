@@ -22,14 +22,7 @@ fn merge(base: &[u8], local: &[u8], remote: &[u8]) -> Vec<Uuid> {
     let base = Buffer::new(&svg(base));
     let remote = Buffer::new(&svg(remote));
     let mut local = Buffer::new(&svg(local));
-    Buffer::reload(
-        &mut local.elements,
-        &mut local.weak_images,
-        &mut local.weak_path_pressures,
-        &mut local.weak_viewport_settings,
-        &base,
-        &remote,
-    );
+    Buffer::reload(&mut local, &base, &remote);
     local.elements.keys().copied().collect()
 }
 
@@ -46,4 +39,17 @@ fn remote_draw_keeps_its_position() {
 #[test]
 fn remote_draw_after_locally_erased_neighbor() {
     assert_eq!(merge(&[1, 2, 3], &[1, 3], &[1, 2, 9, 3]), [id(1), id(9), id(3)]);
+}
+
+fn reload(local: &mut Buffer, base: &str, remote: &str) {
+    Buffer::reload(local, &Buffer::new(base), &Buffer::new(remote));
+}
+
+#[test]
+fn readable_ids_merge_once() {
+    let doc = r#"<svg xmlns="http://www.w3.org/2000/svg"><path id="db" d="M 0 0 L 0 10 " stroke="rgb(0,0,0)" stroke-width="1" fill="none"/></svg>"#;
+    let mut local = Buffer::new(doc);
+    reload(&mut local, doc, doc);
+    assert_eq!(local.elements.len(), 1);
+    assert!(local.serialize().contains("id='db'"));
 }

@@ -259,14 +259,8 @@ impl TabContent {
                 true
             }
             TabContent::Svg(svg) => {
-                svg::buffer::Buffer::reload(
-                    &mut svg.buffer.elements,
-                    &mut svg.buffer.weak_images,
-                    &mut svg.buffer.weak_path_pressures,
-                    &mut svg.buffer.weak_viewport_settings,
-                    &svg.opened_content,
-                    &svg::buffer::Buffer::new(String::from_utf8_lossy(bytes).as_ref()),
-                );
+                let remote = svg::buffer::Buffer::new(String::from_utf8_lossy(bytes).as_ref());
+                svg::buffer::Buffer::reload(&mut svg.buffer, &svg.opened_content, &remote);
                 svg.open_file_hmac = hmac;
                 true
             }

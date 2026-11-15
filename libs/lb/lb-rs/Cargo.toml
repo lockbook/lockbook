@@ -53,7 +53,7 @@ tracing = "0.1.5"
 unicode-segmentation = "1.10.0"
 nucleo = "0.5"
 usvg = "0.47.0"
-uuid = { version = "1.2.2", features = ["v4", "serde", "js"] }
+uuid = { version = "1.2.2", features = ["v4", "v8", "serde", "js"] }
 web-time = "1.1.0"
 strum = "0.28.0"
 strum_macros = "0.28"

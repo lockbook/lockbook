@@ -50,14 +50,7 @@ impl DocumentType {
                             )));
                     }
                 }
-                svg::buffer::Buffer::reload(
-                    &mut local_buffer.elements,
-                    &mut local_buffer.weak_images,
-                    &mut local_buffer.weak_path_pressures,
-                    &mut local_buffer.weak_viewport_settings,
-                    &base_buffer,
-                    &remote_buffer,
-                );
+                svg::buffer::Buffer::reload(&mut local_buffer, &base_buffer, &remote_buffer);
                 Some(local_buffer.serialize().into_bytes())
             }
             // line-union of append-only JSONL turns

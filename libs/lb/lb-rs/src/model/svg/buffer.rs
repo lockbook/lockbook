@@ -86,12 +86,12 @@ impl Buffer {
         }
     }
 
-    pub fn reload(
-        local_elements: &mut IndexMap<Uuid, Element>, local_weak_images: &mut WeakImages,
-        local_weak_pressures: &mut WeakPathPressures,
-        local_viewport_settings: &mut WeakViewportSettings, base_buffer: &Self,
-        remote_buffer: &Self,
-    ) {
+    /// Takes into `local` what `remote` changed since `base`: three-way, so edits only `local`
+    /// made stay. When both changed a stroke, `remote`'s wins.
+    pub fn reload(local: &mut Buffer, base_buffer: &Self, remote_buffer: &Self) {
+        let local_elements = &mut local.elements;
+        let local_weak_images = &mut local.weak_images;
+        let local_weak_pressures = &mut local.weak_path_pressures;
         // todo: convert weak images
         for (id, base_img) in base_buffer.weak_images.iter() {
             if let Some(remote_img) = remote_buffer.weak_images.get(id) {
@@ -111,7 +111,7 @@ impl Buffer {
             }
         }
 
-        let local_master_transform = Transform::from(local_viewport_settings.master_transform);
+        let local_master_transform = Transform::from(local.weak_viewport_settings.master_transform);
 
         base_buffer
             .elements
@@ -165,6 +165,12 @@ impl Buffer {
                 if let Some(base_pressure) = remote_buffer.weak_path_pressures.get(id) {
                     local_weak_pressures.insert(*id, base_pressure.clone());
                 }
+            }
+        }
+
+        for id in remote_buffer.elements.keys() {
+            if let Some(svg_id) = remote_buffer.id_map.get(id) {
+                local.id_map.insert(*id, svg_id.clone());
             }
         }
     }
@@ -363,7 +369,7 @@ pub fn parse_child(
         usvg::Node::Path(path) => {
             let diff_state = DiffState { data_changed: true, ..Default::default() };
 
-            let id = get_internal_id(path.id(), id_map);
+            let id = get_internal_id(path.id(), elements, id_map);
 
             let stroke = if let Some(s) = path.stroke() {
                 if let Paint::Color(color) = *s.paint() {
@@ -419,13 +425,38 @@ pub fn get_dyn_color(color: Color) -> DynamicColor {
     maybe_dynamic_color
 }
 
-fn get_internal_id(svg_id: &str, id_map: &mut HashMap<Uuid, String>) -> Uuid {
-    let id: Uuid = svg_id.parse().unwrap_or(Uuid::new_v4());
-
-    if id_map.insert(id, svg_id.to_owned()).is_some() {
-        warn!(id = svg_id, "found elements  with duplicate id");
+/// The canvas names strokes by uuid. Other apps' ids, like Inkscape's `path12`, and missing
+/// ids map to a uuid derived from the id and how many came before it with the same one, so every
+/// parse of a file names its strokes alike and a merge can match them up.
+fn get_internal_id(
+    svg_id: &str, elements: &IndexMap<Uuid, Element>, id_map: &mut HashMap<Uuid, String>,
+) -> Uuid {
+    let id = match svg_id.parse::<Uuid>() {
+        Ok(id) => {
+            if elements.contains_key(&id) {
+                warn!(id = svg_id, "found elements  with duplicate id");
+            }
+            id
+        }
+        Err(_) => (0..)
+            .map(|n: u32| derived_id(svg_id, n))
+            .find(|id| !elements.contains_key(id))
+            .unwrap(),
+    };
+    if !svg_id.is_empty() {
+        id_map.insert(id, svg_id.to_owned());
     }
     id
+}
+
+fn derived_id(svg_id: &str, n: u32) -> Uuid {
+    use sha2::{Digest, Sha256};
+    let hash = Sha256::new()
+        .chain(b"lockbook drawing element id\0")
+        .chain(n.to_le_bytes())
+        .chain(svg_id.as_bytes())
+        .finalize();
+    Uuid::new_v8(hash[..16].try_into().unwrap())
 }
 
 pub fn get_canvas_colors() -> Vec<DynamicColor> {
