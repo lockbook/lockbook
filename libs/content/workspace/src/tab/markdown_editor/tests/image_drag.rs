@@ -841,3 +841,56 @@ fn an_image_in_another_images_alt_drops_nothing() {
     drag(&mut ws, from, to);
     assert_eq!(ws.get_text(), md);
 }
+
+/// An image alone in a style takes the style's markers with it: left
+/// behind with nothing between them they'd read as something else, `~~~~`
+/// a code fence that swallows the note below and `****` a divider.
+#[test]
+fn an_image_alone_in_a_style_takes_its_markers_along() {
+    let styles = [
+        ("**", "**"),
+        ("~~", "~~"),
+        ("*", "*"),
+        ("_", "_"),
+        ("__", "__"),
+        ("==", "=="),
+        ("||", "||"),
+        ("~", "~"),
+        ("^", "^"),
+        ("**~~", "~~**"),
+    ];
+    for (open, close) in styles {
+        let md = format!("para\n\n{open}![a]({IMAGE}){close}\n");
+        let mut ws = editor(&md);
+        let (from, to) = (image_center(&ws), after(&ws, "para"));
+        drag(&mut ws, from, to);
+        assert_eq!(ws.get_text(), format!("para![a]({IMAGE})\n\n\n"), "from {md:?}");
+    }
+}
+
+/// A style with more in it than the image keeps its markers.
+#[test]
+fn an_image_leaving_a_style_with_more_in_it_leaves_the_markers() {
+    let md = format!("para\n\n**b![a]({IMAGE})** c\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "para"));
+    drag(&mut ws, from, to);
+    assert_eq!(ws.get_text(), format!("para![a]({IMAGE})\n\n**b** c\n"));
+}
+
+/// A drop aimed inside the markers an image would take with it, where the
+/// image already shows, leaves the note as it was.
+#[test]
+fn a_drop_inside_the_markers_it_takes_moves_nothing() {
+    let image = format!("![a]({IMAGE})");
+    let md = format!("para\n\n**~~{image}~~**\n");
+    let mut ws = editor(&md);
+    let start = md.find(&image).unwrap();
+    let end = start + image.len();
+    let range = (Grapheme(start), Grapheme(end));
+    for to in [start - 3, start - 2, start - 1, end + 1, end + 2, end + 3] {
+        ws.push(Event::Move { range, to: Grapheme(to) });
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), md, "dropped at {to}");
+    }
+}

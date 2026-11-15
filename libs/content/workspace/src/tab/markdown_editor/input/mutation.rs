@@ -26,7 +26,7 @@ pub struct EventState {
     pub internal_events: Vec<Event>,
 }
 
-impl MdEdit {
+impl<'ast> MdEdit {
     /// Flips the task item or front matter checkbox whose mark is at
     /// `check`, and animates it.
     pub fn toggle_check(&mut self, check: Grapheme, operations: &mut Vec<Operation>) {
@@ -72,20 +72,56 @@ impl MdEdit {
     }
 
     /// Moves the text of `range` to `to` as a cut and a paste would: only
-    /// those characters, a table cell they leave or enter staying one cell.
+    /// those characters, a table cell they leave or enter staying one cell,
+    /// and the markers of any style they leave empty.
     fn move_text(
-        &self, range: (Grapheme, Grapheme), to: Grapheme, operations: &mut Vec<Operation>,
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), to: Grapheme,
+        operations: &mut Vec<Operation>,
     ) {
-        if range.contains_inclusive(to) {
+        let cut = self.emptied_styles(root, range);
+        if range.contains_inclusive(to) || cut.contains(to, false, false) {
             return;
         }
         let pasted = self.renderer.buffer[range].to_string();
-        if !self.replace_in_table(range, "", false, operations) {
-            operations.push(Operation::Replace(Replace { range, text: "".into() }));
+        if !self.replace_in_table(cut, "", false, operations) {
+            operations.push(Operation::Replace(Replace { range: cut, text: "".into() }));
         }
         if !self.replace_in_table(to.into_range(), &pasted, false, operations) {
             operations.push(Operation::Replace(Replace { range: to.into_range(), text: pasted }));
         }
+    }
+
+    /// `range`, an image's, grown over each style around it that has
+    /// nothing else in it: its markers left with nothing between them read
+    /// as something else, `~~~~` a code fence and `****` a divider.
+    fn emptied_styles(
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
+        let Some(mut node) = root.descendants().find(|n| {
+            matches!(n.data.borrow().value, NodeValue::Image(_))
+                && self.renderer.node_range(n) == range
+        }) else {
+            return range;
+        };
+        while let Some(style) = node.parent() {
+            let alone = style.children().count() == 1;
+            let emptied = matches!(
+                style.data.borrow().value,
+                NodeValue::Emph
+                    | NodeValue::Strong
+                    | NodeValue::Strikethrough
+                    | NodeValue::Highlight
+                    | NodeValue::Underline
+                    | NodeValue::SpoileredText
+                    | NodeValue::Subscript
+                    | NodeValue::Superscript
+            );
+            if !(alone && emptied) {
+                break;
+            }
+            node = style;
+        }
+        self.renderer.node_range(node)
     }
 }
 
@@ -159,7 +195,7 @@ impl<'ast> MdEdit {
                     .buffer
                     .queue(vec![Operation::Select(range)], self.renderer.now());
                 response |= self.renderer.buffer.update();
-                self.move_text(range, to, operations);
+                self.move_text(root, range, to, operations);
                 operations.push(Operation::Select(current_selection));
             }
             Event::ToggleStyle { region, style } => {
