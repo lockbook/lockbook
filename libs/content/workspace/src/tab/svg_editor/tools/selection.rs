@@ -388,8 +388,13 @@ impl InputControllerTool for Selection {
                         _ => snap_scale(pos, container_rect), // todod: figure out if this can be removed
                     };
 
+                    // a scale along a side the selection has no length on, like a dot's,
+                    // divides by zero and has no result
                     let new_rect = transform_rect(container_rect, transform);
-                    if new_rect.width() < min_allowed.x || new_rect.height() < min_allowed.y {
+                    if !new_rect.is_finite()
+                        || new_rect.width() < min_allowed.x
+                        || new_rect.height() < min_allowed.y
+                    {
                         continue;
                     }
 

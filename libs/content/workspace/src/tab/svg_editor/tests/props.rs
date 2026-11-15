@@ -823,3 +823,11 @@ fn color_swatch_keeps_each_strokes_width() {
     perform(&mut c, &Gesture::Restyle(None, Style::Color(1)));
     assert_eq!(widths(&c), before);
 }
+
+/// The selection's scale handles sit on a dot, which has no width to scale.
+#[test]
+fn dragging_a_dot() {
+    let file = vec![file_stroke(1, &[(150, 120), (150, 120)], 1)];
+    let gestures = vec![Gesture::Move(0, vec2(-40., -40.)), Gesture::Move(0, vec2(-40., -40.))];
+    renders_check(&Case { file, gestures, later: vec![] }).unwrap();
+}
