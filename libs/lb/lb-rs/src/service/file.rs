@@ -7,6 +7,8 @@ use crate::model::file::File;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::filename::{MAX_FILENAME_LENGTH, NameComponents};
+use crate::model::lazy::LazyTree;
+use crate::model::signed_meta::SignedMeta;
 use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
 use std::iter;
@@ -197,9 +199,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let ids = tree.ids().into_iter();
+        let ids = self.listed(&tree, tree.ids())?;
 
-        tree.decrypt_all(&self.keychain, ids, &db.pub_key_lookup, true)
+        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -209,9 +211,10 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let ids = tree.children_using_links(id)?.into_iter();
+        let ids = tree.children_using_links(id)?;
+        let ids = self.listed(&tree, ids)?;
 
-        tree.decrypt_all(&self.keychain, ids, &db.pub_key_lookup, true)
+        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -222,6 +225,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
         let descendants = tree.descendants_using_links(id)?;
+        let descendants = self.listed(&tree, descendants)?;
 
         tree.decrypt_all(
             &self.keychain,
@@ -268,6 +272,20 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         };
 
         Ok(format!("{}/open/{}", link_url.trim_end_matches('/'), id))
+    }
+
+    /// `ids` without attachments folders and their contents, which are listed only on a device
+    /// configured to list them.
+    pub(crate) fn listed<T: TreeLike<F = SignedMeta>>(
+        &self, tree: &LazyTree<T>, ids: impl IntoIterator<Item = Uuid>,
+    ) -> LbResult<Vec<Uuid>> {
+        let mut listed = Vec::new();
+        for id in ids {
+            if self.config.list_attachments || !tree.in_attachments(&id)? {
+                listed.push(id);
+            }
+        }
+        Ok(listed)
     }
 
     pub async fn local_changes(&self) -> Vec<Uuid> {

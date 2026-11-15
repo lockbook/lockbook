@@ -65,6 +65,24 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(visited)
     }
 
+    /// Whether `id` is an attachments folder or inside one.
+    pub fn in_attachments(&self, id: &Uuid) -> LbResult<bool> {
+        let mut file = self.find(id)?;
+        let mut visited = HashSet::new();
+        loop {
+            if file.attachments_of().is_some() {
+                return Ok(true);
+            }
+            if file.is_root() || !visited.insert(*file.id()) {
+                return Ok(false);
+            }
+            match self.maybe_find_parent(file) {
+                Some(parent) => file = parent,
+                None => return Ok(false),
+            }
+        }
+    }
+
     /// `document`'s attachments folder that isn't deleted, if this tree has one.
     pub fn attachments_folder(&mut self, document: &Uuid) -> LbResult<Option<Uuid>> {
         for id in self.ids() {

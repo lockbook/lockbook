@@ -1,4 +1,5 @@
 use lb_rs::model::ValidationFailure;
+use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_like::FileLike;
@@ -199,6 +200,8 @@ async fn a_note_shared_alone_brings_its_folder() {
 async fn a_note_shared_alone_has_its_folder_beside_the_link() {
     let owner = test_core_with_attachments().await;
     let reader = test_core_with_account().await;
+    let reader =
+        test_core_from_with(&reader, Config { list_attachments: true, ..test_config() }).await;
     let notes = owner.create_at_path("/notes/").await.unwrap();
     let doc = owner.create_at_path("/notes/plan.md").await.unwrap();
     let folder = owner.create_attachments_folder(&doc.id).await.unwrap();
@@ -419,4 +422,41 @@ async fn deleting_the_document_deletes_its_folder() {
     owner.delete(&folder.id).await.unwrap();
     owner.create_attachments_folder(&doc.id).await.unwrap();
     owner.sync().await.unwrap();
+}
+
+#[tokio::test]
+async fn hidden_from_listings_unless_asked_for() {
+    let core = test_core_with_attachments().await;
+    let doc = core.create_at_path("/notes/plan.md").await.unwrap();
+    let folder = core.create_attachments_folder(&doc.id).await.unwrap();
+    let image = core
+        .create_at_path("/notes/plan-attachments/image.png")
+        .await
+        .unwrap();
+    let hidden = [folder.id, image.id];
+
+    let listed = core.list_metadatas().await.unwrap();
+    assert!(listed.iter().all(|f| !hidden.contains(&f.id)));
+    assert!(listed.iter().any(|f| f.id == doc.id));
+    let children = core.get_children(&doc.parent).await.unwrap();
+    assert_eq!(children.iter().map(|f| f.id).collect::<Vec<_>>(), [doc.id]);
+    let paths = core.list_paths(None).await.unwrap();
+    assert!(!paths.iter().any(|p| p.contains("plan-attachments")), "{paths:?}");
+
+    // still read by id and path
+    assert_eq!(core.get_file_by_id(image.id).await.unwrap().id, image.id);
+    assert_eq!(
+        core.get_by_path("/notes/plan-attachments/image.png")
+            .await
+            .unwrap()
+            .id,
+        image.id
+    );
+
+    core.sync().await.unwrap();
+    let listing =
+        test_core_from_with(&core, Config { list_attachments: true, ..test_config() }).await;
+    listing.sync().await.unwrap();
+    let listed = listing.list_metadatas().await.unwrap();
+    assert!(hidden.iter().all(|id| listed.iter().any(|f| f.id == *id)));
 }
