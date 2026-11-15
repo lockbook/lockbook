@@ -474,9 +474,7 @@ where
                 }
             }
         }
-        for id in reached {
-            result_ids.extend(tree.tree.reachable(id));
-        }
+        result_ids.extend(tree.tree.reachable(reached));
 
         Ok(GetUpdatesResponseV2 {
             as_of_metadata_version: self.clock.now().0 as u64,
@@ -527,7 +525,7 @@ where
             .to_lazy();
 
             let metas_to_delete = {
-                let mut metas_to_delete = tree.tree.reachable(context.request.id);
+                let mut metas_to_delete = tree.tree.reachable([context.request.id]);
                 metas_to_delete.insert(context.request.id);
                 metas_to_delete
             };

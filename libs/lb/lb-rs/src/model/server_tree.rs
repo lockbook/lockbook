@@ -36,16 +36,14 @@ impl<'a> ServerTree<'a> {
         ids.extend(owned_ids);
         ids.extend(shared_ids.clone());
 
-        for id in shared_ids {
-            ids.extend(reachable(file_children, id));
-        }
+        ids.extend(reachable(file_children, shared_ids));
 
         Ok(Self { ids, owned_files, shared_files, file_children, files })
     }
 
-    /// The files someone given `id` is sent: its descendants and attachments, and theirs.
-    pub fn reachable(&self, id: Uuid) -> HashSet<Uuid> {
-        reachable(self.file_children, id)
+    /// The files someone given `roots` is sent: their descendants and attachments, and theirs.
+    pub fn reachable(&self, roots: impl IntoIterator<Item = Uuid>) -> HashSet<Uuid> {
+        reachable(self.file_children, roots)
     }
 }
 
@@ -57,10 +55,17 @@ pub fn indexed_under<F: FileLike>(file: &F) -> impl Iterator<Item = Uuid> {
         .chain(file.attachments_of().map(|of| of.id))
 }
 
-fn reachable(file_children: &DbHashMapSet<Uuid, Uuid>, id: Uuid) -> HashSet<Uuid> {
+/// Walks each file once, however many roots reach it.
+fn reachable(
+    file_children: &DbHashMapSet<Uuid, Uuid>, roots: impl IntoIterator<Item = Uuid>,
+) -> HashSet<Uuid> {
     let mut result = HashSet::new();
-    let mut to_visit = vec![id];
+    let mut expanded = HashSet::new();
+    let mut to_visit = Vec::from_iter(roots);
     while let Some(id) = to_visit.pop() {
+        if !expanded.insert(id) {
+            continue;
+        }
         for &child in file_children.get(&id).into_iter().flatten() {
             if result.insert(child) {
                 to_visit.push(child);
