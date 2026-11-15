@@ -427,6 +427,8 @@ impl Session<'_> {
     /// written as the drop lets go, so it lands before the next frame moves
     /// the image. `None` unless nothing is in flight or unsaved, since a
     /// merge may drop an insert into an edit, or if no spot keeps it whole.
+    /// The marker stays out of the word the image lands in: the merge diffs
+    /// whole words and keeps the local edit to a word both sides edited.
     fn remote_marker(
         &mut self, src: &mut ByteSource, log: &mut dyn FnMut(String),
     ) -> Option<String> {
@@ -439,11 +441,13 @@ impl Session<'_> {
         // the marker's ends can't match the text beside it, or the diff finds
         // the insert shifted
         let (first, last) = (marker.chars().next(), marker.chars().last());
+        let landing = self.landing_word(&disk);
         let bounds: Vec<usize> = disk
             .grapheme_indices(true)
             .map(|(i, _)| i)
             .chain([disk.len()])
             .filter(|&i| !images.iter().any(|r| r.start < i && i < r.end))
+            .filter(|&i| !landing.as_ref().is_some_and(|w| w.start < i && i < w.end))
             .filter(|&i| disk[i..].chars().next() != first && disk[..i].chars().last() != last)
             .collect();
         if bounds.is_empty() {
@@ -455,6 +459,25 @@ impl Session<'_> {
         next.insert_str(at, &marker);
         self.note.remote(&next);
         Some(marker)
+    }
+
+    /// The byte range in `disk`, the note's text, of the word the held image
+    /// would land inside, if it would land inside one.
+    fn landing_word(&self, disk: &str) -> Option<std::ops::Range<usize>> {
+        let to = self
+            .note
+            .editor()
+            .edit
+            .in_progress_image_drag
+            .as_ref()?
+            .target?;
+        let at = disk
+            .grapheme_indices(true)
+            .nth(to.0)
+            .map_or(disk.len(), |(i, _)| i);
+        disk.split_word_bound_indices()
+            .map(|(start, word)| start..start + word.len())
+            .find(|w| w.start < at && at < w.end)
     }
 
     /// Lifts an image with the mouse, holds it through local edits, saves and
