@@ -47,6 +47,13 @@ impl Clock {
     }
 }
 
+impl Clone for Clock {
+    /// A clock with this one's source that never reports earlier than this one has.
+    fn clone(&self) -> Self {
+        Self { source: self.source, last: Mutex::new(*self.last.lock().unwrap()) }
+    }
+}
+
 impl Default for Clock {
     fn default() -> Self {
         Self::new(get_time)

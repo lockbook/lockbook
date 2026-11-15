@@ -9,6 +9,7 @@ use super::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMod
 use super::account::Account;
 use super::clock::get_time;
 use super::crypto::AESKey;
+use super::entropy::Entropy;
 use super::file_metadata::{DocumentHmac, FileType, Owner};
 use super::secret_filename::SecretFileName;
 use super::signed_meta::SignedMeta;
@@ -31,9 +32,9 @@ pub enum Meta {
 }
 
 impl Meta {
-    pub fn create_root(account: &Account) -> LbResult<Self> {
-        let id = Uuid::new_v4();
-        let key = symkey::generate_key();
+    pub fn create_root(account: &Account, entropy: &Entropy) -> LbResult<Self> {
+        let id = entropy.id();
+        let key = entropy.key();
         let pub_key = account.public_key();
 
         Ok(Meta::V1 {

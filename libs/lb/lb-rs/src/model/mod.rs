@@ -15,6 +15,7 @@ pub mod core_config;
 pub mod core_ops;
 pub mod core_tree;
 pub mod crypto;
+pub mod entropy;
 pub mod errors;
 pub mod feature_flag;
 pub mod file;

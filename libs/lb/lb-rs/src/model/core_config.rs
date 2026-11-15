@@ -67,6 +67,13 @@ pub struct Config {
 
     #[serde(default)]
     pub read_only: bool,
+
+    /// Seeds the ids and keys of new files and accounts, so a test that takes the same steps
+    /// replays them; None draws from the OS. Seeded keys are guessable, so only test builds have
+    /// it and no saved config sets one.
+    #[cfg(feature = "test-seed")]
+    #[serde(skip)]
+    pub seed: Option<u64>,
 }
 
 impl Default for Config {
@@ -85,6 +92,8 @@ impl Default for Config {
             client_type: ClientType::Unknown,
             lock_budget: false,
             read_only: false,
+            #[cfg(feature = "test-seed")]
+            seed: None,
         }
     }
 }

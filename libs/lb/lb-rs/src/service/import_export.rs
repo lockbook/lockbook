@@ -1,5 +1,6 @@
 //! Import plans what bringing folders and files in would do, then writes exactly that plan.
 //! Export copies Lockbook files out to disk.
+use crate::io::docs::LocalDocuments;
 
 use crate::Lb;
 use crate::io::server::Server;
@@ -140,15 +141,15 @@ impl Entry {
     }
 }
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// Creates a folder, or a document holding `content` from the transaction that creates it.
     /// When `name` is taken, it becomes `name-1`, `name-2` and so on until one is free.
     /// It never writes over anything; replacing a document is [`Action::Replace`]'s job.
     async fn create_imported(
         &self, name: &str, parent: Uuid, content: Option<&[u8]>,
     ) -> LbResult<File> {
-        let id = Uuid::new_v4();
-        let key = symkey::generate_key();
+        let id = self.entropy.id();
+        let key = self.entropy.key();
         let document = match content {
             Some(content) => {
                 let (hmac, encrypted) = compress_encrypt_document(&key, content)?;
@@ -253,7 +254,7 @@ fn hidden(name: &str, meta: &Metadata) -> bool {
     }
 }
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// `parent` is the Lockbook folder `disk_path` would land in, when that folder exists.
     async fn plan_entry(
         &self, disk_path: &Path, parent: Option<Uuid>, top: bool, key: &AESKey,
@@ -428,7 +429,7 @@ impl ImportPlan {
     }
 }
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// Writes one planned entry under `parent`, reading its file only now.
     async fn import_entry(&self, e: &Entry, parent: Uuid) -> LbResult<File> {
         let name = e
@@ -535,7 +536,7 @@ impl<S: Server> Lb<S> {
     }
 }
 
-impl<S: Server> Lb<S> {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub async fn export_file<F: Fn(ExportFileInfo)>(
         &self, id: Uuid, dest: PathBuf, edit: bool, update_status: &Option<F>,

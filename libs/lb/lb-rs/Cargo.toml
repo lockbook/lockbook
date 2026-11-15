@@ -13,6 +13,10 @@ name = "lb_rs"
 crate-type = ["lib", "staticlib", "cdylib"]
 bench = false
 
+[features]
+# lets Config.seed seed new ids and keys, for tests that replay; never in a release build
+test-seed = []
+
 [dependencies]
 aes-gcm = "0.10.3"
 base64 = "0.13.0"

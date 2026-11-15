@@ -1,3 +1,4 @@
+use lb_rs::io::docs::AsyncDocs;
 use lb_rs::model::api::{AccountIdentifier, ServerIndex};
 use lb_rs::model::file::ShareMode;
 use test_utils::lockbook_server_lib::in_process::InMemoryServer;
@@ -8,10 +9,14 @@ async fn account_info_reports_dates_and_deletion() {
     let mut server = InMemoryServer::in_memory();
     let admin_name = random_name();
     server.config.admin.admins.insert(admin_name.clone());
-    let admin = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let admin = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
+        .await
+        .unwrap();
     admin.create_account(&admin_name, "", false).await.unwrap();
 
-    let customer = Lb::in_memory(test_config(), server.clone()).await.unwrap();
+    let customer = Lb::in_memory(test_config(), server.clone(), AsyncDocs::in_memory())
+        .await
+        .unwrap();
     let name = random_name();
     customer.create_account(&name, "", false).await.unwrap();
     customer.create_at_path("note.md").await.unwrap();

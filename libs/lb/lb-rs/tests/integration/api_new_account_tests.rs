@@ -2,6 +2,7 @@ use lb_rs::io::network::ApiError;
 use lb_rs::io::server::Server;
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::model::api::*;
+use lb_rs::model::entropy::Entropy;
 use lb_rs::model::meta::Meta;
 use lb_rs::model::pubkey;
 use test_utils::*;
@@ -11,7 +12,7 @@ async fn random_account() -> Account {
 }
 
 async fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAccountError>> {
-    let root = Meta::create_root(account)
+    let root = Meta::create_root(account, &Entropy::default())
         .unwrap()
         .sign_with(account)
         .unwrap();
