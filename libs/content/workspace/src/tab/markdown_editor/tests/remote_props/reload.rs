@@ -99,7 +99,8 @@ impl Latest {
     }
 
     /// The models where a drop moved `range` to `to` to make `shown`: its
-    /// text taken out, which in a table rewrites the row around it, and
+    /// text taken out, with the markers of a style it fills, which in a
+    /// table rewrites the row around it, and
     /// written at `to`, in one frame. The buffer orders a frame's edits by
     /// where they start and joins an edit onto one ending where it starts.
     fn moved(&self, range: (Grapheme, Grapheme), to: Grapheme, shown: &str) -> Vec<Model> {
@@ -129,14 +130,22 @@ impl Latest {
             m.edits.extend(edits);
             (m.shown() == shown).then_some(m)
         };
-        let exact = Edit { range: (a.0, b.0), text: String::new() };
-        let models: Vec<Model> = self
-            .models
-            .iter()
-            .filter_map(|m| with(m, ordered(exact.clone())))
-            .collect();
-        if !models.is_empty() {
-            return models;
+        // the cut the editor makes: the image grown over the styles around it
+        // that hold nothing else, or the image alone
+        let emptied = super::interleave::images(&self.shown)
+            .into_iter()
+            .find(|i| i.range == (a.0..b.0))
+            .and_then(|i| i.emptied);
+        for cut in emptied.into_iter().chain(std::iter::once(a.0..b.0)) {
+            let cut = Edit { range: (cut.start, cut.end), text: String::new() };
+            let models: Vec<Model> = self
+                .models
+                .iter()
+                .filter_map(|m| with(m, ordered(cut.clone())))
+                .collect();
+            if !models.is_empty() {
+                return models;
+            }
         }
         // in a table: the row as rewritten without the text, then the text
         // written at the drop

@@ -692,19 +692,19 @@ fn image_ranges(md: &str) -> Vec<std::ops::Range<usize>> {
 }
 
 /// An image in a note as the editor parses it.
-struct Image {
+pub(super) struct Image {
     /// Its bytes.
-    range: std::ops::Range<usize>,
+    pub(super) range: std::ops::Range<usize>,
     /// Whether it opens a table row written without a leading pipe: only
     /// indentation is between the row's start and the image.
     opens_row: bool,
     /// The bytes of the outermost of the styles around it that hold nothing
     /// else, if any.
-    emptied: Option<std::ops::Range<usize>>,
+    pub(super) emptied: Option<std::ops::Range<usize>>,
 }
 
 /// The images in `md` as the editor parses it.
-fn images(md: &str) -> Vec<Image> {
+pub(super) fn images(md: &str) -> Vec<Image> {
     let mut ws = TestEditor::with_lb(lb(), md);
     let arena = super::super::super::Arena::new();
     let r = &mut ws.editor.edit.renderer;
