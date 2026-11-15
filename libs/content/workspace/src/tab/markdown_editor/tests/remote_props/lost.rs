@@ -28,7 +28,7 @@ use super::super::doc_gen::{Features, gen_doc};
 use super::super::edit_props::{event_count, event_with};
 use super::note::{Landed, Note};
 use super::scroll::{self, BLOCK, BLOCKS, long_doc, pick_visible};
-use super::{Events, Host, IMAGE};
+use super::{Events, Host, IMAGE, interleave};
 use crate::test_utils::byte_source::ByteSource;
 
 /// The run's choices; from Held the opening note is made from the bytes after.
@@ -251,23 +251,10 @@ impl Session {
             .and_then(|d| Some((d.image, d.target?)));
         // the move applies in the frame after the release
         self.frame(log)?;
-        let Some((image, to)) = dropped.filter(|&(image, to)| image.0 > to || to > image.1) else {
+        let Some((image, to)) = dropped else {
             return Ok(());
         };
-        let graphemes: Vec<&str> = before.graphemes(true).collect();
-        let text = graphemes[image.0.0..image.1.0].concat();
-        let len = image.1.0 - image.0.0;
-        let at = if to > image.1 { to.0 - len } else { to.0 };
-        let landed: String = self
-            .note
-            .text()
-            .graphemes(true)
-            .skip(at)
-            .take(len)
-            .collect();
-        if landed != text {
-            return Err(format!("{text:?} dropped at {to:?} isn't there: {:?}", self.note.text()));
-        }
+        interleave::drop_lands(&before, self.note.text(), image, to)?;
         log("the drop moved the image".into());
         Ok(())
     }

@@ -571,15 +571,56 @@ fn drop_moves_image(
 ) -> Result<(), String> {
     let moved = drop_moves_image_from(before, after, dropped);
     let Some((image, to)) = dropped.filter(|_| moved.is_err()) else { return moved };
-    let mut starts = vec![Start { text: before.into(), image, to }];
-    starts.extend(unstyled(&starts[0]));
-    let piped: Vec<Start> = starts.iter().filter_map(row_piped).collect();
-    starts.extend(piped);
-    starts[1..]
+    starts(before, image, to)[1..]
         .iter()
         .map(|s| drop_moves_image_from(&s.text, after, Some((s.image, s.to))))
         .find(Result::is_ok)
         .unwrap_or(moved)
+}
+
+/// A drop's image text lands where the drop line put it, allowing what
+/// [`drop_moves_image`] allows, whatever else changed around it.
+pub(super) fn drop_lands(
+    before: &str, after: &str, image: (Grapheme, Grapheme), to: Grapheme,
+) -> Result<(), String> {
+    let landed = lands(before, after, image, to);
+    if landed.is_ok() {
+        return landed;
+    }
+    starts(before, image, to)[1..]
+        .iter()
+        .map(|s| lands(&s.text, after, s.image, s.to))
+        .find(Result::is_ok)
+        .unwrap_or(landed)
+}
+
+/// What a drop of `image` at `to` in `before` may move from: the text as it
+/// is, then with the image's emptied styles gone with it, then each of those
+/// with a pipe opening the table row the image opens.
+fn starts(before: &str, image: (Grapheme, Grapheme), to: Grapheme) -> Vec<Start> {
+    let mut starts = vec![Start { text: before.into(), image, to }];
+    starts.extend(unstyled(&starts[0]));
+    let piped: Vec<Start> = starts.iter().filter_map(row_piped).collect();
+    starts.extend(piped);
+    starts
+}
+
+/// The image's text from `before` is in `after` where a drop at `to` puts it.
+fn lands(
+    before: &str, after: &str, image: (Grapheme, Grapheme), to: Grapheme,
+) -> Result<(), String> {
+    if image.contains_inclusive(to) {
+        return Ok(());
+    }
+    let graphemes: Vec<&str> = before.graphemes(true).collect();
+    let text = graphemes[image.0.0..image.1.0].concat();
+    let len = image.1.0 - image.0.0;
+    let at = if to > image.1 { to.0 - len } else { to.0 };
+    let landed: String = after.graphemes(true).skip(at).take(len).collect();
+    if landed != text {
+        return Err(format!("{text:?} dropped at {to:?} isn't there: {after:?}"));
+    }
+    Ok(())
 }
 
 /// What a drop moves from: the text, the image's range in it, and where the
@@ -642,15 +683,8 @@ fn row_piped(start: &Start) -> Option<Start> {
 fn drop_moves_image_from(
     before: &str, after: &str, dropped: Option<((Grapheme, Grapheme), Grapheme)>,
 ) -> Result<(), String> {
-    if let Some((image, to)) = dropped.filter(|&(image, to)| !image.contains_inclusive(to)) {
-        let graphemes: Vec<&str> = before.graphemes(true).collect();
-        let text = graphemes[image.0.0..image.1.0].concat();
-        let len = image.1.0 - image.0.0;
-        let at = if to > image.1 { to.0 - len } else { to.0 };
-        let landed: String = after.graphemes(true).skip(at).take(len).collect();
-        if landed != text {
-            return Err(format!("{text:?} dropped at {to:?} isn't there: {after:?}"));
-        }
+    if let Some((image, to)) = dropped {
+        lands(before, after, image, to)?;
     }
     // an image leaving a table row without pipes leaves the row, emptied, as `|  |`
     let row = regex::Regex::new(r"(?m)^\| *\|$").unwrap();
