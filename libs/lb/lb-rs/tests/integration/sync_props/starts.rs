@@ -11,7 +11,12 @@ const VACATION: Tier = Tier { accounts: 4, devices: 2, ..OVERLAP };
 /// The accounts and devices a case from `start` has: the start's own, or else `tier`'s.
 pub(super) fn population(tier: Tier, start: Start) -> Tier {
     match start {
-        Start::Vacation => Tier { starts: tier.starts, overlap: tier.overlap, ..VACATION },
+        Start::Vacation => Tier {
+            starts: tier.starts,
+            overlap: tier.overlap,
+            attachments: tier.attachments,
+            ..VACATION
+        },
         Start::Empty | Start::Shared | Start::WriteShared => tier,
     }
 }
@@ -140,7 +145,7 @@ fn a_copy_diverges_from_its_original() {
         block_on(async {
             let original = built(population(SHARES, start), start);
             let before = trees(original).await;
-            let copy = original.copy(0).await;
+            let copy = original.copy(0, false).await;
             assert_eq!(trees(&copy).await, before, "{start:?} copied");
 
             let device = &copy.devices[1];
@@ -166,7 +171,7 @@ fn a_copy_draws_ids_from_its_seed() {
         let original = built(SHARES, Start::Shared);
         let mut ids = Vec::new();
         for _ in 0..2 {
-            let copy = original.copy(7).await;
+            let copy = original.copy(7, false).await;
             let made = copy.devices[2].create_at_path("x/y.md").await.unwrap();
             ids.push((made.id, made.parent));
         }
