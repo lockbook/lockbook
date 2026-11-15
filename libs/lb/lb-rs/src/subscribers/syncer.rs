@@ -692,7 +692,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         ..
                     }) = merge.assert_no_cycles()
                     {
-                        unmove_cycle(&db.local_metadata, &ids, &mut files_to_unmove)?;
+                        unmove_cycle(&local, &db.local_metadata, &ids, &mut files_to_unmove)?;
                         continue 'merge_construction;
                     }
 
@@ -961,7 +961,12 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         LbErrKind::Validation(ref vf) => match vf {
                             // merge changeset has resolvable validation errors and needs modification
                             ValidationFailure::Cycle(ids) => {
-                                unmove_cycle(&db.local_metadata, ids, &mut files_to_unmove)?;
+                                unmove_cycle(
+                                    &local,
+                                    &db.local_metadata,
+                                    ids,
+                                    &mut files_to_unmove,
+                                )?;
                             }
                             ValidationFailure::PathConflict(ids) => {
                                 // pick one local id and generate a non-conflicting filename
@@ -1723,13 +1728,21 @@ where
 }
 
 /// Undoes this device's moves that form a cycle, or fails when none of them is this device's.
-fn unmove_cycle<T: TreeLike>(
-    local_changes: &T, ids: &HashSet<Uuid>, files_to_unmove: &mut HashSet<Uuid>,
+/// An attachments folder in the cycle is there because of its document's place, so its
+/// document's move is undone too; otherwise repair would move the folder back into the cycle.
+fn unmove_cycle<L: TreeLike, T: TreeLike>(
+    local: &L, local_changes: &T, ids: &HashSet<Uuid>, files_to_unmove: &mut HashSet<Uuid>,
 ) -> LbResult<()> {
     let mut progress = false;
     for &id in ids {
-        if local_changes.maybe_find(&id).is_some() && files_to_unmove.insert(id) {
-            progress = true;
+        let mut moved = vec![id];
+        if let Some(of) = local.maybe_find(&id).and_then(|f| f.attachments_of()) {
+            moved.push(of.id);
+        }
+        for id in moved {
+            if local_changes.maybe_find(&id).is_some() && files_to_unmove.insert(id) {
+                progress = true;
+            }
         }
     }
     if !progress {

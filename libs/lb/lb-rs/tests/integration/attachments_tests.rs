@@ -421,6 +421,30 @@ async fn the_second_device_folds_its_folder_into_the_servers() {
 }
 
 #[tokio::test]
+async fn a_note_moved_under_a_folder_moved_into_its_attachments_stays_put() {
+    let a = test_core_with_attachments().await;
+    let doc = a.create_at_path("/plan.md").await.unwrap();
+    let folder = a.create_attachments_folder(&doc.id).await.unwrap();
+    let x = a.create_at_path("/x/").await.unwrap();
+    a.sync().await.unwrap();
+    let b = test_core_from_with(&a, attachments_config()).await;
+
+    b.move_file(&x.id, &folder.id).await.unwrap();
+    b.sync().await.unwrap();
+    a.move_file(&doc.id, &x.id).await.unwrap();
+    a.sync().await.unwrap();
+    b.sync().await.unwrap();
+
+    // the note's move would put its folder inside itself, so it's undone like any move that
+    // forms a cycle
+    let root = a.root().await.unwrap().id;
+    assert_eq!(a.get_file_by_id(doc.id).await.unwrap().parent, root);
+    assert_eq!(a.get_file_by_id(folder.id).await.unwrap().parent, root);
+    assert_eq!(a.get_file_by_id(x.id).await.unwrap().parent, folder.id);
+    assert_dbs_equal(&a, &b).await;
+}
+
+#[tokio::test]
 async fn deleting_the_document_deletes_its_folder() {
     let owner = test_core_with_attachments().await;
     let writer = test_core_with_attachments().await;
