@@ -254,19 +254,48 @@ impl Session {
         let Some((image, to)) = dropped.filter(|&(image, to)| image.0 > to || to > image.1) else {
             return Ok(());
         };
-        let graphemes: Vec<&str> = before.graphemes(true).collect();
-        let text = graphemes[image.0.0..image.1.0].concat();
-        let len = image.1.0 - image.0.0;
-        let at = if to > image.1 { to.0 - len } else { to.0 };
-        let landed: String = self
-            .note
-            .text()
-            .graphemes(true)
-            .skip(at)
-            .take(len)
-            .collect();
-        if landed != text {
-            return Err(format!("{text:?} dropped at {to:?} isn't there: {:?}", self.note.text()));
+        let after = self.note.text();
+        let g: Vec<&str> = before.graphemes(true).collect();
+        let (start, end, to) = (image.0.0, image.1.0, to.0);
+        let text = g[start..end].concat();
+        // the cut takes the image and the markers of each style it leaves
+        // empty, as many on either side of it
+        let lost = || format!("{text:?} dropped at {to} isn't there: {after:?}");
+        let Some(cut) = g.len().checked_sub(after.graphemes(true).count()) else {
+            return Err(lost());
+        };
+        if after == before {
+            // a drop between those markers moves nothing
+            let near = if to < start { &g[to..start] } else { &g[end..to] };
+            let far = if to < start {
+                g.get(end..end + near.len())
+            } else {
+                start.checked_sub(near.len()).map(|s| &g[s..start])
+            };
+            let mirrored = far.is_some_and(|far| far.iter().eq(near.iter().rev()));
+            if !mirrored
+                || !near
+                    .iter()
+                    .all(|m| ["_", "*", "~", "=", "^", "|"].contains(m))
+            {
+                return Err(lost());
+            }
+            log("the drop lands among the markers it would empty".into());
+            return Ok(());
+        }
+        let side = cut / 2;
+        let outside = if to > end { end + side <= to } else { to + side <= start };
+        if cut % 2 == 1 || !outside || side > start || end + side > g.len() {
+            return Err(lost());
+        }
+        let cut = (start - side, end + side);
+        let moved = if to > end {
+            [&g[..cut.0], &g[cut.1..to], &[text.as_str()], &g[to..]].concat()
+        } else {
+            [&g[..to], &[text.as_str()], &g[to..cut.0], &g[cut.1..]].concat()
+        };
+        if moved.concat() != after {
+            return Err(lost());
         }
         log("the drop moved the image".into());
         Ok(())
