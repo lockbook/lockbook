@@ -487,19 +487,24 @@ pub fn icon_button_mark(
 ) -> Response {
     let hit = hit.max(1.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(hit, hit), sense_click());
-    let hover = icon_hover_t(ui, &resp, rect);
-    // Ghost wash on hover only — darkens `ground`, never replaces it with canvas.
-    // Same amount whether or not the mark is active (active is ink, not plate).
-    if hover > 0.0 {
-        let wash = t.wash_toward_neutral_fg(ground, FG_HOVER * hover);
+    let plate = icon_plate(ui, t, &resp, ground);
+    if plate != ground {
         // Sm matches compact icon hits (tab close X); Control reads as a
         // pill on titleband-sized (~22pt) washes.
-        ui.painter().rect_filled(rect, Radius::Sm.corner(), wash);
+        ui.painter().rect_filled(rect, Radius::Sm.corner(), plate);
     }
     // Idle: foreground. Applied / selected: accent.
     let color = if active { t.accent() } else { t.neutral_fg() };
     mark(ui.painter(), rect, color);
     resp
+}
+
+/// What an [`icon_button_mark`] shows behind its mark this frame: `ground`,
+/// or the ghost wash while hovered. Same amount whether or not the mark is
+/// active (active is ink, not plate); it darkens `ground`, never replaces it.
+pub fn icon_plate(ui: &Ui, t: &Theme, resp: &Response, ground: Color32) -> Color32 {
+    let hover = icon_hover_t(ui, resp, resp.rect);
+    if hover > 0.0 { t.wash_toward_neutral_fg(ground, FG_HOVER * hover) } else { ground }
 }
 
 /// Shared hover probe + ease for frameless icon controls.

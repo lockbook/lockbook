@@ -459,6 +459,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             });
             app.modal = Some(Modal::AcceptShare { id, name, dest });
         }
+        A::MarkSharesSeen => {
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.mark_shares_seen();
+            }
+        }
         A::AcceptShareDest(id) => {
             if let Some(Modal::AcceptShare { dest, .. }) = &mut app.modal {
                 *dest = Some(id);
