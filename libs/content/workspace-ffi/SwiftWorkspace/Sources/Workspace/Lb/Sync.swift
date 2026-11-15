@@ -40,6 +40,13 @@ public struct UsageItem: Equatable {
         self.human = human
     }
 
+    public init(exact: UInt64) {
+        self.exact = exact
+        let human = lb_bytes_to_human(exact)
+        self.human = String(cString: human!)
+        lb_free_str(human)
+    }
+
     init(_ res: LbUsageItem) {
         exact = res.exact
         human = res.human != nil ? String(cString: res.human) : ""

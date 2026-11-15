@@ -380,21 +380,43 @@ struct UsageSettingsRows: View {
             }
         }
 
-        if let usage = model.usage, let cap = usage.dataCap {
-            VStack {
-                HStack {
-                    Text("Server Utilization:")
-                    Spacer()
-                    Text("\(usage.local.human) / \(cap.human)")
+        #if os(iOS)
+            if let usage = model.usage {
+                NavigationLink {
+                    StorageView(settingsModel: model)
+                } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Storage")
+                            Spacer()
+                            Text(usage.dataCap.map { "\(usage.local.human) of \($0.human)" } ?? usage.local.human)
+                                .foregroundStyle(usage.overCap ? StorageInk.over : .secondary)
+                        }
+                        StorageBar(usage: usage)
+                            .frame(height: 6)
+                    }
+                    .padding(.vertical, 4)
                 }
-
-                ProgressView(value: Double(min(usage.local.exact, cap.exact)), total: Double(cap.exact))
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
+            } else {
+                ProgressView()
             }
-        } else {
-            ProgressView()
-        }
+        #else
+            if let usage = model.usage, let cap = usage.dataCap {
+                VStack {
+                    HStack {
+                        Text("Server Utilization:")
+                        Spacer()
+                        Text("\(usage.local.human) / \(cap.human)")
+                    }
+
+                    ProgressView(value: Double(min(usage.local.exact, cap.exact)), total: Double(cap.exact))
+                        .padding(.top, 10)
+                        .padding(.bottom, 8)
+                }
+            } else {
+                ProgressView()
+            }
+        #endif
 
         #if os(macOS)
             Picker("Sidebar usage bar", selection: $usageBarMode) {
