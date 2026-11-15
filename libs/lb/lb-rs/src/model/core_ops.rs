@@ -56,7 +56,10 @@ where
 
         let mut shares = Vec::new();
         for user_access_key in meta.user_access_keys() {
+            // a share to the file's owner, which a move into the recipient's folder carries along,
+            // grants nothing
             if user_access_key.encrypted_by == user_access_key.encrypted_for
+                || user_access_key.encrypted_for == meta.owner().0
                 || user_access_key.deleted
             {
                 continue;
