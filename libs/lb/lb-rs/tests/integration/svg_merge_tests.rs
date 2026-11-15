@@ -1,4 +1,5 @@
 use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::model::svg::element::{Color, Element};
 use uuid::Uuid;
 
 fn id(n: u8) -> Uuid {
@@ -52,4 +53,29 @@ fn readable_ids_merge_once() {
     reload(&mut local, doc, doc);
     assert_eq!(local.elements.len(), 1);
     assert!(local.serialize().contains("id='db'"));
+}
+
+/// Another device recolors a stroke red; after syncing, this device has it red too.
+#[test]
+fn remote_recolor_survives_merge() {
+    let black = svg(&[1]);
+    let red = black.replace("rgb(0,0,0)", "rgb(255,0,0)");
+    let mut local = Buffer::new(&black);
+    reload(&mut local, &black, &red);
+    let Element::Path(stroke) = &local.elements[&id(1)] else { unreachable!() };
+    assert_eq!(stroke.stroke.unwrap().color.light, Color::new_rgb(255, 0, 0));
+}
+
+/// Another device brings a stroke to the front; this device's new stroke stays
+/// in front of the one it was drawn over.
+#[test]
+fn remote_restack_survives_merge() {
+    let mut local = Buffer::new(&svg(&[1, 2, 3]));
+    local.elements.move_index(2, 1); // drawn here, in front of 2: [1, 9, 2]
+    let local_only = Uuid::new_v4();
+    let el = local.elements[&id(3)].clone();
+    local.elements.shift_remove(&id(3));
+    local.elements.insert_before(1, local_only, el);
+    reload(&mut local, &svg(&[1, 2]), &svg(&[2, 1]));
+    assert_eq!(local.elements.keys().copied().collect::<Vec<_>>(), [id(2), id(1), local_only]);
 }

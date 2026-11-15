@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 use bezier_rs::{Bezier, Subpath};
@@ -142,15 +142,13 @@ impl Buffer {
                 }
             });
 
-        // strokes new in remote go after the nearest preceding stroke that local still has
+        // strokes new in remote go after the nearest preceding stroke that local has
         let mut cursor = 0;
         for (id, el) in remote_buffer.elements.iter() {
             let Element::Path(remote_el) = el else { continue };
-            if base_buffer.elements.contains_key(id) {
-                if let Some(pos) = local_elements.get_index_of(id) {
-                    cursor = pos + 1;
-                }
-            } else if !local_elements.contains_key(id) {
+            if let Some(pos) = local_elements.get_index_of(id) {
+                cursor = pos + 1;
+            } else if !base_buffer.elements.contains_key(id) {
                 let mut transformed_path = remote_el.clone();
                 transformed_path.diff_state.transformed = Some(local_master_transform);
                 transformed_path
@@ -166,6 +164,21 @@ impl Buffer {
                     local_weak_pressures.insert(*id, base_pressure.clone());
                 }
             }
+        }
+
+        // a stroke restacked remotely takes its new place
+        let paths = |b: &Self, other: &Self| -> Vec<Uuid> {
+            b.elements
+                .iter()
+                .filter(|(id, el)| {
+                    matches!(el, Element::Path(_)) && other.elements.contains_key(*id)
+                })
+                .map(|(id, _)| *id)
+                .collect()
+        };
+        if paths(base_buffer, remote_buffer) != paths(remote_buffer, base_buffer) {
+            let remote_order: Vec<Uuid> = remote_buffer.elements.keys().copied().collect();
+            follow_order(local_elements, &remote_order);
         }
 
         for id in remote_buffer.elements.keys() {
@@ -219,6 +232,41 @@ impl Buffer {
             &self.weak_path_pressures,
         )
     }
+}
+
+/// Puts the elements `order` names in that order. Each of the rest stays right after the
+/// element it followed.
+pub fn follow_order(elements: &mut IndexMap<Uuid, Element>, order: &[Uuid]) {
+    let named: HashSet<Uuid> = order
+        .iter()
+        .filter(|id| elements.contains_key(*id))
+        .copied()
+        .collect();
+    let mut leading = vec![];
+    let mut trailing: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    let mut last = None;
+    for id in elements.keys() {
+        if named.contains(id) {
+            last = Some(*id);
+        } else if let Some(last) = last {
+            trailing.entry(last).or_default().push(*id);
+        } else {
+            leading.push(*id);
+        }
+    }
+    let mut placed = HashSet::new();
+    let mut rank: HashMap<Uuid, usize> = HashMap::new();
+    let ranked = leading.into_iter().chain(
+        order
+            .iter()
+            .filter(|id| named.contains(*id) && placed.insert(**id))
+            .flat_map(|id| std::iter::once(*id).chain(trailing.remove(id).unwrap_or_default()))
+            .collect::<Vec<_>>(),
+    );
+    for (i, id) in ranked.enumerate() {
+        rank.insert(id, i);
+    }
+    elements.sort_by(|a, _, b, _| rank[a].cmp(&rank[b]));
 }
 
 pub fn serialize_inner(

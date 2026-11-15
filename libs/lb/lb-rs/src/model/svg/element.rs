@@ -29,7 +29,7 @@ pub struct Path {
     pub opacity: f32,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Stroke {
     pub color: DynamicColor,
     pub opacity: f32,
@@ -80,6 +80,8 @@ impl PartialEq for Path {
         self.data.len() == other.data.len()
             && self.visible == other.visible
             && self.transform == other.transform
+            && self.stroke == other.stroke
+            && self.opacity == other.opacity
             && self.deleted == other.deleted
     }
 }
