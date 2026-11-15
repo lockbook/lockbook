@@ -94,6 +94,15 @@ fn moved_stroke_is_where_other_viewers_draw_it() {
     assert_eq!(first_path(resvg.root()).abs_bounding_box().left(), 101.0);
 }
 
+/// A stroke faded with the selection's opacity slider stays faded when reopened.
+#[test]
+fn stroke_opacity_is_saved() {
+    let mut drawing = Buffer::new(&svg(&[1]));
+    drawing.elements.get_mut(&id(1)).unwrap().set_opacity(0.5);
+    let reopened = Buffer::new(&drawing.serialize());
+    assert_eq!(reopened.elements[&id(1)].opacity(), 0.5);
+}
+
 fn first_path(group: &usvg::Group) -> &usvg::Path {
     group
         .children()

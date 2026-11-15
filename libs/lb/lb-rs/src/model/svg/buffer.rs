@@ -72,6 +72,7 @@ impl Buffer {
                     &mut id_map,
                     &mut weak_images,
                     &mut weak_path_pressures,
+                    1.0,
                 )
             });
         }
@@ -299,6 +300,9 @@ pub fn serialize_inner(
                         stroke.opacity,
                         id_map.get(el.0).unwrap_or(&el.0.to_string()),
                     );
+                    if p.opacity != 1.0 {
+                        let _ = write!(curv_attrs, " opacity='{}'", p.opacity);
+                    }
                 }
 
                 let mut data = p.data.clone();
@@ -367,10 +371,11 @@ pub fn serialize_inner(
     root
 }
 
+/// `opacity` is the groups' around `u_el`: usvg puts an element's own opacity on a group.
 pub fn parse_child(
     u_el: &usvg::Node, elements: &mut IndexMap<Uuid, Element>,
     weak_viewport_settings: &mut WeakViewportSettings, id_map: &mut HashMap<Uuid, String>,
-    weak_images: &mut WeakImages, weak_path_pressures: &mut WeakPathPressures,
+    weak_images: &mut WeakImages, weak_path_pressures: &mut WeakPathPressures, opacity: f32,
 ) {
     match &u_el {
         usvg::Node::Group(group) => {
@@ -410,6 +415,7 @@ pub fn parse_child(
                         id_map,
                         weak_images,
                         weak_path_pressures,
+                        opacity * group.opacity().get(),
                     )
                 });
             }
@@ -453,7 +459,7 @@ pub fn parse_child(
                     transform: path.abs_transform(),
                     diff_state,
                     deleted: false,
-                    opacity: 1.0,
+                    opacity,
                 }),
             );
         }
