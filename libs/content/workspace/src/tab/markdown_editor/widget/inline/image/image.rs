@@ -636,9 +636,12 @@ impl<'ast> MdEdit {
             return;
         };
         // the text may have changed under it, a sync or a key: the image's
-        // range follows, or the drag ends if the image itself was edited
+        // range follows, or the drag ends if the image itself was edited or
+        // no longer parses as an embed, as in code
         let mut image = drag.image;
-        if !self.renderer.buffer.transform_range(drag.seq, &mut image) {
+        if !self.renderer.buffer.transform_range(drag.seq, &mut image)
+            || !self.embeds_at(root, image)
+        {
             self.in_progress_image_drag = None;
             return;
         }
@@ -671,6 +674,18 @@ impl<'ast> MdEdit {
             }
         }
         ui.ctx().request_repaint();
+    }
+
+    /// Whether an image or a wiki embed, the embeds a drag can lift, spans exactly `range`.
+    fn embeds_at(&self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme)) -> bool {
+        root.descendants().any(|node| {
+            let embed = match &node.data.borrow().value {
+                NodeValue::Image(_) => true,
+                NodeValue::WikiLink(link) => link.embed,
+                _ => false,
+            };
+            embed && self.renderer.node_range(node) == range
+        })
     }
 
     /// A dragged image: an empty slot where it was, the caret where it would
