@@ -73,7 +73,7 @@ public class Lb: LbAPI {
     }
 
     public func start(writablePath: String, clientName: String, buildInfo: String, logs: Bool) -> Result<Void, LbError> {
-        let res = lb_init(writablePath, clientName, buildInfo, logs, true)
+        let res = lb_init(writablePath, clientName, buildInfo, logs, true, false)
         defer {
             lb_free_err(res.err)
         }

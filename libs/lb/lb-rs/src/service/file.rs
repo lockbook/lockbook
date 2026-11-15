@@ -129,6 +129,18 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         Ok(Some(tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?))
     }
 
+    /// The document `folder` is the attachments folder of, if it is one. Such a folder moves only
+    /// with its document and is never renamed, so a host that offers rename and move per file can leave
+    /// them off it.
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn attachments_of(&self, folder: &Uuid) -> LbResult<Option<Uuid>> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        Ok(tree.find(folder)?.attachments_of().map(|of| of.id))
+    }
+
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn rename_file(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
         let mut tx = self.begin_tx().await;

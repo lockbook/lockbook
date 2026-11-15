@@ -38,9 +38,11 @@ pub struct LbInitRes {
 /// `build_info` optionally identifies the caller's build in the startup log.
 /// Release the result with `lb_free_init`.
 #[unsafe(no_mangle)]
+/// `list_attachments` makes listings include attachments folders, as the CLI's do: the Files
+/// app shows them, since it has no other way to reach a note's images.
 pub extern "C" fn lb_init(
     writeable_path: *const c_char, client_name: *const c_char, build_info: *const c_char,
-    logs: bool, background_work: bool,
+    logs: bool, background_work: bool, list_attachments: bool,
 ) -> LbInitRes {
     let config = Config {
         client_name: r_opt_str(client_name).unwrap_or_default().to_owned(),
@@ -52,6 +54,7 @@ pub extern "C" fn lb_init(
         stdout_logs: true,
         colored_logs: false,
         client_type: ClientType::Ui,
+        list_attachments,
         ..Default::default()
     };
 
@@ -505,6 +508,36 @@ pub extern "C" fn lb_known_usernames(lb: *mut Lb) -> LbUsernamesRes {
             LbUsernamesRes { err: null_mut(), usernames, len }
         }
         Err(err) => LbUsernamesRes { err: lb_err(err), usernames: null_mut(), len: 0 },
+    }
+}
+
+#[repr(C)]
+pub struct LbAttachmentsOfRes {
+    err: *mut LbFfiErr,
+    /// Whether the file is an attachments folder; `document` is meaningful only when it is.
+    is_attachments: bool,
+    document: LbUuid,
+}
+
+/// The document `id` is the attachments folder of, if it is one.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_attachments_of(lb: *mut Lb, id: LbUuid) -> LbAttachmentsOfRes {
+    let lb = rlb(lb);
+
+    match lb.attachments_of(&id.into()) {
+        Ok(Some(document)) => {
+            LbAttachmentsOfRes { err: null_mut(), is_attachments: true, document: document.into() }
+        }
+        Ok(None) => LbAttachmentsOfRes {
+            err: null_mut(),
+            is_attachments: false,
+            document: Default::default(),
+        },
+        Err(err) => LbAttachmentsOfRes {
+            err: lb_err(err),
+            is_attachments: false,
+            document: Default::default(),
+        },
     }
 }
 

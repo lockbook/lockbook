@@ -73,6 +73,7 @@ pub enum LbEC {
     UsernamePublicKeyMismatch,
     UsernameTaken,
     ImportFailed,
+    AttachmentsFolderFixed,
 }
 
 impl From<LbErr> for LbFfiErr {
@@ -159,6 +160,7 @@ impl From<&LbErrKind> for LbEC {
                 ValidationFailure::DeletedFileUpdated(_) => Self::FileNonexistent,
                 _ => Self::Unexpected,
             },
+            LbErrKind::AttachmentsFolderFixed => Self::AttachmentsFolderFixed,
             LbErrKind::Unexpected(_) => Self::Unexpected,
             _ => Self::Unexpected,
         }
