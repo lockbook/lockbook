@@ -565,6 +565,8 @@ struct Attached {
 struct Stored {
     parent: Uuid,
     document: bool,
+    /// On a link, its target, which devices list in its place.
+    link: Option<Uuid>,
     deleted: bool,
     /// On an attachments folder, its document.
     of: Option<Uuid>,
@@ -1698,6 +1700,10 @@ impl World {
                 let stored = Stored {
                     parent: *meta.parent(),
                     document: meta.is_document(),
+                    link: match meta.file_type() {
+                        FileType::Link { target } => Some(target),
+                        _ => None,
+                    },
                     deleted: meta.explicitly_deleted(),
                     of: meta.attachments_of().map(|of| of.id),
                 };
@@ -1836,7 +1842,7 @@ fn each_attachments_folder_sits_beside_its_document_check(
 }
 
 /// Once every device has synced, an account that reads a document reads its attachments folder
-/// and everything in it, and writes them when it writes the document. Nothing else reaches an
+/// and everything in it (a link as its target, for the account that owns it), and writes them when it writes the document. Nothing else reaches an
 /// account through a folder: everything it lists is its own, shared with it, or in the folder of
 /// a document it lists, and it writes what it lists only by owning it, a write share on it or
 /// above it, or writing the document whose folder holds it.
@@ -1865,7 +1871,12 @@ fn whoever_reads_a_document_reads_its_attachments_check(
                 let writes = world.writes(on, *id).await;
                 for folder in folders_of(&stored, *id) {
                     for x in std::iter::once(folder).chain(inside(&stored, folder)) {
-                        if !listed.contains_key(&x) {
+                        // only a link's owner, the document's, follows it
+                        if stored[&x].link.is_some() && file.owner != me {
+                            continue;
+                        }
+                        let shown = stored[&x].link.unwrap_or(x);
+                        if !listed.contains_key(&shown) {
                             return Err(format!(
                                 "device {on} reads document {id} but doesn't list {x} in its \
                                  attachments folder {folder}"
