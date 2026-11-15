@@ -314,13 +314,17 @@ async fn a_writer_of_a_note_shared_alone_adds_images() {
     let other = owner.create_at_path("/notes/other.md").await.unwrap();
     let folder = owner.create_attachments_folder(&doc.id).await.unwrap();
     let writer_name = writer.get_account().unwrap().username.clone();
-    for id in [doc.id, other.id] {
-        owner
-            .share_file(id, &writer_name, ShareMode::Write)
-            .await
-            .unwrap();
-    }
+    owner
+        .share_file(doc.id, &writer_name, ShareMode::Write)
+        .await
+        .unwrap();
     owner.sync().await.unwrap();
+    // shared from a device that makes no folders, so `other` has none
+    let off = test_core_from(&owner).await;
+    off.share_file(other.id, &writer_name, ShareMode::Write)
+        .await
+        .unwrap();
+    off.sync().await.unwrap();
     writer.sync().await.unwrap();
 
     let image = writer
@@ -459,4 +463,95 @@ async fn hidden_from_listings_unless_asked_for() {
     listing.sync().await.unwrap();
     let listed = listing.list_metadatas().await.unwrap();
     assert!(hidden.iter().all(|id| listed.iter().any(|f| f.id == *id)));
+}
+
+#[tokio::test]
+async fn the_first_write_share_of_a_note_makes_its_folder() {
+    let owner = test_core_with_attachments().await;
+    let writer = test_core_with_attachments().await;
+    let reader = test_core_with_account().await;
+    let doc = owner.create_at_path("/notes/plan.md").await.unwrap();
+    let reader_name = reader.get_account().unwrap().username.clone();
+    owner
+        .share_file(doc.id, &reader_name, ShareMode::Read)
+        .await
+        .unwrap();
+    assert!(
+        owner
+            .get_attachments_folder(&doc.id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    let writer_name = writer.get_account().unwrap().username.clone();
+    owner
+        .share_file(doc.id, &writer_name, ShareMode::Write)
+        .await
+        .unwrap();
+    let folder = owner
+        .get_attachments_folder(&doc.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(folder.name, "plan-attachments");
+    owner.sync().await.unwrap();
+    writer.sync().await.unwrap();
+    assert_eq!(
+        writer
+            .get_attachments_folder(&doc.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        folder.id
+    );
+}
+
+#[tokio::test]
+async fn notes_written_before_creation_turned_on_get_folders_on_sync() {
+    let owner = test_core_with_account().await;
+    let writer = test_core_with_account().await;
+    let doc = owner.create_at_path("/notes/plan.md").await.unwrap();
+    let writer_name = writer.get_account().unwrap().username.clone();
+    owner
+        .share_file(doc.id, &writer_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    assert!(
+        owner
+            .get_attachments_folder(&doc.id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    let turned_on = test_core_from_with(&owner, attachments_config()).await;
+    turned_on.sync().await.unwrap();
+    let folder = turned_on
+        .get_attachments_folder(&doc.id)
+        .await
+        .unwrap()
+        .unwrap();
+    owner.sync().await.unwrap();
+    writer.sync().await.unwrap();
+    assert_eq!(
+        owner
+            .get_attachments_folder(&doc.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        folder.id
+    );
+    assert_eq!(
+        writer
+            .get_attachments_folder(&doc.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        folder.id
+    );
 }

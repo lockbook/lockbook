@@ -141,9 +141,43 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
     }
 
     pub(crate) async fn push_local_changes(&self) -> LbResult<()> {
+        self.create_shared_attachments().await?;
         self.push_meta().await?;
         self.push_docs().await?;
 
+        Ok(())
+    }
+
+    /// Makes the attachments folders this device's owner makes for documents others write by a
+    /// share of their own, for documents shared that way before this device made them.
+    async fn create_shared_attachments(&self) -> LbResult<()> {
+        if !self.config.attachments_folders {
+            return Ok(());
+        }
+        let me = Owner(self.keychain.get_pk()?);
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+        let mut tree = (&db.base_metadata)
+            .to_staged(&mut db.local_metadata)
+            .to_lazy();
+        let mut ids = tree.ids();
+        ids.sort();
+        let mut created = false;
+        for id in ids {
+            if tree.wants_shared_attachments(&id, me)? {
+                tree.create_attachments(
+                    self.entropy.id(),
+                    self.entropy.key(),
+                    &id,
+                    &self.keychain,
+                )?;
+                created = true;
+            }
+        }
+        tx.end();
+        if created {
+            self.events.meta_changed(Actor::Sync);
+        }
         Ok(())
     }
 

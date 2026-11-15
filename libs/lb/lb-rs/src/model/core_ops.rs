@@ -477,6 +477,22 @@ where
         Ok(())
     }
 
+    /// Whether `id` is a live document of `me`'s with no attachments folder that someone else
+    /// writes by a share of its own. Sharing a document alone gives its writers no say in its
+    /// folder, so they can't make its attachments folder, and its owner makes it for them.
+    pub fn wants_shared_attachments(&mut self, id: &Uuid, me: Owner) -> LbResult<bool> {
+        let file = self.find(id)?;
+        let written = file
+            .user_access_keys()
+            .iter()
+            .any(|k| !k.deleted && k.mode == UserAccessMode::Write && k.encrypted_for != me.0);
+        Ok(file.is_document()
+            && file.owner() == me
+            && written
+            && !self.calculate_deleted(id)?
+            && self.attachments_folder(id)?.is_none())
+    }
+
     /// Puts `document`'s attachments folder, if it has one, beside it and names it for it, as
     /// [Self::attachments_name] picks.
     pub fn place_attachments(&mut self, document: &Uuid, keychain: &Keychain) -> LbResult<()> {
@@ -545,6 +561,27 @@ where
     ) -> LbResult<()> {
         let op = self.add_share_op(id, sharee, mode, keychain)?;
         self.stage_and_promote(Some(op))?;
+        Ok(())
+    }
+
+    /// Shares `id`, and with `attachments`, an id and key for a new folder, makes the attachments
+    /// folder its owner makes for a document others write by a share of its own, in the same
+    /// change.
+    pub fn add_share_and_attach(
+        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, attachments: Option<(Uuid, AESKey)>,
+        keychain: &Keychain,
+    ) -> LbResult<()> {
+        let me = Owner(keychain.get_pk()?);
+        let mut tree = StagedTree::new(&self.tree, Vec::new()).to_lazy();
+        tree.add_share_unvalidated(id, sharee, mode, keychain)?;
+        if let Some((folder, key)) = attachments {
+            if tree.wants_shared_attachments(&id, me)? {
+                let op = tree.create_attachments_op(folder, key, &id, keychain)?;
+                tree.stage_and_promote(Some(op))?;
+            }
+        }
+        let (_, ops) = tree.unstage();
+        self.stage_validate_and_promote(ops, me)?;
         Ok(())
     }
 

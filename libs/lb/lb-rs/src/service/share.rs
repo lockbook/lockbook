@@ -126,7 +126,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             .to_lazy();
         db.pub_key_lookup.insert(sharee, username)?;
 
-        tree.add_share(id, sharee, mode, &self.keychain)?;
+        let attachments = (self.config.attachments_folders && mode == ShareMode::Write)
+            .then(|| (self.entropy.id(), self.entropy.key()));
+        tree.add_share_and_attach(id, sharee, mode, attachments, &self.keychain)?;
 
         tx.end();
 
