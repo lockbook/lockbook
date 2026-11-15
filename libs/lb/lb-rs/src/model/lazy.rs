@@ -37,29 +37,32 @@ impl<T: TreeLike> LazyTree<T> {
 impl<T: TreeLike> LazyTree<T> {
     pub fn access_mode(&self, owner: Owner, id: &Uuid) -> LbResult<Option<UserAccessMode>> {
         let mut max_access_mode = None;
-        let mut visited_ids = vec![];
+        for id in self.access_sources(id)? {
+            max_access_mode = max_access_mode.max(self.find(&id)?.access_mode(&owner));
+        }
+        Ok(max_access_mode)
+    }
+
+    /// The files whose shares grant access to `id`: itself, its ancestors, and, since an
+    /// attachments folder grants what its document grants, its documents and theirs.
+    pub fn access_sources(&self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
+        let mut visited = HashSet::new();
         let mut to_visit = vec![*id];
         while let Some(id) = to_visit.pop() {
-            if visited_ids.contains(&id) {
+            if !visited.insert(id) {
                 continue;
             }
-            visited_ids.push(id);
             let file = self.find(&id)?;
-            let access_mode = file.access_mode(&owner);
-            if access_mode > max_access_mode {
-                max_access_mode = access_mode;
-            }
             if !file.is_root() {
                 if let Some(parent) = self.maybe_find_parent(file) {
                     to_visit.push(*parent.id());
                 }
             }
-            // an attachments folder grants what its document grants, like a share
             if let Some(document) = self.maybe_find_attached(file) {
                 to_visit.push(*document.id());
             }
         }
-        Ok(max_access_mode)
+        Ok(visited)
     }
 
     /// `document`'s attachments folder that isn't deleted, if this tree has one.
@@ -81,6 +84,9 @@ impl<T: TreeLike> LazyTree<T> {
                 return Ok(false); // root
             } else if let Some(link) = self.linked_by(&id)? {
                 id = link;
+            } else if let Some(document) = self.maybe_find_attached(self.find(&id)?) {
+                // an attachments folder is pending with its document, wherever its own parent is
+                id = *document.id();
             } else if self.maybe_find(self.find(&id)?.parent()).is_some() {
                 id = *self.find(&id)?.parent();
             } else {
@@ -268,7 +274,30 @@ impl<T: TreeLike> LazyTree<T> {
 
     pub fn parent_using_links(&mut self, id: &Uuid) -> LbResult<Uuid> {
         let id = if let Some(link) = self.linked_by(id)? { link } else { *id };
-        Ok(*self.find(&id)?.parent())
+        let file = self.find(&id)?;
+        // an attachments folder sits beside its document as this tree shows it, which differs from
+        // its own parent when the document is reached alone, through a link
+        if let Some(document) = self.maybe_find_attached(file) {
+            let document = *document.id();
+            return self.parent_using_links(&document);
+        }
+        Ok(*file.parent())
+    }
+
+    /// Attachments folders that sit in `parent` only by following their documents, not by their own
+    /// parents.
+    pub fn attachments_beside(&mut self, parent: &Uuid) -> LbResult<Vec<Uuid>> {
+        let mut result = vec![];
+        for id in self.ids() {
+            let file = self.find(&id)?;
+            if file.attachments_of().is_some()
+                && file.parent() != parent
+                && self.parent_using_links(&id)? == *parent
+            {
+                result.push(id);
+            }
+        }
+        Ok(result)
     }
 
     pub fn linked_by(&mut self, id: &Uuid) -> LbResult<Option<Uuid>> {
