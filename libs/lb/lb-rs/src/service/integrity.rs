@@ -44,7 +44,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let mut warnings = Vec::new();
         let mut tasks = vec![];
-        for file in self.list_metadatas().await? {
+        for file in self.metadatas_with_attachments().await? {
             if file.is_document() {
                 let is_text =
                     DocumentType::from_file_name_using_extension(&file.name) == DocumentType::Text;

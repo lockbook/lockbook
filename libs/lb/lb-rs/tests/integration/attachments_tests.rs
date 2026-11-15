@@ -534,6 +534,29 @@ async fn hidden_from_listings_unless_asked_for() {
 }
 
 #[tokio::test]
+async fn an_export_takes_each_notes_attachments() {
+    let core = test_core_with_attachments().await;
+    let notes = core.create_at_path("/notes/").await.unwrap();
+    let doc = core.create_at_path("/notes/plan.md").await.unwrap();
+    let folder = core.create_attachments_folder(&doc.id).await.unwrap();
+    let image = core
+        .create_file("image.png", &folder.id, FileType::Document)
+        .await
+        .unwrap();
+    core.write_document(image.id, b"pixels").await.unwrap();
+
+    let dest = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+    std::fs::create_dir_all(&dest).unwrap();
+    core.export_file::<fn(_)>(notes.id, dest.clone(), false, &None)
+        .await
+        .unwrap();
+
+    assert!(dest.join("notes/plan.md").exists());
+    assert_eq!(std::fs::read(dest.join("notes/plan-attachments/image.png")).unwrap(), b"pixels");
+    std::fs::remove_dir_all(dest).unwrap();
+}
+
+#[tokio::test]
 async fn the_first_write_share_of_a_note_makes_its_folder() {
     let owner = test_core_with_attachments().await;
     let writer = test_core_with_attachments().await;

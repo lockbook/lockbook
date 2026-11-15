@@ -163,7 +163,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let pending_roots = tree.pending_roots(&self.keychain)?;
-        let pending_roots = self.listed(&tree, pending_roots)?;
+        let pending_roots = Self::listed(&tree, pending_roots, self.config.list_attachments)?;
 
         tree.decrypt_all(&self.keychain, pending_roots.into_iter(), &db.pub_key_lookup, false)
     }
@@ -177,7 +177,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let pending_files = tree.non_deleted_pending_files(&self.keychain)?;
-        let pending_files = self.listed(&tree, pending_files)?;
+        let pending_files = Self::listed(&tree, pending_files, self.config.list_attachments)?;
 
         tree.decrypt_all(&self.keychain, pending_files.into_iter(), &db.pub_key_lookup, false)
     }

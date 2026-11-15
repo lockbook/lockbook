@@ -282,7 +282,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             Some(parent) => {
                 let listed = match children.entry(parent) {
                     Slot::Occupied(listed) => listed.into_mut(),
-                    Slot::Vacant(slot) => slot.insert(self.get_children(&parent).await?),
+                    Slot::Vacant(slot) => {
+                        slot.insert(self.children_with_attachments(&parent).await?)
+                    }
                 };
                 listed.iter().find(|f| f.name == name).cloned()
             }
@@ -592,7 +594,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 fs::create_dir(new_dest.clone()).map_err(LbErr::from)?;
                 let export_file_futures = FuturesUnordered::new();
 
-                for child in self.get_children(&file.id).await? {
+                for child in self.children_with_attachments(&file.id).await? {
                     let lb = self.clone();
                     let new_dest = &new_dest;
 

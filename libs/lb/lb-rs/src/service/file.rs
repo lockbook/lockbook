@@ -169,7 +169,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let content = self.read_document(source.id, false).await?;
 
         let name = NameComponents::from(&source.name)
-            .free_copy_in(&self.get_children(&source.parent).await?);
+            .free_copy_in(&self.children_with_attachments(&source.parent).await?);
 
         let new_file = self
             .create_file(&name, &source.parent, FileType::Document)
@@ -216,25 +216,43 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn list_metadatas(&self) -> LbResult<Vec<File>> {
+        self.metadatas(self.config.list_attachments).await
+    }
+
+    /// Every file, attachments folders and their contents included, for lb's own walks.
+    pub(crate) async fn metadatas_with_attachments(&self) -> LbResult<Vec<File>> {
+        self.metadatas(true).await
+    }
+
+    async fn metadatas(&self, with_attachments: bool) -> LbResult<Vec<File>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let ids = self.listed(&tree, tree.ids())?;
+        let ids = Self::listed(&tree, tree.ids(), with_attachments)?;
 
         tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_children(&self, id: &Uuid) -> LbResult<Vec<File>> {
+        self.children(id, self.config.list_attachments).await
+    }
+
+    /// `id`'s children, attachments folders included, for lb's own walks and name checks.
+    pub(crate) async fn children_with_attachments(&self, id: &Uuid) -> LbResult<Vec<File>> {
+        self.children(id, true).await
+    }
+
+    async fn children(&self, id: &Uuid, with_attachments: bool) -> LbResult<Vec<File>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
         let ids = tree.children_using_links(id)?;
-        let ids = self.listed(&tree, ids)?;
+        let ids = Self::listed(&tree, ids, with_attachments)?;
 
         tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
     }
@@ -247,7 +265,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
         let descendants = tree.descendants_using_links(id)?;
-        let descendants = self.listed(&tree, descendants)?;
+        let descendants = Self::listed(&tree, descendants, self.config.list_attachments)?;
 
         tree.decrypt_all(
             &self.keychain,
@@ -296,14 +314,14 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         Ok(format!("{}/open/{}", link_url.trim_end_matches('/'), id))
     }
 
-    /// `ids` without attachments folders and their contents, which are listed only on a device
-    /// configured to list them.
+    /// `ids` without attachments folders and their contents, unless `with_attachments`; listings
+    /// include them only on a device configured to list them.
     pub(crate) fn listed<T: TreeLike<F = SignedMeta>>(
-        &self, tree: &LazyTree<T>, ids: impl IntoIterator<Item = Uuid>,
+        tree: &LazyTree<T>, ids: impl IntoIterator<Item = Uuid>, with_attachments: bool,
     ) -> LbResult<Vec<Uuid>> {
         let mut listed = Vec::new();
         for id in ids {
-            if self.config.list_attachments || !tree.in_attachments(&id)? {
+            if with_attachments || !tree.in_attachments(&id)? {
                 listed.push(id);
             }
         }
