@@ -658,8 +658,9 @@ impl<S: Server> Lb<S> {
                             }
                             let (for_, local) = (Owner(key.encrypted_for), (key.mode, key.deleted));
                             let base = base_keys.get(&for_).copied();
-                            // a move may have made the recipient the owner
-                            if Some(local) == base || for_ == owner {
+                            // a move may have made the recipient the owner, whose share only an
+                            // unshare changes
+                            if Some(local) == base || (for_ == owner && !local.1) {
                                 continue;
                             }
                             let remote = remote_keys.get(&for_).copied();
