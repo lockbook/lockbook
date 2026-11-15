@@ -1977,15 +1977,64 @@ impl Workspace {
             Change::Share { .. } | Change::Create { .. } => None,
         };
         let Some(made) = made else { return };
+        // a note's attachments folder moved or was renamed with it, and its links are kept with
+        // the note's
+        let (made, folder_renames) = self.with_attachments(made);
         // planned against the tree before the change, which the cache still is
         let plan = self.link_plan(&made);
+        let folder_plans: Vec<Arc<Plan>> = folder_renames
+            .iter()
+            .map(|rename| self.link_plan(rename))
+            .collect();
         if update_links {
             self.write_mends(&plan);
         }
+        // the user renamed the note, not the folder, so the links into it are kept unasked
+        for plan in &folder_plans {
+            self.write_mends(plan);
+        }
         // the next change plans against this one, before the rebuild lands
         let mut files = self.files.write().unwrap();
-        let after = files.after(&made);
+        let mut after = files.after(&made);
+        for rename in &folder_renames {
+            after = after.after(rename);
+        }
         files.replace(after);
+    }
+
+    /// `made` with what it did to its notes' attachments folders: a move takes them along, and
+    /// a rename renames them, which comes back as renames of their own.
+    fn with_attachments(&mut self, made: Change) -> (Change, Vec<Change>) {
+        let ids = match &made {
+            Change::Move { ids, .. } => ids.clone(),
+            Change::Rename { id, .. } => vec![*id],
+            _ => return (made, vec![]),
+        };
+        let mut folders = vec![];
+        for id in ids {
+            match self.core.get_attachments_folder(&id) {
+                Ok(folder) => folders.extend(folder),
+                Err(LbErr { kind, .. }) => {
+                    warn!(?id, "failed to find an attachments folder: {:?}", kind);
+                    self.out
+                        .failure_messages
+                        .push(format!("Couldn't update links to attachments: {kind}"));
+                }
+            }
+        }
+        match made {
+            Change::Move { mut ids, to } => {
+                ids.extend(folders.into_iter().map(|f| f.id));
+                (Change::Move { ids, to }, vec![])
+            }
+            made => {
+                let renames = folders
+                    .into_iter()
+                    .map(|f| Change::Rename { id: f.id, name: f.name })
+                    .collect();
+                (made, renames)
+            }
+        }
     }
 
     /// Shares `id` with each of `users`, and if `share_linked`, also the
