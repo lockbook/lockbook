@@ -8,6 +8,7 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::crypto::DecryptedDocument;
 use lb_rs::model::errors::{LbErr, LbResult};
 use lb_rs::model::file_metadata::DocumentHmac;
+use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::{Uuid, spawn};
 use tracing::{Level, error, instrument, span, trace, warn};
 
@@ -507,12 +508,24 @@ impl TaskManager {
         &self, request: SaveRequest, old_hmac: Option<DocumentHmac>, content: TabSaveContent,
     ) {
         let id = request.id;
-        let new_hmac_result = self.core.safe_write(
-            request.id,
-            old_hmac,
-            &content.bytes(),
-            Some(request.origin.as_uuid()),
-        );
+        let drawing = match &content {
+            TabSaveContent::Svg(buffer) => Some(buffer.serialize()),
+            _ => None,
+        };
+        let new_hmac_result = {
+            let bytes = match &drawing {
+                Some(file) => file.as_bytes().into(),
+                None => content.bytes(),
+            };
+            self.core
+                .safe_write(request.id, old_hmac, &bytes, Some(request.origin.as_uuid()))
+        };
+        // the next merge compares against the file as written, parsed like a version from
+        // another device
+        let content = match drawing {
+            Some(file) => TabSaveContent::Svg(Box::new(Buffer::new(&file))),
+            None => content,
+        };
 
         {
             let mut tasks = self.tasks.lock().unwrap();

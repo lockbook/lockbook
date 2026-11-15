@@ -187,17 +187,11 @@ impl TestCanvas {
         self.svg_ref().buffer.serialize()
     }
 
-    /// A save completing: workspace.rs stores what was saved as the base
-    /// the next reload merges against.
+    /// A save completing: the task manager parses what was written into
+    /// the base the next reload merges against.
     pub fn save(&mut self) -> String {
         let bytes = self.file();
-        // CANVAS_PROPS_PARSED_BASE: the base as canvas-remote-style sets it
-        let saved = if std::env::var("CANVAS_PROPS_PARSED_BASE").is_ok() {
-            lb_rs::model::svg::buffer::Buffer::new(&bytes)
-        } else {
-            self.svg_ref().buffer.clone()
-        };
-        self.svg().opened_content = saved;
+        self.svg().opened_content = lb_rs::model::svg::buffer::Buffer::new(&bytes);
         bytes
     }
 

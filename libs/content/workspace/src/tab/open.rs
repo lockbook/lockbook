@@ -261,6 +261,8 @@ impl TabContent {
             TabContent::Svg(svg) => {
                 let remote = svg::buffer::Buffer::new(String::from_utf8_lossy(bytes).as_ref());
                 svg::buffer::Buffer::reload(&mut svg.buffer, &svg.opened_content, &remote);
+                // what's unsaved is now relative to this version
+                svg.opened_content = remote;
                 svg.open_file_hmac = hmac;
                 true
             }
