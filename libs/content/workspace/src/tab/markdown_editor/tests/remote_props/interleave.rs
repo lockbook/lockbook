@@ -164,8 +164,13 @@ impl Session<'_> {
             return Ok(());
         }
         let ctx = self.note.editor().edit.renderer.ctx.clone();
+        // a drop let go of before the version landed moves the image now
+        let dropped = self.note.editor().edit.in_progress_image_drag.as_ref();
+        let moved = dropped
+            .filter(|d| d.dropped)
+            .and_then(|d| Some(Event::Move { range: d.image, to: d.target? }));
         self.note.editor_mut().edit.apply_queued(&ctx);
-        self.observe(Input::Some, log)?;
+        self.observe(moved.as_ref().map_or(Input::Some, Input::Event), log)?;
         let view = self.view();
         self.note.frame_after(0.0, vec![]);
         settle(&mut self.note);
