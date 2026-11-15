@@ -500,13 +500,20 @@ impl<'ast> MdEdit {
     /// Where an inline embed dragged from `image` would land with the
     /// pointer at `pos`: the caret a click there places. Where it can't
     /// land, inside a word, a code span, a link or a block of code, it goes
-    /// to that thing's nearer edge. `None` where the drop moves nothing or
-    /// `pos` is outside the note's `viewport`.
+    /// to that thing's nearer edge. `None` where the drop moves nothing,
+    /// `pos` is outside the note's `viewport`, or `image` is in another
+    /// image's alt text, which moving it would rewrite.
     fn image_drop_offset(
         &self, root: &'ast AstNode<'ast>, image: (Grapheme, Grapheme), pos: egui::Pos2,
         viewport: egui::Rect,
     ) -> Option<Grapheme> {
-        if !viewport.contains(pos) {
+        let in_alt = root.descendants().any(|n| {
+            let outer = self.renderer.node_range(n);
+            matches!(n.data.borrow().value, NodeValue::Image(_))
+                && outer != image
+                && outer.contains_range(&image, true, true)
+        });
+        if in_alt || !viewport.contains(pos) {
             return None;
         }
         let to = self
