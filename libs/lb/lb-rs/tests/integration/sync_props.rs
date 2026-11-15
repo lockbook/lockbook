@@ -455,12 +455,14 @@ fn step(case: Case, src: &mut ByteSource, device: usize) -> Step {
     let tier = case.tier;
     let shares = if tier.accounts > 1 { 2 } else { 0 };
     let writes = 3 * case.mix.writes();
-    // steps aimed at what attachments folders make rare; nothing else draws differently
+    // attachments steps draw only at tiers with attachments folders, so the others draw what
+    // they did before them; the steps after those aim at what attachments folders make rare
     let aimed = if tier.attachments { 1 } else { 0 };
     let shared = aimed * shares / 2;
     #[rustfmt::skip]
     let weights = [
-        3, 1, 3, 2, writes, 2, 2, 1, shares, shares, shares, shares, 2, 3, 1, 1,
+        3, 1, 3, 2, writes, 2, 2, 1, shares, shares, shares, shares,
+        2 * aimed, 3 * aimed, aimed, aimed,
         shared, shared, shared, aimed, aimed, aimed, shared,
     ];
     match src.bias(&weights) {
