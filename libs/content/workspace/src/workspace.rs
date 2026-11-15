@@ -647,16 +647,17 @@ impl Workspace {
         }
     }
 
+    /// Queues a save of every tab with unsaved edits, closed ones included:
+    /// the tab cache keeps those until they're saved.
     pub fn save_all_tabs(&mut self) {
-        let slots: Vec<_> = self.tab_strip.clone();
-        for slot in &slots {
-            if let Some(tab) = self.tabs.get(&slot.id) {
-                if let Some(id) = tab.id() {
-                    if tab.is_dirty(&self.tasks) {
-                        self.tasks.queue_save(SaveRequest { id, origin: slot.id });
-                    }
-                }
-            }
+        let dirty: Vec<_> = self
+            .tabs
+            .iter()
+            .filter(|(_, tab)| tab.is_dirty(&self.tasks))
+            .filter_map(|(&origin, tab)| Some(SaveRequest { id: tab.id()?, origin }))
+            .collect();
+        for request in dirty {
+            self.tasks.queue_save(request);
         }
         self.last_save_all = Some(Instant::now());
     }
@@ -2842,5 +2843,34 @@ mod seen_share_tests {
         share(a);
         sync(&mut t);
         assert!(t.ws.has_unseen_shares());
+    }
+}
+
+#[cfg(test)]
+mod close_tests {
+    use crate::test_utils::ws::TestWs;
+
+    /// Text typed into a tab that closes before its save writes is kept
+    /// when another device's version lands first: the save fails, the
+    /// version merges into the closed tab, and the next auto-save writes
+    /// both.
+    #[test]
+    fn edits_survive_a_close_as_another_version_lands() {
+        let mut t = TestWs::new();
+        let id = t.doc("note.md", "mine\n");
+        t.ws.open_file(id, true, false);
+        t.settle();
+        t.frame_with(vec![egui::Event::Text("typed ".into())]);
+        let md = t.ws.current_tab().unwrap().markdown().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.text, "typed mine\n");
+
+        t.ws.close_tab(0);
+        t.ws.core.write_document(id, b"mine\ntheirs\n").unwrap();
+        t.idle(id);
+        t.ws.save_all_tabs();
+        t.idle(id);
+
+        let disk = String::from_utf8(t.ws.core.read_document(id, false).unwrap()).unwrap();
+        assert!(disk.contains("typed") && disk.contains("theirs"), "on disk: {disk:?}");
     }
 }
