@@ -33,4 +33,4 @@ Add structure to your document with punctuation made to look like what it does.
 ```
 
 ## The Toolbar
-These are just a few examples of what Lockbook can do. The [formatting reference](editor.md) has the rest. To skip the punctuation, try selecting a word or paragraph and tapping an icon on the toolbar, which adds the punctuation for you. It’s a fast way to learn your favorites or skip the punctuation on your phone.
+These are just a few examples of what Lockbook can do. The [formatting reference](formatting-reference.md) has the rest. To skip the punctuation, try selecting a word or paragraph and tapping an icon on the toolbar, which adds the punctuation for you. It’s a fast way to learn your favorites or skip the punctuation on your phone.

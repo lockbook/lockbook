@@ -11,7 +11,7 @@
 
 - [File Management](file-management.md)
 - [Writing in Markdown](the-editor.md)
-- [Formatting Reference](editor.md)
+- [Formatting Reference](formatting-reference.md)
 
 # Share and Sync
 

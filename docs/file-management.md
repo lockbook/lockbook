@@ -8,7 +8,7 @@ Lockbook doesn't impose a lockbook-specific organizational scheme onto. Your con
 Lockbook supports an ever-growing list of file types.
 
 * Tier 1 support: editable in platform
-  * [Markdown](https://www.markdownguide.org/), and many other forms of plain text: See more about [our editor](editor.md)
+  * [Markdown](https://www.markdownguide.org/), and many other forms of plain text: See more about [our editor](formatting-reference.md)
   * SVGs as our Drawing format
 * Teir 2: viewable in platform
   * many types of images
