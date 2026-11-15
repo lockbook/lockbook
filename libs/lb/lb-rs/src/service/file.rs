@@ -11,8 +11,19 @@ use crate::model::lazy::LazyTree;
 use crate::model::signed_meta::SignedMeta;
 use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
+use std::collections::HashMap;
 use std::iter;
 use uuid::Uuid;
+
+/// The attachments folders [Lb::list_attachments] finds, with what's in them.
+#[derive(Debug, Clone, Default)]
+pub struct Attachments {
+    /// The folders and everything in them.
+    pub files: Vec<File>,
+    /// Each document's attachments folder, found by what the folder is for, whatever its name
+    /// or place.
+    pub folders: HashMap<Uuid, Uuid>,
+}
 
 impl<S: Server, D: LocalDocuments> Lb<S, D> {
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -75,6 +86,33 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         self.events.meta_changed(Actor::User(None));
         Ok(ui_file)
+    }
+
+    /// Every attachments folder and everything in it that isn't deleted, including those
+    /// [Self::list_metadatas] leaves out, for an app that hides them itself but still finds images
+    /// and plans links through them.
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn list_attachments(&self) -> LbResult<Attachments> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        let mut ids = Vec::new();
+        let mut folders = HashMap::new();
+        for id in tree.ids() {
+            if tree.in_attachments(&id)?
+                && !tree.find(&id)?.is_link()
+                && !tree.calculate_deleted(&id)?
+            {
+                ids.push(id);
+                if let Some(of) = tree.find(&id)?.attachments_of() {
+                    folders.entry(of.id).or_insert(id);
+                }
+            }
+        }
+
+        let files = tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, false)?;
+        Ok(Attachments { files, folders })
     }
 
     /// `document`'s attachments folder, if it has one that isn't deleted.

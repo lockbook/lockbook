@@ -204,6 +204,38 @@ async fn a_note_shared_alone_brings_its_folder() {
 }
 
 #[tokio::test]
+async fn a_reader_lists_a_note_shared_alone_with_its_folder() {
+    let owner = test_core_with_attachments().await;
+    let reader = test_core_with_account().await;
+    let doc = owner.create_at_path("/notes/plan.md").await.unwrap();
+    let folder = owner.create_attachments_folder(&doc.id).await.unwrap();
+    let image = owner
+        .create_at_path("/notes/plan-attachments/image.png")
+        .await
+        .unwrap();
+    let reader_name = reader.get_account().unwrap().username.clone();
+    owner
+        .share_file(doc.id, &reader_name, ShareMode::Read)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    reader.sync().await.unwrap();
+    reader
+        .create_link_at_path("/shared/renamed.md", doc.id)
+        .await
+        .unwrap();
+
+    // the app finds the note's folder by what it's for, whatever the reader named the note
+    let attachments = reader.list_attachments().await.unwrap();
+    assert_eq!(attachments.folders.get(&doc.id), Some(&folder.id));
+    let mut ids: Vec<_> = attachments.files.iter().map(|f| f.id).collect();
+    ids.sort();
+    let mut expected = vec![folder.id, image.id];
+    expected.sort();
+    assert_eq!(ids, expected);
+}
+
+#[tokio::test]
 async fn a_note_shared_alone_has_its_folder_beside_the_link() {
     let owner = test_core_with_attachments().await;
     let reader = test_core_with_account().await;
