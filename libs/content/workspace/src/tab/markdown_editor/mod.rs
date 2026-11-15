@@ -984,7 +984,7 @@ impl MdRender {
             front_matter_collapsed: false,
             front_matter_collapse_toggled: false,
             bounds: Default::default(),
-            buffer: md.into(),
+            buffer: Buffer::from(md).with_words(Syntax::Markdown.words()),
             fragments: Vec::new(),
             block_boxes: Vec::new(),
             table_cell_boxes: Vec::new(),
@@ -1178,31 +1178,7 @@ impl MdRender {
     }
 
     pub fn comrak_options() -> Options<'static> {
-        let mut options = Options::default();
-        options.parse.ignore_setext = true;
-        options.extension.alerts = true;
-        options.extension.autolink = true;
-        options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
-        options.extension.footnotes = false;
-        options.extension.front_matter_delimiter = Some("---".to_string());
-        options.extension.greentext = false;
-        options.extension.header_id_prefix = None; // intended for HTML renderers
-        options.extension.highlight = true;
-        options.extension.math_code = true; // rendered as code for now
-        options.extension.math_dollars = true; // rendered as code for now
-        options.extension.multiline_block_quotes = false; // todo
-        options.extension.shortcodes = true;
-        options.extension.spoiler = true;
-        options.extension.strikethrough = true;
-        options.extension.subscript = true;
-        options.extension.superscript = true;
-        options.extension.table = true;
-        options.extension.tasklist = true;
-        options.extension.underline = true;
-        options.extension.wikilinks_title_after_pipe = true; // matches obsidian
-        options.extension.wikilinks_title_before_pipe = false; // would not match obsidian
-        options.render.escaped_char_spans = true;
-        options
+        lb_rs::model::text::words::markdown_options()
     }
 }
 
@@ -1250,7 +1226,7 @@ impl Editor {
             front_matter_collapse_toggled: false,
 
             bounds: Default::default(),
-            buffer: md.into(),
+            buffer: Buffer::from(md).with_words(kind.words()),
 
             fragments: Vec::new(),
             block_boxes: Vec::new(),
@@ -3596,6 +3572,12 @@ impl Syntax {
         } else {
             crate::syntax::Lang::from_extension(ext).map_or(Self::Plain, Self::Code)
         }
+    }
+
+    /// The words merges pair between versions of the text.
+    pub fn words(self) -> lb_rs::model::text::words::Words {
+        use lb_rs::model::text::words::Words;
+        if self == Self::Markdown { Words::Markdown } else { Words::Unicode }
     }
 
     /// The grammar that colors the text's source.

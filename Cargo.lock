@@ -4524,6 +4524,7 @@ dependencies = [
  "bip39-dict",
  "bytes",
  "chrono",
+ "comrak",
  "criterion",
  "crossbeam",
  "db-rs 0.3.7",

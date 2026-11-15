@@ -45,8 +45,10 @@ impl<S: Server> Lb<S> {
         let mut tasks = vec![];
         for file in self.list_metadatas().await? {
             if file.is_document() {
-                let is_text =
-                    DocumentType::from_file_name_using_extension(&file.name) == DocumentType::Text;
+                let is_text = matches!(
+                    DocumentType::from_file_name_using_extension(&file.name),
+                    DocumentType::Text(_)
+                );
 
                 if is_text {
                     tasks.push(async move { (file.id, self.read_document(file.id, false).await) });

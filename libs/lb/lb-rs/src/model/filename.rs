@@ -9,7 +9,8 @@ pub const MAX_ENCRYPTED_FILENAME_LENGTH: usize = MAX_FILENAME_LENGTH + 24;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DocumentType {
-    Text,
+    /// Text, merged by its words.
+    Text(text::words::Words),
     Drawing,
     Chat,
     Json,
@@ -20,7 +21,8 @@ pub enum DocumentType {
 impl DocumentType {
     pub fn from_file_name_using_extension(name: &str) -> DocumentType {
         match name.split('.').next_back() {
-            Some("md") | Some("txt") => DocumentType::Text,
+            Some("md") => DocumentType::Text(text::words::Words::Markdown),
+            Some("txt") => DocumentType::Text(text::words::Words::Unicode),
             Some("svg") => DocumentType::Drawing,
             Some("chat") => DocumentType::Chat,
             Some("json") => DocumentType::Json,
@@ -33,8 +35,9 @@ impl DocumentType {
     pub fn merge(&self, base: &[u8], local: &[u8], remote: &[u8]) -> Option<Vec<u8>> {
         let text = |bytes: &[u8]| String::from_utf8_lossy(bytes).to_string();
         match self {
-            DocumentType::Text => Some(
+            DocumentType::Text(words) => Some(
                 text::buffer::Buffer::from(text(base).as_str())
+                    .with_words(*words)
                     .merge(text(local), text(remote))
                     .into_bytes(),
             ),

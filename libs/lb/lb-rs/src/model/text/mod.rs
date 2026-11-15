@@ -3,39 +3,40 @@ pub mod offset_types;
 pub mod operation_types;
 pub mod unicode_segs;
 pub mod units;
+pub mod words;
 
 use offset_types::{Byte, RangeExt as _};
 use operation_types::Replace;
 
-use similar::DiffableStrRef as _;
-use unicode_segmentation::UnicodeSegmentation as _;
+use words::Words;
 
+/// The edits from `from` to `to`, pairing their unicode words.
 pub fn diff(from: &str, to: &str) -> Vec<Replace> {
+    diff_words(from, to, Words::Unicode)
+}
+
+/// The edits from `from` to `to`, pairing their `words`.
+pub fn diff_words(from: &str, to: &str, words: Words) -> Vec<Replace> {
     let mut result = Vec::new();
 
     let from_segs = unicode_segs::calc(from);
     let to_segs = unicode_segs::calc(to);
 
-    let mut from_words: Vec<_> = from
-        .split_word_bound_indices()
-        .map(|(idx, _)| Byte(idx))
-        .collect();
-    from_words.push(Byte(from.len()));
-
-    let mut to_words: Vec<_> = to
-        .split_word_bound_indices()
-        .map(|(idx, _)| Byte(idx))
-        .collect();
-    to_words.push(Byte(to.len()));
-
-    let diff = similar::TextDiff::configure()
-        .algorithm(similar::Algorithm::Myers)
-        .diff_unicode_words(from.as_diffable_str(), to.as_diffable_str());
+    let from_words = words.bounds(from);
+    let to_words = words.bounds(to);
+    let tokens = |text: &str, bounds: &[Byte]| -> Vec<String> {
+        bounds
+            .windows(2)
+            .map(|w| text[w[0].0..w[1].0].to_string())
+            .collect()
+    };
+    let (from_tokens, to_tokens) = (tokens(from, &from_words), tokens(to, &to_words));
+    let ops = similar::capture_diff_slices(similar::Algorithm::Myers, &from_tokens, &to_tokens);
 
     // positions come from walking the ops' lengths; similar's own indices can disagree with
     // the run before them (an insert after an equal may name the equal's first token)
     let (mut old_token, mut new_token) = (0, 0);
-    for diff_op in diff.ops() {
+    for diff_op in &ops {
         let (tag, old_range, new_range) = diff_op.as_tag_tuple();
         let (old_start, new_start) = (old_token, new_token);
         old_token += old_range.len();

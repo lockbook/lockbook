@@ -1,7 +1,8 @@
 use super::offset_types::{Byte, Grapheme, Graphemes, RangeExt};
 use super::operation_types::{InverseOperation, Operation, Replace};
 use super::unicode_segs::UnicodeSegs;
-use super::{diff, unicode_segs};
+use super::words::Words;
+use super::{diff_words, unicode_segs};
 use std::ops::Index;
 use std::time::Duration;
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -308,6 +309,9 @@ impl Ops {
 
 #[derive(Default)]
 struct External {
+    /// The words merges pair between versions of the text.
+    words: Words,
+
     /// Text last loaded into the editor. Used as a reference point for merging out-of-editor changes with in-editor
     /// changes, similar to a base in a 3-way merge. May be a state that never appears in the buffer's history.
     text: String,
@@ -344,13 +348,13 @@ impl External {
     /// what it wrote finds, last first so each piece's range is still where the diff put it. Only what changed wins
     /// conflicts: text an edit writes back as it was is no longer its own, and an edit that changes nothing is gone.
     /// Returns the pieces and the text after them.
-    fn split(text: &str, edits: Vec<Replace>) -> (Vec<Replace>, String) {
+    fn split(text: &str, edits: Vec<Replace>, words: Words) -> (Vec<Replace>, String) {
         let mut text =
             Snapshot { text: text.into(), segs: unicode_segs::calc(text), ..Default::default() };
         let mut pieces = vec![];
         for p in edits {
             let start = p.range.start();
-            for mut piece in diff(&text[p.range], &p.text).into_iter().rev() {
+            for mut piece in diff_words(&text[p.range], &p.text, words).into_iter().rev() {
                 piece.range = (start + piece.range.0.0, start + piece.range.1.0);
                 text.apply_replace(&piece);
                 pieces.push(piece);
@@ -364,7 +368,7 @@ impl External {
     /// local edit, rebased, replaces what it wrote. Flushed and pending edits are tidied apart, so a save in flight
     /// still records the edits it wrote; a newer version voids that save, whose write over `text` will be refused.
     fn reload(&mut self, text: String, current: &str) -> Vec<Replace> {
-        let mut remote = diff(&self.text, &text);
+        let mut remote = diff_words(&self.text, &text, self.words);
         if text != self.text {
             let pending = std::mem::take(&mut self.pending);
             self.pending = std::mem::take(&mut self.flushed);
@@ -373,9 +377,13 @@ impl External {
         let (flushed, after) = Self::split(
             &self.text,
             Self::drop_reverted(&self.text, std::mem::take(&mut self.flushed)),
+            self.words,
         );
-        let (pending, _) =
-            Self::split(&after, Self::drop_reverted(&after, std::mem::take(&mut self.pending)));
+        let (pending, _) = Self::split(
+            &after,
+            Self::drop_reverted(&after, std::mem::take(&mut self.pending)),
+            self.words,
+        );
         (self.flushed, self.pending) = (flushed, pending);
         let base = std::mem::replace(&mut self.text, text);
         if self.flushed.is_empty() && self.pending.is_empty() {
@@ -602,8 +610,8 @@ impl Buffer {
 
     /// Three-way merge of two versions of the buffer's external text, with `external_text_a` winning conflicts.
     pub fn merge(mut self, external_text_a: String, external_text_b: String) -> String {
-        let ops_a = diff(&self.external.text, &external_text_a);
-        let ops_b = diff(&self.external.text, &external_text_b);
+        let ops_a = diff_words(&self.external.text, &external_text_a, self.external.words);
+        let ops_b = diff_words(&self.external.text, &external_text_b, self.external.words);
 
         let ops = ops_a
             .into_iter()
@@ -614,6 +622,12 @@ impl Buffer {
 
         self.update();
         self.current.text
+    }
+
+    /// The buffer, merging versions of its text by `words`.
+    pub fn with_words(mut self, words: Words) -> Self {
+        self.external.words = words;
+        self
     }
 
     /// Applies all operations in the buffer's input queue

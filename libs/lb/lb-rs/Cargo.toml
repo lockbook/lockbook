@@ -22,6 +22,9 @@ bincode = "1.3.3"
 bip39-dict = "0.1.3"
 bytes = "1"
 chrono = "0.4"
+comrak = { version = "0.57", default-features = false, features = [
+    "shortcodes",
+] }
 crossbeam = "0.8.1"
 db-rs-derive = "0.3.7"
 db-rs = "0.4.4"
