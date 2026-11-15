@@ -4,7 +4,6 @@ use lb_rs::model::api::*;
 use lb_rs::model::crypto::AESEncrypted;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileDiff;
-use lb_rs::model::meta::Meta;
 use test_utils::*;
 
 #[tokio::test]
@@ -33,9 +32,10 @@ async fn upsert_id_takeover() {
         .clone()
     };
 
-    match file1.timestamped_value.value {
-        Meta::V1 { ref mut parent, .. } => *parent = core2.root().await.unwrap().id,
-    }
+    file1
+        .timestamped_value
+        .value
+        .set_parent(core2.root().await.unwrap().id);
 
     // If this succeeded account2 would be able to control file1
     let result = Server::upsert_file_metadata_v2(

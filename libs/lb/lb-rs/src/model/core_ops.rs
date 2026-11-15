@@ -4,9 +4,9 @@ use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
-use crate::model::filename::NameComponents;
+use crate::model::filename::{NameComponents, attachments_folder_name};
 use crate::model::lazy::LazyTree;
-use crate::model::meta::Meta;
+use crate::model::meta::{AttachmentsOf, Meta};
 use crate::model::secret_filename::{HmacSha256, SecretFileName};
 use crate::model::staged::{StagedTree, StagedTreeLike};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
@@ -149,6 +149,54 @@ where
 
         debug!("new {:?} with id: {}", file_type, id);
         Ok((file, id))
+    }
+
+    /// `document`'s attachments folder, beside it and named for it.
+    pub fn create_attachments_op(
+        &mut self, id: Uuid, key: AESKey, document: &Uuid, keychain: &Keychain,
+    ) -> LbResult<SignedMeta> {
+        let doc = self.find(document)?;
+        validate::is_document(doc)?;
+        let parent = *doc.parent();
+        if self.maybe_find(&parent).is_none() {
+            return Err(LbErrKind::InsufficientPermission.into());
+        }
+        let name = self.attachments_name(document, None, keychain)?;
+        let document_key = self.decrypt_key(document, keychain)?;
+        let (file, _) = self.create_op(id, key, &parent, &name, FileType::Folder, keychain)?;
+        let attachments_of =
+            AttachmentsOf { id: *document, key: symkey::encrypt(&document_key, &key)? };
+        file.timestamped_value
+            .value
+            .into_attachments(attachments_of)
+            .sign(keychain)
+    }
+
+    /// The name `document`'s attachments folder should have: the first name for it that no other
+    /// file beside the document has, or `folder`'s own name if that's one of the names for it and
+    /// free, so a folder is renamed only when it must be and two devices pick the same name.
+    pub fn attachments_name(
+        &mut self, document: &Uuid, folder: Option<Uuid>, keychain: &Keychain,
+    ) -> LbResult<String> {
+        let document_name = self.name(document, keychain)?;
+        let parent = *self.find(document)?.parent();
+        let mut taken = HashSet::new();
+        for sibling in self.children(&parent)? {
+            if Some(sibling) != folder && !self.calculate_deleted(&sibling)? {
+                taken.insert(self.name(&sibling, keychain)?);
+            }
+        }
+        let candidates = (1..=taken.len() + 1).map(|n| attachments_folder_name(&document_name, n));
+        if let Some(folder) = folder {
+            let current = self.name(&folder, keychain)?;
+            if !taken.contains(&current) && candidates.clone().any(|name| name == current) {
+                return Ok(current);
+            }
+        }
+        Ok(candidates
+            .into_iter()
+            .find(|name| !taken.contains(name))
+            .expect("one of n + 1 names is free beside n files"))
     }
 
     pub fn rename_op(
@@ -386,6 +434,28 @@ where
         Ok(id)
     }
 
+    /// Creates `document`'s attachments folder beside it.
+    pub fn create_attachments(
+        &mut self, id: Uuid, key: AESKey, document: &Uuid, keychain: &Keychain,
+    ) -> LbResult<Uuid> {
+        if self.calculate_deleted(document)? {
+            return Err(LbErrKind::FileNonexistent.into());
+        }
+        let op = self.create_attachments_op(id, key, document, keychain)?;
+        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
+        Ok(id)
+    }
+
+    /// Makes the new folder `id` an attachments folder, as `attachments_of` says.
+    pub fn attach_unvalidated(
+        &mut self, id: &Uuid, attachments_of: AttachmentsOf, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let file = self.find(id)?.timestamped_value.value.clone();
+        let op = file.into_attachments(attachments_of).sign(keychain)?;
+        self.stage_and_promote(Some(op))?;
+        Ok(())
+    }
+
     pub fn rename_unvalidated(
         &mut self, id: &Uuid, name: &str, keychain: &Keychain,
     ) -> LbResult<()> {
@@ -394,9 +464,36 @@ where
         Ok(())
     }
 
+    /// Renames `id`, and its attachments folder to match.
     pub fn rename(&mut self, id: &Uuid, name: &str, keychain: &Keychain) -> LbResult<()> {
-        let op = self.rename_op(id, name, keychain)?;
-        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
+        if self.find(id)?.attachments_of().is_some() {
+            return Err(LbErrKind::AttachmentsFolderFixed.into());
+        }
+        let mut tree = StagedTree::new(&self.tree, Vec::new()).to_lazy();
+        tree.rename_unvalidated(id, name, keychain)?;
+        tree.place_attachments(id, keychain)?;
+        let (_, ops) = tree.unstage();
+        self.stage_validate_and_promote(ops, Owner(keychain.get_pk()?))?;
+        Ok(())
+    }
+
+    /// Puts `document`'s attachments folder, if it has one, beside it and names it for it, as
+    /// [Self::attachments_name] picks.
+    pub fn place_attachments(&mut self, document: &Uuid, keychain: &Keychain) -> LbResult<()> {
+        if !self.find(document)?.is_document() || self.calculate_deleted(document)? {
+            return Ok(());
+        }
+        let Some(folder) = self.attachments_folder(document)? else {
+            return Ok(());
+        };
+        let parent = *self.find(document)?.parent();
+        if *self.find(&folder)?.parent() != parent {
+            self.move_unvalidated(&folder, &parent, keychain)?;
+        }
+        let name = self.attachments_name(document, Some(folder), keychain)?;
+        if name != self.name(&folder, keychain)? {
+            self.rename_unvalidated(&folder, &name, keychain)?;
+        }
         Ok(())
     }
 
@@ -412,8 +509,14 @@ where
         if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
             return Err(LbErrKind::FileParentNonexistent.into());
         }
-        let op = self.move_op(id, new_parent, keychain)?;
-        self.stage_validate_and_promote(op, Owner(keychain.get_pk()?))?;
+        if self.find(id)?.attachments_of().is_some() {
+            return Err(LbErrKind::AttachmentsFolderFixed.into());
+        }
+        let mut tree = StagedTree::new(&self.tree, Vec::new()).to_lazy();
+        tree.move_unvalidated(id, new_parent, keychain)?;
+        tree.place_attachments(id, keychain)?;
+        let (_, ops) = tree.unstage();
+        self.stage_validate_and_promote(ops, Owner(keychain.get_pk()?))?;
         Ok(())
     }
 

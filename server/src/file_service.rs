@@ -14,8 +14,10 @@ use lb_rs::model::clock::get_time;
 use lb_rs::model::errors::{LbErrKind, LbResult};
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{Diff, Owner};
+use lb_rs::model::meta::Meta;
 use lb_rs::model::server_meta::{IntoServerMeta, ServerMeta};
 use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::signed_meta::SignedMeta;
 use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -33,6 +35,9 @@ where
     ) -> Result<(), ServerError<UpsertError>> {
         let req_owner = Owner(context.public_key);
         let UpsertRequestV2 { updates } = context.request;
+        if !self.config.features.meta_v2 && updates.iter().any(|update| writes_v2(&update.new)) {
+            return Err(ClientError(UpsertError::DiffMalformed));
+        }
 
         let mut prior_deleted = HashSet::new();
         let mut current_deleted = HashSet::new();
@@ -1067,4 +1072,10 @@ where
 
 fn insert<K: Hash + Eq, V: Hash + Eq>(map: &mut HashMap<K, HashSet<V>>, k: K, v: V) {
     map.entry(k).or_default().insert(v);
+}
+
+/// Whether a client is writing metadata V2, which a server accepts only once its `meta_v2` feature
+/// is on.
+pub(crate) fn writes_v2(file: &SignedMeta) -> bool {
+    matches!(file.timestamped_value.value, Meta::V2 { .. })
 }

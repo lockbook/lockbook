@@ -79,6 +79,9 @@ pub struct FeatureFlags {
     pub new_accounts: bool,
     pub new_account_rate_limit: bool,
     pub bandwidth_controls: bool,
+    /// Accept metadata V2, which only attachments folders are written as. Off in production until
+    /// the minimum client version reads V2.
+    pub meta_v2: bool,
 }
 
 impl FeatureFlags {
@@ -94,6 +97,10 @@ impl FeatureFlags {
                 .unwrap(),
             bandwidth_controls: env::var("FEATURE_BANDWIDTH_CONTROLS")
                 .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap(),
+            meta_v2: env::var("FEATURE_META_V2")
+                .unwrap_or_else(|_| "false".to_string())
                 .parse()
                 .unwrap(),
         }

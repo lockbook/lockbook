@@ -68,6 +68,17 @@ pub struct Config {
     #[serde(default)]
     pub read_only: bool,
 
+    /// Should this device create attachments folders? Gates creating them and nothing else: a
+    /// device with it off reads, merges, moves, renames, deletes and shares them like one with it
+    /// on. Off until every client in the field reads metadata V2.
+    #[serde(default)]
+    pub attachments_folders: bool,
+
+    /// Should listings, recents, suggestions, pending shares and search include attachments
+    /// folders and their contents? The apps leave them out; the CLI shows them.
+    #[serde(default)]
+    pub list_attachments: bool,
+
     /// Seeds the ids and keys of new files and accounts, so a test that takes the same steps
     /// replays them; None draws from the OS. Seeded keys are guessable, so only test builds have
     /// it and no saved config sets one.
@@ -92,6 +103,8 @@ impl Default for Config {
             client_type: ClientType::Unknown,
             lock_budget: false,
             read_only: false,
+            attachments_folders: false,
+            list_attachments: false,
             #[cfg(feature = "test-seed")]
             seed: None,
         }
@@ -117,6 +130,7 @@ impl Config {
             logs: true,
             colored_logs: true,
             client_type: ClientType::Cli,
+            list_attachments: true,
             ..Default::default()
         }
     }

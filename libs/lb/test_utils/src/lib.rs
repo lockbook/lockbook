@@ -33,6 +33,12 @@ pub fn test_config() -> Config {
     }
 }
 
+/// [test_config] for a device that creates attachments folders: the only difference a device's
+/// attachments switch makes.
+pub fn attachments_config() -> Config {
+    Config { attachments_folders: true, ..test_config() }
+}
+
 pub use lockbook_server_lib;
 
 /// The client most tests drive: in this process, against one server shared by every test.
@@ -57,6 +63,16 @@ pub async fn test_core_from(core: &Lb) -> Lb {
 
 pub async fn test_core_with_account() -> Lb {
     with_account(test_core().await).await
+}
+
+/// A new account on a device that creates attachments folders.
+pub async fn test_core_with_attachments() -> Lb {
+    with_account(test_core_with(attachments_config()).await).await
+}
+
+/// Another device on `core`'s account, configured by the caller, e.g. with [attachments_config].
+pub async fn test_core_from_with(core: &Lb, config: Config) -> Lb {
+    import_into(core, test_core_with(config).await).await
 }
 
 /// Clients over HTTP to the server at [url], with their data on disk: for tests of the network
