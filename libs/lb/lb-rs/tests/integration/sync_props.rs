@@ -89,7 +89,8 @@ fn the_server_stays_valid() {
 
 #[test]
 fn with_creation_off_no_device_writes_v2() {
-    run(WRITE_SHARES, 2000, with_creation_off_no_device_writes_v2_check);
+    run(CREATION_OFF, 2000, with_creation_off_no_device_writes_v2_check);
+    assert!(REFUSED.get() > 0, "no device tried to create an attachments folder");
 }
 
 #[test]
@@ -133,6 +134,8 @@ struct Tier {
     /// Whether devices may create attachments folders, each by its seed, and the server accepts
     /// metadata V2. Without it every device's switch is off and the server refuses V2.
     attachments: bool,
+    /// Whether steps try attachments folders, even where every device's switch is off.
+    tries: bool,
     starts: &'static [Start],
 }
 
@@ -143,6 +146,7 @@ const SHARES: Tier = Tier {
     devices: 2,
     overlap: false,
     attachments: false,
+    tries: false,
     starts: &[Start::Empty, Start::Shared],
 };
 
@@ -156,7 +160,11 @@ const WRITE_SHARES: Tier =
 
 /// [`WRITE_SHARES`] with a fleet whose devices each create attachments folders or not, as the
 /// seed chooses, beside a server that accepts them.
-const ATTACHMENTS: Tier = Tier { attachments: true, ..WRITE_SHARES };
+const ATTACHMENTS: Tier = Tier { attachments: true, tries: true, ..WRITE_SHARES };
+
+/// [`WRITE_SHARES`] with devices trying attachments folders, every one with its switch off, beside
+/// a server that refuses V2.
+const CREATION_OFF: Tier = Tier { tries: true, ..WRITE_SHARES };
 
 impl Tier {
     fn all_devices(self) -> usize {
@@ -455,14 +463,15 @@ fn step(case: Case, src: &mut ByteSource, device: usize) -> Step {
     let tier = case.tier;
     let shares = if tier.accounts > 1 { 2 } else { 0 };
     let writes = 3 * case.mix.writes();
-    // attachments steps draw only at tiers with attachments folders, so the others draw what
-    // they did before them; the steps after those aim at what attachments folders make rare
+    // attachments steps draw only at tiers that try them, so the others draw what they did
+    // before them; the steps after those aim at what attachments folders make rare
+    let tries = if tier.tries { 1 } else { 0 };
     let aimed = if tier.attachments { 1 } else { 0 };
     let shared = aimed * shares / 2;
     #[rustfmt::skip]
     let weights = [
         3, 1, 3, 2, writes, 2, 2, 1, shares, shares, shares, shares,
-        2 * aimed, 3 * aimed, aimed, aimed,
+        2 * tries, 3 * tries, tries, tries,
         shared, shared, shared, aimed, aimed, aimed, shared,
     ];
     match src.bias(&weights) {
@@ -938,7 +947,11 @@ impl World {
                 let Some(document) = pick(device, reach, document, Kind::Document).await else {
                     return false;
                 };
-                device.create_attachments_folder(&document).await.is_ok()
+                let created = device.create_attachments_folder(&document).await.is_ok();
+                if !created {
+                    REFUSED.set(REFUSED.get() + 1);
+                }
+                created
             }
             Step::Attach { document, name, .. } => {
                 let Some((note, folder)) = attachments(device, reach, document).await else {
@@ -1611,6 +1624,8 @@ thread_local! {
     static LANDED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     /// How many documents this thread's steps have added to attachments folders.
     static ATTACHED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// How many attachments folders this thread's steps tried and were refused.
+    static REFUSED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 fn run_case(case: Case, deadline: Option<Instant>, seeds: u64, check: Check) {

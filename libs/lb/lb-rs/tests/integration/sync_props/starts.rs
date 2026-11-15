@@ -15,6 +15,7 @@ pub(super) fn population(tier: Tier, start: Start) -> Tier {
             starts: tier.starts,
             overlap: tier.overlap,
             attachments: tier.attachments,
+            tries: tier.tries,
             ..VACATION
         },
         Start::Empty | Start::Shared | Start::WriteShared => tier,
