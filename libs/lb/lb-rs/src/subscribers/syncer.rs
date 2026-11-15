@@ -220,8 +220,20 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         }
         let mut to_visit: Vec<Uuid> = prunable_ids.iter().copied().collect();
         while let Some(id) = to_visit.pop() {
-            let folders = attached.get(&id).into_iter().flatten().copied();
-            for child in local.children(&id)?.into_iter().chain(folders) {
+            let mut under = Vec::new();
+            for child in local.children(&id)? {
+                // an attachments folder goes where its document goes, not where its parent was:
+                // while the server has the document, the folder lands beside it in the merge
+                let follows_document = local
+                    .find(&child)?
+                    .attachments_of()
+                    .is_some_and(|of| server_ids.contains(&of.id));
+                if !follows_document {
+                    under.push(child);
+                }
+            }
+            under.extend(attached.get(&id).into_iter().flatten().copied());
+            for child in under {
                 if !server_ids.contains(&child) && prunable_ids.insert(child) {
                     to_visit.push(child);
                 }
@@ -501,7 +513,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     }
                     for id in parents_first(&local, &deletion_creations)? {
                         let local_file = local.find(&id)?.clone();
-                        let parent = folded(&attachments_to_fold, local_file.parent());
+                        let parent =
+                            created_parent(&remote_with_moves, &local_file, &attachments_to_fold);
                         remote_with_moves
                             .create_unvalidated(
                                 id,
@@ -584,7 +597,11 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 &local,
                                 &remote_with_moves,
                                 me,
-                                &folded(&attachments_to_fold, local.find(&id)?.parent()),
+                                &created_parent(
+                                    &remote_with_moves,
+                                    local.find(&id)?,
+                                    &attachments_to_fold,
+                                ),
                             )?
                         {
                             creations.insert(id);
@@ -592,7 +609,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     }
                     for id in parents_first(&local, &creations)? {
                         let local_file = local.find(&id)?.clone();
-                        let parent = folded(&attachments_to_fold, local_file.parent());
+                        let parent = created_parent(&merge, &local_file, &attachments_to_fold);
                         merge
                             .create_unvalidated(
                                 id,
@@ -1741,6 +1758,18 @@ fn parents_first<T: TreeLike>(tree: &LazyTree<T>, ids: &HashSet<Uuid>) -> LbResu
         );
     }
     Ok(order)
+}
+
+/// Where a file this device created goes in `tree`: an attachments folder beside its document,
+/// when `tree` has it, since a folder's place follows its document's; anything else in its own
+/// parent, [folded].
+fn created_parent<T: TreeLike<F = SignedMeta>>(
+    tree: &LazyTree<T>, file: &SignedMeta, attachments_to_fold: &HashMap<Uuid, Uuid>,
+) -> Uuid {
+    match tree.maybe_find_attached(file) {
+        Some(document) => *document.parent(),
+        None => folded(attachments_to_fold, file.parent()),
+    }
 }
 
 /// Where a file in `parent` goes: `parent`, unless it's a folded attachments folder.

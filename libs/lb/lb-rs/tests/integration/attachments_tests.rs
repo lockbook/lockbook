@@ -307,6 +307,50 @@ async fn a_deleted_folder_stops_reaching_a_reader_before_a_new_one_does() {
 }
 
 #[tokio::test]
+async fn a_writers_new_folder_follows_its_note_out_of_a_folder_that_leaves_the_share() {
+    let owner = test_core_with_attachments().await;
+    let writer = test_core_with_attachments().await;
+    let trip = owner.create_at_path("/Trip/").await.unwrap();
+    let flights = owner.create_at_path("/Trip/flights/").await.unwrap();
+    let doc = owner
+        .create_at_path("/Trip/flights/outbound.md")
+        .await
+        .unwrap();
+    let notes = owner.create_at_path("/Notes/").await.unwrap();
+    let writer_name = writer.get_account().unwrap().username.clone();
+    owner
+        .share_file(trip.id, &writer_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    writer.sync().await.unwrap();
+    writer.create_link_at_path("/Trip", trip.id).await.unwrap();
+    writer.sync().await.unwrap();
+
+    // offline, the writer adds an image; meanwhile the owner tidies the trip
+    let folder = writer.create_attachments_folder(&doc.id).await.unwrap();
+    let image = writer
+        .create_file("image.png", &folder.id, FileType::Document)
+        .await
+        .unwrap();
+    writer.write_document(image.id, b"pixels").await.unwrap();
+    owner.move_file(&doc.id, &trip.id).await.unwrap();
+    owner.sync().await.unwrap();
+    owner.move_file(&flights.id, &notes.id).await.unwrap();
+    owner.sync().await.unwrap();
+
+    writer.sync().await.unwrap();
+    owner.sync().await.unwrap();
+
+    for core in [&writer, &owner] {
+        let found = core.get_attachments_folder(&doc.id).await.unwrap().unwrap();
+        assert_eq!(found.id, folder.id);
+        assert_eq!(core.get_file_by_id(folder.id).await.unwrap().parent, trip.id);
+        assert_eq!(core.read_document(image.id, false).await.unwrap(), b"pixels");
+    }
+}
+
+#[tokio::test]
 async fn a_writer_of_a_note_shared_alone_adds_images() {
     let owner = test_core_with_attachments().await;
     let writer = test_core_with_attachments().await;
