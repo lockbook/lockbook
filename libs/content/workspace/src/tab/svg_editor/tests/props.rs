@@ -568,11 +568,17 @@ fn reload_other_check(c: &Case) -> Result<(), String> {
 const SIDE: u32 = super::harness::SCREEN.x as u32;
 const TALL: u32 = super::harness::SCREEN.y as u32;
 
+/// Where a mask has ink: anything visible, however faint. A highlighter
+/// stroke is mostly transparent.
+fn inked(pixmap: &resvg::tiny_skia::Pixmap) -> Vec<bool> {
+    pixmap.pixels().iter().map(|px| px.alpha() > 0).collect()
+}
+
 /// What the canvas painted last frame: its stroke meshes, filled.
 fn canvas_mask(c: &TestCanvas) -> Vec<bool> {
     use resvg::tiny_skia::{FillRule, Paint, PathBuilder, Pixmap};
     let mut pixmap = Pixmap::new(SIDE, TALL).unwrap();
-    let paint = Paint { anti_alias: true, ..Paint::default() };
+    let mut paint = Paint { anti_alias: true, ..Paint::default() };
     for clipped in &c.shapes {
         let egui::Shape::Mesh(mesh) = &clipped.shape else { continue };
         if mesh.texture_id != egui::TextureId::default() {
@@ -580,6 +586,7 @@ fn canvas_mask(c: &TestCanvas) -> Vec<bool> {
         }
         let v = &mesh.vertices;
         for tri in mesh.indices.chunks(3) {
+            paint.set_color_rgba8(0, 0, 0, v[tri[0] as usize].color.a());
             let mut pb = PathBuilder::new();
             pb.move_to(v[tri[0] as usize].pos.x, v[tri[0] as usize].pos.y);
             pb.line_to(v[tri[1] as usize].pos.x, v[tri[1] as usize].pos.y);
@@ -590,7 +597,7 @@ fn canvas_mask(c: &TestCanvas) -> Vec<bool> {
             }
         }
     }
-    pixmap.pixels().iter().map(|px| px.alpha() > 64).collect()
+    inked(&pixmap)
 }
 
 /// What any SVG viewer paints for the file, at the canvas's zoom.
@@ -598,7 +605,7 @@ fn viewer_mask(file: &str, master: Transform) -> Vec<bool> {
     let tree = resvg::usvg::Tree::from_str(file, &resvg::usvg::Options::default()).unwrap();
     let mut pixmap = resvg::tiny_skia::Pixmap::new(SIDE, TALL).unwrap();
     resvg::render(&tree, master, &mut pixmap.as_mut());
-    pixmap.pixels().iter().map(|px| px.alpha() > 64).collect()
+    inked(&pixmap)
 }
 
 /// Pixels set in `a` with nothing set in `b` within `r` pixels.
