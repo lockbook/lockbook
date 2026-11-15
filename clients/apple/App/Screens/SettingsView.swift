@@ -94,7 +94,7 @@ import SwiftWorkspace
 
                     SettingsUsageView(model: model)
                         .tabItem {
-                            Label("Usage", systemImage: "externaldrive")
+                            Label("Storage", systemImage: "externaldrive")
                         }
 
                     SettingsGeneralView()
@@ -114,7 +114,7 @@ import SwiftWorkspace
                 }
                 .navigationTitle("Settings")
             }
-            .frame(width: 500, height: 400)
+            .frame(width: 540, height: 520)
             .onAppear {
                 model.load()
             }
@@ -187,13 +187,57 @@ import SwiftWorkspace
     struct SettingsUsageView: View {
         let model: SettingsModel
 
+        @State private var storage = StorageModel()
+
         var body: some View {
             Form {
-                Section("Usage") {
+                if let usage = storage.usage {
+                    Section {
+                        StorageSummaryView(usage: usage)
+                    }
+
+                    if let message = storageMessage(usage: usage, outOfSpace: AppState.lb.events.status.outOfSpace) {
+                        Section {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(message.title)
+                                    .font(.headline)
+                                Text(message.detail)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+
+                Section("Plan") {
                     UsageSettingsRows(model: model)
+                }
+
+                Section {
+                    Picker("Breakdown", selection: $storage.tab) {
+                        ForEach(StorageTab.allCases) { tab in
+                            Text(tab.rawValue).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    if let report = storage.report {
+                        StorageBreakdownRows(model: storage, report: report)
+                    } else {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    }
+                } header: {
+                    Text("Breakdown")
                 }
             }
             .formStyle(.grouped)
+            .onAppear {
+                storage.load()
+            }
+            .onChange(of: AppState.lb.events.status.usage) {
+                storage.load(refreshCap: false)
+            }
         }
     }
 
@@ -396,22 +440,6 @@ struct UsageSettingsRows: View {
                             .frame(height: 6)
                     }
                     .padding(.vertical, 4)
-                }
-            } else {
-                ProgressView()
-            }
-        #else
-            if let usage = model.usage, let cap = usage.dataCap {
-                VStack {
-                    HStack {
-                        Text("Server Utilization:")
-                        Spacer()
-                        Text("\(usage.local.human) / \(cap.human)")
-                    }
-
-                    ProgressView(value: Double(min(usage.local.exact, cap.exact)), total: Double(cap.exact))
-                        .padding(.top, 10)
-                        .padding(.bottom, 8)
                 }
             } else {
                 ProgressView()
